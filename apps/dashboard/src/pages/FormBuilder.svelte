@@ -554,7 +554,7 @@
 
         <!-- Header color picker -->
         <div class="p-4 border-b border-outline-variant/10">
-          <p class="text-[13px] font-medium text-on-surface-variant/60 mb-2">{m.fb_header_color()}</p>
+          <p class="text-body-sm font-medium text-on-surface-variant/60 mb-2">{m.fb_header_color()}</p>
           <div class="flex flex-wrap gap-2">
             {#each PALETTE as color}
               <button onclick={() => headerColor = color}
@@ -571,7 +571,7 @@
           <div class="border-b border-outline-variant/10">
             <button onclick={() => showAppearance = !showAppearance}
               class="w-full p-4 flex items-center justify-between hover:bg-surface-container/50 transition-colors">
-              <p class="text-[13px] font-medium text-on-surface-variant/60 flex items-center gap-2">
+              <p class="text-body-sm font-medium text-on-surface-variant/60 flex items-center gap-2">
                 <Papicon icon="palette" size={14} /> {m.fb_appearance()}
               </p>
               <Papicon icon={showAppearance ? 'expand_less' : 'expand_more'} size={16} />
@@ -579,43 +579,43 @@
             {#if showAppearance}
               <div class="px-4 pb-4 space-y-3">
                 <div>
-                  <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">{m.fb_banner_url()}</p>
+                  <p class="text-2xs font-semibold text-on-surface-variant/60 mb-1">{m.fb_banner_url()}</p>
                   <input bind:value={theme.bannerUrl} placeholder="https://…/banniere.png"
                     class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs outline-none border border-outline-variant/20 focus:border-primary" />
                 </div>
                 <div>
-                  <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">{m.fb_logo_url()}</p>
+                  <p class="text-2xs font-semibold text-on-surface-variant/60 mb-1">{m.fb_logo_url()}</p>
                   <input bind:value={theme.logoUrl} placeholder="https://…/logo.png"
                     class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs outline-none border border-outline-variant/20 focus:border-primary" />
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                   <div>
-                    <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">{m.fb_accent()}</p>
+                    <p class="text-2xs font-semibold text-on-surface-variant/60 mb-1">{m.fb_accent()}</p>
                     <input type="color" value={theme.accentColor || headerColor}
                       oninput={(e) => theme.accentColor = (e.currentTarget as HTMLInputElement).value}
                       class="w-full h-8 rounded-lg bg-surface-container border border-outline-variant/20 cursor-pointer" />
                   </div>
                   <div>
-                    <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">{m.fb_background()}</p>
+                    <p class="text-2xs font-semibold text-on-surface-variant/60 mb-1">{m.fb_background()}</p>
                     <input type="color" value={theme.backgroundColor || '#0b0d12'}
                       oninput={(e) => theme.backgroundColor = (e.currentTarget as HTMLInputElement).value}
                       class="w-full h-8 rounded-lg bg-surface-container border border-outline-variant/20 cursor-pointer" />
                   </div>
                   <div>
-                    <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">{m.fb_cards()}</p>
+                    <p class="text-2xs font-semibold text-on-surface-variant/60 mb-1">{m.fb_cards()}</p>
                     <input type="color" value={theme.cardColor || '#151823'}
                       oninput={(e) => theme.cardColor = (e.currentTarget as HTMLInputElement).value}
                       class="w-full h-8 rounded-lg bg-surface-container border border-outline-variant/20 cursor-pointer" />
                   </div>
                   <div>
-                    <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">{m.fb_text()}</p>
+                    <p class="text-2xs font-semibold text-on-surface-variant/60 mb-1">{m.fb_text()}</p>
                     <input type="color" value={theme.textColor || '#e5e7eb'}
                       oninput={(e) => theme.textColor = (e.currentTarget as HTMLInputElement).value}
                       class="w-full h-8 rounded-lg bg-surface-container border border-outline-variant/20 cursor-pointer" />
                   </div>
                 </div>
                 <div>
-                  <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">{m.fb_font()}</p>
+                  <p class="text-2xs font-semibold text-on-surface-variant/60 mb-1">{m.fb_font()}</p>
                   <select value={theme.fontFamily || ''}
                     onchange={(e) => { const v = (e.currentTarget as HTMLSelectElement).value; theme.fontFamily = v || undefined; if (v) loadGoogleFont(v); }}
                     class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs outline-none border border-outline-variant/20">
@@ -626,7 +626,7 @@
                   </select>
                 </div>
                 <div>
-                  <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">
+                  <p class="text-2xs font-semibold text-on-surface-variant/60 mb-1">
                     {m.fb_border_radius({ px: theme.borderRadius ?? 12 })}
                   </p>
                   <input type="range" min="0" max="32" value={theme.borderRadius ?? 12}
@@ -640,20 +640,20 @@
                   <span class="text-xs text-on-surface/80">{m.fb_glassmorphism()}</span>
                 </label>
                 <div>
-                  <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">{m.fb_welcome_text()}</p>
+                  <p class="text-2xs font-semibold text-on-surface-variant/60 mb-1">{m.fb_welcome_text()}</p>
                   <textarea bind:value={theme.welcomeText} rows="2" placeholder={m.fb_welcome_text_ph()}
                     class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs outline-none border border-outline-variant/20 focus:border-primary resize-none"></textarea>
                 </div>
                 <div>
-                  <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">{m.fb_confirmation_text()}</p>
+                  <p class="text-2xs font-semibold text-on-surface-variant/60 mb-1">{m.fb_confirmation_text()}</p>
                   <textarea bind:value={theme.confirmationText} rows="2" placeholder={m.fb_confirmation_text_ph()}
                     class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs outline-none border border-outline-variant/20 focus:border-primary resize-none"></textarea>
                 </div>
                 <div>
-                  <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">{m.fb_custom_css()}</p>
+                  <p class="text-2xs font-semibold text-on-surface-variant/60 mb-1">{m.fb_custom_css()}</p>
                   <textarea bind:value={customCss} rows="6" spellcheck="false"
                     placeholder={'.pf-card { border: 1px solid gold; }'}
-                    class="w-full bg-surface-container rounded-lg px-3 py-2 text-[11px] font-mono outline-none border border-outline-variant/20 focus:border-primary resize-y"></textarea>
+                    class="w-full bg-surface-container rounded-lg px-3 py-2 text-2xs font-mono outline-none border border-outline-variant/20 focus:border-primary resize-y"></textarea>
                 </div>
               </div>
             {/if}
@@ -663,7 +663,7 @@
         <!-- Sections -->
         <div class="p-4 border-b border-outline-variant/10">
           <div class="flex items-center justify-between mb-2">
-            <p class="text-[13px] font-medium text-on-surface-variant/60">{m.fb_sections()}</p>
+            <p class="text-body-sm font-medium text-on-surface-variant/60">{m.fb_sections()}</p>
             <button onclick={addSection}
               class="p-1 rounded-lg hover:bg-surface-container transition-colors text-primary">
               <Papicon icon="add" size={16} />
@@ -689,7 +689,7 @@
 
         <!-- Add question types -->
         <div class="p-4 flex-1">
-          <p class="text-[13px] font-medium text-on-surface-variant/60 mb-3">{m.fb_add_question()}</p>
+          <p class="text-body-sm font-medium text-on-surface-variant/60 mb-3">{m.fb_add_question()}</p>
           <div class="grid grid-cols-1 gap-1">
             {#each FIELD_TYPES as ft}
               <button onclick={() => addField(ft.type)}
@@ -751,7 +751,7 @@
               <!-- Drag handle row -->
               <div class="flex items-center gap-2 px-4 pt-4 pb-2 border-b border-outline-variant/10">
                 <Papicon icon="drag_indicator" size={18} class="text-on-surface-variant/30 cursor-grab" />
-                <span class="text-[10px] font-mono text-on-surface-variant/40 uppercase">
+                <span class="text-2xs font-mono text-on-surface-variant/40 uppercase">
                   {FIELD_TYPES.find(t => t.type === field.type)?.label ?? field.type}
                 </span>
                 <div class="ml-auto flex gap-1">

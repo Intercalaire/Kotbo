@@ -130,7 +130,7 @@
       </div>
 
       <div class="flex items-center gap-3 self-start sm:self-auto">
-        <div class="flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0c1322] p-0.5 text-[10px] font-bold uppercase tracking-wider">
+        <div class="flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0c1322] p-0.5 text-2xs font-bold uppercase tracking-wider">
           {#each locales as loc}
             <button
               type="button"
@@ -193,19 +193,19 @@
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
             <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{entries.length}</p>
-            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.prestige_public_stat_members()}</p>
+            <p class="text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.prestige_public_stat_members()}</p>
           </div>
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
             <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100 truncate">{topTier}</p>
-            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.prestige_public_stat_top_tier()}</p>
+            <p class="text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.prestige_public_stat_top_tier()}</p>
           </div>
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
             <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{bestStreak}</p>
-            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.prestige_public_stat_streak()}</p>
+            <p class="text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.prestige_public_stat_streak()}</p>
           </div>
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
             <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{formatRp(totalRp)}</p>
-            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.prestige_public_stat_total_rp()}</p>
+            <p class="text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.prestige_public_stat_total_rp()}</p>
           </div>
         </div>
       {/if}
@@ -222,8 +222,8 @@
                 style="border-color:{entry.tier.color}"
               />
               <p class="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{entry.displayName ?? entry.userId}</p>
-              <p class="text-[11px] font-bold uppercase tracking-wider" style="color:{entry.tier.color}">{entry.tier.name}</p>
-              <p class="text-lg font-bold text-slate-800 dark:text-slate-100 tabular-nums">{entry.rp.toLocaleString(dateLocale())} <span class="text-[10px] font-medium text-slate-400">RP</span></p>
+              <p class="text-2xs font-bold uppercase tracking-wider" style="color:{entry.tier.color}">{entry.tier.name}</p>
+              <p class="text-lg font-bold text-slate-800 dark:text-slate-100 tabular-nums">{entry.rp.toLocaleString(dateLocale())} <span class="text-2xs font-medium text-slate-400">RP</span></p>
             </div>
           {/each}
         </div>
@@ -274,7 +274,7 @@
                     <div class="h-full rounded-full" style="width:{progressOf(entry)}%; background:{entry.tier.color}"></div>
                   </div>
                 </div>
-                <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold shrink-0" style="background:{entry.tier.color}22;color:{entry.tier.color}">
+                <span class="px-2 py-0.5 rounded-full text-2xs font-semibold shrink-0" style="background:{entry.tier.color}22;color:{entry.tier.color}">
                   {entry.tier.name}
                 </span>
                 <span class="text-sm font-mono text-slate-500 dark:text-slate-400 w-20 text-right tabular-nums">{entry.rp.toLocaleString(dateLocale())}</span>

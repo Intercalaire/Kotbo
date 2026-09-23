@@ -135,7 +135,7 @@
         <Papicon icon="UserX" size={13} />
         Blacklist
         {#if globalBlacklist.length > 0}
-          <span class="px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 text-[11px] font-semibold">{globalBlacklist.length}</span>
+          <span class="px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 text-2xs font-semibold">{globalBlacklist.length}</span>
         {/if}
       </button>
     </div>
@@ -174,7 +174,7 @@
             />
             <button
               type="submit"
-              class="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-[13px] font-medium transition-all shadow-md shadow-primary/20"
+              class="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-body-sm font-medium transition-all shadow-md shadow-primary/20"
             >
               Ajouter
             </button>
@@ -198,11 +198,11 @@
                   {/if}
                   <div>
                     <p class="font-bold text-sm text-on-surface">{admin.username}</p>
-                    <p class="text-[10px] text-on-surface-variant/30 font-mono">{admin.userId}</p>
+                    <p class="text-2xs text-on-surface-variant/30 font-mono">{admin.userId}</p>
                   </div>
                 </div>
                 {#if admin.userId === OWNER_ID}
-                  <span class="text-[11px] uppercase font-semibold tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">Créateur</span>
+                  <span class="text-2xs uppercase font-semibold tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">Créateur</span>
                 {:else}
                   <button
                     onclick={() => handleRemoveAdmin(admin.userId, admin.username)}
@@ -241,7 +241,7 @@
               />
               <button
                 type="submit"
-                class="px-5 py-2.5 rounded-xl bg-red-500 text-white text-[13px] font-medium hover:bg-red-600 transition-all shadow-md shadow-red-500/20"
+                class="px-5 py-2.5 rounded-xl bg-red-500 text-white text-body-sm font-medium hover:bg-red-600 transition-all shadow-md shadow-red-500/20"
               >
                 Bannir
               </button>
@@ -271,9 +271,9 @@
                   {/if}
                   <div>
                     <p class="font-bold text-sm text-on-surface">{user.username}</p>
-                    <p class="text-[10px] text-on-surface-variant/30 font-mono">{user.userId}</p>
+                    <p class="text-2xs text-on-surface-variant/30 font-mono">{user.userId}</p>
                     {#if user.reason}
-                      <p class="text-[10px] text-red-400/70 mt-0.5 italic">{user.reason}</p>
+                      <p class="text-2xs text-red-400/70 mt-0.5 italic">{user.reason}</p>
                     {/if}
                   </div>
                 </div>

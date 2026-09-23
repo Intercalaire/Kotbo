@@ -148,13 +148,13 @@
           placeholder={m.d7_search_server()}
           class="flex-1 bg-transparent text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none"
         />
-        <kbd class="hidden sm:flex px-1.5 py-0.5 rounded bg-surface-container border border-outline-variant text-[10px] font-medium text-on-surface-variant/40 leading-none">
+        <kbd class="hidden sm:flex px-1.5 py-0.5 rounded bg-surface-container border border-outline-variant text-2xs font-medium text-on-surface-variant/40 leading-none">
           ESC
         </kbd>
       </div>
 
       <div class="max-h-[50vh] overflow-y-auto py-1">
-        <p class="text-[10px] font-medium uppercase tracking-wider text-on-surface-variant px-3 py-1.5">
+        <p class="text-2xs font-medium uppercase tracking-wider text-on-surface-variant px-3 py-1.5">
           {m.d7_servers_count({ count: filteredGroups.length })}
         </p>
 
@@ -208,19 +208,19 @@
                 <p class="text-sm leading-none truncate flex items-center gap-1.5">
                   {guild.name}
                   {#if guild.isStaffServer}
-                    <span class="text-[9px] font-medium uppercase tracking-wide px-1 py-0.5 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">{m.d7_staff()}</span>
+                    <span class="text-2xs font-medium uppercase tracking-wide px-1 py-0.5 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">{m.d7_staff()}</span>
                   {/if}
                   {#if isActive}
-                    <span class="text-[9px] font-medium uppercase tracking-wide px-1 py-0.5 rounded bg-primary/10 text-primary">{m.d7_current()}</span>
+                    <span class="text-2xs font-medium uppercase tracking-wide px-1 py-0.5 rounded bg-primary/10 text-primary">{m.d7_current()}</span>
                   {/if}
                 </p>
-                <p class="text-[10px] text-on-surface-variant mt-0.5 truncate">
+                <p class="text-2xs text-on-surface-variant mt-0.5 truncate">
                   {guild.accessLevel === 'admin' ? m.d7_admin() : guild.accessLevel === 'moderator' ? m.d7_moderator() : m.d7_member()}
                 </p>
               </div>
 
               {#if isSelected}
-                <kbd class="text-[9px] text-primary/50 leading-none">↵</kbd>
+                <kbd class="text-2xs text-primary/50 leading-none">↵</kbd>
               {/if}
             </button>
           </div>
@@ -243,19 +243,19 @@
           </span>
           <span class="min-w-0 flex-1">
             <span class="block text-sm leading-none truncate">{m.d7_add_to_server()}</span>
-            <span class="block text-[10px] text-on-surface-variant mt-0.5 truncate">{m.d7_add_to_server_hint()}</span>
+            <span class="block text-2xs text-on-surface-variant mt-0.5 truncate">{m.d7_add_to_server_hint()}</span>
           </span>
           <Papicon icon="ChevronRight" size={12} class="shrink-0 text-on-surface-variant/40" />
         </button>
       </div>
 
       <div class="flex items-center gap-3 px-3 py-2 border-t border-outline-variant bg-surface-container">
-        <div class="flex items-center gap-1 text-[10px] text-on-surface-variant/40">
-          <kbd class="px-1 py-0.5 rounded bg-surface-container-highest border border-outline-variant font-mono text-[9px]">↑↓</kbd>
+        <div class="flex items-center gap-1 text-2xs text-on-surface-variant/40">
+          <kbd class="px-1 py-0.5 rounded bg-surface-container-highest border border-outline-variant font-mono text-2xs">↑↓</kbd>
           {m.d7_navigate()}
         </div>
-        <div class="flex items-center gap-1 text-[10px] text-on-surface-variant/40">
-          <kbd class="px-1 py-0.5 rounded bg-surface-container-highest border border-outline-variant font-mono text-[9px]">↵</kbd>
+        <div class="flex items-center gap-1 text-2xs text-on-surface-variant/40">
+          <kbd class="px-1 py-0.5 rounded bg-surface-container-highest border border-outline-variant font-mono text-2xs">↵</kbd>
           {m.d7_select()}
         </div>
       </div>

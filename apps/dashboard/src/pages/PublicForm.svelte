@@ -346,7 +346,7 @@
           </div>
           <button
             onclick={loginWithDiscord}
-            class="px-4 py-2 text-white rounded-lg text-[13px] font-medium transition-all shadow-md shrink-0 flex items-center gap-2
+            class="px-4 py-2 text-white rounded-lg text-body-sm font-medium transition-all shadow-md shrink-0 flex items-center gap-2
  {authRequired ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'}"
           >
             Se connecter

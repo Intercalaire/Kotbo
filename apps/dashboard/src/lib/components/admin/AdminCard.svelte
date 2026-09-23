@@ -54,7 +54,7 @@
         <div class="min-w-0">
           <h2 class="text-[15px] font-semibold text-on-surface leading-tight">{title}</h2>
           {#if description}
-            <p class="text-[13px] text-on-surface-variant mt-0.5 leading-snug">{description}</p>
+            <p class="text-body-sm text-on-surface-variant mt-0.5 leading-snug">{description}</p>
           {/if}
         </div>
       </div>

@@ -65,12 +65,12 @@
 
   {#if template?.maturity.reasons.length}
     <div class="mt-5 flex flex-wrap items-center gap-2">
-      <span class="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant/40">
+      <span class="inline-flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wider text-on-surface-variant/40">
         <Papicon icon="check-circle" size={12} />
         Ce qu'on a lu
       </span>
       {#each template.maturity.reasons as reason (reason)}
-        <span class="text-[12px] font-medium px-2 py-1 rounded-lg bg-surface-container-low/60 border border-outline-variant/30 text-on-surface-variant/70">
+        <span class="text-xs font-medium px-2 py-1 rounded-lg bg-surface-container-low/60 border border-outline-variant/30 text-on-surface-variant/70">
           {reason}
         </span>
       {/each}

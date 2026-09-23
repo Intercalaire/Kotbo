@@ -152,38 +152,38 @@
             <h3 class="text-base font-semibold text-on-surface truncate">{card.name}</h3>
           </div>
           {#if running}
-            <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-tertiary/15 text-tertiary">
+            <span class="shrink-0 text-2xs font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-tertiary/15 text-tertiary">
               {m.am_presets_active()}
             </span>
           {:else if selected}
-            <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-primary/15 text-primary">
+            <span class="shrink-0 text-2xs font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-primary/15 text-primary">
               {m.am_presets_selected()}
             </span>
           {:else if card.recommended}
-            <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg border border-primary/30 text-primary/80">
+            <span class="shrink-0 text-2xs font-bold uppercase tracking-widest px-2 py-1 rounded-lg border border-primary/30 text-primary/80">
               {m.am_presets_recommended()}
             </span>
           {/if}
         </div>
 
-        <p class="text-[13px] text-on-surface-variant/70 mt-3 leading-relaxed">{card.desc}</p>
+        <p class="text-body-sm text-on-surface-variant/70 mt-3 leading-relaxed">{card.desc}</p>
 
         {#if detailed}
           <div class="grid grid-cols-2 gap-2.5 mt-5 mb-1">
             <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-              <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.am_presets_tile_filters()}</p>
+              <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.am_presets_tile_filters()}</p>
               <p class="text-sm font-semibold text-on-surface">{automodActiveFilterCount(card.filters, card.raid)} / {AUTOMOD_FILTER_TOTAL}</p>
             </div>
             <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-              <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.am_presets_tile_spam()}</p>
+              <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.am_presets_tile_spam()}</p>
               <p class="text-sm font-semibold text-on-surface">{spamSummary(card.filters)}</p>
             </div>
             <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-              <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.am_presets_tile_sanction()}</p>
+              <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.am_presets_tile_sanction()}</p>
               <p class="text-sm font-semibold text-on-surface">{sanctionSummary(card.filters)}</p>
             </div>
             <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-              <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.am_presets_tile_raid()}</p>
+              <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.am_presets_tile_raid()}</p>
               <p class="text-sm font-semibold text-on-surface">{raidSummary(card.raid)}</p>
             </div>
           </div>
@@ -195,7 +195,7 @@
              regler en detail - et la carte devenait un pave qui navigue sans
              prevenir. -->
         {#if !card.preset}
-          <p class="flex items-center gap-1.5 mt-4 text-[13px] font-semibold text-primary/80">
+          <p class="flex items-center gap-1.5 mt-4 text-body-sm font-semibold text-primary/80">
             {m.am_presets_open_advanced()}
             <Papicon icon="ArrowRight" size={14} />
           </p>
@@ -204,10 +204,10 @@
     {/each}
   </div>
 
-  <p class="text-[11px] text-on-surface-variant/50 text-center max-w-2xl mx-auto">{m.am_presets_untouched()}</p>
+  <p class="text-2xs text-on-surface-variant/50 text-center max-w-2xl mx-auto">{m.am_presets_untouched()}</p>
 
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl px-6 py-5">
-    <p class="text-[13px] text-on-surface-variant/70">
+    <p class="text-body-sm text-on-surface-variant/70">
       <!-- Le bouton est desactive tant que rien n'a bouge : sans ce cas, la
            phrase promettait un enregistrement impossible a declencher. -->
       {#if !dirty}
@@ -220,7 +220,7 @@
       type="button"
       onclick={onsave}
       disabled={disabled || !dirty || saving}
-      class="shrink-0 px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary text-[13px] font-medium rounded-lg shadow-md shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
+      class="shrink-0 px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary text-body-sm font-medium rounded-lg shadow-md shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
     >
       <Papicon icon="Check" size={16} />
       {m.am_presets_save()}

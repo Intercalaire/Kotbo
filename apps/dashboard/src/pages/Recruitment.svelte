@@ -489,7 +489,7 @@
       {#if activeTab === 'google-forms' && canManageSettings}
         <button 
           onclick={() => showCreateModal = true}
-          class="px-4 py-2.5 rounded-xl bg-primary text-white font-medium text-[13px] active:scale-[0.98] transition-all flex items-center gap-2"
+          class="px-4 py-2.5 rounded-xl bg-primary text-white font-medium text-body-sm active:scale-[0.98] transition-all flex items-center gap-2"
         >
           <Papicon icon="add" size={16} />
           {m.recruit_new_google_form()}
@@ -517,7 +517,7 @@
         </div>
         <div class="text-xs">
             <p class="text-2xl font-semibold text-on-surface leading-none">{stats.pending}</p>
-            <p class="text-[11px] uppercase tracking-widest text-on-surface-variant/70 font-bold mt-1">{m.recruit_stat_pending()}</p>
+            <p class="text-2xs uppercase tracking-widest text-on-surface-variant/70 font-bold mt-1">{m.recruit_stat_pending()}</p>
         </div>
       </div>
       <div class="px-6 py-4 rounded-xl bg-surface-container-low/50 border border-outline-variant/10 flex items-center gap-4 hover:shadow-sm hover:shadow-primary/5 transition-all">
@@ -526,7 +526,7 @@
         </div>
         <div class="text-xs">
             <p class="text-2xl font-semibold text-on-surface leading-none">{stats.oral}</p>
-            <p class="text-[11px] uppercase tracking-widest text-on-surface-variant/70 font-bold mt-1">{m.recruit_stat_oral()}</p>
+            <p class="text-2xs uppercase tracking-widest text-on-surface-variant/70 font-bold mt-1">{m.recruit_stat_oral()}</p>
         </div>
       </div>
       <div class="px-6 py-4 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-4 hover:shadow-sm hover:shadow-rose-500/20 transition-all">
@@ -535,7 +535,7 @@
         </div>
         <div class="text-xs text-rose-500">
             <p class="text-2xl font-semibold leading-none">{stats.autoRejected}</p>
-            <p class="text-[11px] uppercase tracking-widest font-bold mt-1 opacity-70">{m.recruit_stat_auto_rejected()}</p>
+            <p class="text-2xs uppercase tracking-widest font-bold mt-1 opacity-70">{m.recruit_stat_auto_rejected()}</p>
         </div>
       </div>
     </div>
@@ -545,7 +545,7 @@
       {#each ['ALL', 'PENDING', 'ORAL', 'APPROVED', 'REJECTED', 'AUTO_REJECTED'] as f}
         <button 
            onclick={() => filter = f}
-           class="px-6 py-2.5 rounded-full text-[13px] font-medium transition-all {filter === f ? 'bg-primary text-white scale-105' : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'}">
+           class="px-6 py-2.5 rounded-full text-body-sm font-medium transition-all {filter === f ? 'bg-primary text-white scale-105' : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'}">
            {f === 'ALL' ? m.recruit_filter_all() : getStatusLabel(f)}
         </button>
       {/each}
@@ -610,11 +610,11 @@
                                   <h3 class="text-xl font-semibold text-on-surface font-headline tracking-tight">{candidature.username || m.recruit_anonymous()}</h3>
                                   <div class="flex flex-wrap items-center gap-3 mt-1">
                                       <span class="text-xs font-bold text-on-surface-variant/75">{new Date(candidature.createdAt).toLocaleDateString(dateLocale())}</span>
-                                      <span class="px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-widest border {getStatusColor(candidature.status)}">
+                                      <span class="px-3 py-1 rounded-full text-2xs font-semibold uppercase tracking-widest border {getStatusColor(candidature.status)}">
                                           {getStatusLabel(candidature.status)}
                                       </span>
                                       {#if candidature.discordId}
-                                         <span class="text-[10px] font-mono text-on-surface-variant/70">ID: {candidature.discordId}</span>
+                                         <span class="text-2xs font-mono text-on-surface-variant/70">ID: {candidature.discordId}</span>
                                       {/if}
                                   </div>
                               </div>
@@ -642,7 +642,7 @@
                           {#each Object.entries(candidature.data) as [key, value]}
                              {#if typeof value !== 'object' || Array.isArray(value)}
                               <div class="space-y-1">
-                                  <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/70 leading-tight">{fieldLabels[key] || key}</p>
+                                  <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/70 leading-tight">{fieldLabels[key] || key}</p>
                                   <div class="text-sm font-medium text-on-surface/80 bg-surface-container/30 rounded-xl px-4 py-2 border border-outline-variant/5">
                                      <div class="max-h-32 overflow-y-auto scrollbar-hide whitespace-pre-wrap">{formatValue(value)}</div>
                                   </div>
@@ -674,31 +674,31 @@
                              {#if candidature.status === 'PENDING'}
                                 <button 
                                    onclick={() => openValidateModal(candidature)}
-                                   class="col-span-2 py-3 rounded-lg bg-blue-600 text-white text-[13px] font-medium shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                                   class="col-span-2 py-3 rounded-lg bg-blue-600 text-white text-body-sm font-medium shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2">
                                     <Papicon icon="check_circle" size={14} /> {m.recruit_action_to_oral()}
                                 </button>
                                 <button 
                                    onclick={() => openRejectModal(candidature)}
-                                   class="col-span-2 py-3 rounded-lg bg-surface-container hover:bg-rose-500/10 hover:text-rose-500 text-on-surface-variant text-[13px] font-medium transition-all">
+                                   class="col-span-2 py-3 rounded-lg bg-surface-container hover:bg-rose-500/10 hover:text-rose-500 text-on-surface-variant text-body-sm font-medium transition-all">
                                     {m.recruit_action_reject()}
                                 </button>
                              {/if}
                              {#if candidature.status === 'AUTO_REJECTED'}
                                <button 
                                  onclick={() => openValidateModal(candidature)}
-                                 class="col-span-2 py-3 rounded-lg bg-emerald-600 text-white text-[13px] font-medium shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                                 class="col-span-2 py-3 rounded-lg bg-emerald-600 text-white text-body-sm font-medium shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2">
                                   <Papicon icon="verified" size={14} /> {m.recruit_action_accept_anyway()}
                                </button>
                              {/if}
                              {#if candidature.status === 'ORAL'}
                                 <button 
                                    onclick={() => openOralPassModal(candidature)}
-                                   class="py-3 rounded-lg bg-emerald-600 text-white text-[13px] font-medium shadow-sm active:scale-[0.98] transition-all flex items-center justify-center">
+                                   class="py-3 rounded-lg bg-emerald-600 text-white text-body-sm font-medium shadow-sm active:scale-[0.98] transition-all flex items-center justify-center">
                                     {m.recruit_action_oral_pass()}
                                 </button>
                                 <button 
                                    onclick={() => openOralFailModal(candidature)}
-                                   class="py-3 rounded-lg bg-rose-600 text-white text-[13px] font-medium shadow-sm active:scale-[0.98] transition-all flex items-center justify-center">
+                                   class="py-3 rounded-lg bg-rose-600 text-white text-body-sm font-medium shadow-sm active:scale-[0.98] transition-all flex items-center justify-center">
                                     {m.recruit_action_oral_fail()}
                                 </button>
                              {/if}
@@ -706,7 +706,7 @@
                       {/if}
                       
                       {#if candidature.reapplyAfter && new Date(candidature.reapplyAfter) > new Date()}
-                         <div class="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant/50 text-center mt-2">
+                         <div class="text-2xs uppercase font-bold tracking-widest text-on-surface-variant/50 text-center mt-2">
                            {m.recruit_reapply_after({ date: new Date(candidature.reapplyAfter).toLocaleDateString(dateLocale()) })}
                          </div>
                       {/if}
@@ -759,7 +759,7 @@
                       <p class="text-xs text-on-surface-variant/70 mt-1 line-clamp-2 leading-relaxed">{form.description}</p>
                     {/if}
                   </div>
-                  <span class="px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider border {form.isActive ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'}">
+                  <span class="px-2.5 py-1 rounded-full text-2xs font-semibold uppercase tracking-wider border {form.isActive ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'}">
                     {form.isActive ? m.recruit_form_active() : m.recruit_form_inactive()}
                   </span>
                 </div>
@@ -799,7 +799,7 @@
                   {#if form.apiKey}
                     <button
                       onclick={() => showGoogleAppsScript(form)}
-                      class="flex-1 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-[13px] font-medium transition-all flex items-center justify-center gap-1.5"
+                      class="flex-1 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-body-sm font-medium transition-all flex items-center justify-center gap-1.5"
                       title={m.recruit_script_tooltip()}
                     >
                       <Papicon icon="code" size={14} />
@@ -850,7 +850,7 @@
         <div class="p-8 space-y-8 max-h-[70vh] overflow-y-auto">
              <div class="space-y-4">
                 <label class="block">
-                  <span class="text-[13px] font-medium text-on-surface-variant/60 ml-1 mb-2 block">{m.recruit_field_log_channel()}</span>
+                  <span class="text-body-sm font-medium text-on-surface-variant/60 ml-1 mb-2 block">{m.recruit_field_log_channel()}</span>
                   <FormSelect
                      bind:value={recruitmentLogChannelId}
                      className="w-full"
@@ -863,7 +863,7 @@
                 </label>
 
                <label class="block">
-                 <span class="text-[13px] font-medium text-on-surface-variant/60 ml-1 mb-2 block">{m.recruit_field_category_id()}</span>
+                 <span class="text-body-sm font-medium text-on-surface-variant/60 ml-1 mb-2 block">{m.recruit_field_category_id()}</span>
                  <FormInput 
                    type="text" 
                    bind:value={recruitmentCategoryId} 
@@ -911,7 +911,7 @@
         <div>
           <label for="validate-discord-id" class="field-label">{m.recruit_validate_field_id()}</label>
           <input id="validate-discord-id" type="text" bind:value={validationDiscordId} class="w-full bg-surface-container rounded-lg px-5 py-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm font-medium font-mono" placeholder={m.recruit_field_category_ph()}>
-            <p class="text-[10px] text-on-surface-variant/60 mt-2">{m.recruit_validate_field_hint()}</p>
+            <p class="text-2xs text-on-surface-variant/60 mt-2">{m.recruit_validate_field_hint()}</p>
         </div>
         
         <div class="flex gap-4 mt-8 pt-6 border-t border-outline-variant/20">
@@ -1069,7 +1069,7 @@
 
       <div class="p-8 space-y-6">
         <label class="block">
-          <span class="text-[13px] font-medium text-primary mb-2 block">{m.recruit_form_name_label()}</span>
+          <span class="text-body-sm font-medium text-primary mb-2 block">{m.recruit_form_name_label()}</span>
           <FormInput 
             type="text" 
             bind:value={newFormName} 
@@ -1079,7 +1079,7 @@
         </label>
 
         <label class="block">
-          <span class="text-[13px] font-medium text-primary mb-2 block">{m.recruit_form_desc_label()}</span>
+          <span class="text-body-sm font-medium text-primary mb-2 block">{m.recruit_form_desc_label()}</span>
           <textarea 
             bind:value={newFormDescription} 
             placeholder={m.recruit_form_desc_ph()}
@@ -1139,7 +1139,7 @@
               navigator.clipboard.writeText(generatedScript);
               toast.success(m.recruit_script_copied());
             }}
-            class="absolute top-4 right-4 px-4 py-2 rounded-xl bg-primary text-white text-[13px] font-medium hover:bg-primary/90 transition-all shadow-md active:scale-95"
+            class="absolute top-4 right-4 px-4 py-2 rounded-xl bg-primary text-white text-body-sm font-medium hover:bg-primary/90 transition-all shadow-md active:scale-95"
           >
             {m.recruit_copy_btn()}
           </button>
@@ -1185,7 +1185,7 @@
           </div>
           <button 
             onclick={copyKeyToClipboard}
-            class="absolute top-1/2 -translate-y-1/2 right-4 px-4 py-2.5 rounded-xl {keyCopied ? 'bg-emerald-500 text-white' : 'bg-primary text-white'} text-[13px] font-medium hover:bg-primary/90 transition-all shadow-md active:scale-95"
+            class="absolute top-1/2 -translate-y-1/2 right-4 px-4 py-2.5 rounded-xl {keyCopied ? 'bg-emerald-500 text-white' : 'bg-primary text-white'} text-body-sm font-medium hover:bg-primary/90 transition-all shadow-md active:scale-95"
           >
             {keyCopied ? m.recruit_copied_btn() : m.recruit_copy_btn()}
           </button>

@@ -258,21 +258,21 @@
       <div class="stat-kpi flex items-center gap-2.5 !py-1.5 !px-3">
         <Papicon icon="Code" size={14} class="text-on-surface-variant" />
         <div class="flex flex-col">
-          <span class="section-label !text-[9px]">{m.commands_kpi_total()}</span>
+          <span class="section-label !text-2xs">{m.commands_kpi_total()}</span>
           <span class="text-sm font-semibold text-on-surface">{commandCatalog.length}</span>
         </div>
       </div>
       <div class="stat-kpi flex items-center gap-2.5 !py-1.5 !px-3 !border-primary/20">
         <Papicon icon="Lock" size={14} class="text-primary" />
         <div class="flex flex-col">
-          <span class="section-label !text-[9px] !text-primary/70">{m.commands_kpi_restrictions()}</span>
+          <span class="section-label !text-2xs !text-primary/70">{m.commands_kpi_restrictions()}</span>
           <span class="text-sm font-semibold text-primary">{restrictedCount}</span>
         </div>
       </div>
       <div class="stat-kpi flex items-center gap-2.5 !py-1.5 !px-3">
         <Papicon icon="Power" size={14} class="text-error" />
         <div class="flex flex-col">
-          <span class="section-label !text-[9px]">{m.commands_kpi_disabled()}</span>
+          <span class="section-label !text-2xs">{m.commands_kpi_disabled()}</span>
           <span class="text-sm font-semibold text-on-surface">{disabledCount}</span>
         </div>
       </div>
@@ -336,10 +336,10 @@
                 <div class="flex items-center gap-2 flex-wrap">
                   <code class="cmd-code">/{command.name}</code>
                   {#if restrictionCount(rule) > 0}
-                    <span class="badge badge-success !text-[9px]">{restrictionCount(rule)}</span>
+                    <span class="badge badge-success !text-2xs">{restrictionCount(rule)}</span>
                   {/if}
                   {#if !rule.enabled}
-                    <span class="badge badge-danger !text-[9px]">{m.commands_badge_disabled()}</span>
+                    <span class="badge badge-danger !text-2xs">{m.commands_badge_disabled()}</span>
                   {/if}
                 </div>
                 <p class="mt-1.5 text-sm text-on-surface-variant/80">

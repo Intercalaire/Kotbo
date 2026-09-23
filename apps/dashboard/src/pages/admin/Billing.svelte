@@ -150,7 +150,7 @@
               <div class="min-w-0 xl:w-64">
                 <div class="flex items-center gap-2">
                   <h2 class="font-semibold text-on-surface truncate">{guild.name ?? 'Serveur absent'}</h2>
-                  {#if !guild.present}<span class="px-2 py-0.5 rounded-full bg-on-surface/8 text-[10px] text-on-surface-variant">hors bot</span>{/if}
+                  {#if !guild.present}<span class="px-2 py-0.5 rounded-full bg-on-surface/8 text-2xs text-on-surface-variant">hors bot</span>{/if}
                 </div>
                 <p class="text-xs font-mono text-on-surface-variant mt-1 select-all">{guild.id}</p>
                 <p class="text-xs text-on-surface-variant mt-2">Accès : {guild.activated ? 'actif' : 'inactif'}{guild.accessExpiresAt ? ` jusqu'au ${date(guild.accessExpiresAt)}` : ''}</p>

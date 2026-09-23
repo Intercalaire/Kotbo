@@ -71,7 +71,7 @@
 
 {#if activeSeries.length === 0}
   <div class="flex items-center justify-center text-center px-6" style="height: {height}px">
-    <p class="text-[13px] text-on-surface-variant max-w-sm">{emptyLabel}</p>
+    <p class="text-body-sm text-on-surface-variant max-w-sm">{emptyLabel}</p>
   </div>
 {:else}
   <div class="space-y-3">
@@ -139,7 +139,7 @@
 
       {#if hoverIndex !== null && hoverTime !== null}
         <div
-          class="pointer-events-none absolute top-1 rounded-xl border border-outline-variant/30 bg-surface-container-lowest/95 backdrop-blur px-3 py-2 shadow-lg text-[12px] min-w-36 z-10"
+          class="pointer-events-none absolute top-1 rounded-xl border border-outline-variant/30 bg-surface-container-lowest/95 backdrop-blur px-3 py-2 shadow-lg text-xs min-w-36 z-10"
           style="left: clamp(0px, {(hoverIndex / Math.max(pointCount - 1, 1)) * 100}%, calc(100% - 9rem))"
         >
           <p class="font-semibold text-on-surface-variant mb-1 tabular-nums">{formatTime(hoverTime)}</p>
@@ -161,7 +161,7 @@
 
     <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
       {#each activeSeries as line (line.key)}
-        <span class="inline-flex items-center gap-1.5 text-[12px] text-on-surface-variant">
+        <span class="inline-flex items-center gap-1.5 text-xs text-on-surface-variant">
           <span class="w-2.5 h-2.5 rounded-full" style="background: {line.color}"></span>
           {line.label}
         </span>

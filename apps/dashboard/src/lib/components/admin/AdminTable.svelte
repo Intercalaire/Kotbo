@@ -73,7 +73,7 @@
           {#each columns as column (column.key)}
             <th
               scope="col"
-              class="sticky top-0 z-10 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant whitespace-nowrap
+              class="sticky top-0 z-10 px-4 py-2.5 text-2xs font-semibold uppercase tracking-wider text-on-surface-variant whitespace-nowrap
                 {alignClasses[column.align ?? 'left']} {column.width ?? ''} {column.hideBelow ? hideClasses[column.hideBelow] : ''}"
               aria-sort={column.sortKey && sortKey === column.sortKey
                 ? (sortDir === 'asc' ? 'ascending' : 'descending')
@@ -121,7 +121,7 @@
                 </div>
                 <p class="text-sm font-semibold text-on-surface">{emptyTitle}</p>
                 {#if emptyHint}
-                  <p class="text-[13px] text-on-surface-variant max-w-sm">{emptyHint}</p>
+                  <p class="text-body-sm text-on-surface-variant max-w-sm">{emptyHint}</p>
                 {/if}
               </div>
             </td>

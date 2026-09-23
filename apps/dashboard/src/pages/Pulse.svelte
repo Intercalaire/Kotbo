@@ -307,7 +307,7 @@
 <ModulePage title={m.pulse_title()} description={m.pulse_desc()} icon="activity" featureKey="dashboard">
   {#snippet actions()}
     <button
-      class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+      class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
       onclick={handleRefresh}
       disabled={refreshing}
     >
@@ -373,9 +373,9 @@
             <!-- Indicateur provisoire : la journée en cours n'est pas comparable
                  à une journée entière, on l'affiche sans tendance ni alertes. -->
             <div class="w-full pt-3 mt-1 border-t border-outline-variant/10 flex flex-col items-center gap-0.5">
-              <span class="text-[11px] text-on-surface-variant/60">{m.pulse_today_partial()}</span>
+              <span class="text-2xs text-on-surface-variant/60">{m.pulse_today_partial()}</span>
               <span class="text-xl font-bold" style="color: {scoreColor(today.score)}">{today.score}<span class="text-xs text-on-surface-variant/50">/100</span></span>
-              <span class="text-[10px] text-amber-500 text-center leading-tight">{m.pulse_partial_hint()}</span>
+              <span class="text-2xs text-amber-500 text-center leading-tight">{m.pulse_partial_hint()}</span>
             </div>
           {/if}
         </div>
@@ -672,7 +672,7 @@
           <div class="flex items-center gap-4">
             <div class="w-20 h-20 rounded-full border-[5px] flex flex-col items-center justify-center shrink-0" style="border-color: {scoreColor(displayed.score)}">
               <span class="text-2xl font-bold text-on-surface leading-none">{displayed.score}</span>
-              <span class="text-[10px] text-on-surface-variant/60">/100</span>
+              <span class="text-2xs text-on-surface-variant/60">/100</span>
             </div>
             <div class="flex flex-col gap-1">
               <span class="text-base font-semibold">{scoreLabel(displayed.score)}</span>
@@ -707,7 +707,7 @@
 
           {#if displayed.alerts.length > 0}
             <div class="space-y-1.5 pt-2 border-t border-outline-variant/10">
-              <h4 class="text-[13px] font-medium text-on-surface-variant/60">{m.pulse_alerts()}</h4>
+              <h4 class="text-body-sm font-medium text-on-surface-variant/60">{m.pulse_alerts()}</h4>
               {#each displayed.alerts.slice(0, 3) as alert, i (alert.code ?? i)}
                 <div class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs {severityClasses(alert.severity)}">
                   <Papicon icon={severityIcon(alert.severity)} size={14} />
@@ -756,7 +756,7 @@
           </div>
           {#if predData.anomalies.length > 0}
             <div class="space-y-1.5 pt-2 border-t border-outline-variant/10">
-              <h4 class="text-[13px] font-medium text-on-surface-variant/60">{m.pulse_anomalies_title()}</h4>
+              <h4 class="text-body-sm font-medium text-on-surface-variant/60">{m.pulse_anomalies_title()}</h4>
               {#each predData.anomalies.slice(0, 3) as anomaly (anomaly.metric + anomaly.dateKey)}
                 <div class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs {severityClasses(anomaly.severity)}">
                   <Papicon icon={anomaly.type === 'spike' ? 'arrow-up' : 'arrow-down'} size={14} />

@@ -212,7 +212,7 @@
             <div class="flex flex-col gap-2">
               <div class="flex items-center gap-3">
                 <span class="text-lg font-semibold text-on-surface">{et.label}</span>
-                <span class="px-2.5 py-0.5 rounded-lg text-[11px] font-semibold uppercase tracking-widest {et.tagColor}">
+                <span class="px-2.5 py-0.5 rounded-lg text-2xs font-semibold uppercase tracking-widest {et.tagColor}">
                   {et.tag}
                 </span>
               </div>
@@ -251,7 +251,7 @@
       {#if canManageEvents}
         <button
           onclick={() => showTypeModal = true}
-          class="px-4 py-2 bg-primary text-on-primary rounded-xl font-medium text-[13px] transition-transform"
+          class="px-4 py-2 bg-primary text-on-primary rounded-xl font-medium text-body-sm transition-transform"
         >
           {m.ev_new_event()}
         </button>
@@ -292,10 +292,10 @@
               <div class="min-w-0 flex-1">
                 <div class="flex items-center flex-wrap gap-x-3 gap-y-1.5">
                   <h4 class="text-xl font-semibold text-on-surface truncate">{event.title}</h4>
-                  <span class="shrink-0 px-3 py-1 rounded-lg text-[11px] font-semibold uppercase tracking-widest {getStatusColor(event.status)} border border-current/10">
+                  <span class="shrink-0 px-3 py-1 rounded-lg text-2xs font-semibold uppercase tracking-widest {getStatusColor(event.status)} border border-current/10">
                     {getStatusLabel(event.status)}
                   </span>
-                  <span class="shrink-0 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold uppercase tracking-widest
+                  <span class="shrink-0 px-2.5 py-0.5 rounded-lg text-2xs font-semibold uppercase tracking-widest
  {event.type === 'CTF' ? 'bg-emerald-500/15 text-emerald-400' : event.type === 'CUSTOM' ? 'bg-purple-500/15 text-purple-400' : 'bg-blue-500/15 text-blue-400'}">
                     {event.type === 'CTF' ? 'CTF' : event.type === 'CUSTOM' ? 'Custom' : 'Quiz'}
                   </span>
@@ -303,20 +303,20 @@
                 <p class="text-on-surface-variant/60 mt-1 line-clamp-1">{event.description || m.ev_no_description()}</p>
                 <div class="flex items-center flex-wrap gap-4 mt-3">
                   {#if event.type === 'CTF'}
-                    <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
+                    <span class="text-2xs font-bold text-on-surface-variant/40 flex items-center gap-1.5">
                       <Papicon icon="Flag" size={12} /> {m.ev_count_challenges({ count: event._count?.ctfChallenges || 0 })}
                     </span>
                   {:else if event.type === 'QUIZ'}
-                    <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
+                    <span class="text-2xs font-bold text-on-surface-variant/40 flex items-center gap-1.5">
                       <Papicon icon="HelpCircle" size={12} /> {m.ev_count_questions({ count: event._count?.questions || 0 })}
                     </span>
                   {/if}
                   {#if event.type === 'CUSTOM'}
-                    <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
+                    <span class="text-2xs font-bold text-on-surface-variant/40 flex items-center gap-1.5">
                       <Papicon icon="UserPlus" size={12} /> {m.ev_count_registrations({ count: event._count?.registrations || 0 })}
                     </span>
                   {:else}
-                    <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
+                    <span class="text-2xs font-bold text-on-surface-variant/40 flex items-center gap-1.5">
                       <Papicon icon="Users" size={12} /> {m.ev_count_participants({ count: event._count?.participants || 0 })}
                     </span>
                   {/if}
@@ -372,7 +372,7 @@
             </div>
             <p class="text-on-surface-variant/60 font-semibold text-xl">{m.ev_no_event_title()}</p>
             {#if canManageEvents}
-              <button onclick={() => showTypeModal = true} class="mt-6 text-primary font-semibold uppercase text-[10px] tracking-widest hover:underline">
+              <button onclick={() => showTypeModal = true} class="mt-6 text-primary font-semibold uppercase text-2xs tracking-widest hover:underline">
                 {m.ev_create_first()}
               </button>
             {/if}

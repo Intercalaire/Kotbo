@@ -118,7 +118,7 @@
 
       <div class="flex items-center gap-3 self-start sm:self-auto">
         <!-- Sélecteur de langue -->
-        <div class="flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0c1322] p-0.5 text-[10px] font-bold uppercase tracking-wider">
+        <div class="flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0c1322] p-0.5 text-2xs font-bold uppercase tracking-wider">
           {#each locales as loc}
             <button
               type="button"
@@ -146,7 +146,7 @@
         <div class="relative flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-500/20 dark:border-emerald-500/10 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 absolute"></span>
-          <span class="ml-2.5 uppercase tracking-wider text-[10px]">{m.leveling_public_live_badge()}</span>
+          <span class="ml-2.5 uppercase tracking-wider text-2xs">{m.leveling_public_live_badge()}</span>
         </div>
       </div>
     </header>
@@ -196,19 +196,19 @@
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
             <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{levels.length}</p>
-            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.leveling_public_stat_members()}</p>
+            <p class="text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.leveling_public_stat_members()}</p>
           </div>
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
             <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{maxLevel}</p>
-            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.leveling_public_stat_max_level()}</p>
+            <p class="text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.leveling_public_stat_max_level()}</p>
           </div>
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
             <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{avgLevel}</p>
-            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.leveling_public_stat_avg_level()}</p>
+            <p class="text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.leveling_public_stat_avg_level()}</p>
           </div>
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
             <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{formatXp(totalXp)}</p>
-            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.leveling_public_stat_total_xp()}</p>
+            <p class="text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.leveling_public_stat_total_xp()}</p>
           </div>
         </div>
       {/if}
@@ -216,7 +216,7 @@
       <!-- ─── Section Top 3 Épuré ─── -->
       {#if !searchQuery && levels.length > 0}
         <div class="space-y-4">
-          <h3 class="text-[13px] font-medium text-slate-400 dark:text-slate-500 flex items-center gap-2 ml-1">
+          <h3 class="text-body-sm font-medium text-slate-400 dark:text-slate-500 flex items-center gap-2 ml-1">
             <span class="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
             <span>{m.leveling_public_top_trio()}</span>
           </h3>
@@ -348,7 +348,7 @@
         <div class="border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="bg-slate-50 dark:bg-[#0c1322] border-b border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              <tr class="bg-slate-50 dark:bg-[#0c1322] border-b border-slate-200 dark:border-slate-800 text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                 <th class="px-5 py-3.5 w-16 text-center">{m.leveling_public_col_rank()}</th>
                 <th class="px-6 py-3.5">{m.leveling_public_col_member()}</th>
                 <th class="px-6 py-3.5 w-24">{m.leveling_public_col_level()}</th>
@@ -395,7 +395,7 @@
                       <div class="min-w-0">
                         <span class="font-bold text-slate-800 dark:text-slate-100 text-sm truncate block">{userLvl.displayName || userLvl.username || m.leveling_public_unknown_member()}</span>
                         {#if userLvl.username && userLvl.displayName !== userLvl.username}
-                          <span class="text-[10px] text-slate-400 dark:text-slate-500 font-mono">@{userLvl.username}</span>
+                          <span class="text-2xs text-slate-400 dark:text-slate-500 font-mono">@{userLvl.username}</span>
                         {/if}
                       </div>
                     </div>
@@ -424,7 +424,7 @@
                           style="width: {percent}%"
                         ></div>
                       </div>
-                      <span class="text-[10px] font-mono text-slate-400 dark:text-slate-500 whitespace-nowrap">{Math.round(percent)}%</span>
+                      <span class="text-2xs font-mono text-slate-400 dark:text-slate-500 whitespace-nowrap">{Math.round(percent)}%</span>
                     </div>
                   </td>
                 </tr>

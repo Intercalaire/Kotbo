@@ -395,7 +395,7 @@
           <Papicon icon="chevron-right" size={16} />
         </button>
       </div>
-      <button onclick={today} class="px-3 py-1.5 text-[11px] font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-hover rounded-md border border-outline-variant/20 transition-all">
+      <button onclick={today} class="px-3 py-1.5 text-2xs font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-hover rounded-md border border-outline-variant/20 transition-all">
         Aujourd'hui
       </button>
 
@@ -408,7 +408,7 @@
       {#each viewTabs as { key, label }}
         <button
           onclick={() => view = key}
-          class="px-3 py-1.5 text-[11px] font-semibold rounded-md transition-all whitespace-nowrap {view === key ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover'}"
+          class="px-3 py-1.5 text-2xs font-semibold rounded-md transition-all whitespace-nowrap {view === key ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover'}"
         >
           {isNarrow && key === 'workweek' ? 'Travail' : label}
         </button>
@@ -423,7 +423,7 @@
       <div class="grid grid-cols-7 h-full overflow-y-auto custom-scrollbar">
         <!-- Day headers -->
         {#each weekDaysShort as day}
-          <div class="p-3 text-center text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/70 border-b border-r border-outline-variant/10 last:border-r-0 bg-surface-container-lowest/50 sticky top-0 z-10">
+          <div class="p-3 text-center text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/70 border-b border-r border-outline-variant/10 last:border-r-0 bg-surface-container-lowest/50 sticky top-0 z-10">
             {day}
           </div>
         {/each}
@@ -448,7 +448,7 @@
             {/if}
 
             <div class="flex items-center justify-between mb-1 px-0.5 relative z-10">
-              <span class="text-[11px] font-semibold {isToday(date) ? 'w-6 h-6 bg-primary text-white flex items-center justify-center rounded-full' : 'text-on-surface-variant'}">
+              <span class="text-2xs font-semibold {isToday(date) ? 'w-6 h-6 bg-primary text-white flex items-center justify-center rounded-full' : 'text-on-surface-variant'}">
                 {date.getDate()}
               </span>
             </div>
@@ -458,7 +458,7 @@
                 <button
                   onclick={(e) => { e.stopPropagation(); onEventClick(event); }}
                   onpointerdown={(e) => e.stopPropagation()}
-                  class="w-full text-left px-1.5 py-0.5 rounded text-[10px] truncate flex items-center gap-1 transition-all {getEventBg(event.type)} cursor-pointer"
+                  class="w-full text-left px-1.5 py-0.5 rounded text-2xs truncate flex items-center gap-1 transition-all {getEventBg(event.type)} cursor-pointer"
                 >
                   <span class="w-1.5 h-1.5 rounded-full shrink-0 {getEventDotColor(event.type)}"></span>
                   {#if !event.isAllDay}
@@ -471,7 +471,7 @@
                 <button
                   onclick={(e) => { e.stopPropagation(); onDateClick(date); }}
                   onpointerdown={(e) => e.stopPropagation()}
-                  class="w-full text-center py-0.5 text-[9px] font-semibold text-primary/70 hover:text-primary transition-colors"
+                  class="w-full text-center py-0.5 text-2xs font-semibold text-primary/70 hover:text-primary transition-colors"
                 >
                   +{dayEvents.length - 3} autres
                 </button>
@@ -489,7 +489,7 @@
           <div class="border-r border-outline-variant/10"></div>
           {#each calendarDays as { date }}
             <div class="py-2.5 px-2 text-center border-r border-outline-variant/10 last:border-r-0 {isToday(date) ? 'bg-primary/5' : ''}">
-              <p class="text-[9px] font-semibold uppercase tracking-widest text-on-surface-variant/60">{weekDaysShort[(date.getDay() + 6) % 7]}</p>
+              <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/60">{weekDaysShort[(date.getDay() + 6) % 7]}</p>
               <p class="text-lg font-bold {isToday(date) ? 'text-primary' : 'text-on-surface'} leading-tight">
                 {#if isToday(date)}
                   <span class="inline-flex items-center justify-center w-8 h-8 bg-primary text-white rounded-full">{date.getDate()}</span>
@@ -503,7 +503,7 @@
 
         <!-- All-day events -->
         <div class="grid shrink-0 border-b border-outline-variant/20 bg-surface-container-lowest/30" style="grid-template-columns: 56px repeat({colCount}, 1fr)">
-          <div class="px-1 py-1.5 text-[9px] font-semibold uppercase text-on-surface-variant/50 flex items-center justify-center border-r border-outline-variant/10">
+          <div class="px-1 py-1.5 text-2xs font-semibold uppercase text-on-surface-variant/50 flex items-center justify-center border-r border-outline-variant/10">
             Journée
           </div>
           {#each calendarDays as { date }}
@@ -519,7 +519,7 @@
                 <button
                   onclick={(e) => { e.stopPropagation(); onEventClick(event); }}
                   onpointerdown={(e) => e.stopPropagation()}
-                  class="w-full text-left px-2 py-0.5 rounded text-[10px] font-semibold truncate border-l-[3px] {getEventLeftBorder(event.type)} {getEventBg(event.type)} transition-all cursor-pointer"
+                  class="w-full text-left px-2 py-0.5 rounded text-2xs font-semibold truncate border-l-[3px] {getEventLeftBorder(event.type)} {getEventBg(event.type)} transition-all cursor-pointer"
                 >
                   <span class="inline-flex items-center gap-1">
                     <Papicon icon={getEventIcon(event.type)} size={9} />
@@ -529,7 +529,7 @@
               {/each}
               {#if allDayEvents.length > 2}
                 <button
-                  class="w-full text-center py-0.5 text-[9px] font-semibold text-primary/60 hover:text-primary transition-colors"
+                  class="w-full text-center py-0.5 text-2xs font-semibold text-primary/60 hover:text-primary transition-colors"
                   onclick={() => onDateClick(date)}
                 >
                   +{allDayEvents.length - 2}
@@ -545,7 +545,7 @@
             <!-- Hour labels -->
             <div class="flex flex-col">
               {#each hours as hour}
-                <div class="h-15 text-[10px] font-semibold text-on-surface-variant/40 flex items-start justify-end pr-2 pt-0 border-r border-outline-variant/10 relative">
+                <div class="h-15 text-2xs font-semibold text-on-surface-variant/40 flex items-start justify-end pr-2 pt-0 border-r border-outline-variant/10 relative">
                   <span class="-mt-1.75">{hour.toString().padStart(2, '0')}:00</span>
                 </div>
               {/each}
@@ -588,7 +588,7 @@
                       class="absolute left-0 right-0 bg-primary/15 border-y-2 border-primary/50 z-10 pointer-events-none rounded-sm"
                       style="top: {displayTop}%; height: {displayHeight}%"
                     >
-                      <div class="px-2 py-0.5 text-[10px] font-semibold text-primary">
+                      <div class="px-2 py-0.5 text-2xs font-semibold text-primary">
                         {Math.floor(Math.min(sMin, eMin) / 60)}:{(Math.min(sMin, eMin) % 60).toString().padStart(2, '0')} – {Math.floor(Math.max(sMin, eMin) / 60)}:{(Math.max(sMin, eMin) % 60).toString().padStart(2, '0')}
                       </div>
                     </div>
@@ -605,12 +605,12 @@
                     style="top: {styles.top}%; height: {styles.height}%; left: calc({styles.left}% + 2px); width: calc({styles.width}% - 4px); min-height: 22px;"
                   >
                     <div class="px-2 py-1 h-full flex flex-col">
-                      <span class="text-[9px] font-medium {getEventText(event.type)} opacity-80 leading-none">
+                      <span class="text-2xs font-medium {getEventText(event.type)} opacity-80 leading-none">
                         {formatTime(event.start)}{event.end ? ` – ${formatTime(event.end)}` : ''}
                       </span>
-                      <span class="text-[11px] font-semibold text-on-surface truncate leading-tight mt-0.5">{event.title}</span>
+                      <span class="text-2xs font-semibold text-on-surface truncate leading-tight mt-0.5">{event.title}</span>
                       {#if event.staffName && styles.height > 4}
-                        <span class="text-[9px] text-on-surface-variant/60 truncate mt-auto flex items-center gap-1">
+                        <span class="text-2xs text-on-surface-variant/60 truncate mt-auto flex items-center gap-1">
                           {#if event.avatarUrl}
                             <img src={event.avatarUrl} alt="" class="w-3 h-3 rounded-full" />
                           {/if}

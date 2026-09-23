@@ -140,7 +140,7 @@
     {/if}
     <div class="min-w-0">
       <p class="text-[15px] font-semibold text-on-surface truncate">{selectedGuild?.name ?? 'Votre serveur'}</p>
-      <p class="text-[12.5px] text-on-surface-variant/60">Configuré avec Kotbo</p>
+      <p class="text-xs text-on-surface-variant/60">Configuré avec Kotbo</p>
     </div>
     <KotboMark size={28} class="ml-auto shrink-0" />
   </div>
@@ -148,7 +148,7 @@
   {#if billing && !billing.enabled}
     <div class="rounded-2xl border border-outline-variant/30 bg-surface-container-low/40 p-5">
       <p class="text-sm font-semibold text-on-surface mb-1">Pas de facturation sur cette instance</p>
-      <p class="text-[13px] text-on-surface-variant leading-relaxed">
+      <p class="text-body-sm text-on-surface-variant leading-relaxed">
         Cette installation de Kotbo n'a pas de clé Stripe : tous les modules suivent la
         configuration du serveur, sans offre commerciale.
       </p>
@@ -156,7 +156,7 @@
   {:else if canFinishWithoutPayment}
     <div class="rounded-2xl border border-outline-variant/30 bg-surface-container-low/40 p-5">
       <p class="text-sm font-semibold text-on-surface mb-1">Votre accès est déjà ouvert</p>
-      <p class="text-[13px] text-on-surface-variant leading-relaxed">
+      <p class="text-body-sm text-on-surface-variant leading-relaxed">
         Ce serveur dispose déjà de son accès à Kotbo : il n'y a rien à régler ici. La
         configuration que vous venez de poser s'applique dès maintenant.
       </p>
@@ -167,15 +167,15 @@
         <p class="text-sm font-semibold text-on-surface">{offer.name}</p>
         {#if offer.priceCents}
           <p class="text-lg font-bold tracking-tight text-on-surface">
-            {formatPrice(offer.priceCents.month)}<span class="text-[13px] font-medium text-on-surface-variant/60">/mois</span>
+            {formatPrice(offer.priceCents.month)}<span class="text-body-sm font-medium text-on-surface-variant/60">/mois</span>
           </p>
         {/if}
       </div>
-      <p class="text-[13px] text-on-surface-variant leading-relaxed">
+      <p class="text-body-sm text-on-surface-variant leading-relaxed">
         {offer.description}
       </p>
       {#if trialDays > 0}
-        <p class="mt-3 flex items-start gap-2 text-[13px] font-medium text-emerald-500">
+        <p class="mt-3 flex items-start gap-2 text-body-sm font-medium text-emerald-500">
           <Papicon icon="gift" size={14} class="mt-0.5 shrink-0" />
           <span>
             {trialDays} jours d'essai gratuit - vous ne serez débité qu'après, et vous pouvez
@@ -183,7 +183,7 @@
           </span>
         </p>
       {/if}
-      <p class="mt-3 flex items-start gap-2 text-[12px] text-on-surface-variant/55 leading-relaxed">
+      <p class="mt-3 flex items-start gap-2 text-xs text-on-surface-variant/55 leading-relaxed">
         <Papicon icon="lock" size={12} class="mt-0.5 shrink-0" />
         <span>
           Le paiement se déroule entièrement sur Stripe : aucune donnée bancaire ne passe
@@ -197,14 +197,14 @@
         <button
           type="button"
           onclick={() => (codeOpen = true)}
-          class="inline-flex items-center gap-1.5 text-[13px] font-medium text-on-surface-variant/60 hover:text-on-surface transition-colors"
+          class="inline-flex items-center gap-1.5 text-body-sm font-medium text-on-surface-variant/60 hover:text-on-surface transition-colors"
         >
           <Papicon icon="ticket" size={13} />
           Vous avez un code&nbsp;? Partenaire, essai offert…
         </button>
       {:else}
         <div class="rounded-2xl border border-outline-variant/30 bg-surface-container-low/30 p-4">
-          <p class="text-[13px] font-semibold text-on-surface mb-2">Code partenaire ou d'activation</p>
+          <p class="text-body-sm font-semibold text-on-surface mb-2">Code partenaire ou d'activation</p>
           <div class="flex items-center gap-2">
             <input
               type="text"
@@ -212,13 +212,13 @@
               disabled={codeBusy}
               placeholder="KOTBO-XXXXXX"
               onkeydown={(event) => event.key === 'Enter' && redeemCode()}
-              class="min-w-0 flex-1 rounded-lg border border-outline-variant/40 bg-surface-container px-3 py-2 text-[13px] text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none focus:ring-2 focus:ring-primary/40"
+              class="min-w-0 flex-1 rounded-lg border border-outline-variant/40 bg-surface-container px-3 py-2 text-body-sm text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none focus:ring-2 focus:ring-primary/40"
             />
             <button
               type="button"
               onclick={redeemCode}
               disabled={codeBusy || !codeValue.trim()}
-              class="shrink-0 px-3.5 py-2 rounded-lg bg-primary text-on-primary text-[13px] font-semibold hover:opacity-90 transition-opacity disabled:opacity-40"
+              class="shrink-0 px-3.5 py-2 rounded-lg bg-primary text-on-primary text-body-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40"
             >
               {codeBusy ? 'Vérification…' : 'Activer'}
             </button>

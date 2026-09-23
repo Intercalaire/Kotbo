@@ -124,7 +124,7 @@
           <div class="flex-1 overflow-y-auto space-y-3 font-mono text-xs p-2 rounded-xl bg-black/50 border border-white/5">
             {#each botErrors as err}
               <div class="border-b border-white/5 pb-3">
-                 <div class="flex justify-between text-[10px] text-white/40 mb-1">
+                 <div class="flex justify-between text-2xs text-white/40 mb-1">
                   <span>{new Date(err.createdAt).toLocaleString()}</span>
                   <span class="text-amber-400/80">{err.source || m.d7_unknown()}</span>
                 </div>

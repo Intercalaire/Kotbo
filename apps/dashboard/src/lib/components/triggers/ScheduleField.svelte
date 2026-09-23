@@ -74,14 +74,14 @@
       placeholder="0 9 * * *"
       class="{control} w-44 font-mono {value.trim() && !isValidCron(value) ? 'border-amber-500/60' : ''}"
     />
-    <span class="text-[11px] text-on-surface-variant/70">
+    <span class="text-2xs text-on-surface-variant/70">
       {value.trim() && !isValidCron(value) ? m.wf_schedule_invalid() : m.wf_schedule_raw_hint()}
     </span>
     {#if preset !== null}
       <button
         type="button"
         onclick={() => (rawMode = false)}
-        class="text-[11px] font-medium text-primary hover:underline"
+        class="text-2xs font-medium text-primary hover:underline"
       >{m.wf_schedule_simple()}</button>
     {/if}
   {:else}
@@ -142,12 +142,12 @@
     <button
       type="button"
       onclick={() => (rawMode = true)}
-      class="text-[11px] font-medium text-on-surface-variant/70 hover:text-primary transition-colors"
+      class="text-2xs font-medium text-on-surface-variant/70 hover:text-primary transition-colors"
     >{m.wf_schedule_advanced()}</button>
   {/if}
 
   {#if timezoneStore.loaded}
-    <span class="basis-full text-[11px] text-on-surface-variant/70">
+    <span class="basis-full text-2xs text-on-surface-variant/70">
       {m.wf_schedule_timezone({ zone: timezoneStore.timezone })}
     </span>
   {/if}

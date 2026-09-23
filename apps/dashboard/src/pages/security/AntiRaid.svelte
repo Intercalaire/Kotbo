@@ -316,53 +316,53 @@
 
 {#snippet channelSelect(field: string, label: string, help = '', list = channels)}
   <label class="block">
-    <span class="text-[12.5px] font-medium text-on-surface-variant">{label}</span>
+    <span class="text-xs font-medium text-on-surface-variant">{label}</span>
     <select
       bind:value={config[field]}
-      class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface"
+      class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface"
     >
       <option value={null}>Aucun</option>
       {#each list as item (item.id)}
         <option value={item.id}>{item.name}</option>
       {/each}
     </select>
-    {#if help}<p class="text-[11.5px] text-on-surface-variant/70 mt-1">{help}</p>{/if}
+    {#if help}<p class="text-2xs text-on-surface-variant/70 mt-1">{help}</p>{/if}
   </label>
 {/snippet}
 
 {#snippet roleSelect(field: string, label: string, help = '')}
   <label class="block">
-    <span class="text-[12.5px] font-medium text-on-surface-variant">{label}</span>
+    <span class="text-xs font-medium text-on-surface-variant">{label}</span>
     <select
       bind:value={config[field]}
-      class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface"
+      class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface"
     >
       <option value={null}>Aucun</option>
       {#each roles as role (role.id)}
         <option value={role.id}>{role.name}</option>
       {/each}
     </select>
-    {#if help}<p class="text-[11.5px] text-on-surface-variant/70 mt-1">{help}</p>{/if}
+    {#if help}<p class="text-2xs text-on-surface-variant/70 mt-1">{help}</p>{/if}
   </label>
 {/snippet}
 
 {#snippet numberField(field: string, label: string, min: number, max: number, help = '')}
   <label class="block">
-    <span class="text-[12.5px] font-medium text-on-surface-variant">{label}</span>
+    <span class="text-xs font-medium text-on-surface-variant">{label}</span>
     <input
       type="number" {min} {max}
       bind:value={config[field]}
-      class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface"
+      class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface"
     />
-    {#if help}<p class="text-[11.5px] text-on-surface-variant/70 mt-1">{help}</p>{/if}
+    {#if help}<p class="text-2xs text-on-surface-variant/70 mt-1">{help}</p>{/if}
   </label>
 {/snippet}
 
 {#snippet switchRow(field: string, label: string, help: string)}
   <div class="flex items-start justify-between gap-4 rounded-xl border border-outline-variant/30 px-4 py-3">
     <div class="min-w-0">
-      <p class="text-[13.5px] font-medium text-on-surface">{label}</p>
-      <p class="text-[12.5px] text-on-surface-variant mt-1 leading-relaxed">{help}</p>
+      <p class="text-body-sm font-medium text-on-surface">{label}</p>
+      <p class="text-xs text-on-surface-variant mt-1 leading-relaxed">{help}</p>
     </div>
     <ToggleSwitch checked={Boolean(config[field])} onToggle={(v) => (config[field] = v)} />
   </div>
@@ -438,12 +438,12 @@
             onclick={() => runEmergency(control.id, control.run, `${control.label} : ${control.active ? 'désactivé' : 'activé'}`, control.confirm)}
           >
             <div class="flex items-center justify-between gap-2">
-              <span class="text-[13px] font-medium text-on-surface">{control.label}</span>
+              <span class="text-body-sm font-medium text-on-surface">{control.label}</span>
               <span
                 class="w-2 h-2 rounded-full shrink-0 {control.active ? 'bg-error animate-pulse' : 'bg-outline-variant'}"
               ></span>
             </div>
-            <p class="text-[12px] mt-1 {control.active ? 'text-error' : 'text-on-surface-variant'}">
+            <p class="text-xs mt-1 {control.active ? 'text-error' : 'text-on-surface-variant'}">
               {busyAction === control.id ? 'Application…' : control.help}
             </p>
           </button>
@@ -453,15 +453,15 @@
       <div class="mt-4 grid grid-cols-3 gap-3 text-center">
         <div class="rounded-lg bg-surface-container/60 px-3 py-2">
           <div class="text-[15px] font-semibold text-on-surface tabular-nums">{reportStats?.pending ?? 0}</div>
-          <div class="text-[11px] text-on-surface-variant">signalements en attente</div>
+          <div class="text-2xs text-on-surface-variant">signalements en attente</div>
         </div>
         <div class="rounded-lg bg-surface-container/60 px-3 py-2">
           <div class="text-[15px] font-semibold text-on-surface tabular-nums">{pendingInvites}</div>
-          <div class="text-[11px] text-on-surface-variant">invitations à valider</div>
+          <div class="text-2xs text-on-surface-variant">invitations à valider</div>
         </div>
         <div class="rounded-lg bg-surface-container/60 px-3 py-2">
           <div class="text-[15px] font-semibold text-on-surface tabular-nums">{scamImageCount}</div>
-          <div class="text-[11px] text-on-surface-variant">empreintes d'arnaque</div>
+          <div class="text-2xs text-on-surface-variant">empreintes d'arnaque</div>
         </div>
       </div>
     </SectionCard>
@@ -481,16 +481,16 @@
           </div>
 
           <label class="block">
-            <span class="text-[12.5px] font-medium text-on-surface-variant">Action au déclenchement</span>
+            <span class="text-xs font-medium text-on-surface-variant">Action au déclenchement</span>
             <select
               bind:value={config.antiRaidAction}
-              class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface"
+              class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface"
             >
               <option value="LOCK">Verrouiller les arrivées</option>
               <option value="CAPTCHA">Forcer le captcha pour tous les arrivants</option>
               <option value="KICK">Expulser automatiquement les arrivants</option>
             </select>
-            <p class="text-[11.5px] text-on-surface-variant/70 mt-1">
+            <p class="text-2xs text-on-surface-variant/70 mt-1">
               « Expulser » est la plus brutale : elle rejette aussi les arrivées légitimes pendant toute la durée du mode raid.
             </p>
           </label>
@@ -513,20 +513,20 @@
           <div class="grid sm:grid-cols-3 gap-3">
             {@render numberField('accountAgeMinValue', 'Ancienneté minimale', 1, config.accountAgeMinUnit === 'MONTHS' ? 120 : 3650)}
             <label class="block">
-              <span class="text-[12.5px] font-medium text-on-surface-variant">Unité</span>
+              <span class="text-xs font-medium text-on-surface-variant">Unité</span>
               <select
                 bind:value={config.accountAgeMinUnit}
-                class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface"
+                class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface"
               >
                 <option value="DAYS">Jours</option>
                 <option value="MONTHS">Mois</option>
               </select>
             </label>
             <label class="block">
-              <span class="text-[12.5px] font-medium text-on-surface-variant">Action</span>
+              <span class="text-xs font-medium text-on-surface-variant">Action</span>
               <select
                 bind:value={config.accountAgeAction}
-                class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface"
+                class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface"
               >
                 <option value="ALERT">Signaler uniquement</option>
                 <option value="KICK">Expulser</option>
@@ -536,13 +536,13 @@
           </div>
 
           {#if (config.accountAgeMinUnit === 'MONTHS' ? config.accountAgeMinValue * 30 : config.accountAgeMinValue) >= 365}
-            <p class="text-[11.5px] text-amber-500 leading-relaxed">
+            <p class="text-2xs text-amber-500 leading-relaxed">
               Seuil d'un an ou plus : une grande partie des arrivées légitimes sera concernée. Vérifie l'unité.
             </p>
           {/if}
 
           {#if config.accountAgeAction === 'BAN'}
-            <p class="text-[11.5px] text-error/90 leading-relaxed">
+            <p class="text-2xs text-error/90 leading-relaxed">
               Le bannissement est définitif : le membre ne pourra plus revenir, même une fois son compte assez ancien, sauf déban manuel suivi d'une exemption ci-dessous.
             </p>
           {/if}
@@ -550,26 +550,26 @@
           <div class="grid sm:grid-cols-2 gap-3">
             {@render channelSelect('accountAgeAlertChannelId', 'Salon d\'alerte', 'Chaque compte refoulé ou signalé y est publié.')}
             <label class="block">
-              <span class="text-[12.5px] font-medium text-on-surface-variant">Message envoyé en MP</span>
+              <span class="text-xs font-medium text-on-surface-variant">Message envoyé en MP</span>
               <textarea
                 rows="2"
                 bind:value={config.accountAgeMessage}
-                class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface resize-y"
+                class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface resize-y"
               ></textarea>
-              <p class="text-[11.5px] text-on-surface-variant/70 mt-1">Envoyé avant l'expulsion ou le bannissement.</p>
+              <p class="text-2xs text-on-surface-variant/70 mt-1">Envoyé avant l'expulsion ou le bannissement.</p>
             </label>
           </div>
 
           <label class="block">
-            <span class="text-[12.5px] font-medium text-on-surface-variant">Membres exemptés (identifiants)</span>
+            <span class="text-xs font-medium text-on-surface-variant">Membres exemptés (identifiants)</span>
             <textarea
               rows="2"
               value={(config.accountAgeWhitelist ?? []).join('\n')}
               oninput={(e) => (config.accountAgeWhitelist = e.currentTarget.value.split('\n').map((s) => s.trim()).filter(Boolean))}
               placeholder="123456789012345678"
-              class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface font-mono resize-y"
+              class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface font-mono resize-y"
             ></textarea>
-            <p class="text-[11.5px] text-on-surface-variant/70 mt-1">Un identifiant par ligne. Permet de laisser entrer un compte récent légitime.</p>
+            <p class="text-2xs text-on-surface-variant/70 mt-1">Un identifiant par ligne. Permet de laisser entrer un compte récent légitime.</p>
           </label>
         </div>
       </SectionCard>
@@ -584,10 +584,10 @@
 
           <div class="grid sm:grid-cols-2 gap-3">
             <label class="block">
-              <span class="text-[12.5px] font-medium text-on-surface-variant">Rôles concernés</span>
+              <span class="text-xs font-medium text-on-surface-variant">Rôles concernés</span>
               <select
                 bind:value={config.rolePersistMode}
-                class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface"
+                class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface"
               >
                 <option value="ALL">Tous, sauf ceux sélectionnés</option>
                 <option value="LIST">Seulement ceux sélectionnés</option>
@@ -597,14 +597,14 @@
           </div>
 
           <div>
-            <p class="text-[12.5px] font-medium text-on-surface-variant mb-2">
+            <p class="text-xs font-medium text-on-surface-variant mb-2">
               {config.rolePersistMode === 'LIST' ? 'Rôles rendus' : 'Rôles jamais rendus'}
             </p>
             <div class="flex flex-wrap gap-1.5">
               {#each roles as role (role.id)}
                 <button
                   type="button"
-                  class="px-2.5 py-1 rounded-full text-[12px] font-medium border transition-colors
+                  class="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors
                   {(config.rolePersistRoleIds ?? []).includes(role.id)
                     ? 'bg-primary/15 border-primary/40 text-primary'
                     : 'bg-surface-container-low border-outline-variant/40 text-on-surface-variant hover:text-on-surface'}"
@@ -617,7 +617,7 @@
           </div>
 
           {#if config.rolePersistMode === 'LIST' && (config.rolePersistRoleIds ?? []).length === 0}
-            <p class="text-[11.5px] text-amber-500 leading-relaxed">
+            <p class="text-2xs text-amber-500 leading-relaxed">
               Aucun rôle sélectionné : personne ne retrouvera de rôle à son retour.
             </p>
           {/if}
@@ -628,11 +628,11 @@
         <div class="space-y-3">
           {@render switchRow('joinLockKick', 'Expulser les arrivées malgré le verrou', 'La suspension des invitations par Discord n\'est pas absolue : ce filet expulse les membres qui passent quand même.')}
           <label class="block">
-            <span class="text-[12.5px] font-medium text-on-surface-variant">Message envoyé en MP</span>
+            <span class="text-xs font-medium text-on-surface-variant">Message envoyé en MP</span>
             <textarea
               rows="2"
               bind:value={config.joinLockMessage}
-              class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface resize-y"
+              class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface resize-y"
             ></textarea>
           </label>
         </div>
@@ -649,15 +649,15 @@
           {@render switchRow('captchaEnabled', 'Captcha', 'Les arrivants doivent résoudre un code avant d\'accéder au serveur.')}
 
           <label class="block">
-            <span class="text-[12.5px] font-medium text-on-surface-variant">Mode</span>
+            <span class="text-xs font-medium text-on-surface-variant">Mode</span>
             <select
               bind:value={config.captchaMode}
-              class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface"
+              class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface"
             >
               <option value="IMAGE">Image - le code est affiché</option>
               <option value="VOICE">Vocal - le code est énoncé en salon vocal</option>
             </select>
-            <p class="text-[11.5px] text-on-surface-variant/70 mt-1">
+            <p class="text-2xs text-on-surface-variant/70 mt-1">
               Le vocal est bien plus difficile à automatiser, mais la diffusion est sérielle : au-delà de la file configurée, les arrivants suivants basculent sur l'image.
             </p>
           </label>
@@ -673,10 +673,10 @@
             <div class="grid sm:grid-cols-3 gap-3 rounded-xl border border-outline-variant/30 p-3">
               {@render channelSelect('captchaVoiceChannelId', 'Salon vocal', '', voiceChannels)}
               <label class="block">
-                <span class="text-[12.5px] font-medium text-on-surface-variant">Langue d'énonciation</span>
+                <span class="text-xs font-medium text-on-surface-variant">Langue d'énonciation</span>
                 <select
                   bind:value={config.captchaVoiceLocale}
-                  class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface"
+                  class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface"
                 >
                   <option value="FR">Français</option>
                   <option value="EN">Anglais</option>
@@ -690,10 +690,10 @@
             {@render numberField('captchaTimeoutMinutes', 'Délai (minutes)', 1, 120)}
             {@render numberField('captchaMaxAttempts', 'Tentatives', 1, 10)}
             <label class="block">
-              <span class="text-[12.5px] font-medium text-on-surface-variant">Échec</span>
+              <span class="text-xs font-medium text-on-surface-variant">Échec</span>
               <select
                 bind:value={config.captchaFailAction}
-                class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface"
+                class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface"
               >
                 <option value="KICK">Expulser</option>
                 <option value="BAN">Bannir</option>
@@ -723,10 +723,10 @@
 
           <div class="grid sm:grid-cols-3 gap-3">
             <label class="block">
-              <span class="text-[12.5px] font-medium text-on-surface-variant">Action</span>
+              <span class="text-xs font-medium text-on-surface-variant">Action</span>
               <select
                 bind:value={config.scamFilterAction}
-                class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface"
+                class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface"
               >
                 <option value="DELETE">Supprimer</option>
                 <option value="DELETE_AND_WARN">Supprimer et avertir</option>
@@ -740,23 +740,23 @@
 
           <div class="grid sm:grid-cols-2 gap-3">
             <label class="block">
-              <span class="text-[12.5px] font-medium text-on-surface-variant">Domaines bloqués supplémentaires</span>
+              <span class="text-xs font-medium text-on-surface-variant">Domaines bloqués supplémentaires</span>
               <textarea
                 rows="3"
                 value={(config.scamFilterCustomDomains ?? []).join('\n')}
                 oninput={(e) => (config.scamFilterCustomDomains = e.currentTarget.value.split('\n').map((s) => s.trim()).filter(Boolean))}
                 placeholder="exemple-scam.com"
-                class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface font-mono resize-y"
+                class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface font-mono resize-y"
               ></textarea>
             </label>
             <label class="block">
-              <span class="text-[12.5px] font-medium text-on-surface-variant">Domaines exemptés</span>
+              <span class="text-xs font-medium text-on-surface-variant">Domaines exemptés</span>
               <textarea
                 rows="3"
                 value={(config.scamFilterWhitelist ?? []).join('\n')}
                 oninput={(e) => (config.scamFilterWhitelist = e.currentTarget.value.split('\n').map((s) => s.trim()).filter(Boolean))}
                 placeholder="mon-site.fr"
-                class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface font-mono resize-y"
+                class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface font-mono resize-y"
               ></textarea>
             </label>
           </div>
@@ -808,12 +808,12 @@
           </div>
 
           <div>
-            <p class="text-[12.5px] font-medium text-on-surface-variant mb-2">Rôles exemptés</p>
+            <p class="text-xs font-medium text-on-surface-variant mb-2">Rôles exemptés</p>
             <div class="flex flex-wrap gap-1.5">
               {#each roles as role (role.id)}
                 <button
                   type="button"
-                  class="px-2.5 py-1 rounded-full text-[12px] font-medium border transition-colors
+                  class="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors
                   {(config.inviteBypassRoleIds ?? []).includes(role.id)
                     ? 'bg-primary/15 border-primary/40 text-primary'
                     : 'bg-surface-container-low border-outline-variant/40 text-on-surface-variant hover:text-on-surface'}"
@@ -842,25 +842,25 @@
               <article class="rounded-xl border border-outline-variant/30 bg-surface-container-low/40 p-3.5">
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0 flex-1">
-                    <p class="text-[13px] text-on-surface">
-                      <code class="text-[11.5px]">{report.reporterId}</code> signale
-                      <code class="text-[11.5px]">{report.targetId}</code>
+                    <p class="text-body-sm text-on-surface">
+                      <code class="text-2xs">{report.reporterId}</code> signale
+                      <code class="text-2xs">{report.targetId}</code>
                       <span class="text-on-surface-variant/60 ml-1">· {formatRelative(report.createdAt)}</span>
                     </p>
-                    <p class="mt-1 text-[12.5px] text-on-surface-variant leading-relaxed">{report.reason}</p>
+                    <p class="mt-1 text-xs text-on-surface-variant leading-relaxed">{report.reason}</p>
                     {#if report.messageContent}
-                      <p class="mt-2 text-[12px] text-on-surface-variant bg-surface-container/60 rounded px-2.5 py-1.5 font-mono break-words">
+                      <p class="mt-2 text-xs text-on-surface-variant bg-surface-container/60 rounded px-2.5 py-1.5 font-mono break-words">
                         {report.messageContent}
                       </p>
                     {/if}
                     {#if report.channelId}
-                      <p class="mt-1 text-[11.5px] text-on-surface-variant/60">dans #{channelName(report.channelId)}</p>
+                      <p class="mt-1 text-2xs text-on-surface-variant/60">dans #{channelName(report.channelId)}</p>
                     {/if}
                   </div>
                   <div class="flex flex-col gap-1.5 shrink-0">
                     <button
                       type="button"
-                      class="px-2.5 py-1 rounded-lg text-[12px] font-medium bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 disabled:opacity-50 transition-colors"
+                      class="px-2.5 py-1 rounded-lg text-xs font-medium bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 disabled:opacity-50 transition-colors"
                       disabled={busyAction !== null}
                       onclick={() => decideReport(report, true)}
                     >
@@ -868,7 +868,7 @@
                     </button>
                     <button
                       type="button"
-                      class="px-2.5 py-1 rounded-lg text-[12px] font-medium text-on-surface-variant border border-outline-variant/40 hover:text-on-surface disabled:opacity-50 transition-colors"
+                      class="px-2.5 py-1 rounded-lg text-xs font-medium text-on-surface-variant border border-outline-variant/40 hover:text-on-surface disabled:opacity-50 transition-colors"
                       disabled={busyAction !== null}
                       onclick={() => decideReport(report, false)}
                     >
@@ -890,10 +890,10 @@
             {#each inviteRequests as request (request.id)}
               <article class="rounded-xl border border-outline-variant/30 bg-surface-container-low/40 p-3.5 flex items-start justify-between gap-3">
                 <div class="min-w-0">
-                  <p class="text-[13px] text-on-surface">
-                    <code class="text-[11.5px]">{request.creatorId}</code> pour #{channelName(request.channelId)}
+                  <p class="text-body-sm text-on-surface">
+                    <code class="text-2xs">{request.creatorId}</code> pour #{channelName(request.channelId)}
                   </p>
-                  <p class="text-[12px] text-on-surface-variant mt-0.5">
+                  <p class="text-xs text-on-surface-variant mt-0.5">
                     {request.maxUses === 0 ? 'usages illimités' : `${request.maxUses} usage(s)`} ·
                     {request.maxAgeSec === 0 ? 'sans expiration' : `${Math.round(request.maxAgeSec / 3600)} h`} ·
                     {formatRelative(request.createdAt)}
@@ -902,7 +902,7 @@
                 <div class="flex flex-col gap-1.5 shrink-0">
                   <button
                     type="button"
-                    class="px-2.5 py-1 rounded-lg text-[12px] font-medium bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 hover:bg-emerald-500/25 disabled:opacity-50 transition-colors"
+                    class="px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 hover:bg-emerald-500/25 disabled:opacity-50 transition-colors"
                     disabled={busyAction !== null}
                     onclick={() => decideInvite(request, true)}
                   >
@@ -910,7 +910,7 @@
                   </button>
                   <button
                     type="button"
-                    class="px-2.5 py-1 rounded-lg text-[12px] font-medium bg-error/15 text-error border border-error/30 hover:bg-error/25 disabled:opacity-50 transition-colors"
+                    class="px-2.5 py-1 rounded-lg text-xs font-medium bg-error/15 text-error border border-error/30 hover:bg-error/25 disabled:opacity-50 transition-colors"
                     disabled={busyAction !== null}
                     onclick={() => decideInvite(request, false)}
                   >
@@ -930,17 +930,17 @@
       >
         <div class="flex flex-wrap items-end gap-2">
           <label class="block flex-1 min-w-55">
-            <span class="text-[12.5px] font-medium text-on-surface-variant">Identifiant du membre</span>
+            <span class="text-xs font-medium text-on-surface-variant">Identifiant du membre</span>
             <input
               type="text"
               bind:value={lineageUserId}
               placeholder="123456789012345678"
-              class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface font-mono"
+              class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface font-mono"
             />
           </label>
           <button
             type="button"
-            class="px-3 py-2 rounded-lg text-[12.5px] font-medium bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 disabled:opacity-50 transition-colors"
+            class="px-3 py-2 rounded-lg text-xs font-medium bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 disabled:opacity-50 transition-colors"
             disabled={!lineageUserId.trim() || lineageLoading}
             onclick={loadLineage}
           >
@@ -953,43 +953,43 @@
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
               <div class="rounded-lg bg-surface-container/60 px-2 py-2">
                 <div class="text-[15px] font-semibold text-on-surface tabular-nums">{lineage.chain.length}</div>
-                <div class="text-[11px] text-on-surface-variant">niveaux de parrainage</div>
+                <div class="text-2xs text-on-surface-variant">niveaux de parrainage</div>
               </div>
               <div class="rounded-lg bg-surface-container/60 px-2 py-2">
                 <div class="text-[15px] font-semibold text-on-surface tabular-nums">{lineage.directInvites}</div>
-                <div class="text-[11px] text-on-surface-variant">invités directs</div>
+                <div class="text-2xs text-on-surface-variant">invités directs</div>
               </div>
               <div class="rounded-lg bg-surface-container/60 px-2 py-2">
                 <div class="text-[15px] font-semibold text-on-surface tabular-nums">{lineage.totalDescendants}</div>
-                <div class="text-[11px] text-on-surface-variant">descendance totale</div>
+                <div class="text-2xs text-on-surface-variant">descendance totale</div>
               </div>
               <div class="rounded-lg px-2 py-2 {lineage.taintedDescendants > 0 ? 'bg-error/10' : 'bg-surface-container/60'}">
                 <div class="text-[15px] font-semibold tabular-nums {lineage.taintedDescendants > 0 ? 'text-error' : 'text-on-surface'}">
                   {lineage.taintedDescendants}
                 </div>
-                <div class="text-[11px] text-on-surface-variant">déjà sanctionnés</div>
+                <div class="text-2xs text-on-surface-variant">déjà sanctionnés</div>
               </div>
             </div>
 
             {#if lineage.trust.penalty > 0}
               <div class="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5">
-                <p class="text-[12.5px] text-on-surface-variant leading-relaxed">
+                <p class="text-xs text-on-surface-variant leading-relaxed">
                   Pénalité de confiance héritée : <span class="font-semibold text-amber-500">−{lineage.trust.penalty}</span>.
                   Parrain problématique au degré {lineage.trust.depth} :
-                  <code class="text-[11.5px]">{lineage.trust.taintedBy}</code>.
+                  <code class="text-2xs">{lineage.trust.taintedBy}</code>.
                 </p>
               </div>
             {/if}
 
             {#if lineage.chain.length > 0}
               <div>
-                <p class="text-[12px] text-on-surface-variant mb-1">Chaîne de parrainage</p>
+                <p class="text-xs text-on-surface-variant mb-1">Chaîne de parrainage</p>
                 <div class="flex flex-wrap items-center gap-1">
                   {#each [...lineage.chain].reverse() as ancestor}
-                    <code class="text-[11.5px] px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">{ancestor}</code>
+                    <code class="text-2xs px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">{ancestor}</code>
                     <span class="text-on-surface-variant/40">→</span>
                   {/each}
-                  <code class="text-[11.5px] px-1.5 py-0.5 rounded bg-primary/15 text-primary">{lineage.userId}</code>
+                  <code class="text-2xs px-1.5 py-0.5 rounded bg-primary/15 text-primary">{lineage.userId}</code>
                 </div>
               </div>
             {/if}
@@ -998,19 +998,19 @@
               <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-outline-variant/30">
                 <button
                   type="button"
-                  class="px-3 py-1.5 rounded-lg text-[12.5px] font-medium bg-surface-container text-on-surface border border-outline-variant/40 hover:border-outline-variant disabled:opacity-50 transition-colors"
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-container text-on-surface border border-outline-variant/40 hover:border-outline-variant disabled:opacity-50 transition-colors"
                   disabled={busyAction !== null}
                   onclick={() => runQuarantine(true)}
                 >
                   Simuler la quarantaine
                 </button>
                 {#if quarantinePreview !== null}
-                  <span class="text-[12px] text-on-surface-variant">
+                  <span class="text-xs text-on-surface-variant">
                     {quarantinePreview} membre(s) seraient mis en quarantaine.
                   </span>
                   <button
                     type="button"
-                    class="px-3 py-1.5 rounded-lg text-[12.5px] font-medium bg-error/15 text-error border border-error/30 hover:bg-error/25 disabled:opacity-50 transition-colors"
+                    class="px-3 py-1.5 rounded-lg text-xs font-medium bg-error/15 text-error border border-error/30 hover:bg-error/25 disabled:opacity-50 transition-colors"
                     disabled={busyAction !== null || quarantinePreview === 0}
                     onclick={() => runQuarantine(false)}
                   >
@@ -1018,7 +1018,7 @@
                   </button>
                 {/if}
               </div>
-              <p class="text-[11.5px] text-on-surface-variant/70">
+              <p class="text-2xs text-on-surface-variant/70">
                 La quarantaine pose un rôle restrictif ou une exclusion de 24 h - jamais un bannissement.
                 Le staff n'est jamais touché. La décision définitive reste humaine.
               </p>
@@ -1039,15 +1039,15 @@
             {#each scamImages as image (image.id)}
               <div class="flex items-center justify-between gap-3 rounded-lg border border-outline-variant/30 px-3 py-2">
                 <div class="min-w-0">
-                  <p class="text-[12.5px] text-on-surface truncate">{image.filename ?? 'sans nom'}</p>
-                  <p class="text-[11px] text-on-surface-variant/60 font-mono truncate">
+                  <p class="text-xs text-on-surface truncate">{image.filename ?? 'sans nom'}</p>
+                  <p class="text-2xs text-on-surface-variant/60 font-mono truncate">
                     {image.hash.slice(0, 24)}… · {image.source}{image.guildId === null ? ' · global' : ''}
                   </p>
                 </div>
                 {#if image.guildId !== null}
                   <button
                     type="button"
-                    class="px-2 py-1 rounded text-[11.5px] text-error hover:bg-error/10 disabled:opacity-50 transition-colors shrink-0"
+                    class="px-2 py-1 rounded text-2xs text-error hover:bg-error/10 disabled:opacity-50 transition-colors shrink-0"
                     disabled={busyAction !== null}
                     onclick={() => removeScamImage(image)}
                   >
@@ -1064,11 +1064,11 @@
     {#if dirty}
       <div class="sticky bottom-4 z-10">
         <div class="flex items-center justify-between gap-4 rounded-xl border border-primary/40 bg-surface-container-high/95 backdrop-blur px-4 py-3 shadow-lg">
-          <p class="text-[13px] text-on-surface">Modifications non enregistrées</p>
+          <p class="text-body-sm text-on-surface">Modifications non enregistrées</p>
           <div class="flex items-center gap-2">
             <button
               type="button"
-              class="px-3 py-1.5 rounded-lg text-[12.5px] font-medium text-on-surface-variant hover:text-on-surface transition-colors"
+              class="px-3 py-1.5 rounded-lg text-xs font-medium text-on-surface-variant hover:text-on-surface transition-colors"
               onclick={() => (config = { ...original })}
               disabled={saving}
             >
@@ -1076,7 +1076,7 @@
             </button>
             <button
               type="button"
-              class="px-3.5 py-1.5 rounded-lg text-[12.5px] font-medium bg-primary text-on-primary hover:opacity-90 disabled:opacity-50 transition-opacity"
+              class="px-3.5 py-1.5 rounded-lg text-xs font-medium bg-primary text-on-primary hover:opacity-90 disabled:opacity-50 transition-opacity"
               onclick={save}
               disabled={saving}
             >

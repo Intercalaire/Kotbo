@@ -282,7 +282,7 @@
         title={available ? undefined : lockReason(preset.unlockedBy)}
         class="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50 {selectedId === preset.id ? 'border-primary ring-2 ring-primary/40' : 'border-outline-variant enabled:hover:border-primary/50'}"
       >
-        <span class="truncate text-[13px] text-on-surface">{label(preset.label)}</span>
+        <span class="truncate text-body-sm text-on-surface">{label(preset.label)}</span>
         {#if !available}
           <Papicon icon="Lock" size={13} class="shrink-0 text-on-surface-variant" />
         {:else if selectedId === preset.id}
@@ -308,7 +308,7 @@
 <div class="space-y-6">
   <div>
     <h3 class="text-[15px] font-semibold text-on-surface">{m.rc_title()}</h3>
-    <p class="mt-1 text-[13px] text-on-surface-variant">{m.rc_subtitle()}</p>
+    <p class="mt-1 text-body-sm text-on-surface-variant">{m.rc_subtitle()}</p>
   </div>
 
   {#if loading}
@@ -318,30 +318,30 @@
       {#if previewUrl}
         <img src={previewUrl} alt={m.rc_preview_alt()} class="w-full" />
       {:else if previewFailed}
-        <div class="flex aspect-[934/282] w-full items-center justify-center px-4 text-center text-[13px] text-on-surface-variant">
+        <div class="flex aspect-[934/282] w-full items-center justify-center px-4 text-center text-body-sm text-on-surface-variant">
           {m.rc_preview_error()}
         </div>
       {:else}
         <div class="aspect-[934/282] w-full animate-pulse bg-surface-container-high"></div>
       {/if}
       {#if previewLoading}
-        <div class="absolute right-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-[11px] text-white">
+        <div class="absolute right-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-2xs text-white">
           {m.rc_preview_loading()}
         </div>
       {/if}
     </div>
-    <p class="text-[12px] text-on-surface-variant">
+    <p class="text-xs text-on-surface-variant">
       {previewIsReal ? m.rc_preview_note_real() : m.rc_preview_note()}
     </p>
 
     <div>
-      <h4 class="mb-1 text-[13px] font-medium text-on-surface">
+      <h4 class="mb-1 text-body-sm font-medium text-on-surface">
         {m.rc_achievements_title()}
         <span class="ml-1 font-normal text-on-surface-variant">
           {m.rc_unlocked_count({ count: unlockedAchievements.length, total: RANK_CARD_ACHIEVEMENTS.length })}
         </span>
       </h4>
-      <p class="mb-2 text-[12px] text-on-surface-variant">
+      <p class="mb-2 text-xs text-on-surface-variant">
         {m.rc_achievements_hint({ count: maxBadges })}
         <span class="ml-1">{badges.length}/{maxBadges}</span>
       </p>
@@ -361,18 +361,18 @@
             </span>
             <span class="min-w-0 flex-1">
               <span class="flex items-center gap-1.5">
-                <span class="truncate text-[13px] font-medium {isUnlocked ? 'text-on-surface' : 'text-on-surface-variant'}">{label(achievement.label)}</span>
+                <span class="truncate text-body-sm font-medium {isUnlocked ? 'text-on-surface' : 'text-on-surface-variant'}">{label(achievement.label)}</span>
                 {#if !isUnlocked}
                   <Papicon icon="Lock" size={12} class="shrink-0 text-on-surface-variant" />
                 {:else if badges.includes(achievement.id)}
                   <Papicon icon="Check" size={12} class="shrink-0 text-primary" />
                 {/if}
               </span>
-              <span class="block text-[11px] leading-snug text-on-surface-variant">{label(achievement.description)}</span>
+              <span class="block text-2xs leading-snug text-on-surface-variant">{label(achievement.description)}</span>
               {#if progress}
-                <span class="mt-0.5 block text-[11px] font-medium text-on-surface-variant">{progress}</span>
+                <span class="mt-0.5 block text-2xs font-medium text-on-surface-variant">{progress}</span>
               {:else if !isUnlocked && isManualRankCardAchievement(achievement)}
-                <span class="mt-0.5 block text-[11px] font-medium text-on-surface-variant">{m.rc_manual_hint()}</span>
+                <span class="mt-0.5 block text-2xs font-medium text-on-surface-variant">{m.rc_manual_hint()}</span>
               {/if}
             </span>
           </button>
@@ -381,13 +381,13 @@
     </div>
 
     <div>
-      <h4 class="mb-2 text-[13px] font-medium text-on-surface">{m.rc_title_title()}</h4>
+      <h4 class="mb-2 text-body-sm font-medium text-on-surface">{m.rc_title_title()}</h4>
       <div class="flex flex-wrap gap-2">
         <button
           type="button"
           onclick={() => (titleId = null)}
           aria-pressed={titleId === null}
-          class="rounded-lg border px-3 py-1.5 text-[13px] text-on-surface transition-all {titleId === null ? 'border-primary ring-2 ring-primary/40' : 'border-outline-variant hover:border-primary/50'}"
+          class="rounded-lg border px-3 py-1.5 text-body-sm text-on-surface transition-all {titleId === null ? 'border-primary ring-2 ring-primary/40' : 'border-outline-variant hover:border-primary/50'}"
         >
           {m.rc_title_none()}
         </button>
@@ -396,7 +396,7 @@
             type="button"
             onclick={() => (titleId = achievement.id)}
             aria-pressed={titleId === achievement.id}
-            class="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-semibold text-on-surface transition-all {titleId === achievement.id ? 'border-primary ring-2 ring-primary/40' : 'border-outline-variant hover:border-primary/50'}"
+            class="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-body-sm font-semibold text-on-surface transition-all {titleId === achievement.id ? 'border-primary ring-2 ring-primary/40' : 'border-outline-variant hover:border-primary/50'}"
           >
             {@render badgeIcon(achievement, 14)}
             {label(achievement.title)}
@@ -404,12 +404,12 @@
         {/each}
       </div>
       {#if unlockedAchievements.length === 0}
-        <p class="mt-2 text-[12px] text-on-surface-variant">{m.rc_title_hint()}</p>
+        <p class="mt-2 text-xs text-on-surface-variant">{m.rc_title_hint()}</p>
       {/if}
     </div>
 
     <div>
-      <h4 class="mb-2 text-[13px] font-medium text-on-surface">{m.rc_background_title()}</h4>
+      <h4 class="mb-2 text-body-sm font-medium text-on-surface">{m.rc_background_title()}</h4>
       <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {#each backgrounds as preset (preset.id)}
           {@const available = isRankCardItemUnlocked(preset.unlockedBy, unlocked)}
@@ -430,7 +430,7 @@
               {/if}
             </div>
             <div class="flex items-center justify-between px-2 py-1.5">
-              <span class="truncate text-[12px] {available ? 'text-on-surface' : 'text-on-surface-variant'}">{label(preset.label)}</span>
+              <span class="truncate text-xs {available ? 'text-on-surface' : 'text-on-surface-variant'}">{label(preset.label)}</span>
               {#if backgroundId === preset.id}
                 <Papicon icon="Check" size={13} class="text-primary" />
               {/if}
@@ -441,22 +441,22 @@
     </div>
 
     <div>
-      <h4 class="mb-2 text-[13px] font-medium text-on-surface">{m.rc_frame_title()}</h4>
+      <h4 class="mb-2 text-body-sm font-medium text-on-surface">{m.rc_frame_title()}</h4>
       {@render decorChoices(RANK_CARD_FRAMES, frameId, (id) => (frameId = id))}
     </div>
 
     <div>
-      <h4 class="mb-2 text-[13px] font-medium text-on-surface">{m.rc_pattern_title()}</h4>
+      <h4 class="mb-2 text-body-sm font-medium text-on-surface">{m.rc_pattern_title()}</h4>
       {@render decorChoices(RANK_CARD_PATTERNS, patternId, (id) => (patternId = id))}
     </div>
 
     <div>
-      <h4 class="mb-2 text-[13px] font-medium text-on-surface">{m.rc_bar_title()}</h4>
+      <h4 class="mb-2 text-body-sm font-medium text-on-surface">{m.rc_bar_title()}</h4>
       {@render decorChoices(RANK_CARD_BAR_STYLES, barStyleId, (id) => (barStyleId = id))}
     </div>
 
     <div>
-      <h4 class="mb-2 text-[13px] font-medium text-on-surface">{m.rc_font_title()}</h4>
+      <h4 class="mb-2 text-body-sm font-medium text-on-surface">{m.rc_font_title()}</h4>
       <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {#each fonts as preset (preset.id)}
           <button
@@ -482,7 +482,7 @@
     </div>
 
     <div>
-      <h4 class="mb-2 text-[13px] font-medium text-on-surface">
+      <h4 class="mb-2 text-body-sm font-medium text-on-surface">
         {m.rc_emojis_title()}
         <span class="ml-1 font-normal text-on-surface-variant">{emojis.length}/{maxEmojis}</span>
       </h4>
@@ -507,7 +507,7 @@
         type="button"
         onclick={save}
         disabled={saving || !dirty}
-        class="rounded-lg bg-primary px-4 py-2 text-[13px] font-medium text-on-primary transition-all hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+        class="rounded-lg bg-primary px-4 py-2 text-body-sm font-medium text-on-primary transition-all hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
       >
         {saving ? m.rc_saving() : m.rc_save()}
       </button>
@@ -515,12 +515,12 @@
         type="button"
         onclick={reset}
         disabled={saving || !customized}
-        class="rounded-lg border border-outline-variant px-4 py-2 text-[13px] font-medium text-on-surface transition-all hover:border-primary/50 disabled:cursor-not-allowed disabled:opacity-50"
+        class="rounded-lg border border-outline-variant px-4 py-2 text-body-sm font-medium text-on-surface transition-all hover:border-primary/50 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {m.rc_reset()}
       </button>
       {#if dirty}
-        <span class="text-[12px] text-on-surface-variant">{m.rc_unsaved()}</span>
+        <span class="text-xs text-on-surface-variant">{m.rc_unsaved()}</span>
       {/if}
     </div>
   {/if}

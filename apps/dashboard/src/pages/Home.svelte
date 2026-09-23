@@ -1113,7 +1113,7 @@
                 onclick={() => toggleSize(item.id)}
                 title={m.home_width_cols({ n: item.colSpan })}
                 aria-label={m.home_width_cols({ n: item.colSpan })}
-                class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors text-[10px] font-bold px-1.5 cursor-pointer"
+                class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors text-2xs font-bold px-1.5 cursor-pointer"
               >
                 {item.colSpan}c
               </button>
@@ -1121,7 +1121,7 @@
                 onclick={() => toggleRowSize(item.id)}
                 title={m.home_height_rows({ n: item.rowSpan || 1 })}
                 aria-label={m.home_height_rows({ n: item.rowSpan || 1 })}
-                class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors text-[10px] font-bold px-1.5 cursor-pointer"
+                class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors text-2xs font-bold px-1.5 cursor-pointer"
               >
                 {item.rowSpan || 1}r
               </button>
@@ -1211,7 +1211,7 @@
                       <select
                         value={selectedStat}
                         onchange={(e) => handleStatChange(e.currentTarget.value)}
-                        class="bg-surface-container text-[11px] text-on-surface-variant border border-outline-variant rounded-md px-1.5 py-0.5 outline-none cursor-pointer"
+                        class="bg-surface-container text-2xs text-on-surface-variant border border-outline-variant rounded-md px-1.5 py-0.5 outline-none cursor-pointer"
                       >
                         <option value="messages">Messages</option>
                         <option value="voice">{m.home_opt_voice()}</option>
@@ -1220,7 +1220,7 @@
                         <option value="sanctions">{m.nav_sanctions()}</option>
                       </select>
                     </div>
-                    <p class="text-[11px] text-on-surface-variant">{statConfig.subtitle}</p>
+                    <p class="text-2xs text-on-surface-variant">{statConfig.subtitle}</p>
                   </div>
                 </div>
                 <div class="text-right shrink-0">
@@ -1228,7 +1228,7 @@
                     <div class="h-7 w-16 animate-pulse bg-surface-container-high rounded"></div>
                   {:else}
                     <span class="text-xl font-semibold text-on-surface">{formatNumber(statTotal)}{statConfig.unit}</span>
-                    <p class="text-[11px] text-emerald-400">{m.home_last_7_days()}</p>
+                    <p class="text-2xs text-emerald-400">{m.home_last_7_days()}</p>
                   {/if}
                 </div>
               </div>
@@ -1276,7 +1276,7 @@
                   </p>
                 </div>
 
-                <p class="text-[11px] text-on-surface-variant">
+                <p class="text-2xs text-on-surface-variant">
                   {#if botLanguage.detected}
                     {m.home_botlanguage_detected({ lang: botLanguageLabel(botLanguage.detected) })}
                   {:else}
@@ -1313,14 +1313,14 @@
 
                 {#if botLanguageRerender}
                   {#if botLanguageRerender.failed > 0}
-                    <p class="text-[10px] text-amber-400">{m.home_botlanguage_panels_failed({ n: botLanguageRerender.failed })}</p>
+                    <p class="text-2xs text-amber-400">{m.home_botlanguage_panels_failed({ n: botLanguageRerender.failed })}</p>
                   {:else if botLanguageRerender.updated > 0}
-                    <p class="text-[10px] text-emerald-400">{m.home_botlanguage_panels_updated({ n: botLanguageRerender.updated })}</p>
+                    <p class="text-2xs text-emerald-400">{m.home_botlanguage_panels_updated({ n: botLanguageRerender.updated })}</p>
                   {:else}
-                    <p class="text-[10px] text-on-surface-variant/70">{m.home_botlanguage_panels_none()}</p>
+                    <p class="text-2xs text-on-surface-variant/70">{m.home_botlanguage_panels_none()}</p>
                   {/if}
                 {:else}
-                  <p class="text-[10px] text-on-surface-variant/70">{m.home_botlanguage_hint()}</p>
+                  <p class="text-2xs text-on-surface-variant/70">{m.home_botlanguage_hint()}</p>
                 {/if}
               </div>
             {:else}
@@ -1346,7 +1346,7 @@
                 </div>
 
                 <label class="flex flex-col gap-1 mt-auto">
-                  <span class="text-[10px] uppercase font-medium text-on-surface-variant">{m.home_timezone_label()}</span>
+                  <span class="text-2xs uppercase font-medium text-on-surface-variant">{m.home_timezone_label()}</span>
                   <select
                     disabled={timezoneLoading}
                     value={timezone.timezone}
@@ -1359,7 +1359,7 @@
                   </select>
                 </label>
 
-                <p class="text-[10px] text-on-surface-variant/70">{m.home_timezone_hint()}</p>
+                <p class="text-2xs text-on-surface-variant/70">{m.home_timezone_hint()}</p>
               </div>
             {:else}
               <div class="h-full flex items-center justify-center text-on-surface-variant/40 text-xs">
@@ -1400,17 +1400,17 @@
 
               {#if displayColSpan(item) >= 2 || displayRowSpan(item) >= 2}
                 <div class="flex-1 space-y-1.5 {displayColSpan(item) >= 2 ? 'border-l border-outline-variant pl-6' : 'border-t border-outline-variant pt-3'}">
-                  <span class="text-[10px] text-on-surface-variant">{m.home_active_modules()}</span>
+                  <span class="text-2xs text-on-surface-variant">{m.home_active_modules()}</span>
                   {#each dashboardStore.state.modules.filter(m => m.status === 'active').slice(0, displayRowSpan(item) >= 2 ? 8 : 5) as mod}
                     <div class="flex items-center justify-between text-xs">
                       <span class="text-on-surface truncate">{mod.name}</span>
-                      <span class="text-[10px] text-emerald-400 shrink-0">{m.home_active_lower()}</span>
+                      <span class="text-2xs text-emerald-400 shrink-0">{m.home_active_lower()}</span>
                     </div>
                   {/each}
                   {#each dashboardStore.state.modules.filter(m => m.status === 'error') as mod}
                     <div class="flex items-center justify-between text-xs">
                       <span class="text-on-surface truncate">{mod.name}</span>
-                      <span class="text-[10px] text-red-400 shrink-0">{m.home_error_lower()}</span>
+                      <span class="text-2xs text-red-400 shrink-0">{m.home_error_lower()}</span>
                     </div>
                   {/each}
                 </div>
@@ -1438,7 +1438,7 @@
                 </div>
                 <h3 class="text-sm font-medium text-on-surface">{m.home_active_channels()}</h3>
               </div>
-              <span class="text-[10px] text-on-surface-variant">7 jours</span>
+              <span class="text-2xs text-on-surface-variant">7 jours</span>
             </div>
             <div class="grow flex flex-col justify-center {channelsCols > 1 ? 'grid grid-cols-2 gap-x-4 gap-y-2 items-start' : 'space-y-2'}">
               {#if analyticsLoading}
@@ -1449,11 +1449,11 @@
                 {#each (analyticsData?.topChannels || []).slice(0, channelCount) as channel, i}
                   {@const maxMsgs = topChannels[0]?.messagesCount || 1}
                   <div class="flex items-center gap-2.5">
-                    <span class="text-[10px] text-on-surface-variant w-4 text-right shrink-0">{i + 1}</span>
+                    <span class="text-2xs text-on-surface-variant w-4 text-right shrink-0">{i + 1}</span>
                     <div class="grow min-w-0">
                       <div class="flex items-center justify-between gap-2 mb-0.5">
                         <span class="text-xs text-on-surface truncate"># {channel.channelName}</span>
-                        <span class="text-[10px] text-on-surface-variant shrink-0">{formatNumber(channel.messagesCount)}</span>
+                        <span class="text-2xs text-on-surface-variant shrink-0">{formatNumber(channel.messagesCount)}</span>
                       </div>
                       <div class="h-1 w-full bg-surface-container-high rounded-full overflow-hidden">
                         <div class="bg-tertiary/60 h-full rounded-full" style="width: {(channel.messagesCount / maxMsgs) * 100}%"></div>
@@ -1475,7 +1475,7 @@
                 </div>
                 <h3 class="text-sm font-medium text-on-surface">{m.home_mod_moderation_title()}</h3>
               </div>
-              <button onclick={() => router.goto('/analytics')} class="text-[10px] text-primary hover:underline cursor-pointer">{m.home_details()}</button>
+              <button onclick={() => router.goto('/analytics')} class="text-2xs text-primary hover:underline cursor-pointer">{m.home_details()}</button>
             </div>
             <div class="space-y-2.5 grow flex flex-col justify-center">
               {#if analyticsLoading}
@@ -1486,31 +1486,31 @@
                 <div class="grid {displayColSpan(item) >= 2 ? 'grid-cols-4' : 'grid-cols-2'} gap-2">
                   <div class="px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
                     <p class="text-lg font-semibold text-on-surface">{moderation.totals.warns}</p>
-                    <p class="text-[10px] text-on-surface-variant">Warns</p>
+                    <p class="text-2xs text-on-surface-variant">Warns</p>
                   </div>
                   <div class="px-3 py-2 rounded-lg bg-orange-500/5 border border-orange-500/10">
                     <p class="text-lg font-semibold text-on-surface">{moderation.totals.timeouts}</p>
-                    <p class="text-[10px] text-on-surface-variant">Timeouts</p>
+                    <p class="text-2xs text-on-surface-variant">Timeouts</p>
                   </div>
                   <div class="px-3 py-2 rounded-lg bg-red-500/5 border border-red-500/10">
                     <p class="text-lg font-semibold text-on-surface">{moderation.totals.kicks}</p>
-                    <p class="text-[10px] text-on-surface-variant">Kicks</p>
+                    <p class="text-2xs text-on-surface-variant">Kicks</p>
                   </div>
                   <div class="px-3 py-2 rounded-lg bg-red-500/5 border border-red-500/10">
                     <p class="text-lg font-semibold text-on-surface">{moderation.totals.bans}</p>
-                    <p class="text-[10px] text-on-surface-variant">Bans</p>
+                    <p class="text-2xs text-on-surface-variant">Bans</p>
                   </div>
                 </div>
                 {#if moderation.activeSanctions > 0}
-                  <p class="text-[11px] text-amber-400 mt-1">{m.home_active_sanctions({ n: moderation.activeSanctions })}</p>
+                  <p class="text-2xs text-amber-400 mt-1">{m.home_active_sanctions({ n: moderation.activeSanctions })}</p>
                 {/if}
                 {#if displayRowSpan(item) >= 2 && moderation.recentSanctions?.length > 0}
                   <div class="border-t border-outline-variant pt-2 mt-1 space-y-1.5">
-                    <span class="text-[10px] text-on-surface-variant">{m.home_recent_sanctions()}</span>
+                    <span class="text-2xs text-on-surface-variant">{m.home_recent_sanctions()}</span>
                     {#each moderation.recentSanctions.slice(0, displayRowSpan(item) >= 3 ? 6 : 3) as sanction}
                       <div class="flex items-center justify-between text-xs">
                         <span class="text-on-surface truncate">{sanction.targetName || m.home_member()}</span>
-                        <span class="text-[10px] text-on-surface-variant shrink-0">{sanction.type}</span>
+                        <span class="text-2xs text-on-surface-variant shrink-0">{sanction.type}</span>
                       </div>
                     {/each}
                   </div>
@@ -1531,7 +1531,7 @@
                 </div>
                 <h3 class="text-sm font-medium text-on-surface">{m.home_top_members()}</h3>
               </div>
-              <span class="text-[10px] text-on-surface-variant">7 jours</span>
+              <span class="text-2xs text-on-surface-variant">7 jours</span>
             </div>
             <div class="grow flex flex-col justify-center {membersCols > 1 ? 'grid grid-cols-2 gap-x-4 gap-y-2 items-start' : 'space-y-2'}">
               {#if analyticsLoading}
@@ -1541,7 +1541,7 @@
               {:else if topMembers.length > 0}
                 {#each (analyticsData?.topMessageMembers || []).slice(0, memberCount) as member, i}
                   <div class="flex items-center gap-2.5">
-                    <span class="text-[10px] font-medium {i === 0 ? 'text-amber-400' : i === 1 ? 'text-gray-400' : i === 2 ? 'text-orange-400' : 'text-on-surface-variant'} w-4 text-right shrink-0">{i + 1}</span>
+                    <span class="text-2xs font-medium {i === 0 ? 'text-amber-400' : i === 1 ? 'text-gray-400' : i === 2 ? 'text-orange-400' : 'text-on-surface-variant'} w-4 text-right shrink-0">{i + 1}</span>
                     {#if member.avatarUrl}
                       <img src={member.avatarUrl} alt="" class="w-6 h-6 rounded-full shrink-0" />
                     {:else}
@@ -1551,7 +1551,7 @@
                     {/if}
                     <div class="grow min-w-0 flex items-center justify-between gap-2">
                       <span class="text-xs text-on-surface truncate">{member.name}</span>
-                      <span class="text-[10px] text-on-surface-variant shrink-0">{formatNumber(member.messageCount)} msg</span>
+                      <span class="text-2xs text-on-surface-variant shrink-0">{formatNumber(member.messageCount)} msg</span>
                     </div>
                   </div>
                 {/each}
@@ -1571,7 +1571,7 @@
                 </div>
                 <div>
                   <h3 class="text-sm font-medium text-on-surface">Notifications</h3>
-                  <span class="text-[10px] text-on-surface-variant">{m.home_unread_count({ n: notificationsStore.unreadCount })}</span>
+                  <span class="text-2xs text-on-surface-variant">{m.home_unread_count({ n: notificationsStore.unreadCount })}</span>
                 </div>
               </div>
               <a href="/inbox" class="w-6 h-6 rounded-md bg-surface-container flex items-center justify-center hover:bg-surface-container-high transition-colors text-on-surface-variant">
@@ -1586,7 +1586,7 @@
                       <div class="w-1.5 h-1.5 rounded-full {notif.type === 'ERROR' ? 'bg-red-400' : notif.type === 'WARNING' ? 'bg-amber-400' : 'bg-primary'} shrink-0"></div>
                       <div class="min-w-0">
                         <p class="text-xs font-medium leading-tight truncate">{notif.title}</p>
-                        <p class="text-[10px] text-on-surface-variant mt-0.5 line-clamp-1">{notif.message}</p>
+                        <p class="text-2xs text-on-surface-variant mt-0.5 line-clamp-1">{notif.message}</p>
                       </div>
                     </div>
                     <button
@@ -1600,7 +1600,7 @@
               {:else}
                 <div class="flex flex-col items-center justify-center py-6 text-center text-on-surface-variant/40 {notifCols > 1 ? 'col-span-2' : ''}">
                   <Papicon icon="check-circle" size={18} class="mb-1 text-emerald-500/50" />
-                  <p class="text-[11px]">{m.home_all_up_to_date()}</p>
+                  <p class="text-2xs">{m.home_all_up_to_date()}</p>
                 </div>
               {/if}
             </div>
@@ -1617,8 +1617,8 @@
                 <h3 class="text-sm font-medium text-on-surface">Staff</h3>
               </div>
               <div class="flex gap-1.5">
-                <span class="px-1.5 py-0.5 text-[10px] rounded bg-amber-500/10 text-amber-400">{pendingAbsences.length} abs.</span>
-                <span class="px-1.5 py-0.5 text-[10px] rounded bg-surface-container text-on-surface-variant">{m.home_meetings_badge({ n: staffStore.upcomingMeetings.length })}</span>
+                <span class="px-1.5 py-0.5 text-2xs rounded bg-amber-500/10 text-amber-400">{pendingAbsences.length} abs.</span>
+                <span class="px-1.5 py-0.5 text-2xs rounded bg-surface-container text-on-surface-variant">{m.home_meetings_badge({ n: staffStore.upcomingMeetings.length })}</span>
               </div>
             </div>
 
@@ -1626,14 +1626,14 @@
               <div class="{displayColSpan(item) >= 2 ? 'flex-1' : ''} space-y-2.5">
                 {#each pendingAbsences.slice(0, staffAbsCount) as absence, i}
                   <div class="p-2.5 rounded-lg border border-outline-variant bg-surface-container-low">
-                    <span class="text-[10px] text-primary block mb-1">{i === 0 ? m.home_next_absence() : m.home_absence()}</span>
+                    <span class="text-2xs text-primary block mb-1">{i === 0 ? m.home_next_absence() : m.home_absence()}</span>
                     <p class="text-xs font-medium truncate">{absence.staffDisplayName || m.home_staff_member()}</p>
-                    <p class="text-[10px] text-on-surface-variant mt-0.5 truncate">{absence.reason || 'N/A'}</p>
+                    <p class="text-2xs text-on-surface-variant mt-0.5 truncate">{absence.reason || 'N/A'}</p>
                   </div>
                 {:else}
                   <div class="p-2.5 rounded-lg border border-outline-variant bg-surface-container-low">
-                    <span class="text-[10px] text-primary block mb-1">{m.home_next_absence()}</span>
-                    <p class="text-[11px] text-on-surface-variant/50">{m.home_none_f()}</p>
+                    <span class="text-2xs text-primary block mb-1">{m.home_next_absence()}</span>
+                    <p class="text-2xs text-on-surface-variant/50">{m.home_none_f()}</p>
                   </div>
                 {/each}
               </div>
@@ -1641,16 +1641,16 @@
               <div class="{displayColSpan(item) >= 2 ? 'flex-1' : ''} space-y-2.5 {displayColSpan(item) < 2 ? 'mt-2.5' : ''}">
                 {#each staffStore.upcomingMeetings.slice(0, staffMeetCount) as meeting, i}
                   <div class="p-2.5 rounded-lg border border-outline-variant bg-surface-container-low">
-                    <span class="text-[10px] text-secondary block mb-1">{i === 0 ? m.home_next_meeting() : m.home_meeting()}</span>
+                    <span class="text-2xs text-secondary block mb-1">{i === 0 ? m.home_next_meeting() : m.home_meeting()}</span>
                     <p class="text-xs font-medium truncate">{meeting.title}</p>
-                    <p class="text-[10px] text-on-surface-variant mt-0.5 text-on-surface">
+                    <p class="text-2xs text-on-surface-variant mt-0.5 text-on-surface">
                       {m.home_date_at_time({ date: new Date(meeting.scheduledAt).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short' }), time: new Date(meeting.scheduledAt).toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' }) })}
                     </p>
                   </div>
                 {:else}
                   <div class="p-2.5 rounded-lg border border-outline-variant bg-surface-container-low">
-                    <span class="text-[10px] text-secondary block mb-1">{m.home_next_meeting()}</span>
-                    <p class="text-[11px] text-on-surface-variant/50">{m.home_none_f()}</p>
+                    <span class="text-2xs text-secondary block mb-1">{m.home_next_meeting()}</span>
+                    <p class="text-2xs text-on-surface-variant/50">{m.home_none_f()}</p>
                   </div>
                 {/each}
               </div>
@@ -1670,7 +1670,7 @@
                 </div>
                 <h3 class="text-sm font-medium text-on-surface">{m.home_recent_activity()}</h3>
               </div>
-              <a href="/activity" class="text-[10px] text-primary hover:underline">{m.home_see_all()}</a>
+              <a href="/activity" class="text-2xs text-primary hover:underline">{m.home_see_all()}</a>
             </div>
             <div class="space-y-2 grow flex flex-col justify-center">
               {#each dashboardStore.state.auditTrail.slice(0, auditCount) as entry}
@@ -1680,12 +1680,12 @@
                   </div>
                   <div class="grow min-w-0">
                     <div class="flex items-center justify-between gap-2">
-                      <span class="text-[10px] text-primary truncate">{entry.module}</span>
-                      <span class="text-[9px] text-on-surface-variant shrink-0">{entry.dateIso ? relativeTime(entry.dateIso) : ''}</span>
+                      <span class="text-2xs text-primary truncate">{entry.module}</span>
+                      <span class="text-2xs text-on-surface-variant shrink-0">{entry.dateIso ? relativeTime(entry.dateIso) : ''}</span>
                     </div>
-                    <p class="text-[11px] text-on-surface {displayColSpan(item) >= 2 ? '' : 'truncate'}">{entry.action}</p>
+                    <p class="text-2xs text-on-surface {displayColSpan(item) >= 2 ? '' : 'truncate'}">{entry.action}</p>
                     {#if displayColSpan(item) >= 2 && entry.user}
-                      <p class="text-[10px] text-on-surface-variant">{m.home_by_user({ user: entry.user })}</p>
+                      <p class="text-2xs text-on-surface-variant">{m.home_by_user({ user: entry.user })}</p>
                     {/if}
                   </div>
                 </div>
@@ -1697,7 +1697,7 @@
         {:else if item.id === 'actions'}
           <div class="flex flex-col h-full justify-center">
             <div class="flex flex-wrap gap-2 items-center">
-              <span class="text-[10px] text-on-surface-variant mr-1">{m.home_shortcuts()}</span>
+              <span class="text-2xs text-on-surface-variant mr-1">{m.home_shortcuts()}</span>
               <button onclick={() => router.goto('/planning')} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-container border border-outline-variant rounded-md text-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer">
                 <Papicon icon="calendar-plus" size={12} class="text-primary" /> {m.home_absence()}
               </button>
@@ -1779,14 +1779,14 @@
                 <h3 class="text-sm font-medium text-on-surface">{m.home_mod_bothosting_title()}</h3>
               </div>
               {#if hosting}
-                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] bg-emerald-500/20 text-emerald-400 font-medium">
+                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-2xs bg-emerald-500/20 text-emerald-400 font-medium">
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> {m.home_online_label()}
                 </span>
               {/if}
             </div>
             <div class="space-y-3 grow flex flex-col justify-center">
               <div>
-                <div class="flex justify-between text-[10px] text-on-surface-variant mb-1">
+                <div class="flex justify-between text-2xs text-on-surface-variant mb-1">
                   <span>{m.home_cpu()}</span>
                   <span class="font-medium text-on-surface">{hosting?.cpuPercent == null ? '-' : `${hosting.cpuPercent}%`}</span>
                 </div>
@@ -1795,7 +1795,7 @@
                 </div>
               </div>
               <div>
-                <div class="flex justify-between text-[10px] text-on-surface-variant mb-1">
+                <div class="flex justify-between text-2xs text-on-surface-variant mb-1">
                   <span>{m.home_ram()}</span>
                   <span class="font-medium text-on-surface">{hosting ? `${formatMemory(hosting.memoryUsedMb)} / ${formatMemory(hosting.memoryTotalMb)}` : '-'}</span>
                 </div>
@@ -1829,11 +1829,11 @@
             <div class="space-y-2 grow text-xs flex flex-col overflow-y-auto" style="scrollbar-width: thin;">
               {#if changelogLoading}
                 <div class="flex items-center justify-center grow">
-                  <span class="text-on-surface-variant text-[11px]">{m.common_loading()}</span>
+                  <span class="text-on-surface-variant text-2xs">{m.common_loading()}</span>
                 </div>
               {:else if changelogCommits.length === 0}
                 <div class="flex items-center justify-center grow">
-                  <span class="text-on-surface-variant text-[11px]">{m.home_no_updates()}</span>
+                  <span class="text-on-surface-variant text-2xs">{m.home_no_updates()}</span>
                 </div>
               {:else}
                 {#each changelogCommits.slice(0, maxNewsItems) as commit}
@@ -1846,14 +1846,14 @@
                   {@const relDate = formatRelativeDate(commit.date)}
                   <div class="p-2 rounded-lg bg-surface-container/60 hover:bg-surface-container transition-colors">
                     <div class="flex items-center justify-between mb-0.5">
-                      <span class="inline-flex items-center px-1.5 py-px rounded-full text-[9px] font-medium {typeBg} {typeColor}">
+                      <span class="inline-flex items-center px-1.5 py-px rounded-full text-2xs font-medium {typeBg} {typeColor}">
                         {typeLabel}{commit.scope ? ` (${commit.scope})` : ''}
                       </span>
-                      <span class="text-[9px] text-on-surface-variant">{relDate}</span>
+                      <span class="text-2xs text-on-surface-variant">{relDate}</span>
                     </div>
-                    <p class="font-medium text-on-surface text-[11px] leading-snug">{commit.title}</p>
+                    <p class="font-medium text-on-surface text-2xs leading-snug">{commit.title}</p>
                     {#if commit.description}
-                      <p class="text-[10px] text-on-surface-variant mt-0.5 leading-tight line-clamp-2">{commit.description}</p>
+                      <p class="text-2xs text-on-surface-variant mt-0.5 leading-tight line-clamp-2">{commit.description}</p>
                     {/if}
                   </div>
                 {/each}
@@ -1902,7 +1902,7 @@
             </div>
             <div class="flex flex-col justify-center grow">
               <p class="text-2xl font-bold text-on-surface tracking-tight">{currentTime}</p>
-              <p class="text-[10px] text-on-surface-variant capitalize">{currentDate}</p>
+              <p class="text-2xs text-on-surface-variant capitalize">{currentDate}</p>
             </div>
           </div>
         {:else if item.id === 'economy'}
@@ -1915,20 +1915,20 @@
                 </div>
                 <h3 class="text-sm font-medium text-on-surface">{m.home_mod_economy_title()}</h3>
               </div>
-              <button onclick={() => router.goto('/economy')} class="text-[10px] text-primary hover:underline cursor-pointer">{m.home_manage()}</button>
+              <button onclick={() => router.goto('/economy')} class="text-2xs text-primary hover:underline cursor-pointer">{m.home_manage()}</button>
             </div>
             <div class="space-y-2.5 grow flex flex-col justify-center">
               <div class="grid grid-cols-2 gap-2">
                 <div class="px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
                   <p class="text-lg font-semibold text-on-surface">{economy ? formatNumber(economy.totalBalance) : '-'}</p>
-                  <p class="text-[10px] text-on-surface-variant">{m.home_in_circulation()}</p>
+                  <p class="text-2xs text-on-surface-variant">{m.home_in_circulation()}</p>
                 </div>
                 <div class="px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
                   <p class="text-lg font-semibold text-on-surface">{economy ? formatNumber(economy.activePlayers) : '-'}</p>
-                  <p class="text-[10px] text-on-surface-variant">{m.home_active_7d()}</p>
+                  <p class="text-2xs text-on-surface-variant">{m.home_active_7d()}</p>
                 </div>
               </div>
-              <p class="text-[10px] text-on-surface-variant text-center">
+              <p class="text-2xs text-on-surface-variant text-center">
                 {#if !economy}
                   {m.home_economy_hint()}
                 {:else if !economy.enabled}
@@ -1949,20 +1949,20 @@
                 </div>
                 <h3 class="text-sm font-medium text-on-surface">{m.home_mod_leveling_title()}</h3>
               </div>
-              <button onclick={() => router.goto('/leveling')} class="text-[10px] text-primary hover:underline cursor-pointer">{m.home_leaderboard()}</button>
+              <button onclick={() => router.goto('/leveling')} class="text-2xs text-primary hover:underline cursor-pointer">{m.home_leaderboard()}</button>
             </div>
             <div class="space-y-2 grow flex flex-col justify-center">
               <div class="grid grid-cols-2 gap-2">
                 <div class="px-3 py-2 rounded-lg bg-indigo-500/5 border border-indigo-500/10">
                   <p class="text-lg font-semibold text-on-surface">{leveling?.averageLevel ?? '-'}</p>
-                  <p class="text-[10px] text-on-surface-variant">{m.home_avg_level()}</p>
+                  <p class="text-2xs text-on-surface-variant">{m.home_avg_level()}</p>
                 </div>
                 <div class="px-3 py-2 rounded-lg bg-purple-500/5 border border-purple-500/10">
                   <p class="text-lg font-semibold text-on-surface">{leveling ? formatNumber(leveling.activeMembers) : '-'}</p>
-                  <p class="text-[10px] text-on-surface-variant">{m.home_active_7d()}</p>
+                  <p class="text-2xs text-on-surface-variant">{m.home_active_7d()}</p>
                 </div>
               </div>
-              <p class="text-[10px] text-on-surface-variant text-center">
+              <p class="text-2xs text-on-surface-variant text-center">
                 {#if !leveling}
                   {m.home_leveling_hint()}
                 {:else if !leveling.enabled}
@@ -1983,21 +1983,21 @@
                 </div>
                 <h3 class="text-sm font-medium text-on-surface">Tickets</h3>
               </div>
-              <button onclick={() => router.goto('/tickets')} class="text-[10px] text-primary hover:underline cursor-pointer">{m.home_see_everything()}</button>
+              <button onclick={() => router.goto('/tickets')} class="text-2xs text-primary hover:underline cursor-pointer">{m.home_see_everything()}</button>
             </div>
             <div class="space-y-2 grow flex flex-col justify-center">
               <div class="grid grid-cols-3 gap-2">
                 <div class="px-2 py-2 rounded-lg bg-blue-500/5 border border-blue-500/10 text-center">
                   <p class="text-lg font-semibold text-on-surface">{tickets ? formatNumber(tickets.open) : '-'}</p>
-                  <p class="text-[10px] text-on-surface-variant">{m.home_open_tickets()}</p>
+                  <p class="text-2xs text-on-surface-variant">{m.home_open_tickets()}</p>
                 </div>
                 <div class="px-2 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10 text-center">
                   <p class="text-lg font-semibold text-on-surface">{tickets ? formatNumber(tickets.claimed) : '-'}</p>
-                  <p class="text-[10px] text-on-surface-variant">{m.home_in_progress()}</p>
+                  <p class="text-2xs text-on-surface-variant">{m.home_in_progress()}</p>
                 </div>
                 <div class="px-2 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10 text-center">
                   <p class="text-lg font-semibold text-on-surface">{tickets ? formatNumber(tickets.closedRecently) : '-'}</p>
-                  <p class="text-[10px] text-on-surface-variant">{m.home_closed_7d()}</p>
+                  <p class="text-2xs text-on-surface-variant">{m.home_closed_7d()}</p>
                 </div>
               </div>
             </div>
@@ -2012,20 +2012,20 @@
                 </div>
                 <h3 class="text-sm font-medium text-on-surface">{m.home_mod_invites_title()}</h3>
               </div>
-              <button onclick={() => router.goto('/invitations')} class="text-[10px] text-primary hover:underline cursor-pointer">{m.home_details()}</button>
+              <button onclick={() => router.goto('/invitations')} class="text-2xs text-primary hover:underline cursor-pointer">{m.home_details()}</button>
             </div>
             <div class="space-y-2 grow flex flex-col justify-center">
               <div class="grid grid-cols-2 gap-2">
                 <div class="px-3 py-2 rounded-lg bg-teal-500/5 border border-teal-500/10">
                   <p class="text-lg font-semibold text-on-surface">{invites ? formatNumber(invites.activeCodes) : '-'}</p>
-                  <p class="text-[10px] text-on-surface-variant">{m.home_active_invites()}</p>
+                  <p class="text-2xs text-on-surface-variant">{m.home_active_invites()}</p>
                 </div>
                 <div class="px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
                   <p class="text-lg font-semibold text-on-surface">{invites?.retentionPercent == null ? '-' : `${invites.retentionPercent}%`}</p>
-                  <p class="text-[10px] text-on-surface-variant">{m.home_retention()}</p>
+                  <p class="text-2xs text-on-surface-variant">{m.home_retention()}</p>
                 </div>
               </div>
-              <p class="text-[10px] text-on-surface-variant text-center">
+              <p class="text-2xs text-on-surface-variant text-center">
                 {#if invites}
                   {m.home_invites_joined({ n: invites.joinedRecently })}
                 {:else}
@@ -2045,14 +2045,14 @@
                 </div>
                 <h3 class="text-sm font-medium text-on-surface">{m.home_mod_events_title()}</h3>
               </div>
-              <button onclick={() => router.goto('/events')} class="text-[10px] text-primary hover:underline cursor-pointer">{m.home_see_everything()}</button>
+              <button onclick={() => router.goto('/events')} class="text-2xs text-primary hover:underline cursor-pointer">{m.home_see_everything()}</button>
             </div>
             <div class="space-y-2 grow flex flex-col {upcomingEvents.length > 0 ? '' : 'justify-center'}">
               {#if upcomingEvents.length === 0}
                 <div class="flex flex-col items-center justify-center py-4 text-center text-on-surface-variant/40">
                   <Papicon icon="calendar" size={18} class="mb-1 text-rose-500/50" />
-                  <p class="text-[11px]">{m.home_no_upcoming_events()}</p>
-                  <p class="text-[10px] mt-0.5">{m.home_create_event_hint()}</p>
+                  <p class="text-2xs">{m.home_no_upcoming_events()}</p>
+                  <p class="text-2xs mt-0.5">{m.home_create_event_hint()}</p>
                 </div>
               {:else}
                 {#each upcomingEvents.slice(0, maxEvents) as evt (evt.id)}
@@ -2062,11 +2062,11 @@
                   >
                     <div class="min-w-0">
                       <p class="text-xs font-medium text-on-surface truncate">{evt.title}</p>
-                      <p class="text-[10px] text-on-surface-variant">
+                      <p class="text-2xs text-on-surface-variant">
                         {evt.startsAt ? formatEventDate(evt.startsAt) : evt.type}
                       </p>
                     </div>
-                    <span class="text-[9px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0 {evt.status === 'ONGOING' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}">
+                    <span class="text-2xs font-medium uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0 {evt.status === 'ONGOING' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}">
                       {evt.status === 'ONGOING' ? m.ev_status_ongoing() : m.ev_status_published()}
                     </span>
                   </button>
@@ -2085,20 +2085,20 @@
                 </div>
                 <h3 class="text-sm font-medium text-on-surface">{m.home_mod_polls_title()}</h3>
               </div>
-              <button onclick={() => router.goto('/staff-management/polls')} class="text-[10px] text-primary hover:underline cursor-pointer">{m.home_see_everything()}</button>
+              <button onclick={() => router.goto('/staff-management/polls')} class="text-2xs text-primary hover:underline cursor-pointer">{m.home_see_everything()}</button>
             </div>
             <div class="space-y-2 grow flex flex-col {openPolls.length > 0 ? '' : 'justify-center'}">
               {#if openPolls.length === 0}
                 <div class="flex flex-col items-center justify-center py-4 text-center text-on-surface-variant/40">
                   <Papicon icon="bar-chart" size={18} class="mb-1 text-violet-500/50" />
-                  <p class="text-[11px]">{m.home_no_active_polls()}</p>
-                  <p class="text-[10px] mt-0.5">{m.home_polls_hint()}</p>
+                  <p class="text-2xs">{m.home_no_active_polls()}</p>
+                  <p class="text-2xs mt-0.5">{m.home_polls_hint()}</p>
                 </div>
               {:else}
                 {#each openPolls.slice(0, maxPolls) as poll (poll.id)}
                   <div class="px-2.5 py-2 rounded-lg bg-violet-500/5 border border-violet-500/10">
                     <p class="text-xs font-medium text-on-surface truncate">{poll.title}</p>
-                    <p class="text-[10px] text-on-surface-variant">
+                    <p class="text-2xs text-on-surface-variant">
                       {m.home_poll_votes({ n: poll.voteCount })}{poll.closesAt ? ` · ${m.home_poll_closes({ date: formatEventDate(poll.closesAt) })}` : ''}
                     </p>
                   </div>
@@ -2115,7 +2115,7 @@
                 </div>
                 <h3 class="text-sm font-medium text-on-surface">{m.home_mod_staffserver_title()}</h3>
               </div>
-              <button onclick={() => router.goto('/staff-server')} class="text-[10px] text-primary hover:underline cursor-pointer">{m.home_manage()}</button>
+              <button onclick={() => router.goto('/staff-server')} class="text-2xs text-primary hover:underline cursor-pointer">{m.home_manage()}</button>
             </div>
             {#if staffServerLinks.length > 0}
               {@const link = staffServerLinks[0]}
@@ -2123,21 +2123,21 @@
                 <div class="flex items-center gap-2">
                   <span class="w-2 h-2 rounded-full {link.enabled ? 'bg-emerald-400' : 'bg-red-400'}"></span>
                   <p class="text-sm font-medium text-on-surface truncate">{link.otherGuildName}</p>
-                  <span class="text-[9px] font-medium uppercase tracking-wide px-1 py-0.5 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
+                  <span class="text-2xs font-medium uppercase tracking-wide px-1 py-0.5 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
                     {link.isMain ? 'Staff' : m.home_main_label()}
                   </span>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                   <div class="px-3 py-2 rounded-lg bg-blue-500/5 border border-blue-500/10">
                     <p class="text-xs font-semibold text-on-surface">{SYNC_MODE_LABELS[link.syncMode] ?? link.syncMode}</p>
-                    <p class="text-[10px] text-on-surface-variant">{m.home_sync_mode()}</p>
+                    <p class="text-2xs text-on-surface-variant">{m.home_sync_mode()}</p>
                   </div>
                   <div class="px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
                     <p class="text-lg font-semibold text-on-surface">{link.roleMappings?.length ?? 0}</p>
-                    <p class="text-[10px] text-on-surface-variant">{m.home_mapped_roles()}</p>
+                    <p class="text-2xs text-on-surface-variant">{m.home_mapped_roles()}</p>
                   </div>
                 </div>
-                <p class="text-[10px] text-on-surface-variant text-center">
+                <p class="text-2xs text-on-surface-variant text-center">
                   {link.enabled ? m.home_link_active() : m.home_link_disabled()}
                 </p>
               </div>
@@ -2145,8 +2145,8 @@
               <div class="space-y-2 grow flex flex-col justify-center">
                 <div class="flex flex-col items-center justify-center py-4 text-center text-on-surface-variant/40">
                   <Papicon icon="shield" size={18} class="mb-1 text-blue-500/50" />
-                  <p class="text-[11px]">{m.home_no_staff_server()}</p>
-                  <p class="text-[10px] mt-0.5">{m.home_link_staff_hint()}</p>
+                  <p class="text-2xs">{m.home_no_staff_server()}</p>
+                  <p class="text-2xs mt-0.5">{m.home_link_staff_hint()}</p>
                 </div>
               </div>
             {/if}
@@ -2251,18 +2251,18 @@
                   </div>
                   <h4 class="font-medium text-xs text-on-surface">{mod.title}</h4>
                 </div>
-                <p class="text-[11px] text-on-surface-variant leading-normal">{mod.desc}</p>
+                <p class="text-2xs text-on-surface-variant leading-normal">{mod.desc}</p>
               </div>
               
               <div class="flex justify-end pt-1">
                 {#if isVisible}
-                  <span class="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium bg-emerald-500/10 px-2 py-1 rounded">
+                  <span class="inline-flex items-center gap-1 text-2xs text-emerald-400 font-medium bg-emerald-500/10 px-2 py-1 rounded">
                     <Papicon icon="check" size={10} /> {m.home_already_visible()}
                   </span>
                 {:else}
                   <button
                     onclick={() => { addModule(mod.id); showAddModuleModal = false; }}
-                    class="px-2.5 py-1 bg-primary text-white text-[10px] font-medium rounded hover:bg-primary-container hover:text-on-primary-container transition-colors cursor-pointer"
+                    class="px-2.5 py-1 bg-primary text-white text-2xs font-medium rounded hover:bg-primary-container hover:text-on-primary-container transition-colors cursor-pointer"
                   >
                     {m.common_add()}
                   </button>
@@ -2384,9 +2384,9 @@
                 <div class="min-w-0">
                   <h4 class="text-xs font-medium text-on-surface truncate">{preset.name}</h4>
                   {#if preset.description}
-                    <p class="text-[10px] text-on-surface-variant truncate mt-0.5">{preset.description}</p>
+                    <p class="text-2xs text-on-surface-variant truncate mt-0.5">{preset.description}</p>
                   {/if}
-                  <p class="text-[9px] text-on-surface-variant/60 mt-0.5">
+                  <p class="text-2xs text-on-surface-variant/60 mt-0.5">
                     {Array.isArray(preset.layout) ? preset.layout.length : '?'} modules · {new Date(preset.createdAt).toLocaleDateString(dateLocale())}
                   </p>
                 </div>
@@ -2426,7 +2426,7 @@
             <div class="flex flex-col items-center justify-center py-8 text-on-surface-variant/40">
               <Papicon icon="layers" size={24} class="mb-2" />
               <p class="text-xs">{m.home_no_presets()}</p>
-              <p class="text-[10px] mt-0.5">{m.home_no_presets_hint()}</p>
+              <p class="text-2xs mt-0.5">{m.home_no_presets_hint()}</p>
             </div>
           {/if}
         </div>

@@ -84,30 +84,30 @@
     <div class="rounded-xl overflow-hidden border border-black/25 shadow-sm bg-[#2b2d31]">
       <div class="px-3.5 py-2.5 border-b border-black/25 flex items-center gap-2">
         <Papicon icon="layout-grid" size={12} class="text-[#80848e]" />
-        <span class="text-[12.5px] font-semibold text-[#dbdee1]">
+        <span class="text-xs font-semibold text-[#dbdee1]">
           {kind === 'existing' ? 'Votre serveur, complété' : "L'arborescence proposée"}
         </span>
       </div>
 
       <div class="px-2 py-2 max-h-[420px] overflow-y-auto">
         {#each tree as category (category.key)}
-          <p class="px-2 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-[#949ba4]">
+          <p class="px-2 pt-2.5 pb-1 text-2xs font-semibold uppercase tracking-wide text-[#949ba4]">
             {category.name}
             {#if category.already}<span class="ml-1 font-medium normal-case tracking-normal text-[#6d7178]">— déjà là</span>{/if}
           </p>
           {#each category.children as channel (channel.key)}
-            <p class="flex items-center gap-1.5 rounded px-2 py-0.5 text-[13px] {channel.already ? 'text-[#80848e]' : 'text-[#dbdee1]'}">
-              <span class="text-[#80848e] text-[14px] leading-none shrink-0">
+            <p class="flex items-center gap-1.5 rounded px-2 py-0.5 text-body-sm {channel.already ? 'text-[#80848e]' : 'text-[#dbdee1]'}">
+              <span class="text-[#80848e] text-sm leading-none shrink-0">
                 {channel.voice ? '🔊' : '#'}
               </span>
               <span class="truncate">{channel.name}</span>
               {#if channel.already}
-                <span class="ml-auto shrink-0 text-[10.5px] text-[#6d7178]">déjà là</span>
+                <span class="ml-auto shrink-0 text-2xs text-[#6d7178]">déjà là</span>
               {/if}
             </p>
           {/each}
         {:else}
-          <p class="px-2 py-6 text-center text-[12.5px] text-[#949ba4]">
+          <p class="px-2 py-6 text-center text-xs text-[#949ba4]">
             Lecture de la maquette…
           </p>
         {/each}
@@ -117,7 +117,7 @@
         <!-- Sans cette ligne, la liste se lit comme une maquette generique posee
              par-dessus le serveur - « c'est pas ma structure ». Elle dit ce que
              la teinte grise veut dire : ce qui est deja la reste tel quel. -->
-        <p class="px-3.5 py-2.5 border-t border-black/25 text-[11.5px] leading-relaxed text-[#949ba4]">
+        <p class="px-3.5 py-2.5 border-t border-black/25 text-2xs leading-relaxed text-[#949ba4]">
           {alreadyCount} de ces {totalCount} entrées existent déjà chez vous : Kotbo s'y branche
           sans les renommer ni les déplacer. Vous confirmerez ligne par ligne juste après.
         </p>

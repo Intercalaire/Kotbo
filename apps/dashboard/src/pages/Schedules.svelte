@@ -296,7 +296,7 @@
             <div class="flex items-start justify-between gap-4">
               <div class="min-w-0 flex-1">
                 <h3 class="text-lg font-semibold truncate leading-snug">{schedule.name}</h3>
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 mt-1 bg-surface-container-high/50 border border-outline-variant/15 text-[10px] font-semibold rounded-lg uppercase tracking-wider text-primary">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 mt-1 bg-surface-container-high/50 border border-outline-variant/15 text-2xs font-semibold rounded-lg uppercase tracking-wider text-primary">
                   {formatType(schedule.type)}
                 </span>
               </div>
@@ -371,7 +371,7 @@
   <div class="space-y-6">
     <!-- Nom -->
     <div class="space-y-2">
-      <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.schedules_form_task_name()}</span>
+      <span class="block text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.schedules_form_task_name()}</span>
       <input
         type="text"
         bind:value={formName}
@@ -382,7 +382,7 @@
 
     <!-- Type -->
     <div class="space-y-2">
-      <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.schedules_form_action_type()}</span>
+      <span class="block text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.schedules_form_action_type()}</span>
       <FormSelect
         bind:value={formType}
         className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
@@ -397,7 +397,7 @@
     <!-- Salon Discord cible -->
     {#if formType !== 'SERVER_BACKUP'}
       <div class="space-y-2">
-        <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.schedules_form_target_channel()}</span>
+        <span class="block text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.schedules_form_target_channel()}</span>
         <SearchableSelect
           id="schedule-target-channel"
           bind:value={formTargetId}
@@ -411,7 +411,7 @@
     <!-- Message programmé -->
     {#if formType === 'SEND_MESSAGE'}
       <div class="space-y-2">
-        <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Message</span>
+        <span class="block text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Message</span>
         <FormTextarea
           bind:value={formMessage}
           placeholder="Le texte posté dans le salon."
@@ -443,7 +443,7 @@
               class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
             />
           </div>
-          <p class="text-[10px] text-on-surface-variant/60">
+          <p class="text-2xs text-on-surface-variant/60">
             L'image doit être servie en HTTPS. Couleur au format hexadécimal.
           </p>
         </div>
@@ -453,7 +453,7 @@
         <input type="checkbox" bind:checked={formAllowMentions} class="w-4 h-4 mt-0.5 rounded text-primary focus:ring-primary border-outline-variant/30" />
         <div>
           <span class="text-xs font-bold text-on-surface">Autoriser les mentions</span>
-          <p class="text-[10px] text-on-surface-variant/60">
+          <p class="text-2xs text-on-surface-variant/60">
             Sans cela, @everyone, @here et les mentions de rôle sont écrits mais ne notifient personne -
             un message qui se répète ne doit pas pinger tout le serveur par accident.
           </p>
@@ -464,7 +464,7 @@
         <input type="checkbox" bind:checked={formRunOnce} class="w-4 h-4 mt-0.5 rounded text-primary focus:ring-primary border-outline-variant/30" />
         <div>
           <span class="text-xs font-bold text-on-surface">Envoyer une seule fois</span>
-          <p class="text-[10px] text-on-surface-variant/60">
+          <p class="text-2xs text-on-surface-variant/60">
             La tâche se désactive juste après l'envoi. À cocher pour un message daté :
             son expression cron se redéclencherait sinon l'année suivante.
           </p>
@@ -474,7 +474,7 @@
 
     <!-- Fréquence -->
     <div class="space-y-2">
-      <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.schedules_form_frequency()}</span>
+      <span class="block text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.schedules_form_frequency()}</span>
       <FormSelect
         value={formFrequency}
         onchange={(e) => handleFrequencyChange((e.target as HTMLSelectElement).value)}
@@ -489,14 +489,14 @@
     <!-- Expression Cron -->
     {#if formFrequency === 'custom'}
       <div class="space-y-2">
-        <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.schedules_form_cron_expr()}</span>
+        <span class="block text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.schedules_form_cron_expr()}</span>
         <input
           type="text"
           bind:value={formCron}
           placeholder={m.schedules_form_cron_placeholder()}
           class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none font-mono"
         />
-        <p class="text-[10px] text-on-surface-variant/60 ml-2">{m.schedules_form_cron_help()}</p>
+        <p class="text-2xs text-on-surface-variant/60 ml-2">{m.schedules_form_cron_help()}</p>
       </div>
     {/if}
 

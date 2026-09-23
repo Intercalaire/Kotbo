@@ -465,14 +465,14 @@
                     <div class="text-center">
                       <h3 class="font-semibold text-on-surface">{apprentice.staffMember.username}</h3>
                       {#if apprentice.mentor && apprentice.mentor.userId !== authStore.user?.id}
-                        <p class="text-[10px] font-bold text-primary uppercase tracking-wider">{m.tutoring_mentor_prefix({ name: apprentice.mentor.username })}</p>
+                        <p class="text-2xs font-bold text-primary uppercase tracking-wider">{m.tutoring_mentor_prefix({ name: apprentice.mentor.username })}</p>
                       {/if}
                       <p class="text-xs text-on-surface-variant">{m.tutoring_apprentice_since({ date: new Date(apprentice.startDate).toLocaleDateString(dateLocale()) })}</p>
                     </div>
                   </div>
                   
                   <div class="flex flex-col gap-2">
-                    <div class="flex justify-between text-[13px] font-medium text-on-surface-variant/70 px-2">
+                    <div class="flex justify-between text-body-sm font-medium text-on-surface-variant/70 px-2">
                       <span>{m.tutoring_progress_label()}</span>
                       <span>{getProgressPercentage(apprentice.checklistProgress)}%</span>
                     </div>
@@ -537,11 +537,11 @@
                             <Papicon icon="mic" size={20} />
                           </div>
                           <div>
-                            <div class="text-[10px] font-semibold uppercase text-primary tracking-widest">{m.tutoring_vocal_activity()}</div>
+                            <div class="text-2xs font-semibold uppercase text-primary tracking-widest">{m.tutoring_vocal_activity()}</div>
                             <div class="text-lg font-semibold text-on-surface">
                               {Math.round(apprentice.vocalStats.voiceTimeSeconds / 3600)}h {Math.round((apprentice.vocalStats.voiceTimeSeconds % 3600) / 60)}m
                             </div>
-                            <div class="text-[11px] text-on-surface-variant">{m.tutoring_vocal_sessions_total({ count: apprentice.vocalStats.voiceSessionCount })}</div>
+                            <div class="text-2xs text-on-surface-variant">{m.tutoring_vocal_sessions_total({ count: apprentice.vocalStats.voiceSessionCount })}</div>
                           </div>
                         </div>
                       {/if}
@@ -552,10 +552,10 @@
                             <Papicon icon="calendar-off" size={20} />
                           </div>
                           <div class="flex-1 overflow-hidden">
-                            <div class="text-[10px] font-semibold uppercase text-warning tracking-widest">{m.tutoring_upcoming_absences()}</div>
+                            <div class="text-2xs font-semibold uppercase text-warning tracking-widest">{m.tutoring_upcoming_absences()}</div>
                             <div class="flex flex-col gap-0.5">
                               {#each apprentice.absences as absence}
-                                <div class="text-[10px] font-bold text-on-surface truncate">
+                                <div class="text-2xs font-bold text-on-surface truncate">
                                   {new Date(absence.startDate).toLocaleDateString()} - {new Date(absence.endDate).toLocaleDateString()}
                                 </div>
                               {/each}
@@ -570,7 +570,7 @@
                     <h2 class="text-xl font-semibold text-on-surface">{m.tutoring_checklist_title()}</h2>
                     <div class="flex gap-2">
                       {#each categories as cat}
-                        <div class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-{cat.color}/10 text-{cat.color} text-[10px] font-bold uppercase">
+                        <div class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-{cat.color}/10 text-{cat.color} text-2xs font-bold uppercase">
                           <Papicon icon={cat.icon} size={12} />
                           {cat.label}
                         </div>
@@ -596,7 +596,7 @@
                             <div class="flex gap-2">
                               <button 
                                 onclick={() => setChecklistState(apprentice.id, item.id, 'KNOWN', progress?.state)}
-                                class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all text-[10px] font-semibold uppercase tracking-wider
+                                class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all text-2xs font-semibold uppercase tracking-wider
  {progress?.state === 'KNOWN' ? 'bg-primary/10 border-primary/30 text-primary shadow-sm shadow-primary/5' : 
                                    progress?.state === 'ACQUIRED' ? 'bg-surface-container-highest/30 border-outline-variant/20 text-on-surface-variant/30 cursor-not-allowed' :
                                    'bg-surface-container border-outline-variant/30 text-on-surface-variant hover:border-primary/50'}"
@@ -608,7 +608,7 @@
                               
                               <button 
                                 onclick={() => setChecklistState(apprentice.id, item.id, 'ACQUIRED', progress?.state)}
-                                class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all text-[10px] font-semibold uppercase tracking-wider
+                                class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all text-2xs font-semibold uppercase tracking-wider
  {progress?.state === 'ACQUIRED' ? 'bg-success/10 border-success/30 text-success shadow-sm shadow-success/5' : 
                                    'bg-surface-container border-outline-variant/30 text-on-surface-variant hover:border-success/50'}"
                               >
@@ -621,7 +621,7 @@
                           <p class="text-xs text-on-surface-variant leading-relaxed mb-2">{item.description}</p>
                           
                           {#if progress?.completedAt}
-                            <div class="flex items-center gap-1 text-[11px] font-medium text-primary/60">
+                            <div class="flex items-center gap-1 text-2xs font-medium text-primary/60">
                               <Papicon icon="clock" size={10} />
                               <span>{m.tutoring_validated_on({ date: new Date(progress.completedAt).toLocaleDateString(dateLocale()), name: apprentice.mentor?.username || m.tutoring_default_tutor() })}</span>
                             </div>
@@ -705,7 +705,7 @@
                     <div class="text-lg font-semibold text-on-surface leading-none mb-1">
                       {Math.round(apprenticeProgress.vocalStats.voiceTimeSeconds / 3600)}h {Math.round((apprenticeProgress.vocalStats.voiceTimeSeconds % 3600) / 60)}m
                     </div>
-                    <p class="text-[10px] font-medium text-on-surface-variant uppercase tracking-wider">{m.tutoring_vocal_sessions_recorded({ count: apprenticeProgress.vocalStats.voiceSessionCount })}</p>
+                    <p class="text-2xs font-medium text-on-surface-variant uppercase tracking-wider">{m.tutoring_vocal_sessions_recorded({ count: apprenticeProgress.vocalStats.voiceSessionCount })}</p>
                   </div>
                 </div>
               {/if}
@@ -721,7 +721,7 @@
                       {#each apprenticeProgress.absences.slice(0, 2) as absence}
                         <div class="flex items-center justify-between">
                           <span class="text-sm font-bold text-on-surface">{new Date(absence.startDate).toLocaleDateString()}</span>
-                          <span class="text-[10px] font-medium text-on-surface-variant">→ {new Date(absence.endDate).toLocaleDateString()}</span>
+                          <span class="text-2xs font-medium text-on-surface-variant">→ {new Date(absence.endDate).toLocaleDateString()}</span>
                         </div>
                       {/each}
                     </div>
@@ -758,7 +758,7 @@
                     <div class="p-6 bg-surface-container/30 rounded-xl border border-outline-variant/20 flex gap-4 animate-in slide-in-from-left-2 duration-300">
                       <div class="w-1.5 bg-primary/20 rounded-full"></div>
                       <div class="flex-1">
-                        <div class="text-[10px] font-bold text-primary uppercase tracking-widest mb-1">{new Date(log.date).toLocaleDateString()}</div>
+                        <div class="text-2xs font-bold text-primary uppercase tracking-widest mb-1">{new Date(log.date).toLocaleDateString()}</div>
                         <p class="text-on-surface font-medium">{log.content}</p>
                       </div>
                     </div>
@@ -789,10 +789,10 @@
               {#if apprenticeProgress.reports.length > 0}
                 {@const lastReport = apprenticeProgress.reports[0]}
                 <div class="flex items-center gap-2 mb-3">
-                  <div class="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase {lastReport.type === 'POSITIVE' ? 'bg-success/10 text-success' : lastReport.type === 'NEGATIVE' ? 'bg-error/10 text-error' : 'bg-warning/10 text-warning'}">
+                  <div class="px-2 py-0.5 rounded-md text-2xs font-semibold uppercase {lastReport.type === 'POSITIVE' ? 'bg-success/10 text-success' : lastReport.type === 'NEGATIVE' ? 'bg-error/10 text-error' : 'bg-warning/10 text-warning'}">
                     {formatReportType(lastReport.type)}
                   </div>
-                  <span class="text-[10px] font-bold text-on-surface-variant">{new Date(lastReport.createdAt).toLocaleDateString()}</span>
+                  <span class="text-2xs font-bold text-on-surface-variant">{new Date(lastReport.createdAt).toLocaleDateString()}</span>
                 </div>
                 <p class="text-sm text-on-surface-variant italic leading-relaxed">"{lastReport.content}"</p>
               {:else}
@@ -847,7 +847,7 @@
             <div class="flex items-center justify-between p-4 bg-surface-container/50 rounded-lg border border-outline-variant/20">
               <div class="flex flex-col">
                 <span class="font-bold text-on-surface text-sm">{m.tutoring_toggle_vocal_label()}</span>
-                <span class="text-[10px] text-on-surface-variant">{m.tutoring_toggle_vocal_desc()}</span>
+                <span class="text-2xs text-on-surface-variant">{m.tutoring_toggle_vocal_desc()}</span>
               </div>
               <button 
                 onclick={() => config.showVocalActivity = !config.showVocalActivity}
@@ -861,7 +861,7 @@
             <div class="flex items-center justify-between p-4 bg-surface-container/50 rounded-lg border border-outline-variant/20">
               <div class="flex flex-col">
                 <span class="font-bold text-on-surface text-sm">{m.tutoring_toggle_absences_label()}</span>
-                <span class="text-[10px] text-on-surface-variant">{m.tutoring_toggle_absences_desc()}</span>
+                <span class="text-2xs text-on-surface-variant">{m.tutoring_toggle_absences_desc()}</span>
               </div>
               <button 
                 onclick={() => config.showAbsences = !config.showAbsences}
@@ -875,7 +875,7 @@
             <div class="flex items-center justify-between p-4 bg-surface-container/50 rounded-lg border border-outline-variant/20 mt-2">
               <div class="flex flex-col">
                 <span class="font-bold text-on-surface text-sm">{m.tutoring_toggle_dm_label()}</span>
-                <span class="text-[10px] text-on-surface-variant">{m.tutoring_toggle_dm_desc()}</span>
+                <span class="text-2xs text-on-surface-variant">{m.tutoring_toggle_dm_desc()}</span>
               </div>
               <button 
                 onclick={() => config.remindersEnabled = !config.remindersEnabled}
@@ -928,7 +928,7 @@
                   <div>
                     <div class="flex items-center gap-2">
                       <span class="font-semibold text-on-surface">{item.title}</span>
-                      <span class="text-[10px] font-semibold uppercase px-2 py-0.5 bg-primary/5 text-primary rounded-md">{categories.find(c => c.id === item.category)?.label || item.category}</span>
+                      <span class="text-2xs font-semibold uppercase px-2 py-0.5 bg-primary/5 text-primary rounded-md">{categories.find(c => c.id === item.category)?.label || item.category}</span>
                     </div>
                     <p class="text-sm text-on-surface-variant line-clamp-1">{item.description}</p>
                   </div>
@@ -1060,7 +1060,7 @@
             <div class="p-4 bg-warning/10 border border-warning/20 rounded-lg flex items-center justify-between">
               <div class="flex flex-col">
                 <span class="font-bold text-warning">{m.tutoring_forced_validation()}</span>
-                <span class="text-[10px] text-on-surface-variant">{m.tutoring_forced_validation_desc()}</span>
+                <span class="text-2xs text-on-surface-variant">{m.tutoring_forced_validation_desc()}</span>
               </div>
               <Papicon icon="shield-alert" size={24} class="text-warning" />
             </div>

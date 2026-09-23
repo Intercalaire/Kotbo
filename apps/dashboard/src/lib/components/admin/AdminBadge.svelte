@@ -34,7 +34,7 @@
   };
 
   const config = $derived(tones[tone] ?? tones.neutral);
-  const sizeClass = $derived(size === 'sm' ? 'h-5 px-1.5 text-[10px] gap-1' : 'h-6 px-2 text-[11px] gap-1.5');
+  const sizeClass = $derived(size === 'sm' ? 'h-5 px-1.5 text-2xs gap-1' : 'h-6 px-2 text-2xs gap-1.5');
 </script>
 
 <span class="inline-flex items-center rounded-md border font-semibold whitespace-nowrap {config.chip} {sizeClass}">

@@ -434,7 +434,7 @@
                   {#if appeal.banReason} · {m.ba_ban_label()} {appeal.banReason}{/if}
                 </p>
               </div>
-              <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border shrink-0 {meta.classes}">{meta.label}</span>
+              <span class="px-2.5 py-1 rounded-full text-2xs font-bold border shrink-0 {meta.classes}">{meta.label}</span>
               <Papicon icon={detail?.appeal.id === appeal.id ? 'expand_less' : 'expand_more'} size={18} />
             </button>
 
@@ -449,7 +449,7 @@
                   {#if detail.appeal.sanctions && detail.appeal.sanctions.length > 0}
                     {@const decided = detail.appeal.status !== 'PENDING' && detail.appeal.status !== 'NEEDS_INFO'}
                     <div>
-                      <p class="text-[13px] font-medium text-on-surface-variant/50 mb-2">
+                      <p class="text-body-sm font-medium text-on-surface-variant/50 mb-2">
                         {m.ba_contested_sanctions({ count: detail.appeal.sanctions.length })}
                       </p>
                       <div class="space-y-2">
@@ -466,10 +466,10 @@
                                 </p>
                                 <p class="text-xs text-on-surface-variant/80 mt-0.5 break-words">{item.sanctionReason}</p>
                                 {#if !item.sanctionId}
-                                  <p class="text-[11px] text-rose-400 mt-1">{m.ba_item_sanction_gone()}</p>
+                                  <p class="text-2xs text-rose-400 mt-1">{m.ba_item_sanction_gone()}</p>
                                 {/if}
                               </div>
-                              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 {ometa.classes}">{ometa.label}</span>
+                              <span class="px-2 py-0.5 rounded-full text-2xs font-bold border shrink-0 {ometa.classes}">{ometa.label}</span>
                             </div>
 
                             {#if item.memberStatement}
@@ -493,22 +493,22 @@
                                 </button>
                               </div>
                             {:else if item.outcomeNote}
-                              <p class="text-[11px] text-on-surface-variant/60">{item.outcomeNote}</p>
+                              <p class="text-2xs text-on-surface-variant/60">{item.outcomeNote}</p>
                             {/if}
                           </div>
                         {/each}
                       </div>
-                      <p class="text-[11px] text-on-surface-variant/50 mt-2">{m.ba_contested_hint()}</p>
+                      <p class="text-2xs text-on-surface-variant/50 mt-2">{m.ba_contested_hint()}</p>
                     </div>
                   {/if}
 
                   <!-- Réponses du formulaire -->
                   <div>
-                    <p class="text-[13px] font-medium text-on-surface-variant/50 mb-2">{m.ba_answers()}</p>
+                    <p class="text-body-sm font-medium text-on-surface-variant/50 mb-2">{m.ba_answers()}</p>
                     <div class="space-y-2">
                       {#each Object.entries(detail.appeal.data || {}) as [key, value]}
                         <div class="rounded-lg bg-surface border border-outline-variant/15 p-3">
-                          <p class="text-[11px] font-semibold text-on-surface-variant/60">{key.replace(/^appeal_/, '').replace(/_/g, ' ')}</p>
+                          <p class="text-2xs font-semibold text-on-surface-variant/60">{key.replace(/^appeal_/, '').replace(/_/g, ' ')}</p>
                           <p class="text-sm text-on-surface mt-1 whitespace-pre-wrap break-words">{Array.isArray(value) ? value.join(', ') : String(value)}</p>
                         </div>
                       {/each}
@@ -517,7 +517,7 @@
 
                   {#if (detail.appeal.messages && detail.appeal.messages.length > 0) || detail.appeal.infoRequest}
                     <div class="rounded-lg bg-blue-500/5 border border-blue-500/20 p-4 space-y-4">
-                      <p class="text-[11px] font-semibold text-blue-500 flex items-center gap-1.5 uppercase tracking-wider">
+                      <p class="text-2xs font-semibold text-blue-500 flex items-center gap-1.5 uppercase tracking-wider">
                         <Papicon icon="message-square" size={14} />
                         {m.ba_discussion()}
                       </p>
@@ -563,7 +563,7 @@
                   <!-- Contexte -->
                   <div class="grid md:grid-cols-2 gap-4">
                     <div>
-                      <p class="text-[13px] font-medium text-on-surface-variant/50 mb-2">
+                      <p class="text-body-sm font-medium text-on-surface-variant/50 mb-2">
                         {m.ba_sanction_history({ count: detail.sanctions.length })}
                       </p>
                       {#if detail.sanctions.length === 0}
@@ -583,7 +583,7 @@
                       {/if}
                     </div>
                     <div>
-                      <p class="text-[13px] font-medium text-on-surface-variant/50 mb-2">
+                      <p class="text-body-sm font-medium text-on-surface-variant/50 mb-2">
                         {m.ba_previous_appeals({ count: detail.previousAppeals.length })}
                       </p>
                       {#if detail.previousAppeals.length === 0}
@@ -594,7 +594,7 @@
                             {@const pmeta = STATUS_META[pa.status] ?? STATUS_META.PENDING}
                             <div class="rounded-lg bg-surface border border-outline-variant/15 px-3 py-2 text-xs flex items-center justify-between gap-2">
                               <span class="text-on-surface-variant/70">{formatDate(pa.createdAt)}</span>
-                              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border {pmeta.classes}">{pmeta.label}</span>
+                              <span class="px-2 py-0.5 rounded-full text-2xs font-bold border {pmeta.classes}">{pmeta.label}</span>
                             </div>
                           {/each}
                         </div>
@@ -626,7 +626,7 @@
                           <Papicon icon="message-square" size={14} /> {m.ba_request_info()}
                         </button>
                       </div>
-                      <p class="text-[11px] text-on-surface-variant/50">
+                      <p class="text-2xs text-on-surface-variant/50">
                         {m.ba_decision_hint({ days: config?.cooldownDays ?? 30 })}
                       </p>
                     </div>
@@ -640,7 +640,7 @@
                       {#if detail.appeal.decisionReason}
                         <p class="text-on-surface-variant/80 mt-1">{detail.appeal.decisionReason}</p>
                       {/if}
-                      <p class="text-[11px] mt-2 flex items-center gap-1.5 {detail.appeal.dmDelivered ? 'text-emerald-500' : 'text-amber-500'}">
+                      <p class="text-2xs mt-2 flex items-center gap-1.5 {detail.appeal.dmDelivered ? 'text-emerald-500' : 'text-amber-500'}">
                         {#if detail.appeal.dmDelivered}
                           <Papicon icon="check" size={12} />
                           <span>{m.ba_dm_delivered()}</span>
@@ -688,7 +688,7 @@
                 </button>
               {/if}
             </div>
-            <p class="text-[11px] text-on-surface-variant/50 mt-1.5">
+            <p class="text-2xs text-on-surface-variant/50 mt-1.5">
               {m.ba_form_hint()}
             </p>
           </div>
@@ -717,7 +717,7 @@
                 {/if}
               </select>
               {#if staffServerChannels.length > 0}
-                <p class="text-[11px] text-on-surface-variant/50 mt-1.5">
+                <p class="text-2xs text-on-surface-variant/50 mt-1.5">
                   {m.ba_staff_channel_hint()}
                 </p>
               {/if}
@@ -813,7 +813,7 @@
                   {#if active}
                     <div class="grid sm:grid-cols-2 gap-3 mt-3 pt-3 border-t border-outline-variant/10">
                       <label class="space-y-1">
-                        <span class="text-[11px] font-semibold text-on-surface-variant/60">{m.ba_type_cooldown()}</span>
+                        <span class="text-2xs font-semibold text-on-surface-variant/60">{m.ba_type_cooldown()}</span>
                         <input type="number" min="0" max="365"
                           placeholder={String(config.cooldownDays)}
                           value={config.cooldownByType?.[type] ?? ''}
@@ -821,7 +821,7 @@
                           class="w-full bg-surface-container rounded-lg px-3 py-2 text-sm outline-none border border-outline-variant/20" />
                       </label>
                       <label class="space-y-1">
-                        <span class="text-[11px] font-semibold text-on-surface-variant/60">{m.ba_type_form()}</span>
+                        <span class="text-2xs font-semibold text-on-surface-variant/60">{m.ba_type_form()}</span>
                         <select value={config.formIdByType?.[type] ?? ''}
                           onchange={(e) => setTypeForm(type, e.currentTarget.value)}
                           class="w-full bg-surface-container rounded-lg px-3 py-2 text-sm outline-none border border-outline-variant/20">
@@ -918,7 +918,7 @@
                 class="w-full bg-surface-container rounded-lg px-3 py-2.5 text-xs outline-none border border-outline-variant/20 resize-none"></textarea>
             </div>
           </div>
-          <p class="text-[11px] text-on-surface-variant/50">
+          <p class="text-2xs text-on-surface-variant/50">
             {m.ba_variables()} {'{server}'}, {'{reason}'}, {'{invite}'} {m.ba_variables_invite_only()}
           </p>
         </div>

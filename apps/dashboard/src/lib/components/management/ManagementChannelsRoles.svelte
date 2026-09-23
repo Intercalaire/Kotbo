@@ -153,8 +153,8 @@
         <Papicon icon="Shield" size={18} class="text-emerald-500 shrink-0 mt-0.5" />
         <div class="space-y-1">
           <p class="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{m.mcr_analytics_off_title()}</p>
-          <p class="text-[11px] text-on-surface-variant/60 leading-relaxed">{m.mcr_analytics_off_desc()}</p>
-          <a href="/modules" class="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline">
+          <p class="text-2xs text-on-surface-variant/60 leading-relaxed">{m.mcr_analytics_off_desc()}</p>
+          <a href="/modules" class="inline-flex items-center gap-1 text-2xs font-semibold text-primary hover:underline">
             {m.mcr_go_to_activation()} <Papicon icon="ArrowRight" size={11} />
           </a>
         </div>
@@ -181,7 +181,7 @@
         {@const items = group.items.filter(({ feature }) => matches(feature))}
         {#if items.length > 0}
           <section class="space-y-1">
-            <p class="flex items-center gap-2 px-1 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/50">
+            <p class="flex items-center gap-2 px-1 text-2xs font-bold uppercase tracking-widest text-on-surface-variant/50">
               <Papicon icon={categoryIcons[group.category] || 'Grid'} size={12} />
               {categoryLabel(group.category)}
             </p>
@@ -197,7 +197,7 @@
                   >
                     <span class="text-sm font-medium truncate">{moduleName(feature.featureKey, feature.featureName)}</span>
                     <span class="flex items-center gap-3 shrink-0">
-                      <span class="text-[11px] text-on-surface-variant/40">
+                      <span class="text-2xs text-on-surface-variant/40">
                         {assignedCount(feature) > 0 ? m.mcr_assigned_count({ count: assignedCount(feature) }) : m.mcr_none_placeholder()}
                       </span>
                       <span class="transition-transform {expanded ? 'rotate-180' : ''}">
@@ -253,7 +253,7 @@
                         </SettingsRow>
 
                         {#if feature.featureKey === 'absences'}
-                          <p class="px-4 py-3 text-[11px] leading-relaxed text-amber-300/80 bg-amber-500/5">
+                          <p class="px-4 py-3 text-2xs leading-relaxed text-amber-300/80 bg-amber-500/5">
                             {m.mn_absences_note()}
                           </p>
                         {/if}

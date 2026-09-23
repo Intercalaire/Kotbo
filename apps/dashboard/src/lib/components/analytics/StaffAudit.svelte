@@ -33,7 +33,7 @@
           <div class="p-2 rounded-xl bg-on-surface/5 text-on-surface-variant/40 group-hover:text-primary transition-colors">
             <Papicon icon={s.icon} size={18} />
           </div>
-          <span class="text-[11px] font-semibold text-on-surface-variant/40 uppercase tracking-widest">{s.l}</span>
+          <span class="text-2xs font-semibold text-on-surface-variant/40 uppercase tracking-widest">{s.l}</span>
         </div>
         <div class="text-lg font-semibold text-on-surface">{s.v}</div>
       </div>
@@ -74,20 +74,20 @@
           </div>
           <div class="flex-1 min-w-0">
             <span class="text-base font-semibold text-on-surface block truncate">{s.name}</span>
-            <span class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">{s.grade || m.d1_sa_staff()}</span>
+            <span class="text-2xs font-bold text-on-surface-variant/40 uppercase tracking-widest">{s.grade || m.d1_sa_staff()}</span>
           </div>
           <div class="hidden md:flex items-center gap-6 mr-4">
             <div class="text-right">
-              <p class="text-[11px] font-semibold text-on-surface-variant/30 uppercase tracking-widest">{m.d1_sa_messages()}</p>
+              <p class="text-2xs font-semibold text-on-surface-variant/30 uppercase tracking-widest">{m.d1_sa_messages()}</p>
               <p class="text-xs font-bold text-on-surface">{fmt(s.messages)}</p>
             </div>
             <div class="text-right">
-              <p class="text-[11px] font-semibold text-on-surface-variant/30 uppercase tracking-widest">{m.d1_sa_voice()}</p>
+              <p class="text-2xs font-semibold text-on-surface-variant/30 uppercase tracking-widest">{m.d1_sa_voice()}</p>
               <p class="text-xs font-bold text-on-surface">{fmtH(s.voiceMinutes)}</p>
             </div>
           </div>
           <div class="text-right pl-4 border-l border-outline-variant/10">
-            <p class="text-[11px] font-semibold text-primary uppercase tracking-widest">{m.d1_sa_score()}</p>
+            <p class="text-2xs font-semibold text-primary uppercase tracking-widest">{m.d1_sa_score()}</p>
             <p class="text-lg font-semibold text-primary">{fmt(s.score)}</p>
           </div>
         </button>

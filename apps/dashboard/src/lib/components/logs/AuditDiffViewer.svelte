@@ -258,7 +258,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="audit-retention" class="text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-widest">
+            <label for="audit-retention" class="text-2xs font-bold text-on-surface-variant/70 uppercase tracking-widest">
               {m.audit_retention_days()}
             </label>
             <input
@@ -269,13 +269,13 @@
               bind:value={form.retentionDays}
               class="w-full px-3 py-2 rounded-xl bg-surface-container-highest border border-outline-variant/20 text-sm text-on-surface focus:border-primary/50 focus:outline-none"
             />
-            <p class="text-[11px] text-on-surface-variant/50">{m.audit_retention_help()}</p>
+            <p class="text-2xs text-on-surface-variant/50">{m.audit_retention_help()}</p>
           </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="space-y-1.5">
-            <label for="audit-ignored-channels" class="text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-widest">
+            <label for="audit-ignored-channels" class="text-2xs font-bold text-on-surface-variant/70 uppercase tracking-widest">
               {m.audit_ignored_channels()}
             </label>
             <MultiSelect
@@ -286,7 +286,7 @@
             />
           </div>
           <div class="space-y-1.5">
-            <label for="audit-ignored-roles" class="text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-widest">
+            <label for="audit-ignored-roles" class="text-2xs font-bold text-on-surface-variant/70 uppercase tracking-widest">
               {m.audit_ignored_users()}
             </label>
             <MultiSelect
@@ -295,7 +295,7 @@
               options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
               accentClass="bg-rose-500/20 text-rose-300 border-rose-500/40"
             />
-            <p class="text-[11px] text-on-surface-variant/50">{m.audit_ignored_help()}</p>
+            <p class="text-2xs text-on-surface-variant/50">{m.audit_ignored_help()}</p>
           </div>
         </div>
 
@@ -402,7 +402,7 @@
                     <span class="text-sm font-semibold text-on-surface">{meta.label()}</span>
                     <span class="text-sm text-on-surface-variant/70 truncate">{event.targetName || event.targetId}</span>
                   </div>
-                  <div class="text-[11px] text-on-surface-variant/50 mt-0.5">
+                  <div class="text-2xs text-on-surface-variant/50 mt-0.5">
                     {formatDateTime(event.createdAt)}
                     · {m.audit_by()} {event.executorName || m.audit_unknown_executor()}
                     {#if event.channelName}· #{event.channelName}{/if}
@@ -429,7 +429,7 @@
 
                 {#each event.changes as change}
                   <div class="space-y-2">
-                    <h4 class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60">
+                    <h4 class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/60">
                       {change.label}
                     </h4>
 
@@ -438,14 +438,14 @@
                       {@const lines = diffLines(String(change.before ?? ''), String(change.after ?? ''))}
                       {@const stats = diffStats(lines)}
                       {@const rows = toSideBySide(lines)}
-                      <p class="text-[11px] text-on-surface-variant/50">
+                      <p class="text-2xs text-on-surface-variant/50">
                         <span class="text-emerald-400">+{stats.added}</span>
                         <span class="text-red-400 ml-2">−{stats.removed}</span>
                       </p>
                       <div class="rounded-xl border border-outline-variant/10 overflow-x-auto">
                         <table class="w-full font-mono text-xs border-collapse">
                           <thead>
-                            <tr class="text-[10px] uppercase tracking-widest text-on-surface-variant/40">
+                            <tr class="text-2xs uppercase tracking-widest text-on-surface-variant/40">
                               <th class="text-left font-bold px-3 py-2 w-1/2">{m.audit_before()}</th>
                               <th class="text-left font-bold px-3 py-2 w-1/2 border-l border-outline-variant/10">{m.audit_after()}</th>
                             </tr>
@@ -468,17 +468,17 @@
                       <!-- Listes : rôles gagnés/perdus, permissions accordées/refusées -->
                       <div class="flex flex-wrap gap-1.5">
                         {#each change.added ?? [] as item}
-                          <span class="px-2 py-1 rounded-md text-[11px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
+                          <span class="px-2 py-1 rounded-md text-2xs font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
                             + {item}
                           </span>
                         {/each}
                         {#each change.removed ?? [] as item}
-                          <span class="px-2 py-1 rounded-md text-[11px] font-mono bg-red-500/15 text-red-300 border border-red-500/25">
+                          <span class="px-2 py-1 rounded-md text-2xs font-mono bg-red-500/15 text-red-300 border border-red-500/25">
                             − {item}
                           </span>
                         {/each}
                         {#each change.reset ?? [] as item}
-                          <span class="px-2 py-1 rounded-md text-[11px] font-mono bg-surface-container-highest text-on-surface-variant/60 border border-outline-variant/20">
+                          <span class="px-2 py-1 rounded-md text-2xs font-mono bg-surface-container-highest text-on-surface-variant/60 border border-outline-variant/20">
                             ± {item}
                           </span>
                         {/each}
@@ -487,11 +487,11 @@
                       <!-- Champ scalaire : ancienne valeur barrée, nouvelle en vert -->
                       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div class="px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-300 wrap-break-word">
-                          <span class="block text-[10px] uppercase tracking-widest opacity-60 mb-0.5">{m.audit_before()}</span>
+                          <span class="block text-2xs uppercase tracking-widest opacity-60 mb-0.5">{m.audit_before()}</span>
                           {displayValue(change.before)}
                         </div>
                         <div class="px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 wrap-break-word">
-                          <span class="block text-[10px] uppercase tracking-widest opacity-60 mb-0.5">{m.audit_after()}</span>
+                          <span class="block text-2xs uppercase tracking-widest opacity-60 mb-0.5">{m.audit_after()}</span>
                           {displayValue(change.after)}
                         </div>
                       </div>

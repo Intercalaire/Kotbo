@@ -245,7 +245,7 @@
       <h1 class="mb-2 text-center text-2xl font-semibold tracking-tight text-on-surface font-headline">
         Kotbo travaille sur votre serveur.
       </h1>
-      <p class="mb-7 text-center text-[14px] text-on-surface-variant/65 leading-relaxed">
+      <p class="mb-7 text-center text-sm text-on-surface-variant/65 leading-relaxed">
         Ouvrez Discord dans un autre onglet : ce que vous voyez défiler apparaît en direct.
       </p>
 
@@ -273,7 +273,7 @@
         ] as stat (stat.label)}
           <div>
             <p class="text-2xl font-bold tracking-tight text-primary"><CountUp value={stat.n} /></p>
-            <p class="text-[12px] font-medium text-on-surface-variant/60">{stat.label}</p>
+            <p class="text-xs font-medium text-on-surface-variant/60">{stat.label}</p>
           </div>
         {/each}
       </div>
@@ -294,7 +294,7 @@
           <div class="rounded-xl border border-outline-variant/30 bg-surface-container-low/40 px-4 py-3">
             <Papicon icon={stat.icon} size={14} class="text-primary/70 mb-1.5" />
             <p class="text-2xl font-bold tracking-tight text-primary">{stat.n}</p>
-            <p class="text-[12px] font-medium text-on-surface-variant/60">{stat.label}</p>
+            <p class="text-xs font-medium text-on-surface-variant/60">{stat.label}</p>
           </div>
         {/each}
       </div>
@@ -309,7 +309,7 @@
           <div class="rounded-xl border border-outline-variant/30 bg-surface-container-low/40 px-4 py-3">
             <Papicon icon={stat.icon} size={14} class="text-primary/70 mb-1.5" />
             <p class="text-2xl font-bold tracking-tight text-primary">{stat.n}</p>
-            <p class="text-[12px] font-medium text-on-surface-variant/60">{stat.label}</p>
+            <p class="text-xs font-medium text-on-surface-variant/60">{stat.label}</p>
           </div>
         {/each}
       </div>
@@ -319,12 +319,12 @@
       <!-- Le blocage pur et simple etait un cul-de-sac : une pose interrompue
            en chemin ne pouvait plus se finir. Ce qui existe etant reconnu ligne
            a ligne, rejouer ne cree que ce qui manque encore. -->
-      <p class="mt-4 text-[13px] text-on-surface-variant leading-relaxed rounded-xl border border-outline-variant/30 bg-surface-container-low/30 px-4 py-3">
+      <p class="mt-4 text-body-sm text-on-surface-variant leading-relaxed rounded-xl border border-outline-variant/30 bg-surface-container-low/30 px-4 py-3">
         Une mise en place a déjà eu lieu sur ce serveur. Rien de ce qui existe ne sera
         recréé : seules les lignes que vous venez de marquer « à créer » seront posées.
       </p>
     {:else if blocked}
-      <p class="mt-4 text-[13px] leading-relaxed rounded-xl border border-error/30 bg-error/[0.04] px-4 py-3 text-on-surface">
+      <p class="mt-4 text-body-sm leading-relaxed rounded-xl border border-error/30 bg-error/[0.04] px-4 py-3 text-on-surface">
         Kotbo n'a pas la permission « Gérer les salons » : il ne peut rien créer. Donnez-la
         lui dans les paramètres du serveur, puis rechargez cette page.
       </p>
@@ -335,12 +335,12 @@
     <div class="rounded-2xl border border-outline-variant/30 bg-surface-container-lowest/50 overflow-hidden">
       <div class="px-4 py-2.5 border-b border-outline-variant/20 flex items-center gap-2">
         <Papicon icon="list" size={12} class="text-on-surface-variant/40" />
-        <span class="text-[12.5px] font-semibold text-on-surface">Le détail</span>
+        <span class="text-xs font-semibold text-on-surface">Le détail</span>
       </div>
 
       <div class="max-h-[420px] overflow-y-auto p-3 space-y-1">
         {#each toCreate as name, index (index)}
-          <p class="flex items-center gap-2 text-[13px] text-on-surface-variant/80">
+          <p class="flex items-center gap-2 text-body-sm text-on-surface-variant/80">
             <Papicon icon="plus" size={11} class="shrink-0 text-emerald-500" />
             <span class="truncate">{name}</span>
           </p>
@@ -350,11 +350,11 @@
           <!-- Ce qui est deja la, grise. Une reprise qui ne cree que trois
                salons sur quinze donne l'impression de n'avoir rien fait ; avec
                cette liste, on lit que douze etaient deja bons. -->
-          <p class="pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/35">
+          <p class="pt-3 pb-1 text-2xs font-semibold uppercase tracking-wide text-on-surface-variant/35">
             {mapped ? 'Relié à ce qui existe' : 'Déjà en place'}
           </p>
           {#each present as item (item.key)}
-            <p class="flex items-center gap-2 text-[13px] {mapped
+            <p class="flex items-center gap-2 text-body-sm {mapped
               ? 'text-on-surface-variant/70'
               : 'text-on-surface-variant/40 line-through decoration-on-surface-variant/25'}">
               <Papicon icon={mapped ? 'link' : 'check'} size={11} class="shrink-0" />
@@ -368,7 +368,7 @@
 
   {#snippet footer()}
     {#if phase === 'building'}
-      <span class="text-[13px] font-medium text-on-surface-variant/50">Montage en cours…</span>
+      <span class="text-body-sm font-medium text-on-surface-variant/50">Montage en cours…</span>
     {:else if phase === 'built'}
       <button
         type="button"

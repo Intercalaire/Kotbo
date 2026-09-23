@@ -252,7 +252,7 @@
                 <Papicon icon="Minus" size={12} /> {suggestion.downvoters.length}
               </div>
               <!-- Status badge -->
-              <span class="px-4 py-1.5 rounded-full text-[13px] font-medium border {statusColors[suggestion.status]}">
+              <span class="px-4 py-1.5 rounded-full text-body-sm font-medium border {statusColors[suggestion.status]}">
                 {statusLabels[suggestion.status]}
               </span>
             </div>
@@ -276,7 +276,7 @@
             <!-- Moderation actions form -->
             <div class="space-y-4 pt-4 border-t border-outline-variant/10 animate-in fade-in duration-300">
               <div class="space-y-1.5">
-                <label for={`resp-${suggestion.id}`} class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.suggestions_public_comment_label()}</label>
+                <label for={`resp-${suggestion.id}`} class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.suggestions_public_comment_label()}</label>
                 <textarea 
                   id={`resp-${suggestion.id}`}
                   bind:value={responseDrafts[suggestion.id]} 
@@ -289,21 +289,21 @@
                 <button 
                   onclick={() => handleResolve(suggestion.id, 'REJECTED')}
                   disabled={!responseDrafts[suggestion.id]?.trim()}
-                  class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-[13px] font-medium rounded-lg transition-all disabled:opacity-50"
+                  class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-body-sm font-medium rounded-lg transition-all disabled:opacity-50"
                 >
                   {m.suggestions_btn_reject()}
                 </button>
                 <button 
                   onclick={() => handleResolve(suggestion.id, 'APPROVED')}
                   disabled={!responseDrafts[suggestion.id]?.trim()}
-                  class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-medium rounded-lg transition-all disabled:opacity-50"
+                  class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-body-sm font-medium rounded-lg transition-all disabled:opacity-50"
                 >
                   {m.suggestions_btn_approve()}
                 </button>
                 <button 
                   onclick={() => handleResolve(suggestion.id, 'IMPLEMENTED')}
                   disabled={!responseDrafts[suggestion.id]?.trim()}
-                  class="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-[13px] font-medium rounded-lg transition-all disabled:opacity-50"
+                  class="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-body-sm font-medium rounded-lg transition-all disabled:opacity-50"
                 >
                   {m.suggestions_btn_implement()}
                 </button>

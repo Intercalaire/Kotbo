@@ -433,7 +433,7 @@
              En liste plate, on ne voyait pas que couper un groupe entier eteint
              le module sans eteindre son interrupteur principal. -->
         <div class="flex flex-col gap-2">
-          <p class="text-[13px] font-medium text-on-surface-variant/50">{m.nm_group_when()}</p>
+          <p class="text-body-sm font-medium text-on-surface-variant/50">{m.nm_group_when()}</p>
           <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
             <span class="text-sm text-on-surface-variant/80">{m.nm_watch_join()}</span>
             <ToggleSwitch checked={onJoin} onToggle={(value) => saveGranularToggle('onJoin', value)} disabled={!enabled || saveToggleAction.state.loading} />
@@ -451,7 +451,7 @@
         </div>
 
         <div class="flex flex-col gap-2">
-          <p class="text-[13px] font-medium text-on-surface-variant/50">{m.nm_group_what()}</p>
+          <p class="text-body-sm font-medium text-on-surface-variant/50">{m.nm_group_what()}</p>
           <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
             <span class="text-sm text-on-surface-variant/80">{m.nm_watch_invisible()}</span>
             <ToggleSwitch checked={checkInvisible} onToggle={(value) => saveGranularToggle('checkInvisible', value)} disabled={!enabled || saveToggleAction.state.loading} />

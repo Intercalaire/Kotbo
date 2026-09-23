@@ -84,7 +84,7 @@
   <div class="max-w-6xl mx-auto px-6 pt-16 relative z-10">
     <!-- Back Button -->
     <div class="mb-8">
-      <button onclick={() => router.goto('/')} class="group inline-flex items-center gap-2 rounded-xl bg-surface-container-low/60 hover:bg-surface-container-high/80 border border-outline-variant/10 px-5 py-2.5 text-[13px] font-medium text-on-surface-variant transition-all">
+      <button onclick={() => router.goto('/')} class="group inline-flex items-center gap-2 rounded-xl bg-surface-container-low/60 hover:bg-surface-container-high/80 border border-outline-variant/10 px-5 py-2.5 text-body-sm font-medium text-on-surface-variant transition-all">
         <Papicon icon="ArrowLeft" size={14} class="transition-transform group-hover:-translate-x-1" />
         Retour
       </button>
@@ -115,7 +115,7 @@
         <p class="mt-4 text-base font-bold text-on-surface-variant/60 leading-relaxed">
           {error}. Vérifiez que l'identifiant est correct ou que le compte n'a pas été restreint.
         </p>
-        <button onclick={() => router.goto('/')} class="mt-10 inline-flex items-center gap-3 rounded-lg bg-primary px-8 py-4 text-[13px] font-medium text-on-primary shadow-sm shadow-primary/20 active:scale-[0.98] transition-all">
+        <button onclick={() => router.goto('/')} class="mt-10 inline-flex items-center gap-3 rounded-lg bg-primary px-8 py-4 text-body-sm font-medium text-on-primary shadow-sm shadow-primary/20 active:scale-[0.98] transition-all">
           <Papicon icon="Home" size={16} />
           Retour à l'accueil
         </button>
@@ -138,7 +138,7 @@
           <div class="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-surface-container-lowest"></div>
           
           <div class="absolute top-6 right-6 z-20">
-            <span class="inline-flex items-center gap-2 rounded-full bg-surface-container-lowest/30 border border-outline-variant/10 px-4 py-2 text-[11px] font-semibold text-white uppercase tracking-wider shadow-lg">
+            <span class="inline-flex items-center gap-2 rounded-full bg-surface-container-lowest/30 border border-outline-variant/10 px-4 py-2 text-2xs font-semibold text-white uppercase tracking-wider shadow-lg">
               <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
               Profil Communautaire
             </span>
@@ -165,7 +165,7 @@
                 <div class="flex flex-wrap items-center justify-center md:justify-start gap-2.5">
                   <p class="text-base text-on-surface-variant/70 font-bold">@{profile.username}</p>
                   {#if profile.isPrivate}
-                    <span class="inline-flex items-center gap-1.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-yellow-500">
+                    <span class="inline-flex items-center gap-1.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-yellow-500">
                       <Papicon icon="Lock" size={10} /> Privé
                     </span>
                   {/if}
@@ -176,7 +176,7 @@
             <!-- Context CTA Button -->
             {#if authStore.isAuthenticated && authStore.user?.id === userId}
               <div class="pb-2">
-                <button onclick={() => router.goto('/profile')} class="group inline-flex items-center gap-2.5 rounded-lg bg-primary hover:bg-primary-hover px-8 py-4 text-[13px] font-medium text-on-primary shadow-sm shadow-primary/20 active:scale-[0.97] transition-all">
+                <button onclick={() => router.goto('/profile')} class="group inline-flex items-center gap-2.5 rounded-lg bg-primary hover:bg-primary-hover px-8 py-4 text-body-sm font-medium text-on-primary shadow-sm shadow-primary/20 active:scale-[0.97] transition-all">
                   <Papicon icon="ShieldUser" size={16} class="transition-transform group-hover:rotate-6" />
                   Mon Espace Staff
                 </button>
@@ -277,7 +277,7 @@
               {#if profile.roles && profile.roles.length > 0}
                 <div class="flex flex-wrap gap-2">
                   {#each profile.roles as role}
-                    <span class="inline-flex items-center gap-1.5 rounded-lg bg-surface-container-high/60 border border-outline-variant/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
+                    <span class="inline-flex items-center gap-1.5 rounded-lg bg-surface-container-high/60 border border-outline-variant/10 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">
                       {role.name}
                     </span>
                   {/each}
@@ -297,7 +297,7 @@
                 </div>
                 <div>
                   <h3 class="text-xl font-semibold text-on-surface font-headline leading-tight">Historique Événements</h3>
-                  <p class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-wider mt-0.5">Participations communautaires récentes</p>
+                  <p class="text-2xs font-bold text-on-surface-variant/40 uppercase tracking-wider mt-0.5">Participations communautaires récentes</p>
                 </div>
               </div>
 
@@ -307,11 +307,11 @@
                     <div class="flex items-center justify-between p-4.5 rounded-lg bg-surface-container-high/30 border border-outline-variant/5 hover:border-primary/25 hover:bg-surface-container-high/60 transition-all">
                       <div>
                         <h4 class="text-sm font-semibold text-on-surface leading-tight truncate max-w-[180px]">{event.title}</h4>
-                        <p class="text-[11px] font-bold text-primary uppercase tracking-wider mt-0.5">{event.type}</p>
+                        <p class="text-2xs font-bold text-primary uppercase tracking-wider mt-0.5">{event.type}</p>
                       </div>
                       <div class="text-right">
                         <span class="text-sm font-semibold text-primary">{event.score} pts</span>
-                        <p class="text-[11px] font-bold text-on-surface-variant/30 uppercase tracking-wider mt-0.5">{formatDate(event.date)}</p>
+                        <p class="text-2xs font-bold text-on-surface-variant/30 uppercase tracking-wider mt-0.5">{formatDate(event.date)}</p>
                       </div>
                     </div>
                   {/each}
@@ -344,7 +344,7 @@
       
       <!-- Footer details -->
       <div class="mt-20 pt-8 border-t border-outline-variant/5 text-center">
-        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/20 italic">
+        <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/20 italic">
           Kotbo Ecosystem • Verified Community Profile Snapshot
         </p>
       </div>

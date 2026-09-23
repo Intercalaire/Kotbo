@@ -452,7 +452,7 @@
                   </span>
                   <div class="min-w-0">
                     <span class="text-sm font-bold text-on-surface truncate block">{step.name ?? step.label ?? step.step}</span>
-                    <span class="text-[11px] font-mono text-on-surface-variant">{step.step}</span>
+                    <span class="text-2xs font-mono text-on-surface-variant">{step.step}</span>
                   </div>
                 </div>
 
@@ -466,13 +466,13 @@
                       <span class="text-xs font-bold {(step.conversionFromPrev ?? step.conversionPrevious ?? 0) >= 50 ? 'text-emerald-400' : 'text-amber-400'}">
                         {formatPercent(step.conversionFromPrev ?? step.conversionPrevious)}
                       </span>
-                      <span class="text-[10px] text-on-surface-variant block">étape préc.</span>
+                      <span class="text-2xs text-on-surface-variant block">étape préc.</span>
                     </div>
                   {/if}
                   {#if step.medianDurationSeconds !== null}
                     <div class="hidden sm:block text-right w-24">
                       <span class="text-xs font-mono text-on-surface-variant">{formatDuration(step.medianDurationSeconds)}</span>
-                      <span class="text-[10px] text-on-surface-variant/80 block">délai médian</span>
+                      <span class="text-2xs text-on-surface-variant/80 block">délai médian</span>
                     </div>
                   {/if}
                 </div>
@@ -709,7 +709,7 @@
                     {formatEuros(inv.amountPaidCents)}
                   </td>
                   <td class="py-2.5 px-3 text-center">
-                    <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-500/20 text-emerald-400">
+                    <span class="px-2 py-0.5 rounded text-2xs font-bold uppercase bg-emerald-500/20 text-emerald-400">
                       {inv.status}
                     </span>
                   </td>
@@ -992,7 +992,7 @@
                   bind:value={alertThresholds.churnRateWeeklyPercent}
                   class="w-full px-3.5 py-2 rounded-xl bg-surface-container-high border border-outline-variant/30 text-on-surface text-sm focus:outline-none focus:border-primary"
                 />
-                <span class="text-[11px] text-on-surface-variant">Alerte si le churn rate hebdomadaire dépasse ce seuil (défaut : 5%)</span>
+                <span class="text-2xs text-on-surface-variant">Alerte si le churn rate hebdomadaire dépasse ce seuil (défaut : 5%)</span>
               </div>
 
               <div>
@@ -1006,7 +1006,7 @@
                   bind:value={alertThresholds.trialConversionDropPercent}
                   class="w-full px-3.5 py-2 rounded-xl bg-surface-container-high border border-outline-variant/30 text-on-surface text-sm focus:outline-none focus:border-primary"
                 />
-                <span class="text-[11px] text-on-surface-variant">Alerte si la conversion de fin d'essai chute de plus de X% (défaut : 20%)</span>
+                <span class="text-2xs text-on-surface-variant">Alerte si la conversion de fin d'essai chute de plus de X% (défaut : 20%)</span>
               </div>
 
               <div>
@@ -1020,7 +1020,7 @@
                   bind:value={alertThresholds.onboardingCompletionMinPercent}
                   class="w-full px-3.5 py-2 rounded-xl bg-surface-container-high border border-outline-variant/30 text-on-surface text-sm focus:outline-none focus:border-primary"
                 />
-                <span class="text-[11px] text-on-surface-variant">Alerte si la complétion du wizard passe sous ce seuil (défaut : 40%)</span>
+                <span class="text-2xs text-on-surface-variant">Alerte si la complétion du wizard passe sous ce seuil (défaut : 40%)</span>
               </div>
 
               <div>
@@ -1034,7 +1034,7 @@
                   bind:value={alertThresholds.outOfTierMaxCount}
                   class="w-full px-3.5 py-2 rounded-xl bg-surface-container-high border border-outline-variant/30 text-on-surface text-sm focus:outline-none focus:border-primary"
                 />
-                <span class="text-[11px] text-on-surface-variant">Alerte si le nombre de serveurs dépassant leur palier atteint ce niveau (défaut : 10)</span>
+                <span class="text-2xs text-on-surface-variant">Alerte si le nombre de serveurs dépassant leur palier atteint ce niveau (défaut : 10)</span>
               </div>
 
               <div class="pt-3">
@@ -1114,7 +1114,7 @@
                 {/if}
                 <div>
                   <h4 class="text-sm font-bold text-on-surface leading-tight">{g.name}</h4>
-                  <span class="text-[11px] font-mono text-on-surface-variant">{g.guildId}</span>
+                  <span class="text-2xs font-mono text-on-surface-variant">{g.guildId}</span>
                 </div>
               </div>
 
@@ -1140,9 +1140,9 @@
 
             {#if g.riskReasons && g.riskReasons.length > 0}
               <div class="mt-2.5 pt-2 border-t border-error/20 flex items-center gap-2 flex-wrap">
-                <span class="text-[10px] font-bold uppercase text-error">Risque :</span>
+                <span class="text-2xs font-bold uppercase text-error">Risque :</span>
                 {#each g.riskReasons as r}
-                  <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-error/15 text-error border border-error/30">
+                  <span class="px-2 py-0.5 rounded text-2xs font-semibold bg-error/15 text-error border border-error/30">
                     {r}
                   </span>
                 {/each}

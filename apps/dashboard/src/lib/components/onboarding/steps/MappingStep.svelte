@@ -192,16 +192,16 @@
       <div class="rounded-xl border border-outline-variant/30 bg-surface-container-low/40 px-4 py-3.5">
         <div class="flex items-center gap-2 mb-2">
           <Papicon icon="folder" size={13} class="text-primary/70" />
-          <span class="text-[12.5px] font-semibold text-on-surface">La catégorie</span>
+          <span class="text-xs font-semibold text-on-surface">La catégorie</span>
           {#if locked}
-            <span class="text-[11px] font-medium text-primary/70 rounded-full bg-primary/10 px-2 py-0.5">
+            <span class="text-2xs font-medium text-primary/70 rounded-full bg-primary/10 px-2 py-0.5">
               posée par Kotbo
             </span>
           {/if}
         </div>
 
         {#if skipped}
-          <p class="text-[13px] text-on-surface-variant/60 leading-relaxed">
+          <p class="text-body-sm text-on-surface-variant/60 leading-relaxed">
             Aucun salon à y ranger : Kotbo ne créera pas de catégorie.
           </p>
         {:else}
@@ -209,7 +209,7 @@
             value={valueOf(category.key)}
             disabled={locked}
             onchange={(event) => choose(category, event.currentTarget.value)}
-            class="w-full rounded-lg border border-outline-variant/40 bg-surface-container-lowest/60 px-3 py-2 text-[13.5px] text-on-surface disabled:opacity-50"
+            class="w-full rounded-lg border border-outline-variant/40 bg-surface-container-lowest/60 px-3 py-2 text-body-sm text-on-surface disabled:opacity-50"
           >
             <optgroup label="Catégories du serveur">
               {#each candidatesFor(category) as option (option.id)}
@@ -238,7 +238,7 @@
         >
           <div class="flex items-start justify-between gap-4">
             <div class="min-w-0 pt-1.5">
-              <p class="flex items-center gap-1.5 text-[13.5px] font-medium text-on-surface truncate">
+              <p class="flex items-center gap-1.5 text-body-sm font-medium text-on-surface truncate">
                 <Papicon
                   icon={line.kind === 'role' ? 'shield' : line.kind === 'voice' ? 'mic' : 'message-circle'}
                   size={12}
@@ -249,16 +249,16 @@
                 </span>
               </p>
               {#if locked}
-                <p class="mt-1 text-[11.5px] text-primary/70">Posé par Kotbo, déjà relié.</p>
+                <p class="mt-1 text-2xs text-primary/70">Posé par Kotbo, déjà relié.</p>
               {:else if isSuggested(line.key)}
                 <!-- La ressemblance des noms a trouve quelque chose. Le dire, et
                      ne pas s'en contenter : c'est exactement ce rapprochement
                      silencieux qui produisait les doublons quand il ratait. -->
-                <p class="mt-1 text-[11.5px] text-on-surface-variant/55">
+                <p class="mt-1 text-2xs text-on-surface-variant/55">
                   Détecté sur votre serveur — confirmez ou corrigez.
                 </p>
               {:else if decision.mode === 'create'}
-                <p class="mt-1 text-[11.5px] text-on-surface-variant/45">
+                <p class="mt-1 text-2xs text-on-surface-variant/45">
                   Sera créé {destination}.
                 </p>
               {/if}
@@ -268,7 +268,7 @@
               value={valueOf(line.key)}
               disabled={locked}
               onchange={(event) => choose(line, event.currentTarget.value)}
-              class="shrink-0 w-[15.5rem] max-w-[52%] rounded-lg border border-outline-variant/40 bg-surface-container-lowest/60 px-3 py-2 text-[13px] text-on-surface disabled:opacity-50"
+              class="shrink-0 w-[15.5rem] max-w-[52%] rounded-lg border border-outline-variant/40 bg-surface-container-lowest/60 px-3 py-2 text-body-sm text-on-surface disabled:opacity-50"
             >
               <optgroup label={line.kind === 'role' ? 'Rôles du serveur' : 'Salons du serveur'}>
                 {#each candidatesFor(line) as option (option.id)}
@@ -293,7 +293,7 @@
       <!-- Ecarter une ligne est un choix legitime ; le faire sans savoir ce qui
            s'eteint avec elle ne l'est pas. -->
       <div class="rounded-xl border border-outline-variant/30 bg-surface-container-low/30 px-4 py-3">
-        <p class="text-[12.5px] text-on-surface-variant leading-relaxed">
+        <p class="text-xs text-on-surface-variant leading-relaxed">
           <Papicon icon="info" size={12} class="inline text-on-surface-variant/50 mr-1" />
           {#each dormant as entry, index (entry.key)}{index > 0 ? ', ' : ''}<span class="font-medium text-on-surface">{entry.name}</span>{/each}
           {dormant.length > 1 ? 'resteront éteints' : 'restera éteint'} : le salon qui
@@ -308,12 +308,12 @@
     <div class="rounded-2xl border border-outline-variant/30 bg-surface-container-lowest/50 overflow-hidden">
       <div class="px-4 py-2.5 border-b border-outline-variant/20 flex items-center gap-2">
         <Papicon icon="list" size={12} class="text-on-surface-variant/40" />
-        <span class="text-[12.5px] font-semibold text-on-surface">Ce que ça donne</span>
+        <span class="text-xs font-semibold text-on-surface">Ce que ça donne</span>
       </div>
 
       <div class="p-3 space-y-1">
         {#if category && decisionOf(category.key).mode !== 'skip'}
-          <p class="px-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant/40 truncate">
+          <p class="px-1 pb-1 text-2xs font-semibold uppercase tracking-wide text-on-surface-variant/40 truncate">
             {decisionOf(category.key).mode === 'adopt'
               ? template?.inventory.channels.find((c) => c.id === decisionOf(category.key).id)?.name ?? category.name
               : category.name}
@@ -327,24 +327,24 @@
                 ? template?.inventory.roles.find((r) => r.id === decision.id)?.name
                 : template?.inventory.channels.find((c) => c.id === decision.id)?.name)
             : null}
-          <p class="flex items-center gap-2 px-1 text-[13px]">
+          <p class="flex items-center gap-2 px-1 text-body-sm">
             {#if decision.mode === 'skip'}
               <Papicon icon="minus" size={11} class="shrink-0 text-on-surface-variant/30" />
               <span class="truncate text-on-surface-variant/35 line-through">{line.name}</span>
             {:else if decision.mode === 'adopt'}
               <Papicon icon="link" size={11} class="shrink-0 text-primary/70" />
               <span class="truncate text-on-surface-variant/85">{adopted ?? line.name}</span>
-              <span class="shrink-0 text-[11px] text-on-surface-variant/40">relié</span>
+              <span class="shrink-0 text-2xs text-on-surface-variant/40">relié</span>
             {:else}
               <Papicon icon="plus" size={11} class="shrink-0 text-emerald-500" />
               <span class="truncate text-on-surface-variant/85">{line.name}</span>
-              <span class="shrink-0 text-[11px] text-emerald-600/70">nouveau</span>
+              <span class="shrink-0 text-2xs text-emerald-600/70">nouveau</span>
             {/if}
           </p>
         {/each}
       </div>
 
-      <div class="px-4 py-2.5 border-t border-outline-variant/20 text-[11.5px] text-on-surface-variant/55">
+      <div class="px-4 py-2.5 border-t border-outline-variant/20 text-2xs text-on-surface-variant/55">
         {tally.adopted} relié{tally.adopted > 1 ? 's' : ''} ·
         {tally.created} à créer ·
         {tally.skipped} laissé{tally.skipped > 1 ? 's' : ''} de côté

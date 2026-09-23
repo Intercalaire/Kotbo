@@ -179,21 +179,21 @@
     <div class="flex gap-3">
       <button
         onclick={() => router.goto('/events')}
-        class="px-5 py-2.5 bg-surface-container-high rounded-xl font-medium text-[13px] border border-outline-variant/10 hover:bg-surface-container-highest transition-colors"
+        class="px-5 py-2.5 bg-surface-container-high rounded-xl font-medium text-body-sm border border-outline-variant/10 hover:bg-surface-container-highest transition-colors"
       >
         {m.evc_btn_back()}
       </button>
       {#if event && !isCustom && event.type !== 'CTF'}
         <button
           onclick={prevQuestion}
-          class="px-5 py-2.5 bg-surface-container-high rounded-xl font-medium text-[13px] border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2 disabled:opacity-30"
+          class="px-5 py-2.5 bg-surface-container-high rounded-xl font-medium text-body-sm border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2 disabled:opacity-30"
           disabled={currentQIdx <= 1}
         >
           <Papicon icon="SkipBack" size={12} /> {m.evc_btn_prev_question()}
         </button>
         <button
           onclick={nextQuestion}
-          class="px-5 py-2.5 bg-emerald-500 text-white rounded-xl font-medium text-[13px] shadow-sm transition-transform flex items-center gap-2"
+          class="px-5 py-2.5 bg-emerald-500 text-white rounded-xl font-medium text-body-sm shadow-sm transition-transform flex items-center gap-2"
         >
           <Papicon icon="SkipForward" size={12} /> {currentQIdx === totalQ ? m.evc_btn_finish_quiz() : m.evc_btn_next_question()}
         </button>
@@ -201,14 +201,14 @@
       {#if isCustom}
         <button
           onclick={() => router.goto(`/events/edit/${eventId}`)}
-          class="px-5 py-2.5 bg-surface-container-high rounded-xl font-medium text-[13px] border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2"
+          class="px-5 py-2.5 bg-surface-container-high rounded-xl font-medium text-body-sm border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2"
         >
           <Papicon icon="Edit3" size={12} /> {m.evc_btn_edit()}
         </button>
       {/if}
       <button
         onclick={finishEvent}
-        class="px-5 py-2.5 bg-red-500/10 text-red-500 rounded-xl font-medium text-[13px] border border-red-500/20 hover:bg-red-500/20 transition-colors"
+        class="px-5 py-2.5 bg-red-500/10 text-red-500 rounded-xl font-medium text-body-sm border border-red-500/20 hover:bg-red-500/20 transition-colors"
       >
         {m.evc_btn_finish()}
       </button>
@@ -338,7 +338,7 @@
                             {/each}
                           </div>
                         {:else}
-                          <span class="text-[10px] text-on-surface-variant/30 italic">{m.evc_no_form_data()}</span>
+                          <span class="text-2xs text-on-surface-variant/30 italic">{m.evc_no_form_data()}</span>
                         {/if}
                       </td>
                     {/if}
@@ -368,7 +368,7 @@
                     <div class="flex items-center justify-between">
                       <div>
                         <h4 class="text-xl font-semibold text-on-surface">{challenge.title}</h4>
-                        <p class="text-[10px] font-bold text-on-surface-variant/40 mt-1 uppercase tracking-widest">
+                        <p class="text-2xs font-bold text-on-surface-variant/40 mt-1 uppercase tracking-widest">
                           {challenge.points} pts | {challenge.xpReward} XP
                           {#if challenge.roleIdReward}
                             | Rôle: {challenge.roleIdReward}
@@ -389,7 +389,7 @@
                           {#each challenge.solves as solve}
                             <div class="flex justify-between items-center bg-surface-container-high/30 rounded-xl px-4 py-2 border border-outline-variant/5">
                               <span class="text-xs font-bold text-on-surface">{solve.username}</span>
-                              <span class="text-[11px] text-on-surface-variant/40">{new Date(solve.solvedAt).toLocaleTimeString()}</span>
+                              <span class="text-2xs text-on-surface-variant/40">{new Date(solve.solvedAt).toLocaleTimeString()}</span>
                             </div>
                           {/each}
                         </div>
@@ -432,7 +432,7 @@
 
               <div class="text-center mb-12">
                 <div class="flex items-center justify-center gap-3 mb-4">
-                  <span class="px-3 py-1 bg-primary/10 text-primary rounded-lg text-[11px] font-semibold uppercase tracking-widest">{m.evc_live_badge()}</span>
+                  <span class="px-3 py-1 bg-primary/10 text-primary rounded-lg text-2xs font-semibold uppercase tracking-widest">{m.evc_live_badge()}</span>
                 </div>
                 <h4 class="text-2xl font-semibold text-on-surface">{stats.questionText}</h4>
               </div>
@@ -546,16 +546,16 @@
                           {new Date(p.lastSolveAt).toLocaleString()}
                         </span>
                       {:else}
-                        <span class="text-[10px] text-on-surface-variant/40">{m.evc_no_solves_yet()}</span>
+                        <span class="text-2xs text-on-surface-variant/40">{m.evc_no_solves_yet()}</span>
                       {/if}
                     {:else}
                       {#if lastResp}
                         {@const respText = lastResp.optionLabel || (currentQuestion?.options as string[])?.[lastResp.optionIndex] || `Option ${lastResp.optionIndex + 1}`}
-                        <span class="px-3 py-1 rounded-lg text-[11px] font-semibold uppercase tracking-widest {lastResp.isCorrect ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600'}">
+                        <span class="px-3 py-1 rounded-lg text-2xs font-semibold uppercase tracking-widest {lastResp.isCorrect ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600'}">
                           {respText}
                         </span>
                       {:else}
-                        <span class="text-[10px] text-on-surface-variant/40">{m.evc_no_response_yet()}</span>
+                        <span class="text-2xs text-on-surface-variant/40">{m.evc_no_response_yet()}</span>
                       {/if}
                     {/if}
                   </td>

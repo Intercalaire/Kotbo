@@ -110,12 +110,12 @@
     />
     {#if textTokens.length > 0}
       <span class="flex flex-wrap items-center gap-1">
-        <span class="text-[10px] text-on-surface-variant/70 uppercase tracking-wider">{m.wf_insert()}</span>
+        <span class="text-2xs text-on-surface-variant/70 uppercase tracking-wider">{m.wf_insert()}</span>
         {#each textTokens.slice(0, 8) as token (token.path)}
           <button
             type="button"
             onclick={() => insertToken(token.path)}
-            class="px-1.5 py-0.5 rounded-md text-[10px] bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors"
+            class="px-1.5 py-0.5 rounded-md text-2xs bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors"
           >{token.label}</button>
         {/each}
       </span>

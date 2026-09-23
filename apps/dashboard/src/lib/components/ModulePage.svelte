@@ -90,7 +90,7 @@
         <div class="h-8 w-px bg-outline-variant/20 mx-1 hidden md:block"></div>
         <a
           href="/billing"
-          class="flex items-center gap-2 px-3.5 h-9 rounded-lg text-[13px] font-medium text-on-primary bg-primary hover:opacity-90 transition-opacity"
+          class="flex items-center gap-2 px-3.5 h-9 rounded-lg text-body-sm font-medium text-on-primary bg-primary hover:opacity-90 transition-opacity"
         >
           <Papicon icon="Lock" size={14} />
           Offre {requiredPlanLabel}
@@ -123,10 +123,10 @@
         <p class="text-sm font-semibold text-on-surface">
           « {title} » fait partie de l'offre {requiredPlanLabel}
         </p>
-        <p class="text-[13px] text-on-surface-variant/70 leading-relaxed">
+        <p class="text-body-sm text-on-surface-variant/70 leading-relaxed">
           Le serveur peut en voir la page, mais pas l'activer tant que son offre ne le comprend pas.
         </p>
-        <a href="/billing" class="inline-flex items-center gap-1.5 text-[13px] font-medium text-primary hover:underline pt-1">
+        <a href="/billing" class="inline-flex items-center gap-1.5 text-body-sm font-medium text-primary hover:underline pt-1">
           Voir les offres <Papicon icon="ArrowRight" size={12} />
         </a>
       </div>
@@ -138,7 +138,7 @@
       </div>
       <div class="space-y-0.5 min-w-0">
         <p class="text-sm font-semibold text-on-surface">{m.mp_module_off_title()}</p>
-        <p class="text-[13px] text-on-surface-variant/70 leading-relaxed">{m.mp_module_off_desc()}</p>
+        <p class="text-body-sm text-on-surface-variant/70 leading-relaxed">{m.mp_module_off_desc()}</p>
       </div>
     </div>
   {/if}

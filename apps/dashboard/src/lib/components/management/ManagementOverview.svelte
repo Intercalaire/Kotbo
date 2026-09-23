@@ -79,7 +79,7 @@
     >
       <span class="bg-amber-500/10 p-2 rounded-lg text-amber-500 shrink-0"><Papicon icon="Warning" size={18} /></span>
       <span>
-        <span class="block text-[11px] font-bold uppercase tracking-widest text-amber-500">{m.mgmt_incomplete_config()}</span>
+        <span class="block text-2xs font-bold uppercase tracking-widest text-amber-500">{m.mgmt_incomplete_config()}</span>
         <span class="block text-xs text-on-surface-variant/60 mt-1">
           {m.mgmt_missing_channels({ list: missingChannels.map((c) => c.label).join(', ') })}
           <b>{m.mgmt_tab_channels_roles()}</b> {m.mgmt_to_configure()}
@@ -90,7 +90,7 @@
 
   <SettingsGroup title={m.mgmt_features_status()}>
     {#snippet actions()}
-      <div class="flex gap-4 text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">
+      <div class="flex gap-4 text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40">
         <span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> {m.common_active()}</span>
         <span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-on-surface-variant/30"></span> {m.common_inactive()}</span>
       </div>
@@ -99,14 +99,14 @@
     <div class="space-y-6">
       {#each groupedFeatures as group}
         <section class="space-y-2">
-          <p class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/50">{categoryLabel(group.category)}</p>
+          <p class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/50">{categoryLabel(group.category)}</p>
           <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
             {#each group.items as { feature } (feature.featureKey)}
               {@const moduleActive = featureModuleState(modulesById, feature.featureKey)}
               <div class="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-surface-container-high/20 border border-outline-variant/10">
                 <span class="w-1.5 h-1.5 rounded-full shrink-0 {moduleActive === false ? 'bg-on-surface-variant/30' : 'bg-emerald-500'}"></span>
-                <span class="text-[13px] font-medium flex-1 min-w-0 truncate">{moduleName(feature.featureKey, feature.featureName)}</span>
-                <span class="flex items-center gap-1 text-[10px] font-semibold shrink-0">
+                <span class="text-body-sm font-medium flex-1 min-w-0 truncate">{moduleName(feature.featureKey, feature.featureName)}</span>
+                <span class="flex items-center gap-1 text-2xs font-semibold shrink-0">
                   {#if (feature.roleAccessByRole?.length ?? 0) > 0}<span class="px-1.5 py-0.5 rounded bg-tertiary/10 text-tertiary">{m.ma_state_restricted()}</span>{/if}
                 </span>
               </div>

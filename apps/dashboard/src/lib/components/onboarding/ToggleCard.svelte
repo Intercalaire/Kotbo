@@ -77,15 +77,15 @@
       <div class="flex items-baseline justify-between gap-3">
         <h3 class="text-[14.5px] font-semibold text-on-surface leading-tight">{label}</h3>
         {#if meta}
-          <span class="text-[11px] font-medium tabular-nums text-on-surface-variant/40 shrink-0">{meta}</span>
+          <span class="text-2xs font-medium tabular-nums text-on-surface-variant/40 shrink-0">{meta}</span>
         {/if}
       </div>
 
       {#if pitch}
-        <p class="mt-0.5 text-[13px] font-medium text-on-surface-variant/70">{pitch}</p>
+        <p class="mt-0.5 text-body-sm font-medium text-on-surface-variant/70">{pitch}</p>
       {/if}
       {#if detail}
-        <p class="mt-1.5 text-[12.5px] text-on-surface-variant/55 leading-relaxed">{detail}</p>
+        <p class="mt-1.5 text-xs text-on-surface-variant/55 leading-relaxed">{detail}</p>
       {/if}
       {@render children?.()}
     </div>

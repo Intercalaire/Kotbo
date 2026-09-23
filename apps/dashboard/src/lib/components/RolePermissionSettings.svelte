@@ -74,7 +74,7 @@
     </div>
     <button 
       onclick={addRole}
-      class="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-xl text-[13px] font-medium hover:bg-primary/20 transition-all"
+      class="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-xl text-body-sm font-medium hover:bg-primary/20 transition-all"
     >
       <Papicon icon="plus" size={14} />
       {m.rp_add_role()}
@@ -101,7 +101,7 @@
                 class="flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all {entry[perm.key] ? 'bg-primary/10 border-primary/20 text-primary shadow-sm' : 'bg-transparent border-outline-variant/10 text-on-surface-variant/40 hover:border-outline-variant/30'}"
               >
                 <Papicon icon={perm.icon} size={14} />
-                <span class="text-[10px] font-semibold uppercase tracking-wider">{perm.label}</span>
+                <span class="text-2xs font-semibold uppercase tracking-wider">{perm.label}</span>
               </button>
             {/each}
           </div>

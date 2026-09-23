@@ -337,13 +337,13 @@
     {/if}
 
     <!-- Char count -->
-    <span class="text-[10px] font-mono text-on-surface-variant/40 ml-2 tabular-nums">{charCount}</span>
+    <span class="text-2xs font-mono text-on-surface-variant/40 ml-2 tabular-nums">{charCount}</span>
   </div>
 
   <!-- Agenda templates -->
   {#if agendaMode}
     <div class="flex items-center gap-2 px-3 py-2 border-b border-outline-variant/10 bg-surface-container-high/10 overflow-x-auto">
-      <span class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest shrink-0">{m.d1_dme_templates()}</span>
+      <span class="text-2xs font-bold text-on-surface-variant/50 uppercase tracking-widest shrink-0">{m.d1_dme_templates()}</span>
       {#each agendaTemplates as template}
         <button
           type="button"
@@ -383,8 +383,8 @@
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 mb-1">
                 <span class="font-bold text-primary text-sm">Kotbo</span>
-                <span class="bg-primary/20 text-primary text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase leading-none">BOT</span>
-                <span class="text-[11px] text-on-surface-variant/40">{m.d1_dme_today()}</span>
+                <span class="bg-primary/20 text-primary text-2xs font-semibold px-1.5 py-0.5 rounded uppercase leading-none">BOT</span>
+                <span class="text-2xs text-on-surface-variant/40">{m.d1_dme_today()}</span>
               </div>
               <div class="text-sm text-[#dcddde] leading-relaxed whitespace-pre-wrap break-words discord-preview">
                 {@html previewHtml}
@@ -403,18 +403,18 @@
 
   <!-- Footer hint bar -->
   <div class="flex items-center justify-between px-3 py-1.5 border-t border-outline-variant/10 bg-surface-container-high/10">
-    <div class="flex items-center gap-3 text-[10px] text-on-surface-variant/40 font-medium">
+    <div class="flex items-center gap-3 text-2xs text-on-surface-variant/40 font-medium">
       <span class="flex items-center gap-1">
-        <kbd class="px-1 py-0.5 rounded bg-surface-container-high/40 text-[9px] font-mono">Ctrl+B</kbd> {m.d1_dme_bold()}
+        <kbd class="px-1 py-0.5 rounded bg-surface-container-high/40 text-2xs font-mono">Ctrl+B</kbd> {m.d1_dme_bold()}
       </span>
       <span class="flex items-center gap-1">
-        <kbd class="px-1 py-0.5 rounded bg-surface-container-high/40 text-[9px] font-mono">Ctrl+I</kbd> {m.d1_dme_italic()}
+        <kbd class="px-1 py-0.5 rounded bg-surface-container-high/40 text-2xs font-mono">Ctrl+I</kbd> {m.d1_dme_italic()}
       </span>
       <span class="flex items-center gap-1">
-        <kbd class="px-1 py-0.5 rounded bg-surface-container-high/40 text-[9px] font-mono">Tab</kbd> {m.d1_dme_indent()}
+        <kbd class="px-1 py-0.5 rounded bg-surface-container-high/40 text-2xs font-mono">Tab</kbd> {m.d1_dme_indent()}
       </span>
     </div>
-    <span class="text-[10px] text-on-surface-variant/30 font-medium">{m.d1_dme_markdown_discord()}</span>
+    <span class="text-2xs text-on-surface-variant/30 font-medium">{m.d1_dme_markdown_discord()}</span>
   </div>
 </div>
 

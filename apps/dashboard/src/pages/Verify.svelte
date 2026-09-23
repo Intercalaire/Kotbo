@@ -253,13 +253,13 @@
             {/if}
           </button>
 
-          <p class="text-white/20 text-[10px] text-center mt-4">
+          <p class="text-white/20 text-2xs text-center mt-4">
             En cliquant, vous autorisez le bot à vérifier votre identité Discord.
           </p>
 
           <div class="mt-4 rounded-lg border border-white/5 bg-white/3 px-3 py-2.5">
-            <p class="text-white/50 text-[10px] font-semibold uppercase tracking-wide mb-1.5">Données collectées lors de la vérification</p>
-            <ul class="text-white/40 text-[10px] leading-relaxed space-y-1 list-disc list-inside">
+            <p class="text-white/50 text-2xs font-semibold uppercase tracking-wide mb-1.5">Données collectées lors de la vérification</p>
+            <ul class="text-white/40 text-2xs leading-relaxed space-y-1 list-disc list-inside">
               <li>Identité Discord (identifiant, pseudo, avatar)</li>
               <li>Adresse IP</li>
               <li>Informations techniques de l'appareil (navigateur, système, langue, résolution d'écran, fuseau horaire, mémoire, cœurs CPU)</li>
@@ -280,7 +280,7 @@
 
     <!-- Footer -->
     <div class="text-center mt-6">
-      <p class="text-white/20 text-[10px]">Kotbo Security Verification</p>
+      <p class="text-white/20 text-2xs">Kotbo Security Verification</p>
     </div>
   </div>
 </div>

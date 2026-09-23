@@ -251,7 +251,7 @@
           <button
             onclick={handleGenerateCode}
             disabled={generating}
-            class="shrink-0 px-6 py-2.5 rounded-xl bg-primary text-on-primary font-medium text-[13px] transition-all active:scale-95 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 flex items-center gap-2.5"
+            class="shrink-0 px-6 py-2.5 rounded-xl bg-primary text-on-primary font-medium text-body-sm transition-all active:scale-95 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 flex items-center gap-2.5"
           >
             <Papicon icon="Unlock" size={16} />
             {generating ? 'Génération…' : 'Générer un code'}
@@ -296,23 +296,23 @@
                         {item.code}
                       </span>
                       {#if item.label}
-                        <p class="text-[11px] text-on-surface-variant/50 mt-1.5">{item.label}</p>
+                        <p class="text-2xs text-on-surface-variant/50 mt-1.5">{item.label}</p>
                       {/if}
                     </td>
                     <td class="px-6 py-5">
                       {#if item.accessType === 'PERMANENT'}
                         <span class="text-xs text-on-surface-variant/60 font-medium">{accessLabel(item)}</span>
                       {:else}
-                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-2xs font-semibold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
                           <Papicon icon="Clock" size={12} />
                           {accessLabel(item)}
                         </span>
                         {#if item.accessExpiredAt}
-                          <p class="text-[11px] text-error/70 mt-1.5 font-medium">
+                          <p class="text-2xs text-error/70 mt-1.5 font-medium">
                             Expiré le {formatDate(item.accessExpiredAt)}
                           </p>
                         {:else if item.accessExpiresAt}
-                          <p class="text-[11px] text-on-surface-variant/50 mt-1.5">
+                          <p class="text-2xs text-on-surface-variant/50 mt-1.5">
                             {formatDuration(minutesLeft(item.accessExpiresAt))} restantes · {formatDate(item.accessExpiresAt)}
                           </p>
                         {/if}
@@ -329,19 +329,19 @@
                             <!-- Un essai révoqué à la main garde son code sans poser
                                  d'échéance : sans ce marqueur, la colonne Accès
                                  afficherait un décompte pour un serveur déjà coupé. -->
-                            <span class="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-error/10 text-error border border-error/20">
+                            <span class="shrink-0 px-2 py-0.5 rounded-full text-2xs font-semibold uppercase tracking-wider bg-error/10 text-error border border-error/20">
                               Coupé
                             </span>
                           {/if}
                         </div>
-                        <p class="text-[10px] text-on-surface-variant/40 font-mono tracking-tighter mt-0.5">{item.usedByGuildId}</p>
+                        <p class="text-2xs text-on-surface-variant/40 font-mono tracking-tighter mt-0.5">{item.usedByGuildId}</p>
                       {:else if item.isActive}
-                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-success/10 text-success border border-success/20">
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-2xs font-semibold uppercase tracking-wider bg-success/10 text-success border border-success/20">
                           <span class="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></span>
                           Disponible
                         </span>
                       {:else}
-                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-on-surface/5 text-on-surface-variant/60 border border-outline-variant/30">
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-2xs font-semibold uppercase tracking-wider bg-on-surface/5 text-on-surface-variant/60 border border-outline-variant/30">
                           <span class="w-1.5 h-1.5 rounded-full bg-on-surface-variant/40"></span>
                           Désactivé
                         </span>

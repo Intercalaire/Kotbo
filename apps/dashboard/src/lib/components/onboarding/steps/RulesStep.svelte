@@ -135,12 +135,12 @@
     <!-- En grise et sans case : ces articles sont acquis, les remontrer comme
          un choix ferait croire qu'on peut les perdre en decochant. -->
     <section class="mb-4 rounded-2xl border border-outline-variant/25 bg-surface-container-lowest/30 p-4">
-      <h2 class="text-[12.5px] font-semibold uppercase tracking-wide text-on-surface-variant/45">
+      <h2 class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant/45">
         Déjà en place
       </h2>
       <ul class="mt-2 space-y-1.5">
         {#each existing as rule (rule.id)}
-          <li class="flex items-start gap-2 text-[13px] text-on-surface-variant/55">
+          <li class="flex items-start gap-2 text-body-sm text-on-surface-variant/55">
             <Papicon icon="check" size={12} class="mt-1 shrink-0 text-emerald-500/60" />
             <span class="min-w-0">
               {#if rule.emoji}<span class="mr-1">{rule.emoji}</span>{/if}{rule.title}
@@ -174,12 +174,12 @@
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2">
               <span class="text-[15px] leading-none">{rule.emoji}</span>
-              <p class="text-[14px] font-semibold text-on-surface">{rule.title}</p>
+              <p class="text-sm font-semibold text-on-surface">{rule.title}</p>
               {#if rule.selected}
                 <button
                   type="button"
                   onclick={() => (editing = editing === rule.key ? null : rule.key)}
-                  class="ml-auto shrink-0 inline-flex items-center gap-1 text-[12px] font-medium text-on-surface-variant/55 hover:text-primary transition-colors"
+                  class="ml-auto shrink-0 inline-flex items-center gap-1 text-xs font-medium text-on-surface-variant/55 hover:text-primary transition-colors"
                 >
                   <Papicon icon="pencil" size={11} />
                   {editing === rule.key ? 'Terminer' : 'Modifier'}
@@ -196,18 +196,18 @@
                 bind:value={rule.title}
                 maxlength="80"
                 aria-label="Titre de l'article"
-                class="mt-2 w-full rounded-lg border border-outline-variant/40 bg-surface-container-low/50 px-3 py-2 text-[13px] font-semibold text-on-surface
+                class="mt-2 w-full rounded-lg border border-outline-variant/40 bg-surface-container-low/50 px-3 py-2 text-body-sm font-semibold text-on-surface
                        focus:outline-none focus:border-primary/50"
               />
               <textarea
                 bind:value={rule.description}
                 rows="3"
                 aria-label="Texte de l'article"
-                class="mt-2 w-full rounded-lg border border-outline-variant/40 bg-surface-container-low/50 px-3 py-2 text-[13px] text-on-surface
+                class="mt-2 w-full rounded-lg border border-outline-variant/40 bg-surface-container-low/50 px-3 py-2 text-body-sm text-on-surface
                        focus:outline-none focus:border-primary/50 resize-none"
               ></textarea>
             {:else}
-              <p class="mt-1 text-[13px] text-on-surface-variant/65 leading-relaxed">{rule.description}</p>
+              <p class="mt-1 text-body-sm text-on-surface-variant/65 leading-relaxed">{rule.description}</p>
             {/if}
           </div>
         </div>
@@ -229,7 +229,7 @@
         />
       </DiscordPreview>
     {:else}
-      <p class="rounded-xl border border-outline-variant/30 bg-surface-container-low/30 px-4 py-3 text-[13px] text-on-surface-variant/60 leading-relaxed">
+      <p class="rounded-xl border border-outline-variant/30 bg-surface-container-low/30 px-4 py-3 text-body-sm text-on-surface-variant/60 leading-relaxed">
         Aucun article retenu : rien ne sera publié. Vous pourrez écrire votre règlement
         depuis le tableau de bord.
       </p>
@@ -240,7 +240,7 @@
     <button
       type="button"
       onclick={skip}
-      class="text-[13px] font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
+      class="text-body-sm font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
     >
       Passer
     </button>

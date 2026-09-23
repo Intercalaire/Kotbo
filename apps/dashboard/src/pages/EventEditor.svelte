@@ -219,20 +219,20 @@
     <div class="flex gap-3">
       <button 
         onclick={() => router.goto('/events')}
-        class="px-5 py-2.5 bg-surface-container-high rounded-xl font-medium text-[13px] border border-outline-variant/10 hover:bg-surface-container-highest transition-colors"
+        class="px-5 py-2.5 bg-surface-container-high rounded-xl font-medium text-body-sm border border-outline-variant/10 hover:bg-surface-container-highest transition-colors"
       >
         {m.eve_btn_back()}
       </button>
       <button
         onclick={save}
         disabled={isSaving}
-        class="px-5 py-2.5 bg-surface-container-highest text-on-surface rounded-xl font-medium text-[13px] border border-outline-variant/10 transition-transform"
+        class="px-5 py-2.5 bg-surface-container-highest text-on-surface rounded-xl font-medium text-body-sm border border-outline-variant/10 transition-transform"
       >
         {isSaving ? m.eve_btn_saving() : m.eve_btn_save()}
       </button>
       <button
         onclick={publish}
-        class="px-4 py-2 bg-primary text-on-primary rounded-xl font-medium text-[13px] transition-transform"
+        class="px-4 py-2 bg-primary text-on-primary rounded-xl font-medium text-body-sm transition-transform"
       >
         {m.eve_btn_publish_discord()}
       </button>
@@ -464,7 +464,7 @@
         <section class="space-y-8">
           <div class="flex items-center justify-between px-2">
             <h3 class="text-xl font-semibold text-on-surface">{m.eve_ctf_challenges_title({ count: event.ctfChallenges?.length || 0 })}</h3>
-            <button onclick={addCtfChallenge} class="text-primary font-semibold uppercase text-[10px] tracking-widest flex items-center gap-2">
+            <button onclick={addCtfChallenge} class="text-primary font-semibold uppercase text-2xs tracking-widest flex items-center gap-2">
               <Papicon icon="Plus" size={14} /> {m.eve_btn_add_challenge()}
             </button>
           </div>
@@ -583,11 +583,11 @@
               />
               <button 
                 onclick={triggerImport} 
-                class="px-4 py-2 bg-surface-container-high text-on-surface-variant rounded-xl font-bold text-[13px] border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2"
+                class="px-4 py-2 bg-surface-container-high text-on-surface-variant rounded-xl font-bold text-body-sm border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2"
               >
                 <Papicon icon="FileUp" size={14} /> {m.eve_btn_import_csv()}
               </button>
-              <button onclick={addQuestion} class="text-primary font-semibold uppercase text-[10px] tracking-widest flex items-center gap-2">
+              <button onclick={addQuestion} class="text-primary font-semibold uppercase text-2xs tracking-widest flex items-center gap-2">
                 <Papicon icon="Plus" size={14} /> {m.eve_btn_add_question()}
               </button>
             </div>
@@ -655,7 +655,7 @@
                         </div>
                       {/each}
                     </div>
-                    <p class="text-[11px] font-bold text-on-surface-variant/30 italic font-bold">{m.eve_correct_answer_hint()}</p>
+                    <p class="text-2xs font-bold text-on-surface-variant/30 italic font-bold">{m.eve_correct_answer_hint()}</p>
                   </div>
                 </div>
               </div>

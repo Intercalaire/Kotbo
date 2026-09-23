@@ -436,7 +436,7 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="space-y-1.5">
-            <label for="drop-default-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_default_channel_label()}</label>
+            <label for="drop-default-channel" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_default_channel_label()}</label>
             <SearchableSelect
               id="drop-default-channel"
               bind:value={globalSettings.dropChannelId}
@@ -444,11 +444,11 @@
               placeholder={m.drop_select_channel_placeholder()}
               disabled={!canManageSettings}
             />
-            <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.drop_default_channel_desc()}</p>
+            <p class="text-2xs text-on-surface-variant/60 mt-1">{m.drop_default_channel_desc()}</p>
           </div>
 
           <div class="space-y-1.5">
-            <label for="drop-mention-role" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mention_role_label()}</label>
+            <label for="drop-mention-role" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mention_role_label()}</label>
             <SearchableSelect
               id="drop-mention-role"
               bind:value={globalSettings.dropMentionRoleId}
@@ -456,11 +456,11 @@
               placeholder={m.drop_select_role_placeholder()}
               disabled={!canManageSettings}
             />
-            <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.drop_mention_role_desc()}</p>
+            <p class="text-2xs text-on-surface-variant/60 mt-1">{m.drop_mention_role_desc()}</p>
           </div>
 
           <div class="space-y-1.5">
-            <label for="drop-lifetime" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_lifetime_label()}</label>
+            <label for="drop-lifetime" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_lifetime_label()}</label>
             <input
               id="drop-lifetime"
               type="number"
@@ -470,12 +470,12 @@
               class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
               disabled={!canManageSettings}
             />
-            <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.drop_lifetime_desc()}</p>
-            <p class="text-[10px] text-on-surface-variant/60">{m.drop_min_open_hint()}</p>
+            <p class="text-2xs text-on-surface-variant/60 mt-1">{m.drop_lifetime_desc()}</p>
+            <p class="text-2xs text-on-surface-variant/60">{m.drop_min_open_hint()}</p>
           </div>
 
           <div class="space-y-1.5">
-            <label for="drop-delete-after" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_delete_after_label()}</label>
+            <label for="drop-delete-after" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_delete_after_label()}</label>
             <select
               id="drop-delete-after"
               bind:value={globalSettings.dropDeleteAfterMinutes}
@@ -486,7 +486,7 @@
                 <option value={choice.value}>{choice.label}</option>
               {/each}
             </select>
-            <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.drop_delete_after_desc()}</p>
+            <p class="text-2xs text-on-surface-variant/60 mt-1">{m.drop_delete_after_desc()}</p>
           </div>
         </div>
       </section>
@@ -500,7 +500,7 @@
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest">
+              <tr class="text-2xs font-bold text-on-surface-variant/50 uppercase tracking-widest">
                 <th class="py-2 pr-4">{m.drop_overview_col_type()}</th>
                 <th class="py-2 pr-4">{m.drop_overview_col_state()}</th>
                 <th class="py-2 pr-4">{m.drop_overview_col_channel()}</th>
@@ -517,7 +517,7 @@
                     </span>
                   </td>
                   <td class="py-2.5 pr-4">
-                    <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full {configs[type].enabled && globalSettings.dropsEnabled ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-surface-container-high/60 text-on-surface-variant/60'}">
+                    <span class="text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full {configs[type].enabled && globalSettings.dropsEnabled ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-surface-container-high/60 text-on-surface-variant/60'}">
                       {configs[type].enabled && globalSettings.dropsEnabled ? m.drop_state_on() : m.drop_state_off()}
                     </span>
                   </td>
@@ -543,7 +543,7 @@
           <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
               <thead>
-                <tr class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest">
+                <tr class="text-2xs font-bold text-on-surface-variant/50 uppercase tracking-widest">
                   <th class="py-2 pr-4">{m.drop_history_col_date()}</th>
                   <th class="py-2 pr-4">{m.drop_history_col_type()}</th>
                   <th class="py-2 pr-4">{m.drop_history_col_mode()}</th>
@@ -631,7 +631,7 @@
                   onclick={() => toggleDropItem(item.id)}
                   disabled={!canManageSettings || (!picked && configs[type].items.length >= DROP_ITEM_POOL_MAX)}
                   aria-pressed={picked}
-                  class="px-3 py-1.5 rounded-lg border text-[11px] font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed {picked
+                  class="px-3 py-1.5 rounded-lg border text-2xs font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed {picked
                     ? 'bg-primary/10 border-primary/40 text-primary'
                     : 'bg-surface-container-high/30 border-outline-variant/15 text-on-surface-variant/80 hover:border-outline-variant/40'}"
                 >
@@ -644,7 +644,7 @@
               <div class="space-y-1.5 pt-1">
                 {#each configs[type].items as entry (entry.itemId)}
                   <div class="flex items-center gap-3">
-                    <span class="text-[11px] flex-1 min-w-0 truncate">
+                    <span class="text-2xs flex-1 min-w-0 truncate">
                       {itemNameById.get(entry.itemId)?.emoji ?? ''}
                       {itemNameById.get(entry.itemId)?.name ?? m.drop_item_unknown()}
                     </span>
@@ -655,21 +655,21 @@
                       value={entry.weight}
                       oninput={(e) => setDropItemWeight(entry.itemId, Number((e.currentTarget as HTMLInputElement).value))}
                       disabled={!canManageSettings}
-                      class="w-20 bg-surface-container-high/40 border border-outline-variant/15 rounded-lg px-3 py-1.5 text-[11px] text-right focus:outline-none disabled:opacity-50"
+                      class="w-20 bg-surface-container-high/40 border border-outline-variant/15 rounded-lg px-3 py-1.5 text-2xs text-right focus:outline-none disabled:opacity-50"
                     />
-                    <span class="text-[11px] text-on-surface-variant/50 w-4">%</span>
+                    <span class="text-2xs text-on-surface-variant/50 w-4">%</span>
                   </div>
                 {/each}
 
                 <div class="flex items-center justify-between gap-3 pt-1">
-                  <p class="text-[11px] font-semibold {dropItemsBalanced ? 'text-emerald-500' : 'text-amber-500'}">
+                  <p class="text-2xs font-semibold {dropItemsBalanced ? 'text-emerald-500' : 'text-amber-500'}">
                     {m.drop_item_total({ total: dropItemsTotal })}
                   </p>
                   <button
                     type="button"
                     onclick={balanceDropItems}
                     disabled={!canManageSettings}
-                    class="text-[11px] font-medium px-3 py-1.5 rounded-lg border border-outline-variant/20 hover:border-outline-variant/40 transition-all disabled:opacity-40"
+                    class="text-2xs font-medium px-3 py-1.5 rounded-lg border border-outline-variant/20 hover:border-outline-variant/40 transition-all disabled:opacity-40"
                   >
                     {m.drop_item_balance()}
                   </button>
@@ -677,18 +677,18 @@
               </div>
             {/if}
 
-            <p class="text-[10px] text-on-surface-variant/60">
+            <p class="text-2xs text-on-surface-variant/60">
               {configs[type].items.length === 0
                 ? m.drop_item_pool_empty()
                 : m.drop_item_pool_full({ max: DROP_ITEM_POOL_MAX })}
             </p>
-            <p class="text-[10px] text-on-surface-variant/60">{m.drop_item_quantity_hint()}</p>
+            <p class="text-2xs text-on-surface-variant/60">{m.drop_item_quantity_hint()}</p>
           </div>
         {/if}
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="space-y-1.5">
-            <label for="drop-channel-{type}" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_channel_label()}</label>
+            <label for="drop-channel-{type}" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_channel_label()}</label>
             <SearchableSelect
               id="drop-channel-{type}"
               bind:value={configs[type].channelId}
@@ -696,11 +696,11 @@
               placeholder={m.drop_select_channel_placeholder()}
               disabled={!canManageSettings}
             />
-            <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.drop_channel_desc()}</p>
+            <p class="text-2xs text-on-surface-variant/60 mt-1">{m.drop_channel_desc()}</p>
           </div>
 
           <div class="space-y-1.5">
-            <label for="drop-interval-{type}" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_interval_label()}</label>
+            <label for="drop-interval-{type}" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_interval_label()}</label>
             <input
               id="drop-interval-{type}"
               type="number"
@@ -710,9 +710,9 @@
               class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
               disabled={!canManageSettings}
             />
-            <p class="text-[10px] text-primary font-semibold mt-1">{m.drop_interval_hint({ count: dropsPerDay(configs[type].intervalMinutes) })}</p>
-            <p class="text-[10px] text-on-surface-variant/60">{m.drop_interval_desc()}</p>
-            <p class="text-[10px] text-on-surface-variant/60">{m.drop_min_gap_hint()}</p>
+            <p class="text-2xs text-primary font-semibold mt-1">{m.drop_interval_hint({ count: dropsPerDay(configs[type].intervalMinutes) })}</p>
+            <p class="text-2xs text-on-surface-variant/60">{m.drop_interval_desc()}</p>
+            <p class="text-2xs text-on-surface-variant/60">{m.drop_min_gap_hint()}</p>
           </div>
         </div>
       </section>
@@ -733,14 +733,14 @@
           <div class="flex items-start justify-between gap-4">
             <div>
               <h4 class="text-sm font-bold">{m.drop_mode_first_title()}</h4>
-              <p class="text-[11px] text-on-surface-variant/70 mt-0.5">{m.drop_mode_first_desc()}</p>
+              <p class="text-2xs text-on-surface-variant/70 mt-0.5">{m.drop_mode_first_desc()}</p>
             </div>
             <ToggleSwitch checked={configs[type].first.enabled} onToggle={(v) => configs[type].first.enabled = v} disabled={!canManageSettings} />
           </div>
 
           <div class="grid grid-cols-2 gap-4">
             <div class="space-y-1.5">
-              <label for="drop-first-min-{type}" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mode_min_label()}</label>
+              <label for="drop-first-min-{type}" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mode_min_label()}</label>
               <input
                 id="drop-first-min-{type}"
                 type="number"
@@ -752,7 +752,7 @@
               />
             </div>
             <div class="space-y-1.5">
-              <label for="drop-first-max-{type}" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mode_max_label()}</label>
+              <label for="drop-first-max-{type}" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mode_max_label()}</label>
               <input
                 id="drop-first-max-{type}"
                 type="number"
@@ -770,14 +770,14 @@
           <div class="flex items-start justify-between gap-4">
             <div>
               <h4 class="text-sm font-bold">{m.drop_mode_race_title()}</h4>
-              <p class="text-[11px] text-on-surface-variant/70 mt-0.5">{m.drop_mode_race_desc()}</p>
+              <p class="text-2xs text-on-surface-variant/70 mt-0.5">{m.drop_mode_race_desc()}</p>
             </div>
             <ToggleSwitch checked={configs[type].race.enabled} onToggle={(v) => configs[type].race.enabled = v} disabled={!canManageSettings} />
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div class="space-y-1.5">
-              <label for="drop-race-winners-{type}" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_race_winners_label()}</label>
+              <label for="drop-race-winners-{type}" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_race_winners_label()}</label>
               <input
                 id="drop-race-winners-{type}"
                 type="number"
@@ -789,7 +789,7 @@
               />
             </div>
             <div class="space-y-1.5">
-              <label for="drop-race-min-{type}" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mode_min_label()}</label>
+              <label for="drop-race-min-{type}" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mode_min_label()}</label>
               <input
                 id="drop-race-min-{type}"
                 type="number"
@@ -801,7 +801,7 @@
               />
             </div>
             <div class="space-y-1.5">
-              <label for="drop-race-max-{type}" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mode_max_label()}</label>
+              <label for="drop-race-max-{type}" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mode_max_label()}</label>
               <input
                 id="drop-race-max-{type}"
                 type="number"
@@ -819,14 +819,14 @@
           <div class="flex items-start justify-between gap-4">
             <div>
               <h4 class="text-sm font-bold">{m.drop_mode_window_title()}</h4>
-              <p class="text-[11px] text-on-surface-variant/70 mt-0.5">{m.drop_mode_window_desc()}</p>
+              <p class="text-2xs text-on-surface-variant/70 mt-0.5">{m.drop_mode_window_desc()}</p>
             </div>
             <ToggleSwitch checked={configs[type].window.enabled} onToggle={(v) => configs[type].window.enabled = v} disabled={!canManageSettings} />
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div class="space-y-1.5">
-              <label for="drop-window-duration-{type}" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_window_duration_label()}</label>
+              <label for="drop-window-duration-{type}" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_window_duration_label()}</label>
               <input
                 id="drop-window-duration-{type}"
                 type="number"
@@ -836,10 +836,10 @@
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
                 disabled={!canManageSettings}
               />
-              <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.drop_min_open_hint()}</p>
+              <p class="text-2xs text-on-surface-variant/60 mt-1">{m.drop_min_open_hint()}</p>
             </div>
             <div class="space-y-1.5">
-              <label for="drop-window-min-{type}" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mode_min_label()}</label>
+              <label for="drop-window-min-{type}" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mode_min_label()}</label>
               <input
                 id="drop-window-min-{type}"
                 type="number"
@@ -851,7 +851,7 @@
               />
             </div>
             <div class="space-y-1.5">
-              <label for="drop-window-max-{type}" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mode_max_label()}</label>
+              <label for="drop-window-max-{type}" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mode_max_label()}</label>
               <input
                 id="drop-window-max-{type}"
                 type="number"

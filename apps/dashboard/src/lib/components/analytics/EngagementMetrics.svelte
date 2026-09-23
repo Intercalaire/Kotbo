@@ -351,7 +351,7 @@
             </div>
             <div class="flex items-center gap-6">
               <div class="text-right">
-                <p class="text-[10px] font-semibold {mode === 'messages' ? 'text-primary' : 'text-emerald-500'} uppercase tracking-widest">{mode === 'messages' ? m.an_unit_messages() : m.an_unit_minutes()}</p>
+                <p class="text-2xs font-semibold {mode === 'messages' ? 'text-primary' : 'text-emerald-500'} uppercase tracking-widest">{mode === 'messages' ? m.an_unit_messages() : m.an_unit_minutes()}</p>
                 <p class="text-base font-semibold text-on-surface">{(mode === 'messages' ? item.messageCount : Math.round(item.voiceTimeSeconds / 60)).toLocaleString(dateLocale())}</p>
               </div>
               <Papicon icon="ArrowRight" size={16} class="opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -371,7 +371,7 @@
             </div>
             <div class="flex items-center gap-6">
               <div class="text-right">
-                <p class="text-[10px] font-semibold {mode === 'messages' ? 'text-secondary' : 'text-emerald-500'} uppercase tracking-widest">{mode === 'messages' ? m.an_unit_messages() : m.an_unit_minutes()}</p>
+                <p class="text-2xs font-semibold {mode === 'messages' ? 'text-secondary' : 'text-emerald-500'} uppercase tracking-widest">{mode === 'messages' ? m.an_unit_messages() : m.an_unit_minutes()}</p>
                 <p class="text-base font-semibold text-on-surface">{(mode === 'messages' ? (item.messagesCount || item.count) : (item.voiceMinutes || 0)).toLocaleString(dateLocale())}</p>
               </div>
               <Papicon icon="ArrowRight" size={16} class="opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -458,20 +458,20 @@
     {#if activityPoints.length > 0}
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div class="p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/5">
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_eng_activity_total()}</p>
+          <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_eng_activity_total()}</p>
           <p class="text-lg font-semibold text-on-surface">{activityTotal.toLocaleString(dateLocale())} <span class="text-xs font-bold text-on-surface-variant/40">{mode === 'messages' ? m.an_unit_msgs() : m.an_unit_min()}</span></p>
         </div>
         <div class="p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/5">
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_eng_activity_per_point()}</p>
+          <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_eng_activity_per_point()}</p>
           <p class="text-lg font-semibold text-on-surface">{activityAverage.toLocaleString(dateLocale())} <span class="text-xs font-bold text-on-surface-variant/40">{mode === 'messages' ? m.an_unit_msgs() : m.an_unit_min()}</span></p>
         </div>
         <div class="p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/5">
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_eng_activity_peak()}</p>
+          <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_eng_activity_peak()}</p>
           <p class="text-lg font-semibold text-on-surface">{activityPeak.toLocaleString(dateLocale())} <span class="text-xs font-bold text-on-surface-variant/40">{mode === 'messages' ? m.an_unit_msgs() : m.an_unit_min()}</span></p>
         </div>
         <div class="p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/5">
           {#if activityTrend}
-            <p class="text-[10px] font-semibold uppercase tracking-widest {activityTrend.direction === 'up' ? 'text-emerald-500/60' : activityTrend.direction === 'down' ? 'text-red-500/60' : 'text-on-surface-variant/40'}">{m.an_eng_activity_trend()}</p>
+            <p class="text-2xs font-semibold uppercase tracking-widest {activityTrend.direction === 'up' ? 'text-emerald-500/60' : activityTrend.direction === 'down' ? 'text-red-500/60' : 'text-on-surface-variant/40'}">{m.an_eng_activity_trend()}</p>
             <p class="text-sm font-semibold flex items-center gap-1.5 {activityTrend.direction === 'up' ? 'text-emerald-500' : activityTrend.direction === 'down' ? 'text-red-500' : 'text-on-surface-variant'}">
               <Papicon icon={activityTrend.direction === 'up' ? 'TrendingUp' : activityTrend.direction === 'down' ? 'TrendingDown' : 'Minus'} size={16} />
               {#if activityTrend.direction === 'up'}
@@ -483,7 +483,7 @@
               {/if}
             </p>
           {:else}
-            <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_eng_activity_trend()}</p>
+            <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_eng_activity_trend()}</p>
             <p class="text-sm font-semibold text-on-surface-variant/40">{m.an_eng_activity_trend_stable()}</p>
           {/if}
         </div>
@@ -547,7 +547,7 @@
             </div>
             <div class="flex items-center gap-4">
               <div class="text-right">
-                  <p class="text-[10px] font-semibold {mode === 'messages' ? 'text-primary' : 'text-emerald-500'} uppercase tracking-widest">{mode === 'messages' ? m.an_unit_messages() : m.an_unit_minutes()}</p>
+                  <p class="text-2xs font-semibold {mode === 'messages' ? 'text-primary' : 'text-emerald-500'} uppercase tracking-widest">{mode === 'messages' ? m.an_unit_messages() : m.an_unit_minutes()}</p>
                   <p class="text-sm font-semibold text-on-surface">{(mode === 'messages' ? member.messageCount : Math.round(member.voiceTimeSeconds / 60)).toLocaleString(dateLocale())}</p>
               </div>
               <Papicon icon="ArrowRight" size={14} class="opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -602,7 +602,7 @@
                 class="p-4 rounded-lg text-left {mode === 'messages' ? 'bg-secondary/5 border border-secondary/10 hover:border-secondary/30' : 'bg-emerald-500/5 border border-emerald-500/10 hover:border-emerald-500/30'} transition-colors"
                 title={m.an_eng_open_channel_details()}
               >
-                <p class="text-[11px] font-semibold uppercase tracking-widest {mode === 'messages' ? 'text-secondary/60' : 'text-emerald-500/60'} mb-1">#{channel.channelName || channel.name || channel.channelId}</p>
+                <p class="text-2xs font-semibold uppercase tracking-widest {mode === 'messages' ? 'text-secondary/60' : 'text-emerald-500/60'} mb-1">#{channel.channelName || channel.name || channel.channelId}</p>
                 <p class="text-lg font-semibold text-on-surface">
                   {(mode === 'messages' ? (channel.messagesCount || channel.count) : (channel.voiceMinutes || 0)).toLocaleString(dateLocale())}
                   <span class="text-xs font-bold text-on-surface-variant/40">{mode === 'messages' ? m.an_unit_msgs() : m.an_unit_min()}</span>

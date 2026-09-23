@@ -144,7 +144,7 @@
                   {m.e7_alr_meta_created({ date: formatDate(request.createdAt), requester: requesterLabel(request), via: request.requestedVia })}
                 </p>
               </div>
-              <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border shrink-0 {meta.classes}">{meta.label}</span>
+              <span class="px-2.5 py-1 rounded-full text-2xs font-bold border shrink-0 {meta.classes}">{meta.label}</span>
               <Papicon icon={openId === request.id ? 'expand_less' : 'expand_more'} size={18} />
             </button>
 
@@ -175,7 +175,7 @@
                         <Papicon icon="x" size={14} /> {m.e7_alr_reject_btn()}
                       </button>
                     </div>
-                    <p class="text-[11px] text-on-surface-variant/50">
+                    <p class="text-2xs text-on-surface-variant/50">
                       {m.e7_alr_permission_note()}
                     </p>
                   </div>

@@ -509,17 +509,17 @@
           <div class="grid grid-cols-3 gap-2 mt-5 text-center">
             <div class="rounded-xl bg-[#242526] border border-white/5 py-2 px-1 flex flex-col items-center">
               <AtSign class="w-4 h-4 text-sky-400 mb-1" />
-              <span class="text-[9px] text-slate-400 font-bold uppercase">Mentions</span>
+              <span class="text-2xs text-slate-400 font-bold uppercase">Mentions</span>
               <span class="text-sm font-bold text-slate-100 mt-0.5">{stats.mentions}</span>
             </div>
             <div class="rounded-xl bg-[#242526] border border-white/5 py-2 px-1 flex flex-col items-center">
               <MessageSquare class="w-4 h-4 text-yellow-400 mb-1" />
-              <span class="text-[9px] text-slate-400 font-bold uppercase">Réponses</span>
+              <span class="text-2xs text-slate-400 font-bold uppercase">Réponses</span>
               <span class="text-sm font-bold text-slate-100 mt-0.5">{stats.replies}</span>
             </div>
             <div class="rounded-xl bg-[#242526] border border-white/5 py-2 px-1 flex flex-col items-center">
               <ThumbsUp class="w-4 h-4 text-pink-400 mb-1" />
-              <span class="text-[9px] text-slate-400 font-bold uppercase">Réactions</span>
+              <span class="text-2xs text-slate-400 font-bold uppercase">Réactions</span>
               <span class="text-sm font-bold text-slate-100 mt-0.5">{stats.reactions}</span>
             </div>
           </div>
@@ -543,7 +543,7 @@
 
           <!-- Top Interlocutors List (Dynamic friendship progress bars) -->
           <div class="mt-5 flex flex-col gap-2 border-t border-white/5 pt-4">
-            <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Top 5 Interlocuteurs</span>
+            <span class="text-2xs text-slate-400 font-bold uppercase tracking-wider">Top 5 Interlocuteurs</span>
             
             {#if selectedTopInteractors.length === 0}
               <div class="flex items-center gap-2 p-3 rounded-lg bg-[#242526]/20 border border-dashed border-white/5 justify-center text-slate-400 text-xs">
@@ -569,7 +569,7 @@
                     </div>
                     <div class="flex-1 min-w-0 flex items-center justify-between">
                       <span class="text-xs font-semibold text-slate-200 truncate group-hover:text-primary transition-colors">{interactor.label}</span>
-                      <span class="text-[10px] text-slate-400 font-medium">{interactor.count} int.</span>
+                      <span class="text-2xs text-slate-400 font-medium">{interactor.count} int.</span>
                     </div>
                   </div>
                   <!-- Progress bar showing relative share of interactions -->
@@ -595,7 +595,7 @@
           </div>
           <div>
             <h4 class="text-sm font-bold text-slate-100">Réseau d'activité</h4>
-            <p class="text-[10px] text-slate-400">Relations et liens sociaux du serveur</p>
+            <p class="text-2xs text-slate-400">Relations et liens sociaux du serveur</p>
           </div>
         </div>
 
@@ -618,7 +618,7 @@
 
         <!-- Top Connectors Ranked List -->
         <div class="flex flex-col gap-2 mt-2 border-t border-white/5 pt-4">
-          <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Top 5 Connecteurs du Serveur</span>
+          <span class="text-2xs text-slate-400 font-bold uppercase tracking-wider">Top 5 Connecteurs du Serveur</span>
           {#each topConnectors as connector, index}
             <button 
               onclick={() => focusNode(connector.id)}
@@ -639,13 +639,13 @@
               </div>
               <div class="flex-1 min-w-0">
                 <div class="text-xs font-bold text-slate-200 truncate group-hover:text-primary transition-colors">{connector.label}</div>
-                <div class="text-[10px] text-slate-400">{connector.activityCount} actions enregistrées</div>
+                <div class="text-2xs text-slate-400">{connector.activityCount} actions enregistrées</div>
               </div>
             </button>
           {/each}
         </div>
 
-        <p class="flex items-start gap-2 text-[11px] text-slate-400 leading-relaxed mt-2 bg-slate-900/50 p-3 rounded-lg border border-white/5">
+        <p class="flex items-start gap-2 text-2xs text-slate-400 leading-relaxed mt-2 bg-slate-900/50 p-3 rounded-lg border border-white/5">
           <Papicon icon="info" size={14} class="mt-px text-slate-500" />
           <span>Cliquez sur n'importe quel membre du réseau ou sur un top connecteur pour explorer son cercle social et ses interlocuteurs favoris.</span>
         </p>
@@ -663,25 +663,25 @@
       <div class="flex items-center gap-1.5 p-1 rounded-lg bg-[#18191a]/90 border border-white/5 pointer-events-auto shadow-md">
         <button 
           onclick={() => selectedTypeFilter = 'all'}
-          class="px-2.5 py-1 rounded text-[10px] font-bold transition-all {selectedTypeFilter === 'all' ? 'bg-[#1877f2] text-white' : 'text-slate-400 hover:text-slate-200'}"
+          class="px-2.5 py-1 rounded text-2xs font-bold transition-all {selectedTypeFilter === 'all' ? 'bg-[#1877f2] text-white' : 'text-slate-400 hover:text-slate-200'}"
         >
           Tout
         </button>
         <button 
           onclick={() => selectedTypeFilter = 'mention'}
-          class="px-2.5 py-1 rounded text-[10px] font-bold transition-all flex items-center gap-1 {selectedTypeFilter === 'mention' ? 'bg-[#5865f2] text-white' : 'text-slate-400 hover:text-slate-200'}"
+          class="px-2.5 py-1 rounded text-2xs font-bold transition-all flex items-center gap-1 {selectedTypeFilter === 'mention' ? 'bg-[#5865f2] text-white' : 'text-slate-400 hover:text-slate-200'}"
         >
           <span class="w-1.5 h-1.5 rounded-full bg-[#5865f2]"></span> Mentions
         </button>
         <button 
           onclick={() => selectedTypeFilter = 'reply'}
-          class="px-2.5 py-1 rounded text-[10px] font-bold transition-all flex items-center gap-1 {selectedTypeFilter === 'reply' ? 'bg-[#faa61a] text-white' : 'text-slate-400 hover:text-slate-200'}"
+          class="px-2.5 py-1 rounded text-2xs font-bold transition-all flex items-center gap-1 {selectedTypeFilter === 'reply' ? 'bg-[#faa61a] text-white' : 'text-slate-400 hover:text-slate-200'}"
         >
           <span class="w-1.5 h-1.5 rounded-full bg-[#faa61a]"></span> Réponses
         </button>
         <button 
           onclick={() => selectedTypeFilter = 'reaction'}
-          class="px-2.5 py-1 rounded text-[10px] font-bold transition-all flex items-center gap-1 {selectedTypeFilter === 'reaction' ? 'bg-[#f368e0] text-white' : 'text-slate-400 hover:text-slate-200'}"
+          class="px-2.5 py-1 rounded text-2xs font-bold transition-all flex items-center gap-1 {selectedTypeFilter === 'reaction' ? 'bg-[#f368e0] text-white' : 'text-slate-400 hover:text-slate-200'}"
         >
           <span class="w-1.5 h-1.5 rounded-full bg-[#f368e0]"></span> Réactions
         </button>

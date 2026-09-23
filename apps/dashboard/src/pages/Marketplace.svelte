@@ -112,14 +112,14 @@
   <!-- ======================== TABS ======================== -->
   <div class="tab-group w-fit">
     <button
-      class="px-5 py-2.5 rounded-xl text-[13px] font-medium transition-all flex items-center gap-1.5 {tab === 'listings' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
+      class="px-5 py-2.5 rounded-xl text-body-sm font-medium transition-all flex items-center gap-1.5 {tab === 'listings' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
       onclick={() => gotoTab('/marketplace', 'listings', 'listings')}
     >
       <Papicon icon="grid" size={14} />
       {m.mar_tab_listings({ count: data.activeListings.length })}
     </button>
     <button
-      class="px-5 py-2.5 rounded-xl text-[13px] font-medium transition-all flex items-center gap-1.5 {tab === 'history' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
+      class="px-5 py-2.5 rounded-xl text-body-sm font-medium transition-all flex items-center gap-1.5 {tab === 'history' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
       onclick={() => gotoTab('/marketplace', 'history', 'listings')}
     >
       <Papicon icon="clock" size={14} />
@@ -222,7 +222,7 @@
                 <Papicon icon="dollar-sign" size={13} />
                 {m.mar_price_coins({ price: tx.price.toLocaleString() })}
               </span>
-              <span class="text-[10px] text-on-surface-variant/60">{new Date(tx.createdAt).toLocaleDateString('fr-FR')}</span>
+              <span class="text-2xs text-on-surface-variant/60">{new Date(tx.createdAt).toLocaleDateString('fr-FR')}</span>
             </div>
           </div>
         {/each}

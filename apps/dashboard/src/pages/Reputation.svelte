@@ -151,7 +151,7 @@
               {#if vote.reason}
                 <p class="text-xs text-on-surface-variant/50 italic">{vote.reason}</p>
               {/if}
-              <span class="text-[10px] text-on-surface-variant/30 block">{new Date(vote.createdAt).toLocaleDateString('fr-FR')}</span>
+              <span class="text-2xs text-on-surface-variant/30 block">{new Date(vote.createdAt).toLocaleDateString('fr-FR')}</span>
             </div>
           {/each}
         </div>

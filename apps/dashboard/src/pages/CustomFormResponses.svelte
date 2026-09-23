@@ -351,7 +351,7 @@
               <div>
                 <div class="flex items-start justify-between border-b border-outline-variant/5 pb-2 mb-4">
                   <h4 class="font-semibold text-on-surface font-sans text-sm">{item.label}</h4>
-                  <span class="text-[10px] font-semibold text-on-surface-variant/50 bg-surface-container px-2.5 py-1 rounded-full uppercase tracking-wider shrink-0 ml-2">
+                  <span class="text-2xs font-semibold text-on-surface-variant/50 bg-surface-container px-2.5 py-1 rounded-full uppercase tracking-wider shrink-0 ml-2">
                     {item.totalResponses} réponse{item.totalResponses !== 1 ? 's' : ''}
                   </span>
                 </div>
@@ -374,15 +374,15 @@
                 {:else if item.type === 'number'}
                   <div class="grid grid-cols-3 gap-3 text-center my-4">
                     <div class="bg-surface-container/30 border border-outline-variant/5 rounded-xl p-3">
-                      <span class="text-[13px] text-on-surface-variant/50 font-semibold block mb-1">Moyenne</span>
+                      <span class="text-body-sm text-on-surface-variant/50 font-semibold block mb-1">Moyenne</span>
                       <span class="text-lg font-bold text-primary">{item.average ?? 0}</span>
                     </div>
                     <div class="bg-surface-container/30 border border-outline-variant/5 rounded-xl p-3">
-                      <span class="text-[13px] text-on-surface-variant/50 font-semibold block mb-1">Min</span>
+                      <span class="text-body-sm text-on-surface-variant/50 font-semibold block mb-1">Min</span>
                       <span class="text-lg font-bold text-on-surface">{item.min ?? 0}</span>
                     </div>
                     <div class="bg-surface-container/30 border border-outline-variant/5 rounded-xl p-3">
-                      <span class="text-[13px] text-on-surface-variant/50 font-semibold block mb-1">Max</span>
+                      <span class="text-body-sm text-on-surface-variant/50 font-semibold block mb-1">Max</span>
                       <span class="text-lg font-bold text-on-surface">{item.max ?? 0}</span>
                     </div>
                   </div>

@@ -369,7 +369,7 @@
           <h4 class="text-xs font-semibold text-on-surface-variant uppercase tracking-widest mb-4">{m.meetings_config_channels_title()}</h4>
           <div class="space-y-4">
             <div>
-              <label for="meeting-announcement-channel" class="block text-[10px] font-semibold text-on-surface-variant uppercase mb-2 ml-1">{m.meetings_announce_channel_label()}</label>
+              <label for="meeting-announcement-channel" class="block text-2xs font-semibold text-on-surface-variant uppercase mb-2 ml-1">{m.meetings_announce_channel_label()}</label>
               <select 
                 id="meeting-announcement-channel"
                 value={meetingAnnouncementChannelId} 
@@ -400,7 +400,7 @@
               </select>
             </div>
             <div>
-              <label for="meeting-voice-channel" class="block text-[10px] font-semibold text-on-surface-variant uppercase mb-2 ml-1">{m.meetings_voice_channel_label()}</label>
+              <label for="meeting-voice-channel" class="block text-2xs font-semibold text-on-surface-variant uppercase mb-2 ml-1">{m.meetings_voice_channel_label()}</label>
               <select 
                 id="meeting-voice-channel"
                 value={meetingVoiceChannelId} 
@@ -475,7 +475,7 @@
             <div class="p-6">
               <div class="flex justify-between items-start gap-4 mb-4">
                 <div>
-                  <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wider mb-2 {getStatusColor(meeting.status)}">
+                  <span class="inline-flex items-center rounded-full px-3 py-1 text-2xs font-semibold uppercase tracking-wider mb-2 {getStatusColor(meeting.status)}">
                     {formatStatus(meeting.status)}
                   </span>
                   <h4 class="text-xl font-bold text-on-surface leading-tight">{meeting.title}</h4>
@@ -506,15 +506,15 @@
 
               <div class="grid grid-cols-3 gap-2 p-3 bg-surface-container-low rounded-lg">
                 <div class="text-center">
-                  <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">{m.meetings_stat_present()}</p>
+                  <p class="text-2xs font-semibold text-on-surface-variant uppercase tracking-widest">{m.meetings_stat_present()}</p>
                   <p class="text-xl font-bold text-emerald-500">{stats.present}</p>
                 </div>
                 <div class="text-center border-x border-outline-variant/30">
-                  <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">{m.meetings_stat_excused()}</p>
+                  <p class="text-2xs font-semibold text-on-surface-variant uppercase tracking-widest">{m.meetings_stat_excused()}</p>
                   <p class="text-xl font-bold text-amber-500">{stats.excused}</p>
                 </div>
                 <div class="text-center">
-                  <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">{m.meetings_stat_absent()}</p>
+                  <p class="text-2xs font-semibold text-on-surface-variant uppercase tracking-widest">{m.meetings_stat_absent()}</p>
                   <p class="text-xl font-bold text-red-500">{stats.absent}</p>
                 </div>
               </div>
@@ -532,12 +532,12 @@
                     {#if p.staffMember?.avatarUrl}
                       <img src={p.staffMember.avatarUrl} alt="" class="w-full h-full object-cover" />
                     {:else}
-                      <span class="text-[10px] font-bold text-primary">{(p.staffMember?.displayName || p.staffMember?.username || "??").slice(0, 2).toUpperCase()}</span>
+                      <span class="text-2xs font-bold text-primary">{(p.staffMember?.displayName || p.staffMember?.username || "??").slice(0, 2).toUpperCase()}</span>
                     {/if}
                   </button>
                 {/each}
                 {#if stats.present > 5}
-                  <div class="w-8 h-8 rounded-full border-2 border-surface-container-lowest bg-surface-hover flex items-center justify-center text-[10px] font-bold text-on-surface-variant">
+                  <div class="w-8 h-8 rounded-full border-2 border-surface-container-lowest bg-surface-hover flex items-center justify-center text-2xs font-bold text-on-surface-variant">
                     +{stats.present - 5}
                   </div>
                 {/if}
@@ -732,12 +732,12 @@
                             {presence.staffMember?.displayName || presence.staffMember?.username || m.meetings_member_fallback()}
                           </button>
                           {#if presence.note}
-                             <p class="text-[11px] text-on-surface-variant leading-tight mt-0.5">{presence.note}</p>
+                             <p class="text-2xs text-on-surface-variant leading-tight mt-0.5">{presence.note}</p>
                           {/if}
                        </div>
                     </div>
                     <div>
-                       <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wider {getStatusColor(presence.status)}">
+                       <span class="inline-flex items-center rounded-full px-3 py-1 text-2xs font-semibold uppercase tracking-wider {getStatusColor(presence.status)}">
                           {formatStatus(presence.status)}
                        </span>
                     </div>
@@ -782,7 +782,7 @@
             <input type="checkbox" bind:checked={deleteDiscordEvent} class="w-5 h-5 rounded-lg border-outline-variant text-primary focus:ring-primary" />
             <div>
               <p class="text-sm font-bold text-on-surface">{m.meetings_delete_event_label()}</p>
-              <p class="text-[11px] text-on-surface-variant">{m.meetings_delete_event_desc()}</p>
+              <p class="text-2xs text-on-surface-variant">{m.meetings_delete_event_desc()}</p>
             </div>
           </label>
 
@@ -790,7 +790,7 @@
             <input type="checkbox" bind:checked={deleteDiscordMessage} class="w-5 h-5 rounded-lg border-outline-variant text-primary focus:ring-primary" />
             <div>
               <p class="text-sm font-bold text-on-surface">{m.meetings_delete_message_label()}</p>
-              <p class="text-[11px] text-on-surface-variant">{m.meetings_delete_message_desc()}</p>
+              <p class="text-2xs text-on-surface-variant">{m.meetings_delete_message_desc()}</p>
             </div>
           </label>
 
@@ -798,7 +798,7 @@
             <input type="checkbox" bind:checked={deleteDiscordNotification} class="w-5 h-5 rounded-lg border-outline-variant text-primary focus:ring-primary" />
             <div>
               <p class="text-sm font-bold text-on-surface">{m.meetings_delete_notif_label()}</p>
-              <p class="text-[11px] text-on-surface-variant">{m.meetings_delete_notif_desc()}</p>
+              <p class="text-2xs text-on-surface-variant">{m.meetings_delete_notif_desc()}</p>
             </div>
           </label>
         </div>

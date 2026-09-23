@@ -976,7 +976,7 @@
        quoi les reperes seraient decales d'un pixel par rapport aux colonnes. -->
   <div class="flex gap-[3px] px-2 border border-transparent" aria-hidden="true">
     {#each Array.from({ length: columns }) as _, index}
-      <span class="flex-1 text-center text-[9px] leading-none tabular-nums text-on-surface-variant/50">
+      <span class="flex-1 text-center text-2xs leading-none tabular-nums text-on-surface-variant/50">
         {ticks.has(index + 1) ? index + 1 : ''}
       </span>
     {/each}
@@ -1053,7 +1053,7 @@
       <Papicon icon="Grades" size={16} />
       {m.lv_tab_leaderboard()}
       {#if memberCount > 0}
-        <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-lg {activeTab === 'leaderboard' ? 'bg-on-tertiary/20' : 'bg-surface-container-high/60 text-on-surface-variant/60'}">
+        <span class="text-2xs font-semibold px-1.5 py-0.5 rounded-lg {activeTab === 'leaderboard' ? 'bg-on-tertiary/20' : 'bg-surface-container-high/60 text-on-surface-variant/60'}">
           {memberCount.toLocaleString()}
         </span>
       {/if}
@@ -1102,7 +1102,7 @@
             </div>
             <div class="space-y-0.5">
               <p class="text-sm font-semibold text-on-surface">{m.lv_setup_channel_title()}</p>
-              <p class="text-[13px] text-on-surface-variant/70">
+              <p class="text-body-sm text-on-surface-variant/70">
                 {#if levelUpChannelState === 'channel'}
                   {m.lv_setup_channel_done({ channel: levelUpChannelLabel })}
                   <!-- Le nom de l'onglet vient de sa propre traduction : le lien
@@ -1129,7 +1129,7 @@
               type="button"
               onclick={handleCreateLevelUpChannel}
               disabled={createChannelAction.state.loading}
-              class="shrink-0 px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary text-[13px] font-medium rounded-lg shadow-md shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
+              class="shrink-0 px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary text-body-sm font-medium rounded-lg shadow-md shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
             >
               <Papicon icon="sparkles" size={16} />
               {createChannelAction.state.loading ? m.lv_creating_channel() : m.lv_create_channel()}
@@ -1155,7 +1155,7 @@
           {#if xpMode.simple}
             <div class="md:col-span-2 space-y-2">
               <div class="flex items-baseline justify-between gap-3">
-                <label for="gainsLevel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_gains_level_label()}</label>
+                <label for="gainsLevel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_gains_level_label()}</label>
                 <span class="text-xs font-semibold text-primary">{GAIN_LABELS[gainsStep - 1]()}</span>
               </div>
               <input
@@ -1172,19 +1172,19 @@
 
               <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                 <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                  <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_message()}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_message()}</p>
                   <p class="text-sm font-semibold text-on-surface">{config.xpMin} – {config.xpMax}</p>
                 </div>
                 <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                  <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_cooldown()}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_cooldown()}</p>
                   <p class="text-sm font-semibold text-on-surface">{config.cooldownSeconds} s</p>
                 </div>
                 <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                  <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_voice()}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_voice()}</p>
                   <p class="text-sm font-semibold text-on-surface">{config.vocalXpPerMin} / min</p>
                 </div>
                 <div class="px-3 py-2.5 bg-primary/5 border border-primary/15 rounded-lg">
-                  <p class="text-[10px] font-bold text-primary/70 uppercase tracking-widest">{m.lv_gains_tile_hourly()}</p>
+                  <p class="text-2xs font-bold text-primary/70 uppercase tracking-widest">{m.lv_gains_tile_hourly()}</p>
                   <p class="text-sm font-semibold text-primary">≈ {gainsHourlyXp.toLocaleString()} XP</p>
                 </div>
               </div>
@@ -1195,7 +1195,7 @@
             </div>
           {:else}
           <div class="space-y-1.5">
-            <label for="xpMin" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_xp_min()}</label>
+            <label for="xpMin" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_xp_min()}</label>
             <input 
               id="xpMin"
               type="number" 
@@ -1206,7 +1206,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="xpMax" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_xp_max()}</label>
+            <label for="xpMax" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_xp_max()}</label>
             <input 
               id="xpMax"
               type="number" 
@@ -1217,7 +1217,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="cooldown" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_cooldown()}</label>
+            <label for="cooldown" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_cooldown()}</label>
             <input 
               id="cooldown"
               type="number" 
@@ -1228,7 +1228,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="vocalXp" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_vocal_xp()}</label>
+            <label for="vocalXp" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_vocal_xp()}</label>
             <input 
               id="vocalXp"
               type="number" 
@@ -1244,14 +1244,14 @@
           <div class="col-span-2 mt-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-6 py-4 space-y-4">
             <div>
               <span class="text-xs font-bold text-on-surface">{m.lv_voice_conditions_title()}</span>
-              <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_voice_conditions_desc()}</p>
+              <p class="text-2xs text-on-surface-variant/60 font-medium">{m.lv_voice_conditions_desc()}</p>
             </div>
 
             <div class="space-y-3 pt-3 border-t border-outline-variant/10">
               <div class="flex items-center justify-between gap-4">
                 <div>
                   <span class="text-xs font-semibold text-on-surface">{m.lv_voice_require_unmuted()}</span>
-                  <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_voice_require_unmuted_desc()}</p>
+                  <p class="text-2xs text-on-surface-variant/60 font-medium">{m.lv_voice_require_unmuted_desc()}</p>
                 </div>
                 <ToggleSwitch
                   checked={config.voiceRequireUnmuted}
@@ -1263,7 +1263,7 @@
               <div class="flex items-center justify-between gap-4">
                 <div>
                   <span class="text-xs font-semibold text-on-surface">{m.lv_voice_require_undeafened()}</span>
-                  <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_voice_require_undeafened_desc()}</p>
+                  <p class="text-2xs text-on-surface-variant/60 font-medium">{m.lv_voice_require_undeafened_desc()}</p>
                 </div>
                 <ToggleSwitch
                   checked={config.voiceRequireUndeafened}
@@ -1275,7 +1275,7 @@
               <div class="flex items-center justify-between gap-4">
                 <div>
                   <span class="text-xs font-semibold text-on-surface">{m.lv_voice_ignore_afk()}</span>
-                  <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_voice_ignore_afk_desc()}</p>
+                  <p class="text-2xs text-on-surface-variant/60 font-medium">{m.lv_voice_ignore_afk_desc()}</p>
                 </div>
                 <ToggleSwitch
                   checked={config.voiceIgnoreAfkChannel}
@@ -1285,7 +1285,7 @@
               </div>
 
               <div class="space-y-1.5 pt-1">
-                <label for="voiceMinMembers" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_voice_min_members()}</label>
+                <label for="voiceMinMembers" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_voice_min_members()}</label>
                 <input
                   id="voiceMinMembers"
                   type="number"
@@ -1295,7 +1295,7 @@
                   class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                   disabled={!canManageSettings}
                 />
-                <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_voice_min_members_hint({ count: config.voiceMinMembers })}</p>
+                <p class="text-2xs text-on-surface-variant/50 ml-2">{m.lv_voice_min_members_hint({ count: config.voiceMinMembers })}</p>
               </div>
             </div>
           </div>
@@ -1304,11 +1304,11 @@
           <div class="col-span-2 mt-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-6 py-4 space-y-4">
             <div>
               <span class="text-xs font-bold text-on-surface">{m.lv_daily_cap_title()}</span>
-              <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_daily_cap_desc()}</p>
+              <p class="text-2xs text-on-surface-variant/60 font-medium">{m.lv_daily_cap_desc()}</p>
             </div>
 
             <div class="space-y-1.5 pt-3 border-t border-outline-variant/10">
-              <label for="dailyXpCap" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_daily_cap_label()}</label>
+              <label for="dailyXpCap" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_daily_cap_label()}</label>
               <input
                 id="dailyXpCap"
                 type="number"
@@ -1317,11 +1317,11 @@
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                 disabled={!canManageSettings}
               />
-              <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_daily_cap_hint()}</p>
+              <p class="text-2xs text-on-surface-variant/50 ml-2">{m.lv_daily_cap_hint()}</p>
             </div>
 
             {#if config.dailyXpCap > 0}
-              <div class="p-3 bg-primary/5 border border-primary/15 rounded-lg text-[11px] text-primary/90 leading-relaxed">
+              <div class="p-3 bg-primary/5 border border-primary/15 rounded-lg text-2xs text-primary/90 leading-relaxed">
                 {m.lv_daily_cap_enabled_hint({ cap: config.dailyXpCap.toLocaleString() })}
               </div>
             {/if}
@@ -1332,7 +1332,7 @@
             <div class="flex items-center justify-between">
               <div>
                 <span class="text-xs font-bold text-on-surface">{m.lv_length_bonus_title()}</span>
-                <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_length_bonus_desc()}</p>
+                <p class="text-2xs text-on-surface-variant/60 font-medium">{m.lv_length_bonus_desc()}</p>
               </div>
               <ToggleSwitch
                 checked={config.lengthBonusEnabled}
@@ -1345,7 +1345,7 @@
               {#if xpMode.simple}
                 <div class="space-y-2 pt-3 border-t border-outline-variant/10 animate-in fade-in duration-200">
                   <div class="flex items-baseline justify-between gap-3">
-                    <label for="lengthBonusStep" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_length_bonus_step_label()}</label>
+                    <label for="lengthBonusStep" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_length_bonus_step_label()}</label>
                     <span class="text-xs font-semibold text-primary">{LENGTH_BONUS_LABELS[lengthBonusStep - 1]()}</span>
                   </div>
                   <input
@@ -1367,7 +1367,7 @@
               {:else}
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-3 border-t border-outline-variant/10 animate-in fade-in duration-200">
                   <div class="space-y-1.5">
-                    <label for="lengthBonusThreshold" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_length_bonus_threshold()}</label>
+                    <label for="lengthBonusThreshold" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_length_bonus_threshold()}</label>
                     <input
                       id="lengthBonusThreshold"
                       type="number"
@@ -1376,11 +1376,11 @@
                       class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                       disabled={!canManageSettings}
                     />
-                    <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_length_bonus_threshold_hint({ count: config.lengthBonusThreshold })}</p>
+                    <p class="text-2xs text-on-surface-variant/50 ml-2">{m.lv_length_bonus_threshold_hint({ count: config.lengthBonusThreshold })}</p>
                   </div>
 
                   <div class="space-y-1.5">
-                    <label for="lengthBonusMaxMultiplier" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_length_bonus_max()}</label>
+                    <label for="lengthBonusMaxMultiplier" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_length_bonus_max()}</label>
                     <input
                       id="lengthBonusMaxMultiplier"
                       type="number"
@@ -1391,12 +1391,12 @@
                       class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                       disabled={!canManageSettings}
                     />
-                    <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_length_bonus_max_hint({ max: config.lengthBonusMaxMultiplier })}</p>
+                    <p class="text-2xs text-on-surface-variant/50 ml-2">{m.lv_length_bonus_max_hint({ max: config.lengthBonusMaxMultiplier })}</p>
                   </div>
                 </div>
               {/if}
 
-              <div class="p-3 bg-primary/5 border border-primary/15 rounded-lg text-[11px] text-primary/90 leading-relaxed flex items-start gap-2">
+              <div class="p-3 bg-primary/5 border border-primary/15 rounded-lg text-2xs text-primary/90 leading-relaxed flex items-start gap-2">
                 <Papicon icon="Info" size={13} class="shrink-0 mt-0.5" />
                 <span>{m.lv_length_bonus_example({ half: Math.round((config.lengthBonusThreshold || 1) / 2), midMult: (1 + 0.5 * ((config.lengthBonusMaxMultiplier || 1) - 1)).toFixed(2), threshold: config.lengthBonusThreshold, maxMult: Number(config.lengthBonusMaxMultiplier).toFixed(2) })}</span>
               </div>
@@ -1419,7 +1419,7 @@
         <div class="grid grid-cols-1 gap-6">
           <!-- Salons exclus -->
           <div class="space-y-2">
-            <p class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_ignored_channels()}</p>
+            <p class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_ignored_channels()}</p>
             <div class="flex flex-wrap gap-2 p-2.5 bg-surface-container-high/20 border border-outline-variant/10 rounded-lg min-h-[46px] items-center">
               {#each config.ignoredChannels as channelId}
                 {@const channel = availableChannels.find(c => c.id === channelId)}
@@ -1452,7 +1452,7 @@
 
           <!-- Rôles exclus -->
           <div class="space-y-2 pt-2 border-t border-outline-variant/10">
-            <p class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_ignored_roles()}</p>
+            <p class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_ignored_roles()}</p>
             <div class="flex flex-wrap gap-2 p-2.5 bg-surface-container-high/20 border border-outline-variant/10 rounded-lg min-h-[46px] items-center">
               {#each config.ignoredRoles as roleId}
                 {@const role = availableRoles.find(r => r.id === roleId)}
@@ -1490,7 +1490,7 @@
             {#if canManageSettings}
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end bg-surface-container-high/20 p-4 rounded-xl border border-outline-variant/5">
                 <div class="space-y-1.5">
-                  <label for="multRole" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_role()}</label>
+                  <label for="multRole" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_role()}</label>
                   <SearchableSelect 
                     id="multRole"
                     bind:value={newMultRoleId}
@@ -1502,7 +1502,7 @@
                 </div>
 
                 <div class="space-y-1.5">
-                  <label for="multValue" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_multiplier()}</label>
+                  <label for="multValue" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_multiplier()}</label>
                   <input 
                     id="multValue"
                     type="number" 
@@ -1518,7 +1518,7 @@
                   type="button"
                   onclick={handleAddMultiplier}
                   disabled={!newMultRoleId || !newMultValue}
-                  class="w-full py-3.5 bg-secondary text-on-secondary font-medium text-[13px] rounded-lg transition-all disabled:opacity-50"
+                  class="w-full py-3.5 bg-secondary text-on-secondary font-medium text-body-sm rounded-lg transition-all disabled:opacity-50"
                 >
                   {m.common_add()}
                 </button>
@@ -1546,7 +1546,7 @@
                           <td class="px-6 py-3.5 text-sm font-semibold flex items-center gap-2">
                             <Papicon icon="Trophy" size={15} class="shrink-0 text-amber-500" />
                             <span>{getRoleName(winningClan.roleId)}</span>
-                            <span class="text-[9px] uppercase tracking-wider bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded font-bold">{m.lv_winning_clan_badge()}</span>
+                            <span class="text-2xs uppercase tracking-wider bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded font-bold">{m.lv_winning_clan_badge()}</span>
                           </td>
                           <td class="px-6 py-3.5 text-sm font-semibold text-amber-500">{clanRewardXpBoostRate}x</td>
                           {#if canManageSettings}
@@ -1614,7 +1614,7 @@
                 <button
                   type="button"
                   onclick={resetCurve}
-                  class="text-[11px] font-semibold text-on-surface-variant/70 hover:text-on-surface px-3 py-1.5 rounded-lg border border-outline-variant/20 transition-all"
+                  class="text-2xs font-semibold text-on-surface-variant/70 hover:text-on-surface px-3 py-1.5 rounded-lg border border-outline-variant/20 transition-all"
                 >
                   {m.lv_curve_reset()}
                 </button>
@@ -1631,7 +1631,7 @@
               <div class="md:col-span-2 space-y-6">
                 <div class="space-y-2">
                   <div class="flex items-baseline justify-between gap-3">
-                    <label for="curvePace" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_curve_pace_label()}</label>
+                    <label for="curvePace" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_curve_pace_label()}</label>
                     <span class="text-xs font-semibold text-primary">{CURVE_PACE_LABELS[curvePaceStep - 1]()}</span>
                   </div>
                   <input
@@ -1649,7 +1649,7 @@
 
                 <div class="space-y-2">
                   <div class="flex items-baseline justify-between gap-3">
-                    <label for="curveSteep" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_curve_steep_label()}</label>
+                    <label for="curveSteep" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_curve_steep_label()}</label>
                     <span class="text-xs font-semibold text-primary">{CURVE_STEEP_LABELS[curveSteepStep - 1]()}</span>
                   </div>
                   <input
@@ -1671,7 +1671,7 @@
               </div>
             {:else}
             <div class="space-y-1.5">
-              <label for="curveBaseXp" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_curve_base()}</label>
+              <label for="curveBaseXp" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_curve_base()}</label>
               <input
                 id="curveBaseXp"
                 type="number"
@@ -1681,11 +1681,11 @@
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                 disabled={!canManageSettings}
               />
-              <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_curve_base_hint()}</p>
+              <p class="text-2xs text-on-surface-variant/50 ml-2">{m.lv_curve_base_hint()}</p>
             </div>
 
             <div class="space-y-1.5">
-              <label for="curveLinearXp" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_curve_linear()}</label>
+              <label for="curveLinearXp" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_curve_linear()}</label>
               <input
                 id="curveLinearXp"
                 type="number"
@@ -1695,11 +1695,11 @@
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                 disabled={!canManageSettings}
               />
-              <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_curve_linear_hint()}</p>
+              <p class="text-2xs text-on-surface-variant/50 ml-2">{m.lv_curve_linear_hint()}</p>
             </div>
 
             <div class="space-y-1.5">
-              <label for="curveExponent" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_curve_exponent()}</label>
+              <label for="curveExponent" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_curve_exponent()}</label>
               <input
                 id="curveExponent"
                 type="number"
@@ -1710,13 +1710,13 @@
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                 disabled={!canManageSettings}
               />
-              <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_curve_exponent_hint()}</p>
+              <p class="text-2xs text-on-surface-variant/50 ml-2">{m.lv_curve_exponent_hint()}</p>
             </div>
 
             {/if}
 
             <div class="space-y-1.5">
-              <label for="maxLevel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_curve_max_level()}</label>
+              <label for="maxLevel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_curve_max_level()}</label>
               <input
                 id="maxLevel"
                 type="number"
@@ -1726,18 +1726,18 @@
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                 disabled={!canManageSettings}
               />
-              <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_curve_max_level_hint()}</p>
+              <p class="text-2xs text-on-surface-variant/50 ml-2">{m.lv_curve_max_level_hint()}</p>
             </div>
           </div>
 
           <div class="space-y-3 pt-4 border-t border-outline-variant/10">
             <div>
               <h4 class="text-sm font-bold text-on-surface-variant">{m.lv_curve_preview_title()}</h4>
-              <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_curve_preview_desc()}</p>
+              <p class="text-2xs text-on-surface-variant/60 font-medium">{m.lv_curve_preview_desc()}</p>
             </div>
 
             {#if savedCurvePreview.length > 0}
-              <div class="flex items-center gap-4 text-[10px] font-medium text-on-surface-variant/70">
+              <div class="flex items-center gap-4 text-2xs font-medium text-on-surface-variant/70">
                 <span class="flex items-center gap-1.5">
                   <span class="w-3 h-2 rounded-sm bg-primary/60"></span>{m.lv_curve_legend_edited()}
                 </span>
@@ -1776,7 +1776,7 @@
             {#if curveStats}
               <div>
                 <h4 class="text-sm font-bold text-on-surface-variant">{m.lv_curve_population_title()}</h4>
-                <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_curve_population_desc()}</p>
+                <p class="text-2xs text-on-surface-variant/60 font-medium">{m.lv_curve_population_desc()}</p>
               </div>
 
               <div class="flex items-end gap-[3px] h-16 px-2 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
@@ -1792,14 +1792,14 @@
               {@render levelAxis(curveStats.distribution.length)}
 
               {#if curveStats.beyond > 0}
-                <p class="text-[10px] text-on-surface-variant/60 ml-2">
+                <p class="text-2xs text-on-surface-variant/60 ml-2">
                   {m.lv_curve_population_beyond({ count: curveStats.beyond.toLocaleString(), level: curveStats.distribution.length })}
                 </p>
               {/if}
             {/if}
 
             <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
-              <p class="text-[11px] text-on-surface-variant/70">{m.lv_estimate_intro()}</p>
+              <p class="text-2xs text-on-surface-variant/70">{m.lv_estimate_intro()}</p>
               <nav class="tab-group w-fit">
                 {#each ACTIVITY_LABELS as label, i}
                   <button
@@ -1816,14 +1816,14 @@
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {#each curveMilestones as milestone}
                 <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                  <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_curve_milestone({ level: milestone.level })}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_curve_milestone({ level: milestone.level })}</p>
                   <p class="text-sm font-semibold text-on-surface">{m.lv_curve_milestone_total({ xp: milestone.totalXp.toLocaleString() })}</p>
-                  <p class="text-[11px] font-semibold text-primary">{formatDuration(estimateDays(milestone.level))}</p>
+                  <p class="text-2xs font-semibold text-primary">{formatDuration(estimateDays(milestone.level))}</p>
                 </div>
               {/each}
             </div>
 
-            <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed flex items-start gap-2">
+            <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-2xs text-amber-600 dark:text-amber-400 leading-relaxed flex items-start gap-2">
               <Papicon icon="AlertTriangle" size={13} class="shrink-0 mt-0.5" />
               <div class="min-w-0 flex-1">
               {#if curveDirty && curveStats}
@@ -1852,12 +1852,12 @@
               <div class="p-4 bg-surface-container-high/25 border border-outline-variant/10 rounded-lg space-y-3">
                 <div>
                   <p class="text-sm font-bold text-on-surface">{m.lv_role_resync_title({ count: roleResync.pending.toLocaleString() })}</p>
-                  <p class="text-[11px] text-on-surface-variant/70 leading-relaxed">{m.lv_role_resync_desc()}</p>
+                  <p class="text-2xs text-on-surface-variant/70 leading-relaxed">{m.lv_role_resync_desc()}</p>
                 </div>
 
                 {#if roleResync.running}
                   <div class="flex items-center justify-between gap-4">
-                    <span class="text-[11px] font-semibold text-on-surface-variant tabular-nums">
+                    <span class="text-2xs font-semibold text-on-surface-variant tabular-nums">
                       {m.lv_role_resync_progress({ done: roleResync.done.toLocaleString(), total: roleResync.pending.toLocaleString() })}
                     </span>
                     <button
@@ -1914,7 +1914,7 @@
               {#if clanRewardXpBoost}
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-outline-variant/10 animate-in slide-in-from-top-2 duration-200">
                   <div class="space-y-1.5">
-                    <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_clan_target_role()}</span>
+                    <span class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_clan_target_role()}</span>
                     <div class="px-4 py-3 bg-primary/10 rounded-lg text-sm text-primary font-semibold border border-primary/20 flex items-center gap-2">
                       <Papicon icon="Crown" size={15} class="shrink-0" />
                       {#if lastWinningClanId}
@@ -1930,7 +1930,7 @@
                   </div>
 
                   <div class="space-y-1.5">
-                    <label for="clanXpBoostRate" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_clan_boost_rate()}</label>
+                    <label for="clanXpBoostRate" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_clan_boost_rate()}</label>
                     <input 
                       id="clanXpBoostRate"
                       type="number" 
@@ -1959,7 +1959,7 @@
         <div class="space-y-1.5 flex items-center justify-between bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-6 py-4">
           <div>
             <span class="text-xs font-bold text-on-surface">{m.lv_stack_title()}</span>
-            <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_stack_desc()}</p>
+            <p class="text-2xs text-on-surface-variant/60 font-medium">{m.lv_stack_desc()}</p>
           </div>
           <ToggleSwitch 
             checked={config.stackRewards} 
@@ -1971,7 +1971,7 @@
         {#if canManageSettings}
           <form onsubmit={(e) => { e.preventDefault(); handleAddReward(); }} class="space-y-4 bg-surface-container-high/20 p-4 rounded-xl border border-outline-variant/5">
             <div class="space-y-1.5">
-              <label for="rewardLvl" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_reward_level()}</label>
+              <label for="rewardLvl" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_reward_level()}</label>
               <input 
                 id="rewardLvl"
                 type="number" 
@@ -1984,7 +1984,7 @@
             </div>
 
             <div class="space-y-1.5">
-              <label for="rewardRole" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_reward_role()}</label>
+              <label for="rewardRole" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_reward_role()}</label>
               <SearchableSelect 
                 id="rewardRole"
                 bind:value={newRewardRoleId} 
@@ -1997,7 +1997,7 @@
             <button 
               type="submit"
               disabled={!newRewardLevel || !newRewardRoleId}
-              class="w-full py-3.5 bg-secondary text-on-secondary font-medium text-[13px] rounded-lg transition-all disabled:opacity-50"
+              class="w-full py-3.5 bg-secondary text-on-secondary font-medium text-body-sm rounded-lg transition-all disabled:opacity-50"
             >
               {m.lv_add_reward()}
             </button>
@@ -2023,7 +2023,7 @@
                     Lvl {reward.level}
                     {#if unreachableRewardIds.has(reward.id)}
                       <span
-                        class="ml-2 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-bold align-middle"
+                        class="ml-2 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-2xs font-bold align-middle"
                         title={m.lv_reward_unreachable_hint({ level: levelCurve.maxLevel })}
                       >{m.lv_reward_unreachable()}</span>
                     {/if}
@@ -2066,7 +2066,7 @@
         <div class="space-y-6">
   
           <div class="space-y-1.5">
-            <label for="lvlChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_levelup_channel()}</label>
+            <label for="lvlChannel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_levelup_channel()}</label>
             <SearchableSelect 
               id="lvlChannel"
               bind:value={config.levelUpChannelId} 
@@ -2080,7 +2080,7 @@
               disabled={!canManageSettings}
             />
             {#if levelUpChannelState === 'missing'}
-              <p class="text-[10px] text-amber-500 mt-1.5">{m.lv_missing_ref_hint()}</p>
+              <p class="text-2xs text-amber-500 mt-1.5">{m.lv_missing_ref_hint()}</p>
             {/if}
             {#if canManageSettings && canCreateLevelUpChannel}
               <div class="flex items-center gap-3 pt-1">
@@ -2088,18 +2088,18 @@
                   type="button"
                   onclick={handleCreateLevelUpChannel}
                   disabled={createChannelAction.state.loading}
-                  class="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-container-high/40 border border-outline-variant/10 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors disabled:opacity-50"
+                  class="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-container-high/40 border border-outline-variant/10 text-2xs font-bold uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors disabled:opacity-50"
                 >
                   <Papicon icon="sparkles" size={13} />
                   {createChannelAction.state.loading ? m.lv_creating_channel() : m.lv_create_channel()}
                 </button>
-                <span class="text-[10px] text-on-surface-variant/50">{m.lv_create_channel_hint()}</span>
+                <span class="text-2xs text-on-surface-variant/50">{m.lv_create_channel_hint()}</span>
               </div>
             {/if}
           </div>
 
           <div class="space-y-1.5">
-            <label for="lvlMsg" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_levelup_message()}</label>
+            <label for="lvlMsg" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_levelup_message()}</label>
             <input 
               id="lvlMsg"
               type="text" 
@@ -2108,8 +2108,8 @@
               placeholder={m.lv_levelup_message_ph({ user: '{user}', level: '{level}' })}
               disabled={!canManageSettings}
             />
-            <p class="text-[11px] text-on-surface-variant/40 ml-2">{m.lv_variables_label()} <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{user}`}</code> {m.lv_variables_mention()}, <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{username}`}</code>, <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{level}`}</code></p>
-            <p class="text-[11px] text-on-surface-variant/40 ml-2">{m.lv_levelup_message_hint()}</p>
+            <p class="text-2xs text-on-surface-variant/40 ml-2">{m.lv_variables_label()} <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{user}`}</code> {m.lv_variables_mention()}, <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{username}`}</code>, <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{level}`}</code></p>
+            <p class="text-2xs text-on-surface-variant/40 ml-2">{m.lv_levelup_message_hint()}</p>
           </div>
         </div>
       </section>
@@ -2161,19 +2161,19 @@
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-primary/20 transition-all duration-300 group">
             <p class="text-2xl font-semibold text-primary transition-transform duration-300">{memberCount.toLocaleString()}</p>
-            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_stat_members()}</p>
+            <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_stat_members()}</p>
           </div>
           <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-secondary/20 transition-all duration-300 group">
             <p class="text-2xl font-semibold text-secondary transition-transform duration-300">{maxLevel}</p>
-            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_stat_maxlevel()}</p>
+            <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_stat_maxlevel()}</p>
           </div>
           <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-tertiary/20 transition-all duration-300 group">
             <p class="text-2xl font-semibold text-tertiary transition-transform duration-300">{avgLevel}</p>
-            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_stat_avglevel()}</p>
+            <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_stat_avglevel()}</p>
           </div>
           <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-amber-500/20 transition-all duration-300 group">
             <p class="text-2xl font-semibold text-amber-500 transition-transform duration-300">{(totalXp / 1000).toFixed(1)}k</p>
-            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_stat_totalxp()}</p>
+            <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_stat_totalxp()}</p>
           </div>
         </div>
       {/if}
@@ -2369,7 +2369,7 @@
                 <div class="flex items-baseline gap-2 mb-1.5">
                   <p class="text-sm font-semibold text-on-surface truncate">{userLvl.displayName || userLvl.username || m.lv_unknown_member()}</p>
                   {#if userLvl.username && userLvl.displayName !== userLvl.username}
-                    <span class="text-[10px] text-on-surface-variant/40 truncate font-semibold font-mono">@{userLvl.username}</span>
+                    <span class="text-2xs text-on-surface-variant/40 truncate font-semibold font-mono">@{userLvl.username}</span>
                   {/if}
                 </div>
 
@@ -2385,13 +2385,13 @@
                       style="width: {percent}%"
                     ></div>
                   </div>
-                  <span class="text-[11px] font-bold text-on-surface-variant/40 whitespace-nowrap font-mono tracking-wide">{currentProgress.toLocaleString()} / {neededProgress.toLocaleString()} XP</span>
+                  <span class="text-2xs font-bold text-on-surface-variant/40 whitespace-nowrap font-mono tracking-wide">{currentProgress.toLocaleString()} / {neededProgress.toLocaleString()} XP</span>
                 </div>
               </div>
 
               <!-- Niveau Badge -->
               <div class="text-right shrink-0">
-                <span class="text-[13px] font-medium px-3.5 py-2 rounded-xl border whitespace-nowrap shadow-xs
+                <span class="text-body-sm font-medium px-3.5 py-2 rounded-xl border whitespace-nowrap shadow-xs
  {index === 0 ? 'bg-amber-400/10 text-amber-500 border-amber-400/20' : 
                    index === 1 ? 'bg-slate-400/10 text-slate-500 border-slate-400/20' : 
                    index === 2 ? 'bg-amber-700/10 text-amber-600 border-amber-700/20' : 
@@ -2423,7 +2423,7 @@
         </div>
 
         {#if searchLimited}
-          <p class="text-[11px] text-amber-600 dark:text-amber-400 font-medium">{m.lv_search_limited()}</p>
+          <p class="text-2xs text-amber-600 dark:text-amber-400 font-medium">{m.lv_search_limited()}</p>
         {/if}
 
         {#if leaderboardPageCount > 1}
@@ -2436,7 +2436,7 @@
             >
               {m.lv_page_previous()}
             </button>
-            <span class="text-[11px] font-medium text-on-surface-variant/70 tabular-nums">
+            <span class="text-2xs font-medium text-on-surface-variant/70 tabular-nums">
               {m.lv_page_position({ page: leaderboardPage, pageCount: leaderboardPageCount, total: leaderboardTotal.toLocaleString() })}
             </span>
             <button
@@ -2501,7 +2501,7 @@
 
             <!-- Textarea alternatif -->
             <div class="space-y-2">
-              <label for="rawJsonTextarea" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_import_paste()}</label>
+              <label for="rawJsonTextarea" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_import_paste()}</label>
               <textarea
                 id="rawJsonTextarea"
                 rows="10"
@@ -2526,7 +2526,7 @@
               <button
                 type="button"
                 onclick={() => { importRawJson = ''; importFileError = null; importResults = null; }}
-                class="px-6 py-3.5 bg-surface-container-high/50 text-on-surface-variant font-medium text-[13px] rounded-lg hover:bg-surface-container-high transition-all"
+                class="px-6 py-3.5 bg-surface-container-high/50 text-on-surface-variant font-medium text-body-sm rounded-lg hover:bg-surface-container-high transition-all"
               >
                 {m.lv_clear()}
               </button>
@@ -2534,7 +2534,7 @@
                 type="button"
                 onclick={() => handleImportSubmit(true)}
                 disabled={!importRawJson.trim()}
-                class="px-6 py-3.5 bg-surface-container-high/50 text-on-surface-variant font-medium text-[13px] rounded-lg hover:bg-surface-container-high transition-all disabled:opacity-50"
+                class="px-6 py-3.5 bg-surface-container-high/50 text-on-surface-variant font-medium text-body-sm rounded-lg hover:bg-surface-container-high transition-all disabled:opacity-50"
               >
                 {m.lv_import_dry_run()}
               </button>
@@ -2542,7 +2542,7 @@
                 type="button"
                 onclick={() => handleImportSubmit(false)}
                 disabled={!importRawJson.trim()}
-                class="px-8 py-3.5 bg-secondary text-on-secondary font-medium text-[13px] rounded-lg transition-all disabled:opacity-50"
+                class="px-8 py-3.5 bg-secondary text-on-secondary font-medium text-body-sm rounded-lg transition-all disabled:opacity-50"
               >
                 {m.lv_run_import()}
               </button>
@@ -2558,7 +2558,7 @@
                 </div>
                 <div>
                   <h3 class="text-base font-semibold">{m.lv_import_failed_title({ count: importResults.failedCount })}</h3>
-                  <p class="text-[10px] text-on-surface-variant/60 font-semibold uppercase tracking-wider">{m.lv_import_failed_desc()}</p>
+                  <p class="text-2xs text-on-surface-variant/60 font-semibold uppercase tracking-wider">{m.lv_import_failed_desc()}</p>
                 </div>
               </div>
 
@@ -2599,7 +2599,7 @@
             </p>
 
             <div class="relative bg-surface-container-high/60 border border-outline-variant/5 p-4 rounded-lg">
-              <pre class="text-[10px] font-mono text-on-surface-variant/90 overflow-x-auto leading-relaxed">{`[
+              <pre class="text-2xs font-mono text-on-surface-variant/90 overflow-x-auto leading-relaxed">{`[
   {
     "username": "@klaynight",
     "display_name": "Klaynight",
@@ -2616,8 +2616,8 @@
             </div>
 
             <div class="space-y-2.5 pt-2 border-t border-outline-variant/10">
-              <h4 class="text-[10px] font-semibold text-on-surface-variant/50 uppercase tracking-widest">{m.lv_conversion_rules()}</h4>
-              <ul class="list-disc list-inside text-[11px] text-on-surface-variant/80 space-y-1 font-medium">
+              <h4 class="text-2xs font-semibold text-on-surface-variant/50 uppercase tracking-widest">{m.lv_conversion_rules()}</h4>
+              <ul class="list-disc list-inside text-2xs text-on-surface-variant/80 space-y-1 font-medium">
                 <li>{m.lv_rule_1_a()}<strong>XP</strong>{m.lv_rule_1_b()}</li>
                 <li>{m.lv_rule_2_a()}<strong>{m.lv_rule_2_strong()}</strong>{m.lv_rule_2_b()}</li>
                 <li>{m.lv_rule_3()}</li>
@@ -2636,18 +2636,18 @@
               <div class="grid grid-cols-2 gap-4">
                 <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-4 text-center">
                   <p class="text-2xl font-semibold text-green-400">{importResults.importedCount}</p>
-                  <p class="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-wider">
+                  <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-wider">
                     {importResults.dryRun ? m.lv_import_matched() : m.lv_success()}
                   </p>
                 </div>
                 <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-4 text-center">
                   <p class="text-2xl font-semibold {importResults.failedCount > 0 ? 'text-error' : 'text-on-surface-variant/40'}">{importResults.failedCount}</p>
-                  <p class="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-wider">{m.lv_failures()}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-wider">{m.lv_failures()}</p>
                 </div>
               </div>
 
               {#if importResults.levelChangeCount !== undefined}
-                <dl class="text-[11px] text-on-surface-variant/70 space-y-1">
+                <dl class="text-2xs text-on-surface-variant/70 space-y-1">
                   <div class="flex justify-between gap-4">
                     <dt>{m.lv_import_stat_created()}</dt>
                     <dd class="font-semibold text-on-surface">{importResults.createdCount?.toLocaleString()}</dd>
@@ -2664,7 +2664,7 @@
               {/if}
 
               {#if importResults.dryRun}
-                <p class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
+                <p class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-2xs text-amber-600 dark:text-amber-400 leading-relaxed">
                   {m.lv_import_dry_run_notice()}
                 </p>
               {/if}

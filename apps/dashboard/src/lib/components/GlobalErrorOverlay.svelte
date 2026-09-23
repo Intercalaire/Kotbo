@@ -72,7 +72,7 @@
               <Papicon icon="chevron-right" size={14} class="transition-transform group-open:rotate-90" />
               Stack Trace
             </summary>
-            <pre class="mt-2 text-[10px] md:text-xs font-mono text-on-surface-variant/80 overflow-x-auto max-h-40 bg-surface-container-low border border-outline-variant/30 rounded-lg p-3 whitespace-pre scrollbar-thin">
+            <pre class="mt-2 text-2xs md:text-xs font-mono text-on-surface-variant/80 overflow-x-auto max-h-40 bg-surface-container-low border border-outline-variant/30 rounded-lg p-3 whitespace-pre scrollbar-thin">
               {errorStack}
             </pre>
           </details>

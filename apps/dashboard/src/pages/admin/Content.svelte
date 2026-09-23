@@ -404,7 +404,7 @@
 
           <div class="overflow-x-auto rounded-lg border border-outline-variant/10">
             <table class="w-full text-sm">
-              <thead class="bg-surface/40 text-left text-[10px] uppercase tracking-wider text-on-surface-variant/50">
+              <thead class="bg-surface/40 text-left text-2xs uppercase tracking-wider text-on-surface-variant/50">
                 <tr>
                   <th class="px-4 py-3">Mot</th>
                   <th class="px-4 py-3">Catégorie</th>
@@ -505,7 +505,7 @@
           {:else}
             <div class="overflow-x-auto rounded-xl border border-outline-variant/10">
               <table class="w-full text-sm">
-                <thead class="bg-on-surface/3 text-left text-[13px] text-on-surface-variant/30 border-b border-outline-variant/10">
+                <thead class="bg-on-surface/3 text-left text-body-sm text-on-surface-variant/30 border-b border-outline-variant/10">
                   <tr>
                     <th class="px-4 py-3">Mot</th>
                     <th class="px-4 py-3">Catégorie</th>

@@ -76,7 +76,7 @@
       <button
         type="button"
         onclick={() => { value = defaultValue ?? ''; }}
-        class="flex items-center gap-1.5 text-[11px] font-medium text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+        class="flex items-center gap-1.5 text-2xs font-medium text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
         {disabled}
       >
         <Papicon icon="refresh" size={12} />
@@ -113,7 +113,7 @@
 
   {#if macros.length > 0}
     <div class="mt-2 flex flex-wrap items-center gap-1.5">
-      <span class="text-[11px] text-on-surface-variant/70 mr-1">{m.macro_field_insert()}</span>
+      <span class="text-2xs text-on-surface-variant/70 mr-1">{m.macro_field_insert()}</span>
       {#each macros as macro (macro.token)}
         <button
           type="button"
@@ -124,7 +124,7 @@
           onblur={() => { described = null; }}
           title={macro.label}
           {disabled}
-          class="px-2 py-1 rounded-md bg-surface-container-high/50 hover:bg-primary/15 hover:text-primary border border-outline-variant/10 text-[11px] font-mono text-on-surface-variant transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+          class="px-2 py-1 rounded-md bg-surface-container-high/50 hover:bg-primary/15 hover:text-primary border border-outline-variant/10 text-2xs font-mono text-on-surface-variant transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
         >
           {macro.token}
         </button>

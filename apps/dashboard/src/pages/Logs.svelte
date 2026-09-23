@@ -619,8 +619,8 @@
               <Papicon icon={cat.icon} size={20} />
             </div>
             <div>
-              <h5 class="text-[13px] font-medium text-on-surface">{cat.label}</h5>
-              <p class="text-[10px] text-on-surface-variant/60">{m.lg_manage_category_alerts()}</p>
+              <h5 class="text-body-sm font-medium text-on-surface">{cat.label}</h5>
+              <p class="text-2xs text-on-surface-variant/60">{m.lg_manage_category_alerts()}</p>
             </div>
           </div>
 
@@ -632,7 +632,7 @@
                   <div class="flex justify-between items-start gap-4">
                     <div class="space-y-1">
                       <p class="text-xs font-bold text-on-surface">{ev.label}</p>
-                      <p class="text-[10px] text-on-surface-variant/60 leading-relaxed">{ev.desc}</p>
+                      <p class="text-2xs text-on-surface-variant/60 leading-relaxed">{ev.desc}</p>
                     </div>
                     <ToggleSwitch 
                       checked={eventConfigs[confIdx].enabled}
@@ -645,7 +645,7 @@
 
                   {#if eventConfigs[confIdx].enabled}
                     <div class="space-y-1.5 pt-3 border-t border-outline-variant/10">
-                      <label for="select-{ev.type}" class="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-wider">{m.lg_dest_channel()}</label>
+                      <label for="select-{ev.type}" class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-wider">{m.lg_dest_channel()}</label>
                       <select
                         id="select-{ev.type}"
                         bind:value={eventConfigs[confIdx].channelId}
@@ -675,7 +675,7 @@
   <div class="bg-surface-container-low/20 p-6 rounded-xl border border-outline-variant/5 space-y-4">
     <div class="flex flex-col lg:flex-row lg:items-center gap-4 justify-between">
       <div class="space-y-2 w-full lg:max-w-2xl">
-        <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="search">{m.lg_quick_search()}</label>
+        <label class="text-2xs font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="search">{m.lg_quick_search()}</label>
         <div class="relative top-1.5">
           <Papicon icon="search" size={18} class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <FormInput
@@ -757,7 +757,7 @@
                 searchable={true}
               />
             </th>
-            <th class="px-6 py-5 text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">{m.lg_col_details()}</th>
+            <th class="px-6 py-5 text-2xs font-semibold text-on-surface-variant uppercase tracking-widest">{m.lg_col_details()}</th>
             <th class="px-6 py-5">
               <div class="flex justify-center">
                 <ColumnSortFilter
@@ -779,7 +779,7 @@
               <td class="px-6 py-5">
                 <div class="text-xs">
                   <p class="font-bold text-on-surface">{new Date(entry.dateIso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
-                  <p class="text-[10px] text-on-surface-variant/60 font-medium">{new Date(entry.dateIso).toLocaleDateString()}</p>
+                  <p class="text-2xs text-on-surface-variant/60 font-medium">{new Date(entry.dateIso).toLocaleDateString()}</p>
                 </div>
               </td>
               <td class="px-6 py-5">
@@ -787,7 +787,7 @@
                   type="button"
                   disabled={!canOpenMemberCase}
                   onclick={() => openCaseModal(entry)}
-                  class="inline-flex max-w-40 truncate rounded-full border border-outline-variant/10 bg-surface-container-high/40 px-3 py-1 text-[11px] font-bold text-on-surface-variant transition-all enabled:hover:border-primary/50 enabled:hover:text-primary disabled:cursor-default"
+                  class="inline-flex max-w-40 truncate rounded-full border border-outline-variant/10 bg-surface-container-high/40 px-3 py-1 text-2xs font-bold text-on-surface-variant transition-all enabled:hover:border-primary/50 enabled:hover:text-primary disabled:cursor-default"
                   title={canOpenMemberCase ? m.lg_open_case() : undefined}
                 >
                   {displayUser(entry)}
@@ -810,12 +810,12 @@
                     <div class="flex flex-wrap gap-1.5">
                       {#each parsed.badges as item}
                         {#if item.key}
-                          <div class="inline-flex items-center gap-1 bg-surface-container-high border border-outline-variant/10 rounded-lg px-2 py-0.5 text-[10px] text-on-surface-variant font-medium">
+                          <div class="inline-flex items-center gap-1 bg-surface-container-high border border-outline-variant/10 rounded-lg px-2 py-0.5 text-2xs text-on-surface-variant font-medium">
                             <span class="text-on-surface-variant/70 font-semibold">{item.key}:</span>
                             <span class="text-on-surface break-all">{@html item.value}</span>
                           </div>
                         {:else}
-                          <div class="inline-flex items-center bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-2 py-0.5 text-[10px] text-on-surface-variant break-all">
+                          <div class="inline-flex items-center bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-2 py-0.5 text-2xs text-on-surface-variant break-all">
                             {@html item.value}
                           </div>
                         {/if}
@@ -824,14 +824,14 @@
                   {/if}
                   {#each parsed.blocks as block}
                     <div class="bg-surface-container-low border-l-2 border-primary/50 rounded-r-lg px-3 py-1.5 text-xs text-on-surface-variant space-y-0.5 max-w-full overflow-hidden">
-                      <p class="text-[11px] font-semibold uppercase tracking-wider text-primary/80">{block.key}</p>
+                      <p class="text-2xs font-semibold uppercase tracking-wider text-primary/80">{block.key}</p>
                       <p class="break-all whitespace-pre-wrap leading-relaxed text-on-surface">{@html block.value}</p>
                     </div>
                   {/each}
                 </div>
               </td>
               <td class="px-6 py-5 text-center">
-                <span class="inline-flex items-center justify-center w-24 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider
+                <span class="inline-flex items-center justify-center w-24 px-3 py-1 rounded-full text-2xs font-semibold uppercase tracking-wider
  {entry.eventType === 'Automatique' ? 'bg-blue-500/10 text-blue-500' : 'bg-amber-500/10 text-amber-500'}">
                   {entry.eventType === 'Automatique' ? m.lg_type_auto() : entry.eventType}
                 </span>
@@ -859,10 +859,10 @@
   <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
     {#each stats as kpi}
       <div class="bg-surface-container-low/40 p-6 rounded-xl border border-outline-variant/10 hover:shadow-lg transition-all duration-300">
-        <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{kpi.label}</p>
+        <p class="text-2xs font-bold text-on-surface-variant uppercase tracking-widest">{kpi.label}</p>
         <div class="flex items-end justify-between mt-2">
           <p class="text-lg font-semibold text-on-surface">{kpi.val}</p>
-          <span class="text-[10px] font-bold {kpi.subClass}">{kpi.sub}</span>
+          <span class="text-2xs font-bold {kpi.subClass}">{kpi.sub}</span>
         </div>
       </div>
     {/each}

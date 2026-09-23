@@ -242,7 +242,7 @@ onMount(async () => {
   >
     <Papicon icon="bell" size={15} /> {m.channel_health_tab_alerts()}
     {#if data?.pendingAlerts?.length > 0}
-      <span class="px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full leading-none">{data.pendingAlerts.length}</span>
+      <span class="px-1.5 py-0.5 bg-red-500 text-white text-2xs font-bold rounded-full leading-none">{data.pendingAlerts.length}</span>
     {/if}
   </button>
   <button
@@ -263,7 +263,7 @@ onMount(async () => {
   <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
     <Papicon icon="alert-circle" size={32} />
     <p class="text-sm">{error}</p>
-    <button class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2" onclick={load}>{m.common_retry()}</button>
+    <button class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2" onclick={load}>{m.common_retry()}</button>
   </div>
 {:else}
 
@@ -291,7 +291,7 @@ onMount(async () => {
         <h3 class="text-base font-semibold text-on-surface">{m.channel_health_monitor_disabled_title()}</h3>
         <p class="text-sm text-on-surface-variant/60 max-w-md">{m.channel_health_monitor_disabled_desc()}</p>
         <button
-          class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
+          class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
           onclick={() => { gotoTab('/channel-health', 'config', DEFAULT_TAB); if (configDraft) configDraft.enabled = true; }}
         >
           {m.channel_health_enable_monitor_btn()}
@@ -418,7 +418,7 @@ onMount(async () => {
                 <span>{m.channel_health_analysis_period({ days: alert.analysisPeriod })}</span>
               </div>
               <div class="flex gap-2 pt-1">
-                <button class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2" onclick={() => handleResolve(alert.id, 'APPLIED')}>
+                <button class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2" onclick={() => handleResolve(alert.id, 'APPLIED')}>
                   {m.channel_health_alert_apply()}
                 </button>
                 <button class="px-4 py-2 bg-surface-container-high/40 text-on-surface-variant rounded-xl text-xs font-bold hover:bg-surface-container-high/60 transition-all flex items-center gap-2" onclick={() => handleResolve(alert.id, 'DISMISSED')}>
@@ -527,7 +527,7 @@ onMount(async () => {
             options={availableChannels.map((c) => ({ id: c.id, name: `#${c.name}` }))}
             accentClass="bg-rose-500/20 text-rose-300 border-rose-500/40"
           />
-          <p class="text-[11px] text-on-surface-variant/50">{m.channel_health_field_excluded_channels_help()}</p>
+          <p class="text-2xs text-on-surface-variant/50">{m.channel_health_field_excluded_channels_help()}</p>
         </div>
 
         <!-- Divider: Overload thresholds -->
@@ -599,7 +599,7 @@ onMount(async () => {
       </div>
 
       <div class="flex justify-end pt-2">
-        <button class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2" onclick={saveConfig} disabled={savingConfig}>
+        <button class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2" onclick={saveConfig} disabled={savingConfig}>
           {savingConfig ? m.channel_health_saving() : m.common_save()}
         </button>
       </div>
@@ -612,7 +612,7 @@ onMount(async () => {
       </h3>
       <p class="text-sm text-on-surface-variant/60">{m.channel_health_not_configured_desc()}</p>
       <button
-        class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
+        class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
         onclick={() => { configDraft = { ...CHANNEL_HEALTH_DEFAULT_CONFIG, excludedChannelIds: [] }; }}
       >
         {m.channel_health_init_config_btn()}

@@ -267,7 +267,7 @@
       <button
         type="button"
         onclick={() => authStore.logout()}
-        class="text-[13px] font-medium text-on-surface-variant/60 hover:text-on-surface transition-colors"
+        class="text-body-sm font-medium text-on-surface-variant/60 hover:text-on-surface transition-colors"
       >
         Se déconnecter
       </button>
@@ -314,8 +314,8 @@
     <div class="flex flex-col items-center gap-4 py-10">
       <KotboMark size={44} halo />
       <div class="text-center">
-        <p class="text-[14px] font-semibold text-on-surface">Nous demandons vos serveurs à Discord…</p>
-        <p class="mt-1 text-[13px] text-on-surface-variant/60">Quelques secondes, le temps de savoir où Kotbo est déjà là.</p>
+        <p class="text-sm font-semibold text-on-surface">Nous demandons vos serveurs à Discord…</p>
+        <p class="mt-1 text-body-sm text-on-surface-variant/60">Quelques secondes, le temps de savoir où Kotbo est déjà là.</p>
       </div>
     </div>
 
@@ -369,7 +369,7 @@
         icon="Plus"
       >
         {#if missing.length === 0}
-          <p class="text-[13px] text-on-surface-variant">
+          <p class="text-body-sm text-on-surface-variant">
             {servers.length === 0
               ? "Aucun serveur où vous ayez la permission « Gérer le serveur »."
               : 'Kotbo est déjà sur tous vos serveurs.'}
@@ -382,14 +382,14 @@
                 {#if icon}
                   <img src={icon} alt="" referrerpolicy="no-referrer" class="w-9 h-9 rounded-lg object-cover shrink-0" />
                 {:else}
-                  <div class="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-[13px] font-semibold text-primary shrink-0">
+                  <div class="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-body-sm font-semibold text-primary shrink-0">
                     {server.name.charAt(0)}
                   </div>
                 {/if}
 
                 <div class="min-w-0 flex-1">
-                  <p class="text-[13px] font-medium text-on-surface truncate">{server.name}</p>
-                  <p class="text-[11px] text-on-surface-variant/60">
+                  <p class="text-body-sm font-medium text-on-surface truncate">{server.name}</p>
+                  <p class="text-2xs text-on-surface-variant/60">
                     {server.owner ? 'Propriétaire' : 'Administrateur'}
                   </p>
                 </div>
@@ -418,7 +418,7 @@
         icon="Grid"
       >
         {#if equipped.length === 0}
-          <p class="text-[13px] text-on-surface-variant">
+          <p class="text-body-sm text-on-surface-variant">
             Kotbo n'est encore sur aucun de vos serveurs.
           </p>
         {:else}
@@ -435,19 +435,19 @@
                 {#if icon}
                   <img src={icon} alt="" referrerpolicy="no-referrer" class="w-9 h-9 rounded-lg object-cover shrink-0" />
                 {:else}
-                  <div class="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-[13px] font-semibold text-primary shrink-0">
+                  <div class="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-body-sm font-semibold text-primary shrink-0">
                     {server.name.charAt(0)}
                   </div>
                 {/if}
 
                 <div class="min-w-0 flex-1">
-                  <p class="text-[13px] font-medium text-on-surface truncate flex items-center gap-1.5">
+                  <p class="text-body-sm font-medium text-on-surface truncate flex items-center gap-1.5">
                     {server.name}
                     {#if isCurrent}
-                      <span class="text-[9px] font-medium uppercase tracking-wide px-1 py-0.5 rounded bg-primary/10 text-primary">Actuel</span>
+                      <span class="text-2xs font-medium uppercase tracking-wide px-1 py-0.5 rounded bg-primary/10 text-primary">Actuel</span>
                     {/if}
                   </p>
-                  <p class="text-[11px] {server.activated ? 'text-on-surface-variant/60' : 'text-amber-500'}">
+                  <p class="text-2xs {server.activated ? 'text-on-surface-variant/60' : 'text-amber-500'}">
                     {server.activated ? (server.owner ? 'Propriétaire' : 'Administrateur') : "En attente d'activation"}
                   </p>
                 </div>

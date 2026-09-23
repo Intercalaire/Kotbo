@@ -83,46 +83,46 @@
     <div class="premium-card p-6 rounded-xl space-y-3">
       <div class="flex items-center justify-between">
         <Papicon icon="Code" size={20} class="text-primary" />
-        <span class="text-[11px] font-bold text-on-surface-variant/40 uppercase">{m.d7_challenges()}</span>
+        <span class="text-2xs font-bold text-on-surface-variant/40 uppercase">{m.d7_challenges()}</span>
       </div>
       <p class="text-2xl font-semibold text-on-surface">{data.metrics.totalRuns}</p>
-      <p class="text-[11px] font-bold text-on-surface-variant/60">{m.d7_algo_launched()}</p>
+      <p class="text-2xs font-bold text-on-surface-variant/60">{m.d7_algo_launched()}</p>
     </div>
 
     <div class="premium-card p-6 rounded-xl space-y-3">
       <div class="flex items-center justify-between">
         <Papicon icon="FileText" size={20} class="text-secondary" />
-        <span class="text-[11px] font-bold text-on-surface-variant/40 uppercase">{m.d7_submissions()}</span>
+        <span class="text-2xs font-bold text-on-surface-variant/40 uppercase">{m.d7_submissions()}</span>
       </div>
       <p class="text-2xl font-semibold text-on-surface">{data.metrics.totalSubmissions}</p>
-      <p class="text-[11px] font-bold text-on-surface-variant/60">{m.d7_algo_submitted()}</p>
+      <p class="text-2xs font-bold text-on-surface-variant/60">{m.d7_algo_submitted()}</p>
     </div>
 
     <div class="premium-card p-6 rounded-xl space-y-3">
       <div class="flex items-center justify-between">
         <Papicon icon="CheckCircle" size={20} class="text-emerald-500" />
-        <span class="text-[11px] font-bold text-on-surface-variant/40 uppercase">{m.d7_algo_completed()}</span>
+        <span class="text-2xs font-bold text-on-surface-variant/40 uppercase">{m.d7_algo_completed()}</span>
       </div>
       <p class="text-2xl font-semibold text-on-surface">{data.metrics.completedSubmissions}</p>
-      <p class="text-[11px] font-bold text-on-surface-variant/60">{m.d7_algo_validated_lc()}</p>
+      <p class="text-2xs font-bold text-on-surface-variant/60">{m.d7_algo_validated_lc()}</p>
     </div>
 
     <div class="premium-card p-6 rounded-xl space-y-3">
       <div class="flex items-center justify-between">
         <Papicon icon="BarChart2" size={20} class="text-blue-500" />
-        <span class="text-[11px] font-bold text-on-surface-variant/40 uppercase">{m.d7_algo_average()}</span>
+        <span class="text-2xs font-bold text-on-surface-variant/40 uppercase">{m.d7_algo_average()}</span>
       </div>
       <p class="text-2xl font-semibold text-on-surface">{data.metrics.avgSubmissionsPerRun}</p>
-      <p class="text-[11px] font-bold text-on-surface-variant/60">{m.d7_algo_per_challenge()}</p>
+      <p class="text-2xs font-bold text-on-surface-variant/60">{m.d7_algo_per_challenge()}</p>
     </div>
 
     <div class="premium-card p-6 rounded-xl space-y-3 bg-emerald-500/5 border-emerald-500/20">
       <div class="flex items-center justify-between">
         <Papicon icon="Target" size={20} class="text-emerald-500" />
-        <span class="text-[11px] font-bold text-on-surface-variant/40 uppercase">{m.d7_algo_rate()}</span>
+        <span class="text-2xs font-bold text-on-surface-variant/40 uppercase">{m.d7_algo_rate()}</span>
       </div>
       <p class="text-2xl font-semibold text-emerald-500">{data.metrics.completionRate}%</p>
-      <p class="text-[11px] font-bold text-on-surface-variant/60">{m.d7_algo_completed_lc()}</p>
+      <p class="text-2xs font-bold text-on-surface-variant/60">{m.d7_algo_completed_lc()}</p>
     </div>
   </div>
 
@@ -136,7 +136,7 @@
         </div>
         <div>
           <h4 class="font-semibold text-on-surface">{m.d7_algo_challenge_trend()}</h4>
-          <p class="text-[11px] font-bold text-on-surface-variant/40">{m.d7_algo_challenges_per_day()}</p>
+          <p class="text-2xs font-bold text-on-surface-variant/40">{m.d7_algo_challenges_per_day()}</p>
         </div>
       </div>
       <div class="h-[300px]">
@@ -152,7 +152,7 @@
         </div>
         <div>
           <h4 class="font-semibold text-on-surface">{m.d7_algo_difficulty_distribution()}</h4>
-          <p class="text-[11px] font-bold text-on-surface-variant/40">{m.d7_algo_challenge_breakdown()}</p>
+          <p class="text-2xs font-bold text-on-surface-variant/40">{m.d7_algo_challenge_breakdown()}</p>
         </div>
       </div>
       <div class="h-[300px]">
@@ -169,7 +169,7 @@
       </div>
       <div>
         <h4 class="font-semibold text-on-surface">{m.d7_algo_top_performers()}</h4>
-        <p class="text-[11px] font-bold text-on-surface-variant/40">{m.d7_algo_avg_score_per_participant()}</p>
+        <p class="text-2xs font-bold text-on-surface-variant/40">{m.d7_algo_avg_score_per_participant()}</p>
       </div>
     </div>
     <div class="h-[300px]">
@@ -181,11 +181,11 @@
       <table class="w-full text-sm">
         <thead>
           <tr class="border-b border-outline-variant/10">
-            <th class="text-left px-4 py-3 font-semibold text-on-surface-variant/60 text-[10px] uppercase">#</th>
-            <th class="text-left px-4 py-3 font-semibold text-on-surface-variant/60 text-[10px] uppercase">{m.d7_algo_participant()}</th>
-            <th class="text-center px-4 py-3 font-semibold text-on-surface-variant/60 text-[10px] uppercase">{m.d7_submissions()}</th>
-            <th class="text-center px-4 py-3 font-semibold text-on-surface-variant/60 text-[10px] uppercase">{m.d7_algo_validated()}</th>
-            <th class="text-center px-4 py-3 font-semibold text-on-surface-variant/60 text-[10px] uppercase">{m.d7_algo_avg_score_col()}</th>
+            <th class="text-left px-4 py-3 font-semibold text-on-surface-variant/60 text-2xs uppercase">#</th>
+            <th class="text-left px-4 py-3 font-semibold text-on-surface-variant/60 text-2xs uppercase">{m.d7_algo_participant()}</th>
+            <th class="text-center px-4 py-3 font-semibold text-on-surface-variant/60 text-2xs uppercase">{m.d7_submissions()}</th>
+            <th class="text-center px-4 py-3 font-semibold text-on-surface-variant/60 text-2xs uppercase">{m.d7_algo_validated()}</th>
+            <th class="text-center px-4 py-3 font-semibold text-on-surface-variant/60 text-2xs uppercase">{m.d7_algo_avg_score_col()}</th>
           </tr>
         </thead>
         <tbody>

@@ -343,7 +343,7 @@
             id="bot-avatar-url"
             bind:value={botAvatarUrl}
             placeholder="URL..."
-            class="w-24 mt-1.5 px-2 py-1 bg-surface-container border border-outline-variant rounded text-[10px] text-on-surface truncate"
+            class="w-24 mt-1.5 px-2 py-1 bg-surface-container border border-outline-variant rounded text-2xs text-on-surface truncate"
           />
         </div>
 
@@ -368,7 +368,7 @@
               rows={3}
               class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface resize-none"
             ></textarea>
-            <span class="text-[10px] text-on-surface-variant">{botBio.length}/190 caracteres</span>
+            <span class="text-2xs text-on-surface-variant">{botBio.length}/190 caracteres</span>
           </div>
         </div>
       </div>

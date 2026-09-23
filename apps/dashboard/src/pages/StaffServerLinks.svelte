@@ -386,7 +386,7 @@
                                 <option value={ch.id}>#{ch.name}</option>
                               {/each}
                             </select>
-                            <p class="text-[10px] text-on-surface-variant/40 mt-1">{cfg.hint}</p>
+                            <p class="text-2xs text-on-surface-variant/40 mt-1">{cfg.hint}</p>
                           </div>
                         {/each}
 
@@ -403,7 +403,7 @@
                               <option value={cat.id}>{cat.name}</option>
                             {/each}
                           </select>
-                          <p class="text-[10px] text-on-surface-variant/40 mt-1">{m.staff_server_hint_recruitment_category()}</p>
+                          <p class="text-2xs text-on-surface-variant/40 mt-1">{m.staff_server_hint_recruitment_category()}</p>
                         </div>
                       </div>
 
@@ -411,7 +411,7 @@
                         <div class="flex items-center justify-between">
                           <div>
                             <p class="text-xs font-medium text-on-surface">{m.staff_server_toggle_onboarding_title()}</p>
-                            <p class="text-[10px] text-on-surface-variant/40">{m.staff_server_toggle_onboarding_desc()}</p>
+                            <p class="text-2xs text-on-surface-variant/40">{m.staff_server_toggle_onboarding_desc()}</p>
                           </div>
                           <ToggleSwitch
                             checked={!!link.onboardingInviteEnabled}
@@ -421,7 +421,7 @@
                         <div class="flex items-center justify-between">
                           <div>
                             <p class="text-xs font-medium text-on-surface">{m.staff_server_toggle_recruitment_title()}</p>
-                            <p class="text-[10px] text-on-surface-variant/40">{m.staff_server_toggle_recruitment_desc()}</p>
+                            <p class="text-2xs text-on-surface-variant/40">{m.staff_server_toggle_recruitment_desc()}</p>
                           </div>
                           <ToggleSwitch
                             checked={!!link.recruitmentOnStaffServer}

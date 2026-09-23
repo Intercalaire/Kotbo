@@ -83,12 +83,12 @@
               <Papicon icon="crown" size={22} />
             </div>
             <div class="mt-2">
-              <span class="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-bold uppercase tracking-wider">
+              <span class="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-2xs font-bold uppercase tracking-wider">
                 {m.staff_orgchart_global_chief()}
               </span>
               <p class="text-lg font-bold text-on-surface mt-2 tracking-tight">{schema.chiefStaff.name || m.staff_orgchart_unknown_name()}</p>
               {#if schema.chiefStaff.userId}
-                <span class="text-[10px] font-mono text-on-surface-variant/40 bg-surface-container-high/40 px-2 py-0.5 rounded-md mt-1.5 inline-block">
+                <span class="text-2xs font-mono text-on-surface-variant/40 bg-surface-container-high/40 px-2 py-0.5 rounded-md mt-1.5 inline-block">
                   ID: {schema.chiefStaff.userId}
                 </span>
               {/if}

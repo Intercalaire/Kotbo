@@ -51,7 +51,7 @@
               <span>[{rule.scope}] {rule.label}</span>
             </span>
           </span>
-          <span class="block text-[11px] text-on-surface-variant">{rule.details}</span>
+          <span class="block text-2xs text-on-surface-variant">{rule.details}</span>
         </span>
       </label>
     {/each}

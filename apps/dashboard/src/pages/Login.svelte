@@ -154,7 +154,7 @@
     </div>
 
     <div class="relative max-w-xl">
-      <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant/80 mb-4">
+      <p class="text-2xs font-semibold uppercase tracking-[0.18em] text-on-surface-variant/80 mb-4">
         {m.login_pitch_eyebrow()}
       </p>
 

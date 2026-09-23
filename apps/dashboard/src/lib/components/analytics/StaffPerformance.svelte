@@ -21,7 +21,7 @@
           <Papicon icon="TrendUp" size={20} class="text-primary" />
           {m.sp_title()}
         </h3>
-        <p class="text-[10px] text-on-surface-variant/50 mt-1 uppercase tracking-widest font-bold">{m.sp_subtitle()}</p>
+        <p class="text-2xs text-on-surface-variant/50 mt-1 uppercase tracking-widest font-bold">{m.sp_subtitle()}</p>
       </div>
     </div>
 
@@ -57,7 +57,7 @@
                   </div>
                   <div class="flex flex-col items-start">
                     <span class="text-sm font-semibold">{staff.displayName || staff.username}</span>
-                    <span class="text-[10px] text-on-surface-variant/40 font-mono">@{staff.username}</span>
+                    <span class="text-2xs text-on-surface-variant/40 font-mono">@{staff.username}</span>
                   </div>
                 </button>
               </td>
@@ -72,7 +72,7 @@
                   <div class="w-16 h-1 bg-surface-container-high rounded-full overflow-hidden">
                     <div class="h-full bg-primary rounded-full" style="width: {staff.reportRate}%"></div>
                   </div>
-                  <span class="text-[10px] font-bold text-on-surface-variant/30 uppercase tracking-tighter">{m.sp_accuracy_label()}</span>
+                  <span class="text-2xs font-bold text-on-surface-variant/30 uppercase tracking-tighter">{m.sp_accuracy_label()}</span>
                 </div>
               </td>
             </tr>

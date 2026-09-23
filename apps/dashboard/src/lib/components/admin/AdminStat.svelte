@@ -56,7 +56,7 @@
 >
   <div class="flex items-start justify-between gap-3">
     <div class="min-w-0">
-      <p class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant truncate">{label}</p>
+      <p class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant truncate">{label}</p>
       {#if loading}
         <div class="mt-2 h-8 w-24 rounded-lg bg-on-surface/8 animate-pulse"></div>
       {:else}
@@ -72,7 +72,7 @@
     <div class="flex items-center gap-2 min-w-0">
       {#if typeof delta === 'number' && !loading}
         <span
-          class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-semibold tabular-nums
+          class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-2xs font-semibold tabular-nums
             {deltaNeutral
               ? 'bg-on-surface/8 text-on-surface-variant'
               : deltaPositive
@@ -86,7 +86,7 @@
         </span>
       {/if}
       {#if hint}
-        <span class="text-[12px] text-on-surface-variant truncate">{hint}</span>
+        <span class="text-xs text-on-surface-variant truncate">{hint}</span>
       {/if}
     </div>
 

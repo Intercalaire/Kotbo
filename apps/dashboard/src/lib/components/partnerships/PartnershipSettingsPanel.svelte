@@ -68,7 +68,7 @@
 </script>
 
 {#if !settings}
-  <p class="text-[12px] text-on-surface-variant">Réglages indisponibles.</p>
+  <p class="text-xs text-on-surface-variant">Réglages indisponibles.</p>
 {:else}
   <div class="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
     <!-- ── Activation ──────────────────────────────────────────────────── -->
@@ -76,15 +76,15 @@
       <label class="flex items-start gap-3 cursor-pointer">
         <input type="checkbox" checked={settings.enabled} onchange={() => toggle('enabled')} class="mt-0.5" />
         <span>
-          <span class="text-[13px] text-on-surface block">Activer les partenariats</span>
-          <span class="text-[11px] text-on-surface-variant">
+          <span class="text-body-sm text-on-surface block">Activer les partenariats</span>
+          <span class="text-2xs text-on-surface-variant">
             Éteint, les pages et les données restent : seuls les traitements automatiques s'arrêtent.
           </span>
         </span>
       </label>
 
       <div class="mt-3">
-        <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Niveau de suivi par défaut</span>
+        <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Niveau de suivi par défaut</span>
         <FormSelect
           value={settings.defaultTier}
           className="w-full"
@@ -99,8 +99,8 @@
       <label class="flex items-start gap-3 cursor-pointer mt-3">
         <input type="checkbox" checked={settings.requireDualApproval} onchange={() => toggle('requireDualApproval')} class="mt-0.5" />
         <span>
-          <span class="text-[13px] text-on-surface block">Exiger une double validation</span>
-          <span class="text-[11px] text-on-surface-variant">Deux personnes différentes avant qu'un dossier devienne actif.</span>
+          <span class="text-body-sm text-on-surface block">Exiger une double validation</span>
+          <span class="text-2xs text-on-surface-variant">Deux personnes différentes avant qu'un dossier devienne actif.</span>
         </span>
       </label>
     </SectionCard>
@@ -110,7 +110,7 @@
       <div class="space-y-3">
         {#each [['staffChannelId', 'Salon de travail du staff'], ['showcaseChannelId', 'Salon vitrine'], ['adsChannelId', 'Salon des publicités'], ['digestChannelId', 'Salon du bilan périodique']] as [key, label] (key)}
           <label class="block">
-            <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">{label}</span>
+            <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">{label}</span>
             <FormSelect
               value={settings[key] ?? ''}
               className="w-full"
@@ -126,7 +126,7 @@
 
         {#each [['partnerRoleId', 'Rôle « Partenaire »'], ['referredRoleId', 'Rôle des membres venus d\'un partenaire']] as [key, label] (key)}
           <label class="block">
-            <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">{label}</span>
+            <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">{label}</span>
             <FormSelect
               value={settings[key] ?? ''}
               className="w-full"
@@ -147,18 +147,18 @@
       <label class="flex items-start gap-3 cursor-pointer">
         <input type="checkbox" checked={settings.applicationsOpen} onchange={() => toggle('applicationsOpen')} class="mt-0.5" />
         <span>
-          <span class="text-[13px] text-on-surface block">Ouvrir les demandes</span>
-          <span class="text-[11px] text-on-surface-variant">Fermées, la commande répond que les demandes n'ont pas lieu.</span>
+          <span class="text-body-sm text-on-surface block">Ouvrir les demandes</span>
+          <span class="text-2xs text-on-surface-variant">Fermées, la commande répond que les demandes n'ont pas lieu.</span>
         </span>
       </label>
 
       <div class="grid grid-cols-2 gap-3 mt-3">
         <label class="block">
-          <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Effectif minimal</span>
+          <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Effectif minimal</span>
           <FormInput type="number" value={settings.minMemberCount} onchange={(event) => number('minMemberCount', event)} />
         </label>
         <label class="block">
-          <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Ancienneté minimale (jours)</span>
+          <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Ancienneté minimale (jours)</span>
           <FormInput type="number" value={settings.minServerAgeDays} onchange={(event) => number('minServerAgeDays', event)} />
         </label>
       </div>
@@ -166,8 +166,8 @@
       <label class="flex items-start gap-3 cursor-pointer mt-3">
         <input type="checkbox" checked={settings.autoRejectBelowThreshold} onchange={() => toggle('autoRejectBelowThreshold')} class="mt-0.5" />
         <span>
-          <span class="text-[13px] text-on-surface block">Refuser automatiquement sous ces seuils</span>
-          <span class="text-[11px] text-on-surface-variant">
+          <span class="text-body-sm text-on-surface block">Refuser automatiquement sous ces seuils</span>
+          <span class="text-2xs text-on-surface-variant">
             Le seul filtrage qui décide seul. Tout le reste est affiché au staff, qui tranche.
           </span>
         </span>
@@ -181,27 +181,27 @@
           <label class="flex items-start gap-3 cursor-pointer">
             <input type="checkbox" checked={settings[item.key]} onchange={() => toggle(item.key)} class="mt-0.5" />
             <span>
-              <span class="text-[13px] text-on-surface block">{item.label}</span>
-              <span class="text-[11px] text-on-surface-variant">{item.hint}</span>
+              <span class="text-body-sm text-on-surface block">{item.label}</span>
+              <span class="text-2xs text-on-surface-variant">{item.hint}</span>
             </span>
           </label>
         {/each}
 
         <div class="grid grid-cols-2 gap-3 pt-2 border-t border-outline-variant/10">
           <label class="block">
-            <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Contrôle toutes les (heures)</span>
+            <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Contrôle toutes les (heures)</span>
             <FormInput type="number" value={settings.reciprocityIntervalHours} onchange={(event) => number('reciprocityIntervalHours', event)} />
           </label>
           <label class="block">
-            <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Tolérance avant manquement</span>
+            <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Tolérance avant manquement</span>
             <FormInput type="number" value={settings.reciprocityGraceCount} onchange={(event) => number('reciprocityGraceCount', event)} />
           </label>
           <label class="block">
-            <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Préavis de renouvellement (jours)</span>
+            <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Préavis de renouvellement (jours)</span>
             <FormInput type="number" value={settings.renewalNoticeDays} onchange={(event) => number('renewalNoticeDays', event)} />
           </label>
           <label class="block">
-            <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Fenêtre de rétention (jours)</span>
+            <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Fenêtre de rétention (jours)</span>
             <FormInput type="number" value={settings.retentionWindowDays} onchange={(event) => number('retentionWindowDays', event)} />
           </label>
         </div>
@@ -214,12 +214,12 @@
         {#each notifications as item (item.key)}
           <label class="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" checked={settings[item.key]} onchange={() => toggle(item.key)} />
-            <span class="text-[13px] text-on-surface">{item.label}</span>
+            <span class="text-body-sm text-on-surface">{item.label}</span>
           </label>
         {/each}
 
         <label class="block pt-2 border-t border-outline-variant/10">
-          <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Bilan périodique</span>
+          <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Bilan périodique</span>
           <FormSelect
             value={settings.digestFrequency}
             className="w-full"
@@ -239,8 +239,8 @@
         <label class="flex items-start gap-3 cursor-pointer">
           <input type="checkbox" checked={settings.directoryOptIn} onchange={() => toggle('directoryOptIn')} class="mt-0.5" />
           <span>
-            <span class="text-[13px] text-on-surface block">Se référencer dans l'annuaire Kotbo</span>
-            <span class="text-[11px] text-on-surface-variant">
+            <span class="text-body-sm text-on-surface block">Se référencer dans l'annuaire Kotbo</span>
+            <span class="text-2xs text-on-surface-variant">
               Seule la fiche que vous rédigez est publiée, et l'effectif y figure par tranche.
             </span>
           </span>
@@ -248,20 +248,20 @@
 
         <label class="flex items-center gap-3 cursor-pointer">
           <input type="checkbox" checked={settings.directoryAcceptProposals} onchange={() => toggle('directoryAcceptProposals')} />
-          <span class="text-[13px] text-on-surface">Accepter les propositions reçues</span>
+          <span class="text-body-sm text-on-surface">Accepter les propositions reçues</span>
         </label>
 
         <label class="flex items-center gap-3 cursor-pointer">
           <input type="checkbox" checked={settings.matchmakingEnabled} onchange={() => toggle('matchmakingEnabled')} />
-          <span class="text-[13px] text-on-surface">Suggestions de partenaires compatibles</span>
+          <span class="text-body-sm text-on-surface">Suggestions de partenaires compatibles</span>
         </label>
 
         <div class="pt-2 border-t border-outline-variant/10 space-y-3">
           <label class="flex items-start gap-3 cursor-pointer">
             <input type="checkbox" checked={settings.reputationShare} onchange={() => toggle('reputationShare')} class="mt-0.5" />
             <span>
-              <span class="text-[13px] text-on-surface block">Partager mes signalements graves</span>
-              <span class="text-[11px] text-on-surface-variant">
+              <span class="text-body-sm text-on-surface block">Partager mes signalements graves</span>
+              <span class="text-2xs text-on-surface-variant">
                 Anonymisés : les autres serveurs voient le nombre et la nature, jamais qui a signalé.
               </span>
             </span>
@@ -270,8 +270,8 @@
           <label class="flex items-start gap-3 cursor-pointer">
             <input type="checkbox" checked={settings.reputationConsume} onchange={() => toggle('reputationConsume')} class="mt-0.5" />
             <span>
-              <span class="text-[13px] text-on-surface block">Consulter les signaux du réseau</span>
-              <span class="text-[11px] text-on-surface-variant">
+              <span class="text-body-sm text-on-surface block">Consulter les signaux du réseau</span>
+              <span class="text-2xs text-on-surface-variant">
                 Affichés lors d'une demande. Un signal n'a jamais refusé un partenariat tout seul.
               </span>
             </span>
@@ -285,8 +285,8 @@
       <label class="flex items-start gap-3 cursor-pointer">
         <input type="checkbox" checked={settings.financeEnabled} onchange={() => toggle('financeEnabled')} class="mt-0.5" />
         <span>
-          <span class="text-[13px] text-on-surface block">Suivre les montants et les échéances</span>
-          <span class="text-[11px] text-on-surface-variant">
+          <span class="text-body-sm text-on-surface block">Suivre les montants et les échéances</span>
+          <span class="text-2xs text-on-surface-variant">
             Kotbo n'encaisse rien : il tient le carnet et rappelle les dates.
           </span>
         </span>
@@ -294,16 +294,16 @@
 
       <div class="grid grid-cols-2 gap-3 mt-3">
         <label class="block">
-          <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Devise</span>
+          <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Devise</span>
           <FormInput value={settings.currency} onchange={(event) => set('currency', (event.target as HTMLInputElement).value)} />
         </label>
         <label class="block">
-          <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Rappel avant échéance (jours)</span>
+          <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Rappel avant échéance (jours)</span>
           <FormInput type="number" value={settings.paymentReminderDays} onchange={(event) => number('paymentReminderDays', event)} />
         </label>
       </div>
 
-      <p class="text-[11px] text-on-surface-variant mt-3 flex items-start gap-1.5">
+      <p class="text-2xs text-on-surface-variant mt-3 flex items-start gap-1.5">
         <Papicon icon="info" size={12} class="mt-0.5 shrink-0" />
         <span>Les montants saisis ici ne déclenchent aucun paiement et ne remontent pas à la facturation Kotbo.</span>
       </p>

@@ -168,12 +168,12 @@
   <div class="flex items-center justify-between gap-2 px-3.5 py-2.5 bg-[#2b2d31] border-b border-black/25">
     <span class="flex items-center gap-2 min-w-0">
       <span class="text-[#80848e] text-[17px] leading-none font-medium">#</span>
-      <span class="text-[13px] font-semibold text-[#dbdee1] truncate">général</span>
+      <span class="text-body-sm font-semibold text-[#dbdee1] truncate">général</span>
     </span>
     <button
       type="button"
       onclick={play}
-      class="shrink-0 inline-flex items-center gap-1 text-[11px] font-medium text-[#949ba4] hover:text-[#dbdee1] transition-colors"
+      class="shrink-0 inline-flex items-center gap-1 text-2xs font-medium text-[#949ba4] hover:text-[#dbdee1] transition-colors"
     >
       <Papicon icon="refresh-cw" size={11} />
       {m.onb_sim_replay()}
@@ -185,7 +185,7 @@
       {@const verdict = index < judged ? line.verdict[level] : 'kept'}
       <div class="line flex gap-2.5">
         <span
-          class="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold text-white"
+          class="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-2xs font-bold text-white"
           style="background-color: {line.color}"
         >
           {line.initial}
@@ -193,23 +193,23 @@
 
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-1.5 flex-wrap">
-            <span class="text-[13.5px] font-medium text-[#f2f3f5]">{line.author}</span>
+            <span class="text-body-sm font-medium text-[#f2f3f5]">{line.author}</span>
             {#if line.fresh}
-              <span class="text-[9.5px] font-semibold uppercase tracking-wide px-1 py-px rounded bg-[#4e5058] text-[#dbdee1]">
+              <span class="text-2xs font-semibold uppercase tracking-wide px-1 py-px rounded bg-[#4e5058] text-[#dbdee1]">
                 nouveau
               </span>
             {/if}
           </div>
 
           <p
-            class="text-[13.5px] leading-[1.4] break-words transition-all duration-300
+            class="text-body-sm leading-[1.4] break-words transition-all duration-300
             {verdict === 'kept' ? 'text-[#dbdee1]' : 'text-[#72767d] line-through decoration-[#f23f43]/60'}"
           >
             {line.text}
           </p>
 
           {#if verdict !== 'kept'}
-            <p class="verdict mt-1 inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-medium
+            <p class="verdict mt-1 inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-2xs font-medium
               {verdict === 'deleted' ? 'bg-[#f23f43]/15 text-[#f77f81]' : 'bg-[#faa61a]/15 text-[#f0b232]'}">
               <Papicon icon={verdict === 'deleted' ? 'trash' : 'clock'} size={10} />
               {verdict === 'deleted' ? m.onb_sim_deleted_by() : m.onb_sim_held()}
@@ -221,12 +221,12 @@
     {/each}
 
     {#if shown === 0}
-      <p class="text-[12.5px] text-[#949ba4] py-6 text-center">{m.onb_sim_title()}…</p>
+      <p class="text-xs text-[#949ba4] py-6 text-center">{m.onb_sim_title()}…</p>
     {/if}
   </div>
 </div>
 
-<p class="mt-2.5 text-[12.5px] leading-relaxed text-on-surface-variant/60">
+<p class="mt-2.5 text-xs leading-relaxed text-on-surface-variant/60">
   {CAPTIONS[level]()}
 </p>
 

@@ -95,7 +95,7 @@
 >
   {#if !created}
     <div>
-      <p class="text-[13px] font-semibold text-on-surface mb-2.5">{m.onb_mcp_scope_label()}</p>
+      <p class="text-body-sm font-semibold text-on-surface mb-2.5">{m.onb_mcp_scope_label()}</p>
       <div class="space-y-2.5">
         {#each MCP_SCOPES as entry (entry.key)}
           <ChoiceCard
@@ -113,43 +113,43 @@
   {:else}
     <div class="space-y-5">
       <div class="rounded-2xl border border-primary/30 bg-primary/[0.04] p-4">
-        <p class="flex items-center gap-2 text-[13.5px] font-semibold text-on-surface">
+        <p class="flex items-center gap-2 text-body-sm font-semibold text-on-surface">
           <Papicon icon="check-circle" size={15} class="text-emerald-500" />
           {m.onb_mcp_key_ready()}
         </p>
 
         <div class="mt-3 flex items-center gap-2">
-          <code class="flex-1 min-w-0 truncate rounded-lg bg-surface-container-lowest/70 px-3 py-2 text-[12.5px] font-mono text-on-surface">
+          <code class="flex-1 min-w-0 truncate rounded-lg bg-surface-container-lowest/70 px-3 py-2 text-xs font-mono text-on-surface">
             {created.fullKey}
           </code>
           <button
             type="button"
             onclick={() => copy(created!.fullKey, 'key')}
             class="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-outline-variant/40 px-3 py-2
-                   text-[12.5px] font-medium text-on-surface-variant/80 hover:border-primary/45 hover:text-on-surface transition-colors"
+                   text-xs font-medium text-on-surface-variant/80 hover:border-primary/45 hover:text-on-surface transition-colors"
           >
             <Papicon icon={copied === 'key' ? 'check' : 'copy'} size={12} />
             {copied === 'key' ? m.onb_mcp_copied() : m.onb_mcp_copy()}
           </button>
         </div>
 
-        <p class="mt-2.5 text-[12.5px] text-amber-500/90 leading-relaxed">
+        <p class="mt-2.5 text-xs text-amber-500/90 leading-relaxed">
           {m.onb_mcp_key_warning()}
         </p>
       </div>
 
       {#if directUrl}
         <div>
-          <p class="text-[13px] font-semibold text-on-surface mb-1.5">{m.onb_mcp_url_label()}</p>
+          <p class="text-body-sm font-semibold text-on-surface mb-1.5">{m.onb_mcp_url_label()}</p>
           <div class="flex items-center gap-2">
-            <code class="flex-1 min-w-0 truncate rounded-lg border border-outline-variant/40 bg-surface-container-lowest/60 px-3 py-2 text-[12.5px] font-mono text-on-surface-variant/85">
+            <code class="flex-1 min-w-0 truncate rounded-lg border border-outline-variant/40 bg-surface-container-lowest/60 px-3 py-2 text-xs font-mono text-on-surface-variant/85">
               {directUrl}
             </code>
             <button
               type="button"
               onclick={() => copy(directUrl, 'url')}
               class="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-outline-variant/40 px-3 py-2
-                     text-[12.5px] font-medium text-on-surface-variant/80 hover:border-primary/45 hover:text-on-surface transition-colors"
+                     text-xs font-medium text-on-surface-variant/80 hover:border-primary/45 hover:text-on-surface transition-colors"
             >
               <Papicon icon={copied === 'url' ? 'check' : 'copy'} size={12} />
               {copied === 'url' ? m.onb_mcp_copied() : m.onb_mcp_copy()}
@@ -159,10 +159,10 @@
       {/if}
 
       <div>
-        <p class="text-[13px] font-semibold text-on-surface mb-2">{m.onb_mcp_try()}</p>
+        <p class="text-body-sm font-semibold text-on-surface mb-2">{m.onb_mcp_try()}</p>
         <ul class="space-y-1.5">
           {#each [m.onb_mcp_example_1(), m.onb_mcp_example_2(), m.onb_mcp_example_3()] as example (example)}
-            <li class="flex items-start gap-2 text-[13px] text-on-surface-variant/70">
+            <li class="flex items-start gap-2 text-body-sm text-on-surface-variant/70">
               <Papicon icon="message-circle" size={12} class="mt-1 shrink-0 text-primary/60" />
               <span>« {example} »</span>
             </li>
@@ -178,18 +178,18 @@
     <div class="rounded-2xl border border-outline-variant/30 bg-surface-container-lowest/50 overflow-hidden">
       <div class="flex items-center gap-2 px-4 py-2.5 border-b border-outline-variant/20">
         <Papicon icon="command" size={13} class="text-primary" />
-        <span class="text-[12.5px] font-semibold text-on-surface">Kotbo MCP</span>
+        <span class="text-xs font-semibold text-on-surface">Kotbo MCP</span>
       </div>
 
       <div class="p-4 space-y-3">
         <div class="flex justify-end">
-          <p class="max-w-[85%] rounded-2xl rounded-br-sm bg-primary/12 px-3.5 py-2 text-[13px] text-on-surface">
+          <p class="max-w-[85%] rounded-2xl rounded-br-sm bg-primary/12 px-3.5 py-2 text-body-sm text-on-surface">
             {m.onb_mcp_example_1()}
           </p>
         </div>
 
         <div class="flex justify-start">
-          <p class="max-w-[92%] rounded-2xl rounded-bl-sm bg-surface-container/70 px-3.5 py-2 text-[13px] leading-relaxed text-on-surface-variant/85">
+          <p class="max-w-[92%] rounded-2xl rounded-bl-sm bg-surface-container/70 px-3.5 py-2 text-body-sm leading-relaxed text-on-surface-variant/85">
             {m.onb_mcp_preview_answer()}
           </p>
         </div>
@@ -202,7 +202,7 @@
       <button
         type="button"
         onclick={skip}
-        class="text-[13px] font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
+        class="text-body-sm font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
       >
         Passer
       </button>
@@ -210,7 +210,7 @@
         type="button"
         onclick={createKey}
         disabled={onboardingData.busy}
-        class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[14px] font-semibold text-on-primary
+        class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary
                hover:brightness-110 transition disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
       >
         {onboardingData.busy ? m.onb_mcp_creating() : m.onb_mcp_create()}
@@ -220,7 +220,7 @@
       <button
         type="button"
         onclick={() => wizard.complete('mcp')}
-        class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[14px] font-semibold text-on-primary
+        class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary
                hover:brightness-110 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
       >
         Continuer

@@ -92,7 +92,7 @@
 >
   {#snippet actions()}
     <button
-      class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
+      class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
       onclick={() => showCreate = !showCreate}
     >
       <Papicon icon="plus" size={16} />
@@ -140,7 +140,7 @@
         onclick={() => showCreate = false}
       >{m.sea_btn_cancel()}</button>
       <button
-        class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
+        class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
         onclick={handleCreate}
       >{m.sea_btn_create()}</button>
     </div>
@@ -214,7 +214,7 @@
                     </div>
                   {/each}
                 </div>
-                <p class="text-[11px] text-on-surface-variant/50">{m.sea_ranking_rp_hint()}</p>
+                <p class="text-2xs text-on-surface-variant/50">{m.sea_ranking_rp_hint()}</p>
               </div>
             {/if}
           </div>
@@ -267,7 +267,7 @@
             {#if season.status === 'UPCOMING'}
               <div class="mt-3">
                 <button
-                  class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-1.5"
+                  class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-1.5"
                   onclick={() => handleStart(season.id)}
                 >
                   <Papicon icon="zap" size={13} />

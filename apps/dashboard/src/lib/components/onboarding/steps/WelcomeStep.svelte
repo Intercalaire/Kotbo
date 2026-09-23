@@ -58,7 +58,7 @@
 
     <div class="mt-4 inline-flex items-center gap-2 rounded-full border border-outline-variant/35 bg-surface-container-low/40 px-3 py-1.5">
       <Papicon icon="clock" size={13} class="text-primary" />
-      <span class="text-[12.5px] font-medium text-on-surface-variant/70">À partir de 3 minutes</span>
+      <span class="text-xs font-medium text-on-surface-variant/70">À partir de 3 minutes</span>
     </div>
   </div>
 
@@ -68,8 +68,8 @@
         <div class="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-2.5">
           <Papicon icon={row.icon} size={16} />
         </div>
-        <p class="text-[14px] font-semibold text-on-surface">{row.title}</p>
-        <p class="mt-1 text-[13px] text-on-surface-variant/65 leading-relaxed">{row.text}</p>
+        <p class="text-sm font-semibold text-on-surface">{row.title}</p>
+        <p class="mt-1 text-body-sm text-on-surface-variant/65 leading-relaxed">{row.text}</p>
       </li>
     {/each}
   </ul>

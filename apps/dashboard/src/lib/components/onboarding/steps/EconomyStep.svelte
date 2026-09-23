@@ -107,7 +107,7 @@
   <div class="space-y-7">
     <div class="flex gap-3">
       <div class="w-[140px] shrink-0">
-        <label for="currency-emoji" class="block text-[13px] font-semibold text-on-surface mb-1.5">
+        <label for="currency-emoji" class="block text-body-sm font-semibold text-on-surface mb-1.5">
           {m.onb_economy_emoji_label()}
         </label>
         <div class="flex items-center gap-1.5">
@@ -137,7 +137,7 @@
       </div>
 
       <div class="flex-1 min-w-0">
-        <label for="currency-name" class="block text-[13px] font-semibold text-on-surface mb-1.5">
+        <label for="currency-name" class="block text-body-sm font-semibold text-on-surface mb-1.5">
           {m.onb_economy_name_label()}
         </label>
         <input
@@ -146,13 +146,13 @@
           maxlength="24"
           oninput={(event) => wizard.answer({ currencyName: event.currentTarget.value })}
           class="w-full rounded-xl border border-outline-variant/40 bg-surface-container-lowest/60 px-3.5 py-2.5
-                 text-[14px] text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                 text-sm text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         />
       </div>
     </div>
 
     <div>
-      <p class="text-[12.5px] text-on-surface-variant/50 mb-2">{m.onb_economy_suggestions()}</p>
+      <p class="text-xs text-on-surface-variant/50 mb-2">{m.onb_economy_suggestions()}</p>
       <div class="flex flex-wrap gap-2">
         <!-- Le nom du serveur en tete de liste : « Les Kotbos » se lit mieux que
              « Pièces », et c'est la suggestion qu'on ne pouvait pas ecrire a
@@ -167,7 +167,7 @@
             type="button"
             onclick={() => { wizard.answer({ currencyName: suggestion.name, currencyEmoji: suggestion.emoji }); celebrateStep(); }}
             class="inline-flex items-center gap-1.5 rounded-full border border-outline-variant/40 px-3 py-1.5
-                   text-[12.5px] font-medium text-on-surface-variant/75 hover:border-primary/45 hover:text-on-surface transition-colors"
+                   text-xs font-medium text-on-surface-variant/75 hover:border-primary/45 hover:text-on-surface transition-colors"
           >
             <span>{suggestion.emoji}</span>
             {suggestion.name}
@@ -177,7 +177,7 @@
     </div>
 
     <div>
-      <p class="text-[13px] font-semibold text-on-surface mb-2.5">{m.onb_economy_rhythm_label()}</p>
+      <p class="text-body-sm font-semibold text-on-surface mb-2.5">{m.onb_economy_rhythm_label()}</p>
       <div class="space-y-2.5">
         {#each ECONOMY_RHYTHMS as entry (entry.key)}
           <ChoiceCard
@@ -209,7 +209,7 @@
       />
     </DiscordPreview>
 
-    <p class="mt-3 flex items-start gap-2 text-[12.5px] text-on-surface-variant/55 leading-relaxed">
+    <p class="mt-3 flex items-start gap-2 text-xs text-on-surface-variant/55 leading-relaxed">
       <Papicon icon="info" size={13} class="mt-0.5 shrink-0 text-on-surface-variant/35" />
       <span>
         Entre {config.dailyRewardMin} et {config.dailyRewardMax} par jour, une fois toutes les {config.dailyCooldownHour} h.
@@ -221,7 +221,7 @@
     <button
       type="button"
       onclick={skip}
-      class="text-[13px] font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
+      class="text-body-sm font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
     >
       Passer
     </button>
@@ -229,7 +229,7 @@
       type="button"
       onclick={apply}
       disabled={onboardingData.busy}
-      class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[14px] font-semibold text-on-primary
+      class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary
              hover:brightness-110 transition disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
     >
       {onboardingData.busy ? 'Enregistrement…' : 'Continuer'}

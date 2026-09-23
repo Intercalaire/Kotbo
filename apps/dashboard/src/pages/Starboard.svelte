@@ -166,7 +166,7 @@
         <div class="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
           <Papicon icon="warning" size={18} />
         </div>
-        <p class="text-[13px] text-on-surface-variant/80 leading-relaxed self-center">
+        <p class="text-body-sm text-on-surface-variant/80 leading-relaxed self-center">
           {m.starboard_no_channel_warning()}
         </p>
       </div>

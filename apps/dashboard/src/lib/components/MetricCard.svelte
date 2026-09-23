@@ -17,7 +17,7 @@
     <Papicon {icon} size={20} />
   </div>
   <div class="flex-1 min-w-0">
-    <p class="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant truncate">{label}</p>
+    <p class="text-2xs font-medium uppercase tracking-wider text-on-surface-variant truncate">{label}</p>
     {#if loading}
       <div class="mt-1.5 h-7 w-14 animate-pulse bg-surface-container-high rounded"></div>
     {:else}

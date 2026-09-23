@@ -44,7 +44,7 @@
   >
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div class="min-w-0">
-        <p class="text-[14px] font-semibold text-on-surface flex items-center gap-2">
+        <p class="text-sm font-semibold text-on-surface flex items-center gap-2">
           <Papicon icon="sparkles" size={15} />
           {#if !readiness.enabled}
             Mettre les partenariats en service
@@ -55,7 +55,7 @@
           {/if}
         </p>
 
-        <p class="text-[12px] text-on-surface-variant mt-1 max-w-2xl">
+        <p class="text-xs text-on-surface-variant mt-1 max-w-2xl">
           {#if !readiness.enabled}
             Kotbo cree les salons et le role necessaires, puis allume le module. Ce qui existe deja est repris
             tel quel, rien n'est remplace.
@@ -80,7 +80,7 @@
       <!-- Les permissions sont la seule chose que le module ne peut pas
            resoudre lui-meme : on dit laquelle manque, precisement. -->
       <div class="mt-3 rounded-lg bg-error/10 px-3 py-2">
-        <p class="text-[12px] text-error flex items-start gap-1.5">
+        <p class="text-xs text-error flex items-start gap-1.5">
           <Papicon icon="alert-triangle" size={13} class="mt-0.5 shrink-0" />
           <span>
             Kotbo n'a pas les permissions necessaires : {readiness.missingPermissions.join(', ')}. Accordez-les au
@@ -92,16 +92,16 @@
       <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
         {#each [...blocking, ...optional] as item (item.key)}
           <div class="rounded-lg bg-surface-container-low/60 px-3 py-2">
-            <p class="text-[12.5px] text-on-surface flex items-center gap-1.5">
+            <p class="text-xs text-on-surface flex items-center gap-1.5">
               <Papicon
                 icon={item.optional ? 'circle' : 'alert-triangle'}
                 size={12}
                 class={item.optional ? 'text-on-surface-variant' : 'text-amber-500'}
               />
               {item.label}
-              {#if item.optional}<span class="text-[10.5px] text-on-surface-variant">facultatif</span>{/if}
+              {#if item.optional}<span class="text-2xs text-on-surface-variant">facultatif</span>{/if}
             </p>
-            <p class="text-[11px] text-on-surface-variant mt-0.5">{item.why}</p>
+            <p class="text-2xs text-on-surface-variant mt-0.5">{item.why}</p>
           </div>
         {/each}
       </div>

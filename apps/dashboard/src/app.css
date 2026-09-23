@@ -89,6 +89,14 @@
   --color-warning: var(--warning-color);
   --color-success: var(--success-color);
 
+  /* Echelle de texte du dashboard : 2xs (11px), xs (12px), body-sm (13px),
+     sm (14px). Les pages ecrivaient une quinzaine de tailles en dur, de 8 a
+     13,5px ; tout ce qui passait sous 11px devenait illisible. Les deux crans
+     ajoutes ne fixent pas de hauteur de ligne, comme les valeurs arbitraires
+     qu'ils remplacent : la mise en page ne bouge pas. */
+  --text-2xs: 0.6875rem;
+  --text-body-sm: 0.8125rem;
+
   --font-headline: "Outfit", "Inter", system-ui, -apple-system, sans-serif;
   --font-body: "Inter", system-ui, -apple-system, sans-serif;
   --font-label: "Manrope", "Inter", system-ui, -apple-system, sans-serif;

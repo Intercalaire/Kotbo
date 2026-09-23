@@ -222,7 +222,7 @@
     {#if authStore.member?.roles}
       <div class="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-container border border-outline-variant">
         <Papicon icon={selectedGuild?.accessLevel === 'moderator' ? 'user' : selectedGuild?.accessLevel === 'admin' ? 'crown' : 'shield'} size={14} class="text-on-surface-variant" />
-        <span class="text-[11px] font-medium text-on-surface-variant">{highestRole}</span>
+        <span class="text-2xs font-medium text-on-surface-variant">{highestRole}</span>
       </div>
     {/if}
 
@@ -309,7 +309,7 @@
         <div class="absolute right-0 top-12 w-52 rounded-lg border border-outline-variant bg-surface-container-lowest shadow-lg overflow-hidden animate-in fade-in slide-up duration-150 z-50">
           <div class="px-3 py-2.5 border-b border-outline-variant">
             <p class="text-xs font-medium text-on-surface truncate">{authStore.user?.username}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">ID: {authStore.user?.id?.slice(0, 10)}...</p>
+            <p class="text-2xs text-on-surface-variant mt-0.5">ID: {authStore.user?.id?.slice(0, 10)}...</p>
           </div>
           <div class="py-1">
             <button

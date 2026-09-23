@@ -297,7 +297,7 @@
         </div>
         <div class="min-w-0">
           <h1 class="text-xl font-semibold text-on-surface tracking-tight leading-tight">{m.mc_title()}</h1>
-          <p class="text-[13px] text-on-surface-variant leading-relaxed max-w-xl">{m.mc_intro()}</p>
+          <p class="text-body-sm text-on-surface-variant leading-relaxed max-w-xl">{m.mc_intro()}</p>
         </div>
       </div>
 
@@ -386,9 +386,9 @@
             </span>
             <span class="min-w-0 flex-1">
               <span class="block text-sm font-semibold text-on-surface leading-tight">{group.label}</span>
-              <span class="block text-[12px] text-on-surface-variant/70 truncate">{group.description}</span>
+              <span class="block text-xs text-on-surface-variant/70 truncate">{group.description}</span>
             </span>
-            <span class="text-[11px] font-medium text-on-surface-variant/60 tabular-nums shrink-0">
+            <span class="text-2xs font-medium text-on-surface-variant/60 tabular-nums shrink-0">
               {groupActive}/{group.items.length}
             </span>
             <span class="text-on-surface-variant/50 shrink-0 transition-transform {collapsed ? '' : 'rotate-90'}">
@@ -420,21 +420,21 @@
                     <span class="flex items-center gap-2 flex-wrap">
                       <span class="text-sm font-medium text-on-surface group-hover:text-primary transition-colors">{nameOf(mod.id)}</span>
                       {#if mod.isFixed}
-                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-surface-container-high text-on-surface-variant/70">
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-semibold uppercase tracking-wide bg-surface-container-high text-on-surface-variant/70">
                           <Papicon icon="Lock" size={9} /> {m.mc_badge_core()}
                         </span>
                       {/if}
                       {#if locked}
-                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-primary/15 text-primary">
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-semibold uppercase tracking-wide bg-primary/15 text-primary">
                           <Papicon icon="Lock" size={9} /> {planLabel(mod.requiredPlan)}
                         </span>
                       {:else if blocked}
-                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-amber-500/15 text-amber-600">
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-semibold uppercase tracking-wide bg-amber-500/15 text-amber-600">
                           {m.mc_badge_blocked()}
                         </span>
                       {/if}
                     </span>
-                    <span class="block text-[12px] text-on-surface-variant/70 leading-snug line-clamp-1">
+                    <span class="block text-xs text-on-surface-variant/70 leading-snug line-clamp-1">
                       {#if locked}
                         {m.mc_row_in_plan({ plan: planLabel(mod.requiredPlan) })}
                       {:else if blocked}
@@ -448,7 +448,7 @@
                   {#if locked}
                     <a
                       href="/billing"
-                      class="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg text-[12px] font-medium text-primary bg-primary/10 hover:bg-primary/15 transition-colors shrink-0"
+                      class="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg text-xs font-medium text-primary bg-primary/10 hover:bg-primary/15 transition-colors shrink-0"
                     >
                       {m.mc_unlock()} <Papicon icon="ArrowRight" size={11} />
                     </a>
@@ -456,7 +456,7 @@
                     {#if mod.settingsPath && status === 'active'}
                       <a
                         href={mod.settingsPath}
-                        class="hidden sm:inline-flex items-center gap-1 px-2.5 h-8 rounded-lg text-[12px] font-medium text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-colors shrink-0"
+                        class="hidden sm:inline-flex items-center gap-1 px-2.5 h-8 rounded-lg text-xs font-medium text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-colors shrink-0"
                       >
                         {m.mc_configure()} <Papicon icon="ArrowRight" size={11} />
                       </a>
@@ -484,7 +484,7 @@
   <section class="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 space-y-4">
     <div>
       <h2 class="text-sm font-semibold text-on-surface">{m.mc_presets_title()}</h2>
-      <p class="text-[13px] text-on-surface-variant mt-0.5">{m.mc_presets_desc()}</p>
+      <p class="text-body-sm text-on-surface-variant mt-0.5">{m.mc_presets_desc()}</p>
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
       {#each presets as preset}
@@ -495,7 +495,7 @@
             </span>
             <span class="text-sm font-medium text-on-surface">{preset.title}</span>
           </div>
-          <p class="text-[12px] text-on-surface-variant/80 leading-relaxed flex-1">{preset.description}</p>
+          <p class="text-xs text-on-surface-variant/80 leading-relaxed flex-1">{preset.description}</p>
           <button
             type="button"
             onclick={() => applyPreset(preset.key)}
@@ -533,7 +533,7 @@
       </span>
       <div class="min-w-0 flex-1">
         <h2 class="text-base font-semibold text-on-surface leading-tight">{nameOf(mod.id)}</h2>
-        <p class="text-[12px] text-on-surface-variant/70 font-mono">{mod.id}</p>
+        <p class="text-xs text-on-surface-variant/70 font-mono">{mod.id}</p>
       </div>
       <button
         type="button"
@@ -546,7 +546,7 @@
     </div>
 
     <div class="p-5 space-y-6">
-      <p class="text-[13px] text-on-surface-variant leading-relaxed">{moduleDescription(mod.id, mod.description)}</p>
+      <p class="text-body-sm text-on-surface-variant leading-relaxed">{moduleDescription(mod.id, mod.description)}</p>
 
       <div class="flex items-center justify-between gap-3 rounded-lg border {mod.lockedByPlan ? 'border-primary/25 bg-primary/5' : 'border-outline-variant/30 bg-surface-container-low'} px-4 py-3">
         <div class="min-w-0">
@@ -561,7 +561,7 @@
               {m.mc_state_inactive()}
             {/if}
           </p>
-          <p class="text-[12px] text-on-surface-variant/70">
+          <p class="text-xs text-on-surface-variant/70">
             {#if mod.lockedByPlan}
               {m.mc_state_plan_desc()}
             {:else if mod.isFixed}
@@ -578,7 +578,7 @@
         {#if mod.lockedByPlan}
           <a
             href="/billing"
-            class="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg text-[13px] font-medium text-on-primary bg-primary hover:opacity-90 transition-opacity shrink-0"
+            class="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg text-body-sm font-medium text-on-primary bg-primary hover:opacity-90 transition-opacity shrink-0"
           >
             {m.mc_see_plans()} <Papicon icon="ArrowRight" size={12} />
           </a>
@@ -594,17 +594,17 @@
 
       {#if (mod.requires?.length ?? 0) > 0}
         <div class="space-y-2">
-          <h3 class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60">{m.mc_requires()}</h3>
+          <h3 class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/60">{m.mc_requires()}</h3>
           <ul class="space-y-1.5">
             {#each mod.requires! as key}
               {@const dep = moduleById.get(key)}
-              <li class="flex items-center gap-2 text-[13px]">
+              <li class="flex items-center gap-2 text-body-sm">
                 <span class="w-1.5 h-1.5 rounded-full shrink-0 {dep?.status === 'active' ? 'bg-emerald-500' : 'bg-amber-500'}"></span>
                 <button type="button" class="text-on-surface hover:text-primary transition-colors" onclick={() => (selectedId = key)}>
                   {nameOf(key)}
                 </button>
                 {#if dep?.status !== 'active'}
-                  <span class="text-[11px] text-amber-600">{m.mc_dep_inactive()}</span>
+                  <span class="text-2xs text-amber-600">{m.mc_dep_inactive()}</span>
                 {/if}
               </li>
             {/each}
@@ -614,12 +614,12 @@
 
       {#if (mod.dependents?.length ?? 0) > 0}
         <div class="space-y-2">
-          <h3 class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/60">
+          <h3 class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/60">
             {m.mc_stops_with()}
           </h3>
           <ul class="space-y-1.5">
             {#each mod.dependents! as key}
-              <li class="flex items-center gap-2 text-[13px]">
+              <li class="flex items-center gap-2 text-body-sm">
                 <span class="w-1.5 h-1.5 rounded-full shrink-0 {moduleById.get(key)?.status === 'active' ? 'bg-emerald-500' : 'bg-on-surface-variant/30'}"></span>
                 <button type="button" class="text-on-surface hover:text-primary transition-colors" onclick={() => (selectedId = key)}>
                   {nameOf(key)}

@@ -162,12 +162,12 @@
   </div>
 
   <div class="mt-6">
-    <p class="flex items-center gap-2 text-[13px] font-semibold text-on-surface mb-1">
+    <p class="flex items-center gap-2 text-body-sm font-semibold text-on-surface mb-1">
       <Papicon icon="award" size={14} class="text-primary" />
       Des rôles à débloquer
       <span class="font-normal text-on-surface-variant/50">- facultatif</span>
     </p>
-    <p class="text-[12.5px] text-on-surface-variant/60 leading-relaxed mb-3">
+    <p class="text-xs text-on-surface-variant/60 leading-relaxed mb-3">
       Le rôle est donné automatiquement au passage du niveau. C'est ce qui fait qu'on
       regarde sa progression.
     </p>
@@ -203,7 +203,7 @@
       </div>
 
       <div class="mt-5">
-        <p class="text-[13px] font-semibold text-on-surface mb-2">Combien de rôles ?</p>
+        <p class="text-body-sm font-semibold text-on-surface mb-2">Combien de rôles ?</p>
         <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="Nombre de rôles à débloquer">
           {#each LADDER_COUNTS as option (option)}
             <button
@@ -211,7 +211,7 @@
               role="radio"
               aria-checked={count === option}
               onclick={() => { count = option; celebrateStep(); }}
-              class="min-w-13 rounded-xl border px-3.5 py-2 text-[13.5px] font-semibold tabular-nums transition
+              class="min-w-13 rounded-xl border px-3.5 py-2 text-body-sm font-semibold tabular-nums transition
                      focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40
                      {count === option
                        ? 'border-primary bg-primary/[0.07] text-primary'
@@ -221,14 +221,14 @@
             </button>
           {/each}
         </div>
-        <p class="mt-2 text-[12.5px] text-on-surface-variant/50 leading-relaxed">
+        <p class="mt-2 text-xs text-on-surface-variant/50 leading-relaxed">
           <!-- Le dernier palier est ce qui se lit en premier : c'est lui qui dit
                si l'échelle couvre un mois ou deux ans. -->
           Du niveau {ladderAscending[0]?.level} au niveau {ladderAscending[ladderAscending.length - 1]?.level}.
         </p>
       </div>
     {:else if roles.length === 0}
-      <p class="rounded-xl border border-outline-variant/30 bg-surface-container-low/30 px-4 py-3 text-[13px] text-on-surface-variant/60">
+      <p class="rounded-xl border border-outline-variant/30 bg-surface-container-low/30 px-4 py-3 text-body-sm text-on-surface-variant/60">
         Aucun rôle attribuable n'a été trouvé. Choisissez « Créer l'échelle pour moi », ou
         ajoutez vos paliers plus tard depuis la page Niveaux.
       </p>
@@ -236,8 +236,8 @@
       <div class="space-y-2">
         {#each REWARD_TIERS as level (level)}
           <div class="flex items-center gap-3 rounded-xl border border-outline-variant/35 bg-surface-container-low/25 px-4 py-2.5">
-            <span class="shrink-0 inline-flex items-center gap-1.5 text-[13px] font-semibold text-on-surface">
-              <span class="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-[12px] font-bold">
+            <span class="shrink-0 inline-flex items-center gap-1.5 text-body-sm font-semibold text-on-surface">
+              <span class="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
                 {level}
               </span>
               Niveau {level}
@@ -245,7 +245,7 @@
             <select
               bind:value={rewards[level]}
               aria-label={`Rôle offert au niveau ${level}`}
-              class="flex-1 min-w-0 rounded-lg border border-outline-variant/40 bg-surface-container-lowest/60 px-3 py-1.5 text-[13px] text-on-surface focus:outline-none focus:border-primary/50"
+              class="flex-1 min-w-0 rounded-lg border border-outline-variant/40 bg-surface-container-lowest/60 px-3 py-1.5 text-body-sm text-on-surface focus:outline-none focus:border-primary/50"
             >
               <option value={undefined}>Aucun rôle</option>
               {#each roles as role (role.id)}
@@ -278,22 +278,22 @@
       <!-- L'échelle entière, sous l'annonce : c'est en la voyant d'un bloc qu'on
            juge si huit paliers sont huit paliers de trop. -->
       <div class="mt-3 rounded-2xl border border-outline-variant/30 bg-surface-container-lowest/50 p-4">
-        <p class="text-[12.5px] font-semibold text-on-surface mb-3">Les paliers posés</p>
+        <p class="text-xs font-semibold text-on-surface mb-3">Les paliers posés</p>
         <div class="space-y-1.5">
           {#each ladderAscending as role (role.key)}
             <div class="flex items-center gap-2.5">
-              <span class="w-9 shrink-0 text-[11.5px] font-semibold tabular-nums text-on-surface-variant/45">
+              <span class="w-9 shrink-0 text-2xs font-semibold tabular-nums text-on-surface-variant/45">
                 {role.level}
               </span>
               <span class="w-2 h-2 rounded-full shrink-0" style="background-color: {role.color}"></span>
-              <span class="text-[13px] text-on-surface-variant/80 truncate">{role.name}</span>
+              <span class="text-body-sm text-on-surface-variant/80 truncate">{role.name}</span>
             </div>
           {/each}
         </div>
       </div>
     {/if}
 
-    <p class="mt-3 flex items-start gap-2 text-[12.5px] text-on-surface-variant/55 leading-relaxed">
+    <p class="mt-3 flex items-start gap-2 text-xs text-on-surface-variant/55 leading-relaxed">
       <Papicon icon="clock" size={13} class="mt-0.5 shrink-0 text-on-surface-variant/35" />
       <span>
         Un message ne rapporte qu'une fois toutes les {config.cooldownSeconds} s : c'est ce qui
@@ -306,7 +306,7 @@
     <button
       type="button"
       onclick={skip}
-      class="text-[13px] font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
+      class="text-body-sm font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
     >
       Passer
     </button>

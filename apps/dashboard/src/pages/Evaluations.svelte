@@ -64,7 +64,7 @@
 >
   {#snippet actions()}
     <button
-      class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
+      class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
       onclick={handleGenerateAll}
       disabled={generating}
     >
@@ -88,7 +88,7 @@
         <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
           <div class="w-20 h-20 rounded-full border-[5px] flex flex-col items-center justify-center mx-auto mb-2" style="border-color: {getScoreColor(data.averageScore)}">
             <span class="text-2xl font-bold text-on-surface leading-none">{data.averageScore}</span>
-            <span class="text-[10px] text-on-surface-variant/60">/100</span>
+            <span class="text-2xs text-on-surface-variant/60">/100</span>
           </div>
           <div class="text-xs font-medium text-on-surface-variant/60 mt-1">Score moyen</div>
         </div>

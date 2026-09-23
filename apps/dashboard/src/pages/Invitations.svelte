@@ -523,23 +523,23 @@
         {/each}
       {:else}
         <div class="premium-card p-4 rounded-lg">
-          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">{m.iv_tab_invites()}</p>
+          <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/50">{m.iv_tab_invites()}</p>
           <p class="text-2xl font-semibold text-primary">{totalInvites}</p>
         </div>
         <div class="premium-card p-4 rounded-lg">
-          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">{m.iv_sources_count()}</p>
+          <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/50">{m.iv_sources_count()}</p>
           <p class="text-2xl font-semibold text-cyan-500">{sourceStats.length}</p>
         </div>
         <div class="premium-card p-4 rounded-lg">
-          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">{m.iv_attributed_joins()}</p>
+          <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/50">{m.iv_attributed_joins()}</p>
           <p class="text-2xl font-semibold text-primary">{sourceCoverage}%</p>
         </div>
         <div class="premium-card p-4 rounded-lg">
-          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">{m.iv_total_joins()}</p>
+          <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/50">{m.iv_total_joins()}</p>
           <p class="text-2xl font-semibold text-emerald-500">{totalJoins}</p>
         </div>
         <div class="premium-card p-4 rounded-lg">
-          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">{m.iv_retention()}</p>
+          <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/50">{m.iv_retention()}</p>
           <p class="text-2xl font-semibold text-cyan-500">{retentionRate}%</p>
         </div>
       {/if}
@@ -672,7 +672,7 @@
                           {invite.sourceLabel}
                         </button>
                       {:else if canManageInvites}
-                        <button type="button" class="text-[11px] font-semibold text-on-surface-variant/50 hover:text-primary transition-colors inline-flex items-center gap-1" onclick={() => beginSourceEdit(invite)}>
+                        <button type="button" class="text-2xs font-semibold text-on-surface-variant/50 hover:text-primary transition-colors inline-flex items-center gap-1" onclick={() => beginSourceEdit(invite)}>
                           <Papicon icon="Plus" size={13} /> {m.iv_name()}
                         </button>
                       {:else}
@@ -682,19 +682,19 @@
                     <td class="py-3 pr-4">
                       <div class="flex flex-col">
                         <span class="font-bold text-on-surface">{invite.inviterTag || invite.inviterId || m.iv_unknown()}</span>
-                        <span class="text-[10px] text-on-surface-variant/50">{formatDate(invite.createdAt)}</span>
+                        <span class="text-2xs text-on-surface-variant/50">{formatDate(invite.createdAt)}</span>
                       </div>
                     </td>
                     <td class="py-3 pr-4">
                       <div class="flex gap-1 flex-wrap">
-                        <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold {getStatusClass(status)}">
+                        <span class="px-2 py-0.5 rounded-full text-2xs font-semibold {getStatusClass(status)}">
                           {getStatusLabel(status)}
                         </span>
                         {#if invite.inviterSuspended}
-                          <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-500/10 text-red-500">{m.iv_inviter_suspended_badge()}</span>
+                          <span class="px-2 py-0.5 rounded-full text-2xs font-semibold bg-red-500/10 text-red-500">{m.iv_inviter_suspended_badge()}</span>
                         {/if}
                         {#if isDormant(invite)}
-                          <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-500/10 text-on-surface-variant/60">{m.iv_dormant()}</span>
+                          <span class="px-2 py-0.5 rounded-full text-2xs font-semibold bg-slate-500/10 text-on-surface-variant/60">{m.iv_dormant()}</span>
                         {/if}
                       </div>
                     </td>
@@ -707,7 +707,7 @@
                     <td class="py-3 pr-4 text-right">
                       <span class="font-semibold {invite.retention >= 70 ? 'text-emerald-500' : invite.retention >= 40 ? 'text-amber-500' : 'text-red-500'}">{invite.retention}%</span>
                     </td>
-                    <td class="py-3 pr-4 text-right text-[10px] text-on-surface-variant/60">
+                    <td class="py-3 pr-4 text-right text-2xs text-on-surface-variant/60">
                       {formatRelative(invite.lastJoinedAt)}
                     </td>
                     <td class="py-3">
@@ -790,7 +790,7 @@
           <div class="max-w-2xl">
             <div class="flex items-center gap-2 text-cyan-500 mb-3">
               <Papicon icon="Route" size={18} />
-              <span class="text-[11px] font-semibold uppercase tracking-[0.18em]">{m.iv_join_attribution()}</span>
+              <span class="text-2xs font-semibold uppercase tracking-[0.18em]">{m.iv_join_attribution()}</span>
             </div>
             <h3 class="text-xl font-semibold text-on-surface">{m.iv_channel_growth_question()}</h3>
             <p class="mt-2 text-sm text-on-surface-variant/60 leading-relaxed">
@@ -799,7 +799,7 @@
           </div>
           <div class="source-overview-metric">
             {#if leadingSource}
-              <span class="text-[10px] uppercase tracking-widest text-on-surface-variant/50">{m.iv_best_source()}</span>
+              <span class="text-2xs uppercase tracking-widest text-on-surface-variant/50">{m.iv_best_source()}</span>
               <strong class="text-lg text-on-surface mt-1">{leadingSource.name}</strong>
               <span class="text-xs text-emerald-500 mt-1">{leadingSource.joinedCount > 1 ? m.iv_join_other({ count: leadingSource.joinedCount }) : m.iv_join_one({ count: leadingSource.joinedCount })}</span>
             {:else}
@@ -812,7 +812,7 @@
           <section class="source-editor" aria-label={m.iv_edit_source_aria()}>
             <div class="min-w-0">
               <p class="text-xs font-semibold text-on-surface">{m.iv_naming_code({ code: editingInvite.code })}</p>
-              <p class="text-[11px] text-on-surface-variant/50 mt-1">{m.iv_reuse_name_hint()}</p>
+              <p class="text-2xs text-on-surface-variant/50 mt-1">{m.iv_reuse_name_hint()}</p>
             </div>
             <div class="flex items-center gap-2 w-full md:w-auto">
               <input
@@ -845,7 +845,7 @@
             <div class="overflow-x-auto">
               <table class="w-full min-w-[720px]">
                 <thead>
-                  <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/45 border-b border-outline-variant/10">
+                  <tr class="text-left text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/45 border-b border-outline-variant/10">
                     <th class="px-5 py-3">{m.iv_col_source()}</th>
                     <th class="px-4 py-3">{m.iv_chart_links()}</th>
                     <th class="px-4 py-3 text-right">{m.iv_chart_joins()}</th>
@@ -951,13 +951,13 @@
                       class="w-10 h-10 rounded-full object-cover"
                       loading="lazy"
                     />
-                    <span class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full {rank === 1 ? 'bg-yellow-500' : rank === 2 ? 'bg-gray-400' : rank === 3 ? 'bg-amber-600' : 'bg-surface-container-high'} text-[11px] font-semibold flex items-center justify-center border-2 border-surface-container">
+                    <span class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full {rank === 1 ? 'bg-yellow-500' : rank === 2 ? 'bg-gray-400' : rank === 3 ? 'bg-amber-600' : 'bg-surface-container-high'} text-2xs font-semibold flex items-center justify-center border-2 border-surface-container">
                       {rank}
                     </span>
                   </div>
                   <div>
                     <p class="text-sm font-semibold text-on-surface">{inviter.inviterTag}</p>
-                    <p class="text-[10px] text-on-surface-variant/50">{m.iv_last_join_short()} {formatRelative(inviter.lastJoinedAt)}</p>
+                    <p class="text-2xs text-on-surface-variant/50">{m.iv_last_join_short()} {formatRelative(inviter.lastJoinedAt)}</p>
                   </div>
                 </div>
                 <span class="text-lg font-semibold text-emerald-500">{inviter.joinedCount}</span>
@@ -1058,8 +1058,8 @@
                   <div class="flex items-start justify-between gap-3">
                     <div class="flex-1">
                       <p class="text-sm font-semibold text-on-surface">{inviter.userTag || inviter.userId}</p>
-                      <p class="text-[10px] text-on-surface-variant/50 mt-1">{inviter.reason || m.iv_no_reason()}</p>
-                      <p class="text-[10px] text-on-surface-variant/40">{formatDate(inviter.createdAt)}</p>
+                      <p class="text-2xs text-on-surface-variant/50 mt-1">{inviter.reason || m.iv_no_reason()}</p>
+                      <p class="text-2xs text-on-surface-variant/40">{formatDate(inviter.createdAt)}</p>
                     </div>
                     {#if canModerate}
                       <div class="flex gap-2 shrink-0">

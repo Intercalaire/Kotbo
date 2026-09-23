@@ -213,7 +213,7 @@
                 <span class="text-sm font-medium text-gray-200 group-hover:text-white transition-colors truncate">
                   {suggestion.displayName || suggestion.username}
                 </span>
-                <span class="text-[10px] text-gray-500 group-hover:text-gray-400 transition-colors shrink-0 ml-2">
+                <span class="text-2xs text-gray-500 group-hover:text-gray-400 transition-colors shrink-0 ml-2">
                   @{suggestion.username}
                 </span>
               </div>

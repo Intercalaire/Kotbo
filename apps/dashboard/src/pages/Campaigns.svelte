@@ -299,11 +299,11 @@
         {@const report = reports[campaign.id]}
         <SectionCard title={campaign.name} description={campaign.description || undefined}>
           {#snippet actions()}
-            <span class="text-[11px] px-2 py-0.5 rounded-full font-semibold {meta.bg} {meta.text}">{meta.label}</span>
+            <span class="text-2xs px-2 py-0.5 rounded-full font-semibold {meta.bg} {meta.text}">{meta.label}</span>
           {/snippet}
 
           <div class="space-y-3">
-            <div class="flex flex-wrap items-center gap-3 text-[12px] text-on-surface-variant">
+            <div class="flex flex-wrap items-center gap-3 text-xs text-on-surface-variant">
               <span class="inline-flex items-center gap-1.5">
                 <Papicon icon="layers" size={13} />
                 {stepsSent(campaign)}/{campaign.steps.length} étape(s) envoyée(s)
@@ -326,13 +326,13 @@
             <div class="space-y-1.5">
               {#each campaign.steps as step, i (step.id ?? i)}
                 <div class="flex items-center gap-2.5 rounded-lg border border-outline-variant/20 bg-surface-container-low/40 px-3 py-2">
-                  <span class="text-[11px] font-semibold tabular-nums text-on-surface-variant/70 w-14 shrink-0">
+                  <span class="text-2xs font-semibold tabular-nums text-on-surface-variant/70 w-14 shrink-0">
                     {offsetLabel(step.offsetMinutes)}
                   </span>
                   <Papicon icon={step.delivery === 'DM' ? 'mail' : 'hash'} size={13} class="text-on-surface-variant/60 shrink-0" />
-                  <p class="text-[12px] text-on-surface truncate flex-1 min-w-0">{step.content}</p>
+                  <p class="text-xs text-on-surface truncate flex-1 min-w-0">{step.content}</p>
                   {#if step.status === 'SENT'}
-                    <span class="flex items-center gap-1 text-[10.5px] text-emerald-500 shrink-0">
+                    <span class="flex items-center gap-1 text-2xs text-emerald-500 shrink-0">
                       {step.deliveredCount}
                       <Papicon icon="check" size={11} />
                       {#if step.failedCount}
@@ -343,7 +343,7 @@
                       {/if}
                     </span>
                   {:else if step.status === 'FAILED'}
-                    <span class="text-[10.5px] text-error shrink-0" title={step.lastError ?? ''}>échec</span>
+                    <span class="text-2xs text-error shrink-0" title={step.lastError ?? ''}>échec</span>
                   {/if}
                 </div>
               {/each}
@@ -352,22 +352,22 @@
             {#if report}
               <div class="grid grid-cols-4 gap-2 pt-1">
                 <div class="rounded-lg bg-surface-container px-2 py-1.5 text-center">
-                  <div class="text-[13px] font-semibold text-on-surface tabular-nums">{report.delivered}</div>
-                  <div class="text-[10px] text-on-surface-variant">Envoyés</div>
+                  <div class="text-body-sm font-semibold text-on-surface tabular-nums">{report.delivered}</div>
+                  <div class="text-2xs text-on-surface-variant">Envoyés</div>
                 </div>
                 <div class="rounded-lg bg-surface-container px-2 py-1.5 text-center">
-                  <div class="text-[13px] font-semibold text-on-surface tabular-nums">{report.failed}</div>
-                  <div class="text-[10px] text-on-surface-variant">Échecs</div>
+                  <div class="text-body-sm font-semibold text-on-surface tabular-nums">{report.failed}</div>
+                  <div class="text-2xs text-on-surface-variant">Échecs</div>
                 </div>
                 <div class="rounded-lg bg-surface-container px-2 py-1.5 text-center">
-                  <div class="text-[13px] font-semibold text-on-surface tabular-nums">{report.reactions}</div>
-                  <div class="text-[10px] text-on-surface-variant">Réactions</div>
+                  <div class="text-body-sm font-semibold text-on-surface tabular-nums">{report.reactions}</div>
+                  <div class="text-2xs text-on-surface-variant">Réactions</div>
                 </div>
                 <div class="rounded-lg bg-surface-container px-2 py-1.5 text-center" title={campaign.inviteCode ? '' : "Sans code d'invitation, rien ne relie une arrivée à la campagne"}>
-                  <div class="text-[13px] font-semibold text-on-surface tabular-nums">
+                  <div class="text-body-sm font-semibold text-on-surface tabular-nums">
                     {campaign.inviteCode ? report.joins : '-'}
                   </div>
-                  <div class="text-[10px] text-on-surface-variant">Arrivées</div>
+                  <div class="text-2xs text-on-surface-variant">Arrivées</div>
                 </div>
               </div>
             {/if}
@@ -430,7 +430,7 @@
         </div>
         <div class="min-w-0 flex-1">
           <p class="text-sm font-semibold text-on-surface">Étapes</p>
-          <p class="text-[12px] text-on-surface-variant mt-0.5 leading-relaxed">
+          <p class="text-xs text-on-surface-variant mt-0.5 leading-relaxed">
             Le décalage se compte depuis la date pivot. Négatif pour un teaser : −10080 min = une semaine avant.
           </p>
         </div>
@@ -445,7 +445,7 @@
                 <span class="w-5 h-5 rounded-full bg-primary/15 text-primary text-[10.5px] font-bold flex items-center justify-center shrink-0">
                   {index + 1}
                 </span>
-                <span class="text-[11.5px] font-semibold text-on-surface-variant">
+                <span class="text-2xs font-semibold text-on-surface-variant">
                   {offsetLabel(step.offsetMinutes)}
                 </span>
               </span>
@@ -463,7 +463,7 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <label class="block">
-                <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Décalage (min)</span>
+                <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Décalage (min)</span>
                 <input
                   type="number"
                   bind:value={step.offsetMinutes}
@@ -471,7 +471,7 @@
                 />
               </label>
               <label class="block">
-                <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Diffusion</span>
+                <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Diffusion</span>
                 <FormSelect bind:value={step.delivery} className="w-full">
                   <option value="CHANNEL">Dans un salon</option>
                   <option value="DM">En message privé</option>
@@ -479,7 +479,7 @@
               </label>
               {#if step.delivery === 'CHANNEL'}
                 <label class="block">
-                  <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Salon</span>
+                  <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Salon</span>
                   <FormSelect bind:value={step.channelId} className="w-full">
                     <option value={null}>Choisir…</option>
                     {#each discordChannels as channel (channel.id)}
@@ -508,7 +508,7 @@
         </div>
         <div class="min-w-0 flex-1">
           <p class="text-sm font-semibold text-on-surface">Audience</p>
-          <p class="text-[12px] text-on-surface-variant mt-0.5 leading-relaxed">
+          <p class="text-xs text-on-surface-variant mt-0.5 leading-relaxed">
             Les critères se cumulent. Ils ne servent qu'aux étapes en message privé :
             un message en salon est vu par tous ceux qui y ont accès.
           </p>
@@ -524,7 +524,7 @@
       </div>
 
       {#if audiencePreview}
-        <p class="text-[12px] text-on-surface-variant rounded-lg bg-surface-container px-3 py-2 mt-3">
+        <p class="text-xs text-on-surface-variant rounded-lg bg-surface-container px-3 py-2 mt-3">
           <span class="font-semibold text-on-surface">{audiencePreview.count} membre(s)</span>
           {#if audiencePreview.sample.length > 0}
             · {audiencePreview.sample.map((s) => s.name).join(', ')}{audiencePreview.count > audiencePreview.sample.length ? '…' : ''}
@@ -534,7 +534,7 @@
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
         <div>
-          <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Rôles visés</span>
+          <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Rôles visés</span>
           <MultiSelect
             bind:values={form.audienceRoleIds}
             options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
@@ -542,7 +542,7 @@
           />
         </div>
         <div>
-          <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Rôles exclus</span>
+          <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Rôles exclus</span>
           <MultiSelect
             bind:values={form.audienceExcludeRoleIds}
             options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
@@ -553,15 +553,15 @@
 
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
         <label class="block">
-          <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Niveau minimum</span>
+          <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Niveau minimum</span>
           <FormInput type="number" bind:value={form.audienceMinLevel} placeholder="-" className="w-full" />
         </label>
         <label class="block">
-          <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Ancienneté (jours)</span>
+          <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Ancienneté (jours)</span>
           <FormInput type="number" bind:value={form.audienceMinTenureDays} placeholder="-" className="w-full" />
         </label>
         <label class="block">
-          <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Inactif depuis (jours)</span>
+          <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Inactif depuis (jours)</span>
           <FormInput type="number" bind:value={form.audienceInactiveDays} placeholder="-" className="w-full" />
         </label>
       </div>
@@ -575,7 +575,7 @@
         </div>
         <div class="min-w-0 flex-1">
           <p class="text-sm font-semibold text-on-surface">Mesure &amp; partenaires</p>
-          <p class="text-[12px] text-on-surface-variant mt-0.5 leading-relaxed">
+          <p class="text-xs text-on-surface-variant mt-0.5 leading-relaxed">
             Comment attribuer les arrivées à la campagne, et où la relayer.
           </p>
         </div>
@@ -585,7 +585,7 @@
         <label class="block">
           <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Code d'invitation à créditer</span>
           <FormInput type="text" bind:value={form.inviteCode} placeholder="ex. saison3" className="w-full" />
-          <span class="text-[10px] text-on-surface-variant/60 ml-1 mt-1 block">
+          <span class="text-2xs text-on-surface-variant/60 ml-1 mt-1 block">
             Les arrivées passées par ce code depuis la date pivot sont comptées comme conversions.
             Sans lui, aucune arrivée n'est attribuable à la campagne.
           </span>
@@ -603,7 +603,7 @@
             placeholder="1234…, 5678…"
             className="w-full"
           />
-          <span class="text-[10px] text-on-surface-variant/60 ml-1 mt-1 block">
+          <span class="text-2xs text-on-surface-variant/60 ml-1 mt-1 block">
             Serveurs partenaires où Kotbo est présent. Les étapes en salon y sont postées si le salon
             y existe sous le même identifiant ; les serveurs injoignables comptent comme des échecs.
           </span>

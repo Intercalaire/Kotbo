@@ -44,7 +44,7 @@
   } as const;
 
   const NAME_CLASSES = {
-    xs: 'text-[11px]',
+    xs: 'text-2xs',
     sm: 'text-xs',
     md: 'text-sm',
     lg: 'text-base',
@@ -74,7 +74,7 @@
   <span class="min-w-0 flex flex-col text-left">
     <span class="{NAME_CLASSES[size]} font-semibold text-on-surface truncate">{prefix}{label}</span>
     {#if subtitle}
-      <span class="text-[10px] font-medium text-on-surface-variant/60 truncate">{subtitle}</span>
+      <span class="text-2xs font-medium text-on-surface-variant/60 truncate">{subtitle}</span>
     {/if}
   </span>
 {/snippet}

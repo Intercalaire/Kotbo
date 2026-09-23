@@ -117,7 +117,7 @@
     <span class="text-xs font-bold text-on-surface tracking-wide truncate">{def?.label ?? data.nodeType}</span>
     {#if data.replayOrder != null}
       <span
-        class="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm {data.replayStatus === 'ERROR'
+        class="ml-auto text-2xs font-bold px-1.5 py-0.5 rounded shadow-sm {data.replayStatus === 'ERROR'
           ? 'bg-red-500 text-white'
           : data.replayStatus === 'SKIPPED'
             ? 'bg-surface-container-highest text-on-surface-variant'
@@ -180,7 +180,7 @@
       <div class="px-2 py-2 my-1 rounded-lg bg-surface-container-highest/40 border border-outline-variant/15 space-y-1.5 nodrag">
         {#each def.config as field}
           <div class="space-y-1">
-            <label for="node-cfg-{id}-{field.key}" class="text-[9px] font-bold text-on-surface-variant/80 uppercase tracking-wider block">
+            <label for="node-cfg-{id}-{field.key}" class="text-2xs font-bold text-on-surface-variant/80 uppercase tracking-wider block">
               {field.label}
             </label>
 
@@ -291,7 +291,7 @@
           {@const connected = isInputConnected(inputPort.id)}
           {#if !connected}
             <div class="px-2 py-1.5 rounded-lg bg-surface-container-highest/30 border border-outline-variant/10 space-y-1 nodrag">
-              <label for="direct-input-{id}-{inputPort.id}" class="text-[9px] font-bold text-on-surface-variant/70 uppercase tracking-wider block">
+              <label for="direct-input-{id}-{inputPort.id}" class="text-2xs font-bold text-on-surface-variant/70 uppercase tracking-wider block">
                 {getDataPortLabel(inputPort)} (Direct)
               </label>
 
@@ -340,7 +340,7 @@
                   <button
                     type="button"
                     onclick={() => openWysiwyg(inputPort.id, `Éditer "${getDataPortLabel(inputPort)}"`)}
-                    class="nodrag w-full px-2 py-1 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 transition-all flex items-center justify-center gap-1"
+                    class="nodrag w-full px-2 py-1 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-2xs font-semibold text-indigo-700 dark:text-indigo-300 transition-all flex items-center justify-center gap-1"
                   >
                     <Papicon icon="TextBubble" size={11} />
                     <span>Éditeur WYSIWYG / Aperçu</span>
@@ -377,7 +377,7 @@
       <button
         type="button"
         onclick={() => openWysiwyg('value', 'Éditer le texte fixe')}
-        class="nodrag w-full px-2 py-1 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 transition-all flex items-center justify-center gap-1"
+        class="nodrag w-full px-2 py-1 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-2xs font-semibold text-indigo-700 dark:text-indigo-300 transition-all flex items-center justify-center gap-1"
       >
         <Papicon icon="TextBubble" size={11} />
         <span>Éditeur WYSIWYG / Aperçu</span>

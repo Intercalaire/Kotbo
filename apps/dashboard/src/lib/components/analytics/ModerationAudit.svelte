@@ -162,7 +162,7 @@
               <img src={getAvatar(mod.avatarUrl, mod.moderatorTag, mod.userId)} alt="" class="w-8 h-8 rounded-lg object-cover" />
               <div>
                 <p class="text-sm font-semibold text-on-surface">@{mod.moderatorTag}</p>
-                <p class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">{m.d4_moderation_activity()}</p>
+                <p class="text-2xs font-bold text-on-surface-variant/40 uppercase tracking-widest">{m.d4_moderation_activity()}</p>
               </div>
             </div>
             <span class="text-sm font-semibold text-primary">{m.d4_count_actions({ count: mod.count })}</span>
@@ -200,7 +200,7 @@
               <img src={getAvatar(member.avatarUrl, member.targetTag, member.targetUserId)} alt="" class="w-8 h-8 rounded-lg object-cover" />
               <div>
                 <p class="text-sm font-semibold text-on-surface">@{member.targetTag}</p>
-                <p class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">{m.d4_recidivism()}</p>
+                <p class="text-2xs font-bold text-on-surface-variant/40 uppercase tracking-widest">{m.d4_recidivism()}</p>
               </div>
             </div>
             <span class="text-sm font-semibold text-rose-500">{m.d4_count_sanctions({ count: member.count })}</span>
@@ -248,14 +248,14 @@
             <div>
               <div class="flex items-center gap-2">
                 <p class="text-sm font-semibold text-on-surface">@{sanction.targetTag}</p>
-                <span class="px-2 py-0.5 rounded-lg text-[11px] font-semibold tracking-widest uppercase" style="background: {getSanctionColor(sanction.type)}20; color: {getSanctionColor(sanction.type)}">{sanction.type}</span>
+                <span class="px-2 py-0.5 rounded-lg text-2xs font-semibold tracking-widest uppercase" style="background: {getSanctionColor(sanction.type)}20; color: {getSanctionColor(sanction.type)}">{sanction.type}</span>
               </div>
               <p class="text-xs font-medium text-on-surface-variant/60 mt-0.5 line-clamp-1">{sanction.reason || m.d4_no_reason_specified()}</p>
             </div>
           </div>
           <div class="flex items-center justify-between md:justify-end gap-6 border-t md:border-t-0 border-outline-variant/5 pt-3 md:pt-0 shrink-0">
             <div class="text-right">
-              <p class="text-[11px] font-semibold text-on-surface-variant/40 uppercase tracking-widest">{m.d4_moderator()}</p>
+              <p class="text-2xs font-semibold text-on-surface-variant/40 uppercase tracking-widest">{m.d4_moderator()}</p>
               <div class="flex items-center gap-2 mt-0.5">
                 <img src={getAvatar(sanction.moderatorAvatarUrl, sanction.moderatorTag, sanction.moderatorUserId)} alt="" class="w-5 h-5 rounded-md object-cover" />
                 <p class="text-xs font-bold text-on-surface">@{sanction.moderatorTag}</p>

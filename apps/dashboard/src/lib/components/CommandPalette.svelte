@@ -336,7 +336,7 @@
           placeholder="Chercher une page, une action..."
           class="flex-1 bg-transparent text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none"
         />
-        <kbd class="hidden sm:flex px-1.5 py-0.5 rounded bg-surface-container border border-outline-variant text-[10px] font-medium text-on-surface-variant/40 leading-none">
+        <kbd class="hidden sm:flex px-1.5 py-0.5 rounded bg-surface-container border border-outline-variant text-2xs font-medium text-on-surface-variant/40 leading-none">
           ESC
         </kbd>
       </div>
@@ -345,7 +345,7 @@
       <div class="max-h-[60vh] overflow-y-auto py-1">
         {#each Object.entries(filteredItems()) as [group, items]}
           <div class="px-1 pb-0.5">
-            <p class="text-[10px] font-medium uppercase tracking-wider text-on-surface-variant px-2.5 py-1.5">{group}</p>
+            <p class="text-2xs font-medium uppercase tracking-wider text-on-surface-variant px-2.5 py-1.5">{group}</p>
             {#each items as item}
               {@const globalIdx = flatItems().indexOf(item)}
               {@const isSelected = globalIdx === selectedIndex}
@@ -362,11 +362,11 @@
                 <div class="flex-1 min-w-0">
                   <p class="text-sm leading-none truncate">{item.label}</p>
                   {#if item.sublabel}
-                    <p class="text-[10px] text-on-surface-variant/50 mt-0.5 truncate">{item.sublabel}</p>
+                    <p class="text-2xs text-on-surface-variant/50 mt-0.5 truncate">{item.sublabel}</p>
                   {/if}
                 </div>
                 {#if isSelected}
-                  <kbd class="text-[9px] text-primary/50 leading-none">↵</kbd>
+                  <kbd class="text-2xs text-primary/50 leading-none">↵</kbd>
                 {/if}
               </button>
             {/each}
@@ -383,16 +383,16 @@
 
       <!-- Footer hint -->
       <div class="flex items-center gap-3 px-3 py-2 border-t border-outline-variant bg-surface-container">
-        <div class="flex items-center gap-1 text-[10px] text-on-surface-variant/40">
-          <kbd class="px-1 py-0.5 rounded bg-surface-container-highest border border-outline-variant font-mono text-[9px]">↑↓</kbd>
+        <div class="flex items-center gap-1 text-2xs text-on-surface-variant/40">
+          <kbd class="px-1 py-0.5 rounded bg-surface-container-highest border border-outline-variant font-mono text-2xs">↑↓</kbd>
           Naviguer
         </div>
-        <div class="flex items-center gap-1 text-[10px] text-on-surface-variant/40">
-          <kbd class="px-1 py-0.5 rounded bg-surface-container-highest border border-outline-variant font-mono text-[9px]">↵</kbd>
+        <div class="flex items-center gap-1 text-2xs text-on-surface-variant/40">
+          <kbd class="px-1 py-0.5 rounded bg-surface-container-highest border border-outline-variant font-mono text-2xs">↵</kbd>
           Ouvrir
         </div>
-        <div class="flex items-center gap-1 text-[10px] text-on-surface-variant/40">
-          <kbd class="px-1 py-0.5 rounded bg-surface-container-highest border border-outline-variant font-mono text-[9px]">Esc</kbd>
+        <div class="flex items-center gap-1 text-2xs text-on-surface-variant/40">
+          <kbd class="px-1 py-0.5 rounded bg-surface-container-highest border border-outline-variant font-mono text-2xs">Esc</kbd>
           Fermer
         </div>
       </div>

@@ -208,7 +208,7 @@
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
-              <tr class="text-left text-[11px] uppercase tracking-wider text-on-surface-variant/50 border-b border-outline-variant">
+              <tr class="text-left text-2xs uppercase tracking-wider text-on-surface-variant/50 border-b border-outline-variant">
                 <th class="px-5 py-3">{m.an_adv_col_week()}</th>
                 <th class="px-3 py-3 text-right">{m.an_adv_col_joins()}</th>
                 <th class="px-3 py-3 text-right">{m.an_adv_col_d1()}</th>
@@ -250,7 +250,7 @@
         { label: m.an_adv_stickiness(), value: `${data.stickiness}%` },
       ] as stat}
         <div class="section-card p-5">
-          <p class="text-[11px] uppercase tracking-wider text-on-surface-variant/50 font-semibold">{stat.label}</p>
+          <p class="text-2xs uppercase tracking-wider text-on-surface-variant/50 font-semibold">{stat.label}</p>
           <p class="text-3xl font-bold text-on-surface mt-1.5">{stat.value}</p>
         </div>
       {/each}
@@ -272,7 +272,7 @@
               <span class="text-on-surface-variant">{row.label}</span>
               <div class="flex items-center gap-3">
                 <span class="text-on-surface font-medium">{row.d.current.toLocaleString(dateLocale())}</span>
-                <span class="text-[11px] font-bold px-2 py-0.5 rounded-md {badge.cls}">{badge.label}</span>
+                <span class="text-2xs font-bold px-2 py-0.5 rounded-md {badge.cls}">{badge.label}</span>
               </div>
             </div>
           {/each}
@@ -292,7 +292,7 @@
                 {#if row.r}
                   <div class="flex items-center gap-3">
                     <span class="text-on-surface font-bold">{row.r.value.toLocaleString(dateLocale())}</span>
-                    <span class="font-mono text-[11px] text-on-surface-variant/60">{row.r.date}</span>
+                    <span class="font-mono text-2xs text-on-surface-variant/60">{row.r.date}</span>
                   </div>
                 {:else}
                   <span class="text-on-surface-variant/30">-</span>
@@ -341,7 +341,7 @@
               </div>
             {/each}
           </div>
-          <p class="text-[11px] text-on-surface-variant/60 mt-3">{m.an_adv_churn_hint()}</p>
+          <p class="text-2xs text-on-surface-variant/60 mt-3">{m.an_adv_churn_hint()}</p>
         {/if}
       </SectionCard>
 
@@ -412,7 +412,7 @@
                 <span class="text-on-surface truncate">{channelName(t.channelId)}</span>
                 <div class="flex items-center gap-3 shrink-0">
                   <span class="text-xs text-on-surface-variant">{m.an_adv_unit_msg({ count: t.recent.toLocaleString(dateLocale()) })}</span>
-                  <span class="text-[11px] font-bold px-2 py-0.5 rounded-md {badge.cls}">{badge.label}</span>
+                  <span class="text-2xs font-bold px-2 py-0.5 rounded-md {badge.cls}">{badge.label}</span>
                 </div>
               </button>
             {/each}
@@ -435,7 +435,7 @@
                 <span class="text-on-surface truncate">{channelName(t.channelId)}</span>
                 <div class="flex items-center gap-3 shrink-0">
                   <span class="text-xs text-on-surface-variant">{m.an_adv_unit_msg({ count: t.recent.toLocaleString(dateLocale()) })}</span>
-                  <span class="text-[11px] font-bold px-2 py-0.5 rounded-md {badge.cls}">{badge.label}</span>
+                  <span class="text-2xs font-bold px-2 py-0.5 rounded-md {badge.cls}">{badge.label}</span>
                 </div>
               </button>
             {/each}
@@ -451,7 +451,7 @@
         <EmptyState icon="compass" title={m.an_adv_coactivation_empty()} />
       {:else}
         <div class="overflow-x-auto p-5">
-          <table class="text-[11px]">
+          <table class="text-2xs">
             <thead>
               <tr>
                 <th class="p-1"></th>
@@ -526,7 +526,7 @@
                     class="w-full flex items-center justify-between px-5 py-2.5 text-left hover:bg-surface-container-high/40 transition-colors"
                   >
                     <div class="flex items-center gap-3 min-w-0">
-                      <span class="text-[11px] font-bold text-on-surface-variant/40 w-5">{i + 1}</span>
+                      <span class="text-2xs font-bold text-on-surface-variant/40 w-5">{i + 1}</span>
                       {#if member.avatarUrl}
                         <img src={member.avatarUrl} alt="" class="w-7 h-7 rounded-full shrink-0" />
                       {:else}
@@ -578,7 +578,7 @@
       {@const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0}
       <div class="py-10 px-6 text-center space-y-3">
         <p class="text-sm font-medium text-on-surface">{m.an_adv_backfill_title()}</p>
-        <p class="text-[13px] text-on-surface-variant">
+        <p class="text-body-sm text-on-surface-variant">
           {total > 0
             ? m.an_adv_backfill_progress_total({ done: done.toLocaleString(dateLocale()), total: total.toLocaleString(dateLocale()) })
             : m.an_adv_backfill_progress({ done: done.toLocaleString(dateLocale()) })}
@@ -588,7 +588,7 @@
             <div class="h-full rounded-full bg-primary transition-all duration-500" style="width: {pct}%"></div>
           </div>
         {/if}
-        <p class="text-[11px] text-on-surface-variant/50">{m.an_adv_backfill_hint()}</p>
+        <p class="text-2xs text-on-surface-variant/50">{m.an_adv_backfill_hint()}</p>
       </div>
     {:else if data.backfill?.status === 'FAILED'}
       <EmptyState icon="warning" title={m.an_adv_backfill_failed()} description={data.backfill.error ?? m.an_adv_backfill_failed_desc()} />
@@ -697,7 +697,7 @@
                 </div>
               {/each}
             </div>
-            <p class="text-[11px] text-on-surface-variant/60 mt-3">{m.an_adv_account_age_hint()}</p>
+            <p class="text-2xs text-on-surface-variant/60 mt-3">{m.an_adv_account_age_hint()}</p>
           {/if}
         </SectionCard>
 
@@ -737,10 +737,10 @@
           <div class="grid gap-0.5" style="grid-template-columns: 2.5rem repeat(24, 1fr)">
             <div></div>
             {#each Array(24) as _, h}
-              <div class="text-center text-[9px] text-on-surface-variant/40">{h}</div>
+              <div class="text-center text-2xs text-on-surface-variant/40">{h}</div>
             {/each}
             {#each DOW_LABELS as day, d}
-              <div class="text-[10px] text-on-surface-variant/60 flex items-center">{day}</div>
+              <div class="text-2xs text-on-surface-variant/60 flex items-center">{day}</div>
               {#each Array(24) as _, h}
                 {@const v = hotMap.get(`${d + 1}-${h}`) ?? 0}
                 <div class="aspect-square rounded-sm {heatColor(v, maxHot)}" title={m.an_adv_hot_hours_cell({ day, hour: h, count: v })}></div>

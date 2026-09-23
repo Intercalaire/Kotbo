@@ -253,13 +253,13 @@
       {/if}
 
       <div class="flex justify-end gap-3 pt-1">
-        <button type="button" onclick={closeModal} class="rounded-lg px-6 py-3 text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60 transition-colors hover:text-on-surface focus-visible:outline-2 focus-visible:outline-primary">
+        <button type="button" onclick={closeModal} class="rounded-lg px-6 py-3 text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/60 transition-colors hover:text-on-surface focus-visible:outline-2 focus-visible:outline-primary">
           {m.common_cancel()}
         </button>
         <button
           type="submit"
           disabled={loadingMessages}
-          class="inline-flex items-center gap-2 rounded-lg bg-primary px-7 py-3 text-[11px] font-semibold uppercase tracking-widest text-on-primary transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
+          class="inline-flex items-center gap-2 rounded-lg bg-primary px-7 py-3 text-2xs font-semibold uppercase tracking-widest text-on-primary transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
         >
           <Papicon icon="search" size={14} />
           {m.sev_search_submit()}
@@ -296,7 +296,7 @@
           <p class="mt-1 max-w-md text-xs leading-relaxed text-on-surface-variant/55">
             {searchedChannelCount > 1 ? m.sev_empty_hint_other({ count: searchedChannelCount }) : m.sev_empty_hint_one({ count: searchedChannelCount })}
           </p>
-          <button type="button" onclick={() => (step = 'search')} class="mt-6 rounded-lg bg-primary px-6 py-3 text-[11px] font-semibold uppercase tracking-widest text-on-primary active:scale-[0.98]">
+          <button type="button" onclick={() => (step = 'search')} class="mt-6 rounded-lg bg-primary px-6 py-3 text-2xs font-semibold uppercase tracking-widest text-on-primary active:scale-[0.98]">
             {m.sev_edit_search()}
           </button>
         </div>
@@ -353,8 +353,8 @@
 
                   <div class="min-w-0">
                     <div class="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span class="text-[10px] font-semibold text-primary"># {message.channelName}</span>
-                      <span class="text-[10px] text-on-surface-variant/45">{formatTimestamp(message.createdAt)}</span>
+                      <span class="text-2xs font-semibold text-primary"># {message.channelName}</span>
+                      <span class="text-2xs text-on-surface-variant/45">{formatTimestamp(message.createdAt)}</span>
                     </div>
                     <div class="discord-bubble">
                       {#if message.content}
@@ -398,7 +398,7 @@
         </div>
 
         {#if failedChannelCount > 0 || truncatedChannelCount > 0}
-          <div class="border-t border-amber-500/15 bg-amber-500/5 px-5 py-2.5 text-[10px] font-medium text-amber-700">
+          <div class="border-t border-amber-500/15 bg-amber-500/5 px-5 py-2.5 text-2xs font-medium text-amber-700">
             {#if failedChannelCount > 0}{failedChannelCount > 1 ? m.sev_failed_channels_other({ count: failedChannelCount }) : m.sev_failed_channels_one({ count: failedChannelCount })}{/if}
             {#if failedChannelCount > 0 && truncatedChannelCount > 0} · {/if}
             {#if truncatedChannelCount > 0}{truncatedChannelCount > 1 ? m.sev_truncated_other({ count: truncatedChannelCount }) : m.sev_truncated_one({ count: truncatedChannelCount })}{/if}
@@ -406,17 +406,17 @@
         {/if}
 
         <div class="flex flex-wrap justify-end gap-3 border-t border-outline-variant/10 px-5 py-4">
-          <p class="mr-auto self-center text-[10px] text-on-surface-variant/50">
+          <p class="mr-auto self-center text-2xs text-on-surface-variant/50">
             {m.sev_one_transcript_per_channel()}
           </p>
-          <button type="button" onclick={() => (step = 'search')} class="rounded-lg px-5 py-3 text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60 transition-colors hover:text-on-surface focus-visible:outline-2 focus-visible:outline-primary">
+          <button type="button" onclick={() => (step = 'search')} class="rounded-lg px-5 py-3 text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/60 transition-colors hover:text-on-surface focus-visible:outline-2 focus-visible:outline-primary">
             {m.sev_edit_search()}
           </button>
           <button
             type="button"
             onclick={generateTranscripts}
             disabled={totalSelectedCount === 0}
-            class="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-[11px] font-semibold uppercase tracking-widest text-on-primary transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+            class="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-2xs font-semibold uppercase tracking-widest text-on-primary transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Papicon icon="check-circle" size={14} />
             {m.sev_add_to_transcript({ count: totalSelectedCount })}
@@ -431,7 +431,7 @@
         <div class="h-14 animate-pulse rounded-xl bg-surface-container-high/40"></div>
         <div class="h-14 animate-pulse rounded-xl bg-surface-container-high/25"></div>
       </div>
-      <p class="text-[13px] font-medium text-on-surface-variant/60">
+      <p class="text-body-sm font-medium text-on-surface-variant/60">
         {m.sev_generating_transcript()}
       </p>
     </div>
@@ -449,7 +449,7 @@
         </div>
       {/each}
       <div class="flex justify-end pt-2">
-        <button type="button" onclick={closeModal} class="rounded-lg bg-primary px-7 py-3 text-[11px] font-semibold uppercase tracking-widest text-on-primary active:scale-[0.98]">
+        <button type="button" onclick={closeModal} class="rounded-lg bg-primary px-7 py-3 text-2xs font-semibold uppercase tracking-widest text-on-primary active:scale-[0.98]">
           {m.sev_done()}
         </button>
       </div>

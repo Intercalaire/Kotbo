@@ -25,27 +25,27 @@
 
 <div class="space-y-2">
   <label class="block space-y-1.5">
-    <span class="block text-[11px] font-medium text-on-surface-variant/80">{m.wf_message_filter_label()}</span>
+    <span class="block text-2xs font-medium text-on-surface-variant/80">{m.wf_message_filter_label()}</span>
     <input
       type="text"
       value={messageText}
       oninput={(e) => onChange('messages', e.currentTarget.value)}
       placeholder={m.wf_message_filter_placeholder()}
-      class="w-full px-2 py-1 rounded-lg bg-surface-container-highest border border-outline-variant/20 text-[11px] text-on-surface"
+      class="w-full px-2 py-1 rounded-lg bg-surface-container-highest border border-outline-variant/20 text-2xs text-on-surface"
     />
     {#if messageUnreadable}
-      <span class="block text-[11px] text-amber-700 dark:text-amber-300">{m.wf_message_filter_unreadable()}</span>
+      <span class="block text-2xs text-amber-700 dark:text-amber-300">{m.wf_message_filter_unreadable()}</span>
     {/if}
   </label>
 
   <label class="block space-y-1.5">
-    <span class="block text-[11px] font-medium text-on-surface-variant/80">{m.wf_emoji_filter_label()}</span>
+    <span class="block text-2xs font-medium text-on-surface-variant/80">{m.wf_emoji_filter_label()}</span>
     <input
       type="text"
       value={emojiText}
       oninput={(e) => onChange('emojis', e.currentTarget.value)}
       placeholder={m.wf_emoji_filter_placeholder()}
-      class="w-full px-2 py-1 rounded-lg bg-surface-container-highest border border-outline-variant/20 text-[11px] text-on-surface"
+      class="w-full px-2 py-1 rounded-lg bg-surface-container-highest border border-outline-variant/20 text-2xs text-on-surface"
     />
   </label>
 </div>

@@ -121,7 +121,7 @@
 >
   {#snippet actions()}
     <button
-      class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
+      class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
       onclick={openTemplates}
     >
       <Papicon icon="Plus" size={16} /> {m.que_btn_new()}
@@ -154,7 +154,7 @@
             {:else}
               <span class="px-2.5 py-0.5 bg-pink-500/10 text-pink-500 text-xs font-medium rounded-full">{m.que_freq_weekly()}</span>
             {/if}
-            <span class="text-[10px] text-on-surface-variant/40">{m.que_rewards_summary({ coins: tpl.rewardCoins, xp: tpl.rewardXp })}</span>
+            <span class="text-2xs text-on-surface-variant/40">{m.que_rewards_summary({ coins: tpl.rewardCoins, xp: tpl.rewardXp })}</span>
           </div>
         </button>
       {/each}
@@ -231,7 +231,7 @@
         {m.que_btn_cancel()}
       </button>
       <button
-        class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
+        class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
         onclick={handleCreate}
       >
         {m.que_btn_create()}

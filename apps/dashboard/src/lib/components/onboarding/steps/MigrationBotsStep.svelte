@@ -40,7 +40,7 @@
 >
   {#if loading}
     <div class="space-y-3" aria-live="polite">
-      <p class="flex items-center gap-2 text-[13px] text-on-surface-variant/60">
+      <p class="flex items-center gap-2 text-body-sm text-on-surface-variant/60">
         <Papicon icon="radar" size={14} class="text-primary animate-pulse" />
         {m.onb_migration_scanning()}
       </p>
@@ -52,7 +52,7 @@
   {:else if bots.length === 0}
     <div class="rounded-2xl border border-dashed border-outline-variant/40 px-5 py-8 text-center">
       <Papicon icon="check-circle" size={22} class="text-emerald-500 mb-2" />
-      <p class="text-[13.5px] text-on-surface-variant/65 leading-relaxed max-w-sm mx-auto">
+      <p class="text-body-sm text-on-surface-variant/65 leading-relaxed max-w-sm mx-auto">
         Kotbo n'a repéré aucun autre bot de gestion. Les écrans suivants
         configureront votre serveur à partir de ce qu'il porte déjà.
       </p>
@@ -69,12 +69,12 @@
               <div class="flex items-baseline gap-2 flex-wrap">
                 <h3 class="text-[14.5px] font-semibold text-on-surface">{bot.label ?? bot.username}</h3>
                 {#if bot.label && bot.label !== bot.username}
-                  <span class="text-[12px] text-on-surface-variant/45">{bot.username}</span>
+                  <span class="text-xs text-on-surface-variant/45">{bot.username}</span>
                 {/if}
               </div>
 
               {#if bot.covers.length}
-                <p class="mt-1 text-[12.5px] text-on-surface-variant/60">
+                <p class="mt-1 text-xs text-on-surface-variant/60">
                   <span class="text-on-surface-variant/40">{m.onb_migration_bots_covers()} :</span>
                   {bot.covers.join(', ')}
                 </p>
@@ -86,7 +86,7 @@
                      Tickets, 14 salons » se verifie d'un coup d'oeil. -->
                 <ul class="mt-2 space-y-1">
                   {#each bot.activeFeatures.slice(0, 3) as feature (feature.feature)}
-                    <li class="flex items-start gap-1.5 text-[12px] text-on-surface-variant/50">
+                    <li class="flex items-start gap-1.5 text-xs text-on-surface-variant/50">
                       <Papicon icon="corner-down-right" size={11} class="mt-0.5 shrink-0 text-on-surface-variant/30" />
                       <span><span class="text-on-surface-variant/70">{feature.feature}</span> - {feature.evidence}</span>
                     </li>
@@ -105,7 +105,7 @@
       type="button"
       onclick={() => wizard.complete('migration-bots')}
       disabled={loading}
-      class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[14px] font-semibold text-on-primary
+      class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary
              hover:brightness-110 transition disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
     >
       Continuer

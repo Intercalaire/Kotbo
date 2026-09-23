@@ -491,7 +491,7 @@
         
         {#if isBlacklisted}
           <div class="absolute top-6 right-6 z-20">
-            <span class="inline-flex items-center gap-2 rounded-full bg-rose-500 px-4 py-2 text-[10px] font-semibold text-white uppercase tracking-widest shadow-sm">
+            <span class="inline-flex items-center gap-2 rounded-full bg-rose-500 px-4 py-2 text-2xs font-semibold text-white uppercase tracking-widest shadow-sm">
               <Papicon icon="Slash" size={14} />
               Compte Restreint
             </span>
@@ -578,7 +578,7 @@
                   <Papicon icon="Badge" size={24} />
                 </div>
                 <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">{m.pf_staff_career()}</p>
+                  <p class="text-2xs font-semibold uppercase tracking-wider text-primary">{m.pf_staff_career()}</p>
                   <h4 class="text-xl font-semibold text-on-surface">{m.pf_identity_seniority()}</h4>
                 </div>
               </div>
@@ -587,16 +587,16 @@
                 <div class="space-y-1">
                   <p class="text-xs font-medium text-on-surface-variant/40">{m.pf_staff_since()}</p>
                   <p class="text-xl font-semibold text-on-surface">{getDurationSince(staffMember.joinedStaffAt)}</p>
-                  <p class="text-[10px] font-bold text-on-surface-variant/60">{formatDate(staffMember.joinedStaffAt)}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant/60">{formatDate(staffMember.joinedStaffAt)}</p>
                 </div>
                 <div class="space-y-1">
                   <p class="text-xs font-medium text-on-surface-variant/40">{m.pf_current_grade_since()}</p>
                   <p class="text-xl font-semibold text-on-surface">{getDurationSince(staffMember.currentRoleStartedAt)}</p>
-                  <p class="text-[10px] font-bold text-on-surface-variant/60">{formatDate(staffMember.currentRoleStartedAt)}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant/60">{formatDate(staffMember.currentRoleStartedAt)}</p>
                 </div>
                 <div class="space-y-1">
                   <p class="text-xs font-medium text-on-surface-variant/40">{m.pf_tutor_status()}</p>
-                  <span class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-[13px] font-medium {staffMember.isTutor ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-on-surface/5 text-on-surface-variant/40 border border-outline-variant/10'}">
+                  <span class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-body-sm font-medium {staffMember.isTutor ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-on-surface/5 text-on-surface-variant/40 border border-outline-variant/10'}">
                     {staffMember.isTutor ? m.pf_active_tutor() : m.pf_not_tutor()}
                   </span>
                 </div>
@@ -617,7 +617,7 @@
                       <div class="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0"></div>
                       <div>
                         <p class="text-xs font-bold text-on-surface">{event.details}</p>
-                        <p class="text-[11px] font-bold text-on-surface-variant/40 uppercase mt-0.5">{formatDate(event.dateIso)} • {m.pf_by_user_cap({ user: event.user })}</p>
+                        <p class="text-2xs font-bold text-on-surface-variant/40 uppercase mt-0.5">{formatDate(event.dateIso)} • {m.pf_by_user_cap({ user: event.user })}</p>
                       </div>
                     </div>
                   {/each}
@@ -661,14 +661,14 @@
                   {#each warnings as warn}
                     <div class="p-4 rounded-lg bg-surface-container-high/40 border border-outline-variant/5 {warn.isActive ? 'border-amber-500/10 bg-amber-500/5' : ''}">
                       <div class="flex items-center justify-between mb-2">
-                        <span class="text-[13px] font-medium {warn.isActive ? 'text-amber-500' : 'text-on-surface-variant/40'}">
+                        <span class="text-body-sm font-medium {warn.isActive ? 'text-amber-500' : 'text-on-surface-variant/40'}">
                           {warn.isActive ? m.pf_active() : m.pf_expired()}
                         </span>
-                        <span class="text-[11px] font-bold text-on-surface-variant/40">{formatDate(warn.createdAt)}</span>
+                        <span class="text-2xs font-bold text-on-surface-variant/40">{formatDate(warn.createdAt)}</span>
                       </div>
                       <p class="text-sm font-bold text-on-surface">{warn.reason}</p>
                       {#if warn.expiresAt}
-                        <p class="text-[11px] font-bold text-on-surface-variant/40 mt-2">{m.pf_expires_on({ date: formatDate(warn.expiresAt) })}</p>
+                        <p class="text-2xs font-bold text-on-surface-variant/40 mt-2">{m.pf_expires_on({ date: formatDate(warn.expiresAt) })}</p>
                       {/if}
                     </div>
                   {/each}
@@ -688,13 +688,13 @@
                   {#each absences as abs}
                     <div class="p-4 rounded-lg bg-surface-container-high/40 border border-outline-variant/5">
                       <div class="flex items-center justify-between mb-2">
-                        <span class="text-[13px] font-medium text-primary">{abs.type}</span>
-                        <span class="inline-flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider {abs.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-500' : (abs.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500' : 'bg-on-surface/5 text-on-surface-variant/40')}">
+                        <span class="text-body-sm font-medium text-primary">{abs.type}</span>
+                        <span class="inline-flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider {abs.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-500' : (abs.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500' : 'bg-on-surface/5 text-on-surface-variant/40')}">
                           {abs.status}
                         </span>
                       </div>
                       <p class="text-sm font-bold text-on-surface">{abs.reason}</p>
-                      <p class="text-[11px] font-bold text-on-surface-variant/40 mt-2">
+                      <p class="text-2xs font-bold text-on-surface-variant/40 mt-2">
                         {m.pf_from_to({ from: formatDate(abs.startDate), to: abs.isIndefinite ? m.pf_indefinite() : formatDate(abs.endDate) })}
                       </p>
                     </div>
@@ -721,10 +721,10 @@
                         <h5 class="text-base font-semibold text-on-surface">{period.targetGrade || m.pf_staff_grade()}</h5>
                       </div>
                       <div class="text-right">
-                        <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wider {period.status === 'PASSED' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : (period.status === 'ONGOING' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-rose-500/10 text-rose-500 border border-rose-500/20')}">
+                        <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-2xs font-semibold uppercase tracking-wider {period.status === 'PASSED' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : (period.status === 'ONGOING' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-rose-500/10 text-rose-500 border border-rose-500/20')}">
                           {period.status === 'PASSED' ? m.pf_passed() : (period.status === 'ONGOING' ? m.home_in_progress() : m.pf_failed())}
                         </span>
-                        <p class="text-[11px] font-bold text-on-surface-variant/40 mt-1">{m.pf_start_date({ date: formatDate(period.startDate) })}</p>
+                        <p class="text-2xs font-bold text-on-surface-variant/40 mt-1">{m.pf_start_date({ date: formatDate(period.startDate) })}</p>
                       </div>
                     </div>
 
@@ -738,10 +738,10 @@
                         {#each period.reports as rep}
                           <div class="p-3.5 rounded-xl bg-surface-container-low border border-outline-variant/5">
                             <div class="flex items-center justify-between mb-1.5">
-                              <span class="text-[11px] font-semibold uppercase tracking-wider {rep.type === 'POSITIVE' ? 'text-emerald-500' : (rep.type === 'NEGATIVE' ? 'text-rose-500' : 'text-on-surface-variant/40')}">
+                              <span class="text-2xs font-semibold uppercase tracking-wider {rep.type === 'POSITIVE' ? 'text-emerald-500' : (rep.type === 'NEGATIVE' ? 'text-rose-500' : 'text-on-surface-variant/40')}">
                                 {rep.type}
                               </span>
-                              <span class="text-[11px] font-bold text-on-surface-variant/30">{formatDate(rep.createdAt)}</span>
+                              <span class="text-2xs font-bold text-on-surface-variant/30">{formatDate(rep.createdAt)}</span>
                             </div>
                             <p class="text-xs font-medium text-on-surface-variant">{rep.content}</p>
                           </div>
@@ -770,7 +770,7 @@
                   <div class="p-4.5 rounded-lg bg-surface-container-high/40 border border-outline-variant/5 flex justify-between items-start gap-4">
                     <div>
                       <p class="text-sm font-bold text-on-surface">{note.content}</p>
-                      <p class="text-[11px] font-bold text-on-surface-variant/40 uppercase mt-2">
+                      <p class="text-2xs font-bold text-on-surface-variant/40 uppercase mt-2">
                         {m.pf_posted_on({ date: formatDate(note.createdAt), author: note.author?.username || m.pf_a_manager() })}
                       </p>
                     </div>
@@ -791,7 +791,7 @@
                 <button 
                   onclick={submitManagerNote} 
                   disabled={sendingNote || !newNoteContent.trim()}
-                  class="w-full md:w-auto px-8 py-4 bg-primary text-on-primary hover:bg-primary-hover font-semibold uppercase tracking-widest text-[10px] rounded-lg shadow-lg transition-all disabled:opacity-50"
+                  class="w-full md:w-auto px-8 py-4 bg-primary text-on-primary hover:bg-primary-hover font-semibold uppercase tracking-widest text-2xs rounded-lg shadow-lg transition-all disabled:opacity-50"
                 >
                   Ajouter Note
                 </button>
@@ -807,7 +807,7 @@
                   <Papicon icon="LogOut" size={24} />
                 </div>
                 <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wider {pendingResignation ? 'text-amber-500' : 'text-rose-500'}">Zone Sensible</p>
+                  <p class="text-2xs font-semibold uppercase tracking-wider {pendingResignation ? 'text-amber-500' : 'text-rose-500'}">Zone Sensible</p>
                   <h4 class="text-xl font-semibold text-on-surface">{m.pf_resignation()}</h4>
                 </div>
               </div>
@@ -821,7 +821,7 @@
                   </div>
                   <p class="text-sm font-bold text-on-surface mb-1">Motif soumis :</p>
                   <p class="text-sm text-on-surface-variant leading-relaxed italic">« {pendingResignation.reason} »</p>
-                  <p class="text-[11px] font-bold text-on-surface-variant/40 uppercase mt-3">{m.pf_submitted_on({ date: formatDate(pendingResignation.createdAt) })}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant/40 uppercase mt-3">{m.pf_submitted_on({ date: formatDate(pendingResignation.createdAt) })}</p>
                 </div>
                 <p class="text-xs font-bold text-on-surface-variant/50">
                   {m.pf_resignation_review()}
@@ -843,7 +843,7 @@
                       rows={4}
                       class="w-full bg-surface-container-high/60 border border-outline-variant/20 rounded-lg px-4 py-3 text-sm font-medium text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-rose-500/40 resize-none transition-colors"
                     ></textarea>
-                    <p class="text-[11px] font-bold text-on-surface-variant/30 text-right mt-1">{resignationReason.length}/500</p>
+                    <p class="text-2xs font-bold text-on-surface-variant/30 text-right mt-1">{resignationReason.length}/500</p>
                   </div>
                   <div class="flex gap-3 justify-end">
                     <button
@@ -928,8 +928,8 @@
                   <div class="h-1.5 w-full bg-on-surface/5 rounded-full overflow-hidden mb-2">
                     <div class="h-full bg-primary" style="width: {scorecard.scores.messages}%"></div>
                   </div>
-                  <p class="text-[10px] text-on-surface-variant/50 font-bold">{m.pf_this_week({ v: `${scorecard.messageCount} msg` })}</p>
-                  <p class="text-[9px] text-on-surface-variant/30">{m.pf_last_week({ v: `${scorecard.previousMessageCount} msg` })}</p>
+                  <p class="text-2xs text-on-surface-variant/50 font-bold">{m.pf_this_week({ v: `${scorecard.messageCount} msg` })}</p>
+                  <p class="text-2xs text-on-surface-variant/30">{m.pf_last_week({ v: `${scorecard.previousMessageCount} msg` })}</p>
                 </div>
 
                 <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4">
@@ -940,8 +940,8 @@
                   <div class="h-1.5 w-full bg-on-surface/5 rounded-full overflow-hidden mb-2">
                     <div class="h-full bg-emerald-500" style="width: {scorecard.scores.voice}%"></div>
                   </div>
-                  <p class="text-[10px] text-on-surface-variant/50 font-bold">{m.pf_this_week({ v: `${scorecard.voiceMinutes} min` })}</p>
-                  <p class="text-[9px] text-on-surface-variant/30">{m.pf_last_week({ v: `${scorecard.previousVoiceMinutes} min` })}</p>
+                  <p class="text-2xs text-on-surface-variant/50 font-bold">{m.pf_this_week({ v: `${scorecard.voiceMinutes} min` })}</p>
+                  <p class="text-2xs text-on-surface-variant/30">{m.pf_last_week({ v: `${scorecard.previousVoiceMinutes} min` })}</p>
                 </div>
 
                 <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4">
@@ -952,8 +952,8 @@
                   <div class="h-1.5 w-full bg-on-surface/5 rounded-full overflow-hidden mb-2">
                     <div class="h-full bg-amber-500" style="width: {scorecard.scores.moderation}%"></div>
                   </div>
-                  <p class="text-[10px] text-on-surface-variant/50 font-bold">{m.pf_sanctions_count({ n: scorecard.sanctionsCount })}</p>
-                  <p class="text-[9px] text-on-surface-variant/30">{m.pf_last_week({ v: String(scorecard.previousSanctionsCount) })}</p>
+                  <p class="text-2xs text-on-surface-variant/50 font-bold">{m.pf_sanctions_count({ n: scorecard.sanctionsCount })}</p>
+                  <p class="text-2xs text-on-surface-variant/30">{m.pf_last_week({ v: String(scorecard.previousSanctionsCount) })}</p>
                 </div>
 
                 <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4">
@@ -964,8 +964,8 @@
                   <div class="h-1.5 w-full bg-on-surface/5 rounded-full overflow-hidden mb-2">
                     <div class="h-full bg-purple-500" style="width: {scorecard.scores.support}%"></div>
                   </div>
-                  <p class="text-[10px] text-on-surface-variant/50 font-bold">{m.pf_tickets_closed({ n: scorecard.ticketsClosed })}</p>
-                  <p class="text-[9px] text-on-surface-variant/30">{m.pf_last_week({ v: String(scorecard.previousTicketsClosed) })}</p>
+                  <p class="text-2xs text-on-surface-variant/50 font-bold">{m.pf_tickets_closed({ n: scorecard.ticketsClosed })}</p>
+                  <p class="text-2xs text-on-surface-variant/30">{m.pf_last_week({ v: String(scorecard.previousTicketsClosed) })}</p>
                 </div>
               </div>
             </div>
@@ -987,7 +987,7 @@
                   <Papicon icon="TrendingUp" size={24} />
                 </div>
                 <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">Performances</p>
+                  <p class="text-2xs font-semibold uppercase tracking-wider text-primary">Performances</p>
                   <h4 class="text-2xl font-semibold text-on-surface font-headline">{m.pf_activity_trend()}</h4>
                 </div>
               </div>
@@ -1057,7 +1057,7 @@
                   <h4 class="text-xs font-semibold text-primary uppercase tracking-widest mb-4">{m.pf_roles()}</h4>
                   <div class="flex flex-wrap gap-2">
                     {#each publicProfile.roles as role}
-                      <span class="inline-flex items-center gap-1.5 rounded-lg bg-surface-container-high/60 border border-outline-variant/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
+                      <span class="inline-flex items-center gap-1.5 rounded-lg bg-surface-container-high/60 border border-outline-variant/10 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">
                         {role.name}
                       </span>
                     {/each}
@@ -1075,7 +1075,7 @@
                   </div>
                   <div>
                     <h3 class="text-xl font-semibold text-on-surface font-headline leading-tight">{m.pf_events_history()}</h3>
-                    <p class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-wider mt-0.5">{m.pf_recent_participations()}</p>
+                    <p class="text-2xs font-bold text-on-surface-variant/40 uppercase tracking-wider mt-0.5">{m.pf_recent_participations()}</p>
                   </div>
                 </div>
 
@@ -1085,11 +1085,11 @@
                       <div class="flex items-center justify-between p-4.5 rounded-lg bg-surface-container-high/30 border border-outline-variant/5 hover:border-primary/25 hover:bg-surface-container-high/60 transition-all">
                         <div>
                           <h4 class="text-sm font-semibold text-on-surface leading-tight truncate max-w-[180px]">{event.title}</h4>
-                          <p class="text-[11px] font-bold text-primary uppercase tracking-wider mt-0.5">{event.type}</p>
+                          <p class="text-2xs font-bold text-primary uppercase tracking-wider mt-0.5">{event.type}</p>
                         </div>
                         <div class="text-right">
                           <span class="text-sm font-semibold text-primary">{event.score} pts</span>
-                          <p class="text-[11px] font-bold text-on-surface-variant/30 uppercase tracking-wider mt-0.5">{formatDate(event.date)}</p>
+                          <p class="text-2xs font-bold text-on-surface-variant/30 uppercase tracking-wider mt-0.5">{formatDate(event.date)}</p>
                         </div>
                       </div>
                     {/each}
@@ -1120,7 +1120,7 @@
                   <Papicon icon="Lock" size={24} />
                 </div>
                 <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">{m.login_security()}</p>
+                  <p class="text-2xs font-semibold uppercase tracking-wider text-primary">{m.login_security()}</p>
                   <h4 class="text-2xl font-semibold text-on-surface font-headline">{m.pf_personal_api_keys()}</h4>
                 </div>
               </div>
@@ -1145,7 +1145,7 @@
                     <Papicon icon="Paper" size={16} />
                   </button>
                 </div>
-                <p class="text-[10px] font-bold text-rose-500">
+                <p class="text-2xs font-bold text-rose-500">
                   {m.pf_copy_key_warning()}
                 </p>
               </div>
@@ -1169,7 +1169,7 @@
                         <input type="checkbox" bind:checked={permRecruitment} class="mt-1 accent-primary" />
                         <div>
                           <p class="text-xs font-semibold text-on-surface">Module Recrutement</p>
-                          <p class="text-[10px] font-bold text-on-surface-variant/50 mt-1 leading-relaxed">
+                          <p class="text-2xs font-bold text-on-surface-variant/50 mt-1 leading-relaxed">
                             Lier un formulaire externe (ex: Google Forms) pour enregistrer les candidatures sur Kotbo.
                           </p>
                         </div>
@@ -1180,7 +1180,7 @@
                         <input type="checkbox" bind:checked={permDailyAlgo} class="mt-1 accent-primary" />
                         <div>
                           <p class="text-xs font-semibold text-on-surface">Daily Algo API</p>
-                          <p class="text-[10px] font-bold text-on-surface-variant/50 mt-1 leading-relaxed">
+                          <p class="text-2xs font-bold text-on-surface-variant/50 mt-1 leading-relaxed">
                             {m.pf_daily_algo_perm()}
                           </p>
                         </div>
@@ -1209,7 +1209,7 @@
                         <span class="text-sm font-semibold text-on-surface">{key.name}</span>
                         <div class="flex gap-1">
                           {#each key.permissions as perm}
-                            <span class="px-2 py-0.5 rounded-lg bg-primary/5 text-[11px] font-semibold text-primary uppercase tracking-tighter border border-primary/10">
+                            <span class="px-2 py-0.5 rounded-lg bg-primary/5 text-2xs font-semibold text-primary uppercase tracking-tighter border border-primary/10">
                               {perm === 'recruitment:forms' ? 'Recrutement' : perm === 'daily_algo:create_exercise' ? 'Daily Algo' : perm}
                             </span>
                           {/each}
@@ -1217,7 +1217,7 @@
                       </div>
                       <div class="flex items-center gap-3">
                         <code class="text-xs font-mono text-on-surface-variant/60 bg-surface-container-high px-3 py-1 rounded-xl">{key.displayKey}</code>
-                        <span class="text-[11px] font-bold text-on-surface-variant/40 uppercase">
+                        <span class="text-2xs font-bold text-on-surface-variant/40 uppercase">
                           {m.pf_used_on({ date: formatDate(key.lastUsedAt) })}
                         </span>
                       </div>

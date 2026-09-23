@@ -1616,7 +1616,7 @@
             <div class="flex flex-col gap-4 md:flex-row md:items-end">
               <div class="flex-1">
                 <label>
-                  <span class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_discord_user()}</span>
+                  <span class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_discord_user()}</span>
                   <div class="min-w-0">
                     <DiscordMemberLookup
                       {guildId}
@@ -1633,7 +1633,7 @@
               </div>
               <div class="md:w-64 shrink-0">
                 <label>
-                  <span class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_global_grade()}</span>
+                  <span class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_global_grade()}</span>
                   <select bind:value={newMemberGrade} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
                     {#each orderedStaffRoles as role}
                       <option value={role.name}>{role.name}</option>
@@ -1646,7 +1646,7 @@
                   checked={newMemberCreateTutoring}
                   onToggle={(v: boolean) => newMemberCreateTutoring = v}
                 />
-                <span class="text-[13px] font-medium text-on-surface-variant/70">{m.sm_toggle_create_tutoring()}</span>
+                <span class="text-body-sm font-medium text-on-surface-variant/70">{m.sm_toggle_create_tutoring()}</span>
               </div>
               <button onclick={addStaffMember} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all active:scale-[0.98]">
                 {m.common_add()}
@@ -1695,13 +1695,13 @@
                         <a href="/profile/{member.userId}">{member.displayName || member.username || m.sm_unknown_user()}</a>
                       </h4>
                       <div class="flex items-center gap-3 mt-1.5 flex-wrap">
-                        <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
+                        <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-primary">
                           {member.grade}
                         </span>
                         {#if member.hierarchyGrades && member.hierarchyGrades.length > 0}
                           {#each member.hierarchyGrades as hGrade}
                             <span 
-                              class="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+                              class="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider"
                               style="border-color: {hGrade.hierarchy?.color ? hGrade.hierarchy.color + '30' : 'rgba(99, 102, 241, 0.2)'}; background-color: {hGrade.hierarchy?.color ? hGrade.hierarchy.color + '15' : 'rgba(99, 102, 241, 0.1)'}; color: {hGrade.hierarchy?.color || 'var(--color-primary)'}"
                             >
                               <span>{hGrade.hierarchy?.icon || '🔵'}</span>
@@ -1710,25 +1710,25 @@
                           {/each}
                         {/if}
                         {#if member.isTutor}
-                          <span class="inline-flex items-center gap-1 item rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-indigo-600 shadow-sm shadow-indigo-500/5 transition-all animate-in zoom-in-95 duration-300">
+                          <span class="inline-flex items-center gap-1 item rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-indigo-600 shadow-sm shadow-indigo-500/5 transition-all animate-in zoom-in-95 duration-300">
                             <Papicon icon="shield" size={12} />
                             {m.sm_tutor_badge()}
                           </span>
                         {/if}
                         {#if member.suspendedAt}
                           <span
-                            class="inline-flex items-center gap-1 rounded-full border border-orange-500/25 bg-orange-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-orange-600"
+                            class="inline-flex items-center gap-1 rounded-full border border-orange-500/25 bg-orange-500/10 px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-orange-600"
                             title={member.suspendedReason || m.sm_suspended_since({ date: new Date(member.suspendedAt).toLocaleDateString() })}
                           >
                             <Papicon icon="pause" size={12} />
                             {m.sm_suspended_badge()}
                           </span>
                         {/if}
-                        <span class="text-[11px] font-medium text-on-surface-variant/70">
+                        <span class="text-2xs font-medium text-on-surface-variant/70">
                           {m.sm_member_since({ date: new Date(member.joinedStaffAt).toLocaleDateString() })}
                         </span>
                         {#if (member.warnings?.length || 0) > 0}
-                          <span class="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700">
+                          <span class="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-amber-700">
                             <Papicon icon="alert-triangle" size={12} />
                             {member.warnings?.length || 0} {m.sm_warn_count_label()}{(member.warnings?.length || 0) > 1 ? 's' : ''}
                           </span>
@@ -1869,9 +1869,9 @@
 
         <div class="p-6 md:p-8 border-b border-outline-variant/20 bg-surface-container-lowest/50">
           <div class="flex items-center justify-between mb-4">
-            <h4 class="text-[13px] font-medium text-on-surface-variant/50">{m.sm_global_config_title()}</h4>
+            <h4 class="text-body-sm font-medium text-on-surface-variant/50">{m.sm_global_config_title()}</h4>
             {#if isSavingConfig}
-              <span class="text-[10px] font-bold uppercase text-primary animate-pulse">{m.sm_saving()}</span>
+              <span class="text-2xs font-bold uppercase text-primary animate-pulse">{m.sm_saving()}</span>
             {/if}
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1923,7 +1923,7 @@
             <div class="flex flex-col gap-6">
               <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div class="relative">
-                  <label for="staff-role-search" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_search_discord_role()}</label>
+                  <label for="staff-role-search" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_search_discord_role()}</label>
                   <div class="relative">
                     <Papicon icon="search" size={20} class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/40" />
                     <input
@@ -1958,7 +1958,7 @@
                 </div>
 
                 <div>
-                  <label for="role-hierarchy-select" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_hierarchy_assoc()}</label>
+                  <label for="role-hierarchy-select" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_hierarchy_assoc()}</label>
                   <select
                     id="role-hierarchy-select"
                     bind:value={newRoleHierarchyId}
@@ -1972,7 +1972,7 @@
                 </div>
 
                 <div>
-                  <label for="role-level-input" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_role_weight()}</label>
+                  <label for="role-level-input" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_role_weight()}</label>
                   <input
                     id="role-level-input"
                     type="number"
@@ -1988,7 +1988,7 @@
                     checked={newRoleIsResponsable}
                     onToggle={(v: boolean) => newRoleIsResponsable = v}
                   />
-                  <span class="text-[13px] font-medium text-on-surface-variant/70">{m.sm_toggle_hierarchy_chief()}</span>
+                  <span class="text-body-sm font-medium text-on-surface-variant/70">{m.sm_toggle_hierarchy_chief()}</span>
                 </div>
               </div>
 
@@ -2002,7 +2002,7 @@
         {/if}
 
         {#if isSavingRoleOrder}
-          <div class="bg-blue-500/10 border-b border-blue-500/20 px-6 py-2.5 flex items-center justify-center gap-2 text-[13px] font-medium text-blue-700">
+          <div class="bg-blue-500/10 border-b border-blue-500/20 px-6 py-2.5 flex items-center justify-center gap-2 text-body-sm font-medium text-blue-700">
              <Papicon icon="refresh-cw" size={14} class="animate-spin" />
              {m.sm_saving_order()}
           </div>
@@ -2039,7 +2039,7 @@
                     </div>
                     <div class="flex items-center gap-2">
                       {#if rolesAccess.canConfigure}
-                        <button onclick={() => openImportModal(h)} class="px-3 py-1.5 rounded-xl bg-primary/8 text-primary hover:bg-primary hover:text-white transition-all text-[13px] font-medium" title={m.sm_title_import_members()}>
+                        <button onclick={() => openImportModal(h)} class="px-3 py-1.5 rounded-xl bg-primary/8 text-primary hover:bg-primary hover:text-white transition-all text-body-sm font-medium" title={m.sm_title_import_members()}>
                           {m.sm_btn_import()}
                         </button>
                         <button onclick={() => openEditHierarchyForm(h)} class="p-2 text-on-surface-variant hover:text-primary transition-colors" title={m.sm_title_edit_hierarchy()}>
@@ -2105,9 +2105,9 @@
                               <h5 class="text-sm font-semibold text-on-surface flex items-center gap-2">
                                 {role.name}
                                 {#if role.isResponsable}
-                                  <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-semibold uppercase tracking-wider">{m.sm_role_chief_badge()}</span>
+                                  <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-2xs font-semibold uppercase tracking-wider">{m.sm_role_chief_badge()}</span>
                                 {/if}
-                                <span class="inline-flex items-center rounded-full bg-outline-variant/20 px-2 py-0.5 text-[10px] font-bold text-on-surface-variant">
+                                <span class="inline-flex items-center rounded-full bg-outline-variant/20 px-2 py-0.5 text-2xs font-bold text-on-surface-variant">
                                   {m.sm_role_weight_label({ level: role.level })}
                                 </span>
                               </h5>
@@ -2207,7 +2207,7 @@
                           <div class="min-w-0 flex-1">
                             <h5 class="text-sm font-semibold text-on-surface flex items-center gap-2">
                               {role.name}
-                              <span class="inline-flex items-center rounded-full bg-outline-variant/20 px-2 py-0.5 text-[10px] font-bold text-on-surface-variant">
+                              <span class="inline-flex items-center rounded-full bg-outline-variant/20 px-2 py-0.5 text-2xs font-bold text-on-surface-variant">
                                 {m.sm_role_weight_label({ level: role.level })}
                               </span>
                             </h5>
@@ -2277,7 +2277,7 @@
           <div class="p-6 md:p-8 border-b border-primary/10 bg-primary/5 animate-in slide-in-from-top-4 fade-in duration-300">
             <div class="grid gap-6 md:grid-cols-2">
               <div class="space-y-4 md:col-span-2">
-                <label class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">
+                <label class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">
                   {m.sm_field_target_member()}
                   <DiscordMemberLookup
                     {guildId}
@@ -2292,7 +2292,7 @@
 
               <div class="space-y-4">
                 <label>
-                  <span class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_warn_reason()}</span>
+                  <span class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_warn_reason()}</span>
                   <textarea
                     bind:value={warnReason}
                     placeholder={m.sm_placeholder_warn_reason()}
@@ -2304,7 +2304,7 @@
 
               <div class="space-y-4 flex flex-col justify-between">
                 <div>
-                   <label for="warn-expires-at" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_expires_at()} {m.sm_optional_tag()}</label>
+                   <label for="warn-expires-at" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_expires_at()} {m.sm_optional_tag()}</label>
                    <input
                      id="warn-expires-at"
                      type="datetime-local"
@@ -2335,7 +2335,7 @@
               <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
                   <thead>
-                    <tr class="bg-surface-container-high/30 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40">
+                    <tr class="bg-surface-container-high/30 text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/40">
                       <th class="px-6 py-4">{m.sm_col_member()}</th>
                       <th class="px-6 py-4">{m.sm_col_reason()}</th>
                       <th class="px-6 py-4">{m.sm_col_issued_by()}</th>
@@ -2360,7 +2360,7 @@
                             </div>
                             <div>
                               <div class="text-sm font-bold text-on-surface leading-none">{warn.staffDisplayName}</div>
-                              <div class="text-[10px] text-on-surface-variant/40 mt-1 font-mono">{warn.staffUserId}</div>
+                              <div class="text-2xs text-on-surface-variant/40 mt-1 font-mono">{warn.staffUserId}</div>
                             </div>
                           </div>
                         </td>
@@ -2381,12 +2381,12 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-center">
                           {#if warn.isActive}
-                            <span class="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-600 border border-amber-500/20">
+                            <span class="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-amber-600 border border-amber-500/20">
                               <span class="w-1 h-1 rounded-full bg-amber-600 animate-pulse"></span>
                               {m.sm_status_active()}
                             </span>
                           {:else}
-                            <span class="inline-flex items-center rounded-full bg-outline-variant/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40">{m.sm_status_expired()}</span>
+                            <span class="inline-flex items-center rounded-full bg-outline-variant/10 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/40">{m.sm_status_expired()}</span>
                           {/if}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right">
@@ -2439,7 +2439,7 @@
             <div class="grid gap-6 md:grid-cols-2">
               <div class="space-y-4 md:col-span-2">
                 <label>
-                  <span class="block text-[13px] font-medium text-rose-700/80 mb-2">{m.sm_field_blacklist_target()}</span>
+                  <span class="block text-body-sm font-medium text-rose-700/80 mb-2">{m.sm_field_blacklist_target()}</span>
                   <DiscordMemberLookup
                     {guildId}
                     bind:query={blacklistLookupQuery}
@@ -2453,7 +2453,7 @@
 
               <div class="space-y-4">
                 <label>
-                  <span class="block text-[13px] font-medium text-rose-700/80 mb-2">{m.sm_field_blacklist_reason()}</span>
+                  <span class="block text-body-sm font-medium text-rose-700/80 mb-2">{m.sm_field_blacklist_reason()}</span>
                   <textarea
                     bind:value={blacklistReason}
                     placeholder={m.sm_placeholder_blacklist_reason()}
@@ -2465,7 +2465,7 @@
 
               <div class="space-y-4 flex flex-col justify-between">
                 <div>
-                   <label for="blacklist-end-date" class="block text-[13px] font-medium text-rose-700/80 mb-2">{m.sm_field_blacklist_end()}</label>
+                   <label for="blacklist-end-date" class="block text-body-sm font-medium text-rose-700/80 mb-2">{m.sm_field_blacklist_end()}</label>
                    <input
                      id="blacklist-end-date"
                      type="date"
@@ -2512,7 +2512,7 @@
                         {member.displayName || member.username || m.sm_unknown_user()}
                       </h4>
                       <div class="flex items-center gap-3 mt-1.5 flex-wrap">
-                        <span class="inline-flex items-center rounded-full border border-rose-500/20 bg-rose-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-rose-700">
+                        <span class="inline-flex items-center rounded-full border border-rose-500/20 bg-rose-500/10 px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-rose-700">
                           {m.sm_blacklisted_badge()}
                         </span>
                         {#if member.blacklistEntries?.[0]?.reason}
@@ -2521,11 +2521,11 @@
                           </span>
                         {/if}
                         {#if member.blacklistEntries?.[0]?.endDate}
-                          <span class="text-[11px] font-medium text-on-surface-variant/70">
+                          <span class="text-2xs font-medium text-on-surface-variant/70">
                             {m.sm_blacklist_until({ date: new Date(member.blacklistEntries[0].endDate).toLocaleDateString() })}
                           </span>
                         {:else}
-                          <span class="text-[11px] font-medium text-on-surface-variant/70">
+                          <span class="text-2xs font-medium text-on-surface-variant/70">
                             {m.sm_permanent()}
                           </span>
                         {/if}
@@ -2537,7 +2537,7 @@
                     {#if canModerate}
                       <button
                         onclick={() => removeStaffBlacklist(member.userId)}
-                        class="inline-flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-[13px] font-medium text-rose-700 transition-colors hover:bg-rose-600 hover:text-white"
+                        class="inline-flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-body-sm font-medium text-rose-700 transition-colors hover:bg-rose-600 hover:text-white"
                         title={m.sm_title_remove_blacklist()}
                       >
                         <Papicon icon="trash-2" size={16} />
@@ -2571,20 +2571,20 @@
             <div class="grid gap-6 lg:grid-cols-2">
               <div class="space-y-4">
                 <div>
-                  <label for="poll-title" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_poll_title()}</label>
+                  <label for="poll-title" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_poll_title()}</label>
                   <FormInput id="poll-title" bind:value={newPollTitle} placeholder={m.sm_placeholder_poll_title()} className="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
                 </div>
                 <div>
-                  <label for="poll-description" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_description()}</label>
+                  <label for="poll-description" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_description()}</label>
                   <textarea id="poll-description" bind:value={newPollDescription} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 h-32 resize-none" placeholder={m.sm_placeholder_poll_desc()}></textarea>
                 </div>
                 <div>
-                  <label for="poll-closes-at" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_poll_closes()}</label>
+                  <label for="poll-closes-at" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_poll_closes()}</label>
                   <input id="poll-closes-at" type="datetime-local" bind:value={newPollClosesAt} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
                 </div>
               </div>
               <div class="space-y-4">
-                <div class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_poll_options()}</div>
+                <div class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_poll_options()}</div>
                 <div class="space-y-3">
                   {#each newPollOptions as _option, i}
                     <div class="flex items-center gap-2">
@@ -2597,7 +2597,7 @@
                     </div>
                   {/each}
                 </div>
-                <button onclick={addPollOptionInput} class="inline-flex items-center gap-2 text-[13px] font-medium text-primary/70 hover:text-primary transition-colors mt-2">
+                <button onclick={addPollOptionInput} class="inline-flex items-center gap-2 text-body-sm font-medium text-primary/70 hover:text-primary transition-colors mt-2">
                   <Papicon icon="plus-circle" size={18} />
                   {m.sm_btn_add_option()}
                 </button>
@@ -2654,11 +2654,11 @@
                     <div class="space-y-1">
                       <div class="flex items-center gap-2">
                         {#if isClosed}
-                          <span class="inline-flex items-center rounded-full bg-surface-container-high px-2 py-0.5 text-[11px] font-semibold uppercase text-on-surface-variant/60">{m.sm_poll_closed_badge()}</span>
+                          <span class="inline-flex items-center rounded-full bg-surface-container-high px-2 py-0.5 text-2xs font-semibold uppercase text-on-surface-variant/60">{m.sm_poll_closed_badge()}</span>
                         {:else}
-                          <span class="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold uppercase text-emerald-600 animate-pulse">{m.sm_poll_ongoing_badge()}</span>
+                          <span class="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-2xs font-semibold uppercase text-emerald-600 animate-pulse">{m.sm_poll_ongoing_badge()}</span>
                         {/if}
-                        <span class="text-[10px] font-medium text-on-surface-variant/40">{m.sm_poll_by({ author: poll.author?.displayName || poll.author?.username })}</span>
+                        <span class="text-2xs font-medium text-on-surface-variant/40">{m.sm_poll_by({ author: poll.author?.displayName || poll.author?.username })}</span>
                       </div>
                       <h4 class="text-lg font-semibold text-on-surface tracking-tight leading-tight">{poll.title}</h4>
                     </div>
@@ -2701,7 +2701,7 @@
                                   <div class="h-1 w-3 rounded-full bg-primary/30" title={m.sm_poll_weight_title({ weight: vote.weight })}></div>
                                 {/each}
                              </div>
-                             <span class="text-[11px] font-semibold text-on-surface-variant/50">{Math.round(percent)}% ({optWeight.toFixed(1)})</span>
+                             <span class="text-2xs font-semibold text-on-surface-variant/50">{Math.round(percent)}% ({optWeight.toFixed(1)})</span>
                            </div>
                         {/if}
                       </div>
@@ -2709,9 +2709,9 @@
                   </div>
 
                   <div class="mt-6 pt-4 border-t border-outline-variant/10 flex items-center justify-between">
-                    <span class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">{m.sm_poll_total_votes({ total: totalWeight.toFixed(1) })}</span>
+                    <span class="text-2xs font-bold text-on-surface-variant/40 uppercase tracking-widest">{m.sm_poll_total_votes({ total: totalWeight.toFixed(1) })}</span>
                     {#if poll.closesAt && !isClosed}
-                      <span class="text-[10px] font-medium text-amber-600/70 italic flex items-center gap-1">
+                      <span class="text-2xs font-medium text-amber-600/70 italic flex items-center gap-1">
                         <Papicon icon="clock" size={12} />
                         {m.sm_poll_ends_on({ date: new Date(poll.closesAt).toLocaleDateString() })}
                       </span>
@@ -2795,7 +2795,7 @@
                         </div>
                         <div>
                           <div class="text-sm font-semibold text-on-surface tracking-tight">{member?.displayName || member?.username}</div>
-                          <div class="text-[10px] font-bold text-on-surface-variant/50 uppercase">{member?.grade}</div>
+                          <div class="text-2xs font-bold text-on-surface-variant/50 uppercase">{member?.grade}</div>
                         </div>
                       </div>
                     </td>
@@ -2809,22 +2809,22 @@
                     </td>
                     <td class="px-8 py-5">
                       <div class="flex flex-col gap-1">
-                        <div class="text-[11px] font-bold">
+                        <div class="text-2xs font-bold">
                           {m.sm_avg_prefix()} <span class="text-on-surface">{metric.avg30d}</span> {m.sm_msg_per_day()}
                         </div>
-                        <div class="text-[10px] font-medium text-on-surface-variant/60">
+                        <div class="text-2xs font-medium text-on-surface-variant/60">
                           {m.sm_week_prefix()} <span class={metric.avg7d < metric.avg30d * 0.5 ? 'text-amber-600 font-bold' : ''}>{metric.avg7d}</span> {m.sm_msg_per_day()}
                         </div>
                       </div>
                     </td>
                     <td class="px-8 py-5 text-right">
                        {#if metric.hasInactivityAlert}
-                         <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 px-3 py-1 text-[10px] font-semibold text-amber-600 animate-pulse">
+                         <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 px-3 py-1 text-2xs font-semibold text-amber-600 animate-pulse">
                            <Papicon icon="alert-triangle" size={14} />
                            {m.sm_inactivity_detected()}
                          </span>
                        {:else}
-                         <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-[10px] font-semibold text-emerald-600">
+                         <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-2xs font-semibold text-emerald-600">
                            <Papicon icon="check-circle" size={14} />
                            {m.sm_active_badge()}
                          </span>
@@ -2860,7 +2860,7 @@
             <div class="flex flex-col gap-4">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label for="tutoring-item-category" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_category()}</label>
+                  <label for="tutoring-item-category" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_category()}</label>
                   <input
                     id="tutoring-item-category"
                     type="text"
@@ -2870,7 +2870,7 @@
                   />
                 </div>
                 <div>
-                  <label for="tutoring-item-title" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_item_title()}</label>
+                  <label for="tutoring-item-title" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_item_title()}</label>
                   <input
                     id="tutoring-item-title"
                     type="text"
@@ -2882,7 +2882,7 @@
               </div>
 
               <div>
-                <label for="tutoring-item-description" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_description()} <span class="text-on-surface-variant/50 normal-case tracking-normal">{m.sm_optional_tag()}</span></label>
+                <label for="tutoring-item-description" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_description()} <span class="text-on-surface-variant/50 normal-case tracking-normal">{m.sm_optional_tag()}</span></label>
                 <input
                   id="tutoring-item-description"
                   type="text"
@@ -2894,7 +2894,7 @@
 
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label for="tutoring-item-hierarchy" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_target_hierarchy()}</label>
+                  <label for="tutoring-item-hierarchy" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_target_hierarchy()}</label>
                   <select
                     id="tutoring-item-hierarchy"
                     bind:value={newTutoringItemHierarchyId}
@@ -2908,7 +2908,7 @@
                   </select>
                 </div>
                 <div>
-                  <label for="tutoring-item-grade" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_target_grade()}</label>
+                  <label for="tutoring-item-grade" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_target_grade()}</label>
                   {#if newTutoringItemHierarchyId}
                     <select
                       id="tutoring-item-grade"
@@ -2955,7 +2955,7 @@
           <div class="divide-y divide-outline-variant/10">
             {#each tutoringGroups as group (group.key)}
               <div class="p-6 md:p-8">
-                <h4 class="text-[13px] font-medium text-primary mb-4">
+                <h4 class="text-body-sm font-medium text-primary mb-4">
                   {tutoringGroupLabel(group.hierarchyId, group.grade)}
                 </h4>
                 <div class="space-y-3">
@@ -2963,7 +2963,7 @@
                     <div class="flex items-center justify-between gap-4 p-4 rounded-xl bg-surface-container-high/30 border border-outline-variant/5">
                       <div class="min-w-0">
                         <div class="flex items-center gap-2">
-                          <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
+                          <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-primary">
                             {item.category}
                           </span>
                           <span class="text-sm font-semibold text-on-surface truncate">{item.title}</span>
@@ -3104,7 +3104,7 @@
 
           <div class="space-y-6">
             <div>
-              <span class="mb-3 block text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">{m.sm_execution_mode()}</span>
+              <span class="mb-3 block text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/60">{m.sm_execution_mode()}</span>
               <div class="flex gap-2 rounded-lg border border-outline-variant/20 bg-surface p-1">
                 <label class="flex-1 cursor-pointer">
                   <input type="radio" name="actionMode" value="validation" checked={actionMode === 'validation'} onchange={() => { actionMode = 'validation'; saveStaffConfig(); }} class="peer sr-only" />
@@ -3124,7 +3124,7 @@
             </div>
 
             <div>
-              <span class="mb-3 block text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">{m.sm_warn_thresholds()}</span>
+              <span class="mb-3 block text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/60">{m.sm_warn_thresholds()}</span>
               <div class="flex gap-4">
                 <div class="flex-1 rounded-lg border border-orange-500/20 bg-orange-500/5 p-4">
                   <div class="flex items-center justify-between mb-2">
@@ -3133,7 +3133,7 @@
                   </div>
                   <div class="flex items-center gap-2">
                     <input type="number" min="0" bind:value={warnsToDemote} onchange={saveStaffConfig} class="w-full rounded-xl border border-outline-variant/30 bg-surface px-3 py-2 text-center text-lg font-semibold text-on-surface outline-none transition focus:border-orange-500/50 focus:ring-2 focus:ring-orange-500/20" />
-                    <span class="text-[10px] font-bold uppercase text-on-surface-variant/60">{m.sm_warn_unit()}</span>
+                    <span class="text-2xs font-bold uppercase text-on-surface-variant/60">{m.sm_warn_unit()}</span>
                   </div>
                 </div>
                 <div class="flex-1 rounded-lg border border-rose-500/20 bg-rose-500/5 p-4">
@@ -3143,7 +3143,7 @@
                   </div>
                    <div class="flex items-center gap-2">
                     <input type="number" min="0" bind:value={warnsToBlacklist} onchange={saveStaffConfig} class="w-full rounded-xl border border-outline-variant/30 bg-surface px-3 py-2 text-center text-lg font-semibold text-on-surface outline-none transition focus:border-rose-500/50 focus:ring-2 focus:ring-rose-500/20" />
-                    <span class="text-[10px] font-bold uppercase text-on-surface-variant/60">{m.sm_warn_unit()}</span>
+                    <span class="text-2xs font-bold uppercase text-on-surface-variant/60">{m.sm_warn_unit()}</span>
                   </div>
                 </div>
               </div>
@@ -3204,25 +3204,25 @@
 
       <div class="space-y-4">
         <div>
-          <label for="hierarchy-name" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_hierarchy_name()}</label>
+          <label for="hierarchy-name" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_hierarchy_name()}</label>
           <input id="hierarchy-name" type="text" bind:value={newHierarchyName} placeholder={m.sm_placeholder_hierarchy_name()} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
         </div>
 
         <div>
-          <label for="hierarchy-desc" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_description()}</label>
+          <label for="hierarchy-desc" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_description()}</label>
           <textarea id="hierarchy-desc" bind:value={newHierarchyDescription} placeholder={m.sm_placeholder_hierarchy_desc()} rows="3" class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 resize-none"></textarea>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label for="hierarchy-color" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_color()}</label>
+            <label for="hierarchy-color" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_color()}</label>
             <div class="flex gap-2">
               <input id="hierarchy-color" type="color" bind:value={newHierarchyColor} class="h-11 w-12 rounded-xl border border-outline-variant/20 bg-surface-container-low p-1 cursor-pointer" />
               <input type="text" bind:value={newHierarchyColor} class="flex-1 rounded-lg border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-sm text-on-surface outline-none transition focus:border-primary/40" />
             </div>
           </div>
           <div>
-            <label for="hierarchy-icon" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_emoji()}</label>
+            <label for="hierarchy-icon" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_emoji()}</label>
             <div class="flex gap-2">
               <input id="hierarchy-icon" type="text" bind:value={newHierarchyIcon} placeholder="🔵, 🛡️, 🎭..." class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
               <EmojiPicker bind:value={newHierarchyIcon} />
@@ -3231,7 +3231,7 @@
         </div>
 
         <div>
-          <label for="hierarchy-role" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_hierarchy_role()} {m.sm_optional_tag()}</label>
+          <label for="hierarchy-role" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_hierarchy_role()} {m.sm_optional_tag()}</label>
           <select id="hierarchy-role" bind:value={newHierarchyDiscordRoleId} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
             <option value="">{m.sm_none_option()}</option>
             {#each availableDiscordRoles as dr}
@@ -3241,7 +3241,7 @@
         </div>
 
         <div>
-          <label for="hierarchy-resp" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_hierarchy_responsible_member()} {m.sm_optional_tag()}</label>
+          <label for="hierarchy-resp" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_hierarchy_responsible_member()} {m.sm_optional_tag()}</label>
           <select id="hierarchy-resp" bind:value={newHierarchyResponsableUserId} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
             <option value="">{m.sm_none_option()}</option>
             {#each staffMembers as sm}
@@ -3251,7 +3251,7 @@
         </div>
 
         <div>
-          <label for="hierarchy-parent" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_hierarchy_parent()} {m.sm_optional_tag()}</label>
+          <label for="hierarchy-parent" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_hierarchy_parent()} {m.sm_optional_tag()}</label>
           <select id="hierarchy-parent" bind:value={newHierarchyParentId} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
             <option value="">{m.sm_none_alt_option()}</option>
             {#each hierarchies.filter((h) => !editingHierarchy || h.id !== editingHierarchy.id) as h}
@@ -3262,10 +3262,10 @@
       </div>
 
       <div class="mt-8 flex justify-end gap-3">
-        <button onclick={() => showAddHierarchyForm = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-[13px] font-medium text-on-surface transition-all">
+        <button onclick={() => showAddHierarchyForm = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-body-sm font-medium text-on-surface transition-all">
           {m.common_cancel()}
         </button>
-        <button onclick={saveHierarchy} disabled={isSavingHierarchy || !newHierarchyName.trim()} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all active:scale-[0.98] disabled:opacity-50">
+        <button onclick={saveHierarchy} disabled={isSavingHierarchy || !newHierarchyName.trim()} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-body-sm font-medium text-white transition-all active:scale-[0.98] disabled:opacity-50">
           {isSavingHierarchy ? m.sm_saving_ellipsis() : m.common_save()}
         </button>
       </div>
@@ -3308,7 +3308,7 @@
 
       <div class="space-y-4">
         <div>
-          <label for="import-role-select" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_import_role()}</label>
+          <label for="import-role-select" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_import_role()}</label>
           <select id="import-role-select" bind:value={importDiscordRoleId} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
             <option value="">{m.sm_option_choose_role()}</option>
             {#each availableDiscordRoles as dr}
@@ -3318,7 +3318,7 @@
         </div>
 
         <div>
-          <label for="import-grade-select" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_import_grade()}</label>
+          <label for="import-grade-select" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_import_grade()}</label>
           <select id="import-grade-select" bind:value={importGradeName} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
             <option value="">{m.sm_option_choose_grade()}</option>
             {#each getOrderedStaffRoles().filter(r => r.hierarchyId === importHierarchyTarget?.id) as r}
@@ -3329,11 +3329,11 @@
       </div>
 
       <div class="mt-8 flex justify-end gap-3">
-        <button onclick={() => showImportModal = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-[13px] font-medium text-on-surface transition-all">
+        <button onclick={() => showImportModal = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-body-sm font-medium text-on-surface transition-all">
           {importResult ? m.common_close() : m.common_cancel()}
         </button>
         {#if !importResult}
-          <button onclick={runImport} disabled={isImporting || !importDiscordRoleId || !importGradeName} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all active:scale-[0.98] disabled:opacity-50">
+          <button onclick={runImport} disabled={isImporting || !importDiscordRoleId || !importGradeName} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-body-sm font-medium text-white transition-all active:scale-[0.98] disabled:opacity-50">
             {isImporting ? m.sm_importing() : m.sm_btn_launch_import()}
           </button>
         {/if}
@@ -3366,7 +3366,7 @@
 
       <!-- Existing Hierarchies list -->
       <div class="mb-6 space-y-2">
-        <span class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_current_grades()}</span>
+        <span class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_current_grades()}</span>
         {#if memberHierarchyGradeTarget?.hierarchyGrades && memberHierarchyGradeTarget.hierarchyGrades.length > 0}
           <div class="divide-y divide-outline-variant/10 border border-outline-variant/15 rounded-lg bg-surface-container-low overflow-hidden">
             {#each memberHierarchyGradeTarget.hierarchyGrades as hGrade}
@@ -3376,7 +3376,7 @@
                   <span class="font-bold">{hGrade.hierarchy?.name}</span>
                   <span class="text-on-surface-variant/75">- {hGrade.grade}</span>
                 </div>
-                <button onclick={() => removeMemberHierarchy(memberHierarchyGradeTarget?.userId || '', hGrade.hierarchyId)} class="text-rose-600 hover:text-rose-700 text-[13px] font-medium">
+                <button onclick={() => removeMemberHierarchy(memberHierarchyGradeTarget?.userId || '', hGrade.hierarchyId)} class="text-rose-600 hover:text-rose-700 text-body-sm font-medium">
                   {m.sm_confirm_remove_btn()}
                 </button>
               </div>
@@ -3389,7 +3389,7 @@
 
       <!-- Form to add new hierarchy grade -->
       <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-        <span class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_associate_new_hierarchy()}</span>
+        <span class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_associate_new_hierarchy()}</span>
 
         <div>
           <label for="member-h-select" class="block text-xs font-bold text-on-surface-variant/60 mb-2">{m.sm_field_hierarchy()}</label>
@@ -3433,10 +3433,10 @@
       </div>
 
       <div class="mt-8 flex justify-end gap-3">
-        <button onclick={() => showMemberHierarchyGradeForm = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-[13px] font-medium text-on-surface transition-all">
+        <button onclick={() => showMemberHierarchyGradeForm = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-body-sm font-medium text-on-surface transition-all">
           {m.common_close()}
         </button>
-        <button onclick={saveMemberHierarchyGrade} disabled={isSavingMemberHierarchyGrade || !selectedMemberHierarchyId || !selectedMemberHierarchyGrade} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all active:scale-[0.98] disabled:opacity-50">
+        <button onclick={saveMemberHierarchyGrade} disabled={isSavingMemberHierarchyGrade || !selectedMemberHierarchyId || !selectedMemberHierarchyGrade} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-body-sm font-medium text-white transition-all active:scale-[0.98] disabled:opacity-50">
           {isSavingMemberHierarchyGrade ? m.sm_adding() : m.common_add()}
         </button>
       </div>
@@ -3533,15 +3533,15 @@
             checked={editRoleIsResponsable}
             onToggle={(v: boolean) => editRoleIsResponsable = v}
           />
-          <span class="text-[13px] font-medium text-on-surface-variant/70">{m.sm_toggle_hierarchy_chief()}</span>
+          <span class="text-body-sm font-medium text-on-surface-variant/70">{m.sm_toggle_hierarchy_chief()}</span>
         </div>
       </div>
 
       <div class="mt-8 flex justify-end gap-3">
-        <button onclick={() => { showEditRoleModal = false; editingRole = null; }} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-[13px] font-medium text-on-surface transition-all">
+        <button onclick={() => { showEditRoleModal = false; editingRole = null; }} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-body-sm font-medium text-on-surface transition-all">
           {m.common_cancel()}
         </button>
-        <button onclick={saveRoleEdit} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all hover:active:scale-[0.98]">
+        <button onclick={saveRoleEdit} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-body-sm font-medium text-white transition-all hover:active:scale-[0.98]">
           {m.common_save()}
         </button>
       </div>

@@ -176,7 +176,7 @@
               <select
                 value={(step as ConditionStep).match}
                 onchange={(event) => onChange({ ...(step as ConditionStep), match: event.currentTarget.value as 'all' | 'any' })}
-                class="px-2 py-0.5 rounded-lg text-[11px] bg-surface-container-highest border border-outline-variant/25 text-on-surface-variant cursor-pointer focus:outline-none"
+                class="px-2 py-0.5 rounded-lg text-2xs bg-surface-container-highest border border-outline-variant/25 text-on-surface-variant cursor-pointer focus:outline-none"
               >
                 <option value="all">{m.wf_match_all()}</option>
                 <option value="any">{m.wf_match_any()}</option>
@@ -216,7 +216,7 @@
                 <button
                   type="button"
                   onclick={() => updateTest(test.id, { negate: !test.negate })}
-                  class="px-2 py-0.5 rounded-lg text-[10px] font-medium border transition-colors {test.negate
+                  class="px-2 py-0.5 rounded-lg text-2xs font-medium border transition-colors {test.negate
                     ? 'bg-red-500/15 border-red-500/30 text-red-700 dark:text-red-300'
                     : 'bg-surface-container-highest border-outline-variant/20 text-on-surface-variant/70 hover:text-on-surface'}"
                   title={m.wf_invert_title()}
@@ -234,7 +234,7 @@
       {/if}
 
       {#each problems as problem}
-        <p class="flex items-center gap-1.5 text-[11px] text-amber-700/90 dark:text-amber-300/90">
+        <p class="flex items-center gap-1.5 text-2xs text-amber-700/90 dark:text-amber-300/90">
           <Papicon icon="Warning" size={11} />
           {problem}
         </p>
@@ -269,7 +269,7 @@
     {#each [{ key: 'then' as const, label: m.wf_then() }, { key: 'otherwise' as const, label: m.wf_else() }] as branch (branch.key)}
       <div class="px-3 pb-3">
         <div class="pl-3 border-l border-dashed border-outline-variant/25 space-y-2">
-          <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70">{branch.label}</p>
+          <p class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/70">{branch.label}</p>
 
           {#each (step as ConditionStep)[branch.key] as child, index (child.id)}
             {@const movable = movableSteps((step as ConditionStep)[branch.key], index)}
@@ -292,13 +292,13 @@
             <button
               type="button"
               onclick={() => onAddInside(branch.key, step.id)}
-              class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-medium text-on-surface-variant/70 border border-dashed border-outline-variant/25 hover:text-on-surface hover:border-primary/40 transition-colors"
+              class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-2xs font-medium text-on-surface-variant/70 border border-dashed border-outline-variant/25 hover:text-on-surface hover:border-primary/40 transition-colors"
             >
               <Papicon icon="Plus" size={11} />
               {m.wf_add_step()}
             </button>
           {:else}
-            <p class="text-[10px] text-on-surface-variant/70 leading-snug">{m.wf_condition_closes()}</p>
+            <p class="text-2xs text-on-surface-variant/70 leading-snug">{m.wf_condition_closes()}</p>
           {/if}
         </div>
       </div>

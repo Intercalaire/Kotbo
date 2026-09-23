@@ -250,7 +250,7 @@
           />
         {/each}
         {#if totalFound > 5}
-          <div class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-surface-container bg-surface-container-high text-[10px] font-bold text-on-surface-variant">
+          <div class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-surface-container bg-surface-container-high text-2xs font-bold text-on-surface-variant">
             +{totalFound - 5}
           </div>
         {/if}
@@ -258,7 +258,7 @@
       <div class="h-8 w-px bg-outline-variant/20"></div>
       <div class="text-right">
         <div class="text-lg font-semibold text-on-surface">{onServerCount.toLocaleString(dateLocale())}</div>
-        <div class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.mb_total_members()}</div>
+        <div class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.mb_total_members()}</div>
       </div>
     </div>
   {/snippet}
@@ -364,27 +364,27 @@
 
     <!-- Quick Stats Bar -->
     <div class="flex flex-wrap items-center gap-4 px-2">
-      <div class="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40">
+      <div class="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/40">
         <div class="h-1.5 w-1.5 rounded-full bg-emerald-500"></div>
         {m.mb_stat_online({ count: stats.onServer })}
       </div>
-      <div class="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40">
+      <div class="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/40">
         <div class="h-1.5 w-1.5 rounded-full bg-amber-500"></div>
         {m.mb_stat_left({ count: stats.left })}
       </div>
-      <div class="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40">
+      <div class="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/40">
         <div class="h-1.5 w-1.5 rounded-full bg-primary/50"></div>
         {m.mb_stat_bots({ count: stats.bots })}
       </div>
       <div class="ml-auto flex items-center gap-2">
-        <span class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40">{m.mb_per_page()}</span>
+        <span class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/40">{m.mb_per_page()}</span>
         <select
           value={limit}
           onchange={(event) => {
             limit = Number((event.currentTarget as HTMLSelectElement).value);
             void search(true);
           }}
-          class="bg-transparent text-[10px] font-bold text-on-surface-variant outline-hidden"
+          class="bg-transparent text-2xs font-bold text-on-surface-variant outline-hidden"
         >
           <!-- Valeurs numeriques : avec des chaines, `limit` (number) ne
                correspond a aucune option et le select s'affiche vide. -->
@@ -432,7 +432,7 @@
         <p class="mt-2 text-sm text-on-surface-variant/50 max-w-xs">
           {m.mb_no_result_desc()}
         </p>
-        <button onclick={resetSearch} class="mt-6 text-[13px] font-medium text-primary hover:underline">
+        <button onclick={resetSearch} class="mt-6 text-body-sm font-medium text-primary hover:underline">
           {m.mb_reset_all()}
         </button>
       </div>
@@ -460,24 +460,24 @@
 
               <div class="min-w-0 flex-1">
                 <h3 class="truncate text-base font-bold text-on-surface">{member.displayName || m.mb_no_name()}</h3>
-                <p class="truncate text-[10px] font-bold tracking-wider text-on-surface-variant/40">@{member.username || member.id.slice(0, 8)}</p>
+                <p class="truncate text-2xs font-bold tracking-wider text-on-surface-variant/40">@{member.username || member.id.slice(0, 8)}</p>
               </div>
             </div>
 
             <div class="mt-6 grid grid-cols-2 gap-3">
               <div class="space-y-0.5">
-                <div class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/30">{m.mb_col_activity()}</div>
-                <div class="text-[11px] font-bold text-on-surface-variant/70">{formatRelative(member.lastSeenAt)}</div>
+                <div class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/30">{m.mb_col_activity()}</div>
+                <div class="text-2xs font-bold text-on-surface-variant/70">{formatRelative(member.lastSeenAt)}</div>
               </div>
               <div class="space-y-0.5">
-                <div class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/30">{m.mb_col_messages()}</div>
-                <div class="text-[11px] font-bold text-on-surface-variant/70">{member.messageCount.toLocaleString(dateLocale())}</div>
+                <div class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/30">{m.mb_col_messages()}</div>
+                <div class="text-2xs font-bold text-on-surface-variant/70">{member.messageCount.toLocaleString(dateLocale())}</div>
               </div>
             </div>
 
             <div class="mt-4 flex items-center justify-between border-t border-outline-variant/5 pt-3">
-              <span class="text-[11px] font-bold text-on-surface-variant/30">{member.id.slice(0, 14)}…</span>
-              <span class="text-[11px] font-semibold uppercase tracking-widest text-primary/0 transition-all group-hover:text-primary">
+              <span class="text-2xs font-bold text-on-surface-variant/30">{member.id.slice(0, 14)}…</span>
+              <span class="text-2xs font-semibold uppercase tracking-widest text-primary/0 transition-all group-hover:text-primary">
                 {m.mb_open_case()} <Papicon icon="arrow-right" size={10} />
               </span>
             </div>

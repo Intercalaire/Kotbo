@@ -182,7 +182,7 @@
       <div class="flex flex-col gap-3">
         {#if isActive}
           <button
-            class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
+            class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
             onclick={handleRefresh}
             disabled={acting}
           >
@@ -190,7 +190,7 @@
             Rafraîchir mon widget
           </button>
           <button
-            class="px-5 py-2.5 bg-rose-500 text-white text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
+            class="px-5 py-2.5 bg-rose-500 text-white text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
             onclick={handleDeactivate}
             disabled={acting}
           >
@@ -199,7 +199,7 @@
           </button>
         {:else}
           <button
-            class="px-5 py-2.5 bg-emerald-500 text-white text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
+            class="px-5 py-2.5 bg-emerald-500 text-white text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
             onclick={handleActivate}
             disabled={acting}
           >
@@ -209,7 +209,7 @@
         {/if}
 
         <button
-          class="px-5 py-2.5 bg-surface-container-high/40 text-on-surface-variant hover:bg-surface-container-high/60 text-[13px] font-medium rounded-xl transition-all flex items-center gap-2"
+          class="px-5 py-2.5 bg-surface-container-high/40 text-on-surface-variant hover:bg-surface-container-high/60 text-body-sm font-medium rounded-xl transition-all flex items-center gap-2"
           onclick={handleRefreshAll}
           disabled={acting}
         >
@@ -248,7 +248,7 @@
           <div class="space-y-3">
             <div class="flex items-center gap-2 text-amber-400">
               <Papicon icon="terminal" size={18} />
-              <span class="text-[10px] font-bold uppercase tracking-[0.18em]">Installation locale · Discord/Vencord</span>
+              <span class="text-2xs font-bold uppercase tracking-[0.18em]">Installation locale · Discord/Vencord</span>
             </div>
             <h3 class="text-base font-semibold text-on-surface">Ajouter Kotbo à ton Profile Board</h3>
             <p class="max-w-2xl text-sm leading-relaxed text-on-surface-variant">
@@ -264,7 +264,7 @@
           </div>
           <div class="flex min-w-56 flex-col gap-2">
             <button
-              class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-400 px-5 py-3 text-[13px] font-medium text-black transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60"
+              class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-400 px-5 py-3 text-body-sm font-medium text-black transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60"
               onclick={handleCopyVencordScript}
               disabled={copyingScript}
             >
@@ -275,7 +275,7 @@
               href="/kotbo-widget-discord-v2.js"
               target="_blank"
               rel="noreferrer"
-              class="text-center text-[11px] text-on-surface-variant/70 underline decoration-outline-variant underline-offset-4 hover:text-on-surface"
+              class="text-center text-2xs text-on-surface-variant/70 underline decoration-outline-variant underline-offset-4 hover:text-on-surface"
             >Voir le fichier avant de l’exécuter</a>
           </div>
         </div>
@@ -297,32 +297,32 @@
 
         <!-- Token widget -->
         <div class="rounded-lg border border-outline-variant/10 bg-surface-container-high/20 p-4 space-y-2">
-          <p class="text-[11px] font-bold uppercase tracking-wide text-on-surface-variant/60">Token widget (lecture seule)</p>
+          <p class="text-2xs font-bold uppercase tracking-wide text-on-surface-variant/60">Token widget (lecture seule)</p>
           <div class="flex items-center gap-2">
             <code class="flex-1 min-w-0 truncate rounded-lg border border-outline-variant/10 bg-surface-container-highest/40 px-3 py-2 font-mono text-xs text-on-surface">
               {showToken ? (widgetToken ?? '-') : '••••••••••••••••••••••••••••••••'}
             </code>
             <button
-              class="shrink-0 rounded-lg border border-outline-variant/20 px-2.5 py-2 text-[11px] text-on-surface-variant hover:text-on-surface transition-colors"
+              class="shrink-0 rounded-lg border border-outline-variant/20 px-2.5 py-2 text-2xs text-on-surface-variant hover:text-on-surface transition-colors"
               onclick={() => showToken = !showToken}
             >
               {showToken ? 'Masquer' : 'Afficher'}
             </button>
             <button
-              class="shrink-0 rounded-lg border border-outline-variant/20 px-2.5 py-2 text-[11px] text-on-surface-variant hover:text-on-surface transition-colors"
+              class="shrink-0 rounded-lg border border-outline-variant/20 px-2.5 py-2 text-2xs text-on-surface-variant hover:text-on-surface transition-colors"
               onclick={() => widgetToken && copy(widgetToken, 'token')}
             >
               {copiedField === 'token' ? 'Copié' : 'Copier'}
             </button>
             <button
-              class="shrink-0 rounded-lg border border-outline-variant/20 px-2.5 py-2 text-[11px] text-on-surface-variant hover:text-on-surface transition-colors disabled:opacity-50"
+              class="shrink-0 rounded-lg border border-outline-variant/20 px-2.5 py-2 text-2xs text-on-surface-variant hover:text-on-surface transition-colors disabled:opacity-50"
               onclick={handleRotateToken}
               disabled={rotatingToken}
             >
               <Papicon icon="refresh-cw" size={14} />
             </button>
           </div>
-          <p class="text-[11px] text-on-surface-variant/50">
+          <p class="text-2xs text-on-surface-variant/50">
             Ce token permet uniquement de lire tes stats (niveau, messages, vocal, staff score). Régénère-le si tu penses qu'il a fuité.
           </p>
         </div>
@@ -338,20 +338,20 @@
               <li>Installe l'app gratuite <strong>Scriptable</strong> (App Store)</li>
               <li>Colle-y le script Kotbo ci-dessous</li>
               <li>Ajoute un widget Scriptable à l'écran d'accueil</li>
-              <li>En paramètre du widget : <code class="text-[10px]">{widgetToken}|{apiOrigin}</code></li>
+              <li>En paramètre du widget : <code class="text-2xs">{widgetToken}|{apiOrigin}</code></li>
             </ol>
             <div class="flex flex-col gap-1.5">
               <a
                 href="/mobile-widgets/kotbo-widget.scriptable.js"
                 target="_blank"
                 rel="noreferrer"
-                class="inline-flex items-center justify-center gap-2 rounded-lg bg-surface-container-highest/50 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-on-surface hover:bg-surface-container-highest/70 transition-colors"
+                class="inline-flex items-center justify-center gap-2 rounded-lg bg-surface-container-highest/50 px-3 py-2 text-2xs font-bold uppercase tracking-wide text-on-surface hover:bg-surface-container-highest/70 transition-colors"
               >
                 <Papicon icon="download" size={13} />
                 Télécharger le script
               </a>
               <button
-                class="text-[11px] text-on-surface-variant/70 underline decoration-outline-variant underline-offset-4 hover:text-on-surface"
+                class="text-2xs text-on-surface-variant/70 underline decoration-outline-variant underline-offset-4 hover:text-on-surface"
                 onclick={() => widgetToken && copy(`${widgetToken}|${apiOrigin}`, 'ios-param')}
               >{copiedField === 'ios-param' ? 'Copié !' : 'Copier le paramètre'}</button>
             </div>
@@ -373,13 +373,13 @@
                 href="/mobile-widgets/kwgt-guide.txt"
                 target="_blank"
                 rel="noreferrer"
-                class="inline-flex items-center justify-center gap-2 rounded-lg bg-surface-container-highest/50 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-on-surface hover:bg-surface-container-highest/70 transition-colors"
+                class="inline-flex items-center justify-center gap-2 rounded-lg bg-surface-container-highest/50 px-3 py-2 text-2xs font-bold uppercase tracking-wide text-on-surface hover:bg-surface-container-highest/70 transition-colors"
               >
                 <Papicon icon="download" size={13} />
                 Voir le guide
               </a>
               <button
-                class="text-[11px] text-on-surface-variant/70 underline decoration-outline-variant underline-offset-4 hover:text-on-surface"
+                class="text-2xs text-on-surface-variant/70 underline decoration-outline-variant underline-offset-4 hover:text-on-surface"
                 onclick={() => copy(widgetDataUrl, 'android-url')}
               >{copiedField === 'android-url' ? 'Copié !' : 'Copier l\'URL de données'}</button>
             </div>
@@ -396,7 +396,7 @@
               <li>Menu ⋯ → Applications → « Installer ce site en tant qu'application »</li>
               <li>Clic droit sur l'icône Kotbo installée → « Ajouter au panneau Widgets »</li>
             </ol>
-            <p class="text-[11px] text-on-surface-variant/50">
+            <p class="text-2xs text-on-surface-variant/50">
               Le widget se synchronise automatiquement dès que tu ouvres l'app installée - aucune configuration de token nécessaire.
             </p>
           </div>
@@ -409,7 +409,7 @@
             </div>
             <ol class="space-y-1.5 text-xs text-on-surface-variant leading-relaxed list-decimal list-inside">
               <li>Copie le script (Waybar ou Conky) dans ton dossier de config</li>
-              <li>Renseigne ton token, <code class="text-[10px]">chmod +x</code> le script</li>
+              <li>Renseigne ton token, <code class="text-2xs">chmod +x</code> le script</li>
               <li>Ajoute le bloc de config fourni dans le guide</li>
             </ol>
             <div class="flex flex-col gap-1.5">
@@ -417,13 +417,13 @@
                 href="/desktop-widgets/linux-widgets-guide.txt"
                 target="_blank"
                 rel="noreferrer"
-                class="inline-flex items-center justify-center gap-2 rounded-lg bg-surface-container-highest/50 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-on-surface hover:bg-surface-container-highest/70 transition-colors"
+                class="inline-flex items-center justify-center gap-2 rounded-lg bg-surface-container-highest/50 px-3 py-2 text-2xs font-bold uppercase tracking-wide text-on-surface hover:bg-surface-container-highest/70 transition-colors"
               >
                 <Papicon icon="download" size={13} />
                 Voir le guide
               </a>
               <button
-                class="text-[11px] text-on-surface-variant/70 underline decoration-outline-variant underline-offset-4 hover:text-on-surface"
+                class="text-2xs text-on-surface-variant/70 underline decoration-outline-variant underline-offset-4 hover:text-on-surface"
                 onclick={() => copy(widgetDataUrl, 'linux-url')}
               >{copiedField === 'linux-url' ? 'Copié !' : 'Copier l\'URL de données'}</button>
             </div>

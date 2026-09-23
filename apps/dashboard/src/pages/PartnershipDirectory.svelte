@@ -310,7 +310,7 @@
   <div class="inline-flex rounded-lg bg-surface-container p-0.5 mb-4 flex-wrap">
     {#each [['listing', 'Ma vitrine'], ['discover', 'Découvrir'], ['proposals', `Propositions${receivedPending.length > 0 ? ` (${receivedPending.length})` : ''}`], ['trust', 'Confiance']] as [key, label] (key)}
       <button
-        class="px-3 py-1.5 text-[12px] rounded-md {tab === key ? 'bg-surface text-on-surface' : 'text-on-surface-variant'}"
+        class="px-3 py-1.5 text-xs rounded-md {tab === key ? 'bg-surface text-on-surface' : 'text-on-surface-variant'}"
         onclick={() => (tab = key as typeof tab)}
       >
         {label}
@@ -324,11 +324,11 @@
     {#if settings && !settings.directoryOptIn}
       <div class="rounded-2xl border border-primary/30 bg-primary/5 px-5 py-4 mb-3 flex flex-wrap items-center justify-between gap-3">
         <div class="min-w-0">
-          <p class="text-[14px] font-semibold text-on-surface flex items-center gap-2">
+          <p class="text-sm font-semibold text-on-surface flex items-center gap-2">
             <Papicon icon="compass" size={15} />
             Votre serveur n'est pas référencé
           </p>
-          <p class="text-[12px] text-on-surface-variant mt-1 max-w-2xl">
+          <p class="text-xs text-on-surface-variant mt-1 max-w-2xl">
             Tant que le référencement n'est pas autorisé, la fiche ci-dessous reste privée : la case « Publier »
             sera refusée. Seul ce que vous écrivez ici est publié, et l'effectif l'est par tranche.
           </p>
@@ -359,7 +359,7 @@
           <FormInput label="Nom affiché" bind:value={form.displayName} />
           <FormInput label="Accroche" bind:value={form.headline} placeholder="Une ligne pour donner envie" />
           <label class="block">
-            <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Présentation</span>
+            <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Présentation</span>
             <FormTextarea bind:value={form.description} rows={4} />
           </label>
           <FormInput label="Thèmes (séparés par des virgules)" bind:value={form.tags} placeholder="gaming, entraide, francophone" />
@@ -378,14 +378,14 @@
 
           <label class="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" bind:checked={form.openToProposals} />
-            <span class="text-[13px] text-on-surface">Accepter les propositions spontanées</span>
+            <span class="text-body-sm text-on-surface">Accepter les propositions spontanées</span>
           </label>
           <label class="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" bind:checked={form.published} />
-            <span class="text-[13px] text-on-surface">Publier la fiche</span>
+            <span class="text-body-sm text-on-surface">Publier la fiche</span>
           </label>
 
-          <p class="text-[11px] text-on-surface-variant flex items-start gap-1.5">
+          <p class="text-2xs text-on-surface-variant flex items-start gap-1.5">
             <Papicon icon="info" size={12} class="mt-0.5 shrink-0" />
             <span>
               L'effectif n'est jamais publié en valeur exacte, seulement par tranche. Aucune donnée de membre ne
@@ -402,19 +402,19 @@
           <div class="grid grid-cols-2 gap-2">
             <div class="rounded-lg bg-surface-container px-3 py-2 text-center">
               <div class="text-[18px] font-semibold text-on-surface tabular-nums">{listing.reliabilityScore}</div>
-              <div class="text-[11px] text-on-surface-variant">Fiabilité /100</div>
+              <div class="text-2xs text-on-surface-variant">Fiabilité /100</div>
             </div>
             <div class="rounded-lg bg-surface-container px-3 py-2 text-center">
               <div class="text-[18px] font-semibold text-on-surface tabular-nums">{listing.partnershipsDone}</div>
-              <div class="text-[11px] text-on-surface-variant">Partenariats terminés</div>
+              <div class="text-2xs text-on-surface-variant">Partenariats terminés</div>
             </div>
           </div>
-          <p class="text-[11px] text-on-surface-variant mt-3">
+          <p class="text-2xs text-on-surface-variant mt-3">
             Publiée le {date(listing.lastPublishedAt)}. La fiabilité est le rapport entre les partenariats menés à
             terme et ceux qui ont été rompus.
           </p>
         {:else}
-          <p class="text-[12px] text-on-surface-variant">Aucune fiche pour l'instant.</p>
+          <p class="text-xs text-on-surface-variant">Aucune fiche pour l'instant.</p>
         {/if}
       </SectionCard>
     </div>
@@ -422,7 +422,7 @@
     <div class="space-y-4">
       <div class="flex flex-wrap gap-2 items-center">
         <input
-          class="flex-1 min-w-[200px] max-w-md rounded-lg border border-outline-variant/30 bg-surface-container-low px-3 py-1.5 text-[12px] text-on-surface"
+          class="flex-1 min-w-[200px] max-w-md rounded-lg border border-outline-variant/30 bg-surface-container-low px-3 py-1.5 text-xs text-on-surface"
           placeholder="Chercher un serveur par nom ou accroche"
           bind:value={query}
           onkeydown={(event) => event.key === 'Enter' && search()}
@@ -431,7 +431,7 @@
         <ActionButton variant="neutral" size="sm" icon="sparkles" label="Recalculer les suggestions" onclick={refreshMatches} />
 
         {#if settings && !settings.matchmakingEnabled}
-          <label class="flex items-center gap-2 cursor-pointer text-[11.5px] text-on-surface-variant">
+          <label class="flex items-center gap-2 cursor-pointer text-2xs text-on-surface-variant">
             <input
               type="checkbox"
               checked={false}
@@ -446,9 +446,9 @@
         <SectionCard title={`Proposer à ${proposing.name}`} description="Ils recevront la proposition dans leur dashboard">
           <div class="space-y-3">
             <label class="block">
-              <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Type de partenariat</span>
+              <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Type de partenariat</span>
               <select
-                class="w-full rounded-lg border border-outline-variant/30 bg-surface-container-low px-3 py-2 text-[12px] text-on-surface"
+                class="w-full rounded-lg border border-outline-variant/30 bg-surface-container-low px-3 py-2 text-xs text-on-surface"
                 bind:value={proposalType}
               >
                 {#each types as type (type.key)}
@@ -458,11 +458,11 @@
             </label>
 
             <label class="block">
-              <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">
+              <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">
                 Mot d'accompagnement
               </span>
               <textarea
-                class="w-full rounded-lg border border-outline-variant/30 bg-surface-container-low px-3 py-2 text-[12px] text-on-surface"
+                class="w-full rounded-lg border border-outline-variant/30 bg-surface-container-low px-3 py-2 text-xs text-on-surface"
                 rows="3"
                 placeholder="Ce que vous proposez, en deux lignes"
                 bind:value={proposalMessage}
@@ -485,13 +485,13 @@
               <div class="rounded-xl border border-outline-variant/20 bg-surface-container-low/50 px-3 py-2.5">
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
-                    <p class="text-[13px] font-medium text-on-surface truncate">{row.listing.displayName}</p>
-                    <p class="text-[11px] text-on-surface-variant truncate">{row.listing.headline ?? ''}</p>
+                    <p class="text-body-sm font-medium text-on-surface truncate">{row.listing.displayName}</p>
+                    <p class="text-2xs text-on-surface-variant truncate">{row.listing.headline ?? ''}</p>
                   </div>
-                  <span class="text-[11px] font-semibold text-primary tabular-nums shrink-0">{row.suggestion.score}</span>
+                  <span class="text-2xs font-semibold text-primary tabular-nums shrink-0">{row.suggestion.score}</span>
                 </div>
 
-                <p class="text-[10.5px] text-on-surface-variant mt-1.5">
+                <p class="text-2xs text-on-surface-variant mt-1.5">
                   {#if reasons.sharedTags?.length}{reasons.sharedTags.join(', ')}{/if}
                   {#if reasons.sameLocale} · même langue{/if}
                   {#if row.listing.sizeBucket} · {row.listing.sizeBucket}{/if}
@@ -500,7 +500,7 @@
                 <div class="flex gap-2 mt-2">
                   <ActionButton variant="primary" size="sm" icon="send" label="Proposer" onclick={() => openProposal(row.listing.guildId, row.listing.displayName)} />
                   <button
-                    class="text-[10.5px] text-on-surface-variant hover:underline"
+                    class="text-2xs text-on-surface-variant hover:underline"
                     onclick={async () => {
                       await dismissPartnershipMatch(row.listing.guildId);
                       await load();
@@ -520,9 +520,9 @@
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-2">
             {#each results as item (item.guildId)}
               <div class="rounded-xl border border-outline-variant/20 bg-surface-container-low/50 px-3 py-2.5">
-                <p class="text-[13px] font-medium text-on-surface truncate">{item.displayName}</p>
-                <p class="text-[11px] text-on-surface-variant">{item.headline ?? ''}</p>
-                <p class="text-[10.5px] text-on-surface-variant mt-1">
+                <p class="text-body-sm font-medium text-on-surface truncate">{item.displayName}</p>
+                <p class="text-2xs text-on-surface-variant">{item.headline ?? ''}</p>
+                <p class="text-2xs text-on-surface-variant mt-1">
                   {item.sizeBucket ?? '-'} · fiabilité {item.reliabilityScore}/100
                   {#if item.tags?.length} · {item.tags.slice(0, 4).join(', ')}{/if}
                 </p>
@@ -545,16 +545,16 @@
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
       <SectionCard title="Reçues" description="Ce que d'autres serveurs vous proposent">
         {#if proposals.received.length === 0}
-          <p class="text-[12px] text-on-surface-variant">Aucune proposition reçue.</p>
+          <p class="text-xs text-on-surface-variant">Aucune proposition reçue.</p>
         {:else}
           <div class="space-y-2">
             {#each proposals.received as proposal (proposal.id)}
               <div class="rounded-lg bg-surface-container-low/50 px-3 py-2">
-                <p class="text-[12px] text-on-surface">{proposal.type} · {proposal.status}</p>
+                <p class="text-xs text-on-surface">{proposal.type} · {proposal.status}</p>
                 {#if proposal.message}
-                  <p class="text-[11.5px] text-on-surface-variant mt-1 whitespace-pre-wrap">{proposal.message}</p>
+                  <p class="text-2xs text-on-surface-variant mt-1 whitespace-pre-wrap">{proposal.message}</p>
                 {/if}
-                <p class="text-[10.5px] text-on-surface-variant mt-1">Expire le {date(proposal.expiresAt)}</p>
+                <p class="text-2xs text-on-surface-variant mt-1">Expire le {date(proposal.expiresAt)}</p>
                 {#if proposal.status === 'SENT' || proposal.status === 'SEEN'}
                   <div class="flex gap-2 mt-2">
                     <ActionButton variant="primary" size="sm" icon="check" label="Accepter" onclick={() => respond(proposal.id, 'accept')} />
@@ -569,14 +569,14 @@
 
       <SectionCard title="Envoyées" description="Ce que vous avez proposé">
         {#if proposals.sent.length === 0}
-          <p class="text-[12px] text-on-surface-variant">Aucune proposition envoyée.</p>
+          <p class="text-xs text-on-surface-variant">Aucune proposition envoyée.</p>
         {:else}
           <div class="space-y-2">
             {#each proposals.sent as proposal (proposal.id)}
               <div class="rounded-lg bg-surface-container-low/50 px-3 py-2 flex items-center justify-between gap-3">
-                <span class="text-[12px] text-on-surface">{proposal.type} · {proposal.status}</span>
+                <span class="text-xs text-on-surface">{proposal.type} · {proposal.status}</span>
                 {#if proposal.status === 'SENT' || proposal.status === 'SEEN'}
-                  <button class="text-[10.5px] text-on-surface-variant hover:underline" onclick={() => respond(proposal.id, 'withdraw')}>
+                  <button class="text-2xs text-on-surface-variant hover:underline" onclick={() => respond(proposal.id, 'withdraw')}>
                     Retirer
                   </button>
                 {/if}
@@ -590,17 +590,17 @@
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
       <SectionCard title="Liste de blocage" description="Serveurs et personnes avec qui vous ne voulez plus travailler">
         {#if blocklist.length === 0}
-          <p class="text-[12px] text-on-surface-variant">Personne n'est bloqué.</p>
+          <p class="text-xs text-on-surface-variant">Personne n'est bloqué.</p>
         {:else}
           <div class="space-y-2">
             {#each blocklist as entry (entry.id)}
               <div class="rounded-lg bg-surface-container-low/50 px-3 py-2 flex items-center justify-between gap-3">
-                <span class="text-[12px] text-on-surface min-w-0">
+                <span class="text-xs text-on-surface min-w-0">
                   <span class="block truncate">{entry.subjectRef}</span>
-                  <span class="text-[10.5px] text-on-surface-variant">{entry.reason ?? 'Sans motif'}</span>
+                  <span class="text-2xs text-on-surface-variant">{entry.reason ?? 'Sans motif'}</span>
                 </span>
                 <button
-                  class="text-[10.5px] text-on-surface-variant hover:underline shrink-0"
+                  class="text-2xs text-on-surface-variant hover:underline shrink-0"
                   onclick={async () => {
                     await unblockPartnerSubject(entry.id);
                     await load();
@@ -616,20 +616,20 @@
 
       <SectionCard title="Signalements émis" description="Retirez-les si le litige est réglé">
         {#if reports.length === 0}
-          <p class="text-[12px] text-on-surface-variant">Aucun signalement.</p>
+          <p class="text-xs text-on-surface-variant">Aucun signalement.</p>
         {:else}
           <div class="space-y-2">
             {#each reports as report (report.id)}
               <div class="rounded-lg bg-surface-container-low/50 px-3 py-2 flex items-center justify-between gap-3">
-                <span class="text-[12px] text-on-surface min-w-0">
+                <span class="text-xs text-on-surface min-w-0">
                   <span class="block truncate">{report.partner.displayName}</span>
-                  <span class="text-[10.5px] text-on-surface-variant">
+                  <span class="text-2xs text-on-surface-variant">
                     {report.reason} · gravité {report.severity} · {date(report.createdAt)}
                     {#if report.shared} · partagé au réseau{/if}
                   </span>
                 </span>
                 <button
-                  class="text-[10.5px] text-on-surface-variant hover:underline shrink-0"
+                  class="text-2xs text-on-surface-variant hover:underline shrink-0"
                   onclick={async () => {
                     await withdrawPartnerReport(report.id);
                     await load();
@@ -642,7 +642,7 @@
           </div>
         {/if}
 
-        <p class="text-[11px] text-on-surface-variant mt-3">
+        <p class="text-2xs text-on-surface-variant mt-3">
           Les signalements partagés sont anonymisés : les autres serveurs voient leur nombre et leur nature, jamais
           leur auteur. Un signal n'a jamais refusé un partenariat tout seul.
         </p>

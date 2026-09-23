@@ -459,7 +459,7 @@
     <button
       type="button"
       onclick={reloadAll}
-      class="h-9 px-3.5 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 border border-outline-variant/25 text-[13px] font-semibold text-on-surface-variant hover:text-on-surface transition inline-flex items-center gap-2"
+      class="h-9 px-3.5 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 border border-outline-variant/25 text-body-sm font-semibold text-on-surface-variant hover:text-on-surface transition inline-flex items-center gap-2"
     >
       <Papicon icon="RefreshCw" size={13} />
       Actualiser
@@ -473,7 +473,7 @@
         type="button"
         onclick={() => (activeTab = tab.id)}
         aria-current={activeTab === tab.id ? 'page' : undefined}
-        class="shrink-0 inline-flex items-center gap-2 h-9 px-3.5 rounded-lg text-[13px] font-semibold transition-colors
+        class="shrink-0 inline-flex items-center gap-2 h-9 px-3.5 rounded-lg text-body-sm font-semibold transition-colors
           {activeTab === tab.id
             ? 'bg-surface-container-lowest text-on-surface shadow-sm'
             : 'text-on-surface-variant hover:text-on-surface'}"
@@ -481,7 +481,7 @@
         <Papicon icon={tab.icon} size={14} />
         {tab.label}
         {#if tab.badge}
-          <span class="px-1.5 py-0.5 rounded text-[10px] font-bold tabular-nums
+          <span class="px-1.5 py-0.5 rounded text-2xs font-bold tabular-nums
             {tab.id === 'channels' && tab.badge > 0 ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400' : 'bg-on-surface/10 text-on-surface-variant'}">
             {tab.badge}
           </span>
@@ -498,8 +498,8 @@
           <div class="space-y-4">
             <div>
               <div class="flex items-center justify-between mb-1.5">
-                <label for="bc-title" class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Titre</label>
-                <span class="text-[11px] tabular-nums {titleOver ? 'text-red-500 font-semibold' : 'text-on-surface-variant'}">{title.length}/256</span>
+                <label for="bc-title" class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">Titre</label>
+                <span class="text-2xs tabular-nums {titleOver ? 'text-red-500 font-semibold' : 'text-on-surface-variant'}">{title.length}/256</span>
               </div>
               <div class="flex gap-2">
                 <input
@@ -517,15 +517,15 @@
                   <Papicon icon="Smile" size={15} />
                 </button>
               </div>
-              <p class="text-[11.5px] text-on-surface-variant mt-1">
+              <p class="text-2xs text-on-surface-variant mt-1">
                 Discord n’affiche pas d’emoji personnalisé dans un titre : ils sont remplacés par leur équivalent unicode.
               </p>
             </div>
 
             <div>
               <div class="flex items-center justify-between mb-1.5">
-                <label for="bc-message" class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Message</label>
-                <span class="text-[11px] tabular-nums {messageOver ? 'text-red-500 font-semibold' : 'text-on-surface-variant'}">{message.length}/4000</span>
+                <label for="bc-message" class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">Message</label>
+                <span class="text-2xs tabular-nums {messageOver ? 'text-red-500 font-semibold' : 'text-on-surface-variant'}">{message.length}/4000</span>
               </div>
               <textarea
                 id="bc-message"
@@ -539,7 +539,7 @@
               <button
                 type="button"
                 onclick={() => { pickerTarget = 'message'; showEmojiPicker = !showEmojiPicker || pickerTarget !== 'message'; }}
-                class="mt-1.5 inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-on-surface/5 hover:bg-on-surface/10 text-[12px] font-semibold text-on-surface-variant hover:text-on-surface transition"
+                class="mt-1.5 inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-on-surface/5 hover:bg-on-surface/10 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition"
               >
                 <Papicon icon="Smile" size={13} />
                 Emojis Kotbo
@@ -548,7 +548,7 @@
 
             {#if showEmojiPicker}
               <div class="rounded-xl border border-outline-variant/25 bg-surface-container-low/60 p-3">
-                <p class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant mb-2">
+                <p class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant mb-2">
                   Insérer dans {pickerTarget === 'title' ? 'le titre' : 'le message'}
                 </p>
                 <div class="flex flex-wrap gap-1 max-h-40 overflow-y-auto">
@@ -576,8 +576,8 @@
 
             <div>
               <div class="flex items-center justify-between mb-1.5">
-                <label for="bc-footer" class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Pied de page</label>
-                <span class="text-[11px] tabular-nums {footerOver ? 'text-red-500 font-semibold' : 'text-on-surface-variant'}">{footerText.length}/2048</span>
+                <label for="bc-footer" class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">Pied de page</label>
+                <span class="text-2xs tabular-nums {footerOver ? 'text-red-500 font-semibold' : 'text-on-surface-variant'}">{footerText.length}/2048</span>
               </div>
               <input
                 id="bc-footer"
@@ -588,7 +588,7 @@
             </div>
 
             <div>
-              <label for="bc-color" class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5 block">Couleur de la barre</label>
+              <label for="bc-color" class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5 block">Couleur de la barre</label>
               <div class="flex items-center gap-2">
                 <input id="bc-color" type="color" bind:value={color} class="w-10 h-10 rounded-xl border border-outline-variant/25 bg-transparent cursor-pointer" />
                 <input
@@ -626,7 +626,7 @@
         <AdminCard title="Ciblage et diffusion" icon="Target" tone="warning">
           <div class="space-y-4">
             <div>
-              <span class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant mb-2 block">Destinataires</span>
+              <span class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant mb-2 block">Destinataires</span>
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {#each [
                   { value: 'ALL' as const, label: 'Tous les serveurs', count: guilds.length, icon: 'Globe' },
@@ -642,8 +642,8 @@
                         : 'border-outline-variant/25 bg-surface-container-low/40 hover:border-outline-variant/45'}"
                   >
                     <Papicon icon={option.icon} size={15} class={target === option.value ? 'text-primary' : 'text-on-surface-variant'} />
-                    <span class="text-[13px] font-semibold text-on-surface">{option.label}</span>
-                    <span class="text-[11px] text-on-surface-variant tabular-nums">{option.count} serveur(s)</span>
+                    <span class="text-body-sm font-semibold text-on-surface">{option.label}</span>
+                    <span class="text-2xs text-on-surface-variant tabular-nums">{option.count} serveur(s)</span>
                   </button>
                 {/each}
               </div>
@@ -665,7 +665,7 @@
                         }}
                         class="w-4 h-4 rounded accent-(--primary-color)"
                       />
-                      <span class="flex-1 min-w-0 text-[13px] text-on-surface truncate">{guild.name}</span>
+                      <span class="flex-1 min-w-0 text-body-sm text-on-surface truncate">{guild.name}</span>
                       {#if guild.channelStatus !== 'OK'}
                         <AdminBadge size="sm" label="Sans salon" tone="warning" />
                       {/if}
@@ -676,7 +676,7 @@
             {/if}
 
             <div>
-              <label for="bc-pref" class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5 block">
+              <label for="bc-pref" class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5 block">
                 Salon de repli
               </label>
               <select
@@ -690,7 +690,7 @@
                 <option value="STAFF">Priorité salon staff</option>
                 <option value="FALLBACK">Premier salon écrivable</option>
               </select>
-              <p class="text-[11.5px] text-on-surface-variant mt-1">
+              <p class="text-2xs text-on-surface-variant mt-1">
                 Le salon configuré dans l’onglet « Salons » prime toujours sur ce choix.
               </p>
             </div>
@@ -698,7 +698,7 @@
             <div class="rounded-xl border border-outline-variant/25 bg-surface-container-low/40 p-3 space-y-2">
               <label class="flex items-center gap-2.5 cursor-pointer">
                 <input type="checkbox" bind:checked={scheduleEnabled} class="w-4 h-4 rounded accent-(--primary-color)" />
-                <span class="text-[13px] font-semibold text-on-surface">Programmer l’envoi</span>
+                <span class="text-body-sm font-semibold text-on-surface">Programmer l’envoi</span>
               </label>
               {#if scheduleEnabled}
                 <input
@@ -708,9 +708,9 @@
                     {scheduleInvalid ? 'border-red-500/50' : 'border-outline-variant/25'}"
                 />
                 {#if scheduleInvalid}
-                  <p class="text-[12px] text-red-500">Choisissez une date future.</p>
+                  <p class="text-xs text-red-500">Choisissez une date future.</p>
                 {:else}
-                  <p class="text-[11.5px] text-on-surface-variant">
+                  <p class="text-2xs text-on-surface-variant">
                     L’annonce partira automatiquement, même si personne n’est connecté au dashboard.
                   </p>
                 {/if}
@@ -739,21 +739,21 @@
 
         <AdminCard title="Envoi" icon="Send" tone="danger">
           <div class="space-y-3">
-            <div class="flex items-center justify-between text-[13px]">
+            <div class="flex items-center justify-between text-body-sm">
               <span class="text-on-surface-variant">Cible</span>
               <span class="font-semibold text-on-surface">{targetedGuilds.length} serveur(s)</span>
             </div>
 
             {#if targetedUnconfigured.length > 0}
               <div class="rounded-xl border border-amber-500/25 bg-amber-500/8 p-3">
-                <p class="text-[12.5px] text-amber-700 dark:text-amber-300 leading-snug">
+                <p class="text-xs text-amber-700 dark:text-amber-300 leading-snug">
                   <strong>{targetedUnconfigured.length} serveur(s)</strong> n’ont pas de salon de diffusion.
                   Kotbo tentera un repli automatique, sans garantie.
                 </p>
                 <button
                   type="button"
                   onclick={() => (activeTab = 'channels')}
-                  class="mt-2 text-[12px] font-semibold text-amber-700 dark:text-amber-300 underline underline-offset-2"
+                  class="mt-2 text-xs font-semibold text-amber-700 dark:text-amber-300 underline underline-offset-2"
                 >
                   Configurer les salons
                 </button>
@@ -761,7 +761,7 @@
             {/if}
 
             {#if lastResult?.dryRun}
-              <div class="rounded-xl border border-sky-500/25 bg-sky-500/8 p-3 text-[12.5px] text-sky-700 dark:text-sky-300">
+              <div class="rounded-xl border border-sky-500/25 bg-sky-500/8 p-3 text-xs text-sky-700 dark:text-sky-300">
                 Simulation : {lastResult.totalTargeted} serveur(s) seraient contactés.
               </div>
             {/if}
@@ -771,7 +771,7 @@
                 type="button"
                 onclick={handleDryRun}
                 disabled={!canSend}
-                class="h-10 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 border border-outline-variant/25 text-[13px] font-semibold text-on-surface-variant hover:text-on-surface transition disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+                class="h-10 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 border border-outline-variant/25 text-body-sm font-semibold text-on-surface-variant hover:text-on-surface transition disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
               >
                 <Papicon icon="Play" size={13} />
                 Simuler
@@ -780,7 +780,7 @@
                 type="button"
                 onclick={() => { showTemplateModal = true; }}
                 disabled={!message.trim()}
-                class="h-10 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 border border-outline-variant/25 text-[13px] font-semibold text-on-surface-variant hover:text-on-surface transition disabled:opacity-40 inline-flex items-center justify-center gap-2"
+                class="h-10 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 border border-outline-variant/25 text-body-sm font-semibold text-on-surface-variant hover:text-on-surface transition disabled:opacity-40 inline-flex items-center justify-center gap-2"
               >
                 <Papicon icon="Bookmark" size={13} />
                 Enregistrer comme modèle
@@ -802,7 +802,7 @@
           <AdminCard title="Échecs du dernier envoi" icon="AlertTriangle" tone="danger">
             <ul class="space-y-2 max-h-64 overflow-y-auto">
               {#each lastResult.failures ?? [] as failure (failure.guildId)}
-                <li class="text-[12.5px]">
+                <li class="text-xs">
                   <div class="flex items-center gap-2">
                     <AdminBadge size="sm" label={deliveryLabel[failure.status]} tone={deliveryTone[failure.status]} />
                     <span class="font-semibold text-on-surface truncate">{failure.guildName}</span>
@@ -826,7 +826,7 @@
       tone="info"
     >
       {#snippet actions()}
-        <span class="text-[12px] text-on-surface-variant tabular-nums">
+        <span class="text-xs text-on-surface-variant tabular-nums">
           {formatBytes(mediaLibrary.usedBytes)} / {formatBytes(mediaLibrary.quotaBytes)}
         </span>
       {/snippet}
@@ -837,7 +837,7 @@
             <Papicon icon="Image" size={20} />
           </div>
           <p class="text-sm font-semibold text-on-surface">Aucune image hébergée</p>
-          <p class="text-[13px] text-on-surface-variant max-w-sm">
+          <p class="text-body-sm text-on-surface-variant max-w-sm">
             Déposez un fichier depuis l’onglet « Composer » : il apparaîtra ici et restera réutilisable.
           </p>
         </div>
@@ -849,15 +849,15 @@
                 <img src={media.url} alt={media.fileName} class="w-full h-full object-cover" loading="lazy" />
               </div>
               <div class="p-2.5 space-y-1.5">
-                <p class="text-[12.5px] font-semibold text-on-surface truncate" title={media.fileName}>{media.fileName}</p>
-                <p class="text-[11px] text-on-surface-variant tabular-nums">
+                <p class="text-xs font-semibold text-on-surface truncate" title={media.fileName}>{media.fileName}</p>
+                <p class="text-2xs text-on-surface-variant tabular-nums">
                   {formatBytes(media.size)} · {media.usageCount} usage(s)
                 </p>
                 <div class="flex gap-1.5">
                   <button
                     type="button"
                     onclick={() => { imageUrl = media.url; activeTab = 'compose'; toast.success('Image sélectionnée'); }}
-                    class="flex-1 h-8 rounded-lg bg-primary/12 text-primary text-[12px] font-semibold hover:bg-primary/18 transition"
+                    class="flex-1 h-8 rounded-lg bg-primary/12 text-primary text-xs font-semibold hover:bg-primary/18 transition"
                   >
                     Utiliser
                   </button>
@@ -893,7 +893,7 @@
             <Papicon icon="Bookmark" size={20} />
           </div>
           <p class="text-sm font-semibold text-on-surface">Aucun modèle</p>
-          <p class="text-[13px] text-on-surface-variant max-w-sm">
+          <p class="text-body-sm text-on-surface-variant max-w-sm">
             Depuis l’onglet « Composer », enregistrez une annonce comme modèle pour la retrouver ici.
           </p>
         </div>
@@ -903,17 +903,17 @@
             <div class="rounded-xl border border-outline-variant/25 bg-surface-container-low/40 p-3.5 space-y-2">
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">
-                  <p class="text-[14px] font-semibold text-on-surface truncate">{template.name}</p>
-                  <p class="text-[12px] text-on-surface-variant truncate">{template.title || 'Sans titre'}</p>
+                  <p class="text-sm font-semibold text-on-surface truncate">{template.name}</p>
+                  <p class="text-xs text-on-surface-variant truncate">{template.title || 'Sans titre'}</p>
                 </div>
                 <span class="w-3 h-8 rounded-full shrink-0" style="background: {template.color}"></span>
               </div>
-              <p class="text-[12.5px] text-on-surface-variant line-clamp-3 leading-snug">{template.message}</p>
+              <p class="text-xs text-on-surface-variant line-clamp-3 leading-snug">{template.message}</p>
               <div class="flex gap-1.5 pt-1">
                 <button
                   type="button"
                   onclick={() => reuse(template)}
-                  class="flex-1 h-8 rounded-lg bg-primary/12 text-primary text-[12px] font-semibold hover:bg-primary/18 transition"
+                  class="flex-1 h-8 rounded-lg bg-primary/12 text-primary text-xs font-semibold hover:bg-primary/18 transition"
                 >
                   Charger
                 </button>
@@ -959,7 +959,7 @@
 
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
-                <p class="text-[13.5px] font-semibold text-on-surface truncate">{guild.name}</p>
+                <p class="text-body-sm font-semibold text-on-surface truncate">{guild.name}</p>
                 <AdminBadge
                   size="sm"
                   label={guild.channelStatus === 'OK' ? 'Configuré' : guild.channelStatus === 'MISSING' ? 'Salon supprimé' : 'Non configuré'}
@@ -970,7 +970,7 @@
                 value={guild.broadcastChannelId ?? ''}
                 disabled={savingChannel === guild.id}
                 onchange={(event) => saveChannelFor(guild, (event.currentTarget as HTMLSelectElement).value || null)}
-                class="mt-1.5 w-full h-8 px-2 rounded-lg bg-surface-container-low/70 border border-outline-variant/25 text-[12.5px] text-on-surface focus:outline-none focus:border-primary/60 disabled:opacity-50"
+                class="mt-1.5 w-full h-8 px-2 rounded-lg bg-surface-container-low/70 border border-outline-variant/25 text-xs text-on-surface focus:outline-none focus:border-primary/60 disabled:opacity-50"
               >
                 <option value="">- Aucun (repli automatique) -</option>
                 {#each guild.channels as channel (channel.id)}
@@ -1001,8 +1001,8 @@
             <div class="flex items-center gap-2.5 min-w-0">
               <span class="w-1 h-9 rounded-full shrink-0" style="background: {log.color}"></span>
               <div class="min-w-0">
-                <p class="text-[13.5px] font-semibold text-on-surface truncate">{log.title}</p>
-                <p class="text-[12px] text-on-surface-variant truncate max-w-md">{log.message}</p>
+                <p class="text-body-sm font-semibold text-on-surface truncate">{log.title}</p>
+                <p class="text-xs text-on-surface-variant truncate max-w-md">{log.message}</p>
               </div>
               {#if log.imageUrl}
                 <Papicon icon="Image" size={13} class="text-on-surface-variant shrink-0" />
@@ -1012,19 +1012,19 @@
           <td class="px-4 py-3">
             <AdminBadge label={statusLabel[log.status] ?? log.status} tone={statusTone[log.status] ?? 'neutral'} />
             {#if log.status === 'SCHEDULED' && log.scheduledAt}
-              <p class="text-[11px] text-on-surface-variant mt-1 tabular-nums">{formatDate(log.scheduledAt)}</p>
+              <p class="text-2xs text-on-surface-variant mt-1 tabular-nums">{formatDate(log.scheduledAt)}</p>
             {/if}
           </td>
           <td class="px-4 py-3 text-right">
-            <span class="text-[13px] font-semibold text-emerald-500 tabular-nums">{log.successCount}</span>
+            <span class="text-body-sm font-semibold text-emerald-500 tabular-nums">{log.successCount}</span>
             <span class="text-on-surface-variant">/</span>
-            <span class="text-[13px] tabular-nums {log.failCount > 0 ? 'text-red-500 font-semibold' : 'text-on-surface-variant'}">{log.failCount}</span>
-            <p class="text-[11px] text-on-surface-variant tabular-nums">sur {log.totalTargeted}</p>
+            <span class="text-body-sm tabular-nums {log.failCount > 0 ? 'text-red-500 font-semibold' : 'text-on-surface-variant'}">{log.failCount}</span>
+            <p class="text-2xs text-on-surface-variant tabular-nums">sur {log.totalTargeted}</p>
           </td>
           <td class="px-4 py-3 text-right hidden md:table-cell">
-            <span class="text-[12.5px] text-on-surface-variant tabular-nums">{formatDate(log.createdAt)}</span>
+            <span class="text-xs text-on-surface-variant tabular-nums">{formatDate(log.createdAt)}</span>
             {#if log.username}
-              <p class="text-[11px] text-on-surface-variant truncate">{log.username}</p>
+              <p class="text-2xs text-on-surface-variant truncate">{log.username}</p>
             {/if}
           </td>
           <td class="px-4 py-3">
@@ -1093,13 +1093,13 @@
         <button
           type="button"
           onclick={() => (deliveryFilter = filter.value)}
-          class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-[12.5px] font-semibold transition
+          class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold transition
             {deliveryFilter === filter.value
               ? 'bg-primary/12 text-primary border border-primary/30'
               : 'bg-on-surface/5 text-on-surface-variant border border-transparent hover:bg-on-surface/8'}"
         >
           {filter.label}
-          <span class="tabular-nums text-[11px]">{filter.count}</span>
+          <span class="tabular-nums text-2xs">{filter.count}</span>
         </button>
       {/each}
     </div>
@@ -1111,7 +1111,7 @@
         {/each}
       </div>
     {:else if visibleDeliveries.length === 0}
-      <p class="text-[13px] text-on-surface-variant py-8 text-center">
+      <p class="text-body-sm text-on-surface-variant py-8 text-center">
         Aucune ligne pour ce filtre. Les rapports détaillés existent à partir des annonces envoyées après cette mise à jour.
       </p>
     {:else}
@@ -1120,15 +1120,15 @@
           <li class="rounded-xl border border-outline-variant/25 bg-surface-container-low/40 p-3">
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
-                <p class="text-[13px] font-semibold text-on-surface truncate">{delivery.guildName}</p>
-                <p class="text-[11.5px] text-on-surface-variant">
+                <p class="text-body-sm font-semibold text-on-surface truncate">{delivery.guildName}</p>
+                <p class="text-2xs text-on-surface-variant">
                   {delivery.channelName ? `#${delivery.channelName}` : 'Aucun salon'} · {delivery.guildId}
                 </p>
               </div>
               <AdminBadge size="sm" label={deliveryLabel[delivery.status]} tone={deliveryTone[delivery.status]} />
             </div>
             {#if delivery.reason}
-              <p class="text-[12px] text-on-surface-variant mt-1.5 leading-snug">{delivery.reason}</p>
+              <p class="text-xs text-on-surface-variant mt-1.5 leading-snug">{delivery.reason}</p>
             {/if}
           </li>
         {/each}
@@ -1151,7 +1151,7 @@
     </p>
 
     {#if imageUrl.trim() || thumbnailUrl.trim()}
-      <div class="rounded-xl border border-outline-variant/25 bg-surface-container-low/40 p-3 text-[12.5px] text-on-surface-variant">
+      <div class="rounded-xl border border-outline-variant/25 bg-surface-container-low/40 p-3 text-xs text-on-surface-variant">
         Les visuels sont vérifiés avant diffusion : un lien que Discord ne saurait pas charger bloque l’envoi.
       </div>
     {/if}
@@ -1160,7 +1160,7 @@
       <button
         type="button"
         onclick={() => (showConfirm = false)}
-        class="h-10 px-4 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 text-[13px] font-semibold text-on-surface-variant transition"
+        class="h-10 px-4 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 text-body-sm font-semibold text-on-surface-variant transition"
       >
         Annuler
       </button>
@@ -1168,7 +1168,7 @@
         type="button"
         onclick={confirmSend}
         disabled={sending}
-        class="h-10 px-5 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 transition disabled:opacity-50 inline-flex items-center gap-2"
+        class="h-10 px-5 rounded-xl bg-primary text-white text-body-sm font-bold hover:bg-primary/90 transition disabled:opacity-50 inline-flex items-center gap-2"
       >
         {#if sending}
           <span class="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin"></span>
@@ -1185,7 +1185,7 @@
 <Modal bind:open={showTemplateModal} title="Enregistrer comme modèle" size="sm">
   <div class="space-y-4">
     <div>
-      <label for="tpl-name" class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5 block">
+      <label for="tpl-name" class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5 block">
         Nom du modèle
       </label>
       <input
@@ -1199,14 +1199,14 @@
       <button
         type="button"
         onclick={() => (showTemplateModal = false)}
-        class="h-10 px-4 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 text-[13px] font-semibold text-on-surface-variant transition"
+        class="h-10 px-4 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 text-body-sm font-semibold text-on-surface-variant transition"
       >
         Annuler
       </button>
       <button
         type="button"
         onclick={saveTemplate}
-        class="h-10 px-5 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 transition"
+        class="h-10 px-5 rounded-xl bg-primary text-white text-body-sm font-bold hover:bg-primary/90 transition"
       >
         Enregistrer
       </button>

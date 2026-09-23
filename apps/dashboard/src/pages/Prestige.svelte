@@ -1086,7 +1086,7 @@
   {@const ticks = axisTicks(columns)}
   <div class="flex gap-[3px] px-2 border border-transparent" aria-hidden="true">
     {#each Array.from({ length: columns }) as _, index}
-      <span class="flex-1 text-center text-[9px] leading-none tabular-nums text-on-surface-variant/50">
+      <span class="flex-1 text-center text-2xs leading-none tabular-nums text-on-surface-variant/50">
         {ticks.has(index + 1) ? index + 1 : ''}
       </span>
     {/each}
@@ -1098,12 +1098,12 @@
      autant de requetes que de crans traverses. -->
 {#snippet saveBar()}
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl px-6 py-5">
-    <p class="text-[13px] text-on-surface-variant/70">{m.prg_presets_save_hint()}</p>
+    <p class="text-body-sm text-on-surface-variant/70">{m.prg_presets_save_hint()}</p>
     <div class="flex items-center gap-2">
       <button
         type="button"
         onclick={() => { config = JSON.parse(JSON.stringify(savedConfig)); }}
-        class="px-5 py-3 rounded-lg text-[13px] font-medium text-on-surface-variant hover:bg-surface-container-high/40 transition-all"
+        class="px-5 py-3 rounded-lg text-body-sm font-medium text-on-surface-variant hover:bg-surface-container-high/40 transition-all"
       >
         {m.prg_btn_reset()}
       </button>
@@ -1111,7 +1111,7 @@
         type="button"
         onclick={handleSave}
         disabled={saveAction.state.loading}
-        class="px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary text-[13px] font-medium rounded-lg shadow-md shadow-primary/20 transition-all disabled:opacity-50 flex items-center gap-2"
+        class="px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary text-body-sm font-medium rounded-lg shadow-md shadow-primary/20 transition-all disabled:opacity-50 flex items-center gap-2"
       >
         <Papicon icon="Check" size={16} />
         {m.prg_presets_save()}
@@ -1167,7 +1167,7 @@
           <Papicon icon="crown" size={16} />
           {m.prg_tab_leaderboard()}
           {#if boardTotal > 0}
-            <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-lg bg-surface-container-high/60 text-on-surface-variant/60">
+            <span class="text-2xs font-semibold px-1.5 py-0.5 rounded-lg bg-surface-container-high/60 text-on-surface-variant/60">
               {boardTotal.toLocaleString()}
             </span>
           {/if}
@@ -1187,22 +1187,22 @@
             </div>
             <div class="space-y-1">
               <h3 class="text-base font-semibold text-on-surface">{m.prg_about_title()}</h3>
-              <p class="text-[13px] text-on-surface-variant/70 leading-relaxed">{m.prg_about_desc()}</p>
+              <p class="text-body-sm text-on-surface-variant/70 leading-relaxed">{m.prg_about_desc()}</p>
             </div>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div class="px-4 py-3 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg space-y-1">
-              <p class="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_about_earn_title()}</p>
-              <p class="text-[12px] text-on-surface-variant/70 leading-relaxed">{m.prg_about_earn_desc()}</p>
+              <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_about_earn_title()}</p>
+              <p class="text-xs text-on-surface-variant/70 leading-relaxed">{m.prg_about_earn_desc()}</p>
             </div>
             <div class="px-4 py-3 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg space-y-1">
-              <p class="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_about_lose_title()}</p>
-              <p class="text-[12px] text-on-surface-variant/70 leading-relaxed">{m.prg_about_lose_desc()}</p>
+              <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_about_lose_title()}</p>
+              <p class="text-xs text-on-surface-variant/70 leading-relaxed">{m.prg_about_lose_desc()}</p>
             </div>
             <div class="px-4 py-3 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg space-y-1">
-              <p class="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_about_spend_title()}</p>
-              <p class="text-[12px] text-on-surface-variant/70 leading-relaxed">{m.prg_about_spend_desc()}</p>
+              <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_about_spend_title()}</p>
+              <p class="text-xs text-on-surface-variant/70 leading-relaxed">{m.prg_about_spend_desc()}</p>
             </div>
           </div>
         </section>
@@ -1229,7 +1229,7 @@
             </div>
             <div class="space-y-0.5">
               <p class="text-sm font-semibold text-on-surface">{m.prg_setup_roles_title()}</p>
-              <p class="text-[13px] text-on-surface-variant/70">
+              <p class="text-body-sm text-on-surface-variant/70">
                 {tiersWithoutRole === 0
                   ? m.prg_setup_roles_done({ count: activeLadder.length })
                   : m.prg_setup_roles_desc({ count: tiersWithoutRole })}
@@ -1239,7 +1239,7 @@
           <button
             type="button"
             onclick={() => gotoTab('/prestige', 'echelle', DEFAULT_TAB)}
-            class="shrink-0 px-6 py-3 bg-surface-container-high/40 hover:bg-surface-container-high/60 text-on-surface text-[13px] font-medium rounded-lg transition-all flex items-center gap-2"
+            class="shrink-0 px-6 py-3 bg-surface-container-high/40 hover:bg-surface-container-high/60 text-on-surface text-body-sm font-medium rounded-lg transition-all flex items-center gap-2"
           >
             <Papicon icon="ArrowRight" size={16} />
             {m.prg_setup_roles_open()}
@@ -1271,7 +1271,7 @@
           {#if gainMode.simple}
             <div class="space-y-2">
               <div class="flex items-baseline justify-between gap-3">
-                <label for="rpGains" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_gains_level_label()}</label>
+                <label for="rpGains" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_gains_level_label()}</label>
                 <span class="text-xs font-semibold text-primary">{GAIN_LABELS[gainsStep - 1]()}</span>
               </div>
               <input
@@ -1285,19 +1285,19 @@
 
               <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                 <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                  <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_tile_rp_per_xp()}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_tile_rp_per_xp()}</p>
                   <p class="text-sm font-semibold text-on-surface">×{config.rpPerXp}</p>
                 </div>
                 <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                  <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_reaction_rp()}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_reaction_rp()}</p>
                   <p class="text-sm font-semibold text-on-surface">{config.reactionRp} RP</p>
                 </div>
                 <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                  <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_reaction_cap()}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_reaction_cap()}</p>
                   <p class="text-sm font-semibold text-on-surface">{config.reactionDailyCap}</p>
                 </div>
                 <div class="px-3 py-2.5 bg-primary/5 border border-primary/15 rounded-lg">
-                  <p class="text-[10px] font-bold text-primary/70 uppercase tracking-widest">{m.prg_tile_daily()}</p>
+                  <p class="text-2xs font-bold text-primary/70 uppercase tracking-widest">{m.prg_tile_daily()}</p>
                   <p class="text-sm font-semibold text-primary">≈ {Math.round(estimatedRpPerDay).toLocaleString()} RP</p>
                 </div>
               </div>
@@ -1330,7 +1330,7 @@
           <!-- Le RP derive de l'XP : les exclusions de salons, les roles
                ignores et les multiplicateurs sont ceux de Niveaux. Sans cette
                ligne, leur absence ici se lit comme un oubli. -->
-          <div class="flex items-start gap-2.5 pt-4 border-t border-outline-variant/10 text-[11px] text-on-surface-variant/60 leading-relaxed">
+          <div class="flex items-start gap-2.5 pt-4 border-t border-outline-variant/10 text-2xs text-on-surface-variant/60 leading-relaxed">
             <Papicon icon="info" size={14} class="shrink-0 mt-0.5" />
             <p>{m.prg_gains_inherits_levels()}</p>
           </div>
@@ -1352,7 +1352,7 @@
           </div>
 
           <label class="flex items-center justify-between gap-4">
-            <span class="text-[13px] font-medium text-on-surface">{m.prg_field_streak_enabled()}</span>
+            <span class="text-body-sm font-medium text-on-surface">{m.prg_field_streak_enabled()}</span>
             <ToggleSwitch checked={config.streakEnabled} onToggle={(v) => { config!.streakEnabled = v; }} disabled={!canManageSettings} />
           </label>
 
@@ -1360,7 +1360,7 @@
             {#if streakMode.simple}
               <div class="space-y-2">
                 <div class="flex items-baseline justify-between gap-3">
-                  <label for="streakLevel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_streak_level_label()}</label>
+                  <label for="streakLevel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_streak_level_label()}</label>
                   <span class="text-xs font-semibold text-primary">{STREAK_LABELS[streakStep - 1]()}</span>
                 </div>
                 <input
@@ -1374,19 +1374,19 @@
 
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_streak_bonus()}</p>
+                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_streak_bonus()}</p>
                     <p class="text-sm font-semibold text-on-surface">+{Math.round((config.streakBonusPerDay ?? 0) * 100)} %/j</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_streak_max()}</p>
+                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_streak_max()}</p>
                     <p class="text-sm font-semibold text-on-surface">+{Math.round((config.streakMaxBonus ?? 0) * 100)} %</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_streak_grace()}</p>
+                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_streak_grace()}</p>
                     <p class="text-sm font-semibold text-on-surface">{config.streakGraceDays} j</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_streak_max_freezes()}</p>
+                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_streak_max_freezes()}</p>
                     <p class="text-sm font-semibold text-on-surface">{config.streakMaxFreezes}</p>
                   </div>
                 </div>
@@ -1437,7 +1437,7 @@
             <div class="space-y-2 pt-4 border-t border-outline-variant/10">
               <div class="flex items-baseline justify-between gap-3">
                 <h4 class="text-sm font-bold text-on-surface-variant">{m.prg_streak_preview_title()}</h4>
-                <span class="text-[11px] font-semibold text-primary">
+                <span class="text-2xs font-semibold text-primary">
                   {m.prg_streak_preview_peak({ percent: Math.round((streakCurveMax - 1) * 100) })}
                 </span>
               </div>
@@ -1451,7 +1451,7 @@
                 {/each}
               </div>
               {@render ladderAxis(streakCurve.length)}
-              <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.prg_streak_preview_desc()}</p>
+              <p class="text-2xs text-on-surface-variant/50 ml-2">{m.prg_streak_preview_desc()}</p>
             </div>
           {/if}
         </section>
@@ -1478,7 +1478,7 @@
                 <button
                   type="button"
                   onclick={resetLadderCurve}
-                  class="text-[11px] font-semibold text-on-surface-variant/70 hover:text-on-surface px-3 py-1.5 rounded-lg border border-outline-variant/20 transition-all"
+                  class="text-2xs font-semibold text-on-surface-variant/70 hover:text-on-surface px-3 py-1.5 rounded-lg border border-outline-variant/20 transition-all"
                 >
                   {m.prg_ladder_reset()}
                 </button>
@@ -1491,7 +1491,7 @@
                role Discord de plus a tenir. -->
           <div class="space-y-2">
             <div class="flex items-baseline justify-between gap-3">
-              <label for="tierCount" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_ladder_count_label()}</label>
+              <label for="tierCount" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_ladder_count_label()}</label>
               <span class="text-xs font-semibold text-primary">{m.prg_ladder_count_value({ count: tierCountStep })}</span>
             </div>
             <input
@@ -1505,14 +1505,14 @@
               class="w-full accent-primary"
               disabled={!canManageSettings}
             />
-            <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.prg_ladder_count_hint()}</p>
+            <p class="text-2xs text-on-surface-variant/50 ml-2">{m.prg_ladder_count_hint()}</p>
           </div>
 
           {#if ladderMode.simple}
             <div class="space-y-6">
               <div class="space-y-2">
                 <div class="flex items-baseline justify-between gap-3">
-                  <label for="ladderPace" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_ladder_pace_label()}</label>
+                  <label for="ladderPace" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_ladder_pace_label()}</label>
                   <span class="text-xs font-semibold text-primary">{LADDER_PACE_LABELS[pacePreviewStep - 1]()}</span>
                 </div>
                 <input
@@ -1527,7 +1527,7 @@
 
               <div class="space-y-2">
                 <div class="flex items-baseline justify-between gap-3">
-                  <label for="ladderSteep" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_ladder_steep_label()}</label>
+                  <label for="ladderSteep" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_ladder_steep_label()}</label>
                   <span class="text-xs font-semibold text-primary">{LADDER_STEEP_LABELS[steepPreviewStep - 1]()}</span>
                 </div>
                 <input
@@ -1556,7 +1556,7 @@
                   class="prestige-input"
                   disabled={!canManageSettings}
                 />
-                <span class="text-[10px] text-on-surface-variant/50 ml-2">{m.prg_ladder_base_rp_hint()}</span>
+                <span class="text-2xs text-on-surface-variant/50 ml-2">{m.prg_ladder_base_rp_hint()}</span>
               </label>
               <label class="block">
                 <span class="field-label">{m.prg_ladder_exponent()}</span>
@@ -1568,13 +1568,13 @@
                   class="prestige-input"
                   disabled={!canManageSettings}
                 />
-                <span class="text-[10px] text-on-surface-variant/50 ml-2">{m.prg_ladder_exponent_hint()}</span>
+                <span class="text-2xs text-on-surface-variant/50 ml-2">{m.prg_ladder_exponent_hint()}</span>
               </label>
             </div>
           {/if}
 
           <div class="space-y-2">
-            <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_ladder_divisions_label()}</span>
+            <span class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_ladder_divisions_label()}</span>
             <nav class="tab-group w-fit">
               {#each [1, 2, 3, 4, 5] as count (count)}
                 <button
@@ -1587,7 +1587,7 @@
                 </button>
               {/each}
             </nav>
-            <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.prg_ladder_divisions_hint()}</p>
+            <p class="text-2xs text-on-surface-variant/50 ml-2">{m.prg_ladder_divisions_hint()}</p>
           </div>
 
           <!-- Apercu : ecart de RP entre paliers successifs, puis repartition
@@ -1595,11 +1595,11 @@
           <div class="space-y-3 pt-4 border-t border-outline-variant/10">
             <div>
               <h4 class="text-sm font-bold text-on-surface-variant">{m.prg_ladder_preview_title()}</h4>
-              <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.prg_ladder_preview_desc()}</p>
+              <p class="text-2xs text-on-surface-variant/60 font-medium">{m.prg_ladder_preview_desc()}</p>
             </div>
 
             {#if savedLadderGaps.length > 0}
-              <div class="flex items-center gap-4 text-[10px] font-medium text-on-surface-variant/70">
+              <div class="flex items-center gap-4 text-2xs font-medium text-on-surface-variant/70">
                 <span class="flex items-center gap-1.5">
                   <span class="w-3 h-2 rounded-sm bg-primary/60"></span>{m.prg_ladder_legend_edited()}
                 </span>
@@ -1637,7 +1637,7 @@
             {#if impact}
               <div>
                 <h4 class="text-sm font-bold text-on-surface-variant">{m.prg_ladder_population_title()}</h4>
-                <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.prg_ladder_population_desc()}</p>
+                <p class="text-2xs text-on-surface-variant/60 font-medium">{m.prg_ladder_population_desc()}</p>
               </div>
 
               <div class="flex items-end gap-[3px] h-16 px-2 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
@@ -1654,7 +1654,7 @@
             {/if}
 
             <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
-              <p class="text-[11px] text-on-surface-variant/70">{m.prg_estimate_intro()}</p>
+              <p class="text-2xs text-on-surface-variant/70">{m.prg_estimate_intro()}</p>
               <nav class="tab-group w-fit">
                 {#each ACTIVITY_LABELS as label, index}
                   <button type="button" onclick={() => (activityStep = index + 1)} class="tab-button {activityStep === index + 1 ? 'active' : ''}">
@@ -1667,15 +1667,15 @@
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {#each ladderMilestones as tier (tier.key)}
                 <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                  <p class="text-[10px] font-bold uppercase tracking-widest truncate" style="color: {tier.color}">{tier.name}</p>
+                  <p class="text-2xs font-bold uppercase tracking-widest truncate" style="color: {tier.color}">{tier.name}</p>
                   <p class="text-sm font-semibold text-on-surface">{tier.minRp.toLocaleString()} RP</p>
-                  <p class="text-[11px] font-semibold text-primary">{formatDuration(estimateDays(tier.minRp))}</p>
+                  <p class="text-2xs font-semibold text-primary">{formatDuration(estimateDays(tier.minRp))}</p>
                 </div>
               {/each}
             </div>
 
             {#if ladderDirty}
-              <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed flex items-start gap-2">
+              <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-2xs text-amber-600 dark:text-amber-400 leading-relaxed flex items-start gap-2">
                 <Papicon icon="AlertTriangle" size={13} class="shrink-0 mt-0.5" />
                 <div class="min-w-0 flex-1">
                   {#if impact && impact.changed > 0}
@@ -1697,11 +1697,11 @@
           <div class="space-y-5">
             <div class="grid sm:grid-cols-2 gap-2">
               <label class="flex items-center justify-between gap-4">
-                <span class="text-[13px] text-on-surface-variant">{m.prg_field_tier_roles_enabled()}</span>
+                <span class="text-body-sm text-on-surface-variant">{m.prg_field_tier_roles_enabled()}</span>
                 <ToggleSwitch checked={config.tierRolesEnabled} size="sm" onToggle={(v) => patch({ tierRolesEnabled: v })} />
               </label>
               <label class="flex items-center justify-between gap-4">
-                <span class="text-[13px] text-on-surface-variant">{m.prg_field_tier_roles_exclusive()}</span>
+                <span class="text-body-sm text-on-surface-variant">{m.prg_field_tier_roles_exclusive()}</span>
                 <ToggleSwitch checked={config.tierRolesExclusive} size="sm" onToggle={(v) => patch({ tierRolesExclusive: v })} />
               </label>
             </div>
@@ -1712,8 +1712,8 @@
             <div class="rounded-lg border border-outline-variant/20 bg-surface-container-low/30 p-4 space-y-4">
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div class="space-y-0.5 min-w-0">
-                  <p class="text-[13px] font-semibold text-on-surface">{m.prg_roles_provision_title()}</p>
-                  <p class="text-[11px] text-on-surface-variant/70 leading-relaxed">
+                  <p class="text-body-sm font-semibold text-on-surface">{m.prg_roles_provision_title()}</p>
+                  <p class="text-2xs text-on-surface-variant/70 leading-relaxed">
                     {tiersWithoutRole === 0
                       ? m.prg_roles_provision_done({ count: activeLadder.length })
                       : m.prg_roles_provision_desc({ count: tiersWithoutRole })}
@@ -1734,8 +1734,8 @@
                    vingtaine de roles a supprimer un par un dans Discord. -->
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-outline-variant/10">
                 <div class="space-y-0.5 min-w-0">
-                  <p class="text-[13px] font-semibold text-on-surface">{m.prg_roles_delete_title()}</p>
-                  <p class="text-[11px] text-on-surface-variant/70 leading-relaxed">
+                  <p class="text-body-sm font-semibold text-on-surface">{m.prg_roles_delete_title()}</p>
+                  <p class="text-2xs text-on-surface-variant/70 leading-relaxed">
                     {linkedRoleCount === 0
                       ? m.prg_roles_delete_none()
                       : m.prg_roles_delete_desc({ count: linkedRoleCount })}
@@ -1754,12 +1754,12 @@
 
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-outline-variant/10">
                 <div class="space-y-0.5 min-w-0">
-                  <p class="text-[13px] font-semibold text-on-surface">{m.prg_roles_sync_title()}</p>
-                  <p class="text-[11px] text-on-surface-variant/70 leading-relaxed">{m.prg_roles_sync_desc()}</p>
+                  <p class="text-body-sm font-semibold text-on-surface">{m.prg_roles_sync_title()}</p>
+                  <p class="text-2xs text-on-surface-variant/70 leading-relaxed">{m.prg_roles_sync_desc()}</p>
                 </div>
                 {#if roleSync.running}
                   <div class="flex items-center gap-3 shrink-0">
-                    <span class="text-[11px] font-semibold text-on-surface-variant tabular-nums">
+                    <span class="text-2xs font-semibold text-on-surface-variant tabular-nums">
                       {m.prg_roles_sync_progress({ done: roleSync.done.toLocaleString(), total: roleSync.pending.toLocaleString() })}
                     </span>
                     <button type="button" onclick={stopRoleSync} class="px-4 py-2 bg-error/10 text-error font-medium text-xs rounded-lg hover:bg-error/20 transition-all">
@@ -1787,8 +1787,8 @@
                 <div class="flex items-center gap-3 rounded-lg border px-3 py-2 {missingRole ? 'border-amber-500/30 bg-amber-500/5' : 'border-outline-variant/20 bg-surface-container-low/30'}">
                   <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:{tier.color}"></span>
                   <div class="min-w-0 flex-1">
-                    <p class="text-[13px] font-semibold text-on-surface truncate">{tier.name}</p>
-                    <p class="text-[11px] text-on-surface-variant">
+                    <p class="text-body-sm font-semibold text-on-surface truncate">{tier.name}</p>
+                    <p class="text-2xs text-on-surface-variant">
                       {tier.minRp.toLocaleString()} RP
                       {#if missingRole}
                         <!-- Le role a ete supprime sur Discord : la ligne
@@ -1820,14 +1820,14 @@
                    existent encore sur Discord et restent portes par des membres,
                    mais plus rien ne les attribue ni ne les retire. -->
               <div class="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg space-y-3">
-                <div class="flex items-start gap-2 text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
+                <div class="flex items-start gap-2 text-2xs text-amber-600 dark:text-amber-400 leading-relaxed">
                   <Papicon icon="AlertTriangle" size={13} class="shrink-0 mt-0.5" />
                   <p>{m.prg_roles_orphan_desc({ count: orphanTierRoles.length })}</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
                   {#each orphanTierRoles as mapping (mapping.tierKey)}
                     {@const role = roles.find((entry) => entry.id === mapping.roleId)}
-                    <span class="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-surface-container-high/40 text-[11px] font-medium text-on-surface-variant">
+                    <span class="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-surface-container-high/40 text-2xs font-medium text-on-surface-variant">
                       {mapping.tierKey}
                       <span class="text-on-surface-variant/60">→ {role ? `@${role.name}` : m.prg_role_missing()}</span>
                       {#if canManageSettings}
@@ -1864,7 +1864,7 @@
           </div>
 
           <label class="flex items-center justify-between gap-4">
-            <span class="text-[13px] font-medium text-on-surface">{m.prg_field_decay_enabled()}</span>
+            <span class="text-body-sm font-medium text-on-surface">{m.prg_field_decay_enabled()}</span>
             <ToggleSwitch checked={config.decayEnabled} onToggle={(v) => { config!.decayEnabled = v; }} disabled={!canManageSettings} />
           </label>
 
@@ -1872,7 +1872,7 @@
             {#if decayMode.simple}
               <div class="space-y-2">
                 <div class="flex items-baseline justify-between gap-3">
-                  <label for="decayLevel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_decay_level_label()}</label>
+                  <label for="decayLevel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_decay_level_label()}</label>
                   <span class="text-xs font-semibold text-primary">{DECAY_LABELS[decayStep - 1]()}</span>
                 </div>
                 <input
@@ -1886,15 +1886,15 @@
 
                 <div class="grid grid-cols-3 gap-3 pt-2">
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_decay_grace()}</p>
+                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_decay_grace()}</p>
                     <p class="text-sm font-semibold text-on-surface">{config.decayGraceDays} j</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_decay_rp()}</p>
+                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_decay_rp()}</p>
                     <p class="text-sm font-semibold text-on-surface">−{config.decayRpPerDay}/j</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_decay_percent()}</p>
+                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_decay_percent()}</p>
                     <p class="text-sm font-semibold text-on-surface">−{Math.round((config.decayPercentPerDay ?? 0) * 100)} %/j</p>
                   </div>
                 </div>
@@ -1944,7 +1944,7 @@
             <div class="space-y-2 pt-4 border-t border-outline-variant/10">
               <div class="flex items-baseline justify-between gap-3">
                 <h4 class="text-sm font-bold text-on-surface-variant">{m.prg_decay_preview_title()}</h4>
-                <span class="text-[11px] font-semibold text-rose-500">
+                <span class="text-2xs font-semibold text-rose-500">
                   {decayDaysToDemotion === null
                     ? m.prg_decay_preview_safe()
                     : m.prg_decay_preview_demotion({ days: decayDaysToDemotion })}
@@ -1960,7 +1960,7 @@
                 {/each}
               </div>
               {@render ladderAxis(decayCurve.length)}
-              <p class="text-[10px] text-on-surface-variant/50 ml-2">
+              <p class="text-2xs text-on-surface-variant/50 ml-2">
                 {m.prg_decay_preview_desc({ rp: decayReferenceRp.toLocaleString() })}
               </p>
             </div>
@@ -2023,7 +2023,7 @@
                 type="button"
                 onclick={handleCreateAnnounceChannel}
                 disabled={announceAction.state.loading}
-                class="shrink-0 px-5 py-3 bg-primary hover:bg-primary/90 text-on-primary text-[13px] font-medium rounded-lg shadow-md shadow-primary/20 transition-all disabled:opacity-50 flex items-center gap-2"
+                class="shrink-0 px-5 py-3 bg-primary hover:bg-primary/90 text-on-primary text-body-sm font-medium rounded-lg shadow-md shadow-primary/20 transition-all disabled:opacity-50 flex items-center gap-2"
               >
                 <Papicon icon="sparkles" size={16} />
                 {announceAction.state.loading ? m.prg_announce_creating() : m.prg_announce_create()}
@@ -2031,7 +2031,7 @@
             {/if}
           </div>
 
-          <p class="text-[11px] text-on-surface-variant/70">
+          <p class="text-2xs text-on-surface-variant/70">
             {#if announceChannelState === 'channel'}
               {m.prg_announce_channel_set({ channel: announceChannelLabel })}
             {:else if announceChannelState === 'missing'}
@@ -2043,15 +2043,15 @@
 
           <div class="grid sm:grid-cols-3 gap-3 pt-4 border-t border-outline-variant/10">
             <label class="flex items-center justify-between gap-4">
-              <span class="text-[13px] text-on-surface-variant">{m.prg_field_announce_promotions()}</span>
+              <span class="text-body-sm text-on-surface-variant">{m.prg_field_announce_promotions()}</span>
               <ToggleSwitch checked={config.announcePromotions} size="sm" onToggle={(v) => patch({ announcePromotions: v })} disabled={!canManageSettings} />
             </label>
             <label class="flex items-center justify-between gap-4">
-              <span class="text-[13px] text-on-surface-variant">{m.prg_field_announce_demotions()}</span>
+              <span class="text-body-sm text-on-surface-variant">{m.prg_field_announce_demotions()}</span>
               <ToggleSwitch checked={config.announceDemotions} size="sm" onToggle={(v) => patch({ announceDemotions: v })} disabled={!canManageSettings} />
             </label>
             <label class="flex items-center justify-between gap-4">
-              <span class="text-[13px] text-on-surface-variant">{m.prg_field_global()}</span>
+              <span class="text-body-sm text-on-surface-variant">{m.prg_field_global()}</span>
               <ToggleSwitch checked={config.globalLeaderboard} size="sm" onToggle={(v) => patch({ globalLeaderboard: v })} disabled={!canManageSettings} />
             </label>
           </div>
@@ -2070,9 +2070,9 @@
 
           <div class="flex flex-wrap gap-2">
             {#each ['{user}', '{tier}', '{from}', '{rp}'] as variable (variable)}
-              <code class="px-2 py-1 rounded-lg bg-surface-container-high/40 text-[11px] font-mono text-primary">{variable}</code>
+              <code class="px-2 py-1 rounded-lg bg-surface-container-high/40 text-2xs font-mono text-primary">{variable}</code>
             {/each}
-            <span class="text-[11px] text-on-surface-variant/60 self-center">{m.prg_messages_variables_hint()}</span>
+            <span class="text-2xs text-on-surface-variant/60 self-center">{m.prg_messages_variables_hint()}</span>
           </div>
 
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -2083,10 +2083,10 @@
                 rows="3"
                 placeholder={m.prg_message_default_promotion()}
                 bind:value={config.announcePromotionMessage}
-                class="prestige-input font-mono text-[12px]"
+                class="prestige-input font-mono text-xs"
                 disabled={!canManageSettings}
               ></textarea>
-              <p class="text-[11px] text-on-surface-variant/60 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-3 py-2">
+              <p class="text-2xs text-on-surface-variant/60 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-3 py-2">
                 {announcePreview(config.announcePromotionMessage ?? '', m.prg_message_default_promotion())}
               </p>
             </div>
@@ -2098,16 +2098,16 @@
                 rows="3"
                 placeholder={m.prg_message_default_demotion()}
                 bind:value={config.announceDemotionMessage}
-                class="prestige-input font-mono text-[12px]"
+                class="prestige-input font-mono text-xs"
                 disabled={!canManageSettings}
               ></textarea>
-              <p class="text-[11px] text-on-surface-variant/60 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-3 py-2">
+              <p class="text-2xs text-on-surface-variant/60 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-3 py-2">
                 {announcePreview(config.announceDemotionMessage ?? '', m.prg_message_default_demotion())}
               </p>
             </div>
           </div>
 
-          <p class="text-[10px] text-on-surface-variant/50">{m.prg_messages_empty_hint()}</p>
+          <p class="text-2xs text-on-surface-variant/50">{m.prg_messages_empty_hint()}</p>
         </section>
 
         {#if configDirty}
@@ -2178,18 +2178,18 @@
             <div class="space-y-1">
               {#each events as event (event.id)}
                 <div class="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-surface-container-high/10">
-                  <span class="px-2 py-0.5 rounded-full text-[11px] font-medium {statusClass(event.status)}">{statusLabel(event.status)}</span>
+                  <span class="px-2 py-0.5 rounded-full text-2xs font-medium {statusClass(event.status)}">{statusLabel(event.status)}</span>
                   <div class="min-w-0 flex-1">
-                    <p class="text-[13px] font-semibold text-on-surface truncate">{event.name} · ×{event.multiplier}</p>
-                    <p class="text-[11px] text-on-surface-variant">
+                    <p class="text-body-sm font-semibold text-on-surface truncate">{event.name} · ×{event.multiplier}</p>
+                    <p class="text-2xs text-on-surface-variant">
                       {new Date(event.startsAt).toLocaleString()} → {new Date(event.endsAt).toLocaleString()}
                     </p>
                   </div>
-                  <span class="text-[11px] text-on-surface-variant hidden sm:block">
+                  <span class="text-2xs text-on-surface-variant hidden sm:block">
                     {m.prg_event_result({ participants: event.participants, bonus: event.bonusRpGranted })}
                   </span>
                   {#if event.status === 'SCHEDULED' || event.status === 'RUNNING'}
-                    <button class="text-[11px] font-bold text-rose-500" onclick={() => handleCancelEvent(event.id)}>
+                    <button class="text-2xs font-bold text-rose-500" onclick={() => handleCancelEvent(event.id)}>
                       {m.prg_btn_cancel_event()}
                     </button>
                   {/if}
@@ -2212,7 +2212,7 @@
               </div>
               <div class="min-w-0 space-y-0.5">
                 <p class="text-sm font-semibold text-on-surface">{m.prg_public_link_title()}</p>
-                <p class="text-[12px] font-mono text-on-surface-variant/60 truncate">{publicBoardUrl}</p>
+                <p class="text-xs font-mono text-on-surface-variant/60 truncate">{publicBoardUrl}</p>
               </div>
             </div>
             <div class="flex items-center gap-2 shrink-0">
@@ -2274,13 +2274,13 @@
               <div class="space-y-0.5">
                 {#each globalRows as entry (entry.userId)}
                   <div class="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-surface-container-high/10">
-                    <span class="w-7 text-right text-[13px] font-semibold text-on-surface-variant">#{entry.rank}</span>
+                    <span class="w-7 text-right text-body-sm font-semibold text-on-surface-variant">#{entry.rank}</span>
                     <UserDisplay userId={entry.userId} name={entry.displayName} avatarUrl={entry.avatarUrl} size="sm" class="min-w-0 flex-1" />
-                    <span class="text-[11px] text-on-surface-variant/60 hidden sm:block">{m.prg_global_guilds({ count: entry.guilds })}</span>
-                    <span class="px-2 py-0.5 rounded-full text-[11px] font-medium" style="background:{entry.tier.color}22;color:{entry.tier.color}">
+                    <span class="text-2xs text-on-surface-variant/60 hidden sm:block">{m.prg_global_guilds({ count: entry.guilds })}</span>
+                    <span class="px-2 py-0.5 rounded-full text-2xs font-medium" style="background:{entry.tier.color}22;color:{entry.tier.color}">
                       {entry.tier.name}
                     </span>
-                    <span class="text-[12px] font-mono text-on-surface-variant w-16 text-right">{entry.rp.toLocaleString()}</span>
+                    <span class="text-xs font-mono text-on-surface-variant w-16 text-right">{entry.rp.toLocaleString()}</span>
                   </div>
                 {/each}
               </div>
@@ -2298,12 +2298,12 @@
                 >
                   <div class="flex items-center gap-2 mb-2">
                     <span class="text-lg leading-none">{medal}</span>
-                    <span class="px-2 py-0.5 rounded-full text-[11px] font-medium" style="background:{entry.tier.color}22;color:{entry.tier.color}">
+                    <span class="px-2 py-0.5 rounded-full text-2xs font-medium" style="background:{entry.tier.color}22;color:{entry.tier.color}">
                       {entry.tier.name}
                     </span>
                   </div>
                   <UserDisplay userId={entry.userId} name={entry.displayName} avatarUrl={entry.avatarUrl} size="sm" class="min-w-0" />
-                  <p class="text-lg font-bold text-on-surface mt-2 tabular-nums">{entry.rp.toLocaleString()} <span class="text-[11px] font-medium text-on-surface-variant/60">RP</span></p>
+                  <p class="text-lg font-bold text-on-surface mt-2 tabular-nums">{entry.rp.toLocaleString()} <span class="text-2xs font-medium text-on-surface-variant/60">RP</span></p>
                 </button>
               {/each}
             </div>
@@ -2322,21 +2322,21 @@
                     onclick={() => openMember(entry.userId)}
                     class="w-full flex items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-surface-container-high/10 {openedMemberId === entry.userId ? 'bg-primary/5' : ''}"
                   >
-                    <span class="w-9 text-right text-[13px] font-semibold text-on-surface-variant tabular-nums">#{entry.rank}</span>
+                    <span class="w-9 text-right text-body-sm font-semibold text-on-surface-variant tabular-nums">#{entry.rank}</span>
                     <UserDisplay userId={entry.userId} name={entry.displayName} avatarUrl={entry.avatarUrl} size="sm" class="min-w-0 flex-1" />
                     {#if entry.flames > 0}
-                      <span class="text-[13px] hidden sm:inline" title={m.prg_streak_days({ days: entry.streakDays })}>{'🔥'.repeat(entry.flames)}</span>
+                      <span class="text-body-sm hidden sm:inline" title={m.prg_streak_days({ days: entry.streakDays })}>{'🔥'.repeat(entry.flames)}</span>
                     {/if}
-                    <span class="px-2 py-0.5 rounded-full text-[11px] font-medium" style="background:{entry.tier.color}22;color:{entry.tier.color}">
+                    <span class="px-2 py-0.5 rounded-full text-2xs font-medium" style="background:{entry.tier.color}22;color:{entry.tier.color}">
                       {entry.tier.name}
                     </span>
-                    <span class="text-[12px] font-mono text-on-surface-variant w-16 text-right">{entry.rp.toLocaleString()}</span>
+                    <span class="text-xs font-mono text-on-surface-variant w-16 text-right">{entry.rp.toLocaleString()}</span>
                   </button>
                 {/each}
               </div>
 
               {#if boardLimited}
-                <p class="text-[11px] text-on-surface-variant/60 mt-3">{m.prg_board_search_limited()}</p>
+                <p class="text-2xs text-on-surface-variant/60 mt-3">{m.prg_board_search_limited()}</p>
               {/if}
 
               {#if boardPageCount > 1}
@@ -2349,7 +2349,7 @@
                   >
                     {m.prg_board_previous()}
                   </button>
-                  <span class="text-[11px] text-on-surface-variant/70 tabular-nums">
+                  <span class="text-2xs text-on-surface-variant/70 tabular-nums">
                     {m.prg_board_page({ page: boardPage, pages: boardPageCount, total: boardTotal.toLocaleString() })}
                   </span>
                   <button
@@ -2389,31 +2389,31 @@
                     size="md"
                     subtitle={m.prg_member_rank({ rank: memberProfile.rank, total: memberProfile.totalRanked })}
                   />
-                  <span class="px-3 py-1 rounded-full text-[12px] font-semibold" style="background:{memberProfile.tier.color}22;color:{memberProfile.tier.color}">
+                  <span class="px-3 py-1 rounded-full text-xs font-semibold" style="background:{memberProfile.tier.color}22;color:{memberProfile.tier.color}">
                     {memberProfile.tier.name}
                   </span>
                 </div>
 
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">RP</p>
+                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">RP</p>
                     <p class="text-sm font-semibold text-on-surface tabular-nums">{memberProfile.rp.toLocaleString()}</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_member_peak()}</p>
+                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_member_peak()}</p>
                     <p class="text-sm font-semibold text-on-surface tabular-nums">{memberProfile.peakRp.toLocaleString()}</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_member_streak()}</p>
+                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_member_streak()}</p>
                     <p class="text-sm font-semibold text-on-surface">
                       {m.prg_streak_days({ days: memberProfile.streakDays })}
                       {#if !memberProfile.streakAlive}
-                        <span class="text-[10px] text-on-surface-variant/60">· {m.prg_member_streak_broken()}</span>
+                        <span class="text-2xs text-on-surface-variant/60">· {m.prg_member_streak_broken()}</span>
                       {/if}
                     </p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_member_next()}</p>
+                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_member_next()}</p>
                     <p class="text-sm font-semibold text-on-surface">
                       {memberProfile.nextTier
                         ? m.prg_member_next_value({ rp: memberProfile.rpRemaining.toLocaleString(), tier: memberProfile.nextTier.name })
@@ -2424,7 +2424,7 @@
 
                 {#if memberCurve}
                   <div class="space-y-1.5">
-                    <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_member_history()}</p>
+                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_member_history()}</p>
                     <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="w-full h-20 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
                       <path d={memberCurve} fill="none" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke" class="text-primary" />
                     </svg>
@@ -2434,7 +2434,7 @@
                 {#if memberHistory.length > 0}
                   <div class="space-y-1">
                     {#each memberHistory.slice(-8).reverse() as entry (entry.createdAt + entry.delta)}
-                      <div class="flex items-center gap-3 text-[11px] px-2 py-1 rounded-lg hover:bg-surface-container-high/10">
+                      <div class="flex items-center gap-3 text-2xs px-2 py-1 rounded-lg hover:bg-surface-container-high/10">
                         <span class="w-16 font-mono tabular-nums {entry.delta >= 0 ? 'text-emerald-500' : 'text-rose-500'}">
                           {entry.delta >= 0 ? '+' : ''}{entry.delta.toLocaleString()}
                         </span>
@@ -2445,13 +2445,13 @@
                     {/each}
                   </div>
                 {:else}
-                  <p class="text-[11px] text-on-surface-variant/60">{m.prg_member_history_empty()}</p>
+                  <p class="text-2xs text-on-surface-variant/60">{m.prg_member_history_empty()}</p>
                 {/if}
 
                 {#if canManageSettings}
                   <div class="pt-4 border-t border-outline-variant/10 space-y-3">
                     <InlineFeedback state={adjustAction} />
-                    <p class="text-[11px] text-on-surface-variant/70">{m.prg_member_adjust_hint()}</p>
+                    <p class="text-2xs text-on-surface-variant/70">{m.prg_member_adjust_hint()}</p>
                     <div class="flex flex-wrap items-end gap-3">
                       <label class="block w-32">
                         <span class="field-label">{m.prg_member_adjust_amount()}</span>
@@ -2498,10 +2498,10 @@
                   onclick={() => openMember(entry.userId)}
                   class="w-full flex items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-surface-container-high/10"
                 >
-                  <span class="w-7 text-right text-[13px] font-semibold text-on-surface-variant">#{entry.rank}</span>
+                  <span class="w-7 text-right text-body-sm font-semibold text-on-surface-variant">#{entry.rank}</span>
                   <UserDisplay userId={entry.userId} name={entry.displayName} avatarUrl={entry.avatarUrl} size="sm" class="min-w-0 flex-1" />
-                  <span class="text-[13px]">{'🔥'.repeat(Math.max(1, entry.flames))}</span>
-                  <span class="text-[12px] font-mono text-on-surface-variant w-14 text-right">
+                  <span class="text-body-sm">{'🔥'.repeat(Math.max(1, entry.flames))}</span>
+                  <span class="text-xs font-mono text-on-surface-variant w-14 text-right">
                     {m.prg_streak_days({ days: entry.streakDays })}
                   </span>
                 </button>
@@ -2525,7 +2525,7 @@
         <button
           type="button"
           onclick={load}
-          class="px-5 py-2.5 rounded-lg bg-primary text-on-primary text-[13px] font-medium hover:bg-primary/90 transition-all"
+          class="px-5 py-2.5 rounded-lg bg-primary text-on-primary text-body-sm font-medium hover:bg-primary/90 transition-all"
         >
           {m.prg_load_retry()}
         </button>

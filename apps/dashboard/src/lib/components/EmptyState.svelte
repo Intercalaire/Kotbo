@@ -22,7 +22,7 @@
   </div>
   <p class="text-sm font-medium text-on-surface">{title}</p>
   {#if description}
-    <p class="text-[13px] text-on-surface-variant max-w-sm leading-relaxed">{description}</p>
+    <p class="text-body-sm text-on-surface-variant max-w-sm leading-relaxed">{description}</p>
   {/if}
   {#if action}
     <div class="mt-3">

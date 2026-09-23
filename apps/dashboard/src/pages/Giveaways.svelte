@@ -1339,7 +1339,7 @@
         </div>
         <button
           onclick={() => openTemplateModal(null)}
-          class="flex items-center justify-center gap-2 px-5 py-3 bg-primary text-on-primary text-[13px] font-medium rounded-lg transition-all cursor-pointer"
+          class="flex items-center justify-center gap-2 px-5 py-3 bg-primary text-on-primary text-body-sm font-medium rounded-lg transition-all cursor-pointer"
         >
           <Papicon icon="Add" size={14} />
           {m.giv_tpl_btn_new()}
@@ -1379,7 +1379,7 @@
                   </p>
 
                   <!-- Ce que l'annonce ne dit pas : où elle part, et comment on tire. -->
-                  <div class="flex flex-wrap items-center gap-2 mt-2 text-[11px] font-medium text-on-surface-variant/70">
+                  <div class="flex flex-wrap items-center gap-2 mt-2 text-2xs font-medium text-on-surface-variant/70">
                     <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{durationLabel(template.durationMinutes)}</span>
                     <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_winners_count({ count: template.winnerCount })}</span>
                     {#if template.channelId}
@@ -1456,7 +1456,7 @@
             options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
             accentClass="bg-primary/20 text-primary border-primary/40"
           />
-          <p class="text-[11px] text-on-surface-variant/50">{m.giv_cfg_managers_help()}</p>
+          <p class="text-2xs text-on-surface-variant/50">{m.giv_cfg_managers_help()}</p>
         </div>
       </SectionCard>
 
@@ -1481,25 +1481,25 @@
       >
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div class="space-y-1.5">
-            <span class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.giv_cfg_required_label()}</span>
+            <span class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.giv_cfg_required_label()}</span>
             <MultiSelect
               id="giveaway-required-roles"
               bind:values={config.requiredRoleIds}
               options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
               accentClass="bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
             />
-            <p class="text-[11px] text-on-surface-variant/50">{m.giv_cfg_required_help()}</p>
+            <p class="text-2xs text-on-surface-variant/50">{m.giv_cfg_required_help()}</p>
           </div>
 
           <div class="space-y-1.5">
-            <span class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.giv_cfg_blocked_label()}</span>
+            <span class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.giv_cfg_blocked_label()}</span>
             <MultiSelect
               id="giveaway-blocked-roles"
               bind:values={config.blockedRoleIds}
               options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
               accentClass="bg-rose-500/20 text-rose-300 border-rose-500/40"
             />
-            <p class="text-[11px] text-on-surface-variant/50">{m.giv_cfg_blocked_help()}</p>
+            <p class="text-2xs text-on-surface-variant/50">{m.giv_cfg_blocked_help()}</p>
           </div>
         </div>
       </SectionCard>
@@ -1568,7 +1568,7 @@
           {#each config.bonusEntries as entry, index (entry.roleId)}
             <div class="flex items-center gap-3 bg-surface-container-high/25 border border-outline-variant/10 rounded-lg px-3 py-2">
               <span class="flex-1 text-sm text-on-surface truncate">@{roleName(entry.roleId)}</span>
-              <label class="flex items-center gap-2 text-[11px] text-on-surface-variant/70">
+              <label class="flex items-center gap-2 text-2xs text-on-surface-variant/70">
                 {m.giv_cfg_bonus_weight()}
                 <input
                   type="number"
@@ -1903,7 +1903,7 @@
                       />
                     {:else}
                       <p class="text-sm font-semibold text-on-surface truncate">{preset.name}</p>
-                      <p class="text-[11px] text-on-surface-variant/60">
+                      <p class="text-2xs text-on-surface-variant/60">
                         {m.giv_cfg_preset_saved_at({ date: formatDate(preset.updatedAt) })}
                         {#if twinTemplateOf(preset.id)}
                           <span class="text-primary/70">{m.giv_cfg_preset_has_template()}</span>
@@ -1975,7 +1975,7 @@
         <button
           onclick={openConfigSaveModal}
           disabled={configAction.state.loading}
-          class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          class="px-8 py-3 bg-primary text-on-primary font-medium text-body-sm rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {configAction.state.loading ? m.giv_cfg_saving() : m.giv_cfg_save()}
         </button>
@@ -2029,7 +2029,7 @@
         {#if canManageSettings}
           <button
             onclick={openCreateModal}
-            class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer"
+            class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary font-medium text-body-sm rounded-lg transition-all cursor-pointer"
           >
             <Papicon icon="Add" size={16} />
             {m.giv_btn_create()}
@@ -2045,16 +2045,16 @@
               <!-- Status & Destination -->
               <div class="flex items-center justify-between gap-3 flex-wrap">
                 <div class="flex items-center gap-2 flex-wrap">
-                  <span class="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-xl {giveaway.ended ? 'bg-outline-variant/20 text-on-surface-variant' : 'bg-primary/10 text-primary border border-primary/20 animate-pulse'}">
+                  <span class="text-2xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded-xl {giveaway.ended ? 'bg-outline-variant/20 text-on-surface-variant' : 'bg-primary/10 text-primary border border-primary/20 animate-pulse'}">
                     {giveaway.ended ? m.giv_status_ended() : m.giv_status_active()}
                   </span>
                   {#if giveaway.ignoreBonuses}
-                    <span class="text-[10px] font-semibold px-2.5 py-1 rounded-xl bg-surface-container-high/50 text-on-surface-variant" title={m.giv_field_ignore_bonuses_help()}>
+                    <span class="text-2xs font-semibold px-2.5 py-1 rounded-xl bg-surface-container-high/50 text-on-surface-variant" title={m.giv_field_ignore_bonuses_help()}>
                       {m.giv_field_ignore_bonuses()}
                     </span>
                   {/if}
                 </div>
-                <span class="text-[11px] font-bold text-on-surface-variant/70 flex items-center gap-1 bg-surface-container-high/40 px-2 py-1 rounded-lg">
+                <span class="text-2xs font-bold text-on-surface-variant/70 flex items-center gap-1 bg-surface-container-high/40 px-2 py-1 rounded-lg">
                   <Papicon icon="Hash" size={11} />{getChannelName(giveaway.channelId)}
                 </span>
               </div>
@@ -2112,7 +2112,7 @@
               {:else}
                 <div class="bg-surface-container-high/20 border border-outline-variant/5 rounded-lg p-3 flex items-center gap-2 text-on-surface-variant/60">
                   <Papicon icon="Clock" size={12} class="text-primary" />
-                  <span class="text-[10px] font-semibold">
+                  <span class="text-2xs font-semibold">
                     {m.giv_ends_at({ date: formatDate(giveaway.endsAt) })}
                   </span>
                 </div>
@@ -2125,7 +2125,7 @@
                 {#if !giveaway.ended}
                   <button
                     onclick={() => handleEnd(giveaway.id)}
-                    class="px-3.5 py-2 bg-secondary hover:bg-secondary-hover text-on-secondary text-[10px] font-semibold uppercase tracking-wider rounded-xl transition-all shadow-md shadow-secondary/10 cursor-pointer flex items-center gap-1.5"
+                    class="px-3.5 py-2 bg-secondary hover:bg-secondary-hover text-on-secondary text-2xs font-semibold uppercase tracking-wider rounded-xl transition-all shadow-md shadow-secondary/10 cursor-pointer flex items-center gap-1.5"
                     title={m.giv_title_pick_winner()}
                   >
                     <Papicon icon="Sparkles" size={11} />
@@ -2134,7 +2134,7 @@
                 {:else}
                   <button
                     onclick={() => handleReroll(giveaway.id)}
-                    class="px-3.5 py-2 bg-outline-variant/20 hover:bg-outline-variant/35 text-on-surface text-[10px] font-semibold uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                    class="px-3.5 py-2 bg-outline-variant/20 hover:bg-outline-variant/35 text-on-surface text-2xs font-semibold uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
                     title={m.giv_title_reroll()}
                   >
                     <Papicon icon="Refresh" size={11} />
@@ -2588,14 +2588,14 @@
           <button
             type="button"
             onclick={() => showModal = false}
-            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-[13px] font-medium rounded-lg transition-all cursor-pointer"
+            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-body-sm font-medium rounded-lg transition-all cursor-pointer"
           >
             {m.giv_btn_cancel()}
           </button>
           <button
             type="submit"
             disabled={actionState.state.loading || !durationIsValid || (modalMode === 'launch' && !form.channelId)}
-            class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            class="px-8 py-3 bg-primary text-on-primary font-medium text-body-sm rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {#if modalMode === 'template'}
               {editingTemplateId ? m.giv_tpl_btn_update() : m.giv_tpl_btn_save()}
@@ -2681,14 +2681,14 @@
           <button
             type="button"
             onclick={() => showConfigSaveModal = false}
-            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-[13px] font-medium rounded-lg transition-all cursor-pointer"
+            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-body-sm font-medium rounded-lg transition-all cursor-pointer"
           >
             {m.giv_btn_cancel()}
           </button>
           <button
             type="submit"
             disabled={configAction.state.loading}
-            class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            class="px-8 py-3 bg-primary text-on-primary font-medium text-body-sm rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {configAction.state.loading ? m.giv_cfg_saving() : m.giv_cfg_save_confirm()}
           </button>

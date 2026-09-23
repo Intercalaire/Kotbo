@@ -210,7 +210,7 @@
           <Papicon icon="Lock" size={16} class="text-primary" />
         </div>
         <div class="min-w-0 hidden sm:block">
-          <p class="text-[12px] font-medium text-primary leading-none truncate">{brandingStore.brandName}</p>
+          <p class="text-xs font-medium text-primary leading-none truncate">{brandingStore.brandName}</p>
           <h1 class="text-[15px] font-semibold text-on-surface leading-none mt-1 truncate">{m.d4_admin_console()}</h1>
         </div>
       </a>
@@ -221,14 +221,14 @@
           text-on-surface-variant hover:text-on-surface transition min-w-64 focus-visible:outline-2 focus-visible:outline-primary"
       >
         <Papicon icon="Search" size={14} />
-        <span class="flex-1 text-left text-[13px]">{m.d4_search_or_navigate()}</span>
-        <kbd class="px-1.5 py-0.5 rounded bg-on-surface/8 border border-outline-variant/25 text-[10px] font-semibold font-mono leading-none">⌘K</kbd>
+        <span class="flex-1 text-left text-body-sm">{m.d4_search_or_navigate()}</span>
+        <kbd class="px-1.5 py-0.5 rounded bg-on-surface/8 border border-outline-variant/25 text-2xs font-semibold font-mono leading-none">⌘K</kbd>
       </button>
 
       <div class="flex items-center gap-2 ml-auto">
         <!-- Etat de sante synthetique, toujours visible -->
         <div
-          class="hidden sm:flex items-center gap-2 h-8 px-3 rounded-full border text-[12px] font-medium
+          class="hidden sm:flex items-center gap-2 h-8 px-3 rounded-full border text-xs font-medium
             {healthError
               ? 'bg-red-500/10 border-red-500/25 text-red-500'
               : shardsHealthy
@@ -256,7 +256,7 @@
 
         <a
           href="/"
-          class="flex items-center gap-2 h-9 px-3 rounded-xl text-[13px] font-semibold bg-on-surface/6 hover:bg-on-surface/10
+          class="flex items-center gap-2 h-9 px-3 rounded-xl text-body-sm font-semibold bg-on-surface/6 hover:bg-on-surface/10
             text-on-surface-variant hover:text-on-surface border border-outline-variant/25 transition focus-visible:outline-2 focus-visible:outline-primary"
         >
           <Papicon icon="ArrowLeft" size={13} />
@@ -276,7 +276,7 @@
         {#each navGroups as group (group.label)}
           <div class="space-y-0.5">
             {#if !sidebarCollapsed}
-              <p class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant px-3 pb-1.5">{group.label}</p>
+              <p class="text-2xs font-bold uppercase tracking-wider text-on-surface-variant px-3 pb-1.5">{group.label}</p>
             {:else}
               <div class="h-px bg-outline-variant/25 mx-3 mb-2"></div>
             {/if}
@@ -303,7 +303,7 @@
                   <Papicon icon={item.icon} size={15} />
                 </span>
                 {#if !sidebarCollapsed}
-                  <span class="text-[13.5px] font-semibold leading-none truncate">{item.label}</span>
+                  <span class="text-body-sm font-semibold leading-none truncate">{item.label}</span>
                 {/if}
               </a>
             {/each}
@@ -314,20 +314,20 @@
       <div class="shrink-0 border-t border-outline-variant/25 p-3 space-y-3">
         {#if health && !sidebarCollapsed}
           <div class="space-y-2">
-            <div class="flex items-center justify-between text-[11px]">
+            <div class="flex items-center justify-between text-2xs">
               <span class="font-semibold uppercase tracking-wider text-on-surface-variant">Mémoire</span>
               <span class="font-mono font-semibold tabular-nums {toneText[heapTone]}">{heapPercent}%</span>
             </div>
             <div class="h-1.5 bg-on-surface/8 rounded-full overflow-hidden">
               <div class="h-full rounded-full transition-all duration-700 {toneBar[heapTone]}" style="width: {heapPercent}%"></div>
             </div>
-            <div class="flex items-center justify-between text-[11px] text-on-surface-variant">
+            <div class="flex items-center justify-between text-2xs text-on-surface-variant">
               <span class="tabular-nums">{formatMb(health.heapUsed)} / {formatMb(health.heapTotal)}</span>
               <AdminSparkline values={heapHistory} color="var(--primary-color)" width={48} height={14} />
             </div>
 
             <div class="flex items-center justify-between pt-1 border-t border-outline-variant/20">
-              <span class="flex items-center gap-1.5 text-[11px]">
+              <span class="flex items-center gap-1.5 text-2xs">
                 <span class="w-1.5 h-1.5 rounded-full {toneBar[pingTone]}"></span>
                 <span class="font-semibold tabular-nums {toneText[pingTone]}">{health.averageShardPing} ms</span>
               </span>
@@ -341,7 +341,7 @@
           onclick={toggleSidebar}
           aria-label={sidebarCollapsed ? 'Déplier la navigation' : 'Replier la navigation'}
           class="w-full h-9 rounded-xl flex items-center justify-center gap-2 bg-on-surface/5 hover:bg-on-surface/10
-            text-on-surface-variant hover:text-on-surface text-[12px] font-semibold transition focus-visible:outline-2 focus-visible:outline-primary"
+            text-on-surface-variant hover:text-on-surface text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-primary"
         >
           <Papicon icon={sidebarCollapsed ? 'ChevronRight' : 'ChevronLeft'} size={13} />
           {#if !sidebarCollapsed}Replier{/if}
@@ -376,7 +376,7 @@
 
           {#each navGroups as group (group.label)}
             <div class="space-y-0.5">
-              <p class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant px-2 pb-1">{group.label}</p>
+              <p class="text-2xs font-bold uppercase tracking-wider text-on-surface-variant px-2 pb-1">{group.label}</p>
               {#each group.items as item (item.path)}
                 {@const active = isActive(item.path, item.exact)}
                 <a
@@ -400,14 +400,14 @@
       <div class="px-4 sm:px-6 lg:px-8 py-6 space-y-6 max-w-[1600px]">
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div class="min-w-0">
-            <nav class="flex items-center gap-1.5 text-[12px] text-on-surface-variant mb-1.5" aria-label="Fil d'Ariane">
+            <nav class="flex items-center gap-1.5 text-xs text-on-surface-variant mb-1.5" aria-label="Fil d'Ariane">
               <a href="/admin" class="font-semibold hover:text-on-surface transition-colors">{m.d4_admin()}</a>
               <Papicon icon="ChevronRight" size={11} />
               <span class="font-semibold text-on-surface">{currentItem?.label ?? pageTitle}</span>
             </nav>
             <h1 class="text-[22px] sm:text-2xl font-semibold text-on-surface tracking-tight leading-tight">{pageTitle}</h1>
             {#if description}
-              <p class="text-[13.5px] text-on-surface-variant mt-1 max-w-2xl leading-relaxed">{description}</p>
+              <p class="text-body-sm text-on-surface-variant mt-1 max-w-2xl leading-relaxed">{description}</p>
             {/if}
           </div>
 

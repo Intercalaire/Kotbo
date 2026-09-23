@@ -97,7 +97,7 @@
     {/each}
   </div>
 
-  <p class="mt-3 text-[12px] text-on-surface-variant/45 tabular-nums">
+  <p class="mt-3 text-xs text-on-surface-variant/45 tabular-nums">
     {chosen.length > 0
       ? m.onb_quests_selected({ count: chosen.length })
       : m.onb_quests_empty()}
@@ -117,7 +117,7 @@
       />
     </DiscordPreview>
 
-    <p class="mt-3 flex items-start gap-2 text-[12.5px] text-on-surface-variant/55 leading-relaxed">
+    <p class="mt-3 flex items-start gap-2 text-xs text-on-surface-variant/55 leading-relaxed">
       <Papicon icon="info" size={13} class="mt-0.5 shrink-0 text-on-surface-variant/35" />
       <span>
         Les récompenses se versent en {currency} et en XP, à la validation de chaque quête.
@@ -129,7 +129,7 @@
     <button
       type="button"
       onclick={skip}
-      class="text-[13px] font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
+      class="text-body-sm font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
     >
       Passer
     </button>
@@ -137,7 +137,7 @@
       type="button"
       onclick={apply}
       disabled={onboardingData.busy}
-      class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[14px] font-semibold text-on-primary
+      class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary
              hover:brightness-110 transition disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
     >
       {onboardingData.busy ? 'Création…' : 'Continuer'}

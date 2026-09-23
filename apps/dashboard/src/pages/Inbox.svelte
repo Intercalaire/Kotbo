@@ -150,7 +150,7 @@
           <Papicon icon={tab.icon} size={15} />
           {tabLabel(tab.id)}
           {#if unreadByTab[tab.id] > 0}
-            <span class="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-primary/15 text-primary">
+            <span class="px-1.5 py-0.5 rounded-full text-2xs font-semibold bg-primary/15 text-primary">
               {unreadByTab[tab.id]}
             </span>
           {/if}
@@ -197,15 +197,15 @@
 
             <div class="min-w-0 flex-1">
               <div class="flex items-start justify-between gap-3">
-                <h3 class="text-[13.5px] font-semibold text-on-surface leading-snug wrap-break-word">
+                <h3 class="text-body-sm font-semibold text-on-surface leading-snug wrap-break-word">
                   {notif.title}
                 </h3>
-                <span class="text-[11px] text-on-surface-variant/60 whitespace-nowrap shrink-0 tabular-nums">
+                <span class="text-2xs text-on-surface-variant/60 whitespace-nowrap shrink-0 tabular-nums">
                   {formatDate(notif.createdAt)}
                 </span>
               </div>
 
-              <p class="mt-1 text-[12.5px] text-on-surface-variant leading-relaxed">
+              <p class="mt-1 text-xs text-on-surface-variant leading-relaxed">
                 {notif.message}
               </p>
 
@@ -213,7 +213,7 @@
                 {#if notif.link}
                   <a
                     href={notif.link}
-                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
                     bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 transition-colors"
                   >
                     <Papicon icon="external-link" size={13} />
@@ -225,7 +225,7 @@
                   <button
                     type="button"
                     onclick={() => notificationsStore.markAsRead(notif.id)}
-                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
                     bg-surface-container text-on-surface border border-outline-variant/40
                     hover:border-outline-variant transition-colors"
                   >
@@ -235,7 +235,7 @@
                 {/if}
 
                 {#if currentTab === 'tous'}
-                  <span class="text-[11px] px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">
+                  <span class="text-2xs px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">
                     {tabLabel(getCategory(notif))}
                   </span>
                 {/if}

@@ -143,7 +143,7 @@
         type="button"
         onclick={refreshShards}
         disabled={shardLoading}
-        class="inline-flex items-center gap-2 h-9 px-3.5 rounded-xl text-[13px] font-semibold bg-on-surface/6 hover:bg-on-surface/10 border border-outline-variant/25 text-on-surface-variant hover:text-on-surface transition disabled:opacity-40"
+        class="inline-flex items-center gap-2 h-9 px-3.5 rounded-xl text-body-sm font-semibold bg-on-surface/6 hover:bg-on-surface/10 border border-outline-variant/25 text-on-surface-variant hover:text-on-surface transition disabled:opacity-40"
       >
         <Papicon icon="RefreshCw" size={13} />
         Rafraîchir
@@ -183,17 +183,17 @@
             </div>
             <div>
               <p class="font-semibold text-on-surface text-sm">Configuration</p>
-              <p class="text-[10px] text-on-surface-variant/40 font-medium">Mode de sharding</p>
+              <p class="text-2xs text-on-surface-variant/40 font-medium">Mode de sharding</p>
             </div>
           </div>
 
           <div class="grid grid-cols-2 gap-2">
             <div class="bg-on-surface/4 rounded-xl p-3 space-y-0.5">
-              <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/30">Mode actif</p>
+              <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/30">Mode actif</p>
               <p class="text-sm font-semibold text-on-surface uppercase">{shardState?.config.mode ?? 'auto'}</p>
             </div>
             <div class="bg-on-surface/4 rounded-xl p-3 space-y-0.5">
-              <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/30">En ligne</p>
+              <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/30">En ligne</p>
               <p class="text-sm font-semibold text-emerald-400">{shardState?.onlineShardCount ?? 0}/{shardConfiguredCount}</p>
             </div>
           </div>
@@ -245,7 +245,7 @@
         <div class="xl:col-span-2 space-y-5">
           <!-- Visual bar chart -->
           <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-5">
-            <p class="text-[13px] font-medium text-on-surface-variant/30 mb-4">Répartition par shard</p>
+            <p class="text-body-sm font-medium text-on-surface-variant/30 mb-4">Répartition par shard</p>
             <div class="flex items-end gap-3 h-24">
               {#each shardRows as shard (shard.shardId)}
                 <div class="flex-1 flex flex-col items-center gap-1.5 min-w-0">
@@ -259,7 +259,7 @@
                       style="height: {maxShardGuildCount > 0 ? Math.max(10, (shard.guildCount / maxShardGuildCount) * 100) : 10}%"
                     ></div>
                   </div>
-                  <p class="text-[11px] font-semibold text-on-surface-variant/40 truncate w-full text-center">#{shard.shardId}</p>
+                  <p class="text-2xs font-semibold text-on-surface-variant/40 truncate w-full text-center">#{shard.shardId}</p>
                 </div>
               {/each}
             </div>
@@ -285,7 +285,7 @@
                     <tr class="group hover:bg-on-surface/3 transition-colors duration-150">
                       <td class="px-5 py-3.5">
                         <p class="font-semibold text-on-surface text-sm">#{shard.shardId}</p>
-                        <p class="text-[11px] font-mono text-on-surface-variant/30">{shard.readyAt ? new Date(shard.readyAt).toLocaleTimeString('fr-FR') : '-'}</p>
+                        <p class="text-2xs font-mono text-on-surface-variant/30">{shard.readyAt ? new Date(shard.readyAt).toLocaleTimeString('fr-FR') : '-'}</p>
                       </td>
                       <td class="px-5 py-3.5">
                         <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border {shardStatusTone(shard.status)}">

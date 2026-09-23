@@ -178,7 +178,7 @@
       onsubmit={(e) => { e.preventDefault(); submit(); }}
     >
       <div class="space-y-1.5">
-        <label for="riddleEmojis" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.fun_riddles_emojis_label()}</label>
+        <label for="riddleEmojis" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.fun_riddles_emojis_label()}</label>
         <div class="flex items-center gap-2">
           <input
             id="riddleEmojis"
@@ -194,7 +194,7 @@
       </div>
 
       <div class="space-y-1.5">
-        <label for="riddleAnswers" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.fun_riddles_answers_label()}</label>
+        <label for="riddleAnswers" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.fun_riddles_answers_label()}</label>
         <textarea
           id="riddleAnswers"
           bind:value={answersDraft}
@@ -203,7 +203,7 @@
           disabled={busy}
           class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm resize-y focus:ring-2 focus:ring-rose-500/30 transition-all disabled:opacity-50"
         ></textarea>
-        <p class="text-[11px] text-on-surface-variant/50 ml-2">{m.fun_riddles_answers_hint()}</p>
+        <p class="text-2xs text-on-surface-variant/50 ml-2">{m.fun_riddles_answers_hint()}</p>
       </div>
 
       <div class="md:col-span-2 flex justify-end gap-2">

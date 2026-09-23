@@ -82,7 +82,7 @@
       <Papicon icon="shield" size={14} />
       {m.cm_tv_policy_title()}
     </h5>
-    <p class="text-[11px] text-on-surface-variant/60 mt-1">{m.cm_tv_policy_desc()}</p>
+    <p class="text-2xs text-on-surface-variant/60 mt-1">{m.cm_tv_policy_desc()}</p>
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -100,7 +100,7 @@
         oninput={onUserLimitInput}
         class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/30 transition-all"
       />
-      <p class="text-[10px] text-on-surface-variant/40">{m.cm_tv_user_limit_hint()}</p>
+      <p class="text-2xs text-on-surface-variant/40">{m.cm_tv_user_limit_hint()}</p>
     </div>
 
     <!-- Créer verrouillé -->
@@ -116,7 +116,7 @@
           bind:checked={policy.lockOnCreate}
           class="mt-0.5 accent-primary w-4 h-4 shrink-0"
         />
-        <span class="text-[11px] text-on-surface-variant/70 leading-relaxed">{m.cm_tv_lock_hint()}</span>
+        <span class="text-2xs text-on-surface-variant/70 leading-relaxed">{m.cm_tv_lock_hint()}</span>
       </label>
     </div>
   </div>
@@ -142,7 +142,7 @@
             />
             {mode.label()}
           </span>
-          <span class="text-[10px] text-on-surface-variant/60 leading-relaxed">{mode.hint()}</span>
+          <span class="text-2xs text-on-surface-variant/60 leading-relaxed">{mode.hint()}</span>
         </label>
       {/each}
     </div>
@@ -153,12 +153,12 @@
     <label for="{idPrefix}-auto-allow" class="text-xs font-bold text-on-surface/80 block">
       {m.cm_tv_auto_allow_label()}
     </label>
-    <p class="text-[10px] text-on-surface-variant/40">{m.cm_tv_auto_allow_hint()}</p>
+    <p class="text-2xs text-on-surface-variant/40">{m.cm_tv_auto_allow_hint()}</p>
 
     {#if policy.autoAllowRoleIds.length > 0}
       <div class="flex flex-wrap gap-2">
         {#each policy.autoAllowRoleIds as roleId (roleId)}
-          <span class="inline-flex items-center gap-1.5 bg-primary/10 border border-primary/20 text-primary text-[11px] font-semibold rounded-full pl-3 pr-1.5 py-1">
+          <span class="inline-flex items-center gap-1.5 bg-primary/10 border border-primary/20 text-primary text-2xs font-semibold rounded-full pl-3 pr-1.5 py-1">
             @{roleName(roleId)}
             <button
               type="button"
@@ -174,7 +174,7 @@
     {/if}
 
     {#if policy.autoAllowRoleIds.length >= MAX_AUTO_ALLOW_ROLES}
-      <p class="text-[10px] text-on-surface-variant/60">{m.cm_tv_auto_allow_full({ max: MAX_AUTO_ALLOW_ROLES })}</p>
+      <p class="text-2xs text-on-surface-variant/60">{m.cm_tv_auto_allow_full({ max: MAX_AUTO_ALLOW_ROLES })}</p>
     {:else}
       <SearchableSelect
         id="{idPrefix}-auto-allow"
@@ -189,7 +189,7 @@
   <!-- Pouvoirs du propriétaire -->
   <div class="space-y-2">
     <span class="text-xs font-bold text-on-surface/80 block">{m.cm_tv_owner_powers_label()}</span>
-    <p class="text-[10px] text-on-surface-variant/40">{m.cm_tv_owner_powers_hint()}</p>
+    <p class="text-2xs text-on-surface-variant/40">{m.cm_tv_owner_powers_hint()}</p>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
       {#each OWNER_POWERS as power (power.key)}
         <label
@@ -205,7 +205,7 @@
           />
           <span class="flex flex-col gap-0.5">
             <span class="text-xs font-bold text-on-surface">{power.label()}</span>
-            <span class="text-[10px] text-on-surface-variant/60 leading-relaxed">{power.hint()}</span>
+            <span class="text-2xs text-on-surface-variant/60 leading-relaxed">{power.hint()}</span>
           </span>
         </label>
       {/each}

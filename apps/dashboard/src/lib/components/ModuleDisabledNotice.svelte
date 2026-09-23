@@ -47,7 +47,7 @@
     <h1 class="text-lg font-semibold text-on-surface">
       {definition?.name ?? 'Ce module'} est désactivé
     </h1>
-    <p class="text-[13px] text-on-surface-variant leading-relaxed">
+    <p class="text-body-sm text-on-surface-variant leading-relaxed">
       {definition?.description ?? ''}
       Tant qu'il est éteint, ses commandes Discord, ses automatismes et cette page
       restent indisponibles sur ce serveur.

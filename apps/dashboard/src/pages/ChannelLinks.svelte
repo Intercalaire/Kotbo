@@ -396,13 +396,13 @@
                         <span class="text-xs font-medium text-on-surface">#{member.channelName}</span>
                         <span class="text-xs text-on-surface-variant/40" title={modeLabel(member.mode)}>{modeArrow(member.mode)}</span>
                         {#if !member.enabled}
-                          <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant/60">
+                          <span class="text-2xs px-1.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant/60">
                             {m.channel_links_member_paused()}
                           </span>
                         {/if}
                         {#if member.isLinkOnly}
                           <span
-                            class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                            class="text-2xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                             title={m.channel_links_badge_link_only_tooltip()}
                           >
                             {m.channel_links_badge_link_only()}
@@ -410,7 +410,7 @@
                         {/if}
                         {#if warnings.length > 0}
                           <span
-                            class="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                            class="text-2xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
                             title={warnings.join(' ')}
                           >
                             {m.channel_links_perm_badge()}
@@ -421,10 +421,10 @@
                   </div>
 
                   <div class="flex flex-wrap gap-1.5">
-                    {#if group.relayText}<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.channel_links_relay_text()}</span>{/if}
-                    {#if group.relayImages}<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.channel_links_relay_images()}</span>{/if}
-                    {#if group.relayEdits}<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.channel_links_relay_edits()}</span>{/if}
-                    {#if group.relayDeletes}<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.channel_links_relay_deletes()}</span>{/if}
+                    {#if group.relayText}<span class="text-2xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.channel_links_relay_text()}</span>{/if}
+                    {#if group.relayImages}<span class="text-2xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.channel_links_relay_images()}</span>{/if}
+                    {#if group.relayEdits}<span class="text-2xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.channel_links_relay_edits()}</span>{/if}
+                    {#if group.relayDeletes}<span class="text-2xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.channel_links_relay_deletes()}</span>{/if}
                   </div>
                 </div>
 
@@ -705,7 +705,7 @@
                   </button>
 
                   {#each memberWarnings(member) as warning}
-                    <p class="w-full text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
+                    <p class="w-full text-2xs text-amber-600 dark:text-amber-400 leading-relaxed">
                       {warning}
                     </p>
                   {/each}
@@ -716,7 +716,7 @@
             <!-- Un pont réduit à un seul salon n'a plus d'objet : le dire ici évite
                  la surprise d'un pont qui disparaît en retirant l'avant-dernier. -->
             {#if configGroup.members.length <= 2}
-              <p class="mt-2 text-[11px] text-on-surface-variant/50">{m.channel_links_last_members_notice()}</p>
+              <p class="mt-2 text-2xs text-on-surface-variant/50">{m.channel_links_last_members_notice()}</p>
             {/if}
 
             <!-- Ajout d'un salon -->
@@ -788,11 +788,11 @@
                  base : le dire ici, à l'endroit où on les coche, évite d'avoir à
                  le chercher ailleurs. -->
             {#if configGroup.relayEdits || configGroup.relayDeletes || configGroup.relayReactions || configGroup.relayPins}
-              <p class="mt-3 text-[11px] text-on-surface-variant/50 leading-relaxed">
+              <p class="mt-3 text-2xs text-on-surface-variant/50 leading-relaxed">
                 {m.channel_links_storage_notice_on()}
               </p>
             {:else}
-              <p class="mt-3 text-[11px] text-emerald-600/80 dark:text-emerald-400/80 leading-relaxed">
+              <p class="mt-3 text-2xs text-emerald-600/80 dark:text-emerald-400/80 leading-relaxed">
                 {m.channel_links_storage_notice_off()}
               </p>
             {/if}
