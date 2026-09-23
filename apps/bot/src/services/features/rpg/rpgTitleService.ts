@@ -113,12 +113,10 @@ export async function grantTitle(profileId: string, titleId: string): Promise<Rp
   const title = await prisma.rpgTitle.findUnique({ where: { id: titleId } });
   if (!title) return null;
 
-  try {
-    await prisma.rpgProfileTitle.create({ data: { profileId, titleId } });
-  } catch (err) {
-    if ((err as { code?: string }).code === 'P2002') return null;
-    throw err;
-  }
+  // `skipDuplicates` : un titre de victoire est proposé à chaque combat gagné, et un refus
+  // d'unicité rattrapé finirait quand même dans les journaux, où Prisma consigne ses erreurs.
+  const inserted = await prisma.rpgProfileTitle.createMany({ data: [{ profileId, titleId }], skipDuplicates: true });
+  if (inserted.count === 0) return null;
 
   await prisma.rpgProfile.updateMany({
     where: { id: profileId, activeTitleId: null },

@@ -58,6 +58,14 @@ export async function claimFirstKill(
   userId: string,
   monster: FirstKillMonster,
 ): Promise<FirstKillResult | null> {
+  // Presque toutes les victoires portent sur une créature déjà battue : elles s'arrêtent
+  // ici, sur une lecture, sans chercher l'objet ni ouvrir de transaction.
+  const known = await prisma.rpgMonsterFirstKill.findUnique({
+    where: { guildId_monsterName: { guildId, monsterName: monster.name } },
+    select: { id: true },
+  });
+  if (known) return null;
+
   const result: FirstKillResult = { coins: 0, xp: 0, itemName: null, itemEmoji: null, teamPoints: 0, toGuild: false, roleId: null, titleName: null };
 
   // L'objet du serveur l'emporte sur le livré du même nom, comme pour les butins.
@@ -71,31 +79,36 @@ export async function claimFirstKill(
 
   // Le record et la prime s'écrivent ensemble : un record inscrit sans sa prime la ferait
   // perdre pour de bon, puisque plus personne ne pourrait la réclamer.
-  try {
-    await prisma.$transaction(async (tx) => {
-      await tx.rpgMonsterFirstKill.create({ data: { guildId, monsterName: monster.name, userId } });
-      if (!hasFirstKillReward(monster)) return;
-
-      const profile = await tx.rpgProfile.update({
-        where: { guildId_userId: { guildId, userId } },
-        data: {
-          balance: { increment: monster.firstKillCoinReward },
-          xp: { increment: monster.firstKillXpReward },
-        },
-        select: { id: true },
-      });
-      if (item) {
-        await tx.rpgInventoryItem.upsert({
-          where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: item.id } },
-          update: { quantity: { increment: 1 } },
-          create: { rpgProfileId: profile.id, itemId: item.id, quantity: 1 },
-        });
-      }
+  //
+  // `skipDuplicates` plutôt qu'une création dont on rattrape le refus : deux victoires
+  // simultanées restent départagées par l'unicité (serveur, nom), mais la perdante
+  // n'écrit plus d'erreur dans les journaux, où Prisma consigne même celles rattrapées.
+  const claimed = await prisma.$transaction(async (tx) => {
+    const inserted = await tx.rpgMonsterFirstKill.createMany({
+      data: [{ guildId, monsterName: monster.name, userId }],
+      skipDuplicates: true,
     });
-  } catch (err) {
-    if ((err as { code?: string }).code === 'P2002') return null;
-    throw err;
-  }
+    if (inserted.count === 0) return false;
+    if (!hasFirstKillReward(monster)) return true;
+
+    const profile = await tx.rpgProfile.update({
+      where: { guildId_userId: { guildId, userId } },
+      data: {
+        balance: { increment: monster.firstKillCoinReward },
+        xp: { increment: monster.firstKillXpReward },
+      },
+      select: { id: true },
+    });
+    if (item) {
+      await tx.rpgInventoryItem.upsert({
+        where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: item.id } },
+        update: { quantity: { increment: 1 } },
+        create: { rpgProfileId: profile.id, itemId: item.id, quantity: 1 },
+      });
+    }
+    return true;
+  });
+  if (!claimed) return null;
 
   if (hasFirstKillReward(monster)) {
     result.coins = monster.firstKillCoinReward;
