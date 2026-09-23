@@ -20,7 +20,14 @@ import {
   setGuildMonsterEnabled,
 } from '../../../services/features/rpg/rpgBestiaryService.js';
 import { parseMonsterDrops } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
-import { assertFirstKillRole, listFirstKills } from '../../../services/features/rpg/rpgFirstKillService.js';
+import { assertFirstKillRole, clearFirstKill, listFirstKills } from '../../../services/features/rpg/rpgFirstKillService.js';
+import {
+  getItemCatalog,
+  isUnavailableItem,
+  isUniqueItem,
+  ITEM_SOURCE_FILTERS,
+  matchesSourceFilter,
+} from '../../../services/features/rpg/rpgItemCatalogService.js';
 import { deleteGuildTitle, grantTitle, listGuildTitles, revokeTitle, saveGuildTitle } from '../../../services/features/rpg/rpgTitleService.js';
 import { asDifficulty, DIFFICULTIES } from '../../../services/features/rpg/rpgDifficultyPolicy.js';
 import { applyBestiaryDifficulty, applyShopDifficulty } from '../../../services/features/rpg/rpgDifficultyService.js';
@@ -187,6 +194,51 @@ export function registerRpgTools(ctx: McpToolContext) {
     );
 
     server.registerTool(
+      'get_rpg_item_catalog',
+      {
+        description: "Catalogue de tous les objets du RPG du serveur, comme l'écran du jeu : statistiques, description et provenance (boutique, monstres, boss, artisanat, prime de premier vainqueur, campagne). Un objet unique ne se gagne qu'une fois, un objet indisponible n'est donné par rien dans le jeu.",
+        inputSchema: {
+          type: z.enum(RPG_ITEM_TYPES).optional().describe("Famille d'objet"),
+          source: z.enum(ITEM_SOURCE_FILTERS).default('all').describe('Provenance : all, shop, monster, boss, craft, unique ou unavailable'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_ECONOMY', async ({ type, source }) => {
+        const catalog = await getItemCatalog(guildId);
+        return ok(catalog
+          .filter((entry) => !type || entry.item.type === type)
+          .filter((entry) => matchesSourceFilter(entry, source))
+          .map((entry) => ({
+            id: entry.item.id,
+            scope: entry.item.guildId === null ? 'GLOBAL' : 'GUILD',
+            name: entry.item.name,
+            emoji: entry.item.emoji,
+            description: entry.item.description,
+            type: entry.item.type,
+            rarity: entry.item.rarity,
+            levelRequired: entry.item.levelRequired,
+            price: entry.item.price,
+            atkBonus: entry.item.atkBonus,
+            defBonus: entry.item.defBonus,
+            spdBonus: entry.item.spdBonus,
+            hpBonus: entry.item.hpBonus,
+            hpRestore: entry.item.hpRestore,
+            energyRestore: entry.item.energyRestore,
+            sources: {
+              shop: entry.shop,
+              monsters: entry.monsters,
+              bosses: entry.bosses,
+              crafted: entry.crafted,
+              firstKill: entry.firstKill,
+              campaign: entry.campaign,
+            },
+            unique: isUniqueItem(entry),
+            unavailable: isUnavailableItem(entry),
+          })));
+      })
+    );
+
+    server.registerTool(
       'get_rpg_titles',
       {
         description: 'Liste les titres du RPG du serveur : bonus accordés au porteur et nombre de joueurs qui les possèdent.',
@@ -348,6 +400,34 @@ export function registerRpgTools(ctx: McpToolContext) {
           await audit(key_name, created ? 'Création monstre RPG MCP' : 'Modification monstre RPG MCP', monster.name,
             `${monster.isBoss ? 'Boss' : 'Monstre'} niv. ${monster.level}${overrode ? ' - version propre au serveur' : ''}`);
           return ok({ ok: true, id: monster.id, created });
+        } catch (e) {
+          return fail(e);
+        }
+      })
+    );
+
+    server.registerTool(
+      'reset_rpg_first_kill',
+      {
+        description: "Efface le premier vainqueur d'une créature : le prochain joueur qui la bat redevient le premier et touche la prime. Ce que l'ancien vainqueur a reçu lui reste. Requiert WRITE_MEMBERS.",
+        inputSchema: {
+          monster: z.string().describe('ID ou nom exact de la créature (voir get_rpg_monsters)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ monster, key_name }) => {
+        try {
+          const creatures = await listGuildMonsters(guildId, { includeDisabled: true });
+          const target = creatures.find((creature) => creature.id === monster)
+            ?? creatures.find((creature) => creature.name.toLowerCase() === monster.trim().toLowerCase());
+          if (!target) return err('Créature introuvable dans le bestiaire du serveur.');
+
+          const cleared = await clearFirstKill(guildId, target.name);
+          if (!cleared) return err(`Personne n'a encore battu « ${target.name} » : il n'y a pas de record à effacer.`);
+
+          await audit(key_name, 'Réinitialisation premier vainqueur RPG MCP', target.name, `Ancien premier vainqueur : ${cleared.userId}`);
+          return ok({ ok: true, monster: target.name, previousWinner: cleared.userId, since: cleared.createdAt });
         } catch (e) {
           return fail(e);
         }
