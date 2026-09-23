@@ -240,6 +240,17 @@ class NavigationStore {
     return ordered.filter((group) => group.items.length > 0);
   });
 
+  /**
+   * Groupes affiches dans le menu (barre laterale, menu mobile) : sans les
+   * pages marquees `hidden`, que l'on atteint depuis un hub. La palette garde
+   * `groups` et les propose toujours.
+   */
+  readonly menuGroups = $derived(
+    this.groups
+      .map((group) => ({ ...group, items: group.items.filter((item) => !item.hidden) }))
+      .filter((group) => group.items.length > 0),
+  );
+
   /** Flat list of every reachable page, used for search. */
   readonly allItems = $derived(this.groups.flatMap((group) => group.items));
 

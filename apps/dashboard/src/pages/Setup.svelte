@@ -46,6 +46,7 @@
   import { wizard } from '../lib/stores/onboardingWizard.svelte';
   import { TRACKS, type TrackKey } from '../lib/onboarding';
   import ServerTemplatePanel from '../lib/components/ServerTemplatePanel.svelte';
+  import QuickSetupHub from '../lib/components/onboarding/QuickSetupHub.svelte';
 
   import { errorMessage } from '@kotbo/shared';
   type Step = {
@@ -293,6 +294,8 @@
           </div>
         </div>
       </SectionCard>
+
+      <QuickSetupHub />
 
       <!-- ── Monter le serveur ──────────────────────────────────────────── -->
       {#if canBuildServer}

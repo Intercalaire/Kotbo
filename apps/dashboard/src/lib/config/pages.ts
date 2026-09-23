@@ -11,6 +11,12 @@ export interface PageConfig {
   wip?: boolean;
   /** Message custom sur l'overlay WIP (remplace le texte par défaut) */
   wipMessage?: string;
+  /**
+   * Hors du menu, mais toujours déclarée : ses droits d'accès se déduisent
+   * d'ici, et la palette de commandes la propose. Sert aux pages que l'on
+   * atteint depuis un hub (les configurations rapides, depuis Prise en main).
+   */
+  hidden?: boolean;
 }
 
 export function isPageBeta(page: PageConfig): boolean {
@@ -64,7 +70,7 @@ export const moderationItems: PageConfig[] = [
  */
 export const securityItems: PageConfig[] = [
   { name: m.nav_security_overview(),  icon: "shieldcheck",   href: "/security",           featureKey: "raid_protection", beta: false, wip: false },
-  { name: m.nav_security_quick_setup(), icon: "sparkles",    href: "/security/quick-setup", featureKey: "automod", beta: false, wip: false },
+  { name: m.nav_security_quick_setup(), icon: "sparkles",    href: "/security/quick-setup", featureKey: "automod", beta: false, wip: false, hidden: true },
   { name: m.nav_security_antiraid(),  icon: "shieldwarning", href: "/security/anti-raid", featureKey: "raid_protection", beta: false, wip: false },
   { name: m.nav_security_filters(),   icon: "shield-alert",  href: "/security/filters",   featureKey: "automod", beta: false, wip: false },
   { name: m.nav_nicknames(),          icon: "user",          href: "/security/filters/nicknames", featureKey: "nickname_moderation", beta: false, wip: false },
@@ -139,7 +145,7 @@ export const levelingItems: PageConfig[] = [
 export const economyItems: PageConfig[] = [
   // En tete du groupe : un rythme touche aux gains, au delai du daily et a l'energie a la
   // fois, il ne releve donc d'aucun onglet de la page, et c'est par la qu'on commence.
-  { name: m.nav_economy_quick_setup(), icon: "sparkles", href: "/economy-setup",    featureKey: "economy",  beta: false, wip: false },
+  { name: m.nav_economy_quick_setup(), icon: "sparkles", href: "/economy-setup",    featureKey: "economy",  beta: false, wip: false, hidden: true },
   { name: m.nav_economy(),      icon: "coins",         href: "/economy",          featureKey: "economy",  beta: false, wip: false },
   { name: m.nav_marketplace(),              icon: "shopping-bag",  href: "/marketplace",      featureKey: "marketplace",  beta: false, wip: false },
   { name: m.nav_quests(),              icon: "compass",       href: "/quests",           featureKey: "quests",  beta: false, wip: false },

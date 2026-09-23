@@ -65,7 +65,7 @@
   // navigation sheet renders exactly the same set of pages.
   const isModuleDisabled = navigationStore.isModuleDisabled;
   const isStaffServerGuild = $derived(navigationStore.isStaffServer);
-  const navGroups = $derived(navigationStore.groups);
+  const navGroups = $derived(navigationStore.menuGroups);
 
   const itemLabel = (item: PageConfig): string => {
     if (isPageWip(item))  return `${item.name} (WIP)`;
