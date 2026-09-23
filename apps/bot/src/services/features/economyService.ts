@@ -22,7 +22,9 @@ import { ensureItemInstance } from './rpg/rpgItemInstanceService.js';
 import { addInventoryQuantity, lockRpgProfile, takeInventoryQuantity } from './rpg/rpgInventoryWrites.js';
 import { listPlayableAdventureEvents } from './rpg/rpgAdventureEventService.js';
 import { deleteAllGuildTitles, grantTitle } from './rpg/rpgTitleService.js';
-import { buildFishBook, type FishBook, type FishSpecies } from './rpg/rpgFishBook.js';
+import { buildFishBook, type FishBook } from './rpg/rpgFishBook.js';
+import { rollFishSpecies } from './rpg/rpgFishCatalog.js';
+import { listActiveFish } from './rpg/rpgFishService.js';
 
 // Cooldown tracker for in-memory message activity (to prevent spam farming)
 const messageActivityCooldown = new Map<string, number>();
@@ -362,6 +364,8 @@ export async function claimDaily(guildId: string, userId: string) {
   };
 }
 
+export const ADVENTURE_ENERGY_COST = 20;
+
 /**
  * Initiates a travel adventure.
  */
@@ -372,7 +376,7 @@ export async function startTravel(guildId: string, userId: string, destination: 
   const profile = await getOrCreateRpgProfile(guildId, userId);
   if (profile.isTraveling) throw new Error('Vous êtes déjà en cours de voyage !');
   if (profile.health <= 0) throw new Error("Vous n'avez plus de PV (0 PV). Prenez des potions ou attendez de vous reposer pour regagner des forces.");
-  if (profile.energy < 20) throw new Error("Vous n'avez pas assez d'énergie (requis: 20 énergie). Restez inactif pour regagner de l'énergie.");
+  if (profile.energy < ADVENTURE_ENERGY_COST) throw new Error(`Vous n'avez pas assez d'énergie (requis: ${ADVENTURE_ENERGY_COST} énergie). Restez inactif pour regagner de l'énergie.`);
 
   if (profile.lastTravelEndedAt) {
     const cooldownMs = config.adventureCooldownMin * 60 * 1000;
@@ -387,13 +391,13 @@ export async function startTravel(guildId: string, userId: string, destination: 
   // so two near-simultaneous energy-consuming actions can't both pass a stale check
   // and push energy below zero.
   const result = await prisma.rpgProfile.updateMany({
-    where: { id: profile.id, energy: { gte: 20 }, isTraveling: false },
+    where: { id: profile.id, energy: { gte: ADVENTURE_ENERGY_COST }, isTraveling: false },
     data: {
       isTraveling: true,
       travelDestination: destination,
       travelDurationMin: durationMin,
       travelStartedAt: new Date(),
-      energy: { decrement: 20 }
+      energy: { decrement: ADVENTURE_ENERGY_COST }
     }
   });
 
@@ -1252,6 +1256,9 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
     await prisma.rpgRaidBoss.deleteMany({ where: { guildId } });
     // Les progressions suivent leur quête en cascade.
     await prisma.rpgQuest.deleteMany({ where: { guildId } });
+    // Les espèces livrées reviennent d'elles-mêmes : elles vivent dans le code.
+    await prisma.rpgFish.deleteMany({ where: { guildId } });
+    await prisma.rpgFishBookReward.deleteMany({ where: { guildId } });
   }
 
   if (component === 'bestiary' || component === 'all') {
@@ -1720,72 +1727,25 @@ export async function getRichestPlayers(guildId: string, limit = 10) {
 // PÊCHE
 // ============================================================================
 
-type FishEntry = {
-  name: string;
-  emoji: string;
-  rarity: string;
-  value: number;
-  xp: number;
-};
-
-const FISH_TABLE: { weight: number; rarity: string; fish: Omit<FishEntry, 'rarity'>[] }[] = [
-  { weight: 60, rarity: 'COMMON', fish: [
-    { name: 'Sardine', emoji: '🐟', value: 5, xp: 5 },
-    { name: 'Truite', emoji: '🐟', value: 8, xp: 5 },
-    { name: 'Maquereau', emoji: '🐟', value: 6, xp: 5 },
-    { name: 'Perche', emoji: '🐟', value: 7, xp: 5 },
-  ]},
-  { weight: 25, rarity: 'UNCOMMON', fish: [
-    { name: 'Saumon', emoji: '🐠', value: 15, xp: 8 },
-    { name: 'Thon', emoji: '🐠', value: 20, xp: 8 },
-    { name: 'Espadon', emoji: '🐠', value: 18, xp: 10 },
-  ]},
-  { weight: 10, rarity: 'RARE', fish: [
-    { name: 'Poisson-Lune', emoji: '🌙', value: 40, xp: 15 },
-    { name: 'Barracuda', emoji: '🦈', value: 50, xp: 15 },
-  ]},
-  { weight: 4, rarity: 'EPIC', fish: [
-    { name: 'Coelacanthe', emoji: '🐡', value: 100, xp: 25 },
-    { name: 'Poisson d\'Or', emoji: '✨', value: 120, xp: 30 },
-  ]},
-  { weight: 1, rarity: 'LEGENDARY', fish: [
-    { name: 'Léviathan Miniature', emoji: '🐋', value: 300, xp: 60 },
-    { name: 'Kraken Bébé', emoji: '🦑', value: 500, xp: 80 },
-  ]},
-];
-
 const RARITY_COLORS: Record<string, string> = {
   COMMON: '⬜', UNCOMMON: '🟩', RARE: '🟦', EPIC: '🟪', LEGENDARY: '🟨'
 };
 
-function rollFish(): FishEntry {
-  const totalWeight = FISH_TABLE.reduce((s, t) => s + t.weight, 0);
-  let roll = Math.random() * totalWeight;
-  for (const tier of FISH_TABLE) {
-    roll -= tier.weight;
-    if (roll <= 0) {
-      const picked = tier.fish[Math.floor(Math.random() * tier.fish.length)];
-      return { ...picked, rarity: tier.rarity };
-    }
-  }
-  const fallback = FISH_TABLE[0].fish[0];
-  return { ...fallback, rarity: 'COMMON' };
-}
-
 export { RARITY_COLORS };
 
-/** Toutes les espèces pêchables, de la plus commune à la plus rare. */
-export const FISH_SPECIES: FishSpecies[] = FISH_TABLE.flatMap((tier) =>
-  tier.fish.map((fish) => ({ name: fish.name, emoji: fish.emoji, rarity: tier.rarity })));
-
 export async function getFishBook(guildId: string, userId: string): Promise<FishBook> {
-  const rows = await prisma.rpgFishCatch.groupBy({
-    by: ['fishName'],
-    where: { guildId, userId },
-    _count: { _all: true },
-  });
-  return buildFishBook(FISH_SPECIES, new Map(rows.map((row) => [row.fishName, row._count._all])));
+  const [species, rows] = await Promise.all([
+    listActiveFish(guildId),
+    prisma.rpgFishCatch.groupBy({
+      by: ['fishName'],
+      where: { guildId, userId },
+      _count: { _all: true },
+    }),
+  ]);
+  return buildFishBook(species, new Map(rows.map((row) => [row.fishName, row._count._all])));
 }
+
+export const FISH_COOLDOWN_MS = 5 * 60 * 1000;
 
 export async function fish(guildId: string, userId: string) {
   const config = await getOrCreateEconomyConfig(guildId);
@@ -1793,11 +1753,10 @@ export async function fish(guildId: string, userId: string) {
 
   const profile = await getOrCreateRpgProfile(guildId, userId);
 
-  // Cooldown 5 minutes
   if (profile.lastFish) {
     const diff = Date.now() - profile.lastFish.getTime();
-    if (diff < 5 * 60 * 1000) {
-      const remaining = Math.ceil((5 * 60 * 1000 - diff) / 1000);
+    if (diff < FISH_COOLDOWN_MS) {
+      const remaining = Math.ceil((FISH_COOLDOWN_MS - diff) / 1000);
       const mins = Math.floor(remaining / 60);
       const secs = remaining % 60;
       return { success: false as const, cooldown: true, remainingMin: mins, remainingSec: secs };
@@ -1809,9 +1768,12 @@ export async function fish(guildId: string, userId: string) {
     return { success: false as const, cooldown: false, noEnergy: true };
   }
 
-  const caught = rollFish();
+  const species = rollFishSpecies(await listActiveFish(guildId));
+  if (!species) return { success: false as const, cooldown: false, noFish: true };
+  const caught = { name: species.name, emoji: species.emoji, rarity: species.rarity, value: species.value, xp: species.xp };
 
   // Atomic guard: only spend energy if the row still has enough at write time.
+  const caughtAt = new Date();
   const spent = await prisma.rpgProfile.updateMany({
     where: { id: profile.id, energy: { gte: 5 } },
     data: {
@@ -1819,7 +1781,7 @@ export async function fish(guildId: string, userId: string) {
       xp: { increment: caught.xp },
       energy: { decrement: 5 },
       totalFishCaught: { increment: 1 },
-      lastFish: new Date()
+      lastFish: caughtAt
     }
   });
 
@@ -1852,6 +1814,7 @@ export async function fish(guildId: string, userId: string) {
     fish: caught,
     rarityIcon: RARITY_COLORS[caught.rarity] || '⬜',
     newSpecies,
+    nextFishAt: new Date(caughtAt.getTime() + FISH_COOLDOWN_MS),
     newBalance: updatedProfile?.balance ?? profile.balance + caught.value,
     totalFishCaught: updatedProfile?.totalFishCaught ?? profile.totalFishCaught + 1
   };

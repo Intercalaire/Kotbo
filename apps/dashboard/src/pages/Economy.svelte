@@ -20,6 +20,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import MultiSelect from '../lib/components/MultiSelect.svelte';
   import RpgEventsPanel from '../lib/components/economy/RpgEventsPanel.svelte';
+  import RpgFishPanel from '../lib/components/economy/RpgFishPanel.svelte';
   import RpgGuildsPanel from '../lib/components/economy/RpgGuildsPanel.svelte';
   import RpgPlayerInventoryModal from '../lib/components/economy/RpgPlayerInventoryModal.svelte';
   import { channelDisplayName } from '../lib/channelUtils';
@@ -98,7 +99,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     publicUrlCopied = true;
     setTimeout(() => { publicUrlCopied = false; }, 2000);
   }
-  const economyTabs = ['config', 'items', 'recettes', 'bestiaire', 'raid', 'quetes', 'titres', 'aventures', 'blackmarket', 'guildes', 'players'] as const;
+  const economyTabs = ['config', 'items', 'recettes', 'bestiaire', 'peche', 'raid', 'quetes', 'titres', 'aventures', 'blackmarket', 'guildes', 'players'] as const;
   const DEFAULT_TAB = 'config';
   let activeTab = $state(DEFAULT_TAB);
 
@@ -1601,6 +1602,13 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     >
       <Papicon icon="ghost" size={14} />
       {m.eco_tab_bestiary()}
+    </button>
+    <button
+      onclick={() => gotoTab('/economy', 'peche', DEFAULT_TAB)}
+      class="tab-button {activeTab === 'peche' ? 'active' : ''}"
+    >
+      <Papicon icon="Fish" size={14} />
+      {m.eco_tab_fish()}
     </button>
     <button
       onclick={() => gotoTab('/economy', 'raid', DEFAULT_TAB)}
@@ -3240,6 +3248,10 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     {/if}
 
     <!-- Tab 4: Players list & Leaderboard -->
+    {#if activeTab === 'peche'}
+      <RpgFishPanel canManage={canManageSettings} disabled={!config.enabled} currencyName={config.currencyName} />
+    {/if}
+
     {#if activeTab === 'aventures'}
       <RpgEventsPanel canManage={canManageSettings} disabled={!config.enabled} />
     {/if}

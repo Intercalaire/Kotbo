@@ -63,7 +63,6 @@ import {
   leaveRpgGuild,
   depositToRpgGuildTreasury,
   sellShopItem,
-  getFishBook,
   RARITY_COLORS,
   work,
   RPG_GUILD_NAME_MAX,
@@ -71,6 +70,8 @@ import {
   adminSetStats,
   transferCoins,
   fish,
+  FISH_COOLDOWN_MS,
+  ADVENTURE_ENERGY_COST,
   isItemEquipped,
   xpRequiredForLevel,
 } from './economyService.js';
@@ -160,6 +161,7 @@ import {
 } from './combatService.js';
 import type { RpgSkill } from './rpg/rpgClasses.js';
 import { findGuildMonsterById } from './rpg/rpgBestiaryService.js';
+import { huntXpRatio } from './rpg/rpgBestiaryPolicy.js';
 import {
   getBestiaryEntry,
   getBestiaryOverview,
@@ -185,8 +187,16 @@ import { bossCooldownMs, fightCooldownMs, formatCooldown, remainingCooldownMs } 
 import { claimFirstKill, formatFirstKillBounty, formatFirstKillReward, getFirstKill, type FirstKillMonster } from './rpg/rpgFirstKillService.js';
 import { grantWinTitle, listOwnedTitles, setActiveTitle } from './rpg/rpgTitleService.js';
 import { titleBonusParts } from './rpg/rpgTitlePolicy.js';
+import { fishBookProgress, type FishBookTier } from './rpg/rpgFishBook.js';
+import {
+  claimFishBookRewards,
+  getFishBookRewards,
+  listFishBookClaims,
+  type FishBookPayout,
+} from './rpg/rpgFishBookRewardService.js';
 import {
   getItemCatalog,
+  getItemCatalogDetail,
   isUnavailableItem,
   isUniqueItem,
   ITEM_SOURCE_FILTERS,
@@ -1459,7 +1469,7 @@ async function handleInventoryDrink(
  * `need` ne garde que les potions qui règlent le refus affiché.
  */
 type QuickDrinkNeed = 'any' | 'hp' | 'energy';
-type QuickDrinkOrigin = 'hub' | 'alert';
+type QuickDrinkOrigin = 'hub' | 'alert' | 'travel';
 
 async function quickDrinkRow(
   guildId: string,
@@ -1523,7 +1533,13 @@ async function replyVitalsAlert(
   need: Exclude<QuickDrinkNeed, 'any'>,
 ): Promise<void> {
   const row = await quickDrinkRow(guildId, ownerId, locale, 'alert', need);
-  await interaction.reply({ embeds: [embed], components: row ? [row] : [], flags: [MessageFlags.Ephemeral] });
+  const components = row ? [row] : [];
+  // Le départ en aventure est acquitté avant tout travail : `reply` échouerait alors en silence.
+  if (interaction.deferred || interaction.replied) {
+    await interaction.followUp({ embeds: [embed], components, flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+  await interaction.reply({ embeds: [embed], components, flags: [MessageFlags.Ephemeral] });
 }
 
 async function handleQuickDrink(
@@ -1533,7 +1549,8 @@ async function handleQuickDrink(
   locale: Locale,
   rest: string[],
 ): Promise<void> {
-  const origin: QuickDrinkOrigin = rest[0] === 'alert' ? 'alert' : 'hub';
+  const rawOrigin = rest[0];
+  const origin: QuickDrinkOrigin = rawOrigin === 'alert' || rawOrigin === 'travel' ? rawOrigin : 'hub';
   const requested = rest[1];
   const need: QuickDrinkNeed = requested === 'hp' || requested === 'energy' ? requested : 'any';
 
@@ -1545,6 +1562,11 @@ async function handleQuickDrink(
   }
 
   const feedback = await consumePotion(interaction, guildId, ownerId, entry, locale);
+
+  if (origin === 'travel') {
+    await respond(interaction, withNote(await buildTravelView(guildId, ownerId, locale), feedback));
+    return;
+  }
 
   if (origin === 'hub') {
     const view = await buildHubView(guildId, interaction.user, interaction.user, locale, isInteractionAdmin(interaction));
@@ -3579,13 +3601,26 @@ async function buildTravelView(guildId: string, ownerId: string, locale: Locale)
     );
   });
 
-  return { embeds: [embed], components: [row, backRow(ownerId, locale)] };
+  const drinkRow = profile.energy < ADVENTURE_ENERGY_COST
+    ? await quickDrinkRow(guildId, ownerId, locale, 'travel', 'energy')
+    : null;
+  return { embeds: [embed], components: drinkRow ? [row, drinkRow, backRow(ownerId, locale)] : [row, backRow(ownerId, locale)] };
 }
 
 async function handleTravelDestinationChoice(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale, idxRaw: string): Promise<void> {
   const idx = Number.parseInt(idxRaw, 10);
   const dest = getTravelDestinations(locale)[idx];
   if (!dest) return;
+
+  const profile = await getOrCreateRpgProfile(guildId, ownerId);
+  if (!profile.isTraveling && profile.health <= 0) {
+    await replyVitalsAlert(interaction, guildId, ownerId, locale, errorEmbed(m.rpg_travel_low_hp_title({}, { locale }), m.rpg_travel_low_hp_desc({}, { locale })), 'hp');
+    return;
+  }
+  if (!profile.isTraveling && profile.energy < ADVENTURE_ENERGY_COST) {
+    await replyVitalsAlert(interaction, guildId, ownerId, locale, errorEmbed(m.rpg_travel_energy_insufficient_title({}, { locale }), m.rpg_travel_low_energy_desc({ cost: ADVENTURE_ENERGY_COST, energy: profile.energy }, { locale })), 'energy');
+    return;
+  }
 
   await startTravel(guildId, ownerId, dest.name, dest.time);
   const embed = successEmbed(m.rpg_travel_bon_voyage_title({}, { locale }), m.rpg_travel_bon_voyage_desc({ dest: dest.name, time: dest.time }, { locale }));
@@ -3650,9 +3685,15 @@ async function handleFishClaim(interaction: ButtonInteraction, guildId: string, 
   const result = await fish(guildId, ownerId);
 
   if (!result.success) {
-    const embed = result.cooldown
-      ? errorEmbed(m.rpg_fish_cooldown_title({}, { locale }), m.rpg_fish_cooldown_desc({ min: result.remainingMin ?? 0, sec: result.remainingSec ?? 0 }, { locale }))
-      : errorEmbed(m.rpg_fish_no_energy_title({}, { locale }), m.rpg_fish_no_energy_desc({}, { locale }));
+    if ('noFish' in result && result.noFish) {
+      await interaction.reply({ embeds: [errorEmbed(m.rpg_fish_empty_title({}, { locale }), m.rpg_fish_empty_desc({}, { locale }))], flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+    if (!result.cooldown) {
+      await replyVitalsAlert(interaction, guildId, ownerId, locale, errorEmbed(m.rpg_fish_no_energy_title({}, { locale }), m.rpg_fish_no_energy_desc({}, { locale })), 'energy');
+      return;
+    }
+    const embed = errorEmbed(m.rpg_fish_cooldown_title({}, { locale }), m.rpg_fish_cooldown_desc({ min: result.remainingMin ?? 0, sec: result.remainingSec ?? 0 }, { locale }));
     await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
     return;
   }
@@ -3674,9 +3715,25 @@ async function handleFishClaim(interaction: ButtonInteraction, guildId: string, 
       { name: m.rpg_fish_field_xp({}, { locale }), value: `**+${result.fish.xp}**`, inline: true },
       { name: m.rpg_fish_field_total({}, { locale }), value: m.rpg_fish_field_total_value({ count: result.totalFishCaught }, { locale }), inline: true },
     );
+  embed.addFields({ name: m.rpg_fish_field_next({}, { locale }), value: `<t:${Math.floor(result.nextFishAt.getTime() / 1000)}:R>`, inline: false });
   if (result.newSpecies) embed.setFooter({ text: m.rpg_fish_new_species({}, { locale }) });
 
-  await respond(interaction, { embeds: [embed], components: [fishBookRow(ownerId, locale)] });
+  // Seule une nouvelle espèce peut terminer un palier : les autres prises s'épargnent la lecture.
+  // Le versement peut enchaîner plusieurs paliers et un rôle : on acquitte d'abord, Discord
+  // n'attend que trois secondes.
+  if (result.newSpecies) {
+    await interaction.deferUpdate();
+    const { payouts } = await claimFishBookRewards(interaction.client, guildId, ownerId).catch((err) => {
+      logger.error('RpgPanel', `Récompenses du carnet non versées pour ${ownerId} :`, err);
+      return { payouts: [] as FishBookPayout[] };
+    });
+    for (const payout of payouts) {
+      embed.addFields({ name: fishBookTierDoneLabel(payout.tier, locale), value: formatFishBookPayout(payout, config.currencyEmoji, locale), inline: false });
+    }
+  }
+
+  // Pas de bouton « Pêcher » ici : la ligne vient de servir et reste au repos cinq minutes.
+  await respond(interaction, { embeds: [embed], components: [fishBookRow(ownerId, locale, { fish: false, book: true })] });
 }
 
 function fishRarityLabel(rarity: string, locale: Locale): string {
@@ -3690,12 +3747,14 @@ function fishRarityLabel(rarity: string, locale: Locale): string {
   }
 }
 
-/** Pêcher encore, ouvrir le carnet, revenir au hub : les trois gestes qui suivent une prise. */
-function fishBookRow(ownerId: string, locale: Locale, showBook = true): ActionRowBuilder<ButtonBuilder> {
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`rpg:fish:${ownerId}`).setLabel(m.rpg_hub_btn_fish({}, { locale })).setEmoji(icon('rpgFish')).setStyle(ButtonStyle.Success),
-  );
-  if (showBook) {
+function fishBookRow(ownerId: string, locale: Locale, show: { fish: boolean; book: boolean }): ActionRowBuilder<ButtonBuilder> {
+  const row = new ActionRowBuilder<ButtonBuilder>();
+  if (show.fish) {
+    row.addComponents(
+      new ButtonBuilder().setCustomId(`rpg:fish:${ownerId}`).setLabel(m.rpg_hub_btn_fish({}, { locale })).setEmoji(icon('rpgFish')).setStyle(ButtonStyle.Success),
+    );
+  }
+  if (show.book) {
     row.addComponents(
       new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:fishbook`).setLabel(m.rpg_hub_btn_fishbook({}, { locale })).setEmoji(icon('rpgBestiary')).setStyle(ButtonStyle.Primary),
     );
@@ -3706,14 +3765,70 @@ function fishBookRow(ownerId: string, locale: Locale, showBook = true): ActionRo
   return row;
 }
 
+function fishBookTierLabel(tier: FishBookTier, locale: Locale): string {
+  return tier === 'COMPLETE' ? m.rpg_fishbook_tier_complete({}, { locale }) : fishRarityLabel(tier, locale);
+}
+
+function fishBookTierDoneLabel(tier: FishBookTier, locale: Locale): string {
+  return tier === 'COMPLETE'
+    ? m.rpg_fishbook_done_complete({}, { locale })
+    : m.rpg_fishbook_done_rarity({ rarity: fishRarityLabel(tier, locale) }, { locale });
+}
+
+function formatFishBookReward(
+  reward: { coinReward: number; xpReward: number; clanPoints: number; itemName: string | null; roleId: string | null; titleName: string | null },
+  currencyEmoji: string,
+  locale: Locale,
+): string {
+  const parts = [
+    reward.coinReward > 0 ? `${currencyEmoji} +${reward.coinReward}` : null,
+    reward.xpReward > 0 ? `${icon('rpgXp')} +${reward.xpReward} XP` : null,
+    reward.clanPoints > 0 ? `${icon('rpgClan')} +${reward.clanPoints}` : null,
+    reward.itemName ? `📦 ${reward.itemName}` : null,
+    reward.titleName ? `🏅 ${reward.titleName}` : null,
+    reward.roleId ? `<@&${reward.roleId}>` : null,
+  ].filter((part): part is string => part !== null);
+  return parts.length > 0 ? parts.join(' · ') : m.rpg_fishbook_no_reward({}, { locale });
+}
+
+function formatFishBookPayout(payout: FishBookPayout, currencyEmoji: string, locale: Locale): string {
+  return formatFishBookReward({
+    coinReward: payout.coins,
+    xpReward: payout.xp,
+    // Seuls les points réellement encaissés : un joueur sans clan ni guilde n'a rien reçu.
+    clanPoints: payout.teamPoints,
+    itemName: payout.itemName ? `${payout.itemEmoji ?? ''} ${payout.itemName}`.trim() : null,
+    roleId: payout.roleId,
+    titleName: payout.titleName,
+  }, currencyEmoji, locale);
+}
+
 /**
- * Carnet de pêche : chaque espèce du catalogue, rangée par rareté.
+ * Carnet de pêche : chaque espèce du catalogue, rangée par rareté, avec la récompense de
+ * chaque série et celle du carnet complet.
  *
  * Les espèces jamais attrapées restent listées sans leur nom, comme les créatures du
- * bestiaire : voir ce qui manque est ce qui donne envie de relancer sa ligne.
+ * bestiaire : voir ce qui manque est ce qui donne envie de relancer sa ligne. L'ouverture
+ * verse aussi les paliers terminés avant que les récompenses n'existent.
  */
-async function buildFishBookView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
-  const book = await getFishBook(guildId, ownerId);
+const FISH_BOOK_FIELD_MAX = 520;
+
+async function buildFishBookView(client: Client, guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  const { book, payouts } = await claimFishBookRewards(client, guildId, ownerId);
+  const [rewards, claimed, config, profile] = await Promise.all([
+    getFishBookRewards(guildId),
+    listFishBookClaims(guildId, ownerId),
+    getOrCreateEconomyConfig(guildId),
+    getOrCreateRpgProfile(guildId, ownerId),
+  ]);
+  const rewardByTier = new Map(rewards.map((reward) => [reward.tier, reward]));
+  const progress = new Map(fishBookProgress(book).map((tier) => [tier.tier, tier]));
+
+  const rewardLine = (tier: FishBookTier): string => {
+    const reward = rewardByTier.get(tier);
+    const status = claimed.has(tier) ? `${icon('success')} ${m.rpg_fishbook_reward_claimed({}, { locale })}` : `🎁 ${m.rpg_fishbook_reward_pending({}, { locale })}`;
+    return `-# ${status} : ${reward ? formatFishBookReward(reward, config.currencyEmoji, locale) : m.rpg_fishbook_no_reward({}, { locale })}`;
+  };
 
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_fishbook_title({}, { locale }))
@@ -3722,15 +3837,41 @@ async function buildFishBookView(guildId: string, ownerId: string, locale: Local
 
   const rarities = [...new Set(book.entries.map((entry) => entry.rarity))];
   for (const rarity of rarities) {
+    const tier = progress.get(rarity as FishBookTier);
     const lines = book.entries
       .filter((entry) => entry.rarity === rarity)
       .map((entry) => (entry.caught > 0
         ? `${entry.emoji} **${entry.name}** ×${entry.caught}`
         : `❔ ${m.rpg_fishbook_unknown({}, { locale })}`));
-    embed.addFields({ name: `${RARITY_COLORS[rarity] ?? '⬜'} ${fishRarityLabel(rarity, locale)}`, value: lines.join('\n'), inline: true });
+    const footer = tier ? `\n${rewardLine(tier.tier)}` : '';
+    const count = tier ? ` · ${tier.caught}/${tier.total}` : '';
+    embed.addFields({
+      name: `${RARITY_COLORS[rarity] ?? '⬜'} ${fishRarityLabel(rarity, locale)}${count}`,
+      value: joinFieldEntries(lines, {
+        more: (hidden) => m.rpg_itembook_detail_more({ count: hidden }, { locale }),
+        // Chaque champ devient un bloc de texte Components V2, et Discord refuse un message
+        // au-delà de 4000 caractères au total : cinq séries pleines doivent tenir ensemble.
+        max: FISH_BOOK_FIELD_MAX - footer.length,
+      }) + footer,
+      inline: true,
+    });
   }
 
-  return { embeds: [embed], components: [fishBookRow(ownerId, locale, false)] };
+  const complete = progress.get('COMPLETE');
+  if (complete) {
+    embed.addFields({
+      name: `🏆 ${fishBookTierLabel('COMPLETE', locale)} · ${complete.caught}/${complete.total}`,
+      value: rewardLine('COMPLETE'),
+      inline: false,
+    });
+  }
+
+  for (const payout of payouts) {
+    embed.addFields({ name: fishBookTierDoneLabel(payout.tier, locale), value: formatFishBookPayout(payout, config.currencyEmoji, locale), inline: false });
+  }
+
+  const canFish = !profile.lastFish || Date.now() - profile.lastFish.getTime() >= FISH_COOLDOWN_MS;
+  return { embeds: [embed], components: [fishBookRow(ownerId, locale, { fish: canFish, book: false })] };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -3778,6 +3919,14 @@ function bestiaryLine(entry: BestiaryEntry, locale: Locale): string {
   return `${monster.emoji} **${monster.name}**${bossTag}\n${sheet}\n-# ${tally}`;
 }
 
+function huntButton(ownerId: string, monsterId: string, locale: Locale): ButtonBuilder {
+  return new ButtonBuilder()
+    .setCustomId(`rpg:hunt:${ownerId}:${monsterId}`)
+    .setLabel(m.rpg_hunt_btn({}, { locale }))
+    .setEmoji(icon('rpgFight'))
+    .setStyle(ButtonStyle.Danger);
+}
+
 async function buildBestiaryView(
   guildId: string,
   ownerId: string,
@@ -3785,7 +3934,10 @@ async function buildBestiaryView(
   locale: Locale,
   state: BestiaryState = { filter: 'all', page: 0 },
 ): Promise<PanelView> {
-  const overview = await getBestiaryOverview(guildId, ownerId);
+  const [overview, profile] = await Promise.all([
+    getBestiaryOverview(guildId, ownerId),
+    getOrCreateRpgProfile(guildId, ownerId),
+  ]);
 
   const container = new ContainerBuilder().setAccentColor(RPG_COLORS.wild);
 
@@ -3833,9 +3985,18 @@ async function buildBestiaryView(
     const line = new TextDisplayBuilder().setContent(truncate(bestiaryLine(entry, locale), 600));
 
     // Une créature inconnue n'a pas de fiche à ouvrir : le bouton mènerait à un écran
-    // qui ne dirait rien de plus que la ligne elle-même.
+    // qui ne dirait rien de plus que la ligne elle-même. On peut en revanche aller la
+    // chercher, si elle n'est pas au-dessus du niveau du joueur.
     if (!entry.discovered) {
-      container.addTextDisplayComponents(line);
+      if (canHunt(entry.monster, profile.level)) {
+        container.addSectionComponents(
+          new SectionBuilder()
+            .addTextDisplayComponents(line)
+            .setButtonAccessory(huntButton(ownerId, entry.monster.id, locale)),
+        );
+      } else {
+        container.addTextDisplayComponents(line);
+      }
       continue;
     }
 
@@ -4012,9 +4173,19 @@ async function buildItemBookView(
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`*${m.rpg_itembook_empty({}, { locale })}*`));
   }
   for (const entry of shown) {
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      truncate(itemBookLine(entry, config.currencyEmoji, locale), 900),
-    ));
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+          truncate(itemBookLine(entry, config.currencyEmoji, locale), 900),
+        ))
+        .setButtonAccessory(
+          new ButtonBuilder()
+            .setCustomId(`rpg:itemopen:${ownerId}:${entry.item.id}:${state.category}:${state.source}:${page}`)
+            .setEmoji('🔍')
+            .setLabel(m.rpg_itembook_details_btn({}, { locale }))
+            .setStyle(ButtonStyle.Secondary),
+        ),
+    );
   }
 
   const components: PanelRow[] = [
@@ -4070,6 +4241,121 @@ async function buildItemBookView(
   components.push(navRow);
 
   return { embeds: [], components, container };
+}
+
+function dropChanceLabel(chance: number): string {
+  const percent = chance * 100;
+  return `${percent >= 10 || Number.isInteger(percent) ? Math.round(percent) : percent.toFixed(1)} %`;
+}
+
+/**
+ * Fiche d'un objet du catalogue : tout ce que la ligne résumait, en entier.
+ *
+ * La ligne du catalogue tronque les créatures à trois noms et ne dit rien de la recette :
+ * la fiche liste chaque source avec sa chance, et chaque matériau avec ce que le joueur
+ * en possède déjà, pour savoir d'un coup d'oeil ce qui manque.
+ */
+async function buildItemBookEntryView(
+  guildId: string,
+  ownerId: string,
+  itemId: string,
+  locale: Locale,
+  state: ItemBookState,
+): Promise<PanelView> {
+  const [detail, config, inventory] = await Promise.all([
+    getItemCatalogDetail(guildId, itemId),
+    getOrCreateEconomyConfig(guildId),
+    prisma.rpgInventoryItem.findMany({
+      where: { profile: { guildId, userId: ownerId }, quantity: { gt: 0 } },
+      select: { quantity: true, item: { select: { name: true } } },
+    }),
+  ]);
+  if (!detail) return buildItemBookView(guildId, ownerId, locale, state);
+
+  const owned = new Map<string, number>();
+  for (const row of inventory) owned.set(row.item.name, (owned.get(row.item.name) ?? 0) + row.quantity);
+
+  const { entry, drops, recipe, usedIn } = detail;
+  const item = entry.item;
+  const meta = `${rarityIcon(item.rarity)} ${shopCategoryLabel(item.type, locale)}`
+    + (item.levelRequired > 0 ? ` · ${m.rpg_item_level_required({ level: item.levelRequired }, { locale })}` : '')
+    + ` · ${m.rpg_itembook_owned({ count: owned.get(item.name) ?? 0 }, { locale })}`;
+
+  const container = new ContainerBuilder().setAccentColor(RPG_COLORS.hub);
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent([
+    `## ${item.emoji} ${item.name}`,
+    `-# ${meta}`,
+    item.description ? `*${truncate(item.description, 400)}*` : null,
+    itemStatLine(item, locale) || null,
+  ].filter((line): line is string => line !== null).join('\n')));
+
+  const sources: string[] = [];
+  if (isUniqueItem(entry)) sources.push(`✨ **${m.rpg_itembook_source_unique({}, { locale })}**`);
+  if (isUnavailableItem(entry)) sources.push(`⛔ **${m.rpg_itembook_source_unavailable({}, { locale })}**`);
+  if (entry.shop) sources.push(`${icon('rpgShop')} ${m.rpg_itembook_detail_shop({ price: item.price, emoji: config.currencyEmoji }, { locale })}`);
+  for (const drop of drops.slice(0, 12)) {
+    sources.push(`${drop.isBoss ? icon('rpgBoss') : icon('rpgFight')} ${drop.emoji} **${drop.name}** · ${m.rpg_itembook_detail_drop({ level: drop.level, chance: dropChanceLabel(drop.chance) }, { locale })}`);
+  }
+  if (drops.length > 12) sources.push(`-# ${m.rpg_itembook_detail_more({ count: drops.length - 12 }, { locale })}`);
+  if (entry.firstKill.length > 0) sources.push(`🏆 ${m.rpg_itembook_first_kill({ names: entry.firstKill.join(', ') }, { locale })}`);
+  if (entry.campaign) sources.push(`${icon('rpgKey')} ${m.rpg_itembook_campaign({}, { locale })}`);
+
+  if (sources.length > 0) {
+    container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      truncate(`### ${m.rpg_itembook_detail_sources({}, { locale })}\n${sources.join('\n')}`, 1400),
+    ));
+  }
+
+  if (recipe) {
+    const lines = recipe.ingredients.map((ingredient) => {
+      const have = owned.get(ingredient.itemName) ?? 0;
+      const mark = have >= ingredient.quantity ? icon('success') : '▫️';
+      return `${mark} ${ingredient.emoji} **${ingredient.itemName}** ${have}/${ingredient.quantity}`;
+    });
+    const extras = [
+      recipe.coinCost > 0 ? `${recipe.coinCost} ${config.currencyEmoji}` : null,
+      m.rpg_item_level_required({ level: recipe.levelRequired }, { locale }),
+    ].filter((part): part is string => part !== null).join(' · ');
+    container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      truncate(`### ${icon('rpgCraft')} ${m.rpg_itembook_detail_recipe({}, { locale })}\n${lines.join('\n')}\n-# ${extras}`, 800),
+    ));
+  }
+
+  if (usedIn.length > 0) {
+    const lines = usedIn.slice(0, 12).map((use) => `${use.emoji} **${use.itemName}** · ×${use.quantity}`);
+    if (usedIn.length > 12) lines.push(`-# ${m.rpg_itembook_detail_more({ count: usedIn.length - 12 }, { locale })}`);
+    container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      truncate(`### ${m.rpg_itembook_detail_used_in({}, { locale })}\n${lines.join('\n')}`, 800),
+    ));
+  }
+
+  const navRow = new ActionRowBuilder<ButtonBuilder>();
+  if (recipe) {
+    navRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:nav:${ownerId}:craft`)
+        .setLabel(m.rpg_itembook_detail_to_craft({}, { locale }))
+        .setEmoji(icon('rpgCraft'))
+        .setStyle(ButtonStyle.Primary),
+    );
+  }
+  navRow.addComponents(
+    new ButtonBuilder()
+      .setCustomId(itemBookNavId(ownerId, state))
+      .setLabel(m.rpg_itembook_detail_back({}, { locale }))
+      .setEmoji(icon('rpgBag'))
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  return { embeds: [], components: [navRow], container };
 }
 
 /** Changer de filtre ramène en première page, comme partout ailleurs. */
@@ -4200,7 +4486,10 @@ async function buildBestiaryEntryView(
     });
   }
 
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+  const profile = await getOrCreateRpgProfile(guildId, ownerId);
+  const row = new ActionRowBuilder<ButtonBuilder>();
+  if (canHunt(monster, profile.level)) row.addComponents(huntButton(ownerId, monster.id, locale));
+  row.addComponents(
     new ButtonBuilder()
       .setCustomId(`rpg:nav:${ownerId}:bestiary:${back.filter}:${back.page}`)
       .setLabel(m.rpg_bestiary_back_btn({}, { locale }))
@@ -4482,7 +4771,25 @@ function firstWinField(locale: Locale) {
   };
 }
 
-async function startFightSession(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+/**
+ * Créature qu'un joueur peut traquer depuis le bestiaire : ni boss, ni plus forte que lui.
+ *
+ * Les rencontres ordinaires ne tirent qu'autour du niveau du joueur : passé ce palier, les
+ * premières créatures ne se croisaient plus jamais et le bestiaire restait incomplet. Le
+ * plafond au niveau du joueur empêche de s'en servir pour sauter en avant, et `huntXpRatio`
+ * rogne l'XP d'une proie trop faible.
+ */
+function canHunt(monster: { isBoss: boolean; level: number }, playerLevel: number): boolean {
+  return !monster.isBoss && monster.level <= playerLevel;
+}
+
+async function startFightSession(
+  interaction: ButtonInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  targetMonsterId?: string,
+): Promise<void> {
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.rpgEnabled) {
     await interaction.reply({ embeds: [errorEmbed(m.rpg_travel_disabled_title({}, { locale }), m.rpg_boss_disabled_desc({}, { locale }))], flags: [MessageFlags.Ephemeral] });
@@ -4491,6 +4798,13 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
 
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
   const cooldownMs = fightCooldownMs(config);
+
+  // Résolue avant tout débit d'énergie : une cible refusée ne doit rien coûter.
+  const target = targetMonsterId ? await findGuildMonsterById(guildId, targetMonsterId) : null;
+  if (targetMonsterId && (!target || !canHunt(target, profile.level))) {
+    await interaction.reply({ embeds: [errorEmbed(m.rpg_hunt_refused_title({}, { locale }), m.rpg_hunt_refused_desc({}, { locale }))], flags: [MessageFlags.Ephemeral] });
+    return;
+  }
 
   const remainingMs = remainingCooldownMs(profile.lastBattle, cooldownMs);
   if (remainingMs > 0) {
@@ -4539,7 +4853,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
 
   await interaction.deferUpdate();
 
-  const monster = await findRandomMonster(guildId, profile.level);
+  const monster = target ?? await findRandomMonster(guildId, profile.level);
   if (!monster) {
     await refundFightCost();
     await interaction.editReply({ embeds: [errorEmbed(m.rpg_fight_no_monster_title({}, { locale }), m.rpg_fight_no_monster_desc({}, { locale }))], components: [backRow(ownerId, locale)] });
@@ -4805,7 +5119,8 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
         const rawXp = monster.xpReward + Math.floor(Math.random() * Math.floor(monster.xpReward * 0.3));
         const rawCoins = monster.coinReward + Math.floor(Math.random() * Math.floor(monster.coinReward * 0.3));
 
-        let xpEarned = Math.round(rawXp * (1 + villagePerks.xpBonus));
+        const huntRatio = target ? huntXpRatio(profile.level, monster.level) : 1;
+        let xpEarned = Math.round(rawXp * (1 + villagePerks.xpBonus) * huntRatio);
         let coinsEarned = Math.round(rawCoins * (1 + villagePerks.coinBonus));
 
         let itemDropped: string | null = null;
@@ -4927,10 +5242,53 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
 }
 
 // ─────────────────────────────────────────────────────────────
-// Boss (résolution instantanée via select menu)
+// Boss (résolution instantanée, une fiche par boss)
 // ─────────────────────────────────────────────────────────────
 
-async function buildBossSelectView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+/** Boss par page. Une section chacune, comme le bestiaire. */
+const BOSS_PAGE_SIZE = 6;
+
+type BossReadiness =
+  | { kind: 'ready' }
+  | { kind: 'resting'; until: Date }
+  | { kind: 'locked'; level: number };
+
+type BossRow = {
+  boss: Awaited<ReturnType<typeof listBosses>>[number];
+  readiness: BossReadiness;
+  kills: number;
+};
+
+function bossReadinessRank(readiness: BossReadiness): number {
+  return readiness.kind === 'ready' ? 0 : readiness.kind === 'resting' ? 1 : 2;
+}
+
+function discordTimestamp(date: Date): string {
+  return `<t:${Math.floor(date.getTime() / 1000)}:R>`;
+}
+
+function bossLine(row: BossRow, currencyEmoji: string, locale: Locale): string {
+  const { boss, readiness } = row;
+  const status = readiness.kind === 'ready'
+    ? `${icon('success')} ${m.rpg_boss_status_ready({}, { locale })}`
+    : readiness.kind === 'resting'
+      ? `${icon('rpgRest')} ${m.rpg_boss_status_resting({ when: discordTimestamp(readiness.until) }, { locale })}`
+      : `${icon('lock')} ${m.rpg_boss_status_locked({ level: readiness.level }, { locale })}`;
+  const sheet = `${icon('star')} ${boss.level} · ${icon('rpgHp')} ${boss.health} · ${icon('rpgAtk')} ${boss.attack} · ${icon('rpgDef')} ${boss.defense}`;
+  const gains = `${icon('rpgXp')} ${boss.xpReward} XP · ${boss.coinReward} ${currencyEmoji}`
+    + (boss.bossRespawnHours ? ` · ${m.rpg_boss_respawn_every({ hours: boss.bossRespawnHours }, { locale })}` : '')
+    + (row.kills > 0 ? ` · ${m.rpg_boss_kills({ count: row.kills }, { locale })}` : '');
+  return `${boss.emoji} **${boss.name}**\n${status}\n${sheet}\n-# ${gains}`;
+}
+
+/**
+ * Salle des boss : chacun avec son état pour ce joueur, et le délai commun en tête.
+ *
+ * Les deux attentes (le repos d'un boss vaincu, et la pause entre deux boss) ne se
+ * découvraient qu'en tentant le combat. Les horodatages relatifs de Discord se mettent à
+ * jour seuls : le joueur voit le compte à rebours sans rafraîchir l'écran.
+ */
+async function buildBossSelectView(guildId: string, ownerId: string, locale: Locale, page = 0): Promise<PanelView> {
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.rpgEnabled) {
     const embed = errorEmbed(m.rpg_travel_disabled_title({}, { locale }), m.rpg_boss_disabled_desc({}, { locale }));
@@ -4943,26 +5301,101 @@ async function buildBossSelectView(guildId: string, ownerId: string, locale: Loc
     return { embeds: [embed], components: [backRow(ownerId, locale)] };
   }
 
-  const embed = new EmbedBuilder()
-    .setTitle(m.rpg_hub_boss_select_title({}, { locale }))
-    .setDescription(m.rpg_hub_boss_select_desc({}, { locale }))
-    .setColor(RPG_COLORS.combat);
+  const [profile, wins] = await Promise.all([
+    getOrCreateRpgProfile(guildId, ownerId),
+    prisma.rpgBattle.groupBy({
+      by: ['monsterId'],
+      where: { guildId, userId: ownerId, won: true, monsterId: { in: bosses.map((boss) => boss.id) } },
+      _count: { _all: true },
+      _max: { createdAt: true },
+    }),
+  ]);
+  const winsByBoss = new Map(wins.map((row) => [row.monsterId, row]));
 
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(`rpg:bossselect:${ownerId}`)
-    .setPlaceholder(m.rpg_hub_boss_select_placeholder({}, { locale }));
-
-  bosses.slice(0, 25).forEach((boss) => {
-    select.addOptions({
-      label: `${boss.emoji} ${boss.name}`,
-      description: m.rpg_boss_autocomplete_level({ level: boss.level }, { locale }),
-      value: boss.id,
-      emoji: optionEmoji(boss.emoji),
-    });
+  const now = Date.now();
+  const rows: BossRow[] = bosses.map((boss) => {
+    const record = winsByBoss.get(boss.id);
+    const lastWin = record?._max.createdAt;
+    let readiness: BossReadiness = { kind: 'ready' };
+    if (profile.level < boss.level) {
+      readiness = { kind: 'locked', level: boss.level };
+    } else if (boss.bossRespawnHours && boss.bossRespawnHours > 0 && lastWin) {
+      const until = lastWin.getTime() + boss.bossRespawnHours * 60 * 60 * 1000;
+      if (until > now) readiness = { kind: 'resting', until: new Date(until) };
+    }
+    return { boss, readiness, kills: record?._count._all ?? 0 };
   });
+  rows.sort((a, b) =>
+    bossReadinessRank(a.readiness) - bossReadinessRank(b.readiness)
+    || (a.readiness.kind === 'resting' && b.readiness.kind === 'resting' ? a.readiness.until.getTime() - b.readiness.until.getTime() : 0)
+    || a.boss.level - b.boss.level);
 
-  const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
-  return { embeds: [embed], components: [selectRow, backRow(ownerId, locale)] };
+  const pauseMs = remainingCooldownMs(profile.lastBossBattle, bossCooldownMs(config));
+  const pauseLine = pauseMs > 0
+    ? `${icon('rpgRest')} ${m.rpg_boss_pause_until({ when: discordTimestamp(new Date(now + pauseMs)) }, { locale })}`
+    : `${icon('success')} ${m.rpg_boss_pause_none({}, { locale })}`;
+  const energyLine = `${icon('rpgEnergy')} ${m.rpg_boss_energy_line({ energy: profile.energy, cost: BOSS_ENERGY_COST }, { locale })}`;
+
+  const pageCount = Math.max(1, Math.ceil(rows.length / BOSS_PAGE_SIZE));
+  const current = Math.min(Math.max(0, page), pageCount - 1);
+  const shown = rows.slice(current * BOSS_PAGE_SIZE, current * BOSS_PAGE_SIZE + BOSS_PAGE_SIZE);
+
+  const container = new ContainerBuilder().setAccentColor(RPG_COLORS.combat);
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    `## ${icon('rpgBoss')} ${m.rpg_hub_boss_select_title({}, { locale })}\n${pauseLine}\n${energyLine}`,
+  ));
+  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+
+  for (const row of shown) {
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(truncate(bossLine(row, config.currencyEmoji, locale), 450)))
+        .setButtonAccessory(
+          new ButtonBuilder()
+            .setCustomId(`rpg:bossfight:${ownerId}:${row.boss.id}`)
+            .setLabel(m.rpg_boss_fight_btn({}, { locale }))
+            .setStyle(ButtonStyle.Danger)
+            // Le manque d'énergie ou de PV ne désactive rien : le clic ouvre alors le menu
+            // des potions, qui règle le problème sur place.
+            .setDisabled(row.readiness.kind !== 'ready' || pauseMs > 0),
+        ),
+    );
+  }
+
+  const navRow = new ActionRowBuilder<ButtonBuilder>();
+  if (pageCount > 1) {
+    navRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:nav:${ownerId}:boss:${current - 1}`)
+        .setLabel(m.rpg_shop_prev({}, { locale }))
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(current <= 0),
+      new ButtonBuilder()
+        .setCustomId(`rpg:noop:${ownerId}`)
+        .setLabel(`${current + 1} / ${pageCount}`)
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId(`rpg:nav:${ownerId}:boss:${current + 1}`)
+        .setLabel(m.rpg_shop_next({}, { locale }))
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(current >= pageCount - 1),
+    );
+  }
+  navRow.addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:boss:${current}`)
+      .setLabel(m.rpg_boss_refresh_btn({}, { locale }))
+      .setEmoji(icon('rpgRefresh'))
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  return { embeds: [], components: [navRow], container };
 }
 
 // Sans délai entre deux boss, plus rien ne sérialise les combats d'un même joueur : deux
@@ -4970,7 +5403,13 @@ async function buildBossSelectView(guildId: string, ownerId: string, locale: Loc
 // qui ne voit la victoire qu'une fois le premier combat enregistré.
 const bossFightsInFlight = new Set<string>();
 
-async function handleBossSelect(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+async function handleBossSelect(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  bossId: string,
+): Promise<void> {
   const key = `${guildId}:${ownerId}`;
   if (bossFightsInFlight.has(key)) {
     await interaction.deferUpdate().catch(() => null);
@@ -4978,14 +5417,19 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
   }
   bossFightsInFlight.add(key);
   try {
-    await runBossFight(interaction, guildId, ownerId, locale);
+    await runBossFight(interaction, guildId, ownerId, locale, bossId);
   } finally {
     bossFightsInFlight.delete(key);
   }
 }
 
-async function runBossFight(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
-  const bossId = interaction.values[0];
+async function runBossFight(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  bossId: string,
+): Promise<void> {
   const boss = await findGuildMonsterById(guildId, bossId);
   if (!boss || !boss.isBoss) {
     await replyPanelError(interaction, new Error(m.rpg_boss_not_found_desc({ name: bossId }, { locale })), locale);
@@ -6344,10 +6788,10 @@ async function renderSection(
     case 'guildprofile': return buildGuildProfileView(guildId, ownerId, rest[0], locale);
     case 'clanwar': return buildClanWarView(guildId, ownerId, await panelMember(interaction, ownerId), locale, asClanWarScope(rest[0]));
     case 'raid': return buildRaidView(guildId, ownerId, await panelMember(interaction, ownerId), locale);
-    case 'fishbook': return buildFishBookView(guildId, ownerId, locale);
+    case 'fishbook': return buildFishBookView(interaction.client, guildId, ownerId, locale);
     case 'bestiary': return buildBestiaryView(guildId, ownerId, interaction.user, locale, parseBestiaryState(rest));
     case 'itembook': return buildItemBookView(guildId, ownerId, locale, parseItemBookState(rest));
-    case 'boss': return buildBossSelectView(guildId, ownerId, locale);
+    case 'boss': return buildBossSelectView(guildId, ownerId, locale, Number.parseInt(rest[0] ?? '0', 10) || 0);
     case 'character': return buildCharacterView(guildId, ownerId, locale);
     case 'skilltree': return buildSkillTreeView(guildId, ownerId, locale);
     case 'craft': return buildCraftView(guildId, ownerId, locale);
@@ -6373,7 +6817,7 @@ async function renderSection(
  * une fenêtre de saisie ou une réponse privée ne peut plus s'ouvrir après l'acquittement.
  */
 const DEFERRED_BUTTON_ACTIONS = new Set([
-  'nav', 'shopbuy', 'shopopen', 'invopen', 'bestopen', 'invtoggle', 'invuse2', 'invsell', 'invsalvage', 'invfav', 'sellloot',
+  'nav', 'shopbuy', 'shopopen', 'invopen', 'bestopen', 'itemopen', 'invtoggle', 'invuse2', 'invsell', 'invsalvage', 'invfav', 'sellloot',
   'work', 'upgrade', 'enchantapply', 'dest', 'choice',
 ]);
 
@@ -6409,6 +6853,7 @@ export async function handleRpgButton(client: Client, customId: string, interact
       }
       case 'shopbuy': await handleShopBuy(interaction, guildId, ownerId, locale, rest); return;
       case 'invopen': await respond(interaction, await buildInventoryItemView(guildId, ownerId, rest[0], locale, parseBagState(rest.slice(1)))); return;
+      case 'itemopen': await respond(interaction, await buildItemBookEntryView(guildId, ownerId, rest[0], locale, parseItemBookState(rest.slice(1)))); return;
       case 'bestopen': await respond(interaction, await buildBestiaryEntryView(guildId, ownerId, rest[0], locale, parseBestiaryState(rest.slice(1)))); return;
       case 'invtoggle': await handleInventoryToggle(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'invuse2': await handleInventoryDrink(interaction, guildId, ownerId, locale, rest[0]); return;
@@ -6428,6 +6873,8 @@ export async function handleRpgButton(client: Client, customId: string, interact
       case 'upgrade': await handleUpgrade(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'enchantapply': await handleEnchantApply(interaction, guildId, ownerId, locale, rest[0], rest[1]); return;
       case 'fight': await startFightSession(interaction, guildId, ownerId, locale); return;
+      case 'hunt': await startFightSession(interaction, guildId, ownerId, locale, rest[0]); return;
+      case 'bossfight': await handleBossSelect(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'raidattack': await handleRaidAttack(interaction, guildId, ownerId, locale); return;
       case 'dest': await handleTravelDestinationChoice(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'choice': await handleTravelEventChoice(interaction, guildId, ownerId, locale, rest[0], rest[1]); return;
@@ -6510,7 +6957,8 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
       case 'shopitem': await handleShopItemSelect(interaction, guildId, ownerId, locale, rest); return;
       case 'shopcat': await handleShopCategorySelect(interaction, guildId, ownerId, locale); return;
       case 'bmbuy': await handleBlackMarketBuy(interaction, guildId, ownerId, locale); return;
-      case 'bossselect': await handleBossSelect(interaction, guildId, ownerId, locale); return;
+      // Les messages antérieurs aux fiches de boss portent encore le menu déroulant.
+      case 'bossselect': await handleBossSelect(interaction, guildId, ownerId, locale, destination); return;
       case 'classselect': await handleClassSelect(interaction, guildId, ownerId, locale); return;
       case 'skillbuy': await handleSkillNodeBuy(interaction, guildId, ownerId, locale); return;
       case 'villagebuild': await handleVillageBuild(interaction, guildId, ownerId, locale); return;

@@ -248,6 +248,7 @@ model RpgProfile {
   skillUnlocks RpgSkillUnlock[]
   battles    RpgBattle[]
   fishCatches RpgFishCatch[]
+  fishBookClaims RpgFishBookClaim[]
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -570,6 +571,7 @@ model RpgTitle {
   wearers           RpgProfile[]      @relation("ActiveTitle")
   firstKillMonsters RpgMonster[]      @relation("FirstKillTitle")
   winMonsters       RpgMonster[]      @relation("WinTitle")
+  fishBookRewards   RpgFishBookReward[]
 
   @@unique([guildId, name])
   @@map("rpg_titles")
@@ -1062,4 +1064,72 @@ model RpgFishCatch {
   @@index([guildId, userId])
   @@index([guildId, createdAt])
   @@map("rpg_fish_catches")
+}
+
+/// Espèce de poisson propre à un serveur.
+///
+/// Les espèces livrées de base vivent dans le code (`rpgFishCatalog.ts`), pas en base : une
+/// ligne du serveur portant le même nom les remplace, et `enabled = false` les retire. Le
+/// nom est aussi la clé des prises (`RpgFishCatch.fishName`) : c'est lui qui conserve la
+/// progression du carnet quand une espèce est personnalisée.
+model RpgFish {
+  id      String  @id @default(cuid())
+  guildId String
+  name    String
+  emoji   String  @default("🐟")
+  /// COMMON | UNCOMMON | RARE | EPIC | LEGENDARY
+  rarity  String  @default("COMMON")
+  value   Int     @default(5)
+  xp      Int     @default(5)
+  enabled Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, name])
+  @@map("rpg_fish")
+}
+
+/// Récompense d'un palier du carnet de pêche, réglée par le serveur.
+///
+/// Sans ligne, le palier verse la récompense par défaut du code : une ligne à zéro partout
+/// est donc la seule façon de le rendre muet.
+model RpgFishBookReward {
+  id         String  @id @default(cuid())
+  guildId    String
+  /// Une rareté (COMMON...LEGENDARY) terminée, ou COMPLETE pour le carnet entier.
+  tier       String
+  coinReward Int     @default(0)
+  xpReward   Int     @default(0)
+  /// Points de clan, ou XP de guilde selon les équipes du serveur, comme les primes du bestiaire.
+  clanPoints Int     @default(0)
+  /// Objet désigné par son nom, comme les butins.
+  itemName   String?
+  roleId     String?
+  titleId    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  title RpgTitle? @relation(fields: [titleId], references: [id], onDelete: SetNull)
+
+  @@unique([guildId, tier])
+  @@map("rpg_fishbook_rewards")
+}
+
+/// Palier du carnet déjà versé à un joueur. L'unicité empêche de toucher deux fois le même.
+model RpgFishBookClaim {
+  id        String   @id @default(cuid())
+  guildId   String
+  userId    String
+  tier      String
+  createdAt DateTime @default(now())
+
+  profile RpgProfile @relation(fields: [guildId, userId], references: [guildId, userId], onDelete: Cascade)
+
+  @@unique([guildId, userId, tier])
+  @@map("rpg_fishbook_claims")
 }

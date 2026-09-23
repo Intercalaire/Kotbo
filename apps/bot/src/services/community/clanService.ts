@@ -54,7 +54,9 @@ export type ClanContributionSource =
   | 'RPG_QUEST'
   // La prime du premier vainqueur d'une créature : un exploit unique, que le flux public
   // met en avant plutôt que de le noyer parmi les boss et les monstres ordinaires.
-  | 'RPG_FIRST_KILL';
+  | 'RPG_FIRST_KILL'
+  // Une série du carnet de pêche terminée : un palier atteint une fois par joueur.
+  | 'RPG_FISHBOOK';
 
 /**
  * Crédite des points de clan pour une saison et renvoie le montant réellement
