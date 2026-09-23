@@ -600,7 +600,8 @@
   white-space: nowrap;
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
-.filter-pill:hover { background: var(--surface-hover); color: var(--on-surface); }
+.filter-pill:hover:not(:disabled) { background: var(--surface-hover); color: var(--on-surface); }
+.filter-pill:disabled { opacity: 0.5; cursor: not-allowed; }
 .filter-pill[aria-pressed="true"] {
   background: var(--primary-container-color);
   border-color: color-mix(in srgb, var(--primary-color) 35%, transparent);

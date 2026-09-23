@@ -42,6 +42,8 @@
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs, FilterPills } from '../lib/components/ui';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { createSimpleModePreference, nearestStep } from '../lib/simpleMode.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
@@ -1146,33 +1148,13 @@
     <InlineFeedback state={roleAction} />
 
     {#if activeTab !== 'accueil'}
-      <nav class="tab-group w-fit">
-        <button onclick={() => gotoTab('/prestige', 'gains', DEFAULT_TAB)} class="tab-button {activeTab === 'gains' ? 'active' : ''}">
-          <Papicon icon="chart" size={16} />
-          {m.prg_tab_gains()}
-        </button>
-        <button onclick={() => gotoTab('/prestige', 'echelle', DEFAULT_TAB)} class="tab-button {activeTab === 'echelle' ? 'active' : ''}">
-          <Papicon icon="shield" size={16} />
-          {m.prg_tab_ladder()}
-        </button>
-        <button onclick={() => gotoTab('/prestige', 'annonces', DEFAULT_TAB)} class="tab-button {activeTab === 'annonces' ? 'active' : ''}">
-          <Papicon icon="bell" size={16} />
-          {m.prg_tab_announcements()}
-        </button>
-        <button onclick={() => gotoTab('/prestige', 'evenements', DEFAULT_TAB)} class="tab-button {activeTab === 'evenements' ? 'active' : ''}">
-          <Papicon icon="zap" size={16} />
-          {m.prg_tab_events()}
-        </button>
-        <button onclick={() => gotoTab('/prestige', 'classement', DEFAULT_TAB)} class="tab-button {activeTab === 'classement' ? 'active' : ''}">
-          <Papicon icon="crown" size={16} />
-          {m.prg_tab_leaderboard()}
-          {#if boardTotal > 0}
-            <span class="text-2xs font-semibold px-1.5 py-0.5 rounded-lg bg-surface-container-high/60 text-on-surface-variant/60">
-              {boardTotal.toLocaleString()}
-            </span>
-          {/if}
-        </button>
-      </nav>
+      <Tabs
+        label={m.prg_page_title()}
+        tabs={pageTabItems('/prestige', (id) => id !== 'accueil')
+          .map((item) => item.id === 'classement' && boardTotal > 0 ? { ...item, badge: boardTotal.toLocaleString() } : item)}
+        active={activeTab}
+        onchange={(id) => gotoTab('/prestige', id, DEFAULT_TAB)}
+      />
     {/if}
 
     {#if activeTab === 'accueil'}
@@ -1575,18 +1557,13 @@
 
           <div class="space-y-2">
             <span class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_ladder_divisions_label()}</span>
-            <nav class="tab-group w-fit">
-              {#each [1, 2, 3, 4, 5] as count (count)}
-                <button
-                  type="button"
-                  onclick={() => { config!.ladderDivisions = count; }}
-                  disabled={!canManageSettings}
-                  class="tab-button {curveValues.ladderDivisions === count ? 'active' : ''}"
-                >
-                  {count}
-                </button>
-              {/each}
-            </nav>
+            <FilterPills
+              label={m.prg_ladder_divisions_label()}
+              options={[1, 2, 3, 4, 5].map((count) => ({ value: String(count), label: String(count) }))}
+              value={String(curveValues.ladderDivisions)}
+              onchange={(value) => { config!.ladderDivisions = Number(value); }}
+              disabled={!canManageSettings}
+            />
             <p class="text-2xs text-on-surface-variant/50 ml-2">{m.prg_ladder_divisions_hint()}</p>
           </div>
 
@@ -1655,13 +1632,12 @@
 
             <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
               <p class="text-2xs text-on-surface-variant/70">{m.prg_estimate_intro()}</p>
-              <nav class="tab-group w-fit">
-                {#each ACTIVITY_LABELS as label, index}
-                  <button type="button" onclick={() => (activityStep = index + 1)} class="tab-button {activityStep === index + 1 ? 'active' : ''}">
-                    {label()}
-                  </button>
-                {/each}
-              </nav>
+              <FilterPills
+                label={m.prg_estimate_intro()}
+                options={ACTIVITY_LABELS.map((label, index) => ({ value: String(index + 1), label: label() }))}
+                value={String(activityStep)}
+                onchange={(value) => (activityStep = Number(value))}
+              />
             </div>
 
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -2238,16 +2214,15 @@
         {/if}
 
         <div class="flex flex-wrap items-center justify-between gap-3">
-          <nav class="tab-group w-fit">
-            <button type="button" onclick={() => (boardView = 'guild')} class="tab-button {boardView === 'guild' ? 'active' : ''}">
-              <Papicon icon="crown" size={15} />
-              {m.prg_board_guild()}
-            </button>
-            <button type="button" onclick={() => (boardView = 'global')} class="tab-button {boardView === 'global' ? 'active' : ''}">
-              <Papicon icon="globe" size={15} />
-              {m.prg_board_global()}
-            </button>
-          </nav>
+          <FilterPills
+            label={m.prg_tab_leaderboard()}
+            options={[
+              { value: 'guild', label: m.prg_board_guild() },
+              { value: 'global', label: m.prg_board_global() },
+            ]}
+            value={boardView}
+            onchange={(value) => (boardView = value)}
+          />
 
           {#if boardView === 'guild'}
             <div class="relative flex-1 min-w-[240px] max-w-sm">

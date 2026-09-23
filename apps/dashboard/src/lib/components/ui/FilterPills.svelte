@@ -17,6 +17,7 @@
     value,
     onchange,
     label,
+    disabled = false,
     class: className = '',
   }: {
     options: FilterOption<T>[];
@@ -24,6 +25,7 @@
     onchange: (value: T) => void;
     /** Ce que l'on filtre, pour les lecteurs d'ecran. */
     label: string;
+    disabled?: boolean;
     class?: string;
   } = $props();
 </script>
@@ -34,6 +36,7 @@
       type="button"
       class="filter-pill"
       aria-pressed={option.value === value}
+      {disabled}
       onclick={() => onchange(option.value)}
     >
       {option.label}

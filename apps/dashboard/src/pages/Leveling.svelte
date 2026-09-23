@@ -5,6 +5,8 @@
   import { onMount, onDestroy, untrack } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs, FilterPills } from '../lib/components/ui';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -1018,57 +1020,16 @@
   <InlineFeedback state={rewardAction} />
   <InlineFeedback state={createChannelAction} />
 
-  <!-- Navigation par onglets -->
+  <!-- L'accueil (les preselections) n'est pas un onglet : on y entre et on
+       en sort par le bouton de l'en-tete. -->
   {#if activeTab !== 'accueil'}
-  <nav class="tab-group w-fit">
-    <button
-      id="tab-gains"
-      onclick={() => gotoTab('/leveling', 'gains', DEFAULT_TAB)}
-      class="tab-button {activeTab === 'gains' ? 'active' : ''}"
-    >
-      <Papicon icon="Settings" size={16} />
-      {m.lv_tab_gains()}
-    </button>
-    <button
-      id="tab-progression"
-      onclick={() => gotoTab('/leveling', 'progression', DEFAULT_TAB)}
-      class="tab-button {activeTab === 'progression' ? 'active' : ''}"
-    >
-      <Papicon icon="Grades" size={16} />
-      {m.lv_tab_progression()}
-    </button>
-    <button
-      id="tab-annonces"
-      onclick={() => gotoTab('/leveling', 'annonces', DEFAULT_TAB)}
-      class="tab-button {activeTab === 'annonces' ? 'active' : ''}"
-    >
-      <Papicon icon="Bell" size={16} />
-      {m.lv_tab_announcements()}
-    </button>
-    <button
-      id="tab-leaderboard"
-      onclick={() => gotoTab('/leveling', 'leaderboard', DEFAULT_TAB)}
-      class="flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-300 {activeTab === 'leaderboard' ? 'bg-tertiary text-on-tertiary shadow-lg shadow-tertiary/20 ' : 'text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface'}"
-    >
-      <Papicon icon="Grades" size={16} />
-      {m.lv_tab_leaderboard()}
-      {#if memberCount > 0}
-        <span class="text-2xs font-semibold px-1.5 py-0.5 rounded-lg {activeTab === 'leaderboard' ? 'bg-on-tertiary/20' : 'bg-surface-container-high/60 text-on-surface-variant/60'}">
-          {memberCount.toLocaleString()}
-        </span>
-      {/if}
-    </button>
-    {#if canManageSettings}
-      <button
-        id="tab-import"
-        onclick={() => gotoTab('/leveling', 'import', DEFAULT_TAB)}
-        class="flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-300 {activeTab === 'import' ? 'bg-secondary text-on-secondary shadow-lg shadow-secondary/20 ' : 'text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface'}"
-      >
-        <Papicon icon="Upload" size={16} />
-        {m.lv_tab_import()}
-      </button>
-    {/if}
-  </nav>
+    <Tabs
+      label={m.lv_page_description()}
+      tabs={pageTabItems('/leveling', (id) => id !== 'accueil' && (id !== 'import' || canManageSettings))
+        .map((item) => item.id === 'leaderboard' && memberCount > 0 ? { ...item, badge: memberCount.toLocaleString() } : item)}
+      active={activeTab}
+      onchange={(id) => gotoTab('/leveling', id, DEFAULT_TAB)}
+    />
   {/if}
 
   {#if loading}
@@ -1800,17 +1761,12 @@
 
             <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
               <p class="text-2xs text-on-surface-variant/70">{m.lv_estimate_intro()}</p>
-              <nav class="tab-group w-fit">
-                {#each ACTIVITY_LABELS as label, i}
-                  <button
-                    type="button"
-                    onclick={() => (activityStep = i + 1)}
-                    class="tab-button {activityStep === i + 1 ? 'active' : ''}"
-                  >
-                    {label()}
-                  </button>
-                {/each}
-              </nav>
+              <FilterPills
+                label={m.lv_estimate_intro()}
+                options={ACTIVITY_LABELS.map((label, i) => ({ value: String(i + 1), label: label() }))}
+                value={String(activityStep)}
+                onchange={(value) => (activityStep = Number(value))}
+              />
             </div>
 
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
