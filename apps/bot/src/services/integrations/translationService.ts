@@ -317,13 +317,31 @@ function createMyMemoryProvider(): TranslationProvider {
   };
 }
 
+/**
+ * Un provider principal injoignable coûte jusqu'à `TRANSLATION_TIMEOUT_MS` par
+ * URL candidate avant de rendre la main, et ce à chaque traduction. Après une
+ * panne réseau ou un dépassement de délai, on passe donc directement au
+ * fallback pendant `PRIMARY_RETRY_DELAY_MS`. Un refus HTTP (langue non chargée,
+ * par exemple) ne coupe rien : le fallback a un quota limité.
+ */
+const PRIMARY_RETRY_DELAY_MS = 60_000;
+
+function isPrimaryUnreachable(err: unknown): boolean {
+  return isLikelyNetworkError(err) || /timed out|timeout|abort/i.test(getErrorMessage(err));
+}
+
 function createFallbackTranslator(primary: TranslationProvider, fallback: TranslationProvider, log: typeof logger): TranslatorFn {
+  let primaryRetryAt = 0;
+
   return async (text: string, targetLang: string, sourceLang?: string) => {
-    try {
-      const primaryResult = await primary.translate(text, targetLang, sourceLang);
-      if (primaryResult) return primaryResult;
-    } catch (err) {
-      log.warn('Translation', `Provider principal ${primary.name} indisponible, fallback ${fallback.name}. Raison: ${getErrorMessage(err)}`);
+    if (Date.now() >= primaryRetryAt) {
+      try {
+        const primaryResult = await primary.translate(text, targetLang, sourceLang);
+        if (primaryResult) return primaryResult;
+      } catch (err) {
+        if (isPrimaryUnreachable(err)) primaryRetryAt = Date.now() + PRIMARY_RETRY_DELAY_MS;
+        log.warn('Translation', `Provider principal ${primary.name} indisponible, fallback ${fallback.name}. Raison: ${getErrorMessage(err)}`);
+      }
     }
 
     try {

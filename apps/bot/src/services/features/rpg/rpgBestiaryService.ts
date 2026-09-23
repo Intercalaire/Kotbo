@@ -14,6 +14,7 @@
 
 import type { RpgMonster } from '@prisma/client';
 import prisma from '../../../utils/db.js';
+import { assertGuildTitle } from './rpgTitleService.js';
 import {
   normalizeMonsterInput,
   parseMonsterDrops,
@@ -151,6 +152,14 @@ export async function saveGuildMonster(
   const data = normalized.value;
 
   await assertDropsAreKnownItems(guildId, data.drops);
+  if (data.firstKillItemName) {
+    await assertDropsAreKnownItems(guildId, [{ itemName: data.firstKillItemName, emoji: '', chance: 1, coinBonus: 0 }]);
+  }
+  for (const titleId of [data.firstKillTitleId, data.winTitleId]) {
+    await assertGuildTitle(guildId, titleId).catch((err: Error) => {
+      throw new BestiaryError(err.message, 400);
+    });
+  }
 
   const payload = {
     name: data.name,
@@ -167,6 +176,13 @@ export async function saveGuildMonster(
     isBoss: data.isBoss,
     bossRespawnHours: data.bossRespawnHours,
     clanPoints: data.clanPoints,
+    firstKillCoinReward: data.firstKillCoinReward,
+    firstKillXpReward: data.firstKillXpReward,
+    firstKillItemName: data.firstKillItemName,
+    firstKillClanPoints: data.firstKillClanPoints,
+    firstKillRoleId: data.firstKillRoleId,
+    firstKillTitleId: data.firstKillTitleId,
+    winTitleId: data.winTitleId,
     enabled: data.enabled,
   };
 
@@ -244,6 +260,13 @@ export async function setGuildMonsterEnabled(
       isBoss: existing.isBoss,
       bossRespawnHours: existing.bossRespawnHours,
       clanPoints: existing.clanPoints,
+      firstKillCoinReward: existing.firstKillCoinReward,
+      firstKillXpReward: existing.firstKillXpReward,
+      firstKillItemName: existing.firstKillItemName,
+      firstKillClanPoints: existing.firstKillClanPoints,
+      firstKillRoleId: existing.firstKillRoleId,
+      firstKillTitleId: existing.firstKillTitleId,
+      winTitleId: existing.winTitleId,
       enabled,
     },
     update: { enabled },
@@ -305,15 +328,22 @@ export async function syncDropReferences(
 
   for (const monster of monsters) {
     const drops = parseMonsterDrops(monster.drops);
-    if (!drops.some((drop) => drop.itemName === itemName)) continue;
+    const inDrops = drops.some((drop) => drop.itemName === itemName);
+    const isFirstKillItem = monster.firstKillItemName === itemName;
+    if (!inDrops && !isFirstKillItem) continue;
 
-    const next = replacement === null
-      ? drops.filter((drop) => drop.itemName !== itemName)
-      // Le nouveau nom peut déjà figurer dans le butin : on ne garde qu'une entrée, la
-      // meilleure chance, plutôt que de créer un doublon que la saisie refuserait.
-      : dedupeDrops(drops.map((drop) => (drop.itemName === itemName ? { ...drop, itemName: replacement } : drop)));
+    const next = !inDrops
+      ? drops
+      : replacement === null
+        ? drops.filter((drop) => drop.itemName !== itemName)
+        // Le nouveau nom peut déjà figurer dans le butin : on ne garde qu'une entrée, la
+        // meilleure chance, plutôt que de créer un doublon que la saisie refuserait.
+        : dedupeDrops(drops.map((drop) => (drop.itemName === itemName ? { ...drop, itemName: replacement } : drop)));
 
-    await prisma.rpgMonster.update({ where: { id: monster.id }, data: { drops: next } });
+    await prisma.rpgMonster.update({
+      where: { id: monster.id },
+      data: { drops: next, ...(isFirstKillItem ? { firstKillItemName: replacement } : {}) },
+    });
     touched += 1;
   }
 

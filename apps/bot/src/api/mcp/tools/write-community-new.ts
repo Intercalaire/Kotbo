@@ -1,6 +1,7 @@
 /** Outils MCP - write community new (permission WRITE_COMMUNITY). */
 import { createCustomForm, deleteCustomForm } from '../../../services/features/customFormService.js';
 import { createCustomEvent } from '../../../services/features/eventService.js';
+import { invalidateActiveQuests } from '../../../services/community/questService.js';
 import { createGiveaway, deleteGiveaway, endGiveaway, refreshActiveGiveaways, rerollGiveaway } from '../../../services/features/giveawayService.js';
 import prisma from '../../../utils/db.js';
 import { sanitizeCustomCss, sanitizeFormTheme } from '../../../utils/formCustomization.js';
@@ -331,6 +332,7 @@ export function registerWriteCommunityNewTools(ctx: McpToolContext) {
               enabled: true,
             }
           });
+          await invalidateActiveQuests(guildId);
 
           await audit(key_name, 'Création quête MCP', name, `Target: ${target} | XP: ${reward_xp}`);
           return ok({ ok: true, questId: quest.id, name });
@@ -747,6 +749,7 @@ export function registerWriteCommunityNewTools(ctx: McpToolContext) {
             where: { id: quest_id },
             data: updateData,
           });
+          await invalidateActiveQuests(guildId);
 
           await audit(key_name, 'Mise à jour quête MCP', name || existing.name, `ID: ${quest_id}`);
           return ok({ ok: true, questId: quest_id });
@@ -772,6 +775,7 @@ export function registerWriteCommunityNewTools(ctx: McpToolContext) {
           if (!existing) return err('Quête introuvable');
 
           await prisma.questDefinition.delete({ where: { id: quest_id } });
+          await invalidateActiveQuests(guildId);
           await audit(key_name, 'Suppression quête MCP', existing.name, `ID: ${quest_id}`);
           return ok({ ok: true });
         } catch (e) {

@@ -599,6 +599,10 @@ model Guild {
   tempVoiceDefaults       Json?
   tempVoiceGenerators     Json?
   tempVoiceChannels       TempVoiceChannel[]
+  // Demandes d'accès (bouton sur salon verrouillé/réservé) et permissions
+  // modérateur, action par action (cf. temp-voice-access.prisma)
+  tempVoiceAccessRequestConfig  TempVoiceAccessRequestConfig?
+  tempVoiceModPermissionsConfig TempVoiceModPermissionsConfig?
 
   // Honeypot trap channels
   honeypotEnabled         Boolean  @default(false)
@@ -639,6 +643,7 @@ model Guild {
   rpgAdventureEvents       RpgAdventureEvent[]
   rpgDrops                 RpgDrop[]
   rpgMonsters              RpgMonster[]
+  rpgTitles                RpgTitle[]
   rpgBattles               RpgBattle[]
   rpgArenaRecords          RpgArenaRecord[]
   rpgCampaignProgress      RpgCampaignProgress[]
@@ -1065,6 +1070,12 @@ model TempVoiceChannel {
   guildId    String
   creatorId  String
   roleId     String?  // Optional role restriction
+  /// Qui a le droit d'ecrire : everyone | inVoice | ownerOnly | nobody.
+  /// Trois de ces modes se relisent dans les surcharges Discord au demarrage ;
+  /// `inVoice` non — il ne se distingue d'aucun autre sans cette colonne, et
+  /// sa perte laissait derriere elle des surcharges de presence que plus rien
+  /// ne retirait. `null` = salon d'avant cette colonne, mode deduit.
+  writeMode  String?
   createdAt  DateTime @default(now())
 
   guild      Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)

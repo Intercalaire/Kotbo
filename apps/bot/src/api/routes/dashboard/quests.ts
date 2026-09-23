@@ -93,7 +93,7 @@ export async function handleQuestRoutes(
   if (parts.length === 6 && method === 'PATCH') {
     try {
       const body = await parseBody(req) as Record<string, any>;
-      const quest = await updateQuestDefinition(parts[5], body);
+      const quest = await updateQuestDefinition(guildId, parts[5], body);
       json(res, 200, quest);
     } catch (err) {
       logger.error('QuestsAPI', 'Error updating quest:', err);
@@ -105,7 +105,7 @@ export async function handleQuestRoutes(
   // DELETE /api/dashboard/guilds/:guildId/quests/:questId
   if (parts.length === 6 && method === 'DELETE') {
     try {
-      await deleteQuestDefinition(parts[5]);
+      await deleteQuestDefinition(guildId, parts[5]);
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('QuestsAPI', 'Error deleting quest:', err);

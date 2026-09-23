@@ -1061,6 +1061,9 @@
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg_raid()}</span>
                       {:else if s.source === 'RPG_ITEM'}
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg_item()}</span>
+                      {:else if s.source === 'RPG_FIRST_KILL'}
+                        <!-- Or : un exploit unique, qui se détache des gains RPG ordinaires. -->
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-500 border border-yellow-500/30"><Papicon icon="award" size={10} /> {m.clan_public_source_rpg_first_kill()}</span>
                       {:else if s.source === 'RPG'}
                         <!-- Gains enregistres avant la separation des trois origines. -->
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg()}</span>

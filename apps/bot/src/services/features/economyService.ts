@@ -21,6 +21,8 @@ import {
 import { ensureItemInstance } from './rpg/rpgItemInstanceService.js';
 import { addInventoryQuantity, lockRpgProfile, takeInventoryQuantity } from './rpg/rpgInventoryWrites.js';
 import { listPlayableAdventureEvents } from './rpg/rpgAdventureEventService.js';
+import { deleteAllGuildTitles, grantTitle } from './rpg/rpgTitleService.js';
+import { buildFishBook, type FishBook, type FishSpecies } from './rpg/rpgFishBook.js';
 
 // Cooldown tracker for in-memory message activity (to prevent spam farming)
 const messageActivityCooldown = new Map<string, number>();
@@ -573,8 +575,19 @@ export async function chooseAdventureOutcome(guildId: string, userId: string, ev
 
   const levelUp = await checkLevelUp(guildId, userId);
 
+  // Le titre suit le choix réellement résolu : la garde sur `isTraveling` ci-dessus assure
+  // qu'un double clic ne passe jamais jusqu'ici deux fois. Un titre déjà possédé ne revient
+  // pas, et un incident sur le titre ne doit pas faire échouer l'aventure déjà encaissée.
+  const title = choice.titleId
+    ? await grantTitle(profile.id, choice.titleId).catch((err) => {
+      logger.warn('Economy', `Titre d'aventure non attribué à ${userId} :`, err);
+      return null;
+    })
+    : null;
+
   return {
     choiceText: choice.text,
+    titleName: title?.name ?? null,
     hpEffect: finalHpEffect,
     coinEffect: finalCoinEffect,
     xpEffect: finalXpEffect,
@@ -1052,7 +1065,14 @@ export async function depositToRpgGuildTreasury(guildId: string, userId: string,
 /**
  * Revend un objet de l'inventaire à la boutique à 50% de son prix d'achat.
  */
-export async function sellShopItem(guildId: string, userId: string, itemId: string) {
+/**
+ * Vend un exemplaire d'un objet possédé.
+ *
+ * `minOwned` refuse la vente si le joueur en possède moins que ce nombre au moment de vendre.
+ * Le bouton de revente du butin s'en sert pour ne vendre que l'exemplaire gagné au combat :
+ * s'il a déjà été vendu, un second clic tomberait sinon sur un exemplaire possédé avant.
+ */
+export async function sellShopItem(guildId: string, userId: string, itemId: string, options: { minOwned?: number } = {}) {
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.shopEnabled) throw new Error('La boutique RPG est désactivée.');
 
@@ -1070,8 +1090,21 @@ export async function sellShopItem(guildId: string, userId: string, itemId: stri
 
     // Relu sous verrou : l'objet a pu être équipé depuis une autre fenêtre entre-temps.
     const current = await tx.rpgProfile.findUniqueOrThrow({ where: { id: profile.id } });
-    if (isItemEquipped(current, item.id)) {
+    const stock = await tx.rpgInventoryItem.findUnique({
+      where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: item.id } },
+      select: { quantity: true },
+    });
+
+    if (!stock || stock.quantity <= 0) throw new Error('Vous ne possédez plus cet objet dans votre inventaire.');
+
+    // Les exemplaires d'un même objet s'empilent sur une seule ligne, et un seul peut être
+    // porté : on refuse seulement de vendre le dernier, celui qui occupe l'emplacement.
+    if (isItemEquipped(current, item.id) && stock.quantity <= 1) {
       throw new Error("Vous ne pouvez pas vendre un objet équipé. Déséquipez-le d'abord depuis l'onglet Inventaire de `/rpg`.");
+    }
+
+    if (options.minOwned !== undefined && stock.quantity < options.minOwned) {
+      throw new Error('Cet exemplaire a déjà été vendu ou utilisé.');
     }
 
     // Vendre son dernier exemplaire emporte sa progression : garder l'instance ferait
@@ -1131,7 +1164,7 @@ async function restoreLevelUpCoins(guildId: string): Promise<RestoredLevelUpCoin
 /**
  * Réinitialise certains éléments ou toute l'économie RPG pour une guilde.
  */
-export async function adminResetGuildEconomy(guildId: string, component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary') {
+export async function adminResetGuildEconomy(guildId: string, component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary' | 'titles') {
   let restored: RestoredLevelUpCoins = { players: 0, coins: 0 };
 
   // Les paliers de difficulté décrivent le bestiaire et la boutique, pas le rythme de
@@ -1239,6 +1272,13 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
         data: { bossDifficulty: 'NORMAL', monsterDifficulty: 'NORMAL' }
       });
     }
+  }
+
+  // Les titres sont un catalogue du serveur, comme le bestiaire : ils ne partent qu'avec
+  // leur propre remise à zéro ou la remise à zéro complète. Collections et titres portés
+  // partent avec eux, et les créatures qui les offraient n'offrent plus rien.
+  if (component === 'titles' || component === 'all') {
+    await deleteAllGuildTitles(guildId);
   }
 
   if (component === 'profiles' || component === 'all') {
@@ -1734,6 +1774,19 @@ function rollFish(): FishEntry {
 
 export { RARITY_COLORS };
 
+/** Toutes les espèces pêchables, de la plus commune à la plus rare. */
+export const FISH_SPECIES: FishSpecies[] = FISH_TABLE.flatMap((tier) =>
+  tier.fish.map((fish) => ({ name: fish.name, emoji: fish.emoji, rarity: tier.rarity })));
+
+export async function getFishBook(guildId: string, userId: string): Promise<FishBook> {
+  const rows = await prisma.rpgFishCatch.groupBy({
+    by: ['fishName'],
+    where: { guildId, userId },
+    _count: { _all: true },
+  });
+  return buildFishBook(FISH_SPECIES, new Map(rows.map((row) => [row.fishName, row._count._all])));
+}
+
 export async function fish(guildId: string, userId: string) {
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.enabled) throw new Error("Le module d'économie est désactivé sur ce serveur.");
@@ -1774,6 +1827,9 @@ export async function fish(guildId: string, userId: string) {
     return { success: false as const, cooldown: false, noEnergy: true };
   }
 
+  // Lu avant d'écrire la prise, sinon elle se compterait elle-même.
+  const newSpecies = (await prisma.rpgFishCatch.count({ where: { guildId, userId, fishName: caught.name } })) === 0;
+
   await prisma.rpgFishCatch.create({
     data: {
       guildId,
@@ -1795,6 +1851,7 @@ export async function fish(guildId: string, userId: string) {
     success: true as const,
     fish: caught,
     rarityIcon: RARITY_COLORS[caught.rarity] || '⬜',
+    newSpecies,
     newBalance: updatedProfile?.balance ?? profile.balance + caught.value,
     totalFishCaught: updatedProfile?.totalFishCaught ?? profile.totalFishCaught + 1
   };

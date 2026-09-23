@@ -13,6 +13,16 @@ import {
   setGuildMonsterEnabled,
 } from '../../../services/features/rpg/rpgBestiaryService.js';
 import { parseMonsterDrops, type MonsterInput } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
+import { assertFirstKillRole, listFirstKills } from '../../../services/features/rpg/rpgFirstKillService.js';
+import {
+  deleteGuildTitle,
+  grantTitle,
+  listGuildTitles,
+  revokeTitle,
+  saveGuildTitle,
+  TitleError,
+} from '../../../services/features/rpg/rpgTitleService.js';
+import type { TitleInput } from '../../../services/features/rpg/rpgTitlePolicy.js';
 import type { RpgItemPayload } from '@kotbo/contracts';
 import { saveGuildShopItem, ShopItemError } from '../../../services/features/rpg/rpgShopItemService.js';
 import {
@@ -102,9 +112,16 @@ import {
   type RpgGuildAdminEdit,
 } from '../../../services/features/rpg/rpgGuildAdminService.js';
 import { jsonFailure } from '../../shared/failure.js';
+import {
+  normalizeCommandRestrictions,
+  readCommandChannels,
+  RPG_CHANNEL_COMMANDS,
+  withCommandChannels,
+} from '../../../utils/commandAccess.js';
+import type { Prisma } from '@prisma/client';
 
 /** Le type du corps de requête ne vaut qu'à la compilation : la valeur reçue est vérifiée. */
-const RESET_COMPONENTS = new Set(['all', 'profiles', 'items', 'config', 'guilds', 'bestiary']);
+const RESET_COMPONENTS = new Set(['all', 'profiles', 'items', 'config', 'guilds', 'bestiary', 'titles']);
 
 /** Fenêtre d'observation des combats : assez large pour un petit serveur, assez courte pour
  *  qu'un réglage récent ne reste pas jugé sur l'ancien équilibrage. */
@@ -163,6 +180,62 @@ export async function handleEconomyRoutes(
         }
         logger.error('EconomyAPI', 'Error updating economy config:', err);
         jsonFailure(res, err, "Erreur lors de la mise à jour de la configuration de l'économie.", 'EconomyAPI');
+      }
+      return true;
+    }
+  }
+
+  // Salons RPG : une vue sur les règles d'accès de /rpg et /raid, stockées avec les autres
+  // restrictions de commandes pour que le bot n'ait qu'un seul endroit à consulter.
+  if (subAction === 'rpg-channels' && parts.length === 6) {
+    if (method === 'GET') {
+      try {
+        const settings = await prisma.dashboardSettings.findUnique({ where: { guildId }, select: { commandRestrictions: true } });
+        const rules = normalizeCommandRestrictions(settings?.commandRestrictions);
+        json(res, 200, readCommandChannels(rules, RPG_CHANNEL_COMMANDS));
+      } catch (err) {
+        logger.error('EconomyAPI', 'Error fetching RPG channels:', err);
+        jsonFailure(res, err, 'Erreur lors de la récupération des salons RPG.', 'EconomyAPI');
+      }
+      return true;
+    }
+
+    if (method === 'PUT') {
+      try {
+        const body = await readJsonBody<{ channelIds?: unknown }>(req);
+        if (!body || !Array.isArray(body.channelIds)) {
+          json(res, 400, { error: 'Liste de salons invalide.' });
+          return true;
+        }
+
+        const settings = await prisma.dashboardSettings.findUnique({ where: { guildId }, select: { commandRestrictions: true } });
+        const rules = withCommandChannels(
+          normalizeCommandRestrictions(settings?.commandRestrictions),
+          RPG_CHANNEL_COMMANDS,
+          body.channelIds as string[],
+        );
+        const commandRestrictions = rules as unknown as Prisma.InputJsonValue;
+        await prisma.dashboardSettings.upsert({
+          where: { guildId },
+          update: { commandRestrictions },
+          create: { guildId, commandRestrictions },
+        });
+        const { channelIds } = readCommandChannels(rules, RPG_CHANNEL_COMMANDS);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Mise à jour salons RPG',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: channelIds.length > 0 ? `${channelIds.length} salon(s) autorisé(s) pour /rpg et /raid.` : 'RPG autorisé dans tous les salons.',
+          channelId: null
+        });
+
+        json(res, 200, { channelIds, diverged: false });
+      } catch (err) {
+        logger.error('EconomyAPI', 'Error updating RPG channels:', err);
+        jsonFailure(res, err, 'Erreur lors de la mise à jour des salons RPG.', 'EconomyAPI');
       }
       return true;
     }
@@ -311,10 +384,22 @@ export async function handleEconomyRoutes(
 
         // Le taux de victoire et la dérive ne servent qu'à la page de réglage : ils
         // accompagnent la liste plutôt que de coûter un aller-retour de plus.
-        const [battles, drift] = await Promise.all([
+        const [battles, drift, firstKills] = await Promise.all([
           getBestiaryBattleStats(guildId, BATTLE_STATS_DAYS),
           findDifficultyDrift(monsters, difficulty),
+          listFirstKills(guildId),
         ]);
+        const discordGuild = client.guilds.cache.get(guildId);
+        const firstKillOf = (name: string) => {
+          const record = firstKills.get(name);
+          if (!record) return null;
+          const member = discordGuild?.members.cache.get(record.userId);
+          return {
+            userId: record.userId,
+            displayName: member?.displayName ?? client.users.cache.get(record.userId)?.username ?? null,
+            at: record.createdAt,
+          };
+        };
 
         const samples = {
           boss: summarizeBattles(monsters.filter((monster) => monster.isBoss), battles),
@@ -327,6 +412,7 @@ export async function handleEconomyRoutes(
             drops: parseMonsterDrops(monster.drops),
             battles: battles[monster.name] ?? { battles: 0, wins: 0 },
             offDifficulty: drift[monster.id] ?? null,
+            firstKill: firstKillOf(monster.name),
           })),
           battleStatsDays: BATTLE_STATS_DAYS,
           samples,
@@ -349,6 +435,18 @@ export async function handleEconomyRoutes(
         if (!body) {
           json(res, 400, { error: 'Corps de requête manquant.' });
           return true;
+        }
+
+        // Seul un rôle qui change est contrôlé : une fiche dont le rôle est devenu
+        // inutilisable doit rester modifiable, le versement le refusera de toute façon.
+        const previous = body.id
+          ? await prisma.rpgMonster.findUnique({ where: { id: body.id }, select: { firstKillRoleId: true } })
+          : null;
+        const roleId = typeof body.firstKillRoleId === 'string' && body.firstKillRoleId ? body.firstKillRoleId : null;
+        if (roleId && roleId !== previous?.firstKillRoleId) {
+          await assertFirstKillRole(client, guildId, roleId).catch((err: Error) => {
+            throw new BestiaryError(err.message, 400);
+          });
         }
 
         const { monster, created, overrode } = await saveGuildMonster(guildId, body, body.id);
@@ -612,6 +710,143 @@ export async function handleEconomyRoutes(
         }
         logger.error('EconomyAPI', 'Error deleting quest:', err);
         jsonFailure(res, err, 'Erreur lors de la suppression de la quête.', 'EconomyAPI');
+      }
+      return true;
+    }
+  }
+
+  // Titres du RPG : catalogue du serveur et attribution à la main.
+  if (subAction === 'titles') {
+    const titleFailure = (err: unknown, fallback: string) => {
+      if (err instanceof TitleError) {
+        json(res, err.status, { error: err.message });
+        return;
+      }
+      logger.error('EconomyAPI', fallback, err);
+      jsonFailure(res, err, fallback, 'EconomyAPI');
+    };
+
+    // GET /api/dashboard/guilds/:guildId/economy/titles
+    if (parts.length === 6 && method === 'GET') {
+      try {
+        const [titles, owners] = await Promise.all([
+          listGuildTitles(guildId),
+          prisma.rpgProfileTitle.findMany({
+            where: { title: { guildId } },
+            select: { titleId: true, obtainedAt: true, profile: { select: { userId: true } } },
+          }),
+        ]);
+        const discordGuild = client.guilds.cache.get(guildId);
+        const ownersByTitle = new Map<string, { userId: string; displayName: string; obtainedAt: Date }[]>();
+        for (const owner of owners) {
+          const list = ownersByTitle.get(owner.titleId) ?? [];
+          list.push({
+            userId: owner.profile.userId,
+            displayName: discordGuild?.members.cache.get(owner.profile.userId)?.displayName ?? owner.profile.userId,
+            obtainedAt: owner.obtainedAt,
+          });
+          ownersByTitle.set(owner.titleId, list);
+        }
+        json(res, 200, { titles: titles.map((title) => ({ ...title, owners: ownersByTitle.get(title.id) ?? [] })) });
+      } catch (err) {
+        titleFailure(err, 'Erreur lors de la récupération des titres.');
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/titles
+    if (parts.length === 6 && method === 'POST') {
+      try {
+        const body = await readJsonBody<TitleInput & { id?: string }>(req);
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant.' });
+          return true;
+        }
+        const { title, created } = await saveGuildTitle(guildId, body, body.id);
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: created ? 'Création titre RPG' : 'Modification titre RPG',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: title.name,
+          channelId: null
+        });
+        json(res, 200, { title });
+      } catch (err) {
+        titleFailure(err, 'Erreur lors de la sauvegarde du titre.');
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/economy/titles/:titleId
+    if (parts.length === 7 && method === 'DELETE') {
+      try {
+        const title = await deleteGuildTitle(guildId, parts[6]);
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Suppression titre RPG',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: title.name,
+          channelId: null
+        });
+        json(res, 200, { success: true });
+      } catch (err) {
+        titleFailure(err, 'Erreur lors de la suppression du titre.');
+      }
+      return true;
+    }
+
+    // POST   /api/dashboard/guilds/:guildId/economy/titles/:titleId/owners           { userId }
+    // DELETE /api/dashboard/guilds/:guildId/economy/titles/:titleId/owners/:userId
+    const grantsOwner = method === 'POST' && parts.length === 8;
+    const revokesOwner = method === 'DELETE' && parts.length === 9;
+    if (parts[7] === 'owners' && (grantsOwner || revokesOwner)) {
+      try {
+        const titleId = parts[6];
+        const title = await prisma.rpgTitle.findUnique({ where: { id: titleId } });
+        if (!title || title.guildId !== guildId) {
+          json(res, 404, { error: 'Titre introuvable.' });
+          return true;
+        }
+
+        const userId = grantsOwner
+          ? (await readJsonBody<{ userId?: string }>(req))?.userId
+          : parts[8];
+        if (!userId || !/^\d{17,20}$/.test(userId)) {
+          json(res, 400, { error: 'Membre invalide.' });
+          return true;
+        }
+        const profile = await prisma.rpgProfile.findUnique({ where: { guildId_userId: { guildId, userId } }, select: { id: true } });
+        if (!profile) {
+          json(res, 404, { error: "Ce membre n'a pas encore de personnage RPG." });
+          return true;
+        }
+
+        if (grantsOwner) {
+          const granted = await grantTitle(profile.id, titleId);
+          if (!granted) {
+            json(res, 409, { error: 'Ce membre possède déjà ce titre.' });
+            return true;
+          }
+        } else {
+          await revokeTitle(profile.id, titleId);
+        }
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: grantsOwner ? 'Attribution titre RPG' : 'Retrait titre RPG',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: `${title.name} - membre ${userId}`,
+          channelId: null
+        });
+        json(res, 200, { success: true });
+      } catch (err) {
+        titleFailure(err, "Erreur lors de l'attribution du titre.");
       }
       return true;
     }
@@ -1278,7 +1513,7 @@ export async function handleEconomyRoutes(
     if (parts.length === 6 && method === 'POST') {
       try {
         const body = await readJsonBody<{
-          component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary';
+          component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary' | 'titles';
         }>(req);
 
         if (!body || !body.component) {
@@ -1301,6 +1536,7 @@ export async function handleEconomyRoutes(
           items: 'Objets de la boutique',
           config: 'Configuration',
           guilds: 'Guildes RPG',
+          titles: 'Titres RPG',
           bestiary: 'Bestiaire du serveur'
         };
 

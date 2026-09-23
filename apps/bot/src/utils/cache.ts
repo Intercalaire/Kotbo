@@ -63,6 +63,30 @@ function setMemoryCache<T>(key: string, value: T, expiresAt: number): void {
   memoryCache.set(key, { value, expiresAt });
 }
 
+/**
+ * Index Redis des clés `guild:<id>:` écrites via `cache.set`. `invalidateGuild`
+ * tourne après chaque bouton, menu ou modal : un `SCAN MATCH` y parcourait
+ * toute la base Redis, quel que soit le nombre de clés du serveur.
+ *
+ * Sorted set dont le score est l'expiration de chaque clé : chaque écriture
+ * élague les entrées expirées. Un simple set accumulerait sinon, sur un gros
+ * serveur, une entrée par membre croisé (clés `presence-optout:<userId>`)
+ * jusqu'à la prochaine invalidation.
+ *
+ * L'index est rangé hors du préfixe `guild:<id>:` pour ne pas s'indexer
+ * lui-même. Son TTL, rafraîchi à chaque écriture, doit rester supérieur à celui
+ * des clés qu'il liste : une clé qui lui survivrait ne serait plus purgée.
+ */
+const GUILD_KEY_PREFIX = 'guild:';
+const GUILD_INDEX_TTL_SECONDS = 24 * 3600;
+const guildIndexKey = (guildId: string) => `guild-keys:${guildId}`;
+
+function guildIdOfKey(key: string): string | null {
+  if (!key.startsWith(GUILD_KEY_PREFIX)) return null;
+  const end = key.indexOf(':', GUILD_KEY_PREFIX.length);
+  return end > GUILD_KEY_PREFIX.length ? key.slice(GUILD_KEY_PREFIX.length, end) : null;
+}
+
 export const cache = {
   async get<T>(key: string): Promise<T | null> {
     // 1. Check in-memory L1 cache first
@@ -102,7 +126,21 @@ export const cache = {
     try {
       const redis = getRedis();
       if (redis) {
-        await redis.setex(key, ttlSeconds, JSON.stringify(value));
+        const guildId = guildIdOfKey(key);
+        if (guildId) {
+          // Commandes séparées plutôt qu'un pipeline : en mode cluster, la clé
+          // et l'index peuvent tomber sur des slots différents.
+          const indexKey = guildIndexKey(guildId);
+          const now = Date.now();
+          await Promise.all([
+            redis.setex(key, ttlSeconds, JSON.stringify(value)),
+            redis.zadd(indexKey, now + ttlSeconds * 1000, key),
+            redis.zremrangebyscore(indexKey, '-inf', now),
+            redis.expire(indexKey, GUILD_INDEX_TTL_SECONDS),
+          ]);
+        } else {
+          await redis.setex(key, ttlSeconds, JSON.stringify(value));
+        }
       }
     } catch (err) {
       logger.error('Cache', `Redis SETEX error for key ${key}`, err);
@@ -232,20 +270,15 @@ export const cache = {
     try {
       const redis = getRedis();
       if (redis) {
-        let cursor = '0';
-        const keysToDelete: string[] = [];
-        do {
-          const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', `${prefix}*`, 'COUNT', 500);
-          cursor = nextCursor;
-          keysToDelete.push(...keys);
-        } while (cursor !== '0');
+        const indexKey = guildIndexKey(guildId);
+        const keys = await redis.zrange(indexKey, 0, -1);
 
-        if (keysToDelete.length > 0) {
-          const pipeline = redis.pipeline();
-          for (let i = 0; i < keysToDelete.length; i += 1000) {
-            pipeline.del(...keysToDelete.slice(i, i + 1000));
-          }
-          await pipeline.exec();
+        if (keys.length > 0) {
+          // Retrait de l'index avant la suppression : une écriture concurrente
+          // qui se glisse entre les deux se réindexe et reste donc purgeable.
+          // Dans l'ordre inverse, elle sortirait de l'index sans être effacée.
+          await redis.zrem(indexKey, ...keys);
+          await Promise.all(keys.map((key) => redis.del(key)));
         }
       }
     } catch (err) {

@@ -1,0 +1,79 @@
+// ============================================================================
+// SALONS VOCAUX TEMPORAIRES — DEMANDES D'ACCÈS & RÉGLAGES ADMIN
+// ============================================================================
+// Complète tempVoiceEnabled / tempVoiceDefaults (guild.prisma) de deux volets :
+//  - la demande d'accès qu'un inconnu peut envoyer sur un salon verrouillé ou
+//    réservé (bouton « Demander l'accès », cf. tempVoice.ts:425) ;
+//  - ce qu'un modérateur (isStaff) a le droit de faire sur un salon qui n'est
+//    pas le sien, action par action — aujourd'hui tout ou rien dans le code.
+
+model TempVoiceAccessRequestConfig {
+  /// Une seule configuration par serveur.
+  guildId String @id
+
+  /// Un salon verrouillé ou réservé affiche un bouton « Demander l'accès ».
+  /// Désactivé, le bouton n'apparaît jamais (comportement historique).
+  enabled Boolean @default(false)
+
+  /// Qui peut accepter ou refuser une demande : le propriétaire du salon
+  /// seul, ou le propriétaire et les rôles reconnus comme staff (isStaff).
+  responders String @default("OWNER_AND_STAFF") // OWNER | OWNER_AND_STAFF
+
+  /// Où le propriétaire est prévenu en priorité. Un repli automatique
+  /// s'enchaîne si ce choix échoue (MP fermés, salon dédié absent...) :
+  /// resolveNoticeChannel essaie déjà broadcastChannelId, puis logChannelId,
+  /// puis le salon système — la même cascade sert ici.
+  notifyVia String @default("VOICE") // VOICE | DM | CHANNEL
+
+  /// Salon dédié utilisé quand `notifyVia` vaut "CHANNEL".
+  notifyChannelId String?
+
+  /// Minutes avant qu'une demande en attente expire d'elle-même. Une demande
+  /// expire aussi immédiatement si le salon disparaît (pas de ligne orpheline).
+  requestExpiresMinutes Int @default(10)
+
+  /// Minutes de silence imposées après un refus avant de pouvoir redemander
+  /// sur le même salon.
+  denyCooldownMinutes Int @default(10)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("temp_voice_access_request_configs")
+}
+
+/// ⚠️ Les sept lignes valent `true` par défaut, et ce n'est pas un détail de
+/// confort : avant cette table, un membre du staff pouvait TOUT faire sur
+/// n'importe quel salon temporaire. Un défaut restrictif fermerait au premier
+/// enregistrement des portes que personne n'a demandé à fermer, et ferait
+/// diverger le dashboard (qui lit les défauts du schéma) du bot (pour qui une
+/// absence de ligne vaut le comportement d'avant). Poser des limites est un
+/// geste explicite de l'administrateur.
+model TempVoiceModPermissionsConfig {
+  /// Une seule configuration par serveur.
+  guildId String @id
+
+  /// Un modérateur (isStaff) peut renommer n'importe quel salon temporaire.
+  canRename Boolean @default(true)
+  /// Un modérateur peut changer la limite de places.
+  canChangeLimit Boolean @default(true)
+  /// Un modérateur peut verrouiller / déverrouiller un salon.
+  canLock Boolean @default(true)
+  /// Un modérateur peut changer qui a le droit d'écrire dans le salon.
+  canChangeWriteMode Boolean @default(true)
+  /// Un modérateur peut expulser ou bannir un membre du salon.
+  canKickOrBan Boolean @default(true)
+  /// Un modérateur peut réserver le salon à un rôle.
+  canReserve Boolean @default(true)
+  /// Un modérateur peut transférer la propriété du salon.
+  canTransfer Boolean @default(true)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("temp_voice_mod_permissions_configs")
+}

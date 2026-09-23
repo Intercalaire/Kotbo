@@ -1818,8 +1818,14 @@ export async function syncOngoingDailyAlgoButtons(client: Client): Promise<void>
   const since = new Date();
   since.setDate(since.getDate() - 30);
 
+  // Chaque shard ne traite que ses serveurs : les messages restent joignables
+  // par l'API depuis n'importe quel shard, qui refaisait donc sinon le travail
+  // de tous les autres.
   const activeRunsRaw = await prisma.dailyAlgoRun.findMany({
     where: {
+      guildId: {
+        in: [...client.guilds.cache.keys()],
+      },
       challengeMessageId: {
         not: null,
       },

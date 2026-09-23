@@ -15,6 +15,7 @@ import { RPG_ITEM_RARITIES, RPG_ITEM_TYPES, type RpgItemPayload } from '@kotbo/c
 import { saveGuildShopItem } from '../../../services/features/rpg/rpgShopItemService.js';
 import { ANNOUNCE_MODE_VALUES, updateEconomySettings } from '../../../services/features/rpg/rpgEconomyConfigService.js';
 import { RAID_TEAM_MODES } from '../../../services/features/rpg/rpgRaidPolicy.js';
+import { FIRST_KILL_ANNOUNCE_MODES } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
 
 const nonNegative = z.number().int().min(0);
 const announceMode = z.enum(ANNOUNCE_MODE_VALUES);
@@ -32,6 +33,10 @@ const economySettingsSchema = z.object({
   dailyRewardMax: nonNegative,
   dailyCooldownHour: nonNegative,
   adventureCooldownMin: nonNegative,
+  fightCooldownSec: nonNegative.describe('Délai entre deux combats de monstres, en secondes (0 = aucun)'),
+  bossCooldownMin: nonNegative.describe('Délai entre deux boss, même différents, en minutes (0 = enchaînement libre)'),
+  firstKillAnnounce: z.enum(FIRST_KILL_ANNOUNCE_MODES).describe('Annonce du premier vainqueur : NONE, BOSSES (boss seulement) ou ALL'),
+  firstKillChannelId: z.string().nullable().describe("Salon d'annonce du premier vainqueur"),
   maxEnergy: z.number().int().min(1),
   energyRecoveryPerHour: nonNegative,
   maxBetAmount: nonNegative,
@@ -771,6 +776,7 @@ export function registerWriteMembersNewTools(ctx: McpToolContext) {
           level_required: z.number().int().min(0).optional(),
           purchasable: z.boolean().optional().describe('Vendu en boutique'),
           black_market_eligible: z.boolean().optional().describe('Peut sortir au marché noir'),
+          salvageable: z.boolean().optional().describe('Peut être démantelé contre une partie des matériaux de sa recette'),
           atk_bonus: z.number().int().min(0).optional().describe('Équipement'),
           def_bonus: z.number().int().min(0).optional().describe('Équipement'),
           spd_bonus: z.number().int().min(0).optional().describe('Équipement'),
@@ -806,6 +812,7 @@ export function registerWriteMembersNewTools(ctx: McpToolContext) {
             levelRequired: existing.levelRequired,
             purchasable: existing.purchasable,
             blackMarketEligible: existing.blackMarketEligible,
+            salvageable: existing.salvageable,
             atkBonus: existing.atkBonus,
             defBonus: existing.defBonus,
             spdBonus: existing.spdBonus,
@@ -829,6 +836,7 @@ export function registerWriteMembersNewTools(ctx: McpToolContext) {
             levelRequired: args.level_required,
             purchasable: args.purchasable,
             blackMarketEligible: args.black_market_eligible,
+            salvageable: args.salvageable,
             atkBonus: args.atk_bonus,
             defBonus: args.def_bonus,
             spdBonus: args.spd_bonus,

@@ -15,6 +15,14 @@ export async function updateEconomyConfig(config: Record<string, unknown>, guild
   return dashboardRequest('/economy/config', { method: 'PATCH', successMessage: m.api_ok_update_economy_config(), payload: config, guildId, errorContext: 'API Error (Update Economy Config):' });
 }
 
+export async function fetchRpgChannels(guildId = authStore.selectedGuildId) {
+  return dashboardRequest<{ channelIds: string[]; diverged: boolean }>('/economy/rpg-channels', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Channels):' });
+}
+
+export async function updateRpgChannels(channelIds: string[], guildId = authStore.selectedGuildId) {
+  return dashboardRequest<{ channelIds: string[]; diverged: boolean }>('/economy/rpg-channels', { method: 'PUT', payload: { channelIds }, guildId, errorContext: 'API Error (Update RPG Channels):' });
+}
+
 export async function fetchRpgItems(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/items', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Items):' });
 }
@@ -127,6 +135,26 @@ export async function deleteRpgRecipe(recipeId: string, guildId = authStore.sele
   return dashboardRequest(`/economy/recipes/${recipeId}`, { method: 'DELETE', successMessage: m.api_ok_delete_rpg_recipe(), guildId, errorContext: 'API Error (Delete RPG Recipe):' });
 }
 
+export async function fetchRpgTitles(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/titles', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Titles):' });
+}
+
+export async function saveRpgTitle(title: Record<string, unknown>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/titles', { method: 'POST', successMessage: m.api_ok_save_rpg_title(), payload: title, guildId, errorContext: 'API Error (Save RPG Title):' });
+}
+
+export async function deleteRpgTitle(titleId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/economy/titles/${titleId}`, { method: 'DELETE', successMessage: m.api_ok_delete_rpg_title(), guildId, errorContext: 'API Error (Delete RPG Title):' });
+}
+
+export async function grantRpgTitle(titleId: string, userId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/economy/titles/${titleId}/owners`, { method: 'POST', successMessage: m.api_ok_grant_rpg_title(), payload: { userId }, guildId, errorContext: 'API Error (Grant RPG Title):' });
+}
+
+export async function revokeRpgTitle(titleId: string, userId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/economy/titles/${titleId}/owners/${userId}`, { method: 'DELETE', successMessage: m.api_ok_revoke_rpg_title(), guildId, errorContext: 'API Error (Revoke RPG Title):' });
+}
+
 export async function fetchRpgPlayers(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/players', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Players):' });
 }
@@ -179,7 +207,7 @@ export async function dissolveRpgGuild(rpgGuildId: string, guildId = authStore.s
   return dashboardRequest(`/economy/guilds/${rpgGuildId}`, { method: 'DELETE', successMessage: m.api_ok_dissolve_rpg_guild(), guildId, errorContext: 'API Error (Dissolve RPG Guild):' });
 }
 
-export async function resetEconomy(component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary', guildId = authStore.selectedGuildId) {
+export async function resetEconomy(component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary' | 'titles', guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/reset', { method: 'POST', successMessage: m.api_ok_reset_economy(), payload: { component }, guildId, errorContext: 'API Error (Reset Economy):' });
 }
 

@@ -22,6 +22,8 @@ export type AdventureChoice = {
   coinEffect: number;
   xpEffect: number;
   minLevel: number;
+  /** Titre du serveur remis à qui fait ce choix, une seule fois par joueur. */
+  titleId: string | null;
 };
 
 export type AdventureEventInput = {
@@ -36,6 +38,10 @@ export class AdventureEventError extends Error {
     super(message);
     this.name = 'AdventureEventError';
   }
+}
+
+function titleIdOf(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 function boundedInt(value: unknown, range: { min: number; max: number }, label: string): number {
@@ -62,6 +68,7 @@ export function parseAdventureChoices(raw: unknown): AdventureChoice[] {
       coinEffect: int(choice.coinEffect),
       xpEffect: int(choice.xpEffect),
       minLevel: int(choice.minLevel),
+      titleId: titleIdOf(choice.titleId),
     }];
   });
 }
@@ -110,6 +117,7 @@ export function normalizeAdventureEventInput(input: AdventureEventInput): {
       coinEffect: boundedInt(choice.coinEffect, ADVENTURE_COIN_EFFECT_RANGE, `${label}, pièces`),
       xpEffect: boundedInt(choice.xpEffect, ADVENTURE_XP_EFFECT_RANGE, `${label}, XP`),
       minLevel: boundedInt(choice.minLevel, ADVENTURE_MIN_LEVEL_RANGE, `${label}, niveau minimum`),
+      titleId: titleIdOf(choice.titleId),
     };
   });
 

@@ -51,7 +51,10 @@ export type ClanContributionSource =
   | 'RPG_RAID'
   // Une quête d'équipe se gagne à plusieurs sur une fenêtre donnée : le flux public doit
   // pouvoir la distinguer d'un raid comme d'un gain individuel.
-  | 'RPG_QUEST';
+  | 'RPG_QUEST'
+  // La prime du premier vainqueur d'une créature : un exploit unique, que le flux public
+  // met en avant plutôt que de le noyer parmi les boss et les monstres ordinaires.
+  | 'RPG_FIRST_KILL';
 
 /**
  * Crédite des points de clan pour une saison et renvoie le montant réellement

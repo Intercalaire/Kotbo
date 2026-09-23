@@ -4,6 +4,7 @@ import { Socket } from 'node:net';
 import { Client } from 'discord.js';
 
 import prisma from '../utils/db.js';
+import { mayBeTicketChannel } from '../services/features/ticketChannelLookup.js';
 import { logger } from '../utils/logger.js';
 import {
   json,
@@ -12,8 +13,6 @@ import {
   CORS_EXTRA_ORIGINS,
   isKotboPublicOrigin,
   splitPath,
-  parseDiscordMarkdown,
-  extractMediaUrls,
   configRateLimiter,
   errorReportRateLimiter,
   feedbackReportRateLimiter,
@@ -409,51 +408,28 @@ export const startDashboardApi = async (client: Client) => {
 
   logger.success('DashboardAPI', `API dashboard à l'écoute sur le port ${port}.`);
 
-  // Diffuser les messages des salons de tickets en temps réel
+  // Signaler en temps reel les nouveaux messages des salons de tickets.
+  //
+  // `authenticated-dashboard` part vers toutes les sessions connectees, quels
+  // que soient leurs serveurs : le contenu d'un message y serait lisible par
+  // n'importe quel utilisateur du dashboard. On n'y publie que les
+  // identifiants, et l'onglet concerne relit les messages par l'API, qui
+  // verifie ses droits (cf. `broadcastDashboardEvent`).
   client.on('messageCreate', async (msg) => {
     if (msg.author.bot && msg.author.id !== client.user!.id) return;
     try {
+      if (!(await mayBeTicketChannel(msg.channelId))) return;
       const ticket = await prisma.ticket.findFirst({
-        where: { channelId: msg.channelId }
+        where: { channelId: msg.channelId },
+        select: { id: true, guildId: true },
       });
       if (!ticket) return;
 
-      const authorName = msg.member?.displayName || msg.author.displayName || msg.author.username;
-
-      const payload = JSON.stringify({
+      server.publish('authenticated-dashboard', JSON.stringify({
         type: 'new_ticket_message',
         guildId: ticket.guildId,
         ticketId: ticket.id,
-        message: {
-          id: msg.id,
-          authorId: msg.author.id,
-          authorName,
-          authorAvatar: msg.author.displayAvatarURL(),
-          isStaff: msg.author.bot,
-          content: msg.content,
-          htmlContent: parseDiscordMarkdown(msg.content, msg.guild || undefined),
-          mediaUrls: extractMediaUrls(msg.content),
-          stickers: msg.stickers ? msg.stickers.map(s => ({ id: s.id, name: s.name, url: s.url })) : [],
-          attachments: msg.attachments.map(a => ({ url: a.url, contentType: a.contentType })),
-          embeds: msg.embeds.map(e => ({
-            title: e.title,
-            description: e.description,
-            htmlDescription: e.description ? parseDiscordMarkdown(e.description, msg.guild || undefined) : '',
-            color: e.hexColor,
-            fields: e.fields ? e.fields.map(f => ({
-              name: f.name,
-              value: f.value,
-              htmlValue: f.value ? parseDiscordMarkdown(f.value, msg.guild || undefined) : ''
-            })) : [],
-            image: e.image ? { url: e.image.url } : null,
-            thumbnail: e.thumbnail ? { url: e.thumbnail.url } : null,
-            video: e.video ? { url: e.video.url } : null
-          })),
-          createdAt: msg.createdAt.toISOString()
-        }
-      });
-
-      server.publish('authenticated-dashboard', payload);
+      }));
     } catch (err) {
       logger.error('DashboardWS', 'Erreur lors de la diffusion du message live du ticket:', err);
     }

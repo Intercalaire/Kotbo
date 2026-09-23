@@ -6,6 +6,7 @@ import {
   RECIPE_INGREDIENTS_MAX,
   RECIPE_LEVEL_RANGE,
   RECIPE_QUANTITY_RANGE,
+  salvageYield,
 } from '../../services/features/rpg/rpgRecipePolicy.js';
 
 const VALID = {
@@ -107,5 +108,36 @@ describe('recette du serveur contre recette livrée', () => {
   test('deux recettes de serveur pour des objets différents cohabitent', () => {
     const second = { guildId: 'serveur-a', resultItemId: 'bouclier' };
     expect(preferGuildRecipes([own, second])).toEqual([own, second]);
+  });
+});
+
+describe('démantèlement', () => {
+  test('rend la moitié de chaque matériau, arrondie vers le bas', () => {
+    expect(salvageYield([
+      { itemName: 'Dent de Gobelin', quantity: 4 },
+      { itemName: 'Défense de Sanglier', quantity: 3 },
+    ])).toEqual([
+      { itemName: 'Dent de Gobelin', quantity: 2 },
+      { itemName: 'Défense de Sanglier', quantity: 1 },
+    ]);
+  });
+
+  test('écarte un matériau qui tomberait à zéro', () => {
+    expect(salvageYield([
+      { itemName: 'Écaille de Dragon', quantity: 4 },
+      { itemName: 'Cœur de Dragon', quantity: 1 },
+    ])).toEqual([{ itemName: 'Écaille de Dragon', quantity: 2 }]);
+  });
+
+  // Sans ce plancher, démanteler un objet fait de matériaux uniques le détruisait contre rien.
+  test('rend au moins un exemplaire du matériau principal', () => {
+    expect(salvageYield([
+      { itemName: 'Cœur de Dragon', quantity: 1 },
+      { itemName: 'Couronne du Roi Gobelin', quantity: 1 },
+    ])).toEqual([{ itemName: 'Cœur de Dragon', quantity: 1 }]);
+  });
+
+  test('une recette vide ne rend rien', () => {
+    expect(salvageYield([])).toEqual([]);
   });
 });

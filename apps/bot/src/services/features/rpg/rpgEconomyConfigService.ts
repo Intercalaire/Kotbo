@@ -17,6 +17,8 @@ import {
   MAX_QUANTITY_RANGE,
   OFFER_COUNT_RANGE,
 } from './rpgBlackMarketPolicy.js';
+import { BOSS_COOLDOWN_MIN_RANGE, FIGHT_COOLDOWN_SEC_RANGE } from './rpgCombatCooldownPolicy.js';
+import { isFirstKillAnnounceMode } from './rpgBestiaryPolicy.js';
 import {
   asRaidTeamMode,
   isRaidTeamMode,
@@ -57,6 +59,10 @@ export type EconomySettingsInput = {
   dailyRewardMax?: number;
   dailyCooldownHour?: number;
   adventureCooldownMin?: number;
+  fightCooldownSec?: number;
+  bossCooldownMin?: number;
+  firstKillAnnounce?: string;
+  firstKillChannelId?: string | null;
   maxEnergy?: number;
   energyRecoveryPerHour?: number;
   maxBetAmount?: number;
@@ -151,6 +157,9 @@ export async function updateEconomySettings(guildId: string, body: EconomySettin
   if (body.raidTeamMode !== undefined && !isRaidTeamMode(body.raidTeamMode)) {
     throw new EconomyConfigError("Mode d'équipe du raid invalide.");
   }
+  if (body.firstKillAnnounce !== undefined && !isFirstKillAnnounceMode(body.firstKillAnnounce)) {
+    throw new EconomyConfigError("Mode d'annonce du premier vainqueur invalide.");
+  }
 
   // Un mode d'annonce sans destinataire produirait un marché noir « annoncé » qui
   // ne s'annonce jamais : on refuse la combinaison au lieu de la laisser passer.
@@ -163,6 +172,12 @@ export async function updateEconomySettings(guildId: string, body: EconomySettin
   }
   if (announceMode === 'CHANNEL_ROLE' && !announceRole) {
     throw new EconomyConfigError('Sélectionnez un rôle à mentionner pour le marché noir.');
+  }
+
+  const firstKillMode = body.firstKillAnnounce ?? current.firstKillAnnounce;
+  const firstKillChannel = body.firstKillChannelId !== undefined ? body.firstKillChannelId : current.firstKillChannelId;
+  if (firstKillMode !== 'NONE' && !firstKillChannel) {
+    throw new EconomyConfigError("Sélectionnez un salon d'annonce pour le premier vainqueur.");
   }
 
   const raidOn = body.raidEnabled ?? current.raidEnabled;
@@ -233,6 +248,10 @@ export async function updateEconomySettings(guildId: string, body: EconomySettin
       dailyRewardMax: body.dailyRewardMax,
       dailyCooldownHour: body.dailyCooldownHour,
       adventureCooldownMin: body.adventureCooldownMin,
+      fightCooldownSec: clampOptional(body.fightCooldownSec, FIGHT_COOLDOWN_SEC_RANGE),
+      bossCooldownMin: clampOptional(body.bossCooldownMin, BOSS_COOLDOWN_MIN_RANGE),
+      firstKillAnnounce: body.firstKillAnnounce,
+      firstKillChannelId: body.firstKillChannelId,
       maxEnergy: body.maxEnergy,
       energyRecoveryPerHour: body.energyRecoveryPerHour,
       maxBetAmount: body.maxBetAmount,

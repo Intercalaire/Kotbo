@@ -47,8 +47,14 @@ function toJSON(data: { toJSON: () => unknown }): CommandPayload {
  * Conservée hors du préfixe `guild:<id>:`, que `cache.invalidateGuild()` balaie
  * à chaque écriture du dashboard : rangée là, elle serait effacée en permanence
  * et chaque enregistrement de réglage relancerait une republication complète.
+ *
+ * La clé porte l'application : le bot principal et une instance white-label
+ * peuvent siéger sur le même serveur avec la même charge utile. Rangée au seul
+ * serveur, l'empreinte écrite par l'un faisait croire à l'autre que ses propres
+ * commandes étaient déjà à jour.
  */
-const fingerprintKey = (guildId: string) => `commands:deployed:${guildId}`;
+const fingerprintKey = (applicationId: string, guildId: string) =>
+  `commands:deployed:${applicationId}:${guildId}`;
 
 /** 30 jours : l'empreinte doit survivre aux redémarrages, pas être éternelle. */
 const FINGERPRINT_TTL_SECONDS = 30 * 24 * 3600;
@@ -57,11 +63,11 @@ function fingerprint(payload: CommandPayload[]): string {
   return createHash('sha256').update(JSON.stringify(payload)).digest('hex').slice(0, 32);
 }
 
-async function readFingerprint(guildId: string): Promise<string | null> {
+async function readFingerprint(applicationId: string, guildId: string): Promise<string | null> {
   try {
     const redis = getRedis();
     if (!redis) return null;
-    return (await redis.get(fingerprintKey(guildId))) ?? null;
+    return (await redis.get(fingerprintKey(applicationId, guildId))) ?? null;
   } catch {
     // Sans Redis on republie : un envoi de trop vaut mieux qu'un serveur laissé
     // avec les commandes d'un module éteint.
@@ -69,9 +75,9 @@ async function readFingerprint(guildId: string): Promise<string | null> {
   }
 }
 
-async function writeFingerprint(guildId: string, value: string): Promise<void> {
+async function writeFingerprint(applicationId: string, guildId: string, value: string): Promise<void> {
   try {
-    await getRedis()?.setex(fingerprintKey(guildId), FINGERPRINT_TTL_SECONDS, value);
+    await getRedis()?.setex(fingerprintKey(applicationId, guildId), FINGERPRINT_TTL_SECONDS, value);
     return;
   } catch {
     /* l'absence d'empreinte ne coûte qu'une republication au prochain passage */
@@ -130,14 +136,18 @@ export interface GuildSyncResult {
   commandCount: number;
 }
 
+function applicationIdOf(client: Client): string {
+  const applicationId = client.application?.id ?? client.user?.id;
+  if (!applicationId) throw new Error("Identifiant d'application indisponible.");
+  return applicationId;
+}
+
 async function putGuildCommands(
   client: Client,
+  applicationId: string,
   guildId: string,
   payload: CommandPayload[],
 ): Promise<void> {
-  const applicationId = client.application?.id ?? client.user?.id;
-  if (!applicationId) throw new Error("Identifiant d'application indisponible.");
-
   await client.rest.put(Routes.applicationGuildCommands(applicationId, guildId), { body: payload });
 }
 
@@ -153,15 +163,16 @@ export async function syncGuildCommands(
   guildId: string,
   options: { force?: boolean } = {},
 ): Promise<GuildSyncResult> {
+  const applicationId = applicationIdOf(client);
   const payload = await buildGuildCommandPayload(guildId);
   const current = fingerprint(payload);
 
-  if (!options.force && (await readFingerprint(guildId)) === current) {
+  if (!options.force && (await readFingerprint(applicationId, guildId)) === current) {
     return { guildId, changed: false, commandCount: payload.length };
   }
 
-  await putGuildCommands(client, guildId, payload);
-  await writeFingerprint(guildId, current);
+  await putGuildCommands(client, applicationId, guildId, payload);
+  await writeFingerprint(applicationId, guildId, current);
 
   logger.info('Commandes', `${payload.length} commande(s) publiée(s) sur le serveur ${guildId}.`);
   return { guildId, changed: true, commandCount: payload.length };
@@ -169,11 +180,12 @@ export async function syncGuildCommands(
 
 /** Retire toutes les commandes de guilde : serveur désactivé ou bot exclu. */
 export async function clearGuildCommands(client: Client, guildId: string): Promise<void> {
+  const applicationId = applicationIdOf(client);
   const empty: CommandPayload[] = [];
-  if ((await readFingerprint(guildId)) === fingerprint(empty)) return;
+  if ((await readFingerprint(applicationId, guildId)) === fingerprint(empty)) return;
 
-  await putGuildCommands(client, guildId, empty);
-  await writeFingerprint(guildId, fingerprint(empty));
+  await putGuildCommands(client, applicationId, guildId, empty);
+  await writeFingerprint(applicationId, guildId, fingerprint(empty));
   logger.info('Commandes', `Commandes retirées du serveur ${guildId}.`);
 }
 

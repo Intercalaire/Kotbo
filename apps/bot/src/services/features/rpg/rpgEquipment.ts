@@ -45,7 +45,8 @@ export const ACCESSORY_SLOT_LEVELS: Record<AccessorySlot, number> = {
 export const ALL_EQUIPMENT_SLOTS: EquipmentSlot[] = ['weapon', 'armor', ...ACCESSORY_SLOTS];
 
 export function isEquipmentSlot(value: string): value is EquipmentSlot {
-  return value in SLOT_ITEM_FIELD;
+  // `in` accepterait aussi les clés héritées (`constructor`, `toString`) lues dans un customId.
+  return Object.prototype.hasOwnProperty.call(SLOT_ITEM_FIELD, value);
 }
 
 export function isAccessorySlot(value: string): value is AccessorySlot {

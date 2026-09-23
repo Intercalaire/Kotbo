@@ -182,11 +182,26 @@ async function demoteOtherPrimaries(partnerId: string, keepId: string): Promise<
 }
 
 /**
+ * Appelée à chaque message sur les serveurs où le module tourne. L'engagement
+ * « représentant présent » ne regarde que les 30 derniers jours : une écriture
+ * par membre toutes les `CONTACT_PRESENCE_INTERVAL_MS` suffit largement.
+ */
+const CONTACT_PRESENCE_INTERVAL_MS = 10 * 60 * 1000;
+const CONTACT_PRESENCE_MAX_TRACKED = 50_000;
+const lastContactPresenceWrite = new Map<string, number>();
+
+/**
  * Note le passage d'un représentant sur le serveur. Alimente l'engagement
  * « représentant présent », qui sans cela ne pourrait se constater qu'à la
  * main.
  */
 export async function touchContactPresence(userId: string): Promise<void> {
+  const now = Date.now();
+  const last = lastContactPresenceWrite.get(userId);
+  if (last !== undefined && now - last < CONTACT_PRESENCE_INTERVAL_MS) return;
+  if (lastContactPresenceWrite.size >= CONTACT_PRESENCE_MAX_TRACKED) lastContactPresenceWrite.clear();
+  lastContactPresenceWrite.set(userId, now);
+
   await prisma.partnerContact.updateMany({
     where: { userId },
     data: { lastSeenAt: new Date() },
