@@ -3429,8 +3429,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 <!-- MONSTER / BOSS MODAL EDITOR -->
 {#if editingMonster}
   {@const nameLocked = editingMonster.scope === 'GLOBAL' || editingMonster.overridesGlobal}
-  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-2xl space-y-6 animate-in zoom-in-95 duration-200 my-8">
+  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-2xl space-y-6 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
       <h3 class="text-xl font-semibold">
         {editingMonster.id ? m.eco_bestiary_modal_edit({ name: editingMonster.name }) : m.eco_bestiary_modal_create()}
       </h3>
@@ -3661,8 +3661,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 <!-- QUEST MODAL EDITOR -->
 <!-- FICHE D'UNE RECETTE -->
 {#if editingRecipe}
-  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-lg space-y-5 animate-in zoom-in-95 duration-200 my-8">
+  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-lg space-y-5 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
       <h3 class="text-xl font-semibold">{editingRecipe.id ? m.eco_btn_edit() : m.eco_recipe_new()}</h3>
 
       <div class="space-y-1">
@@ -3735,8 +3735,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 {/if}
 
 {#if editingQuest}
-  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-2xl space-y-6 animate-in zoom-in-95 duration-200 my-8">
+  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-2xl space-y-6 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
       <h3 class="text-xl font-semibold">
         {editingQuest.id ? m.eco_quest_modal_edit({ name: editingQuest.name }) : m.eco_quest_modal_create()}
       </h3>
@@ -3867,8 +3867,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 
 <!-- RAID BOSS MODAL EDITOR -->
 {#if editingRaidBoss}
-  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-2xl space-y-6 animate-in zoom-in-95 duration-200 my-8">
+  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-2xl space-y-6 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
       <h3 class="text-xl font-semibold">
         {editingRaidBoss.id ? m.eco_raid_modal_edit({ name: editingRaidBoss.name }) : m.eco_raid_modal_create()}
       </h3>
@@ -3970,7 +3970,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 <!-- PLAYER MODAL EDITOR -->
 {#if editingPlayer}
   <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-lg space-y-6 animate-in zoom-in-95 duration-200">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-lg space-y-6 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
       <h3 class="text-xl font-semibold">{m.eco_modal_edit_player({ name: editingPlayer.displayName || editingPlayer.username })}</h3>
       
       <div class="grid grid-cols-2 gap-4">
@@ -4064,7 +4064,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 <!-- RESET CONFIRMATION MODAL -->
 {#if resetComponent}
   <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-md space-y-6 animate-in zoom-in-95 duration-200">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-md space-y-6 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
       <div class="text-center space-y-3 flex flex-col items-center">
         <div class="w-16 h-16 bg-error/10 text-error rounded-full flex items-center justify-center mb-2">
           <Papicon icon="alert-triangle" size={32} />
