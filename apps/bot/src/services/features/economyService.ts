@@ -21,7 +21,7 @@ import {
 import { ensureItemInstance } from './rpg/rpgItemInstanceService.js';
 import { addInventoryQuantity, lockRpgProfile, takeInventoryQuantity } from './rpg/rpgInventoryWrites.js';
 import { listPlayableAdventureEvents } from './rpg/rpgAdventureEventService.js';
-import { grantTitle } from './rpg/rpgTitleService.js';
+import { deleteAllGuildTitles, grantTitle } from './rpg/rpgTitleService.js';
 import { buildFishBook, type FishBook, type FishSpecies } from './rpg/rpgFishBook.js';
 
 // Cooldown tracker for in-memory message activity (to prevent spam farming)
@@ -1274,7 +1274,7 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
   // Les titres sont un catalogue du serveur, comme le bestiaire : seule la remise à zéro
   // complète les efface. Collections et titres portés partent avec eux.
   if (component === 'all') {
-    await prisma.rpgTitle.deleteMany({ where: { guildId } });
+    await deleteAllGuildTitles(guildId);
   }
 
   if (component === 'profiles' || component === 'all') {

@@ -67,17 +67,32 @@ export async function deleteGuildTitle(guildId: string, titleId: string): Promis
   const existing = await prisma.rpgTitle.findUnique({ where: { id: titleId } });
   if (!existing || existing.guildId !== guildId) throw new TitleError('Titre introuvable.', 404);
 
+  const cleanup = await adventureTitleCleanup(guildId, new Set([titleId]));
+  await prisma.$transaction([...cleanup, prisma.rpgTitle.delete({ where: { id: titleId } })]);
+  return existing;
+}
+
+/** Tous les titres du serveur, pour la remise à zéro complète de l'économie. */
+export async function deleteAllGuildTitles(guildId: string): Promise<void> {
+  const titles = await prisma.rpgTitle.findMany({ where: { guildId }, select: { id: true } });
+  if (titles.length === 0) return;
+
+  const cleanup = await adventureTitleCleanup(guildId, new Set(titles.map((title) => title.id)));
+  await prisma.$transaction([...cleanup, prisma.rpgTitle.deleteMany({ where: { guildId } })]);
+}
+
+/** Écritures qui retirent ces titres des choix d'aventure du serveur. */
+async function adventureTitleCleanup(guildId: string, titleIds: Set<string>) {
   const events = await prisma.rpgAdventureEvent.findMany({ where: { guildId }, select: { id: true, choices: true } });
-  const writes = events.flatMap((event) => {
+  const removed = (choice: Record<string, unknown>) => typeof choice?.titleId === 'string' && titleIds.has(choice.titleId);
+
+  return events.flatMap((event) => {
     if (!Array.isArray(event.choices)) return [];
     const choices = event.choices as Record<string, unknown>[];
-    if (!choices.some((choice) => choice?.titleId === titleId)) return [];
-    const cleaned = choices.map((choice) => (choice?.titleId === titleId ? { ...choice, titleId: null } : choice));
+    if (!choices.some(removed)) return [];
+    const cleaned = choices.map((choice) => (removed(choice) ? { ...choice, titleId: null } : choice));
     return [prisma.rpgAdventureEvent.update({ where: { id: event.id }, data: { choices: cleaned as Prisma.InputJsonValue } })];
   });
-
-  await prisma.$transaction([...writes, prisma.rpgTitle.delete({ where: { id: titleId } })]);
-  return existing;
 }
 
 /** Le titre appartient-il à ce serveur ? Sert à valider une récompense de créature. */
