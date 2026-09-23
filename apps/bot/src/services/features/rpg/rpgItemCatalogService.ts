@@ -28,9 +28,9 @@ export type ItemCatalogEntry = {
   campaign: boolean;
 };
 
-export type ItemSourceFilter = 'all' | 'shop' | 'monster' | 'boss' | 'craft' | 'unique' | 'unavailable';
+export const ITEM_SOURCE_FILTERS = ['all', 'shop', 'monster', 'boss', 'craft', 'unique', 'unavailable'] as const;
 
-export const ITEM_SOURCE_FILTERS: ItemSourceFilter[] = ['all', 'shop', 'monster', 'boss', 'craft', 'unique', 'unavailable'];
+export type ItemSourceFilter = (typeof ITEM_SOURCE_FILTERS)[number];
 
 function hasRegularSource(entry: ItemCatalogEntry): boolean {
   return entry.shop || entry.monsters.length > 0 || entry.bosses.length > 0 || entry.crafted;

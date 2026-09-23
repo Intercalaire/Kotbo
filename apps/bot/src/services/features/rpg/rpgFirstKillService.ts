@@ -294,6 +294,17 @@ export function formatFirstKillBounty(
   }, config.currencyEmoji, locale);
 }
 
+/**
+ * Efface le record d'une créature : son prochain vainqueur redevient le premier, et touche
+ * la prime. Ce que l'ancien vainqueur a reçu lui reste acquis.
+ */
+export async function clearFirstKill(guildId: string, monsterName: string): Promise<FirstKillRecord | null> {
+  const record = await getFirstKill(guildId, monsterName);
+  if (!record) return null;
+  await prisma.rpgMonsterFirstKill.deleteMany({ where: { guildId, monsterName } });
+  return record;
+}
+
 export async function getFirstKill(guildId: string, monsterName: string): Promise<FirstKillRecord | null> {
   return prisma.rpgMonsterFirstKill.findUnique({
     where: { guildId_monsterName: { guildId, monsterName } },

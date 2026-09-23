@@ -263,7 +263,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
   let searchQuery = $state('');
 
   // Reset component state
-  let resetComponent = $state<'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary' | null>(null);
+  let resetComponent = $state<'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary' | 'titles' | null>(null);
   let resetConfirmInput = $state('');
 
   // La confirmation affichait la cle technique du composant (« profiles », « guilds »).
@@ -274,9 +274,10 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     config: m.eco_reset_config_btn(),
     guilds: m.eco_reset_guilds_btn(),
     bestiary: m.eco_reset_bestiary_btn(),
+    titles: m.eco_reset_titles_btn(),
   });
 
-  function triggerReset(component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary') {
+  function triggerReset(component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary' | 'titles') {
     resetComponent = component;
     resetConfirmInput = '';
   }
@@ -310,6 +311,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       if (comp === 'bestiary' || comp === 'all') {
         if (activeTab === 'bestiaire') await loadMonsters();
       }
+      // Les fiches de monstre citent les titres : la liste en mémoire doit suivre.
+      if (comp === 'titles' || comp === 'all') await loadTitles();
       if (comp === 'profiles' || comp === 'guilds' || comp === 'all') {
         // La suppression des guildes RPG detache les joueurs : la colonne du tableau
         // afficherait encore l'appartenance sans ce rechargement.
@@ -1922,7 +1925,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
               <p class="text-xs text-on-surface-variant/60 mt-1">{m.eco_reset_section_desc()}</p>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <button
                 type="button"
                 onclick={() => triggerReset('profiles')}
@@ -1961,6 +1964,16 @@ import EmojiText from '../lib/components/EmojiText.svelte';
               >
                 <span class="font-semibold flex items-center gap-1.5"><Papicon icon="shield" size={14} /> {m.eco_reset_guilds_btn()}</span>
                 <span class="text-[10px] text-on-surface-variant/60 font-normal">{m.eco_reset_guilds_desc()}</span>
+              </button>
+
+              <button
+                type="button"
+                onclick={() => triggerReset('titles')}
+                disabled={!config.enabled}
+                class="px-5 py-4 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-lg transition-all border border-error/20 flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span class="font-semibold flex items-center gap-1.5"><Papicon icon="award" size={14} /> {m.eco_reset_titles_btn()}</span>
+                <span class="text-[10px] text-on-surface-variant/60 font-normal">{m.eco_reset_titles_desc()}</span>
               </button>
 
               <button

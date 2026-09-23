@@ -5979,6 +5979,8 @@
   "eco_reset_items_desc": "Clears created items",
   "eco_reset_guilds_btn": "Guilds",
   "eco_reset_guilds_desc": "Clears RPG guilds",
+  "eco_reset_titles_btn": "Titles",
+  "eco_reset_titles_desc": "Deletes every title, and removes it from players, creatures and adventures",
   "eco_reset_config_btn": "Configuration",
   "eco_reset_config_desc": "Resets multipliers, cooldowns",
   "eco_reset_all_btn": "Global Reset",
