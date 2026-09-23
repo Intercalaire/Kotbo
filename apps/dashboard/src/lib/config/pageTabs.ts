@@ -252,6 +252,22 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
 };
 
 /**
+ * Onglets d'une page, prêts pour le composant `Tabs`.
+ *
+ * Les pages lisent leurs onglets ici plutôt que de les réécrire : la barre
+ * affichée et la palette de commandes ne peuvent plus diverger. `visible`
+ * retire les onglets qu'un rôle ne doit pas voir.
+ */
+export function pageTabItems(
+  pageHref: string,
+  visible: (id: string) => boolean = () => true,
+): { id: string; label: string; icon?: string }[] {
+  return (PAGE_TABS[pageHref] ?? [])
+    .filter((tab) => visible(tab.id))
+    .map((tab) => ({ id: tab.id, label: tab.label(), icon: tab.icon }));
+}
+
+/**
  * Certaines entrées de navigation pointent déjà sur un onglet précis
  * (`/staff-management/members`). Les proposer une seconde fois comme onglet
  * ferait doublon dans la palette.

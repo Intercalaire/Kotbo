@@ -3,6 +3,8 @@
   import { RPG_ENCHANTMENTS, RPG_ITEM_RARITIES } from '@kotbo/contracts';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs, FilterPills } from '../lib/components/ui';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -1572,86 +1574,12 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     </p>
   {/if}
 
-  <!-- Navigation Tabs -->
-  <div class="tab-group w-fit">
-    <button 
-      onclick={() => gotoTab('/economy', 'config', DEFAULT_TAB)}
-      class="tab-button {activeTab === 'config' ? 'active' : ''}"
-    >
-      <Papicon icon="settings" size={14} />
-      {m.eco_tab_config()}
-    </button>
-    <button
-      onclick={() => gotoTab('/economy', 'items', DEFAULT_TAB)}
-      class="tab-button {activeTab === 'items' ? 'active' : ''}"
-    >
-      <Papicon icon="package" size={14} />
-      {m.eco_tab_items()}
-    </button>
-    <button
-      onclick={() => gotoTab('/economy', 'recettes', DEFAULT_TAB)}
-      class="tab-button {activeTab === 'recettes' ? 'active' : ''}"
-    >
-      <Papicon icon="Hammer" size={14} />
-      {m.eco_tab_recipes()}
-    </button>
-    <button
-      onclick={() => gotoTab('/economy', 'bestiaire', DEFAULT_TAB)}
-      class="tab-button {activeTab === 'bestiaire' ? 'active' : ''}"
-    >
-      <Papicon icon="ghost" size={14} />
-      {m.eco_tab_bestiary()}
-    </button>
-    <button
-      onclick={() => gotoTab('/economy', 'raid', DEFAULT_TAB)}
-      class="tab-button {activeTab === 'raid' ? 'active' : ''}"
-    >
-      <Papicon icon="crown" size={14} />
-      {m.eco_tab_raid()}
-    </button>
-    <button
-      onclick={() => gotoTab('/economy', 'quetes', DEFAULT_TAB)}
-      class="tab-button {activeTab === 'quetes' ? 'active' : ''}"
-    >
-      <Papicon icon="Tasks" size={14} />
-      {m.eco_tab_quests()}
-    </button>
-    <button
-      onclick={() => gotoTab('/economy', 'titres', DEFAULT_TAB)}
-      class="tab-button {activeTab === 'titres' ? 'active' : ''}"
-    >
-      <Papicon icon="award" size={14} />
-      {m.eco_tab_titles()}
-    </button>
-    <button
-      onclick={() => gotoTab('/economy', 'aventures', DEFAULT_TAB)}
-      class="tab-button {activeTab === 'aventures' ? 'active' : ''}"
-    >
-      <Papicon icon="Compass" size={14} />
-      {m.eco_tab_events()}
-    </button>
-    <button
-      onclick={() => gotoTab('/economy', 'blackmarket', DEFAULT_TAB)}
-      class="tab-button {activeTab === 'blackmarket' ? 'active' : ''}"
-    >
-      <Papicon icon="moon" size={14} />
-      {m.eco_tab_blackmarket()}
-    </button>
-    <button
-      onclick={() => gotoTab('/economy', 'guildes', DEFAULT_TAB)}
-      class="tab-button {activeTab === 'guildes' ? 'active' : ''}"
-    >
-      <Papicon icon="Shield" size={14} />
-      {m.eco_tab_guilds()}
-    </button>
-    <button
-      onclick={() => gotoTab('/economy', 'players', DEFAULT_TAB)}
-      class="tab-button {activeTab === 'players' ? 'active' : ''}"
-    >
-      <Papicon icon="users" size={14} />
-      {m.eco_tab_players()}
-    </button>
-  </div>
+  <Tabs
+    label={m.eco_page_title()}
+    tabs={pageTabItems('/economy')}
+    active={activeTab}
+    onchange={(id) => gotoTab('/economy', id, DEFAULT_TAB)}
+  />
 
   {#if loading}
     <Skeleton height="350px" radius="2.5rem" />
@@ -2063,16 +1991,12 @@ import EmojiText from '../lib/components/EmojiText.svelte';
           <p class="text-2xs text-on-surface-variant/50 leading-relaxed">{m.eco_shop_difficulty_scope_hint()}</p>
         </div>
 
-        <div class="tab-group w-fit max-w-full overflow-x-auto">
-          <button onclick={() => itemFilter = 'all'} class="tab-button {activeItemFilter === 'all' ? 'active' : ''}">
-            {m.eco_bestiary_filter_all()}
-          </button>
-          {#each itemFilters as type (type)}
-            <button onclick={() => itemFilter = type} class="tab-button {activeItemFilter === type ? 'active' : ''}">
-              {ITEM_FILTER_LABELS[type]()}
-            </button>
-          {/each}
-        </div>
+        <FilterPills
+          label={m.eco_tab_items()}
+          options={[{ value: 'all' as ItemFilter, label: m.eco_bestiary_filter_all() }, ...itemFilters.map((type) => ({ value: type, label: ITEM_FILTER_LABELS[type]() }))]}
+          value={activeItemFilter}
+          onchange={(value) => itemFilter = value}
+        />
 
         {#if itemsLoading}
           <div class="flex items-center justify-center py-12">
@@ -2317,17 +2241,16 @@ import EmojiText from '../lib/components/EmojiText.svelte';
           {/each}
         </div>
 
-        <div class="tab-group w-fit">
-          <button onclick={() => bestiaryFilter = 'boss'} class="tab-button {bestiaryFilter === 'boss' ? 'active' : ''}">
-            {m.eco_bestiary_filter_boss()}
-          </button>
-          <button onclick={() => bestiaryFilter = 'monster'} class="tab-button {bestiaryFilter === 'monster' ? 'active' : ''}">
-            {m.eco_bestiary_filter_monster()}
-          </button>
-          <button onclick={() => bestiaryFilter = 'all'} class="tab-button {bestiaryFilter === 'all' ? 'active' : ''}">
-            {m.eco_bestiary_filter_all()}
-          </button>
-        </div>
+        <FilterPills
+          label={m.eco_bestiary_filter_all()}
+          options={[
+            { value: 'boss', label: m.eco_bestiary_filter_boss() },
+            { value: 'monster', label: m.eco_bestiary_filter_monster() },
+            { value: 'all', label: m.eco_bestiary_filter_all() },
+          ]}
+          value={bestiaryFilter}
+          onchange={(value) => bestiaryFilter = value}
+        />
 
         {#if monstersLoading}
           <div class="flex items-center justify-center py-12">
