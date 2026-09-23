@@ -196,7 +196,7 @@ export async function handleEconomyRoutes(
     }
   }
 
-  // Salons RPG : une vue sur les règles d'accès de /rpg et /raid, stockées avec les autres
+  // Salons RPG : une vue sur les règles d'accès de /rpg, /raid et /market, stockées avec les autres
   // restrictions de commandes pour que le bot n'ait qu'un seul endroit à consulter.
   if (subAction === 'rpg-channels' && parts.length === 6) {
     if (method === 'GET') {

@@ -271,13 +271,12 @@ export async function checkLevelUp(guildId: string, userId: string) {
 
   const newMaxHealth = profile.maxHealth + MAX_HEALTH_INCREASE * gained;
 
-  await prisma.rpgProfile.update({
+  const leveled = await prisma.rpgProfile.update({
     where: { id: profile.id },
     data: {
       level,
       xp,
       maxHealth: newMaxHealth,
-      health: newMaxHealth, // Full heal on level up
       attack: profile.attack + AUTO_STATS_INCREASE * gained,
       defense: profile.defense + AUTO_STATS_INCREASE * gained,
       speed: profile.speed + AUTO_STATS_INCREASE * gained,
@@ -288,6 +287,13 @@ export async function checkLevelUp(guildId: string, userId: string) {
       skillPoints: { increment: SKILL_POINTS_PER_LEVEL * gained }
     }
   });
+
+  // Le soin complet vise les PV max effectifs : `maxHealth` ne porte que la base, et y
+  // plafonner laissait de côté ce qu'apportent équipement, enchantements, arbre et titre.
+  // Calculé après la montée, qui peut ouvrir un emplacement d'accessoire.
+  const { loadEffectiveStats } = await import('./combatService.js');
+  const { maxHealth } = await loadEffectiveStats(leveled);
+  await prisma.rpgProfile.update({ where: { id: profile.id }, data: { health: maxHealth } });
 
   logger.info('EconomyService', `Player ${userId} leveled up to Level ${level} in Guild ${guildId}`);
   return level;
@@ -551,8 +557,11 @@ export async function chooseAdventureOutcome(guildId: string, userId: string, ev
     criticalMessage = '🌟 Réussite critique ! Vous avez tiré le meilleur parti de cette situation !';
   }
 
-  // Update Profile Stats
-  const newHp = Math.max(0, Math.min(profile.maxHealth, profile.health + finalHpEffect));
+  // Plafond aux PV max effectifs : celui des PV de base retirait les PV bonus de
+  // l'équipement même quand l'événement soignait.
+  const { loadEffectiveStats } = await import('./combatService.js');
+  const { maxHealth } = await loadEffectiveStats(profile);
+  const newHp = Math.max(0, Math.min(maxHealth, profile.health + finalHpEffect));
   const newBalance = Math.max(0, profile.balance + finalCoinEffect);
   const newXp = Math.max(0, profile.xp + finalXpEffect);
 

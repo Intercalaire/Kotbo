@@ -69,6 +69,7 @@ const ITEMS: Record<string, Item> = {
   sword: makeItem({ id: 'sword', name: 'Épée en bois', type: 'WEAPON', atkBonus: 5, spdBonus: 2, price: 50 }),
   blade: makeItem({ id: 'blade', name: 'Dague en fer', type: 'WEAPON', atkBonus: 9, spdBonus: 4, price: 150 }),
   ring: makeItem({ id: 'ring', name: 'Anneau de cuivre', type: 'ACCESSORY', atkBonus: 2, price: 80 }),
+  mail: makeItem({ id: 'mail', name: 'Cotte de mailles', type: 'ARMOR', hpBonus: 30, price: 120 }),
   gate: makeItem({ id: 'gate', name: 'Lame des Anciens', type: 'WEAPON', atkBonus: 30, price: 900, levelRequired: 10 }),
   ore: makeItem({ id: 'ore', name: 'Écaille de Dragon', type: 'MATERIAL', price: 180 }),
 };
@@ -294,6 +295,16 @@ describe('checkLevelUp', () => {
     expect(profile.attack).toBe(12); // +1 automatique par niveau
     expect(profile.health).toBe(profile.maxHealth); // soin complet
     expect(profile.statPoints).toBe(6); // 3 points à répartir par niveau
+  });
+
+  test('le soin complet remplit aussi les PV apportés par l équipement', async () => {
+    profile.xp = 100;
+    profile.armorId = 'mail';
+
+    await checkLevelUp('guild-1', 'user-1');
+
+    expect(profile.maxHealth).toBe(108);
+    expect(profile.health).toBe(138);
   });
 
   test('ne fait rien tant que le palier n est pas atteint', async () => {
