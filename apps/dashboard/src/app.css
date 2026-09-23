@@ -77,10 +77,14 @@
   --color-tertiary-container: var(--tertiary-container-color);
   --color-on-tertiary-container: var(--on-tertiary-container-color);
 
-  --color-error: #dc2626;
-  --color-on-error: #ffffff;
-  --color-error-container: #fef2f2;
-  --color-on-error-container: #991b1b;
+  /* L'erreur etait la seule couleur de statut commune aux deux themes : un
+     rouge 600 qui tombait a 4,1:1 en texte sur fond sombre, et un conteneur
+     rose pale qui restait clair en mode sombre. Elle suit maintenant le
+     primaire : remplissage clair et texte fonce en sombre. */
+  --color-error: var(--error-color);
+  --color-on-error: var(--on-error-color);
+  --color-error-container: var(--error-container-color);
+  --color-on-error-container: var(--on-error-container-color);
 
   /* Le theme portait l'erreur mais ni l'avertissement ni la reussite, que les
      pages ecrivaient donc en dur. Un ambre ou un vert vif tiennent sur fond
@@ -180,6 +184,10 @@
   --on-tertiary-container-color: #6d28d9;
   --warning-color: #b45309;
   --success-color: #15803d;
+  --error-color: #dc2626;
+  --on-error-color: #ffffff;
+  --error-container-color: #fef2f2;
+  --on-error-container-color: #991b1b;
 }
 
 :root.dark {
@@ -209,6 +217,10 @@
   --on-tertiary-container-color: #ddd6fe;
   --warning-color: #fbbf24;
   --success-color: #4ade80;
+  --error-color: #f87171;
+  --on-error-color: #450a0a;
+  --error-container-color: #450a0a;
+  --on-error-container-color: #fecaca;
 }
 
 @layer base {
@@ -524,10 +536,10 @@
 
 .btn-danger {
   background: transparent;
-  color: #dc2626;
-  border-color: rgba(220, 38, 38, 0.25);
+  color: var(--error-color);
+  border-color: color-mix(in srgb, var(--error-color) 30%, transparent);
 }
-.btn-danger:hover:not(:disabled) { background: rgba(220, 38, 38, 0.08); }
+.btn-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--error-color) 10%, transparent); }
 
 .btn-sm { padding: 0.3125rem 0.75rem; font-size: 0.75rem; }
 

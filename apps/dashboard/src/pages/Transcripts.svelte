@@ -153,7 +153,7 @@
                   <span class="text-xs text-on-surface-variant">{m.ts_confirm_q()}</span>
                   <button
                     onclick={() => confirmDelete(t.id)}
-                    class="px-3 py-1.5 text-xs font-medium bg-error text-white rounded-md hover:bg-error/90 transition-colors"
+                    class="px-3 py-1.5 text-xs font-medium bg-error text-on-error rounded-md hover:bg-error/90 transition-colors"
                   >{m.common_delete()}</button>
                   <button
                     onclick={() => (pendingDeleteId = null)}

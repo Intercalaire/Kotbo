@@ -1075,7 +1075,7 @@
             </button>
             <button 
               onclick={submitEndTutoring}
-              class="flex-1 py-4 {endTutoringStatus === 'PASSED' ? 'bg-success' : 'bg-error'} text-white rounded-lg font-semibold shadow-sm transition-all active:scale-[0.98]"
+              class="flex-1 py-4 {endTutoringStatus === 'PASSED' ? 'bg-success text-white' : 'bg-error text-on-error'} rounded-lg font-semibold shadow-sm transition-all active:scale-[0.98]"
             >
               {m.common_confirm()}
             </button>
@@ -1261,7 +1261,7 @@
           </button>
           <button 
             onclick={() => { confirmModal.onConfirm(); confirmModal.open = false; }}
-            class="flex-1 py-4 bg-error text-white rounded-lg font-semibold shadow-sm shadow-error/20 active:scale-[0.98] transition-all"
+            class="flex-1 py-4 bg-error text-on-error rounded-lg font-semibold shadow-sm shadow-error/20 active:scale-[0.98] transition-all"
           >
             {m.common_confirm()}
           </button>

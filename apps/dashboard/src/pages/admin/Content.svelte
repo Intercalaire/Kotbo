@@ -498,7 +498,7 @@
           {:else if globalBannedWordsError}
             <div class="rounded-lg border border-error/20 bg-error/10 p-4 text-sm text-error flex items-center justify-between gap-4">
               <span>{globalBannedWordsError}</span>
-              <button onclick={loadGlobalBannedWords} class="rounded-xl bg-error px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-error/90">
+              <button onclick={loadGlobalBannedWords} class="rounded-xl bg-error px-4 py-2 text-xs font-bold text-on-error transition-colors hover:bg-error/90">
                 Réessayer
               </button>
             </div>
