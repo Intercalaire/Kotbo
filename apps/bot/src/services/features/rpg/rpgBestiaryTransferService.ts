@@ -62,6 +62,8 @@ export async function exportGuildBestiary(guildId: string): Promise<BestiaryExpo
       firstKillXpReward: monster.firstKillXpReward,
       firstKillItemName: monster.firstKillItemName,
       firstKillClanPoints: monster.firstKillClanPoints,
+      // Un rôle n'existe que sur son serveur : exporté, il ne désignerait rien ailleurs.
+      firstKillRoleId: null,
       enabled: monster.enabled,
     })),
   };
@@ -134,7 +136,7 @@ export async function importGuildBestiary(guildId: string, payload: unknown): Pr
   const itemNames = new Set(knownItems.map((item) => item.name));
 
   const existing = await listGuildMonsters(guildId, { includeDisabled: true });
-  const byName = new Map(existing.map((monster) => [monster.name, monster.id]));
+  const byName = new Map(existing.map((monster) => [monster.name, monster]));
 
   const report: BestiaryImportReport = { created: 0, updated: 0, droppedLoot: 0 };
 
@@ -148,8 +150,11 @@ export async function importGuildBestiary(guildId: string, payload: unknown): Pr
       : null;
     if (monster.firstKillItemName && !firstKillItemName) report.droppedLoot += 1;
 
-    const previousId = byName.get(monster.name);
-    await saveGuildMonster(guildId, { ...monster, drops, firstKillItemName }, previousId);
+    const previous = byName.get(monster.name);
+    const previousId = previous?.id;
+    // Le fichier ne porte jamais de rôle : celui déjà réglé sur la fiche est conservé.
+    const firstKillRoleId = previous?.firstKillRoleId ?? null;
+    await saveGuildMonster(guildId, { ...monster, drops, firstKillItemName, firstKillRoleId }, previousId);
     if (previousId) report.updated += 1;
     else report.created += 1;
   }

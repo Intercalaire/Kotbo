@@ -13,7 +13,7 @@ import {
   setGuildMonsterEnabled,
 } from '../../../services/features/rpg/rpgBestiaryService.js';
 import { parseMonsterDrops, type MonsterInput } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
-import { listFirstKills } from '../../../services/features/rpg/rpgFirstKillService.js';
+import { assertFirstKillRole, listFirstKills } from '../../../services/features/rpg/rpgFirstKillService.js';
 import type { RpgItemPayload } from '@kotbo/contracts';
 import { saveGuildShopItem, ShopItemError } from '../../../services/features/rpg/rpgShopItemService.js';
 import {
@@ -426,6 +426,18 @@ export async function handleEconomyRoutes(
         if (!body) {
           json(res, 400, { error: 'Corps de requête manquant.' });
           return true;
+        }
+
+        // Seul un rôle qui change est contrôlé : une fiche dont le rôle est devenu
+        // inutilisable doit rester modifiable, le versement le refusera de toute façon.
+        const previous = body.id
+          ? await prisma.rpgMonster.findUnique({ where: { id: body.id }, select: { firstKillRoleId: true } })
+          : null;
+        const roleId = typeof body.firstKillRoleId === 'string' && body.firstKillRoleId ? body.firstKillRoleId : null;
+        if (roleId && roleId !== previous?.firstKillRoleId) {
+          await assertFirstKillRole(client, guildId, roleId).catch((err: Error) => {
+            throw new BestiaryError(err.message, 400);
+          });
         }
 
         const { monster, created, overrode } = await saveGuildMonster(guildId, body, body.id);

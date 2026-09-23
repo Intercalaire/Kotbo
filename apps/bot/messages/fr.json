@@ -1878,6 +1878,7 @@
   "rpg_first_kill_field_reward_value": "Personne n'avait encore battu cette créature ici. Prime : {reward}",
   "rpg_first_kill_clan_points": "+{points} points de clan",
   "rpg_first_kill_guild_xp": "+{points} XP de guilde",
+  "rpg_first_kill_role": "rôle {role}",
   "rpg_bestiary_field_first_kill": "🏆 Premier vainqueur",
   "rpg_bestiary_first_kill_value": "{user}, le {date}",
   "rpg_bestiary_field_first_kill_bounty": "🏆 Prime du premier vainqueur",

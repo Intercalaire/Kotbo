@@ -184,6 +184,7 @@ export async function applyBestiaryDifficulty(
         firstKillXpReward: monster.firstKillXpReward,
         firstKillItemName: monster.firstKillItemName,
         firstKillClanPoints: monster.firstKillClanPoints,
+        firstKillRoleId: monster.firstKillRoleId,
         enabled: monster.enabled,
         ...payload,
       },

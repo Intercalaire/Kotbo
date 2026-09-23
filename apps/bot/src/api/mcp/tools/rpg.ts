@@ -20,7 +20,7 @@ import {
   setGuildMonsterEnabled,
 } from '../../../services/features/rpg/rpgBestiaryService.js';
 import { parseMonsterDrops } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
-import { listFirstKills } from '../../../services/features/rpg/rpgFirstKillService.js';
+import { assertFirstKillRole, listFirstKills } from '../../../services/features/rpg/rpgFirstKillService.js';
 import { asDifficulty, DIFFICULTIES } from '../../../services/features/rpg/rpgDifficultyPolicy.js';
 import { applyBestiaryDifficulty, applyShopDifficulty } from '../../../services/features/rpg/rpgDifficultyService.js';
 import {
@@ -172,6 +172,7 @@ export function registerRpgTools(ctx: McpToolContext) {
           firstKillXpReward: monster.firstKillXpReward,
           firstKillItemName: monster.firstKillItemName,
           firstKillClanPoints: monster.firstKillClanPoints,
+          firstKillRoleId: monster.firstKillRoleId,
           firstKill: firstKills.get(monster.name) ?? null,
           drops: parseMonsterDrops(monster.drops),
           enabled: monster.enabled,
@@ -290,6 +291,7 @@ export function registerRpgTools(ctx: McpToolContext) {
           firstKillXpReward: z.number().int().optional().describe('Prime en XP du premier vainqueur'),
           firstKillItemName: z.string().nullable().optional().describe("Objet offert au premier vainqueur (nom exact), null pour aucun"),
           firstKillClanPoints: z.number().int().optional().describe('Points de clan ou XP de guilde du premier vainqueur'),
+          firstKillRoleId: z.string().nullable().optional().describe('ID du rôle Discord offert au premier vainqueur, null pour aucun'),
           drops: z.array(dropSchema).optional(),
           enabled: z.boolean().optional(),
           key_name: z.string().optional(),
@@ -317,9 +319,13 @@ export function registerRpgTools(ctx: McpToolContext) {
             firstKillXpReward: existing.firstKillXpReward,
             firstKillItemName: existing.firstKillItemName,
             firstKillClanPoints: existing.firstKillClanPoints,
+            firstKillRoleId: existing.firstKillRoleId,
             drops: parseMonsterDrops(existing.drops),
             enabled: existing.enabled,
           } : null;
+          if (input.firstKillRoleId && input.firstKillRoleId !== existing?.firstKillRoleId) {
+            await assertFirstKillRole(client, guildId, input.firstKillRoleId);
+          }
           const { monster, created, overrode } = await saveGuildMonster(guildId, mergeDefined(base, input), id);
           await audit(key_name, created ? 'Création monstre RPG MCP' : 'Modification monstre RPG MCP', monster.name,
             `${monster.isBoss ? 'Boss' : 'Monstre'} niv. ${monster.level}${overrode ? ' - version propre au serveur' : ''}`);

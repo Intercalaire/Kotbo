@@ -973,6 +973,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       firstKillXpReward: 0,
       firstKillItemName: null as string | null,
       firstKillClanPoints: 0,
+      firstKillRoleId: null as string | null,
       firstKillOn: false,
       enabled: true,
       scope: 'GUILD',
@@ -990,7 +991,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     editingMonster = {
       ...monster,
       firstKillOn: monster.firstKillCoinReward > 0 || monster.firstKillXpReward > 0
-        || monster.firstKillClanPoints > 0 || Boolean(monster.firstKillItemName),
+        || monster.firstKillClanPoints > 0 || Boolean(monster.firstKillItemName) || Boolean(monster.firstKillRoleId),
       drops: (monster.drops ?? []).map((drop: any) => ({
         itemName: drop.itemName,
         emoji: drop.emoji ?? '📦',
@@ -1044,6 +1045,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       firstKillXpReward: editingMonster.firstKillOn ? Number(editingMonster.firstKillXpReward) || 0 : 0,
       firstKillClanPoints: editingMonster.firstKillOn ? Number(editingMonster.firstKillClanPoints) || 0 : 0,
       firstKillItemName: editingMonster.firstKillOn ? editingMonster.firstKillItemName || null : null,
+      firstKillRoleId: editingMonster.firstKillOn ? editingMonster.firstKillRoleId || null : null,
       enabled: editingMonster.enabled,
       drops: editingMonster.drops
         .filter((drop: any) => drop.itemName)
@@ -2239,7 +2241,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                       <span class="flex items-center gap-1" title={m.eco_bestiary_first_kill_hint({ date: new Date(monster.firstKill.at).toLocaleDateString() })}>
                         <Papicon icon="award" size={11} /> {monster.firstKill.displayName ?? monster.firstKill.userId}
                       </span>
-                    {:else if monster.firstKillCoinReward > 0 || monster.firstKillXpReward > 0 || monster.firstKillClanPoints > 0 || monster.firstKillItemName}
+                    {:else if monster.firstKillCoinReward > 0 || monster.firstKillXpReward > 0 || monster.firstKillClanPoints > 0 || monster.firstKillItemName || monster.firstKillRoleId}
                       <span class="flex items-center gap-1"><Papicon icon="award" size={11} /> {m.eco_bestiary_first_kill_open()}</span>
                     {/if}
                     {#if monster.battles?.battles > 0}
@@ -3574,6 +3576,18 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                     className="w-full"
                     on:change={(e: any) => editingMonster.firstKillItemName = e.detail?.value ?? null}
                   />
+                </div>
+                <div class="col-span-2 space-y-1">
+                  <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_first_kill_role()}</span>
+                  <SearchableSelect
+                    value={editingMonster.firstKillRoleId || null}
+                    options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
+                    placeholder={m.eco_bestiary_first_kill_role_none()}
+                    clearable={true}
+                    className="w-full"
+                    on:change={(e: any) => editingMonster.firstKillRoleId = e.detail?.value ?? null}
+                  />
+                  <p class="text-[10px] text-on-surface-variant/50 leading-relaxed mt-1">{m.eco_bestiary_first_kill_role_hint()}</p>
                 </div>
               </div>
             {/if}

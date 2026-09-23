@@ -1878,6 +1878,7 @@
   "rpg_first_kill_field_reward_value": "Nobody had defeated this creature here before. Bounty: {reward}",
   "rpg_first_kill_clan_points": "+{points} clan points",
   "rpg_first_kill_guild_xp": "+{points} guild XP",
+  "rpg_first_kill_role": "role {role}",
   "rpg_bestiary_field_first_kill": "🏆 First kill",
   "rpg_bestiary_first_kill_value": "{user}, on {date}",
   "rpg_bestiary_field_first_kill_bounty": "🏆 First kill bounty",

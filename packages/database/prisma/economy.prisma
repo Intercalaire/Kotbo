@@ -512,6 +512,9 @@ model RpgMonster {
   firstKillXpReward   Int     @default(0)
   firstKillItemName   String?
   firstKillClanPoints Int     @default(0)
+  /// Rôle Discord offert au premier vainqueur. Propre au serveur : il ne voyage pas dans
+  /// l'export du bestiaire.
+  firstKillRoleId     String?
 
   /// Un monstre global désactivé par un serveur est remplacé par une copie locale
   /// portant le même nom avec `enabled = false` : le catalogue global reste intact.

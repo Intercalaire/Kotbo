@@ -3,6 +3,7 @@ ALTER TABLE "rpg_monsters" ADD COLUMN "firstKillCoinReward" INTEGER NOT NULL DEF
 ALTER TABLE "rpg_monsters" ADD COLUMN "firstKillXpReward" INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE "rpg_monsters" ADD COLUMN "firstKillItemName" TEXT;
 ALTER TABLE "rpg_monsters" ADD COLUMN "firstKillClanPoints" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "rpg_monsters" ADD COLUMN "firstKillRoleId" TEXT;
 
 -- Annonce du premier vainqueur.
 ALTER TABLE "economy_configs" ADD COLUMN "firstKillAnnounce" TEXT NOT NULL DEFAULT 'NONE';

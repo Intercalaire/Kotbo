@@ -5,7 +5,8 @@
  * et au dashboard, qui a ouvert la voie. La prime et l'annonce n'en sont que des options.
  */
 
-import { EmbedBuilder, type Client } from 'discord.js';
+import { EmbedBuilder, type Client, type Guild, type Role } from 'discord.js';
+import { roleGrantsAdministrator } from '../../../utils/adminLockPermissions.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { COLORS } from '../../../utils/embeds.js';
@@ -24,6 +25,7 @@ export type FirstKillMonster = {
   firstKillXpReward: number;
   firstKillItemName: string | null;
   firstKillClanPoints: number;
+  firstKillRoleId: string | null;
 };
 
 export type FirstKillResult = {
@@ -34,6 +36,8 @@ export type FirstKillResult = {
   /** Points réellement versés : zéro si le joueur n'a ni clan ni guilde. */
   teamPoints: number;
   toGuild: boolean;
+  /** Rôle réellement attribué, `null` s'il n'y en avait pas ou s'il a été refusé. */
+  roleId: string | null;
 };
 
 export type FirstKillRecord = { userId: string; createdAt: Date };
@@ -50,7 +54,7 @@ export async function claimFirstKill(
   userId: string,
   monster: FirstKillMonster,
 ): Promise<FirstKillResult | null> {
-  const result: FirstKillResult = { coins: 0, xp: 0, itemName: null, itemEmoji: null, teamPoints: 0, toGuild: false };
+  const result: FirstKillResult = { coins: 0, xp: 0, itemName: null, itemEmoji: null, teamPoints: 0, toGuild: false, roleId: null };
 
   // L'objet du serveur l'emporte sur le livré du même nom, comme pour les butins.
   const items = monster.firstKillItemName
@@ -111,6 +115,13 @@ export async function claimFirstKill(
       result.teamPoints = team.amount;
       result.toGuild = team.toGuild;
     }
+
+    if (monster.firstKillRoleId) {
+      result.roleId = await grantFirstKillRole(client, guildId, userId, monster).catch((err) => {
+        logger.warn('RpgFirstKill', `Rôle du premier vainqueur non attribué pour ${monster.name} :`, err);
+        return null;
+      });
+    }
   }
 
   await announceFirstKill(client, guildId, userId, monster, result).catch((err) => {
@@ -118,6 +129,57 @@ export async function claimFirstKill(
   });
 
   return result;
+}
+
+/**
+ * Pourquoi un rôle ne peut pas être offert, ou `null` s'il peut l'être.
+ *
+ * Le rôle part vers un joueur quelconque, sans validation humaine au moment du versement :
+ * un rôle qui donne la permission Administrateur est donc refusé d'office, et le verrou
+ * d'administration n'a pas à entrer en jeu.
+ */
+export function firstKillRoleProblem(guild: Guild, role: Role | undefined | null): string | null {
+  if (!role) return "Ce rôle n'existe pas sur le serveur.";
+  if (role.id === guild.id) return 'Le rôle @everyone ne peut pas être offert.';
+  if (role.managed) return 'Ce rôle est géré par une intégration et ne peut pas être attribué.';
+  if (roleGrantsAdministrator(role.permissions.bitfield)) {
+    return 'Un rôle qui donne la permission Administrateur ne peut pas être offert en récompense.';
+  }
+  if (!role.editable) return 'Le rôle du bot doit être placé au-dessus de ce rôle pour pouvoir le donner.';
+  return null;
+}
+
+/** Contrôle d'un rôle au moment de régler la prime, depuis le dashboard ou MCP. */
+export async function assertFirstKillRole(client: Client, guildId: string, roleId: string | null | undefined): Promise<void> {
+  if (!roleId) return;
+  const guild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+  if (!guild) throw new Error('Serveur introuvable.');
+  const role = guild.roles.cache.get(roleId) ?? await guild.roles.fetch(roleId).catch(() => null);
+  const problem = firstKillRoleProblem(guild, role);
+  if (problem) throw new Error(problem);
+}
+
+/**
+ * Donne le rôle au vainqueur.
+ *
+ * Le contrôle est refait ici : entre le réglage et la victoire, le rôle a pu recevoir la
+ * permission Administrateur, être supprimé ou passer au-dessus du bot.
+ */
+async function grantFirstKillRole(client: Client, guildId: string, userId: string, monster: FirstKillMonster): Promise<string | null> {
+  const guild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+  if (!guild || !monster.firstKillRoleId) return null;
+
+  const role = guild.roles.cache.get(monster.firstKillRoleId) ?? await guild.roles.fetch(monster.firstKillRoleId).catch(() => null);
+  const problem = firstKillRoleProblem(guild, role);
+  if (problem || !role) {
+    logger.warn('RpgFirstKill', `Rôle ${monster.firstKillRoleId} non offert pour ${monster.name} sur ${guildId} : ${problem}`);
+    return null;
+  }
+
+  const member = await guild.members.fetch(userId).catch(() => null);
+  if (!member) return null;
+  await member.roles.add(role, `Premier vainqueur : ${monster.name}`);
+  return role.id;
 }
 
 async function announceFirstKill(
@@ -151,7 +213,7 @@ async function announceFirstKill(
 
 /** Prime lisible, ou chaîne vide s'il n'y en avait pas. */
 export function formatFirstKillReward(
-  reward: { coins: number; xp: number; itemName: string | null; itemEmoji?: string | null; teamPoints: number; toGuild: boolean },
+  reward: { coins: number; xp: number; itemName: string | null; itemEmoji?: string | null; teamPoints: number; toGuild: boolean; roleId: string | null },
   currencyEmoji: string,
   locale: BotLocale,
 ): string {
@@ -164,6 +226,8 @@ export function formatFirstKillReward(
         ? m.rpg_first_kill_guild_xp({ points: reward.teamPoints }, { locale })
         : m.rpg_first_kill_clan_points({ points: reward.teamPoints }, { locale }))
       : null,
+    // Une mention de rôle dans un embed s'affiche sans notifier personne.
+    reward.roleId ? m.rpg_first_kill_role({ role: `<@&${reward.roleId}>` }, { locale }) : null,
   ].filter((part): part is string => part !== null).join('  ·  ');
 }
 
@@ -184,6 +248,7 @@ export function formatFirstKillBounty(
     itemName: monster.firstKillItemName,
     teamPoints: monster.firstKillClanPoints,
     toGuild: asRpgTeamMode(config.raidTeamMode) === 'RPG_GUILD',
+    roleId: monster.firstKillRoleId,
   }, config.currencyEmoji, locale);
 }
 
