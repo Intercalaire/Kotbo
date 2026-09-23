@@ -1564,7 +1564,7 @@ async function quickDrinkRow(
       const effects = [
         item.hpRestore > 0 ? m.rpg_quickdrink_hp({ hp: item.hpRestore }, { locale }) : null,
         item.energyRestore > 0 ? m.rpg_quickdrink_energy({ energy: item.energyRestore }, { locale }) : null,
-      ].filter((effect): effect is string => effect !== null);
+      ].filter((effect): effect is NonNullable<typeof effect> => effect !== null);
       return {
         label: truncate(`${favorites.has(item.id) ? '⭐ ' : ''}${item.name} ×${quantity}`, 100),
         value: item.id,
