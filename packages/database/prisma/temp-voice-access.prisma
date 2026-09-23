@@ -44,6 +44,13 @@ model TempVoiceAccessRequestConfig {
   @@map("temp_voice_access_request_configs")
 }
 
+/// ⚠️ Les sept lignes valent `true` par défaut, et ce n'est pas un détail de
+/// confort : avant cette table, un membre du staff pouvait TOUT faire sur
+/// n'importe quel salon temporaire. Un défaut restrictif fermerait au premier
+/// enregistrement des portes que personne n'a demandé à fermer, et ferait
+/// diverger le dashboard (qui lit les défauts du schéma) du bot (pour qui une
+/// absence de ligne vaut le comportement d'avant). Poser des limites est un
+/// geste explicite de l'administrateur.
 model TempVoiceModPermissionsConfig {
   /// Une seule configuration par serveur.
   guildId String @id
@@ -55,13 +62,13 @@ model TempVoiceModPermissionsConfig {
   /// Un modérateur peut verrouiller / déverrouiller un salon.
   canLock Boolean @default(true)
   /// Un modérateur peut changer qui a le droit d'écrire dans le salon.
-  canChangeWriteMode Boolean @default(false)
+  canChangeWriteMode Boolean @default(true)
   /// Un modérateur peut expulser ou bannir un membre du salon.
   canKickOrBan Boolean @default(true)
   /// Un modérateur peut réserver le salon à un rôle.
-  canReserve Boolean @default(false)
+  canReserve Boolean @default(true)
   /// Un modérateur peut transférer la propriété du salon.
-  canTransfer Boolean @default(false)
+  canTransfer Boolean @default(true)
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 

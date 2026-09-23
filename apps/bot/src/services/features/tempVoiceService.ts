@@ -820,6 +820,122 @@ export interface ResultatDecisionDemande {
   silenceJusquA: number | null;
 }
 
+/** Qui a le droit de trancher une demande d'accès, colonne `responders`. */
+export const REPONDEURS_DEMANDE = ['OWNER', 'OWNER_AND_STAFF'] as const;
+export type RepondeurDemande = (typeof REPONDEURS_DEMANDE)[number];
+
+/** Où le propriétaire est prévenu en priorité, colonne `notifyVia`. */
+export const CANAUX_NOTIFICATION = ['VOICE', 'DM', 'CHANNEL'] as const;
+export type CanalNotification = (typeof CANAUX_NOTIFICATION)[number];
+
+/** La ligne `TempVoiceAccessRequestConfig`, traduite en ce dont le bot se sert. */
+export interface ConfigDemandesAcces {
+  /** Bouton « Demander l'accès » posé sur les salons verrouillés ou réservés. */
+  activees: boolean;
+  repondeurs: RepondeurDemande;
+  canal: CanalNotification;
+  /** Salon dédié, seulement utile quand `canal` vaut `CHANNEL`. */
+  canalId: string | null;
+  expirationMs: number;
+  silenceMs: number;
+}
+
+/**
+ * Les défauts du schéma, et non des défauts inventés ici.
+ *
+ * `activees: false` est celui qui compte : sans ligne en base, aucun bouton
+ * n'apparaît — c'est le comportement d'avant la refonte. Un défaut permissif
+ * poserait un bouton sur tous les salons verrouillés de tous les serveurs au
+ * premier déploiement, sans que personne l'ait demandé.
+ */
+export const CONFIG_DEMANDES_PAR_DEFAUT: ConfigDemandesAcces = {
+  activees: false,
+  repondeurs: 'OWNER_AND_STAFF',
+  canal: 'VOICE',
+  canalId: null,
+  expirationMs: EXPIRATION_DEMANDE_MS,
+  silenceMs: SILENCE_APRES_REFUS_MS,
+};
+
+/** Minutes hors de ces bornes = ligne corrompue ou formulaire contourné. */
+const MINUTES_MIN = 1;
+const MINUTES_MAX = 24 * 60;
+
+function minutesEnMs(valeur: unknown, repli: number): number {
+  if (typeof valeur !== 'number' || !Number.isFinite(valeur)) return repli;
+  const bornees = Math.min(MINUTES_MAX, Math.max(MINUTES_MIN, Math.round(valeur)));
+  return bornees * 60_000;
+}
+
+/**
+ * Personne d'autre ne valide ce que le dashboard écrit. Chaque champ illisible
+ * retombe sur le défaut du schéma, jamais sur un réglage plus ouvert qu'écrit :
+ * un `responders` inconnu ne doit pas élargir qui peut trancher.
+ */
+export function normaliserConfigDemandes(raw: unknown): ConfigDemandesAcces {
+  if (!raw || typeof raw !== 'object') return { ...CONFIG_DEMANDES_PAR_DEFAUT };
+  const ligne = raw as Record<string, unknown>;
+
+  const repondeurs = REPONDEURS_DEMANDE.includes(ligne.responders as RepondeurDemande)
+    ? (ligne.responders as RepondeurDemande)
+    : CONFIG_DEMANDES_PAR_DEFAUT.repondeurs;
+
+  const canal = CANAUX_NOTIFICATION.includes(ligne.notifyVia as CanalNotification)
+    ? (ligne.notifyVia as CanalNotification)
+    : CONFIG_DEMANDES_PAR_DEFAUT.canal;
+
+  const canalId = typeof ligne.notifyChannelId === 'string' && ligne.notifyChannelId.length > 0
+    ? ligne.notifyChannelId
+    : null;
+
+  return {
+    activees: ligne.enabled === true,
+    repondeurs,
+    // Un salon dédié promis sans identifiant n'est pas un salon dédié : le repli
+    // vaut mieux qu'une cascade qui commence par une impasse.
+    canal: canal === 'CHANNEL' && !canalId ? 'VOICE' : canal,
+    canalId,
+    expirationMs: minutesEnMs(ligne.requestExpiresMinutes, CONFIG_DEMANDES_PAR_DEFAUT.expirationMs),
+    silenceMs: minutesEnMs(ligne.denyCooldownMinutes, CONFIG_DEMANDES_PAR_DEFAUT.silenceMs),
+  };
+}
+
+/**
+ * Qui peut accepter ou refuser. `peutAgir` ne le dit pas : l'action
+ * `repondreDemande` n'est gouvernée par aucune ligne des réglages modérateur,
+ * et c'est cette colonne-ci qui tranche.
+ */
+export function peutRepondreDemande(role: RoleAgissant, repondeurs: RepondeurDemande): VerdictAction {
+  if (role === 'proprietaire') return { autorise: true };
+  // Un admin garde la main : il peut déjà tout sur le salon, lui refuser la
+  // carte de décision ferait un bouton mort plutôt qu'une limite.
+  if (role === 'admin') return { autorise: true };
+  if (repondeurs === 'OWNER_AND_STAFF') return { autorise: true };
+  return {
+    autorise: false,
+    motif: 'adminsSeulement',
+    raison: "Sur ce serveur, seul le propriétaire du salon répond aux demandes d'accès.",
+  };
+}
+
+/**
+ * L'ordre dans lequel tenter de prévenir le propriétaire, replis compris.
+ *
+ * Le MP n'est jamais seul : un membre peut fermer ses messages privés, l'envoi
+ * échoue en silence et personne ne reçoit la demande. Chaque choix garde donc
+ * au moins une issue derrière lui.
+ */
+export function ordreNotification(config: Pick<ConfigDemandesAcces, 'canal' | 'canalId'>): CanalNotification[] {
+  switch (config.canal) {
+    case 'DM':
+      return ['DM', 'VOICE'];
+    case 'CHANNEL':
+      return config.canalId ? ['CHANNEL', 'VOICE', 'DM'] : ['VOICE', 'DM'];
+    case 'VOICE':
+      return ['VOICE', 'DM'];
+  }
+}
+
 export interface OptionsRegistreDemandes {
   expirationMs?: number;
   silenceMs?: number;
@@ -852,8 +968,12 @@ export class RegistreDemandesAcces {
     channelId: string,
     userId: string,
     maintenant: number,
+    delais?: OptionsRegistreDemandes,
   ): ResultatDemandeAcces {
     const cle = cleMembreSalon(guildId, channelId, userId);
+    // Les délais sont ceux du serveur, pas ceux du registre : un seul registre
+    // sert tous les serveurs, et chacun règle sa propre expiration.
+    const expirationMs = delais?.expirationMs ?? this.expirationMs;
 
     const libereA = this.silences.get(cle);
     if (libereA !== undefined) {
@@ -875,7 +995,7 @@ export class RegistreDemandesAcces {
       channelId,
       userId,
       demandeeA: maintenant,
-      expireA: maintenant + this.expirationMs,
+      expireA: maintenant + expirationMs,
     };
     this.enAttente.set(cle, demande);
     return { statut: 'enregistree', demande };
@@ -912,13 +1032,14 @@ export class RegistreDemandesAcces {
     userId: string,
     decision: DecisionDemande,
     maintenant: number,
+    delais?: OptionsRegistreDemandes,
   ): ResultatDecisionDemande {
     const cle = cleMembreSalon(guildId, channelId, userId);
     const demande = this.demandeEnAttente(guildId, channelId, userId, maintenant);
     this.enAttente.delete(cle);
 
     if (decision === 'refusee') {
-      const silenceJusquA = maintenant + this.silenceMs;
+      const silenceJusquA = maintenant + (delais?.silenceMs ?? this.silenceMs);
       this.silences.set(cle, silenceJusquA);
       return { demande, silenceJusquA };
     }
@@ -985,9 +1106,19 @@ export class RegistreDemandesAcces {
   }
 }
 
-/** « Demander l'accès » n'existe que lorsqu'il sert : un salon simplement plein,
- *  c'est une place qui manque, pas une permission. */
-export function boutonDemanderAccesVisible(etat: { verrouille: boolean; reserve: boolean }): boolean {
+/**
+ * « Demander l'accès » n'existe que lorsqu'il sert : un salon simplement plein,
+ * c'est une place qui manque, pas une permission.
+ *
+ * Et il n'existe pas du tout tant qu'un administrateur ne l'a pas activé. Le
+ * paramètre n'a pas de valeur par défaut à dessein : un appelant qui l'oublie
+ * poserait le bouton sur des serveurs qui n'en ont jamais voulu.
+ */
+export function boutonDemanderAccesVisible(
+  etat: { verrouille: boolean; reserve: boolean },
+  config: Pick<ConfigDemandesAcces, 'activees'>,
+): boolean {
+  if (!config.activees) return false;
   return etat.verrouille || etat.reserve;
 }
 
@@ -1269,9 +1400,17 @@ export function libelleActionMembre(
 export const ORIGINES_SURCHARGE = ['presence', 'autorisation'] as const;
 export type OrigineSurcharge = (typeof ORIGINES_SURCHARGE)[number];
 
-/** Ce qu'une surcharge de présence accorde : le droit d'écrire, rien d'autre.
- *  « Autoriser » en accorde bien plus (`categoryTrustPatch`) — raison de plus
- *  pour ne pas prétendre les distinguer à la forme. */
+/**
+ * Ce qu'une surcharge de présence accorde : le droit d'écrire, rien d'autre.
+ * « Autoriser » en accorde bien plus (`categoryTrustPatch`, qui donne toujours
+ * `Connect`).
+ *
+ * En fonctionnement c'est le registre d'origines qui tranche, jamais la forme.
+ * Au démarrage le registre est vide, et il ne reste que la forme — elle ne sert
+ * que dans un sens, le seul qui soit sûr : accorder `SendMessages` **sans**
+ * accorder `Connect`, aucune autorisation explicite ne le fait. Une surcharge de
+ * cette forme ne peut donc venir que de la présence. L'inverse serait faux.
+ */
 export const PATCH_PRESENCE: Readonly<Record<string, boolean>> = { SendMessages: true };
 
 /** Retirer une présence rend le bit à ce qui précède ; @everyone étant refusé en
@@ -1356,6 +1495,51 @@ export function transitionModeEcriture(
   }
 
   return { aPoser: [], aRetirer: [] };
+}
+
+/** Une surcharge de membre telle qu'on la relit au démarrage. */
+export interface SurchargeMembreLue {
+  userId: string;
+  /** `SendMessages` explicitement accordé. */
+  accordeEcriture: boolean;
+  /** `Connect` explicitement accordé — la signature d'une autorisation. */
+  accordeConnexion: boolean;
+}
+
+export interface PlanNettoyagePresence {
+  /** Surcharges de présence à retirer : ces personnes ne sont plus là. */
+  aRetirer: string[];
+  /** Surcharges de présence à réinscrire au registre : ces personnes sont là. */
+  aMarquerPresence: string[];
+}
+
+/**
+ * Ce qu'il faut réparer au démarrage sur un salon temporaire encore vivant.
+ *
+ * Le registre d'origines est en mémoire : après un redémarrage, les surcharges
+ * de présence posées avant n'ont plus d'origine, et plus rien ne les retire
+ * quand les gens quittent le vocal. Le salon affiche « Personne » pendant que
+ * plusieurs membres écrivent encore.
+ *
+ * Hors du mode `inVoice`, une marque de présence est un reste d'un mode
+ * précédent : elle part, exactement comme `decisionSortieVocal` la ferait
+ * partir. C'est le cas du salon dont le mode a changé juste avant l'arrêt.
+ */
+export function nettoyagePresenceAuDemarrage(
+  mode: ModeEcriture,
+  surcharges: readonly SurchargeMembreLue[],
+  presents: readonly string[],
+): PlanNettoyagePresence {
+  const presence = surcharges.filter((s) => s.accordeEcriture && !s.accordeConnexion);
+  if (mode !== 'inVoice') {
+    return { aRetirer: presence.map((s) => s.userId), aMarquerPresence: [] };
+  }
+
+  const ici = new Set(presents);
+  return {
+    aRetirer: presence.filter((s) => !ici.has(s.userId)).map((s) => s.userId),
+    aMarquerPresence: presence.filter((s) => ici.has(s.userId)).map((s) => s.userId),
+  };
 }
 
 /**

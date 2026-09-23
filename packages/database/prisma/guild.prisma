@@ -1069,6 +1069,12 @@ model TempVoiceChannel {
   guildId    String
   creatorId  String
   roleId     String?  // Optional role restriction
+  /// Qui a le droit d'ecrire : everyone | inVoice | ownerOnly | nobody.
+  /// Trois de ces modes se relisent dans les surcharges Discord au demarrage ;
+  /// `inVoice` non — il ne se distingue d'aucun autre sans cette colonne, et
+  /// sa perte laissait derriere elle des surcharges de presence que plus rien
+  /// ne retirait. `null` = salon d'avant cette colonne, mode deduit.
+  writeMode  String?
   createdAt  DateTime @default(now())
 
   guild      Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)

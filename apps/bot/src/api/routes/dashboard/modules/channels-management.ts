@@ -102,10 +102,10 @@ const TEMP_VOICE_MOD_PERMISSIONS_DEFAULTS: TempVoiceModPermissionsConfigView = {
   canRename: true,
   canChangeLimit: true,
   canLock: true,
-  canChangeWriteMode: false,
+  canChangeWriteMode: true,
   canKickOrBan: true,
-  canReserve: false,
-  canTransfer: false,
+  canReserve: true,
+  canTransfer: true,
 };
 
 /**
@@ -206,7 +206,7 @@ function normalizeTempVoiceAccessRequestInput(
   return { data };
 }
 
-/** Valide le payload entrant pour `tempVoiceModPermissions` : six booléens, rien d'autre. */
+/** Valide le payload entrant pour `tempVoiceModPermissions` : sept booléens, rien d'autre. */
 function normalizeTempVoiceModPermissionsInput(
   raw: unknown,
 ): { data: Partial<TempVoiceModPermissionsConfigView> } | { error: string } {
@@ -292,7 +292,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
           id: ch.id,
           name: ch.name,
           type: ch.type === ChannelType.GuildVoice || ch.type === ChannelType.GuildStageVoice
-            ? 'VOICE'
+            ? 'voice'
             : ch.type === ChannelType.GuildForum ? 'forum' : 'text',
           categoryId: ch.parentId,
           categoryName: ch.parent?.name ?? null,
@@ -955,7 +955,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
           honeypotReinvite: guild.honeypotReinvite,
           wordStatsEnabled: guild.wordStatsEnabled,
           // Toujours les défauts du schéma quand la ligne n'existe pas encore :
-          // le formulaire d'accès (agent D) n'a pas à savoir ce que « jamais
+          // le formulaire d'accès du dashboard n'a pas à savoir ce que « jamais
           // configuré » veut dire.
           tempVoiceAccessRequest: viewTempVoiceAccessRequestConfig(tempVoiceAccessRequestConfig),
           tempVoiceModPermissions: viewTempVoiceModPermissionsConfig(tempVoiceModPermissionsConfig),

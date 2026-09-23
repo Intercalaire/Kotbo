@@ -29,10 +29,10 @@ CREATE TABLE IF NOT EXISTS "temp_voice_mod_permissions_configs" (
   "canRename" BOOLEAN NOT NULL DEFAULT true,
   "canChangeLimit" BOOLEAN NOT NULL DEFAULT true,
   "canLock" BOOLEAN NOT NULL DEFAULT true,
-  "canChangeWriteMode" BOOLEAN NOT NULL DEFAULT false,
+  "canChangeWriteMode" BOOLEAN NOT NULL DEFAULT true,
   "canKickOrBan" BOOLEAN NOT NULL DEFAULT true,
-  "canReserve" BOOLEAN NOT NULL DEFAULT false,
-  "canTransfer" BOOLEAN NOT NULL DEFAULT false,
+  "canReserve" BOOLEAN NOT NULL DEFAULT true,
+  "canTransfer" BOOLEAN NOT NULL DEFAULT true,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -44,3 +44,11 @@ ALTER TABLE "temp_voice_mod_permissions_configs"
 ALTER TABLE "temp_voice_mod_permissions_configs"
   ADD CONSTRAINT "temp_voice_mod_permissions_configs_guildId_fkey"
   FOREIGN KEY ("guildId") REFERENCES "guilds"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AlterTable : le mode d'ecriture d'un salon temporaire.
+-- Trois des quatre modes se relisent dans les surcharges Discord au demarrage ;
+-- « ceux qui sont en vocal » ne s'y distingue d'aucun autre. Sans cette colonne,
+-- un redemarrage rangeait le salon en « personne » et abandonnait derriere lui
+-- des surcharges de presence que plus rien ne retirait.
+ALTER TABLE "temp_voice_channels"
+  ADD COLUMN IF NOT EXISTS "writeMode" TEXT;

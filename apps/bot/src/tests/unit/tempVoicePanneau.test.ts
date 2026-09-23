@@ -3,8 +3,10 @@ import { PermissionFlagsBits } from 'discord.js';
 import {
   ACTIONS_PANNEAU,
   boutonDemanderAccesVisible,
+  CANAUX_NOTIFICATION,
   CHANNEL_PATCHES,
   cleMembreSalon,
+  CONFIG_DEMANDES_PAR_DEFAUT,
   decisionEntreeVocal,
   decisionRetraitAutorisation,
   decisionSortieVocal,
@@ -18,10 +20,14 @@ import {
   LIBELLES_MODES_ECRITURE,
   MODES_ECRITURE,
   modeEcritureDepuisTextChat,
+  nettoyagePresenceAuDemarrage,
+  normaliserConfigDemandes,
   normaliserModeEcriture,
   normaliserReglagesAdmin,
+  ordreNotification,
   peutAgir,
   peutAgirSurCible,
+  peutRepondreDemande,
   quotaRenommage,
   raisonAdminsSeulement,
   reglagesAdminParDefaut,
@@ -29,6 +35,8 @@ import {
   RegistreDemandesAcces,
   RegistreOriginesSurcharge,
   RENOMMAGES_PAR_FENETRE,
+  REPONDEURS_DEMANDE,
+  ROLES_AGISSANTS,
   SILENCE_APRES_REFUS_MS,
   surchargesModeEcriture,
   textChatDepuisModeEcriture,
@@ -37,6 +45,7 @@ import {
   type ModeEcriture,
   type OrigineSurcharge,
   type ReglagesAdmin,
+  type SurchargeMembreLue,
 } from '../../services/features/tempVoiceService.js';
 
 /**
@@ -370,11 +379,56 @@ describe('RegistreDemandesAcces', () => {
     expect(registre.estEnSilence(GUILD, SALON, ALICE, T0 + 30_000)).toBe(false);
   });
 
-  test('le bouton n’apparaît que lorsqu’il sert', () => {
-    expect(boutonDemanderAccesVisible({ verrouille: true, reserve: false })).toBe(true);
-    expect(boutonDemanderAccesVisible({ verrouille: false, reserve: true })).toBe(true);
+  test('le bouton n’apparaît que lorsqu’il sert, et seulement si un admin l’a activé', () => {
+    const active = { activees: true };
+    expect(boutonDemanderAccesVisible({ verrouille: true, reserve: false }, active)).toBe(true);
+    expect(boutonDemanderAccesVisible({ verrouille: false, reserve: true }, active)).toBe(true);
     // Un salon plein, c'est une place qui manque, pas une permission.
-    expect(boutonDemanderAccesVisible({ verrouille: false, reserve: false })).toBe(false);
+    expect(boutonDemanderAccesVisible({ verrouille: false, reserve: false }, active)).toBe(false);
+  });
+
+  test('sans activation, même un salon verrouillé ou réservé ne montre rien', () => {
+    const inactive = { activees: false };
+    expect(boutonDemanderAccesVisible({ verrouille: true, reserve: false }, inactive)).toBe(false);
+    expect(boutonDemanderAccesVisible({ verrouille: false, reserve: true }, inactive)).toBe(false);
+    expect(boutonDemanderAccesVisible({ verrouille: true, reserve: true }, inactive)).toBe(false);
+  });
+
+  test('un délai par appel prime sur celui du registre, sans contaminer un autre serveur', () => {
+    const registre = new RegistreDemandesAcces({ expirationMs: 10 * MINUTE, silenceMs: 10 * MINUTE });
+
+    const court = registre.demander(GUILD, SALON, ALICE, T0, { expirationMs: 60_000 });
+    if (court.statut !== 'enregistree') throw new Error('statut inattendu');
+    expect(court.demande.expireA).toBe(T0 + 60_000);
+
+    // Un autre serveur, sans délai particulier, garde celui du registre.
+    const long = registre.demander(GUILD, AUTRE_SALON, BOB, T0);
+    if (long.statut !== 'enregistree') throw new Error('statut inattendu');
+    expect(long.demande.expireA).toBe(T0 + 10 * MINUTE);
+
+    // À 61 s, la première a expiré ; la seconde, réglée sur dix minutes, tient encore.
+    expect(registre.demandeEnAttente(GUILD, SALON, ALICE, T0 + 61_000)).toBeNull();
+    expect(registre.demandeEnAttente(GUILD, AUTRE_SALON, BOB, T0 + 61_000)).not.toBeNull();
+  });
+
+  test('un silence posé par appel dure ce qu’on lui demande, pas la durée du registre', () => {
+    const registre = new RegistreDemandesAcces({ silenceMs: 10 * MINUTE });
+    registre.demander(GUILD, SALON, ALICE, T0);
+
+    const decision = registre.resoudre(GUILD, SALON, ALICE, 'refusee', T0, { silenceMs: 30 * MINUTE });
+    expect(decision.silenceJusquA).toBe(T0 + 30 * MINUTE);
+    expect(registre.estEnSilence(GUILD, SALON, ALICE, T0 + 30 * MINUTE - 1)).toBe(true);
+    expect(registre.estEnSilence(GUILD, SALON, ALICE, T0 + 30 * MINUTE)).toBe(false);
+  });
+
+  test('sans argument de délai, le comportement d’avant est inchangé', () => {
+    const registre = new RegistreDemandesAcces();
+    const resultat = registre.demander(GUILD, SALON, ALICE, T0);
+    if (resultat.statut !== 'enregistree') throw new Error('statut inattendu');
+    expect(resultat.demande.expireA).toBe(T0 + EXPIRATION_DEMANDE_MS);
+
+    const decision = registre.resoudre(GUILD, SALON, ALICE, 'refusee', T0);
+    expect(decision.silenceJusquA).toBe(T0 + SILENCE_APRES_REFUS_MS);
   });
 });
 
@@ -773,5 +827,190 @@ describe('RegistreOriginesSurcharge', () => {
     expect(registre.oublier(GUILD, SALON, ALICE)).toBe(true);
     expect(registre.oublier(GUILD, SALON, ALICE)).toBe(false);
     expect(registre.origine(GUILD, SALON, ALICE)).toBeNull();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. Le contrat des demandes d'accès (bloquant n°5 de la revue PR #509)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('normaliserConfigDemandes', () => {
+  test('une ligne complète et valide est traduite fidèlement, minutes en millisecondes', () => {
+    expect(
+      normaliserConfigDemandes({
+        enabled: true,
+        responders: 'OWNER',
+        notifyVia: 'CHANNEL',
+        notifyChannelId: SALON,
+        requestExpiresMinutes: 5,
+        denyCooldownMinutes: 15,
+      }),
+    ).toEqual({
+      activees: true,
+      repondeurs: 'OWNER',
+      canal: 'CHANNEL',
+      canalId: SALON,
+      expirationMs: 5 * MINUTE,
+      silenceMs: 15 * MINUTE,
+    });
+  });
+
+  test('null, undefined, un nombre ou une chaîne retombent sur les défauts du schéma', () => {
+    for (const valeur of [null, undefined, 42, 'nawak']) {
+      expect(normaliserConfigDemandes(valeur)).toEqual(CONFIG_DEMANDES_PAR_DEFAUT);
+    }
+  });
+
+  test('un responders inconnu retombe sur OWNER_AND_STAFF, jamais un défaut plus permissif inventé', () => {
+    expect(normaliserConfigDemandes({ responders: 'EVERYONE' }).repondeurs).toBe('OWNER_AND_STAFF');
+    expect(normaliserConfigDemandes({ responders: null }).repondeurs).toBe('OWNER_AND_STAFF');
+    expect(normaliserConfigDemandes({ responders: 'owner' }).repondeurs).toBe('OWNER_AND_STAFF');
+  });
+
+  test('un notifyVia inconnu retombe sur VOICE', () => {
+    expect(normaliserConfigDemandes({ notifyVia: 'PIGEON' }).canal).toBe('VOICE');
+    expect(normaliserConfigDemandes({ notifyVia: null }).canal).toBe('VOICE');
+  });
+
+  test('CHANNEL sans identifiant n’est pas un salon dédié : repli sur VOICE', () => {
+    expect(normaliserConfigDemandes({ notifyVia: 'CHANNEL' }).canal).toBe('VOICE');
+    // Une chaîne vide compte comme absente, pas comme un identifiant.
+    expect(normaliserConfigDemandes({ notifyVia: 'CHANNEL', notifyChannelId: '' }).canal).toBe('VOICE');
+    expect(normaliserConfigDemandes({ notifyVia: 'CHANNEL', notifyChannelId: SALON }).canal).toBe('CHANNEL');
+  });
+
+  test('notifyChannelId vide compte comme absent', () => {
+    expect(normaliserConfigDemandes({ notifyChannelId: '' }).canalId).toBeNull();
+    expect(normaliserConfigDemandes({ notifyChannelId: SALON }).canalId).toBe(SALON);
+  });
+
+  test('seul le booléen true active — chaîne, nombre ou null restent éteints', () => {
+    for (const valeur of ['true', 1, null]) {
+      expect(normaliserConfigDemandes({ enabled: valeur }).activees).toBe(false);
+    }
+    expect(normaliserConfigDemandes({ enabled: true }).activees).toBe(true);
+  });
+
+  test('les minutes hors bornes retombent sur un comportement défendable, lu dans le code', () => {
+    const ms = (valeur: unknown) => normaliserConfigDemandes({ requestExpiresMinutes: valeur }).expirationMs;
+
+    // Sous le minimum : clampé à une minute, pas au défaut de dix.
+    expect(ms(0)).toBe(1 * MINUTE);
+    expect(ms(-5)).toBe(1 * MINUTE);
+    // Au-dessus du maximum : clampé à 24 h, pas rejeté.
+    expect(ms(99999)).toBe(24 * 60 * MINUTE);
+    // Non fini : ni `typeof` ni `Number.isFinite` ne passent, repli sur le défaut.
+    expect(ms(Number.NaN)).toBe(EXPIRATION_DEMANDE_MS);
+    expect(ms(Number.POSITIVE_INFINITY)).toBe(EXPIRATION_DEMANDE_MS);
+    // Un nombre à virgule est arrondi, pas tronqué : 3.7 devient 4.
+    expect(ms(3.7)).toBe(4 * MINUTE);
+    // Une chaîne, même numérique, n'est pas convertie ici — contrairement à
+    // `normalizeUserLimit` qui fait `Number(value)` : incohérence à noter,
+    // pas à corriger dans ce fichier.
+    expect(ms('10')).toBe(EXPIRATION_DEMANDE_MS);
+  });
+});
+
+describe('peutRepondreDemande', () => {
+  test('le propriétaire et l’admin tranchent quel que soit le réglage', () => {
+    for (const repondeurs of REPONDEURS_DEMANDE) {
+      expect(peutRepondreDemande('proprietaire', repondeurs).autorise).toBe(true);
+      expect(peutRepondreDemande('admin', repondeurs).autorise).toBe(true);
+    }
+  });
+
+  test('un modérateur ne répond que si le serveur ouvre au staff, avec une raison sinon', () => {
+    expect(peutRepondreDemande('moderateur', 'OWNER_AND_STAFF').autorise).toBe(true);
+
+    const verdict = peutRepondreDemande('moderateur', 'OWNER');
+    expect(verdict.autorise).toBe(false);
+    // La maquette affiche cette raison : un refus muet serait un bouton mort.
+    if (verdict.autorise) throw new Error('verdict inattendu');
+    expect(verdict.raison.length).toBeGreaterThan(0);
+  });
+
+  test('sur les six couples rôle × réglage, un seul est refusé', () => {
+    const combinaisons = ROLES_AGISSANTS.flatMap((role) =>
+      REPONDEURS_DEMANDE.map((repondeurs) => ({ role, repondeurs, verdict: peutRepondreDemande(role, repondeurs) })),
+    );
+    const refus = combinaisons.filter(({ verdict }) => !verdict.autorise);
+
+    expect(combinaisons).toHaveLength(6);
+    expect(refus).toHaveLength(1);
+    expect(refus[0]).toMatchObject({ role: 'moderateur', repondeurs: 'OWNER' });
+  });
+});
+
+describe('ordreNotification', () => {
+  test('chaque canal donne le bon ordre de replis', () => {
+    expect(ordreNotification({ canal: 'DM', canalId: null })).toEqual(['DM', 'VOICE']);
+    expect(ordreNotification({ canal: 'VOICE', canalId: null })).toEqual(['VOICE', 'DM']);
+    expect(ordreNotification({ canal: 'CHANNEL', canalId: SALON })).toEqual(['CHANNEL', 'VOICE', 'DM']);
+  });
+
+  test('CHANNEL sans identifiant ne commence jamais par CHANNEL', () => {
+    const ordre = ordreNotification({ canal: 'CHANNEL', canalId: null });
+    expect(ordre[0]).not.toBe('CHANNEL');
+    expect(ordre).toEqual(['VOICE', 'DM']);
+  });
+
+  test('aucun ordre ne se termine sans issue : jamais vide, jamais de doublon', () => {
+    for (const canal of CANAUX_NOTIFICATION) {
+      for (const canalId of [null, SALON]) {
+        const ordre = ordreNotification({ canal, canalId });
+        expect(ordre.length).toBeGreaterThan(0);
+        expect(new Set(ordre).size).toBe(ordre.length);
+      }
+    }
+  });
+});
+
+describe('nettoyagePresenceAuDemarrage', () => {
+  const presenceAlice: SurchargeMembreLue = { userId: ALICE, accordeEcriture: true, accordeConnexion: false };
+  const presenceBob: SurchargeMembreLue = { userId: BOB, accordeEcriture: true, accordeConnexion: false };
+  const autorisationAlice: SurchargeMembreLue = { userId: ALICE, accordeEcriture: true, accordeConnexion: true };
+
+  test('en mode « en vocal », un absent porteur d’une présence part, un présent se réinscrit', () => {
+    const plan = nettoyagePresenceAuDemarrage('inVoice', [presenceAlice, presenceBob], [BOB]);
+    expect(plan.aRetirer).toEqual([ALICE]);
+    expect(plan.aMarquerPresence).toEqual([BOB]);
+  });
+
+  test('une autorisation explicite (Connect ET SendMessages accordés) n’apparaît dans aucune des deux listes', () => {
+    // L'invariant qui compte le plus : un droit donné à la main ne s'efface
+    // jamais tout seul — que la personne soit présente ou absente.
+    const absente = nettoyagePresenceAuDemarrage('inVoice', [autorisationAlice], []);
+    expect(absente).toEqual({ aRetirer: [], aMarquerPresence: [] });
+
+    const presente = nettoyagePresenceAuDemarrage('inVoice', [autorisationAlice], [ALICE]);
+    expect(presente).toEqual({ aRetirer: [], aMarquerPresence: [] });
+  });
+
+  test('hors « en vocal », toute surcharge de présence part, jamais de réinscription', () => {
+    // C'est le salon dont le mode a changé juste avant l'arrêt.
+    for (const mode of MODES_ECRITURE.filter((m) => m !== 'inVoice')) {
+      const plan = nettoyagePresenceAuDemarrage(mode, [presenceAlice, presenceBob], [ALICE, BOB]);
+      expect([...plan.aRetirer].sort()).toEqual([ALICE, BOB].sort());
+      expect(plan.aMarquerPresence).toEqual([]);
+    }
+  });
+
+  test('rien ne casse sur une liste vide, personne de présent, ou une présence sans surcharge', () => {
+    expect(nettoyagePresenceAuDemarrage('inVoice', [], [])).toEqual({ aRetirer: [], aMarquerPresence: [] });
+    expect(nettoyagePresenceAuDemarrage('inVoice', [], [ALICE])).toEqual({ aRetirer: [], aMarquerPresence: [] });
+
+    const sansSurcharge: SurchargeMembreLue = { userId: ALICE, accordeEcriture: false, accordeConnexion: false };
+    expect(nettoyagePresenceAuDemarrage('inVoice', [sansSurcharge], [ALICE])).toEqual({
+      aRetirer: [],
+      aMarquerPresence: [],
+    });
+  });
+
+  test('les deux listes sont toujours disjointes', () => {
+    for (const mode of MODES_ECRITURE) {
+      const plan = nettoyagePresenceAuDemarrage(mode, [presenceAlice, presenceBob], [ALICE]);
+      const intersection = plan.aRetirer.filter((id) => plan.aMarquerPresence.includes(id));
+      expect(intersection).toEqual([]);
+    }
   });
 });

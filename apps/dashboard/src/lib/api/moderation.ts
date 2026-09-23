@@ -159,8 +159,8 @@ export async function updateChannelsManagementConfig(
     // Demandes d'accès à un salon verrouillé/réservé, et permissions du staff
     // sur les salons temporaires. Formes calquées sur les modèles Prisma
     // `TempVoiceAccessRequestConfig` / `TempVoiceModPermissionsConfig`
-    // (packages/database/prisma/temp-voice-access.prisma, posés par l'agent
-    // C) ; aucune route ne les sert encore côté bot, à brancher.
+    // (packages/database/prisma/temp-voice-access.prisma), servies par
+    // `GET`/`PATCH /channels-management` côté bot.
     tempVoiceAccessRequest?: {
       enabled: boolean;
       responders: 'OWNER' | 'OWNER_AND_STAFF';

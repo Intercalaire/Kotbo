@@ -54,12 +54,10 @@
    * staff sur les salons temporaires qui ne sont pas les siens.
    *
    * Formes calquées sur `packages/database/prisma/temp-voice-access.prisma`
-   * (modèles `TempVoiceAccessRequestConfig` et `TempVoiceModPermissionsConfig`,
-   * posés par l'agent C) : mêmes noms de champs, mêmes valeurs par défaut.
-   * Aucune route API ne les sert encore ; le formulaire les lit et les écrit
-   * comme si `/channels-management` les exposait déjà sous ces deux clés
-   * (`tempVoiceAccessRequest`, `tempVoiceModPermissions`) — à confirmer côté
-   * route une fois branchée.
+   * (modèles `TempVoiceAccessRequestConfig` et `TempVoiceModPermissionsConfig`) :
+   * mêmes noms de champs, mêmes valeurs par défaut. Servies par
+   * `GET`/`PATCH /channels-management` côté bot sous ces deux clés
+   * (`tempVoiceAccessRequest`, `tempVoiceModPermissions`).
    */
   type TempVoiceAccessResponders = 'OWNER' | 'OWNER_AND_STAFF';
   type TempVoiceAccessNotifyVia = 'VOICE' | 'DM' | 'CHANNEL';
@@ -95,16 +93,16 @@
     };
   }
 
-  /** `@default` du modèle Prisma `TempVoiceModPermissionsConfig` — deux actions réservées aux admins. */
+  /** `@default` du modèle Prisma `TempVoiceModPermissionsConfig`. */
   function defaultTempVoiceModPermissions(): TempVoiceModPermissionsConfig {
     return {
       canRename: true,
       canChangeLimit: true,
       canLock: true,
-      canChangeWriteMode: false,
+      canChangeWriteMode: true,
       canKickOrBan: true,
-      canReserve: false,
-      canTransfer: false,
+      canReserve: true,
+      canTransfer: true,
     };
   }
 

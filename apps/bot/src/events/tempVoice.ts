@@ -74,11 +74,18 @@ import {
   RENOMMAGES_PAR_FENETRE,
   RegistreDemandesAcces,
   boutonDemanderAccesVisible,
+  CONFIG_DEMANDES_PAR_DEFAUT,
+  normaliserConfigDemandes,
+  peutRepondreDemande,
+  ordreNotification,
   RegistreOriginesSurcharge,
   decisionEntreeVocal,
   decisionSortieVocal,
   decisionRetraitAutorisation,
   transitionModeEcriture,
+  estModeEcriture,
+  nettoyagePresenceAuDemarrage,
+  PATCH_PRESENCE_RETIREE,
   peutAgir,
   peutAgirSurCible,
   libelleActionMembre,
@@ -86,7 +93,10 @@ import {
   reglagesVerrouilles,
   raisonAdminsSeulement,
   type ModeEcriture,
+  type CanalNotification,
   type CibleMembre,
+  type ConfigDemandesAcces,
+  type SurchargeMembreLue,
   type ReglagesAdmin,
   type RoleAgissant,
   type ActionPanneau,
@@ -320,6 +330,32 @@ async function lireReglagesAdmin(guildId: string): Promise<ReglagesAdmin> {
   });
 }
 
+/**
+ * Configuration des demandes d'accès du serveur, écrite par le dashboard.
+ *
+ * Aucune ligne vaut `activees: false` : c'est le comportement d'avant la
+ * refonte, aucun bouton nulle part. Les défauts du schéma, eux, ne valent qu'à
+ * la création de la ligne - les appliquer à une absence poserait un bouton sur
+ * tous les salons verrouillés de tous les serveurs dès le premier déploiement.
+ */
+async function lireConfigDemandes(guildId: string): Promise<ConfigDemandesAcces> {
+  // try/catch et non `.catch()`, pour la même raison que `lireReglagesAdmin` :
+  // un modèle absent du client fait lever `.findUnique` de manière SYNCHRONE.
+  let ligne: Awaited<ReturnType<typeof prisma.tempVoiceAccessRequestConfig.findUnique>> = null;
+  try {
+    ligne = await prisma.tempVoiceAccessRequestConfig.findUnique({ where: { guildId } });
+  } catch (err) {
+    // Le repli est le même qu'une absence de ligne, mais il se dit : sinon une
+    // coupure de base est indiscernable d'un serveur qui n'a jamais activé les
+    // demandes, et le bouton disparaît sans que personne ne sache pourquoi.
+    logger.warn('TempVoice', `Config des demandes d'accès illisible pour ${guildId}, repli sur « désactivées » :`, err);
+    return { ...CONFIG_DEMANDES_PAR_DEFAUT };
+  }
+  if (!ligne) return { ...CONFIG_DEMANDES_PAR_DEFAUT };
+
+  return normaliserConfigDemandes(ligne);
+}
+
 /** Qui clique, du point de vue de la matrice de permissions. */
 async function roleAgissant(
   guildId: string,
@@ -449,6 +485,58 @@ async function closeTempChannel(channel: VoiceChannel, reason: string): Promise<
   return true;
 }
 
+/**
+ * Les surcharges de présence d'un salon repris au démarrage.
+ *
+ * @everyone, le propriétaire et le bot portent des surcharges de mode, pas de
+ * présence : en `ownerOnly` le propriétaire a `SendMessages` sans `Connect`,
+ * exactement la forme d'une marque de présence. Les compter ici lui retirerait
+ * la parole chez lui.
+ */
+function surchargesMembresLues(channel: VoiceChannel, proprietaireId: string): SurchargeMembreLue[] {
+  const everyoneId = channel.guild?.id ?? '';
+  const botId = channel.guild?.members?.me?.id ?? '';
+  const lues: SurchargeMembreLue[] = [];
+
+  for (const [cibleId, surcharge] of channel.permissionOverwrites?.cache ?? []) {
+    if (cibleId === everyoneId || cibleId === proprietaireId || cibleId === botId) continue;
+    const type = (surcharge as { type?: number }).type;
+    if (type !== undefined && type !== OverwriteType.Member) continue;
+    lues.push({
+      userId: cibleId,
+      accordeEcriture: Boolean(surcharge.allow?.has(PermissionFlagsBits.SendMessages)),
+      accordeConnexion: Boolean(surcharge.allow?.has(PermissionFlagsBits.Connect)),
+    });
+  }
+
+  return lues;
+}
+
+/**
+ * Le registre d'origines est en mémoire : après un redémarrage, les surcharges
+ * de présence posées avant n'ont plus personne pour les retirer quand les gens
+ * quittent le vocal. Le salon affiche « Personne » pendant que plusieurs
+ * membres écrivent encore.
+ */
+async function reparerPresencesAuDemarrage(
+  channel: VoiceChannel,
+  guildId: string,
+  entree: EntreeSalonTemporaire,
+): Promise<void> {
+  const plan = nettoyagePresenceAuDemarrage(
+    modeDuSalon(channel, entree),
+    surchargesMembresLues(channel, entree.creatorId),
+    [...(channel.members?.keys() ?? [])],
+  );
+
+  for (const membreId of plan.aRetirer) {
+    await poserSurcharge(channel, membreId, { ...PATCH_PRESENCE_RETIREE });
+  }
+  for (const membreId of plan.aMarquerPresence) {
+    originesSurcharge.marquer(guildId, channel.id, membreId, 'presence');
+  }
+}
+
 async function sweepOrphanChannels(client: Client): Promise<void> {
   const guildIds = [...client.guilds.cache.keys()];
   if (guildIds.length === 0) return;
@@ -457,7 +545,7 @@ async function sweepOrphanChannels(client: Client): Promise<void> {
     .findMany({ where: { guildId: { in: guildIds } } })
     .catch((err: unknown) => {
       logger.error('TempVoice', 'Erreur lors de la lecture des salons temporaires :', err);
-      return [] as Array<{ id: string; creatorId: string; guildId: string }>;
+      return [] as Array<{ id: string; creatorId: string; guildId: string; writeMode: string | null }>;
     });
 
   let restored = 0;
@@ -495,7 +583,16 @@ async function sweepOrphanChannels(client: Client): Promise<void> {
       continue;
     }
 
-    tempChannels.set(entry.id, { creatorId: entry.creatorId });
+    // « Ceux qui sont en vocal » ne se relit dans aucune surcharge : sans la
+    // colonne, il redevenait « ouvert » au redémarrage et ses surcharges de
+    // présence restaient derrière lui. `null` = salon d'avant la colonne, le
+    // mode reste déduit.
+    const entree: EntreeSalonTemporaire = {
+      creatorId: entry.creatorId,
+      ...(estModeEcriture(entry.writeMode) ? { modeEcriture: entry.writeMode } : {}),
+    };
+    tempChannels.set(entry.id, entree);
+    await reparerPresencesAuDemarrage(channel, entry.guildId, entree);
     restored += 1;
   }
 
@@ -576,9 +673,10 @@ type SurchargeLue = { allow?: { has(bit: bigint): boolean }; deny?: { has(bit: b
 
 /**
  * Trois des quatre modes se lisent dans les surcharges. « Ceux qui sont en
- * vocal » ne s'y distingue pas de « moi seul » : c'est la mémoire du salon qui
- * le porte, et sa perte au redémarrage ramène au mode déduit - jamais à un mode
- * inventé.
+ * vocal » n'en porte aucune trace : @everyone y est refusé et le propriétaire
+ * n'a pas d'`allow` nommé, ce qui est exactement la forme de « Personne » — il
+ * est donc rangé là. C'est `TempVoiceChannel.writeMode` qui le distingue, et
+ * cette déduction ne sert plus qu'aux salons créés avant la colonne.
  */
 function deduireModeEcriture(everyone: SurchargeLue, proprietaire: SurchargeLue): ModeEcriture {
   if (!everyone?.deny?.has(PermissionFlagsBits.SendMessages)) return MODE_ECRITURE_PAR_DEFAUT;
@@ -622,7 +720,10 @@ function carteEtat(etat: EtatSalon): EmbedBuilder {
  * varie n'est donc pas la personne mais l'état du salon ; le tri entre les
  * personnes se fait au clic.
  */
-function rangeePrincipale(etat: EtatSalon): ActionRowBuilder<MessageActionRowComponentBuilder> {
+function rangeePrincipale(
+  etat: EtatSalon,
+  demandes: ConfigDemandesAcces,
+): ActionRowBuilder<MessageActionRowComponentBuilder> {
   const boutons: ButtonBuilder[] = [
     avecIcone(new ButtonBuilder().setCustomId('tempvoice:salon').setLabel('Salon').setStyle(ButtonStyle.Secondary), I.settings),
     avecIcone(new ButtonBuilder().setCustomId('tempvoice:membres').setLabel('Membres').setStyle(ButtonStyle.Secondary), I.profile),
@@ -630,9 +731,10 @@ function rangeePrincipale(etat: EtatSalon): ActionRowBuilder<MessageActionRowCom
   ];
 
   // Sur un salon simplement *plein*, demander l'accès ne changerait rien :
-  // c'est une place qui manque, pas une permission. La règle est dans le
+  // c'est une place qui manque, pas une permission. Et le bouton n'existe pas
+  // du tout tant qu'un administrateur ne l'a pas activé. La règle est dans le
   // service, pas recopiée ici.
-  if (boutonDemanderAccesVisible({ verrouille: etat.verrouille, reserve: etat.reserveRoleId !== null })) {
+  if (boutonDemanderAccesVisible({ verrouille: etat.verrouille, reserve: etat.reserveRoleId !== null }, demandes)) {
     boutons.push(
       avecIcone(
         new ButtonBuilder().setCustomId('tempvoice:demander').setLabel("Demander l'accès").setStyle(ButtonStyle.Primary),
@@ -651,7 +753,8 @@ interface PanneauRendu {
 
 async function construirePanneau(channel: VoiceChannel, entree: EntreeSalonTemporaire): Promise<PanneauRendu> {
   const etat = await lireEtatSalon(channel, entree);
-  return { embeds: [carteEtat(etat)], components: [rangeePrincipale(etat)] };
+  const demandes = await lireConfigDemandes(channel.guild?.id ?? '');
+  return { embeds: [carteEtat(etat)], components: [rangeePrincipale(etat, demandes)] };
 }
 
 /**
@@ -838,6 +941,17 @@ async function appliquerModeEcriture(
   }
 
   entree.modeEcriture = nouveau;
+
+  // La mémoire du salon meurt avec le process. Sans cette ligne, « ceux qui
+  // sont en vocal » redevient au redémarrage un mode déduit - et les surcharges
+  // de présence qu'il avait posées n'ont plus personne pour les retirer.
+  // Une base indisponible ne doit pas faire échouer le clic : le mode est
+  // appliqué sur Discord, c'est l'essentiel.
+  try {
+    await prisma.tempVoiceChannel.update({ where: { id: channel.id }, data: { writeMode: nouveau } });
+  } catch (err) {
+    logger.warn('TempVoice', `Mode d'écriture non persisté pour ${channel.id} :`, err);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -850,6 +964,9 @@ const ACTIONS_OUVERTES = new Set(['claim', 'demander']);
 interface ContextePanneau {
   role: RoleAgissant;
   reglages: ReglagesAdmin;
+  /** Ce que le dashboard a réglé pour les demandes d'accès : qui répond, où, et
+   *  avec quels délais. Membre du contexte pour qu'aucun appelant ne l'oublie. */
+  demandes: ConfigDemandesAcces;
 }
 
 /** Grise un bouton et dit pourquoi : la maquette montre le motif *avant* le clic,
@@ -1141,8 +1258,26 @@ function panneauPropriete(
   };
 }
 
+/**
+ * Les boutons de la carte de décision portent le salon visé.
+ *
+ * La carte ne part plus forcément dans le salon vocal : en MP ou dans un salon
+ * dédié, `interaction.channel` ne désigne plus le salon temporaire, et le
+ * gestionnaire n'aurait plus rien à piloter. Budget : `tempvoice:demande_ban:`
+ * (22) + deux snowflakes de 20 chiffres au plus, séparateur compris (41) = 63,
+ * sous la limite de 100 caractères d'un `custom_id`.
+ */
+function identifiantDecision(verdict: 'ok' | 'non' | 'ban', demandeurId: string, salonId: string): string {
+  return `tempvoice:demande_${verdict}:${demandeurId}:${salonId}`;
+}
+
 /** Ce que reçoit le propriétaire : de quoi décider sans quitter le salon. */
-function carteDecision(demandeur: GuildMember, dejaRefuse: boolean, expireA: number): PanneauRendu {
+function carteDecision(
+  demandeur: GuildMember,
+  salonId: string,
+  dejaRefuse: boolean,
+  expireA: number,
+): PanneauRendu {
   const anciennete = demandeur.joinedTimestamp
     ? `depuis ${formaterDuree(Date.now() - demandeur.joinedTimestamp)}`
     : 'date inconnue';
@@ -1166,21 +1301,21 @@ function carteDecision(demandeur: GuildMember, dejaRefuse: boolean, expireA: num
       new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
         avecIcone(
           new ButtonBuilder()
-            .setCustomId(`tempvoice:demande_ok:${demandeur.id}`)
+            .setCustomId(identifiantDecision('ok', demandeur.id, salonId))
             .setLabel('Autoriser')
             .setStyle(ButtonStyle.Success),
           I.check,
         ),
         avecIcone(
           new ButtonBuilder()
-            .setCustomId(`tempvoice:demande_non:${demandeur.id}`)
+            .setCustomId(identifiantDecision('non', demandeur.id, salonId))
             .setLabel('Refuser')
             .setStyle(ButtonStyle.Danger),
           I.cross,
         ),
         avecIcone(
           new ButtonBuilder()
-            .setCustomId(`tempvoice:demande_ban:${demandeur.id}`)
+            .setCustomId(identifiantDecision('ban', demandeur.id, salonId))
             .setLabel('Refuser et bannir')
             .setStyle(ButtonStyle.Secondary),
           I.ban,
@@ -1278,11 +1413,48 @@ async function createTempChannel(
   logger.info('TempVoice', `Salon créé : ${tempChannel.name} (${tempChannel.id})`);
 }
 
+/**
+ * Le salon temporaire que l'interaction pilote.
+ *
+ * Une carte de décision postée en MP ou dans un salon dédié n'a plus le salon
+ * vocal sous la main : son identifiant de bouton le porte en quatrième partie,
+ * et c'est lui qui fait foi. Les cartes postées avant ce changement n'en ont
+ * pas - elles retombent sur le salon de l'interaction, comme avant.
+ */
+async function resoudreSalonVise(interaction: Interaction & { customId: string }): Promise<VoiceChannel | null> {
+  const estSalonVocal = (candidat: unknown): candidat is VoiceChannel =>
+    Boolean(candidat) && (candidat as { type?: number }).type === ChannelType.GuildVoice;
+
+  const courant = interaction.channel;
+  const vise = interaction.customId.split(':')[3];
+
+  if (!vise) return estSalonVocal(courant) ? courant : null;
+  if (estSalonVocal(courant) && courant.id === vise) return courant;
+
+  const trouve = await interaction.client?.channels?.fetch(vise).catch(() => null);
+  return estSalonVocal(trouve) ? trouve : null;
+}
+
+/** Sans ce balayage, un salon disparu sans passer par `oublierSalon` laisserait
+ *  ses demandes et ses silences en mémoire jusqu'à l'arrêt du bot. */
+const PURGE_DEMANDES_MS = 5 * 60 * 1000;
+
+/** Un seul minuteur pour le process : `registerTempVoiceListener` est rappelé
+ *  par chaque test, et autant d'intervalles s'accumuleraient. */
+let purgeDemandes: ReturnType<typeof setInterval> | null = null;
+
 export function registerTempVoiceListener(client: Client): void {
   const scheduleSweep = () => {
     void sweepOrphanChannels(client).catch((err: unknown) => {
       logger.error('TempVoice', 'Erreur lors du balayage des salons temporaires :', err);
     });
+
+    if (purgeDemandes) clearInterval(purgeDemandes);
+    purgeDemandes = setInterval(() => registreDemandes.purger(Date.now()), PURGE_DEMANDES_MS);
+    // Un minuteur vivant empêche le process de se terminer : la suite de tests
+    // ne rendrait jamais la main. `unref` n'existe pas sur le minuteur des
+    // navigateurs, d'où l'appel optionnel.
+    purgeDemandes.unref?.();
   };
 
   if (client.isReady()) scheduleSweep();
@@ -1359,7 +1531,6 @@ export function registerTempVoiceListener(client: Client): void {
   });
 
   client.on(Events.InteractionCreate, async (interaction: Interaction) => {
-    if (!interaction.guildId) return;
     if (
       !interaction.isButton() &&
       !interaction.isModalSubmit() &&
@@ -1369,8 +1540,13 @@ export function registerTempVoiceListener(client: Client): void {
     ) return;
     if (!interaction.customId.startsWith('tempvoice:')) return;
 
-    const { channel, user, guild, guildId } = interaction;
-    if (!guild || !channel || channel.type !== ChannelType.GuildVoice) return;
+    const user = interaction.user;
+    const channel = await resoudreSalonVise(interaction);
+    // Le MP porte la carte mais pas le serveur : c'est le salon retrouvé qui le
+    // donne. Dans le salon vocal, les deux désignent le même.
+    const guild = interaction.guild ?? channel?.guild ?? null;
+    if (!channel || !guild) return;
+    const guildId = guild.id;
 
     const cache = tempChannels.get(channel.id);
     if (!cache) {
@@ -1402,6 +1578,7 @@ export function registerTempVoiceListener(client: Client): void {
     const ctxp: ContextePanneau = {
       role: await roleAgissant(guildId, actingMember, cache.creatorId),
       reglages: await lireReglagesAdmin(guildId),
+      demandes: await lireConfigDemandes(guildId),
     };
 
     // Les panneaux déjà postés avant la refonte restent en place dans les salons
@@ -1553,6 +1730,74 @@ async function basculerVerrou(ctx: ActionContext): Promise<string> {
 }
 
 /**
+ * Retire une demande à laquelle personne n'aura l'occasion de répondre.
+ *
+ * Elle est résolue en « acceptée » parce que c'est la seule décision qui ne
+ * pose pas de silence : personne n'a tranché, et le demandeur doit pouvoir
+ * réessayer dès que la cause est levée.
+ */
+function annulerDemande(guildId: string, salonId: string, demandeurId: string, maintenant: number): void {
+  registreDemandes.resoudre(guildId, salonId, demandeurId, 'acceptee', maintenant);
+}
+
+/**
+ * Prévient le propriétaire, en essayant chaque canal jusqu'à ce qu'un aboutisse.
+ *
+ * Aucun canal n'est sûr : les MP se ferment sans que Discord offre de le
+ * vérifier avant l'envoi, et un salon dédié peut avoir été supprimé ou fermé au
+ * bot depuis que le dashboard l'a choisi. `ordreNotification` donne l'ordre et
+ * garde toujours une issue derrière le premier choix.
+ *
+ * La mention accompagne la carte : c'est elle qui notifie, un embed n'en
+ * produisant aucune.
+ */
+async function transmettreCarteDecision(
+  channel: VoiceChannel,
+  guild: DiscordGuild,
+  proprietaireId: string,
+  config: ConfigDemandesAcces,
+  carte: PanneauRendu,
+): Promise<CanalNotification | null> {
+  const mention = `<@${proprietaireId}>`;
+  let proprietaire: GuildMember | null | undefined;
+
+  for (const canal of ordreNotification(config)) {
+    if (canal === 'VOICE') {
+      const poste = await channel.send({ content: mention, ...carte }).catch((err: unknown) => {
+        logger.warn('TempVoice', `La demande d'accès n'a pas pu être postée dans ${channel.id} :`, err);
+        return null;
+      });
+      if (poste) return 'VOICE';
+      continue;
+    }
+
+    if (canal === 'DM') {
+      if (proprietaire === undefined) proprietaire = await guild.members.fetch(proprietaireId).catch(() => null);
+      const envoye = proprietaire
+        ? await proprietaire.send(carte).then(() => true).catch(() => false)
+        : false;
+      if (envoye) return 'DM';
+      continue;
+    }
+
+    if (!config.canalId) continue;
+    const dedie = await guild.channels.fetch(config.canalId).catch(() => null);
+    if (!dedie?.isTextBased()) continue;
+    // Un salon où le bot ne peut pas écrire n'est pas un canal : l'essayer
+    // quand même coûterait un aller-retour pour un refus certain.
+    const moi = guild.members.me;
+    if (moi && !dedie.permissionsFor(moi)?.has(PermissionFlagsBits.SendMessages)) continue;
+    const poste = await dedie.send({ content: mention, ...carte }).catch((err: unknown) => {
+      logger.warn('TempVoice', `La demande d'accès n'a pas pu être postée dans ${config.canalId} :`, err);
+      return null;
+    });
+    if (poste) return 'CHANNEL';
+  }
+
+  return null;
+}
+
+/**
  * « Demander l'accès » : le bouton de celui qui est dehors.
  *
  * Rien n'est écrit dans le salon par le demandeur — sa demande ne doit pas
@@ -1569,13 +1814,23 @@ async function traiterDemandeAcces(ctx: ActionContext): Promise<void> {
     return;
   }
 
+  // Un panneau posté avant qu'un administrateur ne désactive les demandes porte
+  // encore le bouton : le refus se dit ici, le bouton grisé ne suffit pas.
+  if (!ctxp.demandes.activees) {
+    await respond(interaction, `${I.lock} Les demandes d'accès ne sont pas activées sur ce serveur.`);
+    return;
+  }
+
   const etat = await lireEtatSalon(channel, cache);
-  if (!boutonDemanderAccesVisible({ verrouille: etat.verrouille, reserve: etat.reserveRoleId !== null })) {
+  if (!boutonDemanderAccesVisible({ verrouille: etat.verrouille, reserve: etat.reserveRoleId !== null }, ctxp.demandes)) {
     await respond(interaction, `${I.unlock} Le salon est ouvert : tu peux le rejoindre directement.`);
     return;
   }
 
-  const resultat = registreDemandes.demander(guildId, channel.id, demandeurId, maintenant);
+  const resultat = registreDemandes.demander(guildId, channel.id, demandeurId, maintenant, {
+    expirationMs: ctxp.demandes.expirationMs,
+    silenceMs: ctxp.demandes.silenceMs,
+  });
 
   if (resultat.statut === 'silence') {
     await respond(
@@ -1595,21 +1850,23 @@ async function traiterDemandeAcces(ctx: ActionContext): Promise<void> {
 
   const demandeur = await guild.members.fetch(demandeurId).catch(() => null);
   if (!demandeur) {
-    registreDemandes.resoudre(guildId, channel.id, demandeurId, 'acceptee', maintenant);
+    annulerDemande(guildId, channel.id, demandeurId, maintenant);
     await respond(interaction, "❌ Ton profil sur ce serveur n'a pas pu être lu : réessaie dans un instant.");
     return;
   }
 
-  // La mention au-dessus de la carte, comme pour le panneau : c'est elle qui
-  // notifie, un embed n'en produisant aucune.
-  const carte = carteDecision(demandeur, registreDemandes.estEnSilence(guildId, channel.id, demandeurId, maintenant), resultat.demande.expireA);
-  const poste = await channel.send({ content: `<@${cache.creatorId}>`, ...carte }).catch((err: unknown) => {
-    logger.warn('TempVoice', `La demande d'accès n'a pas pu être postée dans ${channel.id} :`, err);
-    return null;
-  });
+  const carte = carteDecision(
+    demandeur,
+    channel.id,
+    registreDemandes.estEnSilence(guildId, channel.id, demandeurId, maintenant),
+    resultat.demande.expireA,
+  );
+  const voie = await transmettreCarteDecision(channel, guild, cache.creatorId, ctxp.demandes, carte);
 
-  if (!poste) {
-    registreDemandes.resoudre(guildId, channel.id, demandeurId, 'acceptee', maintenant);
+  if (!voie) {
+    // Aucun canal n'a abouti : laisser la demande en attente ferait patienter
+    // le demandeur devant une réponse que personne ne peut lui donner.
+    annulerDemande(guildId, channel.id, demandeurId, maintenant);
     await respond(interaction, "❌ La demande n'a pas pu être transmise au propriétaire.");
     return;
   }
@@ -1640,6 +1897,7 @@ async function prevenirDemandeur(
   channel: VoiceChannel,
   demandeur: GuildMember,
   acceptee: boolean,
+  silenceMs: number,
 ): Promise<void> {
   const embed = acceptee
     ? new EmbedBuilder()
@@ -1649,7 +1907,10 @@ async function prevenirDemandeur(
     : new EmbedBuilder()
       .setColor(COULEUR_NEUTRE)
       .setTitle(`${I.cross} Demande refusée`)
-      .setDescription(`Tu pourras redemander dans ${formaterDuree(registreDemandes.silenceMs)}.`);
+      // Le délai du serveur, et non celui du registre : un seul registre sert
+      // tous les serveurs, annoncer son défaut donnerait un chiffre faux dès
+      // qu'un administrateur règle le sien.
+      .setDescription(`Tu pourras redemander dans ${formaterDuree(silenceMs)}.`);
 
   const envoye = await demandeur.send({ embeds: [embed] }).then(() => true).catch(() => false);
 
@@ -1662,9 +1923,12 @@ async function prevenirDemandeur(
 
 /** Réponse du propriétaire à une demande d'accès. */
 async function traiterDecisionDemande(ctx: ActionContext, decision: 'ok' | 'non' | 'ban'): Promise<void> {
-  const { interaction, channel, guild, guildId, ctxp } = ctx;
+  const { interaction, channel, cache, guild, guildId, ctxp } = ctx;
+  const maintenant = Date.now();
 
-  const verdict = peutAgir(ctxp.role, 'repondreDemande', ctxp.reglages);
+  // `peutAgir` ne sait rien de cette action : aucune ligne des réglages
+  // modérateur ne la gouverne, c'est la colonne `responders` qui tranche.
+  const verdict = peutRepondreDemande(ctxp.role, ctxp.demandes.repondeurs);
   if (!verdict.autorise) {
     await respond(interaction, `${I.lock} ${verdict.raison}`);
     return;
@@ -1677,12 +1941,42 @@ async function traiterDecisionDemande(ctx: ActionContext, decision: 'ok' | 'non'
     return;
   }
 
+  // Une carte reste cliquable après l'expiration de la demande : sans cette
+  // vérification, « Autoriser » accordait encore l'accès des heures plus tard,
+  // sur une demande que le registre avait déjà oubliée.
+  if (!registreDemandes.demandeEnAttente(guildId, channel.id, demandeurId, maintenant)) {
+    await cloreCarteDecision(interaction, `${I.warn} La demande de **${demandeur.displayName}** a expiré.`);
+    await respond(interaction, `${I.warn} Cette demande a expiré : **${demandeur.displayName}** doit la renouveler.`);
+    return;
+  }
+
+  // Bannir depuis la carte est un bannissement comme un autre : il passait
+  // jusqu'ici sans réglage ni protection de cible, alors que le même geste sur
+  // la fiche du membre en exige deux.
+  if (decision === 'ban') {
+    const verdictBan = peutAgirSurCible(ctxp.role, 'bannir', ctxp.reglages, {
+      nom: demandeur.displayName,
+      estStaff: await isProtectedTarget(guildId, demandeur),
+      estProprietaire: demandeur.id === cache.creatorId,
+      estSoiMeme: demandeur.id === interaction.user.id,
+      dansLeSalon: demandeur.voice.channelId === channel.id,
+      autorise: false,
+    });
+    if (!verdictBan.autorise) {
+      // La demande reste en attente : le refus porte sur le bannissement, pas
+      // sur la demande, qu'un autre bouton peut encore trancher.
+      await respond(interaction, `${I.warn} ${verdictBan.raison}`);
+      return;
+    }
+  }
+
   registreDemandes.resoudre(
     guildId,
     channel.id,
     demandeurId,
     decision === 'ok' ? 'acceptee' : 'refusee',
-    Date.now(),
+    maintenant,
+    { silenceMs: ctxp.demandes.silenceMs },
   );
 
   if (decision === 'ok') {
@@ -1696,7 +1990,7 @@ async function traiterDecisionDemande(ctx: ActionContext, decision: 'ok' | 'non'
     // l'effacer, alors que « Autoriser » et la présence écrivent le même bit.
     originesSurcharge.marquer(guildId, channel.id, demandeur.id, 'autorisation');
     await cloreCarteDecision(interaction, `${I.check} **${demandeur.displayName}** a été autorisé.`);
-    await prevenirDemandeur(channel, demandeur, true);
+    await prevenirDemandeur(channel, demandeur, true, ctxp.demandes.silenceMs);
     await respond(interaction, `${I.check} **${demandeur.displayName}** a été autorisé à rejoindre le salon.`);
     planifierRafraichissementPanneau(channel);
     return;
@@ -1712,14 +2006,14 @@ async function traiterDecisionDemande(ctx: ActionContext, decision: 'ok' | 'non'
       await demandeur.voice.disconnect('Demande d\'accès refusée et bannissement du salon.').catch(() => oubli());
     }
     await cloreCarteDecision(interaction, `${I.ban} **${demandeur.displayName}** a été refusé et banni.`);
-    await prevenirDemandeur(channel, demandeur, false);
+    await prevenirDemandeur(channel, demandeur, false, ctxp.demandes.silenceMs);
     await respond(interaction, `${I.ban} **${demandeur.displayName}** a été refusé et banni du salon.`);
     planifierRafraichissementPanneau(channel);
     return;
   }
 
   await cloreCarteDecision(interaction, `${I.cross} **${demandeur.displayName}** a été refusé.`);
-  await prevenirDemandeur(channel, demandeur, false);
+  await prevenirDemandeur(channel, demandeur, false, ctxp.demandes.silenceMs);
   await respond(interaction, `${I.cross} **${demandeur.displayName}** a été refusé.`);
 }
 
