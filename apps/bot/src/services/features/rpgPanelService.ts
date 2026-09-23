@@ -103,6 +103,7 @@ import {
   type CardSlot,
 } from './rpg/rpgCharacterCard.js';
 import { formatEnchant } from './rpg/rpgEnchantments.js';
+import { listItemInstances, type ItemProgression } from './rpg/rpgItemInstanceService.js';
 import { SKILL_TREE_UNLOCK_LEVEL, getSkillNode } from './rpg/rpgSkillTree.js';
 import { discountedPrice, type GuildPerks } from './rpg/rpgGuildBuildings.js';
 import {
@@ -954,18 +955,57 @@ function levelRequirementLabel(item: { levelRequired: number }, playerLevel: num
     : `· ⚠️ ${m.rpg_item_level_required({ level: item.levelRequired }, { locale })}`;
 }
 
+/**
+ * Ligne du sac : les exemplaires ordinaires d'un objet, ou UN exemplaire forgé.
+ *
+ * Un exemplaire forgé ou enchanté a sa propre ligne : il ne s'empile ni avec un autre
+ * niveau de forge ni avec les exemplaires ordinaires, qui ne partagent pas sa progression.
+ */
+type BagEntry = {
+  entry: LocalInventoryEntry;
+  copy: ItemProgression | null;
+  count: number;
+  worn: boolean;
+};
+
+function bagEntries(
+  inventory: LocalInventoryEntry[],
+  copies: ItemProgression[],
+  profile: SlottedProfile,
+): BagEntry[] {
+  const byItem = new Map<string, ItemProgression[]>();
+  for (const copy of copies) byItem.set(copy.itemId, [...(byItem.get(copy.itemId) ?? []), copy]);
+
+  return inventory.flatMap((entry) => {
+    const forged = (byItem.get(entry.item.id) ?? []).slice(0, Math.max(0, entry.quantity));
+    const worn = isItemEquipped(profile, entry.item.id);
+    const wornForged = worn && forged.some((copy) => copy.equipped);
+    const plain = entry.quantity - forged.length;
+    return [
+      ...(plain > 0 ? [{ entry, copy: null, count: plain, worn: worn && !wornForged }] : []),
+      ...forged.map((copy) => ({ entry, copy, count: 1, worn: worn && copy.equipped })),
+    ];
+  });
+}
+
+function copyLabel(item: { emoji: string; name: string }, copy: ItemProgression | null): string {
+  return copy && copy.upgrade > 0 ? `${item.emoji} ${item.name} +${copy.upgrade}` : `${item.emoji} ${item.name}`;
+}
+
 /** Une ligne de sac : l'objet, sa rareté, son niveau requis et ses bonus. */
-function bagItemLine(entry: LocalInventoryEntry, playerLevel: number, equipped: boolean, favorite: boolean, locale: Locale): string {
-  const item = entry.item;
+function bagItemLine(bag: BagEntry, playerLevel: number, favorite: boolean, locale: Locale): string {
+  const item = bag.entry.item;
   const stats = itemStatLine(item, locale);
 
-  const header = `${favorite ? '⭐ ' : ''}${item.emoji} **${item.name}** ×${entry.quantity}`
-    + (equipped ? ` ${m.rpg_inventory_equipped_tag({}, { locale })}` : '');
+  const upgrade = bag.copy && bag.copy.upgrade > 0 ? ` **+${bag.copy.upgrade}**` : '';
+  const header = `${favorite ? '⭐ ' : ''}${item.emoji} **${item.name}**${upgrade} ×${bag.count}`
+    + (bag.worn ? ` ${m.rpg_inventory_equipped_tag({}, { locale })}` : '');
+  const enchants = bag.copy && bag.copy.enchants.length > 0 ? bag.copy.enchants.map(formatEnchant).join(' · ') : '';
 
   const meta = `-# ${rarityIcon(item.rarity)} ${shopCategoryLabel(item.type, locale)} `
     + levelRequirementLabel(item, playerLevel, locale);
 
-  return stats ? `${header}\n${stats}\n${meta}` : `${header}\n${meta}`;
+  return [header, enchants || null, stats || null, meta].filter((line): line is string => line !== null).join('\n');
 }
 
 /**
@@ -985,7 +1025,11 @@ async function buildInventoryView(
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
   const config = await getOrCreateEconomyConfig(guildId);
   const inventory = profile.inventory as unknown as LocalInventoryEntry[];
-  const [equipment, ownedTitles] = await Promise.all([loadEquipment(profile), listOwnedTitles(profile.id)]);
+  const [equipment, ownedTitles, copies] = await Promise.all([
+    loadEquipment(profile),
+    listOwnedTitles(profile.id),
+    listItemInstances(profile.id),
+  ]);
   const activeTitle = ownedTitles.find((title) => title.id === profile.activeTitleId) ?? null;
 
   const itemById = new Map(inventory.map((entry) => [entry.item.id, entry.item]));
@@ -1059,19 +1103,19 @@ async function buildInventoryView(
   ));
 
   // ── Sac ──
-  const filtered = state.category === 'all'
-    ? inventory
-    : inventory.filter((entry) => entry.item.type === state.category);
+  const filtered = bagEntries(inventory, copies, profile)
+    .filter((bag) => state.category === 'all' || bag.entry.item.type === state.category);
 
   // Les favoris d'abord, puis le plus utile : ce qui s'équipe, ce qui se boit, la
   // matière première.
   const favorites = new Set(profile.favoriteItemIds);
   const TYPE_ORDER: Record<string, number> = { WEAPON: 0, ARMOR: 1, ACCESSORY: 2, POTION: 3, SCROLL: 4, MATERIAL: 5 };
   const sorted = [...filtered].sort((a, b) =>
-    Number(favorites.has(b.item.id)) - Number(favorites.has(a.item.id))
-    || (TYPE_ORDER[a.item.type] ?? 9) - (TYPE_ORDER[b.item.type] ?? 9)
-    || b.item.levelRequired - a.item.levelRequired
-    || a.item.name.localeCompare(b.item.name));
+    Number(favorites.has(b.entry.item.id)) - Number(favorites.has(a.entry.item.id))
+    || (TYPE_ORDER[a.entry.item.type] ?? 9) - (TYPE_ORDER[b.entry.item.type] ?? 9)
+    || b.entry.item.levelRequired - a.entry.item.levelRequired
+    || a.entry.item.name.localeCompare(b.entry.item.name)
+    || (b.copy?.upgrade ?? -1) - (a.copy?.upgrade ?? -1));
 
   const pageCount = Math.max(1, Math.ceil(sorted.length / BAG_PAGE_SIZE));
   const page = Math.min(state.page, pageCount - 1);
@@ -1088,15 +1132,15 @@ async function buildInventoryView(
     ));
   }
 
-  for (const entry of shown) {
+  for (const bag of shown) {
     container.addSectionComponents(
       new SectionBuilder()
         .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-          truncate(bagItemLine(entry, profile.level, isItemEquipped(profile, entry.item.id), favorites.has(entry.item.id), locale), 600),
+          truncate(bagItemLine(bag, profile.level, favorites.has(bag.entry.item.id), locale), 600),
         ))
         .setButtonAccessory(
           new ButtonBuilder()
-            .setCustomId(`rpg:invopen:${ownerId}:${entry.item.id}:${state.category}:${page}`)
+            .setCustomId(`rpg:invopen:${ownerId}:${bag.entry.item.id}:${state.category}:${page}${bag.copy ? `:${bag.copy.id}` : ''}`)
             .setLabel(m.rpg_inventory_open_btn({}, { locale }))
             .setStyle(ButtonStyle.Primary),
         ),
@@ -1179,12 +1223,17 @@ async function buildInventoryItemView(
   itemId: string,
   locale: Locale,
   back: BagState,
+  copyId?: string,
 ): Promise<PanelView> {
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
   const inventory = profile.inventory as unknown as LocalInventoryEntry[];
   const entry = inventory.find((candidate) => candidate.item.id === itemId);
+  const copies = entry ? await listItemInstances(profile.id, [itemId]) : [];
+  // `copyId` désigne un exemplaire forgé ; sans lui, la fiche parle des exemplaires ordinaires.
+  const copy = copyId ? copies.find((candidate) => candidate.id === copyId) ?? null : null;
+  const plainCount = entry ? Math.max(0, entry.quantity - copies.length) : 0;
 
-  if (!entry) {
+  if (!entry || (copyId && !copy) || (!copyId && plainCount <= 0)) {
     return {
       embeds: [errorEmbed(m.rpg_inventory_title({}, { locale }), m.rpg_inventory_item_gone({}, { locale }))],
       components: [backRow(ownerId, locale)],
@@ -1192,17 +1241,15 @@ async function buildInventoryItemView(
   }
 
   const item = entry.item;
-  const equipped = isItemEquipped(profile, item.id);
-  const equipment = await loadEquipment(profile);
-  const holdingSlot = slotHoldingItem(profile, item.id);
-  const piece = holdingSlot
-    ? (isAccessorySlot(holdingSlot)
-      ? equipment.accessories[ACCESSORY_SLOTS.indexOf(holdingSlot)] ?? null
-      : holdingSlot === 'weapon' ? equipment.weapon : equipment.armor)
-    : null;
+  const itemWorn = isItemEquipped(profile, item.id);
+  const wornForged = copies.some((candidate) => candidate.equipped);
+  // Cet exemplaire-ci est-il celui porté ? Un objet ne se porte qu'une fois : c'est soit
+  // un exemplaire forgé marqué, soit un exemplaire ordinaire.
+  const equipped = itemWorn && (copy ? copy.equipped : !wornForged);
+  const freePlain = plainCount - (itemWorn && !wornForged ? 1 : 0);
 
   const embed = new EmbedBuilder()
-    .setTitle(truncate(`${item.emoji} ${item.name}`, 256))
+    .setTitle(truncate(`${copyLabel(item, copy)}`, 256))
     .setDescription(`*${item.description}*`)
     .setColor(RPG_COLORS.hub)
     .addFields(
@@ -1216,7 +1263,7 @@ async function buildInventoryItemView(
           : m.rpg_item_level_none({}, { locale }),
         inline: true,
       },
-      { name: m.rpg_item_field_quantity({}, { locale }), value: `**${entry.quantity}**`, inline: true },
+      { name: m.rpg_item_field_quantity({}, { locale }), value: `**${copy ? 1 : plainCount}**`, inline: true },
     );
 
   const stats = itemStatLine(item, locale);
@@ -1224,20 +1271,15 @@ async function buildInventoryItemView(
     embed.addFields({ name: m.rpg_item_field_stats({}, { locale }), value: stats, inline: false });
   }
 
-  // Un exemplaire du sac a pu être forgé puis retiré : il se compare avec sa forge.
-  const ownInstance = equipped ? null : await prisma.rpgItemInstance.findUnique({
-    where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: item.id } },
-    select: { upgrade: true },
-  });
-  const comparison = await equipmentComparisonField(profile, item, ownInstance?.upgrade ?? 0, locale);
+  // Un exemplaire forgé resté dans le sac se compare avec sa forge.
+  const comparison = equipped ? null : await equipmentComparisonField(profile, item, copy?.upgrade ?? 0, locale);
   if (comparison) embed.addFields(comparison);
 
-  // Forge et enchantements vivent sur l'exemplaire possédé : ils ne se montrent que
-  // lorsque l'objet est porté, seul cas où une instance existe à coup sûr.
-  if (piece && (piece.upgrade > 0 || piece.enchants.length > 0)) {
+  // Forge et enchantements appartiennent à cet exemplaire seul.
+  if (copy) {
     const progress = [
-      piece.upgrade > 0 ? m.rpg_item_field_upgrade_value({ level: piece.upgrade }, { locale }) : null,
-      piece.enchants.length > 0 ? piece.enchants.map(formatEnchant).join(' · ') : null,
+      copy.upgrade > 0 ? m.rpg_item_field_upgrade_value({ level: copy.upgrade }, { locale }) : null,
+      copy.enchants.length > 0 ? copy.enchants.map(formatEnchant).join(' · ') : null,
     ].filter((part): part is string => part !== null);
 
     embed.addFields({ name: m.rpg_item_field_progress({}, { locale }), value: progress.join('\n'), inline: false });
@@ -1274,23 +1316,23 @@ async function buildInventoryItemView(
   } else if (slotForItemType(item.type)) {
     row.addComponents(
       new ButtonBuilder()
-        .setCustomId(`rpg:invtoggle:${ownerId}:${item.id}`)
+        .setCustomId(`rpg:invtoggle:${ownerId}:${item.id}:${copy?.id ?? 'plain'}`)
         .setLabel(equipped ? m.rpg_inventory_unequip_btn({}, { locale }) : m.rpg_inventory_equip_btn({}, { locale }))
         .setEmoji(itemTypeIcon(item.type))
         .setStyle(equipped ? ButtonStyle.Secondary : ButtonStyle.Success)
         // Un objet hors niveau garde son bouton grisé : le voir désactivé dit pourquoi,
         // le retirer laisserait croire que l'objet n'est pas équipable du tout.
-        .setDisabled(!equipped && profile.level < item.levelRequired),
+        .setDisabled(!equipped && !itemWorn && profile.level < item.levelRequired),
     );
   }
 
-  // Vendre, ici, sur l'objet qu'on regarde. Le dernier exemplaire d'un objet porté doit
-  // d'abord être retiré : le refus vient de `sellShopItem`, on grise plutôt que de le
-  // laisser échouer. Un exemplaire en plus de celui porté, lui, se vend normalement.
-  const onlyWornCopy = equipped && entry.quantity <= 1;
+  // Vendre, ici, sur l'exemplaire qu'on regarde. L'exemplaire porté doit d'abord être
+  // retiré : le refus vient de `sellShopItem`, on grise plutôt que de le laisser échouer.
+  const copySuffix = copy ? `:${copy.id}` : '';
+  const onlyWornCopy = copy ? equipped : freePlain < 1;
   row.addComponents(
     new ButtonBuilder()
-      .setCustomId(`rpg:invsell:${ownerId}:${item.id}:${back.category}:${back.page}`)
+      .setCustomId(`rpg:invsell:${ownerId}:${item.id}:${back.category}:${back.page}${copySuffix}`)
       .setLabel(m.rpg_inventory_sell_btn({ price: sellPrice }, { locale }))
       .setEmoji(icon('rpgSell'))
       .setStyle(ButtonStyle.Danger)
@@ -1299,7 +1341,7 @@ async function buildInventoryItemView(
   if (salvage) {
     row.addComponents(
       new ButtonBuilder()
-        .setCustomId(`rpg:invsalvage:${ownerId}:${item.id}:${back.category}:${back.page}`)
+        .setCustomId(`rpg:invsalvage:${ownerId}:${item.id}:${back.category}:${back.page}${copySuffix}`)
         .setLabel(m.rpg_inventory_salvage_btn({}, { locale }))
         .setEmoji(icon('rpgCraft'))
         .setStyle(ButtonStyle.Secondary)
@@ -1309,7 +1351,7 @@ async function buildInventoryItemView(
   const favorite = profile.favoriteItemIds.includes(item.id);
   row.addComponents(
     new ButtonBuilder()
-      .setCustomId(`rpg:invfav:${ownerId}:${item.id}:${back.category}:${back.page}`)
+      .setCustomId(`rpg:invfav:${ownerId}:${item.id}:${back.category}:${back.page}${copySuffix}`)
       .setLabel(favorite ? m.rpg_inventory_unfavorite_btn({}, { locale }) : m.rpg_inventory_favorite_btn({}, { locale }))
       .setEmoji('⭐')
       .setStyle(favorite ? ButtonStyle.Primary : ButtonStyle.Secondary),
@@ -1433,8 +1475,9 @@ async function handleInventoryToggle(
   ownerId: string,
   locale: Locale,
   itemId: string,
+  copy?: string,
 ): Promise<void> {
-  const toggled = await equipInventoryItem(guildId, ownerId, itemId);
+  const toggled = await equipInventoryItem(guildId, ownerId, itemId, copy);
   const view = await buildInventoryView(guildId, ownerId, locale);
 
   await respond(interaction, withNote(view, toggled.equipped
@@ -1598,7 +1641,7 @@ async function handleInventoryFavorite(
     : [...profile.favoriteItemIds, itemId];
 
   await prisma.rpgProfile.update({ where: { id: profile.id }, data: { favoriteItemIds: favorites } });
-  await respond(interaction, await buildInventoryItemView(guildId, ownerId, itemId, locale, parseBagState(backState)));
+  await respond(interaction, await buildInventoryItemView(guildId, ownerId, itemId, locale, parseBagState(backState), backState[2]));
 }
 
 /** Vend un exemplaire depuis sa fiche, et ramène au sac là où on l'avait quitté. */
@@ -1610,7 +1653,7 @@ async function handleInventorySell(
   rest: string[],
 ): Promise<void> {
   const [itemId, ...back] = rest;
-  const result = await sellShopItem(guildId, ownerId, itemId);
+  const result = await sellShopItem(guildId, ownerId, itemId, back[2] ? { instanceId: back[2] } : {});
 
   const view = await buildInventoryView(guildId, ownerId, locale, parseBagState(back));
   await respond(interaction, withNote(
@@ -1628,7 +1671,7 @@ async function handleInventorySalvage(
   rest: string[],
 ): Promise<void> {
   const [itemId, ...back] = rest;
-  const result = await salvageItem(guildId, ownerId, itemId);
+  const result = await salvageItem(guildId, ownerId, itemId, back[2]);
 
   const materials = result.returned.map((ingredient) => `${ingredient.emoji} ${ingredient.quantity} × ${ingredient.itemName}`).join(', ');
   const view = await buildInventoryView(guildId, ownerId, locale, parseBagState(back));
@@ -6852,10 +6895,10 @@ export async function handleRpgButton(client: Client, customId: string, interact
         return;
       }
       case 'shopbuy': await handleShopBuy(interaction, guildId, ownerId, locale, rest); return;
-      case 'invopen': await respond(interaction, await buildInventoryItemView(guildId, ownerId, rest[0], locale, parseBagState(rest.slice(1)))); return;
+      case 'invopen': await respond(interaction, await buildInventoryItemView(guildId, ownerId, rest[0], locale, parseBagState(rest.slice(1)), rest[3])); return;
       case 'itemopen': await respond(interaction, await buildItemBookEntryView(guildId, ownerId, rest[0], locale, parseItemBookState(rest.slice(1)))); return;
       case 'bestopen': await respond(interaction, await buildBestiaryEntryView(guildId, ownerId, rest[0], locale, parseBestiaryState(rest.slice(1)))); return;
-      case 'invtoggle': await handleInventoryToggle(interaction, guildId, ownerId, locale, rest[0]); return;
+      case 'invtoggle': await handleInventoryToggle(interaction, guildId, ownerId, locale, rest[0], rest[1]); return;
       case 'invuse2': await handleInventoryDrink(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'invsell': await handleInventorySell(interaction, guildId, ownerId, locale, rest); return;
       case 'invsalvage': await handleInventorySalvage(interaction, guildId, ownerId, locale, rest); return;

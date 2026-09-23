@@ -12,14 +12,14 @@ import {
   SLOT_ITEM_FIELD,
   firstFreeAccessorySlot,
   isAccessorySlot,
+  itemIdInSlot,
   slotForItemType,
   slotHoldingItem,
   unlockedAccessorySlots,
   type EquipmentSlot,
   type SlottedProfile,
 } from './rpg/rpgEquipment.js';
-import { ensureItemInstance } from './rpg/rpgItemInstanceService.js';
-import { addInventoryQuantity, lockRpgProfile, takeInventoryQuantity } from './rpg/rpgInventoryWrites.js';
+import { addInventoryQuantity, freePlainCopies, lockRpgProfile, takeInventoryQuantity, takeItemInstance } from './rpg/rpgInventoryWrites.js';
 import { listPlayableAdventureEvents } from './rpg/rpgAdventureEventService.js';
 import { deleteAllGuildTitles, grantTitle } from './rpg/rpgTitleService.js';
 import { buildFishBook, type FishBook } from './rpg/rpgFishBook.js';
@@ -717,7 +717,16 @@ export async function buyShopItem(guildId: string, userId: string, itemId: strin
  * Le basculement équiper/déséquiper est indispensable : sans lui, un objet équipé ne pouvait
  * plus jamais être vendu ni donné, `sellShopItem` refusant tout objet porté.
  */
-export async function equipInventoryItem(guildId: string, userId: string, itemId: string) {
+/**
+ * Équipe, change ou retire un exemplaire d'un objet.
+ *
+ * `copy` désigne l'exemplaire visé : l'identifiant d'un exemplaire forgé, ou `plain` pour
+ * un exemplaire ordinaire. Viser l'exemplaire déjà porté le retire ; viser un autre
+ * exemplaire d'un objet porté l'échange sans libérer l'emplacement. Sans `copy` (anciens
+ * boutons), l'objet porté se retire, et un objet libre s'équipe avec son exemplaire le
+ * plus forgé.
+ */
+export async function equipInventoryItem(guildId: string, userId: string, itemId: string, copy?: string) {
   const profile = await getOrCreateRpgProfile(guildId, userId);
 
   const inventoryEntry = await prisma.rpgInventoryItem.findUnique({
@@ -740,51 +749,77 @@ export async function equipInventoryItem(guildId: string, userId: string, itemId
     throw new Error('Seuls les armes, armures et accessoires peuvent être équipés.');
   }
 
-  if (item.levelRequired > 0 && profile.level < item.levelRequired) {
-    throw new Error(`Cet objet requiert le niveau ${item.levelRequired}. Vous êtes niveau ${profile.level}.`);
-  }
-
-  // L'objet déjà porté se retire, quel que soit l'emplacement qui le tient. C'est ce qui
-  // rend le geste réversible pour les accessoires, dont l'emplacement est choisi par le
-  // jeu et non par le joueur.
-  const occupied = slotHoldingItem(profile, item.id);
-  if (occupied) {
-    await prisma.rpgProfile.update({
-      where: { id: profile.id },
-      data: { [SLOT_ITEM_FIELD[occupied]]: null }
+  return prisma.$transaction(async (tx) => {
+    await lockRpgProfile(tx, profile.id);
+    const current = await tx.rpgProfile.findUniqueOrThrow({ where: { id: profile.id } });
+    const instances = await tx.rpgItemInstance.findMany({
+      where: { rpgProfileId: profile.id, itemId: item.id },
+      orderBy: [{ upgrade: 'desc' }, { createdAt: 'asc' }],
     });
+    const stock = await tx.rpgInventoryItem.findUnique({
+      where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: item.id } },
+      select: { quantity: true },
+    });
+    const plainCount = Math.max(0, (stock?.quantity ?? 0) - instances.length);
 
-    return { itemName: item.name, type: item.type, slot: occupied, equipped: false };
-  }
+    const occupied = slotHoldingItem(current, item.id);
+    const wornCopy = occupied ? (instances.find((instance) => instance.equipped)?.id ?? 'plain') : null;
+    const target = copy ?? (occupied ? wornCopy : (instances[0]?.id ?? 'plain'));
 
-  // Un accessoire va dans le premier emplacement ouvert et libre. Quand ils sont tous
-  // pris, on refuse plutôt que d'en écraser un au hasard : c'est au joueur de dire
-  // lequel de ses accessoires il abandonne.
-  let slot: EquipmentSlot = kind;
-  if (isAccessorySlot(kind)) {
-    const free = firstFreeAccessorySlot(profile, profile.level);
-    if (!free) {
-      const open = unlockedAccessorySlots(profile.level).length;
-      throw new Error(
-        `Vos ${open} emplacement(s) d'accessoire sont occupés. Retirez-en un avant d'équiper ${item.name}.`,
-      );
+    if (target === 'plain' ? plainCount < 1 : !instances.some((instance) => instance.id === target)) {
+      throw new Error("Cet exemplaire n'est plus dans votre inventaire.");
     }
-    slot = free;
-  }
 
-  const slotField = SLOT_ITEM_FIELD[slot];
+    const markWorn = (instanceId: string | null) => Promise.all([
+      tx.rpgItemInstance.updateMany({
+        where: { rpgProfileId: profile.id, itemId: item.id, ...(instanceId ? { id: { not: instanceId } } : {}) },
+        data: { equipped: false },
+      }),
+      instanceId
+        ? tx.rpgItemInstance.update({ where: { id: instanceId }, data: { equipped: true } })
+        : Promise.resolve(null),
+    ]);
 
-  // Le niveau de forge et les enchantements appartiennent à l'objet, pas à l'emplacement :
-  // ils vivent sur l'instance et ne sont donc ni remis à zéro au déséquipement, ni hérités
-  // par l'objet suivant. On matérialise l'instance dès l'équipement pour que la forge et
-  // l'autel aient toujours une ligne sur laquelle écrire.
-  await prisma.rpgProfile.update({
-    where: { id: profile.id },
-    data: { [slotField]: item.id }
+    if (occupied && target === wornCopy) {
+      await tx.rpgProfile.update({ where: { id: profile.id }, data: { [SLOT_ITEM_FIELD[occupied]]: null } });
+      await markWorn(null);
+      return { itemName: item.name, type: item.type, slot: occupied, equipped: false };
+    }
+
+    if (occupied) {
+      await markWorn(target === 'plain' ? null : target);
+      return { itemName: item.name, type: item.type, slot: occupied, equipped: true };
+    }
+
+    if (item.levelRequired > 0 && current.level < item.levelRequired) {
+      throw new Error(`Cet objet requiert le niveau ${item.levelRequired}. Vous êtes niveau ${current.level}.`);
+    }
+
+    // Un accessoire va dans le premier emplacement ouvert et libre. Quand ils sont tous
+    // pris, on refuse plutôt que d'en écraser un au hasard : c'est au joueur de dire
+    // lequel de ses accessoires il abandonne.
+    let slot: EquipmentSlot = kind;
+    if (isAccessorySlot(kind)) {
+      const free = firstFreeAccessorySlot(current, current.level);
+      if (!free) {
+        const open = unlockedAccessorySlots(current.level).length;
+        throw new Error(
+          `Vos ${open} emplacement(s) d'accessoire sont occupés. Retirez-en un avant d'équiper ${item.name}.`,
+        );
+      }
+      slot = free;
+    }
+
+    // L'objet chassé de l'emplacement n'est plus porté : son exemplaire forgé perd sa marque.
+    const replaced = itemIdInSlot(current, slot);
+    if (replaced && replaced !== item.id) {
+      await tx.rpgItemInstance.updateMany({ where: { rpgProfileId: profile.id, itemId: replaced }, data: { equipped: false } });
+    }
+    await tx.rpgProfile.update({ where: { id: profile.id }, data: { [SLOT_ITEM_FIELD[slot]]: item.id } });
+    await markWorn(target === 'plain' ? null : target);
+
+    return { itemName: item.name, type: item.type, slot, equipped: true };
   });
-  await ensureItemInstance(profile.id, item.id);
-
-  return { itemName: item.name, type: item.type, slot, equipped: true };
 }
 
 /**
@@ -1075,8 +1110,15 @@ export async function depositToRpgGuildTreasury(guildId: string, userId: string,
  * `minOwned` refuse la vente si le joueur en possède moins que ce nombre au moment de vendre.
  * Le bouton de revente du butin s'en sert pour ne vendre que l'exemplaire gagné au combat :
  * s'il a déjà été vendu, un second clic tomberait sinon sur un exemplaire possédé avant.
+ *
+ * `instanceId` vend un exemplaire forgé précis ; sans lui, un exemplaire ordinaire libre.
  */
-export async function sellShopItem(guildId: string, userId: string, itemId: string, options: { minOwned?: number } = {}) {
+export async function sellShopItem(
+  guildId: string,
+  userId: string,
+  itemId: string,
+  options: { minOwned?: number; instanceId?: string } = {},
+) {
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.shopEnabled) throw new Error('La boutique RPG est désactivée.');
 
@@ -1101,21 +1143,24 @@ export async function sellShopItem(guildId: string, userId: string, itemId: stri
 
     if (!stock || stock.quantity <= 0) throw new Error('Vous ne possédez plus cet objet dans votre inventaire.');
 
-    // Les exemplaires d'un même objet s'empilent sur une seule ligne, et un seul peut être
-    // porté : on refuse seulement de vendre le dernier, celui qui occupe l'emplacement.
-    if (isItemEquipped(current, item.id) && stock.quantity <= 1) {
-      throw new Error("Vous ne pouvez pas vendre un objet équipé. Déséquipez-le d'abord depuis l'onglet Inventaire de `/rpg`.");
-    }
-
     if (options.minOwned !== undefined && stock.quantity < options.minOwned) {
       throw new Error('Cet exemplaire a déjà été vendu ou utilisé.');
     }
 
-    // Vendre son dernier exemplaire emporte sa progression : garder l'instance ferait
-    // réapparaître le +7 et les enchantements sur un objet racheté plus tard pour trois fois
-    // rien, transformant la revente en sauvegarde gratuite.
-    const taken = await takeInventoryQuantity(tx, profile.id, item.id, 1, { dropInstance: true });
-    if (!taken) throw new Error('Vous ne possédez plus cet objet dans votre inventaire.');
+    // Un exemplaire forgé se vend désigné, et sa progression part avec lui. Sans
+    // désignation, seul un exemplaire ordinaire que le joueur ne porte pas peut partir.
+    if (options.instanceId) {
+      const taken = await takeItemInstance(tx, profile.id, options.instanceId);
+      if (!taken || taken.item.id !== item.id) throw new Error('Vous ne possédez plus cet exemplaire.');
+    } else {
+      if ((await freePlainCopies(tx, profile.id, item.id)) < 1) {
+        throw new Error(isItemEquipped(current, item.id)
+          ? "Vous ne pouvez pas vendre un objet équipé. Déséquipez-le d'abord depuis l'onglet Inventaire de `/rpg`."
+          : 'Il ne vous reste que des exemplaires forgés : vendez-les depuis leur fiche.');
+      }
+      const taken = await takeInventoryQuantity(tx, profile.id, item.id, 1);
+      if (!taken) throw new Error('Vous ne possédez plus cet objet dans votre inventaire.');
+    }
 
     const credited = await tx.rpgProfile.update({
       where: { id: profile.id },
@@ -1545,18 +1590,17 @@ export async function giveInventoryItem(guildId: string, senderId: string, recei
   await prisma.$transaction(async (tx) => {
     await lockRpgProfile(tx, senderProfile.id);
 
-    const current = await tx.rpgInventoryItem.findUnique({
-      where: { rpgProfileId_itemId: { rpgProfileId: senderProfile.id, itemId } }
-    });
     const sender = await tx.rpgProfile.findUniqueOrThrow({ where: { id: senderProfile.id } });
-    if (current && isItemEquipped(sender, itemId) && current.quantity - quantity <= 0) {
-      throw new Error("Cet objet est actuellement équipé. Déséquipez-le depuis l'onglet Inventaire de `/rpg` avant de pouvoir le donner.");
+    // Seuls des exemplaires ordinaires se donnent : ni celui qu'on porte, ni un exemplaire
+    // forgé, dont la progression ne doit pas faire le tour du serveur pour une forge payée
+    // une seule fois.
+    if ((await freePlainCopies(tx, senderProfile.id, itemId)) < quantity) {
+      throw new Error(isItemEquipped(sender, itemId)
+        ? "Cet objet est actuellement équipé. Déséquipez-le depuis l'onglet Inventaire de `/rpg` avant de pouvoir le donner."
+        : "Vous n'avez pas assez d'exemplaires ordinaires de cet objet : les exemplaires forgés ne se donnent pas.");
     }
 
-    // La progression n'est pas transmissible : le donneur perd la sienne avec son dernier
-    // exemplaire, le receveur reçoit un objet nu. Sinon un objet enchanté ferait le tour
-    // du serveur et chacun profiterait d'une forge payée une seule fois.
-    const taken = await takeInventoryQuantity(tx, senderProfile.id, itemId, quantity, { dropInstance: true });
+    const taken = await takeInventoryQuantity(tx, senderProfile.id, itemId, quantity);
     if (!taken) {
       throw new Error("Vous ne possédez pas cet objet en quantité suffisante dans votre inventaire.");
     }
@@ -1685,9 +1729,9 @@ export async function adminRemoveItem(guildId: string, userId: string, itemId: s
     const actualRemoveQty = Math.min(inventoryEntry.quantity, quantity);
     const remainingQty = inventoryEntry.quantity - actualRemoveQty;
 
-    // L'objet quitte l'inventaire : sa progression part avec lui, sinon la rendre au
-    // joueur plus tard lui restituerait gratuitement forge et enchantements.
-    await takeInventoryQuantity(tx, profile.id, itemId, actualRemoveQty, { dropInstance: true });
+    // Les exemplaires ordinaires partent d'abord, puis les moins forgés : un administrateur
+    // qui retire un objet n'efface la forge d'un joueur qu'en dernier recours.
+    await takeInventoryQuantity(tx, profile.id, itemId, actualRemoveQty, { anyCopy: true });
 
     if (remainingQty <= 0) {
       // On libère aussi l'emplacement s'il y était porté. Les stats étant dérivées, il n'y a

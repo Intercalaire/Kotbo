@@ -133,7 +133,8 @@ export async function loadEquipment(profile: EquippableProfile): Promise<Equipme
 
   const [items, instances] = await Promise.all([
     prisma.rpgItem.findMany({ where: { id: { in: ids } } }),
-    prisma.rpgItemInstance.findMany({ where: { rpgProfileId: profile.id, itemId: { in: ids } } }),
+    // Seul l'exemplaire porté compte : les exemplaires forgés restés dans le sac n'apportent rien.
+    prisma.rpgItemInstance.findMany({ where: { rpgProfileId: profile.id, itemId: { in: ids }, equipped: true } }),
   ]);
 
   const itemById = new Map<string, StatItem>(items.map((item) => [item.id, item]));

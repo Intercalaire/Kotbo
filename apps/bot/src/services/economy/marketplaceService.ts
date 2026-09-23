@@ -2,7 +2,7 @@ import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { isModuleEnabled } from '../core/moduleGate.js';
 import { equippedItemIds } from '../features/rpg/rpgEquipment.js';
-import { lockRpgProfile } from '../features/rpg/rpgInventoryWrites.js';
+import { freePlainCopies, lockRpgProfile, takeInventoryQuantity } from '../features/rpg/rpgInventoryWrites.js';
 
 class MarketplacePurchaseError extends Error {}
 
@@ -89,44 +89,15 @@ export async function createListing(guildId: string, sellerId: string, data: {
       await lockRpgProfile(tx, found.id);
       const profile = await tx.rpgProfile.findUniqueOrThrow({ where: { id: found.id } });
 
-      // Le dernier exemplaire d'un objet porté ne se met pas en vente : les statistiques se
-      // lisent sur l'emplacement, et le vendeur garderait les bonus d'un objet qu'un autre
-      // joueur vient de lui acheter.
-      if (equippedItemIds(profile).includes(data.itemId)) {
-        const stock = await tx.rpgInventoryItem.findUnique({
-          where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: data.itemId } },
-          select: { quantity: true },
-        });
-        if ((stock?.quantity ?? 0) - quantity < 1) {
-          throw new MarketplacePurchaseError("Cet objet est équipé : déséquipez-le d'abord, ou mettez en vente un exemplaire de moins.");
-        }
+      // Seuls des exemplaires ordinaires que le vendeur ne porte pas partent en vente : un
+      // exemplaire forgé garde sa progression et ne se confond pas avec la pile.
+      if ((await freePlainCopies(tx, profile.id, data.itemId)) < quantity) {
+        throw new MarketplacePurchaseError(equippedItemIds(profile).includes(data.itemId)
+          ? "Cet objet est équipé : déséquipez-le d'abord, ou mettez en vente un exemplaire de moins."
+          : 'Vous n\'avez pas assez d\'exemplaires ordinaires de cet objet.');
       }
-
-      // Retrait conditionnel : la ligne lue puis décrémentée sans garde laissait deux
-      // mises en vente simultanées retirer deux fois le même exemplaire, et la quantité
-      // passer sous zéro. C'était une duplication d'objet à portée de double-clic.
-      const removed = await tx.rpgInventoryItem.updateMany({
-        where: { rpgProfileId: profile.id, itemId: data.itemId, quantity: { gte: quantity } },
-        data: { quantity: { decrement: quantity } },
-      });
-      if (removed.count === 0) {
-        throw new MarketplacePurchaseError('Vous n\'avez pas assez de cet objet.');
-      }
-
-      // Une ligne d'inventaire vidée est supprimée, comme après une fabrication : la
-      // laisser à zéro ferait proposer un objet qu'on ne possède plus.
-      const emptied = await tx.rpgInventoryItem.deleteMany({
-        where: { rpgProfileId: profile.id, itemId: data.itemId, quantity: { lte: 0 } },
-      });
-
-      // Mettre en vente son dernier exemplaire emporte sa progression (forge,
-      // enchantements) : l'acheteur reçoit un objet nu, et retirer l'annonce ne restitue
-      // donc pas une amélioration qu'on aurait pu revendre au prix du neuf.
-      if (emptied.count > 0) {
-        await tx.rpgItemInstance.deleteMany({
-          where: { rpgProfileId: profile.id, itemId: data.itemId },
-        });
-      }
+      const taken = await takeInventoryQuantity(tx, profile.id, data.itemId, quantity);
+      if (!taken) throw new MarketplacePurchaseError('Vous n\'avez pas assez de cet objet.');
 
       return tx.marketplaceListing.create({
         data: {
