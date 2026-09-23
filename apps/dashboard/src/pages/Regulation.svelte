@@ -513,7 +513,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <div class="bg-primary/10 p-2 rounded-xl text-primary">
           <Papicon icon="Hash" size={18} />
         </div>
-        <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">{m.regulation_section_channel()}</h3>
+        <h3 class="text-sm font-semibold text-on-surface">{m.regulation_section_channel()}</h3>
       </div>
       <div class="space-y-4">
         <div class="flex flex-col gap-2 p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10">
@@ -533,12 +533,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <div class="bg-secondary/10 p-2 rounded-xl text-secondary">
           <Papicon icon="PaperPlaneTilt" size={18} />
         </div>
-        <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">{m.regulation_section_msg_status()}</h3>
+        <h3 class="text-sm font-semibold text-on-surface">{m.regulation_section_msg_status()}</h3>
       </div>
       <div class="space-y-4">
         <div class="p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10">
           <p class="text-sm font-bold text-on-surface leading-relaxed">{publicationStatusLabel}</p>
-          <p class="mt-1 text-2xs font-medium text-on-surface-variant/60 uppercase tracking-wider">{m.regulation_msg_sync_active()}</p>
+          <p class="mt-1 text-xs font-medium text-on-surface-variant/60">{m.regulation_msg_sync_active()}</p>
           <p class="mt-3 text-2xs text-on-surface-variant/60 leading-tight">{m.regulation_staff_notice_hint()}</p>
         </div>
         <ActionButton
@@ -557,7 +557,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <div class="bg-primary/10 p-2 rounded-xl text-primary">
           <Papicon icon="ShieldCheck" size={18} />
         </div>
-        <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">{m.regulation_section_verification()}</h3>
+        <h3 class="text-sm font-semibold text-on-surface">{m.regulation_section_verification()}</h3>
       </div>
       <div class="space-y-4">
         {#if canManageSettings}
@@ -623,7 +623,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         </div>
         <div>
           <h3 class="text-xl font-semibold text-on-surface tracking-tight">{m.regulation_articles_header()}</h3>
-          <p class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.regulation_articles_sub()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/60">{m.regulation_articles_sub()}</p>
         </div>
       </div>
       <ActionButton
@@ -764,7 +764,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <Papicon icon={modalMode === 'create' ? "PlusCircle" : "PencilSimple"} size={24} />
           </div>
           <div>
-            <p class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/60">{modalMode === 'create' ? m.regulation_modal_config_badge() : m.regulation_modal_edit_badge()}</p>
+            <p class="text-xs font-semibold text-on-surface-variant/60">{modalMode === 'create' ? m.regulation_modal_config_badge() : m.regulation_modal_edit_badge()}</p>
             <h3 id="regulation-modal-title" class="text-2xl font-semibold text-on-surface tracking-tight">{modalMode === 'create' ? m.regulation_modal_title_add() : m.regulation_modal_title_edit()}</h3>
           </div>
         </div>
@@ -795,7 +795,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             </div>
             <div class="flex-1">
               <span class="block text-sm font-semibold text-on-surface tracking-tight">{m.regulation_field_active_title()}</span>
-              <span class="block text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest mt-0.5">{m.regulation_field_active_desc()}</span>
+              <span class="block text-xs font-semibold text-on-surface-variant/60 mt-0.5">{m.regulation_field_active_desc()}</span>
             </div>
           </label>
         </div>
@@ -817,7 +817,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <div class="absolute top-0 right-0 p-4 opacity-10 text-primary">
            <Papicon icon="Eye" size={48} />
         </div>
-        <p class="text-2xs font-semibold uppercase tracking-wider text-primary/60 mb-3">{m.regulation_preview_badge()}</p>
+        <p class="text-xs font-semibold text-primary/60 mb-3">{m.regulation_preview_badge()}</p>
         <div class="flex items-center gap-3 mb-2">
           {#if draftEmoji}
             <span class="text-xl">{draftEmoji}</span>
@@ -857,7 +857,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           <Papicon icon="Warning" size={40} />
         </div>
         <div>
-          <p class="text-2xs font-semibold uppercase tracking-wider text-error/60">{m.regulation_delete_modal_badge()}</p>
+          <p class="text-xs font-semibold text-error/60">{m.regulation_delete_modal_badge()}</p>
           <h3 id="delete-rule-title" class="text-2xl font-semibold text-on-surface tracking-tight">{m.regulation_delete_modal_title()}</h3>
         </div>
         <p class="text-sm font-bold text-on-surface-variant leading-relaxed">
@@ -896,7 +896,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           <Papicon icon="Warning" size={40} />
         </div>
         <div>
-          <p class="text-2xs font-semibold uppercase tracking-wider text-amber-500/60">{m.regulation_warning_modal_badge()}</p>
+          <p class="text-xs font-semibold text-amber-500/60">{m.regulation_warning_modal_badge()}</p>
           <h3 id="verification-warning-title" class="text-2xl font-semibold text-on-surface tracking-tight">{m.regulation_warning_modal_title()}</h3>
         </div>
         <p class="text-sm font-bold text-on-surface-variant leading-relaxed">

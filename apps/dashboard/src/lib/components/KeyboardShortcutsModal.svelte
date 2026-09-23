@@ -74,7 +74,7 @@
       <div class="p-6 overflow-y-auto max-h-[60vh]">
         {#each categories as cat}
           <div class="mb-6 last:mb-0">
-            <h3 class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest mb-3">{cat.label}</h3>
+            <h3 class="text-xs font-semibold text-on-surface-variant/60 mb-3">{cat.label}</h3>
             <div class="space-y-2">
               {#each shortcuts.filter(s => s.category === cat.id) as shortcut}
                 <div class="keyboard-shortcuts-modal__row flex items-center justify-between gap-3 p-3 rounded-xl bg-surface-container-high/10 hover:bg-surface-container-high/20 transition-colors">

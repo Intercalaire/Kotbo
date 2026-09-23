@@ -282,7 +282,7 @@
   <!-- ── Déclencheur ──────────────────────────────────────────────────── -->
   <section class="rounded-2xl bg-surface-container-high/60 border border-outline-variant/15 border-l-[3px] border-l-emerald-400/60 p-4 space-y-3">
     <div class="flex items-center justify-between gap-3">
-      <h3 class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/70">{m.wf_when()}</h3>
+      <h3 class="text-xs font-semibold text-on-surface-variant/70">{m.wf_when()}</h3>
       {#if trigger && !changingTrigger}
         <button
           type="button"
@@ -336,7 +336,7 @@
   <!-- ── Étapes ───────────────────────────────────────────────────────── -->
   {#if trigger && !changingTrigger}
     <section class="space-y-2">
-      <h3 class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/70 px-1">{m.wf_then()}</h3>
+      <h3 class="text-xs font-semibold text-on-surface-variant/70 px-1">{m.wf_then()}</h3>
 
       {#if recipe.steps.length === 0}
         <p class="px-4 py-6 rounded-2xl bg-surface-container-high/30 text-center text-xs text-on-surface-variant/70">

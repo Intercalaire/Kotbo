@@ -89,7 +89,7 @@
 
 <div class="relative" bind:this={rootElement}>
   <div class="flex items-center gap-1.5">
-    <span class="text-2xs uppercase tracking-widest font-bold text-on-surface-variant">{label}</span>
+    <span class="text-xs font-semibold text-on-surface-variant">{label}</span>
 
     {#if canSort}
       <button
@@ -125,7 +125,7 @@
   {#if canFilter && filterOpen}
     <div class="absolute left-0 top-8 z-20 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
       <div class="mb-2 flex items-center justify-between gap-2">
-        <p class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">{m.csf_filter_label({ label: label.toLowerCase() })}</p>
+        <p class="text-xs font-semibold text-on-surface-variant">{m.csf_filter_label({ label: label.toLowerCase() })}</p>
         {#if selectedCount > 0}
           <button
             type="button"

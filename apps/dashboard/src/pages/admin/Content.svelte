@@ -404,7 +404,7 @@
 
           <div class="overflow-x-auto rounded-lg border border-outline-variant/10">
             <table class="w-full text-sm">
-              <thead class="bg-surface/40 text-left text-2xs uppercase tracking-wider text-on-surface-variant/50">
+              <thead class="bg-surface/40 text-left text-xs text-on-surface-variant/50">
                 <tr>
                   <th class="px-4 py-3">Mot</th>
                   <th class="px-4 py-3">Catégorie</th>

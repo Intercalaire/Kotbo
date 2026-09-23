@@ -346,7 +346,7 @@
             </div>
 
             <hr class="border-outline-variant" />
-            <p class="text-xs font-medium text-on-surface-variant uppercase tracking-wider">Discord App</p>
+            <p class="text-xs font-medium text-on-surface-variant">Discord App</p>
 
             <div>
               <label for="create-discord-token" class="text-xs text-on-surface-variant block mb-1">Bot Token *</label>
@@ -368,7 +368,7 @@
             </div>
 
             <hr class="border-outline-variant" />
-            <p class="text-xs font-medium text-on-surface-variant uppercase tracking-wider">Dashboard</p>
+            <p class="text-xs font-medium text-on-surface-variant">Dashboard</p>
 
             <div class="grid grid-cols-2 gap-3">
               <div>
@@ -382,7 +382,7 @@
             </div>
 
             <hr class="border-outline-variant" />
-            <p class="text-xs font-medium text-on-surface-variant uppercase tracking-wider">Branding</p>
+            <p class="text-xs font-medium text-on-surface-variant">Branding</p>
 
             <div class="grid grid-cols-2 gap-3">
               <div>
@@ -407,7 +407,7 @@
             </div>
 
             <hr class="border-outline-variant" />
-            <p class="text-xs font-medium text-on-surface-variant uppercase tracking-wider">Proprietaire</p>
+            <p class="text-xs font-medium text-on-surface-variant">Proprietaire</p>
 
             <div class="grid grid-cols-2 gap-3">
               <div>

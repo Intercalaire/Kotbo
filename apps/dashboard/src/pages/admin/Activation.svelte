@@ -179,7 +179,7 @@
         <div class="flex flex-wrap items-end gap-5">
           <!-- Type d'accès accordé par le code -->
           <div class="space-y-2">
-            <span class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant/60">
+            <span class="block text-xs font-semibold text-on-surface-variant/60">
               Type d'accès
             </span>
             <div role="group" aria-label="Type d'accès" class="inline-flex rounded-xl border border-outline-variant/30 bg-surface-container-high p-1 gap-1">
@@ -200,7 +200,7 @@
 
           {#if grantType !== 'PERMANENT'}
             <div class="space-y-2 animate-in fade-in">
-              <label for="grant-amount" class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant/60">
+              <label for="grant-amount" class="block text-xs font-semibold text-on-surface-variant/60">
                 Durée
               </label>
               <div class="flex items-center gap-2">
@@ -236,7 +236,7 @@
           {/if}
 
           <div class="space-y-2 flex-1 min-w-[220px]">
-            <label for="grant-label" class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant/60">
+            <label for="grant-label" class="block text-xs font-semibold text-on-surface-variant/60">
               Note interne <span class="normal-case tracking-normal text-on-surface-variant/40">(optionnel)</span>
             </label>
             <input
@@ -303,7 +303,7 @@
                       {#if item.accessType === 'PERMANENT'}
                         <span class="text-xs text-on-surface-variant/60 font-medium">{accessLabel(item)}</span>
                       {:else}
-                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-2xs font-semibold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
                           <Papicon icon="Clock" size={12} />
                           {accessLabel(item)}
                         </span>
@@ -329,19 +329,19 @@
                             <!-- Un essai révoqué à la main garde son code sans poser
                                  d'échéance : sans ce marqueur, la colonne Accès
                                  afficherait un décompte pour un serveur déjà coupé. -->
-                            <span class="shrink-0 px-2 py-0.5 rounded-full text-2xs font-semibold uppercase tracking-wider bg-error/10 text-error border border-error/20">
+                            <span class="shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold bg-error/10 text-error border border-error/20">
                               Coupé
                             </span>
                           {/if}
                         </div>
                         <p class="text-2xs text-on-surface-variant/40 font-mono tracking-tighter mt-0.5">{item.usedByGuildId}</p>
                       {:else if item.isActive}
-                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-2xs font-semibold uppercase tracking-wider bg-success/10 text-success border border-success/20">
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-success/10 text-success border border-success/20">
                           <span class="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></span>
                           Disponible
                         </span>
                       {:else}
-                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-2xs font-semibold uppercase tracking-wider bg-on-surface/5 text-on-surface-variant/60 border border-outline-variant/30">
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-on-surface/5 text-on-surface-variant/60 border border-outline-variant/30">
                           <span class="w-1.5 h-1.5 rounded-full bg-on-surface-variant/40"></span>
                           Désactivé
                         </span>

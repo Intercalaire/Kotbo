@@ -212,7 +212,7 @@
             <div class="flex flex-col gap-2">
               <div class="flex items-center gap-3">
                 <span class="text-lg font-semibold text-on-surface">{et.label}</span>
-                <span class="px-2.5 py-0.5 rounded-lg text-2xs font-semibold uppercase tracking-widest {et.tagColor}">
+                <span class="px-2.5 py-0.5 rounded-lg text-xs font-semibold {et.tagColor}">
                   {et.tag}
                 </span>
               </div>
@@ -292,7 +292,7 @@
               <div class="min-w-0 flex-1">
                 <div class="flex items-center flex-wrap gap-x-3 gap-y-1.5">
                   <h4 class="text-xl font-semibold text-on-surface truncate">{event.title}</h4>
-                  <span class="shrink-0 px-3 py-1 rounded-lg text-2xs font-semibold uppercase tracking-widest {getStatusColor(event.status)} border border-current/10">
+                  <span class="shrink-0 px-3 py-1 rounded-lg text-xs font-semibold {getStatusColor(event.status)} border border-current/10">
                     {getStatusLabel(event.status)}
                   </span>
                   <span class="shrink-0 px-2.5 py-0.5 rounded-lg text-2xs font-semibold uppercase tracking-widest
@@ -372,7 +372,7 @@
             </div>
             <p class="text-on-surface-variant/60 font-semibold text-xl">{m.ev_no_event_title()}</p>
             {#if canManageEvents}
-              <button onclick={() => showTypeModal = true} class="mt-6 text-primary font-semibold uppercase text-2xs tracking-widest hover:underline">
+              <button onclick={() => showTypeModal = true} class="mt-6 text-primary font-semibold text-xs hover:underline">
                 {m.ev_create_first()}
               </button>
             {/if}

@@ -492,7 +492,7 @@
         
         {#if isBlacklisted}
           <div class="absolute top-6 right-6 z-20">
-            <span class="inline-flex items-center gap-2 rounded-full bg-rose-500 px-4 py-2 text-2xs font-semibold text-white uppercase tracking-widest shadow-sm">
+            <span class="inline-flex items-center gap-2 rounded-full bg-rose-500 px-4 py-2 text-xs font-semibold text-white shadow-sm">
               <Papicon icon="Slash" size={14} />
               Compte Restreint
             </span>
@@ -572,7 +572,7 @@
                   <Papicon icon="Badge" size={24} />
                 </div>
                 <div>
-                  <p class="text-2xs font-semibold uppercase tracking-wider text-primary">{m.pf_staff_career()}</p>
+                  <p class="text-xs font-semibold text-primary">{m.pf_staff_career()}</p>
                   <h4 class="text-xl font-semibold text-on-surface">{m.pf_identity_seniority()}</h4>
                 </div>
               </div>
@@ -604,7 +604,7 @@
             <!-- Grade History Card (if visible) -->
             {#if gradeHistory.length > 0}
               <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm relative overflow-hidden">
-                <h4 class="text-sm font-semibold text-primary uppercase tracking-widest mb-6">{m.pf_promotions_history()}</h4>
+                <h4 class="text-sm font-semibold text-primary mb-6">{m.pf_promotions_history()}</h4>
                 <div class="space-y-4 max-h-60 overflow-y-auto pr-2">
                   {#each gradeHistory as event}
                     <div class="flex items-start gap-3 border-b border-outline-variant/5 pb-3">
@@ -649,7 +649,7 @@
             {#if visibility.discipline}
             <!-- Warnings Panel -->
             <div class="rounded-xl bg-surface-container-low/40 border border-outline-variant/10 p-8 shadow-sm">
-              <h4 class="text-sm font-semibold text-primary uppercase tracking-widest mb-6">{m.pf_warnings_received()}</h4>
+              <h4 class="text-sm font-semibold text-primary mb-6">{m.pf_warnings_received()}</h4>
               {#if warnings.length > 0}
                 <div class="space-y-4">
                   {#each warnings as warn}
@@ -676,7 +676,7 @@
             {#if visibility.absences}
             <!-- Absences Panel -->
             <div class="rounded-xl bg-surface-container-low/40 border border-outline-variant/10 p-8 shadow-sm">
-              <h4 class="text-sm font-semibold text-primary uppercase tracking-widest mb-6">{m.pf_declared_absences()}</h4>
+              <h4 class="text-sm font-semibold text-primary mb-6">{m.pf_declared_absences()}</h4>
               {#if absences.length > 0}
                 <div class="space-y-4 max-h-80 overflow-y-auto pr-2">
                   {#each absences as abs}
@@ -705,7 +705,7 @@
           <!-- Testing Periods & Mentoring reports -->
           {#if testingPeriods.length > 0}
             <div class="rounded-xl bg-surface-container-low/40 border border-outline-variant/10 p-8 shadow-sm">
-              <h4 class="text-sm font-semibold text-primary uppercase tracking-widest mb-6">{m.pf_testing_periods()}</h4>
+              <h4 class="text-sm font-semibold text-primary mb-6">{m.pf_testing_periods()}</h4>
               <div class="space-y-6">
                 {#each testingPeriods as period}
                   <div class="p-6 rounded-xl bg-surface-container-high/30 border border-outline-variant/5 space-y-4">
@@ -755,7 +755,7 @@
                 <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
                   <Papicon icon="ShieldCheck" size={20} />
                 </div>
-                <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">{m.pf_manager_notes()}</h4>
+                <h4 class="text-sm font-semibold text-on-surface">{m.pf_manager_notes()}</h4>
               </div>
 
               <!-- Notes List -->
@@ -785,7 +785,7 @@
                 <button 
                   onclick={submitManagerNote} 
                   disabled={sendingNote || !newNoteContent.trim()}
-                  class="w-full md:w-auto px-8 py-4 bg-primary text-on-primary hover:bg-primary-hover font-semibold uppercase tracking-widest text-2xs rounded-lg shadow-lg transition-all disabled:opacity-50"
+                  class="w-full md:w-auto px-8 py-4 bg-primary text-on-primary hover:bg-primary-hover font-semibold text-xs rounded-lg shadow-lg transition-all disabled:opacity-50"
                 >
                   Ajouter Note
                 </button>
@@ -811,7 +811,7 @@
                 <div class="p-5 rounded-lg bg-amber-500/10 border border-amber-500/20 mb-4">
                   <div class="flex items-center gap-2 mb-2">
                     <Papicon icon="Clock" size={16} class="text-amber-500" />
-                    <span class="text-xs font-semibold text-amber-500 uppercase tracking-wider">Demande en attente d'approbation</span>
+                    <span class="text-xs font-semibold text-amber-500">Demande en attente d'approbation</span>
                   </div>
                   <p class="text-sm font-bold text-on-surface mb-1">Motif soumis :</p>
                   <p class="text-sm text-on-surface-variant leading-relaxed italic">« {pendingResignation.reason} »</p>
@@ -897,7 +897,7 @@
             <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
               <!-- Score global -->
               <div class="md:col-span-2 rounded-xl border border-outline-variant/10 bg-surface-container-low/30 p-6 flex flex-col items-center justify-center text-center">
-                <p class="text-xs font-bold uppercase tracking-wider text-on-surface-variant/40 mb-2">Performance Globale</p>
+                <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">Performance Globale</p>
                 <div class="relative flex items-center justify-center h-28 w-28">
                   <!-- Circular progress gauge -->
                   <svg class="w-full h-full transform -rotate-90">
@@ -981,7 +981,7 @@
                   <Papicon icon="TrendingUp" size={24} />
                 </div>
                 <div>
-                  <p class="text-2xs font-semibold uppercase tracking-wider text-primary">Performances</p>
+                  <p class="text-xs font-semibold text-primary">Performances</p>
                   <h4 class="text-2xl font-semibold text-on-surface font-headline">{m.pf_activity_trend()}</h4>
                 </div>
               </div>
@@ -1022,25 +1022,25 @@
             <!-- Left column bio/identity -->
             <div class="space-y-6">
               <div class="rounded-xl bg-surface-container-low/40 border border-outline-variant/10 p-8 shadow-sm">
-                <h4 class="text-xs font-semibold text-primary uppercase tracking-widest mb-4">Biographie</h4>
+                <h4 class="text-xs font-semibold text-primary mb-4">Biographie</h4>
                 <p class="text-sm text-on-surface-variant leading-relaxed">
                   {publicProfile.bio?.trim() || m.pf_no_bio()}
                 </p>
               </div>
 
               <div class="rounded-xl bg-surface-container-low/40 border border-outline-variant/10 p-8 shadow-sm">
-                <h4 class="text-xs font-semibold text-primary uppercase tracking-widest mb-6">{m.pf_account_details()}</h4>
+                <h4 class="text-xs font-semibold text-primary mb-6">{m.pf_account_details()}</h4>
                 <div class="space-y-4">
                   <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                    <span class="text-xs font-bold text-on-surface-variant/40 uppercase tracking-wider">{m.pf_creation()}</span>
+                    <span class="text-xs font-semibold text-on-surface-variant/40">{m.pf_creation()}</span>
                     <span class="text-xs font-bold text-on-surface">{formatDate(publicProfile.accountCreatedAt)}</span>
                   </div>
                   <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                    <span class="text-xs font-bold text-on-surface-variant/40 uppercase tracking-wider">{m.pf_arrival()}</span>
+                    <span class="text-xs font-semibold text-on-surface-variant/40">{m.pf_arrival()}</span>
                     <span class="text-xs font-bold text-on-surface">{formatDate(publicProfile.guildJoinedAt)}</span>
                   </div>
                   <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold text-on-surface-variant/40 uppercase tracking-wider">Dernier message</span>
+                    <span class="text-xs font-semibold text-on-surface-variant/40">Dernier message</span>
                     <span class="text-xs font-bold text-on-surface">{formatTimeAgo(publicProfile.lastSeenAt)}</span>
                   </div>
                 </div>
@@ -1048,10 +1048,10 @@
 
               {#if publicProfile.roles && publicProfile.roles.length > 0}
                 <div class="rounded-xl bg-surface-container-low/40 border border-outline-variant/10 p-8 shadow-sm">
-                  <h4 class="text-xs font-semibold text-primary uppercase tracking-widest mb-4">{m.pf_roles()}</h4>
+                  <h4 class="text-xs font-semibold text-primary mb-4">{m.pf_roles()}</h4>
                   <div class="flex flex-wrap gap-2">
                     {#each publicProfile.roles as role}
-                      <span class="inline-flex items-center gap-1.5 rounded-lg bg-surface-container-high/60 border border-outline-variant/10 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">
+                      <span class="inline-flex items-center gap-1.5 rounded-lg bg-surface-container-high/60 border border-outline-variant/10 px-3 py-1.5 text-xs font-semibold text-on-surface-variant">
                         {role.name}
                       </span>
                     {/each}
@@ -1069,7 +1069,7 @@
                   </div>
                   <div>
                     <h3 class="text-xl font-semibold text-on-surface font-headline leading-tight">{m.pf_events_history()}</h3>
-                    <p class="text-2xs font-bold text-on-surface-variant/40 uppercase tracking-wider mt-0.5">{m.pf_recent_participations()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant/40 mt-0.5">{m.pf_recent_participations()}</p>
                   </div>
                 </div>
 
@@ -1079,11 +1079,11 @@
                       <div class="flex items-center justify-between p-4.5 rounded-lg bg-surface-container-high/30 border border-outline-variant/5 hover:border-primary/25 hover:bg-surface-container-high/60 transition-all">
                         <div>
                           <h4 class="text-sm font-semibold text-on-surface leading-tight truncate max-w-[180px]">{event.title}</h4>
-                          <p class="text-2xs font-bold text-primary uppercase tracking-wider mt-0.5">{event.type}</p>
+                          <p class="text-xs font-semibold text-primary mt-0.5">{event.type}</p>
                         </div>
                         <div class="text-right">
                           <span class="text-sm font-semibold text-primary">{event.score} pts</span>
-                          <p class="text-2xs font-bold text-on-surface-variant/30 uppercase tracking-wider mt-0.5">{formatDate(event.date)}</p>
+                          <p class="text-xs font-semibold text-on-surface-variant/30 mt-0.5">{formatDate(event.date)}</p>
                         </div>
                       </div>
                     {/each}
@@ -1091,7 +1091,7 @@
                 {:else}
                   <div class="py-16 text-center opacity-30">
                     <Papicon icon="Zap" size={48} class="mx-auto mb-4" />
-                    <p class="text-sm font-semibold uppercase tracking-widest">{m.pf_no_participations()}</p>
+                    <p class="text-sm font-semibold">{m.pf_no_participations()}</p>
                   </div>
                 {/if}
               </div>
@@ -1114,7 +1114,7 @@
                   <Papicon icon="Lock" size={24} />
                 </div>
                 <div>
-                  <p class="text-2xs font-semibold uppercase tracking-wider text-primary">{m.login_security()}</p>
+                  <p class="text-xs font-semibold text-primary">{m.login_security()}</p>
                   <h4 class="text-2xl font-semibold text-on-surface font-headline">{m.pf_personal_api_keys()}</h4>
                 </div>
               </div>
@@ -1242,7 +1242,7 @@
                   <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
                     <Papicon icon="ShieldAlert" size={20} />
                   </div>
-                  <h5 class="text-sm font-semibold uppercase tracking-widest text-on-surface">{m.pf_api_key_security()}</h5>
+                  <h5 class="text-sm font-semibold text-on-surface">{m.pf_api_key_security()}</h5>
                </div>
                <ul class="space-y-4">
                  <li class="flex gap-3 text-xs font-bold text-on-surface-variant/60 leading-relaxed">

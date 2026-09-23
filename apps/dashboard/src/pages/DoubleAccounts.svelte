@@ -1171,7 +1171,7 @@
               <SearchableSelect bind:value={verifConfig.verificationLogChannelId} options={dashboardStore.state.discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.da_default()} className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
             </label>
             <label class="space-y-1.5 sm:col-span-2 lg:col-span-3">
-              <span class="text-2xs font-bold uppercase tracking-wider text-on-surface-variant/40">{m.da_fallback_channel()}</span>
+              <span class="text-xs font-semibold text-on-surface-variant/40">{m.da_fallback_channel()}</span>
               <SearchableSelect bind:value={verifConfig.verificationFallbackChannelId} options={dashboardStore.state.discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.da_default_verify_channel()} className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
               <span class="block text-2xs text-on-surface-variant/50">{m.da_fallback_channel_desc()}</span>
             </label>
@@ -1576,7 +1576,7 @@
                     <span class="shrink-0 px-2 py-0.5 rounded text-2xs font-bold {scoreColor(reason.score)} {scoreBg(reason.score)}">{reason.score}pts</span>
                   </div>
                   <div class="mt-1.5">
-                    <span class="px-1.5 py-0.5 rounded text-2xs font-bold uppercase tracking-wider bg-surface-container-high text-on-surface-variant/30">{reason.type.replace(/_/g, ' ')}</span>
+                    <span class="px-1.5 py-0.5 rounded text-xs font-semibold bg-surface-container-high text-on-surface-variant/30">{reason.type.replace(/_/g, ' ')}</span>
                   </div>
                 </div>
               {/each}

@@ -58,7 +58,7 @@
     <div class="p-4 space-y-5">
       {#each groups as group (group)}
         <section class="space-y-2">
-          <h4 class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/70">
+          <h4 class="text-xs font-semibold text-on-surface-variant/70">
             {ACTION_GROUP_LABELS[group]}
           </h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -79,7 +79,7 @@
       {/each}
 
       <section class="space-y-2 pt-2 border-t border-outline-variant/15">
-        <h4 class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/70">{m.wf_group_organize()}</h4>
+        <h4 class="text-xs font-semibold text-on-surface-variant/70">{m.wf_group_organize()}</h4>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <button
             type="button"

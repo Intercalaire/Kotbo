@@ -213,7 +213,7 @@
 
       {#if effectiveMode === 'solo'}
         <section class="space-y-3">
-          <h2 class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/60 flex items-center gap-1.5">
+          <h2 class="text-xs font-semibold text-on-surface-variant/60 flex items-center gap-1.5">
             <Papicon icon="Grades" size={12} />
             {m.rpg_public_solo_title()}
           </h2>
@@ -244,7 +244,7 @@
           {/if}
 
           {#if (solo?.quests ?? []).length > 0}
-            <h2 class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/60 pt-2 flex items-center gap-1.5">
+            <h2 class="text-xs font-semibold text-on-surface-variant/60 pt-2 flex items-center gap-1.5">
               <Papicon icon="Tasks" size={12} />
               {m.rpg_public_solo_quests()}
             </h2>
@@ -270,7 +270,7 @@
       {:else}
       {#if quests.length > 0}
         <section class="space-y-2">
-          <h2 class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/60 flex items-center gap-1.5">
+          <h2 class="text-xs font-semibold text-on-surface-variant/60 flex items-center gap-1.5">
             <Papicon icon="Tasks" size={12} />
             {m.rpg_public_quests_title()}
           </h2>
@@ -296,7 +296,7 @@
 
       <section class="space-y-3">
         <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/60 flex items-center gap-1.5">
+          <h2 class="text-xs font-semibold text-on-surface-variant/60 flex items-center gap-1.5">
             <Papicon icon="Grades" size={12} />
             {m.rpg_public_clans_title()}
           </h2>

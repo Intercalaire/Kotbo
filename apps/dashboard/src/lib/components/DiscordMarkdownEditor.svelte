@@ -224,7 +224,7 @@
 
 <div class="discord-md-editor flex flex-col rounded-xl border border-outline-variant/20 bg-surface-container-low overflow-hidden transition-all focus-within:border-primary/40 focus-within:shadow-lg focus-within:shadow-primary/5">
   {#if label}
-    <label for={id} class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider px-4 pt-3 pb-1">{label}</label>
+    <label for={id} class="block text-xs font-semibold text-on-surface-variant px-4 pt-3 pb-1">{label}</label>
   {/if}
 
   <!-- Toolbar -->
@@ -343,7 +343,7 @@
   <!-- Agenda templates -->
   {#if agendaMode}
     <div class="flex items-center gap-2 px-3 py-2 border-b border-outline-variant/10 bg-surface-container-high/10 overflow-x-auto">
-      <span class="text-2xs font-bold text-on-surface-variant/50 uppercase tracking-widest shrink-0">{m.d1_dme_templates()}</span>
+      <span class="text-xs font-semibold text-on-surface-variant/50 shrink-0">{m.d1_dme_templates()}</span>
       {#each agendaTemplates as template}
         <button
           type="button"

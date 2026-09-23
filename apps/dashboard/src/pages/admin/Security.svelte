@@ -202,7 +202,7 @@
                   </div>
                 </div>
                 {#if admin.userId === OWNER_ID}
-                  <span class="text-2xs uppercase font-semibold tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">Créateur</span>
+                  <span class="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">Créateur</span>
                 {:else}
                   <button
                     onclick={() => handleRemoveAdmin(admin.userId, admin.username)}

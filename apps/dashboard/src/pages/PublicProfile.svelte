@@ -138,7 +138,7 @@
           <div class="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-surface-container-lowest"></div>
           
           <div class="absolute top-6 right-6 z-20">
-            <span class="inline-flex items-center gap-2 rounded-full bg-surface-container-lowest/30 border border-outline-variant/10 px-4 py-2 text-2xs font-semibold text-white uppercase tracking-wider shadow-lg">
+            <span class="inline-flex items-center gap-2 rounded-full bg-surface-container-lowest/30 border border-outline-variant/10 px-4 py-2 text-xs font-semibold text-white shadow-lg">
               <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
               Profil Communautaire
             </span>
@@ -165,7 +165,7 @@
                 <div class="flex flex-wrap items-center justify-center md:justify-start gap-2.5">
                   <p class="text-base text-on-surface-variant/70 font-bold">@{profile.username}</p>
                   {#if profile.isPrivate}
-                    <span class="inline-flex items-center gap-1.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-yellow-500">
+                    <span class="inline-flex items-center gap-1.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20 px-2.5 py-1 text-xs font-semibold text-yellow-500">
                       <Papicon icon="Lock" size={10} /> Privé
                     </span>
                   {/if}
@@ -238,7 +238,7 @@
           <div class="lg:col-span-1 space-y-6">
             <!-- Biography Card -->
             <div class="rounded-xl bg-surface-container-low/40 border border-outline-variant/10 p-8 shadow-sm relative overflow-hidden group">
-              <h4 class="text-sm font-semibold text-primary uppercase tracking-widest mb-4">Biographie</h4>
+              <h4 class="text-sm font-semibold text-primary mb-4">Biographie</h4>
               <p class="text-sm text-on-surface-variant leading-relaxed">
                 {profile.bio?.trim() || 'Aucune biographie rédigée.'}
               </p>
@@ -246,26 +246,26 @@
 
             <!-- Identity Card -->
             <div class="rounded-xl bg-surface-container-low/40 border border-outline-variant/10 p-8 shadow-sm relative overflow-hidden group">
-              <h4 class="text-sm font-semibold text-primary uppercase tracking-widest mb-6">Dossier</h4>
+              <h4 class="text-sm font-semibold text-primary mb-6">Dossier</h4>
               <div class="space-y-6">
                 <div class="flex items-center justify-between border-b border-outline-variant/5 pb-3">
-                  <span class="text-xs font-bold text-on-surface-variant/50 uppercase tracking-wider">Compte Discord créé</span>
+                  <span class="text-xs font-semibold text-on-surface-variant/50">Compte Discord créé</span>
                   <span class="text-xs font-bold text-on-surface">{formatDate(profile.accountCreatedAt)}</span>
                 </div>
                 <div class="flex items-center justify-between border-b border-outline-variant/5 pb-3">
-                  <span class="text-xs font-bold text-on-surface-variant/50 uppercase tracking-wider">Arrivée sur le serveur</span>
+                  <span class="text-xs font-semibold text-on-surface-variant/50">Arrivée sur le serveur</span>
                   <span class="text-xs font-bold text-on-surface">{formatDate(profile.guildJoinedAt)}</span>
                 </div>
                 <div class="flex items-center justify-between border-b border-outline-variant/5 pb-3">
-                  <span class="text-xs font-bold text-on-surface-variant/50 uppercase tracking-wider">Dernier message</span>
+                  <span class="text-xs font-semibold text-on-surface-variant/50">Dernier message</span>
                   <span class="text-xs font-bold text-on-surface">{formatTimeAgo(profile.lastSeenAt)}</span>
                 </div>
                 <div class="flex items-center justify-between border-b border-outline-variant/5 pb-3">
-                  <span class="text-xs font-bold text-on-surface-variant/50 uppercase tracking-wider">Messages envoyés</span>
+                  <span class="text-xs font-semibold text-on-surface-variant/50">Messages envoyés</span>
                   <span class="text-xs font-bold text-on-surface">{profile.messageCount?.toLocaleString() || 0}</span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span class="text-xs font-bold text-on-surface-variant/50 uppercase tracking-wider">Temps en vocal</span>
+                  <span class="text-xs font-semibold text-on-surface-variant/50">Temps en vocal</span>
                   <span class="text-xs font-bold text-on-surface">{Math.round((profile.voiceTimeSeconds || 0) / 60)} min</span>
                 </div>
               </div>
@@ -273,11 +273,11 @@
 
             <!-- Badges/Roles Card -->
             <div class="rounded-xl bg-surface-container-low/40 border border-outline-variant/10 p-8 shadow-sm relative overflow-hidden group">
-              <h4 class="text-sm font-semibold text-primary uppercase tracking-widest mb-4">Badges & Rôles</h4>
+              <h4 class="text-sm font-semibold text-primary mb-4">Badges & Rôles</h4>
               {#if profile.roles && profile.roles.length > 0}
                 <div class="flex flex-wrap gap-2">
                   {#each profile.roles as role}
-                    <span class="inline-flex items-center gap-1.5 rounded-lg bg-surface-container-high/60 border border-outline-variant/10 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">
+                    <span class="inline-flex items-center gap-1.5 rounded-lg bg-surface-container-high/60 border border-outline-variant/10 px-3 py-1.5 text-xs font-semibold text-on-surface-variant">
                       {role.name}
                     </span>
                   {/each}
@@ -297,7 +297,7 @@
                 </div>
                 <div>
                   <h3 class="text-xl font-semibold text-on-surface font-headline leading-tight">Historique Événements</h3>
-                  <p class="text-2xs font-bold text-on-surface-variant/40 uppercase tracking-wider mt-0.5">Participations communautaires récentes</p>
+                  <p class="text-xs font-semibold text-on-surface-variant/40 mt-0.5">Participations communautaires récentes</p>
                 </div>
               </div>
 
@@ -307,11 +307,11 @@
                     <div class="flex items-center justify-between p-4.5 rounded-lg bg-surface-container-high/30 border border-outline-variant/5 hover:border-primary/25 hover:bg-surface-container-high/60 transition-all">
                       <div>
                         <h4 class="text-sm font-semibold text-on-surface leading-tight truncate max-w-[180px]">{event.title}</h4>
-                        <p class="text-2xs font-bold text-primary uppercase tracking-wider mt-0.5">{event.type}</p>
+                        <p class="text-xs font-semibold text-primary mt-0.5">{event.type}</p>
                       </div>
                       <div class="text-right">
                         <span class="text-sm font-semibold text-primary">{event.score} pts</span>
-                        <p class="text-2xs font-bold text-on-surface-variant/30 uppercase tracking-wider mt-0.5">{formatDate(event.date)}</p>
+                        <p class="text-xs font-semibold text-on-surface-variant/30 mt-0.5">{formatDate(event.date)}</p>
                       </div>
                     </div>
                   {/each}
@@ -319,7 +319,7 @@
               {:else}
                 <div class="py-16 text-center opacity-30">
                   <Papicon icon="Zap" size={48} class="mx-auto mb-4" />
-                  <p class="text-sm font-semibold uppercase tracking-widest">Aucune participation répertoriée</p>
+                  <p class="text-sm font-semibold">Aucune participation répertoriée</p>
                 </div>
               {/if}
             </div>
@@ -334,7 +334,7 @@
             <p class="text-sm text-on-surface-variant/70 max-w-lg mx-auto mb-8 font-bold leading-relaxed">
               Connectez-vous à votre compte Discord pour accéder aux dossiers internes, statistiques détaillées d'activité, absences et outils d'administration.
             </p>
-            <a href={`${API_BASE_URL}/api/auth/discord/login?returnTo=${encodeURIComponent(window.location.pathname)}`} class="inline-flex items-center gap-3 rounded-lg bg-primary hover:bg-primary-hover px-10 py-5 text-sm font-semibold uppercase tracking-widest text-on-primary shadow-sm shadow-primary/20 active:scale-[0.98] transition-all">
+            <a href={`${API_BASE_URL}/api/auth/discord/login?returnTo=${encodeURIComponent(window.location.pathname)}`} class="inline-flex items-center gap-3 rounded-lg bg-primary hover:bg-primary-hover px-10 py-5 text-sm font-semibold text-on-primary shadow-sm shadow-primary/20 active:scale-[0.98] transition-all">
               <Papicon icon="Lock" size={18} />
               Se connecter avec Discord
             </a>
@@ -344,7 +344,7 @@
       
       <!-- Footer details -->
       <div class="mt-20 pt-8 border-t border-outline-variant/5 text-center">
-        <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/20 italic">
+        <p class="text-xs font-semibold text-on-surface-variant/20 italic">
           Kotbo Ecosystem • Verified Community Profile Snapshot
         </p>
       </div>

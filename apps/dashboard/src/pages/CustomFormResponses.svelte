@@ -299,10 +299,10 @@
             <table class="w-full text-sm">
               <thead>
                 <tr class="bg-surface-container-low/60 border-b border-outline-variant/10">
-                  <th class="text-left px-5 py-3 font-bold text-on-surface-variant/60 text-xs uppercase tracking-wide">ID</th>
-                  <th class="text-left px-5 py-3 font-bold text-on-surface-variant/60 text-xs uppercase tracking-wide">Utilisateur Discord</th>
-                  <th class="text-left px-5 py-3 font-bold text-on-surface-variant/60 text-xs uppercase tracking-wide">Date de Soumission</th>
-                  <th class="text-left px-5 py-3 font-bold text-on-surface-variant/60 text-xs uppercase tracking-wide"></th>
+                  <th class="text-left px-5 py-3 font-semibold text-on-surface-variant/60 text-xs">ID</th>
+                  <th class="text-left px-5 py-3 font-semibold text-on-surface-variant/60 text-xs">Utilisateur Discord</th>
+                  <th class="text-left px-5 py-3 font-semibold text-on-surface-variant/60 text-xs">Date de Soumission</th>
+                  <th class="text-left px-5 py-3 font-semibold text-on-surface-variant/60 text-xs"></th>
                 </tr>
               </thead>
               <tbody>
@@ -342,7 +342,7 @@
               <div>
                 <div class="flex items-start justify-between border-b border-outline-variant/5 pb-2 mb-4">
                   <h4 class="font-semibold text-on-surface font-sans text-sm">{item.label}</h4>
-                  <span class="text-2xs font-semibold text-on-surface-variant/50 bg-surface-container px-2.5 py-1 rounded-full uppercase tracking-wider shrink-0 ml-2">
+                  <span class="text-xs font-semibold text-on-surface-variant/50 bg-surface-container px-2.5 py-1 rounded-full shrink-0 ml-2">
                     {item.totalResponses} réponse{item.totalResponses !== 1 ? 's' : ''}
                   </span>
                 </div>
@@ -448,7 +448,7 @@
 
         <!-- Answers -->
         <div>
-          <h3 class="text-sm font-semibold text-on-surface-variant/60 uppercase tracking-wide mb-3 font-sans">Réponses aux questions</h3>
+          <h3 class="text-sm font-semibold text-on-surface-variant/60 mb-3 font-sans">Réponses aux questions</h3>
           <div class="space-y-3">
             {#each Object.entries(selectedResponse.data || {}) as [key, value]}
               <div class="bg-surface-container/60 rounded-xl p-3">

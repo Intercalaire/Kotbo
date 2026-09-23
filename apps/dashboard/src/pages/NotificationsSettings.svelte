@@ -169,19 +169,19 @@
 
       <div class="space-y-6">
           <div class="space-y-2">
-          <label class="text-2xs font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="moderator-role">Rôle modérateur dashboard</label>
+          <label class="text-xs font-semibold text-on-surface-variant ml-1" for="moderator-role">Rôle modérateur dashboard</label>
           <SearchableSelect id="moderator-role" bind:value={notificationsDraft.moderatorRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Admin uniquement" className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
           
           <p class="text-xs text-on-surface-variant">Les membres de ce rôle peuvent accéder au dashboard avec des permissions limitées.</p>
         </div>
 
           <div class="space-y-2">
-          <label class="text-2xs font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="discord-channel">Salon d'alertes</label>
+          <label class="text-xs font-semibold text-on-surface-variant ml-1" for="discord-channel">Salon d'alertes</label>
           <SearchableSelect id="discord-channel" bind:value={notificationsDraft.discordChannel} options={availableChannels.map(c => ({ id: c.mention, name: channelDisplayName(c) }))} placeholder="Sélectionner un salon" className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
         </div>
 
           <div class="space-y-2">
-          <label class="text-2xs font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="log-channel">Salon des embeds de logs (optionnel)</label>
+          <label class="text-xs font-semibold text-on-surface-variant ml-1" for="log-channel">Salon des embeds de logs (optionnel)</label>
           <SearchableSelect id="log-channel" bind:value={notificationsDraft.logChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Ne pas envoyer d'embed" className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
           <p class="text-xs text-on-surface-variant">Les logs restent consultables dans le dashboard même si aucun salon n'est défini.</p>
         </div>
@@ -309,7 +309,7 @@
 
     
     <div class="section-card p-8">
-      <h4 class="text-2xs font-semibold text-on-surface-variant uppercase tracking-wider mb-6">Résumé Technique</h4>
+      <h4 class="text-xs font-semibold text-on-surface-variant mb-6">Résumé Technique</h4>
       <div class="space-y-6">
         <div class="flex gap-4">
           <div class="w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0">
@@ -332,7 +332,7 @@
 
     
     <div class="bg-red-50 dark:bg-red-900/10 p-8 rounded-xl border border-red-100 dark:border-red-900/20">
-      <h4 class="text-2xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider mb-4">Zone Critique</h4>
+      <h4 class="text-xs font-semibold text-red-600 dark:text-red-400 mb-4">Zone Critique</h4>
       <p class="text-xs text-red-600/70 dark:text-red-400/70 mb-6 leading-relaxed font-medium">Réinitialiser les paramètres globaux désactivera tous les modules actifs et supprimera les flux.</p>
       <button onclick={resetAndSaveFactory} class="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold transition-all shadow-sm active:scale-[0.98]">
         Réinitialisation d'usine (UI)

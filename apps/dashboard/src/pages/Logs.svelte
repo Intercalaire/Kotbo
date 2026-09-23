@@ -537,7 +537,7 @@
           <Papicon icon="Settings" size={24} />
         </div>
         <div>
-          <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">{m.lg_default_channel()}</h3>
+          <h3 class="text-sm font-semibold text-on-surface">{m.lg_default_channel()}</h3>
           <p class="text-xs text-on-surface-variant/70 mt-1">{m.lg_default_channel_desc()}</p>
         </div>
       </div>
@@ -549,7 +549,7 @@
     <div class="pt-6 border-t border-outline-variant/10 space-y-2">
       <div class="flex items-center justify-between gap-4">
         <div>
-          <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">{m.lg_ignored_channels()}</h3>
+          <h3 class="text-sm font-semibold text-on-surface">{m.lg_ignored_channels()}</h3>
           <p class="text-xs text-on-surface-variant/70 mt-1">{m.lg_ignored_channels_desc()}</p>
         </div>
         {#if ignoredChannelsDirty}
@@ -583,7 +583,7 @@
   <div class="space-y-6">
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
       <div>
-        <h4 class="text-sm font-semibold uppercase tracking-widest text-on-surface">{m.lg_per_event_config()}</h4>
+        <h4 class="text-sm font-semibold text-on-surface">{m.lg_per_event_config()}</h4>
         <p class="text-xs text-on-surface-variant/60 mt-1">{m.lg_per_event_desc()}</p>
       </div>
     </div>
@@ -628,7 +628,7 @@
 
                   {#if eventConfigs[confIdx].enabled}
                     <div class="space-y-1.5 pt-3 border-t border-outline-variant/10">
-                      <label for="select-{ev.type}" class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-wider">{m.lg_dest_channel()}</label>
+                      <label for="select-{ev.type}" class="text-xs font-semibold text-on-surface-variant/60">{m.lg_dest_channel()}</label>
                       <select
                         id="select-{ev.type}"
                         bind:value={eventConfigs[confIdx].channelId}
@@ -658,7 +658,7 @@
   <div class="bg-surface-container-low/20 p-6 rounded-xl border border-outline-variant/5 space-y-4">
     <div class="flex flex-col lg:flex-row lg:items-center gap-4 justify-between">
       <div class="space-y-2 w-full lg:max-w-2xl">
-        <label class="text-2xs font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="search">{m.lg_quick_search()}</label>
+        <label class="text-xs font-semibold text-on-surface-variant ml-1" for="search">{m.lg_quick_search()}</label>
         <div class="relative top-1.5">
           <Papicon icon="search" size={18} class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <FormInput
@@ -740,7 +740,7 @@
                 searchable={true}
               />
             </th>
-            <th class="px-6 py-5 text-2xs font-semibold text-on-surface-variant uppercase tracking-widest">{m.lg_col_details()}</th>
+            <th class="px-6 py-5 text-xs font-semibold text-on-surface-variant">{m.lg_col_details()}</th>
             <th class="px-6 py-5">
               <div class="flex justify-center">
                 <ColumnSortFilter
@@ -781,7 +781,7 @@
                   {formatChannelLabel(getLogChannelId(entry))}
                 </span>
               </td>
-              <td class="px-6 py-5 font-bold text-xs text-primary uppercase tracking-wider">
+              <td class="px-6 py-5 font-semibold text-xs text-primary">
                 {entry.module}
               </td>
               <td class="px-6 py-5 font-bold text-xs text-on-surface">
@@ -807,7 +807,7 @@
                   {/if}
                   {#each parsed.blocks as block}
                     <div class="bg-surface-container-low border-l-2 border-primary/50 rounded-r-lg px-3 py-1.5 text-xs text-on-surface-variant space-y-0.5 max-w-full overflow-hidden">
-                      <p class="text-2xs font-semibold uppercase tracking-wider text-primary/80">{block.key}</p>
+                      <p class="text-xs font-semibold text-primary/80">{block.key}</p>
                       <p class="break-all whitespace-pre-wrap leading-relaxed text-on-surface">{@html block.value}</p>
                     </div>
                   {/each}
@@ -842,7 +842,7 @@
   <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
     {#each stats as kpi}
       <div class="bg-surface-container-low/40 p-6 rounded-xl border border-outline-variant/10 hover:shadow-lg transition-all duration-300">
-        <p class="text-2xs font-bold text-on-surface-variant uppercase tracking-widest">{kpi.label}</p>
+        <p class="text-xs font-semibold text-on-surface-variant">{kpi.label}</p>
         <div class="flex items-end justify-between mt-2">
           <p class="text-lg font-semibold text-on-surface">{kpi.val}</p>
           <span class="text-2xs font-bold {kpi.subClass}">{kpi.sub}</span>

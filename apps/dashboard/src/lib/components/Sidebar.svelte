@@ -215,7 +215,7 @@
       <div class="flex flex-col min-w-0 flex-1">
         <span class="text-sm font-semibold text-on-surface leading-none truncate">{brandingStore.brandName}</span>
         {#if isStaffServerGuild}
-          <span class="inline-flex items-center gap-1 mt-0.5 w-fit px-1.5 py-0.5 rounded text-2xs font-medium tracking-wide uppercase bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
+          <span class="inline-flex items-center gap-1 mt-0.5 w-fit px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
             Serveur Staff
           </span>
         {:else}
@@ -403,7 +403,7 @@
             bg-surface-container-lowest
           "
         >
-          <span class="flex-1 text-left text-2xs font-medium text-on-surface-variant uppercase tracking-wider">
+          <span class="flex-1 text-left text-xs font-medium text-on-surface-variant">
             {group.label}
           </span>
           <div
@@ -448,11 +448,11 @@
 
                 <div class="flex items-center gap-1 pr-2 shrink-0">
                   {#if isPageWip(item)}
-                    <span class="px-1.5 py-0.5 rounded text-2xs font-medium tracking-wide uppercase bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">
+                    <span class="px-1.5 py-0.5 rounded text-xs font-medium bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">
                       WIP
                     </span>
                   {:else if isPageBeta(item)}
-                    <span class="px-1.5 py-0.5 rounded text-2xs font-medium tracking-wide uppercase bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20">
+                    <span class="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20">
                       BETA
                     </span>
                   {/if}

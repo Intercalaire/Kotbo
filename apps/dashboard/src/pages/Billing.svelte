@@ -187,7 +187,7 @@
     <section class="rounded-xl border border-outline-variant/40 bg-surface-container-low p-5 space-y-4">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="space-y-1">
-          <span class="text-2xs uppercase tracking-wide text-on-surface-variant font-medium">Offre en cours</span>
+          <span class="text-xs text-on-surface-variant font-medium">Offre en cours</span>
           <div class="flex items-center gap-2.5">
             <h2 class="text-lg font-semibold text-on-surface">{status.planName}</h2>
             {#if statusInfo}
@@ -294,7 +294,7 @@
             <div class="flex items-center justify-between gap-2">
               <h3 class="text-base font-semibold text-on-surface">{plan.name}</h3>
               {#if isCurrent}
-                <span class="text-2xs uppercase tracking-wide font-semibold px-2 py-0.5 rounded bg-primary/15 text-primary">
+                <span class="text-xs font-semibold px-2 py-0.5 rounded bg-primary/15 text-primary">
                   Actuel
                 </span>
               {/if}

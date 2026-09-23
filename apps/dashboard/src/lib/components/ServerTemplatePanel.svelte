@@ -901,7 +901,7 @@
                       <span class="w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors {isChecked(group.category.key) ? 'bg-primary/80 border-primary/80 text-on-primary' : `border-outline-variant/40 text-transparent ${checkboxHover}`}">
                         <Papicon icon="Check" size={10} />
                       </span>
-                      <span class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/50">
+                      <span class="text-xs font-semibold text-on-surface-variant/50">
                         {group.category.name}
                       </span>
                     </button>
@@ -1052,7 +1052,7 @@
                 {@const visible = group.channels.filter((channel) => isChecked(channel.key))}
                 {#if visible.length > 0}
                   <div class="space-y-0.5">
-                    <p class="flex items-center gap-1 px-1 pt-1 text-2xs font-bold uppercase tracking-wider text-on-surface-variant/45">
+                    <p class="flex items-center gap-1 px-1 pt-1 text-xs font-semibold text-on-surface-variant/45">
                       <Papicon icon="ChevronDown" size={10} />
                       {group.category.name}
                     </p>
@@ -1066,7 +1066,7 @@
 
             {#if selectedRoles.length > 0}
               <div class="space-y-0.5 pt-2 border-t border-outline-variant/10">
-                <p class="px-1 pt-1 text-2xs font-bold uppercase tracking-wider text-on-surface-variant/45">
+                <p class="px-1 pt-1 text-xs font-semibold text-on-surface-variant/45">
                   {m.st_roles_title()}
                 </p>
                 {#each selectedRoles as role (role.key)}
@@ -1080,7 +1080,7 @@
 
             {#if selectedModules.length > 0}
               <div class="space-y-0.5 pt-2 border-t border-outline-variant/10">
-                <p class="px-1 pt-1 text-2xs font-bold uppercase tracking-wider text-on-surface-variant/45">
+                <p class="px-1 pt-1 text-xs font-semibold text-on-surface-variant/45">
                   {m.st_section_modules()}
                 </p>
                 {#each selectedModules as mod (mod.key)}
@@ -1185,7 +1185,7 @@
   {@const icon = accessIcon(item)}
   <div class="space-y-1.5">
     {#if heading}
-      <p class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/50">{heading}</p>
+      <p class="text-xs font-semibold text-on-surface-variant/50">{heading}</p>
     {/if}
     <button
       type="button"

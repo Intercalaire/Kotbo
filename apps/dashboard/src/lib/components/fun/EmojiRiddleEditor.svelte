@@ -178,7 +178,7 @@
       onsubmit={(e) => { e.preventDefault(); submit(); }}
     >
       <div class="space-y-1.5">
-        <label for="riddleEmojis" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.fun_riddles_emojis_label()}</label>
+        <label for="riddleEmojis" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.fun_riddles_emojis_label()}</label>
         <div class="flex items-center gap-2">
           <input
             id="riddleEmojis"
@@ -194,7 +194,7 @@
       </div>
 
       <div class="space-y-1.5">
-        <label for="riddleAnswers" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.fun_riddles_answers_label()}</label>
+        <label for="riddleAnswers" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.fun_riddles_answers_label()}</label>
         <textarea
           id="riddleAnswers"
           bind:value={answersDraft}

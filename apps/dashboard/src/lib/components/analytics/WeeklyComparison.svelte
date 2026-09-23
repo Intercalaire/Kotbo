@@ -170,7 +170,7 @@
               <div class="p-2.5 rounded-xl border border-outline-variant/10 bg-surface-container-low transition-transform duration-500" style="color: {metric.color}">
                 <Papicon icon={metric.icon} size={20} />
               </div>
-              <p class="text-2xs font-semibold text-on-surface-variant/50 uppercase tracking-wider">{metric.label}</p>
+              <p class="text-xs font-semibold text-on-surface-variant/50">{metric.label}</p>
             </div>
             <div class="px-2.5 py-1 rounded-xl flex items-center gap-1 border text-xs font-semibold {getChangeColor(metric.change)}">
               <Papicon icon={getChangeIcon(metric.change)} size={12} />
@@ -182,7 +182,7 @@
           <div class="relative space-y-3 mb-5">
             <!-- Current period -->
             <div class="space-y-1">
-              <div class="flex items-center justify-between text-2xs font-semibold uppercase tracking-widest">
+              <div class="flex items-center justify-between text-xs font-semibold">
                 <span class="text-primary/80">{currentPeriodLabel}</span>
                 <span class="text-on-surface font-semibold text-sm">
                   {thisVal.toLocaleString(dateLocale())}
@@ -196,7 +196,7 @@
 
             <!-- Previous period -->
             <div class="space-y-1">
-              <div class="flex items-center justify-between text-2xs font-semibold uppercase tracking-widest">
+              <div class="flex items-center justify-between text-xs font-semibold">
                 <span class="text-on-surface-variant/40">{previousPeriodLabel}</span>
                 <span class="text-on-surface-variant/60 text-sm font-bold">
                   {lastVal.toLocaleString(dateLocale())}
@@ -211,7 +211,7 @@
 
           <!-- Delta absolute -->
           <div class="relative pt-4 border-t border-outline-variant/10 flex items-center justify-between">
-            <span class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/30">{m.an_wk_absolute_change()}</span>
+            <span class="text-xs font-semibold text-on-surface-variant/30">{m.an_wk_absolute_change()}</span>
             <span class="text-xs font-semibold {pct >= 0 ? 'text-emerald-400' : 'text-red-400'}">
               {thisVal - lastVal >= 0 ? '+' : ''}{(thisVal - lastVal).toLocaleString(dateLocale())}
               {#if metric.suffix}<span class="opacity-60 ml-0.5">{metric.suffix}</span>{/if}

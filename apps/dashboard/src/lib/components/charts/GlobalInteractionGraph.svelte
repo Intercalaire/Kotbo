@@ -543,7 +543,7 @@
 
           <!-- Top Interlocutors List (Dynamic friendship progress bars) -->
           <div class="mt-5 flex flex-col gap-2 border-t border-white/5 pt-4">
-            <span class="text-2xs text-slate-400 font-bold uppercase tracking-wider">Top 5 Interlocuteurs</span>
+            <span class="text-xs text-slate-400 font-semibold">Top 5 Interlocuteurs</span>
             
             {#if selectedTopInteractors.length === 0}
               <div class="flex items-center gap-2 p-3 rounded-lg bg-[#242526]/20 border border-dashed border-white/5 justify-center text-slate-400 text-xs">
@@ -618,7 +618,7 @@
 
         <!-- Top Connectors Ranked List -->
         <div class="flex flex-col gap-2 mt-2 border-t border-white/5 pt-4">
-          <span class="text-2xs text-slate-400 font-bold uppercase tracking-wider">Top 5 Connecteurs du Serveur</span>
+          <span class="text-xs text-slate-400 font-semibold">Top 5 Connecteurs du Serveur</span>
           {#each topConnectors as connector, index}
             <button 
               onclick={() => focusNode(connector.id)}

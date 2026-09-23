@@ -414,19 +414,19 @@
       {#if series?.peak && samples.length > 1}
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-outline-variant/20">
           <div>
-            <p class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">Pic heap</p>
+            <p class="text-xs font-semibold text-on-surface-variant">Pic heap</p>
             <p class="text-[15px] font-semibold text-on-surface tabular-nums mt-0.5">{formatBytes(series.peak.heapUsed)}</p>
           </div>
           <div>
-            <p class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">Pic RSS</p>
+            <p class="text-xs font-semibold text-on-surface-variant">Pic RSS</p>
             <p class="text-[15px] font-semibold text-on-surface tabular-nums mt-0.5">{formatBytes(series.peak.rss)}</p>
           </div>
           <div>
-            <p class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">Pic ping</p>
+            <p class="text-xs font-semibold text-on-surface-variant">Pic ping</p>
             <p class="text-[15px] font-semibold text-on-surface tabular-nums mt-0.5">{series.peak.averagePing} ms</p>
           </div>
           <div>
-            <p class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">Tendance heap</p>
+            <p class="text-xs font-semibold text-on-surface-variant">Tendance heap</p>
             <p class="text-[15px] font-semibold tabular-nums mt-0.5 {series.heapTrendPerHour > 0 ? 'text-amber-500' : 'text-emerald-500'}">
               {series.heapTrendPerHour >= 0 ? '+' : ''}{formatBytes(Math.abs(series.heapTrendPerHour))}/h
             </p>

@@ -436,7 +436,7 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="space-y-1.5">
-            <label for="drop-default-channel" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_default_channel_label()}</label>
+            <label for="drop-default-channel" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.drop_default_channel_label()}</label>
             <SearchableSelect
               id="drop-default-channel"
               bind:value={globalSettings.dropChannelId}
@@ -448,7 +448,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="drop-mention-role" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mention_role_label()}</label>
+            <label for="drop-mention-role" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.drop_mention_role_label()}</label>
             <SearchableSelect
               id="drop-mention-role"
               bind:value={globalSettings.dropMentionRoleId}
@@ -460,7 +460,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="drop-lifetime" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_lifetime_label()}</label>
+            <label for="drop-lifetime" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.drop_lifetime_label()}</label>
             <input
               id="drop-lifetime"
               type="number"
@@ -475,7 +475,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="drop-delete-after" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_delete_after_label()}</label>
+            <label for="drop-delete-after" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.drop_delete_after_label()}</label>
             <select
               id="drop-delete-after"
               bind:value={globalSettings.dropDeleteAfterMinutes}
@@ -500,7 +500,7 @@
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="text-2xs font-bold text-on-surface-variant/50 uppercase tracking-widest">
+              <tr class="text-xs font-semibold text-on-surface-variant/50">
                 <th class="py-2 pr-4">{m.drop_overview_col_type()}</th>
                 <th class="py-2 pr-4">{m.drop_overview_col_state()}</th>
                 <th class="py-2 pr-4">{m.drop_overview_col_channel()}</th>
@@ -543,7 +543,7 @@
           <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
               <thead>
-                <tr class="text-2xs font-bold text-on-surface-variant/50 uppercase tracking-widest">
+                <tr class="text-xs font-semibold text-on-surface-variant/50">
                   <th class="py-2 pr-4">{m.drop_history_col_date()}</th>
                   <th class="py-2 pr-4">{m.drop_history_col_type()}</th>
                   <th class="py-2 pr-4">{m.drop_history_col_mode()}</th>
@@ -688,7 +688,7 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="space-y-1.5">
-            <label for="drop-channel-{type}" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_channel_label()}</label>
+            <label for="drop-channel-{type}" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.drop_channel_label()}</label>
             <SearchableSelect
               id="drop-channel-{type}"
               bind:value={configs[type].channelId}
@@ -700,7 +700,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="drop-interval-{type}" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_interval_label()}</label>
+            <label for="drop-interval-{type}" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.drop_interval_label()}</label>
             <input
               id="drop-interval-{type}"
               type="number"
@@ -740,7 +740,7 @@
 
           <div class="grid grid-cols-2 gap-4">
             <div class="space-y-1.5">
-              <label for="drop-first-min-{type}" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mode_min_label()}</label>
+              <label for="drop-first-min-{type}" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.drop_mode_min_label()}</label>
               <input
                 id="drop-first-min-{type}"
                 type="number"
@@ -752,7 +752,7 @@
               />
             </div>
             <div class="space-y-1.5">
-              <label for="drop-first-max-{type}" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mode_max_label()}</label>
+              <label for="drop-first-max-{type}" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.drop_mode_max_label()}</label>
               <input
                 id="drop-first-max-{type}"
                 type="number"
@@ -777,7 +777,7 @@
 
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div class="space-y-1.5">
-              <label for="drop-race-winners-{type}" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_race_winners_label()}</label>
+              <label for="drop-race-winners-{type}" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.drop_race_winners_label()}</label>
               <input
                 id="drop-race-winners-{type}"
                 type="number"
@@ -789,7 +789,7 @@
               />
             </div>
             <div class="space-y-1.5">
-              <label for="drop-race-min-{type}" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mode_min_label()}</label>
+              <label for="drop-race-min-{type}" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.drop_mode_min_label()}</label>
               <input
                 id="drop-race-min-{type}"
                 type="number"
@@ -801,7 +801,7 @@
               />
             </div>
             <div class="space-y-1.5">
-              <label for="drop-race-max-{type}" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mode_max_label()}</label>
+              <label for="drop-race-max-{type}" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.drop_mode_max_label()}</label>
               <input
                 id="drop-race-max-{type}"
                 type="number"
@@ -826,7 +826,7 @@
 
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div class="space-y-1.5">
-              <label for="drop-window-duration-{type}" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_window_duration_label()}</label>
+              <label for="drop-window-duration-{type}" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.drop_window_duration_label()}</label>
               <input
                 id="drop-window-duration-{type}"
                 type="number"
@@ -839,7 +839,7 @@
               <p class="text-2xs text-on-surface-variant/60 mt-1">{m.drop_min_open_hint()}</p>
             </div>
             <div class="space-y-1.5">
-              <label for="drop-window-min-{type}" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mode_min_label()}</label>
+              <label for="drop-window-min-{type}" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.drop_mode_min_label()}</label>
               <input
                 id="drop-window-min-{type}"
                 type="number"
@@ -851,7 +851,7 @@
               />
             </div>
             <div class="space-y-1.5">
-              <label for="drop-window-max-{type}" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.drop_mode_max_label()}</label>
+              <label for="drop-window-max-{type}" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.drop_mode_max_label()}</label>
               <input
                 id="drop-window-max-{type}"
                 type="number"

@@ -458,15 +458,15 @@
     {#if activityPoints.length > 0}
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div class="p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/5">
-          <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_eng_activity_total()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/40">{m.an_eng_activity_total()}</p>
           <p class="text-lg font-semibold text-on-surface">{activityTotal.toLocaleString(dateLocale())} <span class="text-xs font-bold text-on-surface-variant/40">{mode === 'messages' ? m.an_unit_msgs() : m.an_unit_min()}</span></p>
         </div>
         <div class="p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/5">
-          <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_eng_activity_per_point()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/40">{m.an_eng_activity_per_point()}</p>
           <p class="text-lg font-semibold text-on-surface">{activityAverage.toLocaleString(dateLocale())} <span class="text-xs font-bold text-on-surface-variant/40">{mode === 'messages' ? m.an_unit_msgs() : m.an_unit_min()}</span></p>
         </div>
         <div class="p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/5">
-          <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_eng_activity_peak()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/40">{m.an_eng_activity_peak()}</p>
           <p class="text-lg font-semibold text-on-surface">{activityPeak.toLocaleString(dateLocale())} <span class="text-xs font-bold text-on-surface-variant/40">{mode === 'messages' ? m.an_unit_msgs() : m.an_unit_min()}</span></p>
         </div>
         <div class="p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/5">
@@ -483,7 +483,7 @@
               {/if}
             </p>
           {:else}
-            <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_eng_activity_trend()}</p>
+            <p class="text-xs font-semibold text-on-surface-variant/40">{m.an_eng_activity_trend()}</p>
             <p class="text-sm font-semibold text-on-surface-variant/40">{m.an_eng_activity_trend_stable()}</p>
           {/if}
         </div>

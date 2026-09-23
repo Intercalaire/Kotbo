@@ -208,7 +208,7 @@
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
-              <tr class="text-left text-2xs uppercase tracking-wider text-on-surface-variant/50 border-b border-outline-variant">
+              <tr class="text-left text-xs text-on-surface-variant/50 border-b border-outline-variant">
                 <th class="px-5 py-3">{m.an_adv_col_week()}</th>
                 <th class="px-3 py-3 text-right">{m.an_adv_col_joins()}</th>
                 <th class="px-3 py-3 text-right">{m.an_adv_col_d1()}</th>
@@ -250,7 +250,7 @@
         { label: m.an_adv_stickiness(), value: `${data.stickiness}%` },
       ] as stat}
         <div class="section-card p-5">
-          <p class="text-2xs uppercase tracking-wider text-on-surface-variant/50 font-semibold">{stat.label}</p>
+          <p class="text-xs text-on-surface-variant/50 font-semibold">{stat.label}</p>
           <p class="text-3xl font-bold text-on-surface mt-1.5">{stat.value}</p>
         </div>
       {/each}

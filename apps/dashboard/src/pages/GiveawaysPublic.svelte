@@ -223,7 +223,7 @@
       <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100 leading-snug wrap-break-word">
         {giveaway.prize}
       </h3>
-      <span class="shrink-0 text-2xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border {statusClasses(giveaway.status)}">
+      <span class="shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full border {statusClasses(giveaway.status)}">
         {statusLabel(giveaway.status)}
       </span>
     </div>
@@ -243,7 +243,7 @@
 
     {#if giveaway.status === 'ACTIVE'}
       <div class="flex items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-        <span class="text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+        <span class="text-xs font-semibold text-slate-400 dark:text-slate-500">
           {m.giveaway_public_time_left()}
         </span>
         <span class="text-sm font-bold text-indigo-600 dark:text-indigo-400 tabular-nums">
@@ -252,7 +252,7 @@
       </div>
     {:else if giveaway.winners.length > 0}
       <div class="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
-        <span class="text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+        <span class="text-xs font-semibold text-slate-400 dark:text-slate-500">
           {m.giveaway_public_winners_title()}
         </span>
         <div class="flex flex-wrap gap-x-4 gap-y-2">
@@ -287,7 +287,7 @@
 
         <div>
           <h1 class="text-lg font-semibold tracking-tight text-slate-800 dark:text-slate-100">{guildName}</h1>
-          <div class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-semibold text-xs uppercase tracking-wider">
+          <div class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-semibold text-xs">
             <span class="text-indigo-500"><Papicon icon="Gift" size={14} /></span>
             <span>{m.giveaway_public_header_subtitle()}</span>
           </div>
@@ -295,7 +295,7 @@
       </div>
 
       <div class="flex items-center gap-3 self-start sm:self-auto">
-        <div class="flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0c1322] p-0.5 text-2xs font-bold uppercase tracking-wider">
+        <div class="flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0c1322] p-0.5 text-xs font-semibold">
           {#each locales as loc}
             <button
               type="button"
@@ -321,7 +321,7 @@
         <div class="relative flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-500/20 dark:border-emerald-500/10 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 absolute"></span>
-          <span class="ml-2.5 uppercase tracking-wider text-2xs">{m.giveaway_public_live_badge()}</span>
+          <span class="ml-2.5 text-xs">{m.giveaway_public_live_badge()}</span>
         </div>
       </div>
     </header>
@@ -367,7 +367,7 @@
         <a
           href={listPath}
           onclick={(event) => goto(event, listPath)}
-          class="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 hover:text-slate-500 dark:hover:text-slate-400 transition-colors"
+          class="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-500 dark:hover:text-slate-400 transition-colors"
         >
           <Papicon icon="ArrowLeft" size={13} />{m.giveaway_public_back()}
         </a>
@@ -378,7 +378,7 @@
       <a
         href={listPath}
         onclick={(event) => goto(event, listPath)}
-        class="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+        class="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
       >
         <Papicon icon="ArrowLeft" size={13} />{m.giveaway_public_back()}
       </a>
@@ -387,7 +387,7 @@
         <div class="p-6 sm:p-8 space-y-6">
           <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div class="space-y-2">
-              <span class="inline-block text-2xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border {statusClasses(detail.status)}">
+              <span class="inline-block text-xs font-semibold px-2.5 py-1 rounded-full border {statusClasses(detail.status)}">
                 {statusLabel(detail.status)}
               </span>
               <h2 class="flex items-start gap-2 text-2xl font-semibold tracking-tight text-slate-800 dark:text-slate-100 wrap-break-word">
@@ -411,7 +411,7 @@
           <!-- Compte à rebours / date de fin -->
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div class="bg-slate-50 dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-1">
-              <p class="text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">
                 {detail.status === 'ACTIVE' ? m.giveaway_public_time_left() : m.giveaway_public_status_ended()}
               </p>
               <p class="text-base font-bold text-slate-800 dark:text-slate-100 tabular-nums">
@@ -419,19 +419,19 @@
               </p>
             </div>
             <div class="bg-slate-50 dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-1">
-              <p class="text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">
                 {m.giveaway_public_stat_participants()}
               </p>
               <p class="text-base font-bold text-slate-800 dark:text-slate-100 tabular-nums">{detail.participantCount}</p>
             </div>
             <div class="bg-slate-50 dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-1">
-              <p class="text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">
                 {m.giveaway_public_stat_winners()}
               </p>
               <p class="text-base font-bold text-slate-800 dark:text-slate-100 tabular-nums">{detail.winnerCount}</p>
             </div>
             <div class="bg-slate-50 dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-1">
-              <p class="text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">
                 {m.giveaway_public_channel()}
               </p>
               <p class="text-base font-bold text-slate-800 dark:text-slate-100 truncate">
@@ -442,7 +442,7 @@
 
           {#if detail.description}
             <div class="space-y-2">
-              <p class="text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">
                 {m.giveaway_public_description_title()}
               </p>
               <p class="text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line wrap-break-word">
@@ -453,7 +453,7 @@
 
           {#if hasRewards(detail)}
             <div class="space-y-2">
-              <p class="text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">
                 {m.giveaway_public_rewards_title()}
               </p>
               {@render rewardTags(detail)}
@@ -462,7 +462,7 @@
 
           <!-- Gagnants -->
           <div class="space-y-3">
-            <p class="text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">
               {m.giveaway_public_winners_title()}
             </p>
 
@@ -490,7 +490,7 @@
           <!-- Créateur & dates -->
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-5 border-t border-slate-100 dark:border-slate-800">
             <div class="space-y-1.5">
-              <p class="text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">
                 {m.giveaway_public_creator()}
               </p>
               {#if detail.creator}
@@ -527,26 +527,26 @@
       <!-- ─── Liste ─── -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div class="clean-card p-4 rounded-lg space-y-1">
-          <p class="text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{m.giveaway_public_stat_active()}</p>
+          <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">{m.giveaway_public_stat_active()}</p>
           <p class="text-xl font-bold text-indigo-600 dark:text-indigo-400 tabular-nums">{activeGiveaways.length}</p>
         </div>
         <div class="clean-card p-4 rounded-lg space-y-1">
-          <p class="text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{m.giveaway_public_stat_total()}</p>
+          <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">{m.giveaway_public_stat_total()}</p>
           <p class="text-xl font-bold text-slate-800 dark:text-slate-100 tabular-nums">{giveaways.length}</p>
         </div>
         <div class="clean-card p-4 rounded-lg space-y-1">
-          <p class="text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{m.giveaway_public_stat_participants()}</p>
+          <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">{m.giveaway_public_stat_participants()}</p>
           <p class="text-xl font-bold text-slate-800 dark:text-slate-100 tabular-nums">{totalParticipations}</p>
         </div>
         <div class="clean-card p-4 rounded-lg space-y-1">
-          <p class="text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{m.giveaway_public_stat_winners()}</p>
+          <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">{m.giveaway_public_stat_winners()}</p>
           <p class="text-xl font-bold text-amber-500 tabular-nums">{totalWinners}</p>
         </div>
       </div>
 
       {#if activeGiveaways.length > 0}
         <section class="space-y-4">
-          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+          <h2 class="text-sm font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-2">
             <span class="text-indigo-500"><Papicon icon="Clock" size={15} /></span>
             {m.giveaway_public_section_active({ count: activeGiveaways.length })}
           </h2>
@@ -560,7 +560,7 @@
 
       {#if endedGiveaways.length > 0}
         <section class="space-y-4">
-          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+          <h2 class="text-sm font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-2">
             <span class="text-amber-500"><Papicon icon="Trophy" size={15} /></span>
             {m.giveaway_public_section_ended({ count: endedGiveaways.length })}
           </h2>
@@ -579,7 +579,7 @@
       </p>
       <a
         href="/"
-        class="font-bold text-slate-700 dark:text-slate-300 hover:text-slate-500 dark:hover:text-slate-400 transition-colors uppercase tracking-wider flex items-center gap-1"
+        class="font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-500 dark:hover:text-slate-400 transition-colors flex items-center gap-1"
       >
         <span>{m.leveling_public_footer_dashboard()}</span>
         <span>→</span>

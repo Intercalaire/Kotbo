@@ -158,7 +158,7 @@
       
       <div class="space-y-4 flex-grow">
         <div class="p-6 rounded-xl bg-surface-container-high/30 border border-outline-variant/10 hover:border-primary/20 transition-all group">
-          <p class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/40 mb-3">{m.d1_so_most_active_channel()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/40 mb-3">{m.d1_so_most_active_channel()}</p>
           <div class="flex items-center justify-between">
             <span class="text-base font-semibold text-primary group-hover:translate-x-1 transition-transform">
               #{data?.topChannels?.[0]?.channelName || m.d1_so_general()}
@@ -167,7 +167,7 @@
         </div>
         
         <div class="p-6 rounded-xl bg-surface-container-high/30 border border-outline-variant/10 hover:border-secondary/20 transition-all group">
-          <p class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/40 mb-3">{m.d1_so_activity_peak()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/40 mb-3">{m.d1_so_activity_peak()}</p>
           <div class="flex items-center justify-between">
             <span class="text-base font-semibold text-on-surface group-hover:translate-x-1 transition-transform">
               {(() => {

@@ -482,7 +482,7 @@
           class="flex items-center gap-2 px-5 py-3 rounded-lg transition-all duration-300 bg-primary text-white active:scale-[0.98]"
         >
           <Papicon icon="plus" size={18} />
-          <span class="text-sm font-semibold uppercase tracking-wider">{m.tutoring_create_btn()}</span>
+          <span class="text-sm font-semibold">{m.tutoring_create_btn()}</span>
         </button>
       {/if}
     </div>
@@ -520,7 +520,7 @@
                     <div class="text-center">
                       <h3 class="font-semibold text-on-surface">{apprentice.staffMember.username}</h3>
                       {#if apprentice.mentor && apprentice.mentor.userId !== authStore.user?.id}
-                        <p class="text-2xs font-bold text-primary uppercase tracking-wider">{m.tutoring_mentor_prefix({ name: apprentice.mentor.username })}</p>
+                        <p class="text-xs font-semibold text-primary">{m.tutoring_mentor_prefix({ name: apprentice.mentor.username })}</p>
                       {/if}
                       <p class="text-xs text-on-surface-variant">{m.tutoring_apprentice_since({ date: new Date(apprentice.startDate).toLocaleDateString(dateLocale()) })}</p>
                     </div>
@@ -592,7 +592,7 @@
                             <Papicon icon="mic" size={20} />
                           </div>
                           <div>
-                            <div class="text-2xs font-semibold uppercase text-primary tracking-widest">{m.tutoring_vocal_activity()}</div>
+                            <div class="text-xs font-semibold text-primary">{m.tutoring_vocal_activity()}</div>
                             <div class="text-lg font-semibold text-on-surface">
                               {Math.round(apprentice.vocalStats.voiceTimeSeconds / 3600)}h {Math.round((apprentice.vocalStats.voiceTimeSeconds % 3600) / 60)}m
                             </div>
@@ -607,7 +607,7 @@
                             <Papicon icon="calendar-off" size={20} />
                           </div>
                           <div class="flex-1 overflow-hidden">
-                            <div class="text-2xs font-semibold uppercase text-warning tracking-widest">{m.tutoring_upcoming_absences()}</div>
+                            <div class="text-xs font-semibold text-warning">{m.tutoring_upcoming_absences()}</div>
                             <div class="flex flex-col gap-0.5">
                               {#each apprentice.absences as absence}
                                 <div class="text-2xs font-bold text-on-surface truncate">
@@ -756,11 +756,11 @@
                     <Papicon icon="mic" size={32} />
                   </div>
                   <div>
-                    <h3 class="text-xs font-semibold uppercase text-primary tracking-widest mb-1">{m.tutoring_my_vocal_activity()}</h3>
+                    <h3 class="text-xs font-semibold text-primary mb-1">{m.tutoring_my_vocal_activity()}</h3>
                     <div class="text-lg font-semibold text-on-surface leading-none mb-1">
                       {Math.round(apprenticeProgress.vocalStats.voiceTimeSeconds / 3600)}h {Math.round((apprenticeProgress.vocalStats.voiceTimeSeconds % 3600) / 60)}m
                     </div>
-                    <p class="text-2xs font-medium text-on-surface-variant uppercase tracking-wider">{m.tutoring_vocal_sessions_recorded({ count: apprenticeProgress.vocalStats.voiceSessionCount })}</p>
+                    <p class="text-xs font-medium text-on-surface-variant">{m.tutoring_vocal_sessions_recorded({ count: apprenticeProgress.vocalStats.voiceSessionCount })}</p>
                   </div>
                 </div>
               {/if}
@@ -771,7 +771,7 @@
                     <Papicon icon="calendar-off" size={32} />
                   </div>
                   <div class="flex-1 overflow-hidden">
-                    <h3 class="text-xs font-semibold uppercase text-warning tracking-widest mb-1">{m.tutoring_my_absences()}</h3>
+                    <h3 class="text-xs font-semibold text-warning mb-1">{m.tutoring_my_absences()}</h3>
                     <div class="flex flex-col gap-1">
                       {#each apprenticeProgress.absences.slice(0, 2) as absence}
                         <div class="flex items-center justify-between">
@@ -813,7 +813,7 @@
                     <div class="p-6 bg-surface-container/30 rounded-xl border border-outline-variant/20 flex gap-4 animate-in slide-in-from-left-2 duration-300">
                       <div class="w-1.5 bg-primary/20 rounded-full"></div>
                       <div class="flex-1">
-                        <div class="text-2xs font-bold text-primary uppercase tracking-widest mb-1">{new Date(log.date).toLocaleDateString()}</div>
+                        <div class="text-xs font-semibold text-primary mb-1">{new Date(log.date).toLocaleDateString()}</div>
                         <p class="text-on-surface font-medium">{log.content}</p>
                       </div>
                     </div>
@@ -870,7 +870,7 @@
             </div>
           {:else}
             <div class="flex flex-col gap-2">
-              <label for="reportIntervalDays" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_report_interval()}</label>
+              <label for="reportIntervalDays" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_field_report_interval()}</label>
               <input 
                 id="reportIntervalDays"
                 type="number" 
@@ -880,7 +880,7 @@
             </div>
 
           <div class="flex flex-col gap-2">
-            <label for="reminderDaysBefore" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_reminder_days()}</label>
+            <label for="reminderDaysBefore" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_field_reminder_days()}</label>
             <input 
               id="reminderDaysBefore"
               type="number" 
@@ -890,7 +890,7 @@
           </div>
 
           <div class="flex flex-col gap-2">
-            <label for="minTestDays" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_min_test_days()}</label>
+            <label for="minTestDays" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_field_min_test_days()}</label>
             <input 
               id="minTestDays"
               type="number" 
@@ -1070,11 +1070,11 @@
         <div class="flex flex-col gap-6">
           <div class="p-4 bg-surface-container/50 rounded-lg border border-outline-variant/20 flex items-center justify-between">
             <div class="flex flex-col">
-              <span class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest">{m.tutoring_current_duration()}</span>
+              <span class="text-xs font-semibold text-on-surface-variant">{m.tutoring_current_duration()}</span>
               <span class="font-bold text-on-surface">{m.tutoring_days_unit({ count: getDaysInTest(selectedApprentice?.startDate) })}</span>
             </div>
             <div class="flex flex-col items-end">
-              <span class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest">{m.tutoring_required_duration()}</span>
+              <span class="text-xs font-semibold text-on-surface-variant">{m.tutoring_required_duration()}</span>
               <span class="font-bold text-on-surface">{m.tutoring_days_unit({ count: config?.minTestDays ?? 14 })}</span>
             </div>
           </div>
@@ -1097,7 +1097,7 @@
           {/if}
 
           <div class="flex flex-col gap-2">
-            <label for="notes" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_final_notes_label()}</label>
+            <label for="notes" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_final_notes_label()}</label>
             <textarea 
               id="notes"
               placeholder={m.tutoring_final_notes_ph()}
@@ -1146,7 +1146,7 @@
         
         <div class="flex flex-col gap-6">
           <div class="flex flex-col gap-2">
-            <label for="item-title" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_item_title_label()}</label>
+            <label for="item-title" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_item_title_label()}</label>
             <input 
               id="item-title"
               type="text" 
@@ -1157,7 +1157,7 @@
           </div>
 
           <div class="flex flex-col gap-2">
-            <label for="item-category" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_item_category_label()}</label>
+            <label for="item-category" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_item_category_label()}</label>
             <select 
               id="item-category"
               bind:value={itemForm.category}
@@ -1196,7 +1196,7 @@
           </div>
 
           <div class="flex flex-col gap-2">
-            <label for="item-desc" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_item_desc_label()}</label>
+            <label for="item-desc" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_item_desc_label()}</label>
             <textarea 
               id="item-desc"
               placeholder={m.tutoring_item_desc_ph()}
@@ -1241,7 +1241,7 @@
         {:else}
           <div class="flex flex-col gap-6">
             <div class="flex flex-col gap-2">
-              <label for="apprentice" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_apprentice()}</label>
+              <label for="apprentice" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_field_apprentice()}</label>
               <select 
                 id="apprentice"
                 bind:value={createTutoringForm.staffUserId}
@@ -1257,7 +1257,7 @@
             </div>
 
             <div class="flex flex-col gap-2">
-              <label for="mentor" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_mentor()}</label>
+              <label for="mentor" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_field_mentor()}</label>
               <select 
                 id="mentor"
                 bind:value={createTutoringForm.mentorId}
@@ -1273,7 +1273,7 @@
             </div>
 
             <div class="flex flex-col gap-2">
-              <label for="target-grade" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_target_grade()}</label>
+              <label for="target-grade" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_field_target_grade()}</label>
               <select 
                 id="target-grade"
                 bind:value={createTutoringForm.targetGrade}
@@ -1287,7 +1287,7 @@
             </div>
 
             <div class="flex flex-col gap-2">
-              <label for="duration" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_duration()}</label>
+              <label for="duration" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_field_duration()}</label>
               <input 
                 id="duration"
                 type="number" 

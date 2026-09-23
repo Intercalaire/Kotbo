@@ -444,7 +444,7 @@
                   <p class="text-body-sm font-medium text-on-surface truncate flex items-center gap-1.5">
                     {server.name}
                     {#if isCurrent}
-                      <span class="text-2xs font-medium uppercase tracking-wide px-1 py-0.5 rounded bg-primary/10 text-primary">Actuel</span>
+                      <span class="text-xs font-medium px-1 py-0.5 rounded bg-primary/10 text-primary">Actuel</span>
                     {/if}
                   </p>
                   <p class="text-2xs {server.activated ? 'text-on-surface-variant/60' : 'text-amber-500'}">

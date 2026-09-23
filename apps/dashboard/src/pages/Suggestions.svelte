@@ -264,7 +264,7 @@
           {#if suggestion.responseText}
             <!-- Public response display -->
             <div class="p-5 rounded-lg bg-secondary/5 border border-secondary/15 space-y-2 animate-in fade-in duration-200">
-              <div class="flex items-center gap-2 text-xs font-semibold text-secondary uppercase tracking-wider">
+              <div class="flex items-center gap-2 text-xs font-semibold text-secondary">
                 <Papicon icon="User" size={14} /> {m.suggestions_staff_response()}
               </div>
               <p class="text-sm text-on-surface-variant font-medium leading-relaxed font-sans">{suggestion.responseText}</p>
@@ -275,7 +275,7 @@
             <!-- Moderation actions form -->
             <div class="space-y-4 pt-4 border-t border-outline-variant/10 animate-in fade-in duration-300">
               <div class="space-y-1.5">
-                <label for={`resp-${suggestion.id}`} class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.suggestions_public_comment_label()}</label>
+                <label for={`resp-${suggestion.id}`} class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.suggestions_public_comment_label()}</label>
                 <textarea 
                   id={`resp-${suggestion.id}`}
                   bind:value={responseDrafts[suggestion.id]} 

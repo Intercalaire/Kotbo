@@ -495,7 +495,7 @@
         <!-- Sources -->
         <AdminCard title="Provenance du trafic" description="Classification CNIL : Discord, Moteurs de recherche, Direct">
           <div class="divide-y divide-outline-variant/15 text-sm">
-            <div class="grid grid-cols-4 py-2 font-bold text-xs text-on-surface-variant uppercase tracking-wider">
+            <div class="grid grid-cols-4 py-2 font-semibold text-xs text-on-surface-variant">
               <span>Source</span>
               <span class="text-right">Visites</span>
               <span class="text-right">Bots</span>
@@ -515,7 +515,7 @@
         <!-- Contenus de liens -->
         <AdminCard title="Emplacements des boutons" description="Performance par bouton d'invitation (hero, navbar, pricing...)">
           <div class="divide-y divide-outline-variant/15 text-sm">
-            <div class="grid grid-cols-4 py-2 font-bold text-xs text-on-surface-variant uppercase tracking-wider">
+            <div class="grid grid-cols-4 py-2 font-semibold text-xs text-on-surface-variant">
               <span>Bouton (content)</span>
               <span class="text-right">Clics</span>
               <span class="text-right">Bots</span>
@@ -552,7 +552,7 @@
           </div>
 
           <div class="space-y-2">
-            <span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider block mb-2">Points d'abandon :</span>
+            <span class="text-xs font-semibold text-on-surface-variant block mb-2">Points d'abandon :</span>
             {#each (onboardingData.stepDropOffs ?? []) as drop}
               <div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low border border-outline-variant/15 text-sm">
                 <span class="font-mono text-xs text-on-surface">{drop.step}</span>
@@ -685,7 +685,7 @@
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm">
             <thead>
-              <tr class="border-b border-outline-variant/20 text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+              <tr class="border-b border-outline-variant/20 text-xs font-semibold text-on-surface-variant">
                 <th class="py-2.5 px-3">Date</th>
                 <th class="py-2.5 px-3">Serveur</th>
                 <th class="py-2.5 px-3">Offre</th>
@@ -727,7 +727,7 @@
     {#if activeTab === 'segments' && segmentsData}
       <!-- Sélecteur de Dimension -->
       <div class="flex items-center gap-2 mb-6 flex-wrap">
-        <span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider mr-2">Axe d'analyse :</span>
+        <span class="text-xs font-semibold text-on-surface-variant mr-2">Axe d'analyse :</span>
         {#each [
           { id: 'size', label: 'Taille du serveur' },
           { id: 'source', label: 'Provenance (CNIL)' },
@@ -751,7 +751,7 @@
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm">
             <thead>
-              <tr class="border-b border-outline-variant/20 text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+              <tr class="border-b border-outline-variant/20 text-xs font-semibold text-on-surface-variant">
                 <th class="py-2.5 px-3">Segment</th>
                 <th class="py-2.5 px-3 text-right">Serveurs</th>
                 <th class="py-2.5 px-3 text-right">Payants</th>
@@ -806,7 +806,7 @@
           <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
               <thead>
-                <tr class="border-b border-outline-variant/20 text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+                <tr class="border-b border-outline-variant/20 text-xs font-semibold text-on-surface-variant">
                   <th class="py-2.5 px-3">Serveur</th>
                   <th class="py-2.5 px-3 text-right">Membres</th>
                   <th class="py-2.5 px-3">Offre actuelle</th>
@@ -940,7 +940,7 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <AdminCard title="Adoption des modules (FREE vs Payant)" description="Comparaison des fonctionnalités activées selon l'offre">
             <div class="divide-y divide-outline-variant/15 text-sm">
-              <div class="grid grid-cols-3 py-2 font-bold text-xs text-on-surface-variant uppercase tracking-wider">
+              <div class="grid grid-cols-3 py-2 font-semibold text-xs text-on-surface-variant">
                 <span>Module</span>
                 <span class="text-right">Offre FREE</span>
                 <span class="text-right">Offres Payantes</span>
@@ -957,7 +957,7 @@
 
           <AdminCard title="Modules drop-off avant Churn" description="Dernières fonctionnalités désactivées avant la résiliation">
             <div class="divide-y divide-outline-variant/15 text-sm">
-              <div class="grid grid-cols-2 py-2 font-bold text-xs text-on-surface-variant uppercase tracking-wider">
+              <div class="grid grid-cols-2 py-2 font-semibold text-xs text-on-surface-variant">
                 <span>Module</span>
                 <span class="text-right">Arrêts avant Churn</span>
               </div>

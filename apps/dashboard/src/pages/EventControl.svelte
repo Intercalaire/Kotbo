@@ -368,7 +368,7 @@
                     <div class="flex items-center justify-between">
                       <div>
                         <h4 class="text-xl font-semibold text-on-surface">{challenge.title}</h4>
-                        <p class="text-2xs font-bold text-on-surface-variant/40 mt-1 uppercase tracking-widest">
+                        <p class="text-xs font-semibold text-on-surface-variant/40 mt-1">
                           {challenge.points} pts | {challenge.xpReward} XP
                           {#if challenge.roleIdReward}
                             | Rôle: {challenge.roleIdReward}
@@ -432,7 +432,7 @@
 
               <div class="text-center mb-12">
                 <div class="flex items-center justify-center gap-3 mb-4">
-                  <span class="px-3 py-1 bg-primary/10 text-primary rounded-lg text-2xs font-semibold uppercase tracking-widest">{m.evc_live_badge()}</span>
+                  <span class="px-3 py-1 bg-primary/10 text-primary rounded-lg text-xs font-semibold">{m.evc_live_badge()}</span>
                 </div>
                 <h4 class="text-2xl font-semibold text-on-surface">{stats.questionText}</h4>
               </div>

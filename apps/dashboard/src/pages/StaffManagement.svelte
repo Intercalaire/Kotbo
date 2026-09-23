@@ -1496,7 +1496,7 @@
           {#if directoryAccess.canConfigure}
             <button
               onclick={openAddMemberForm}
-              class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+              class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
             >
               <Papicon icon={showAddMemberForm ? 'x' : 'plus'} size={14} />
               {showAddMemberForm ? m.common_cancel() : m.sm_btn_add_member()}
@@ -1541,7 +1541,7 @@
                 />
                 <span class="text-body-sm font-medium text-on-surface-variant/70">{m.sm_toggle_create_tutoring()}</span>
               </div>
-              <button onclick={addStaffMember} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all active:scale-[0.98]">
+              <button onclick={addStaffMember} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold text-white transition-all active:scale-[0.98]">
                 {m.common_add()}
               </button>
             </div>
@@ -1588,13 +1588,13 @@
                         <a href="/profile/{member.userId}">{member.displayName || member.username || m.sm_unknown_user()}</a>
                       </h4>
                       <div class="flex items-center gap-3 mt-1.5 flex-wrap">
-                        <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-primary">
+                        <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
                           {member.grade}
                         </span>
                         {#if member.hierarchyGrades && member.hierarchyGrades.length > 0}
                           {#each member.hierarchyGrades as hGrade}
                             <span 
-                              class="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider"
+                              class="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold"
                               style="border-color: {hGrade.hierarchy?.color ? hGrade.hierarchy.color + '30' : 'rgba(99, 102, 241, 0.2)'}; background-color: {hGrade.hierarchy?.color ? hGrade.hierarchy.color + '15' : 'rgba(99, 102, 241, 0.1)'}; color: {hGrade.hierarchy?.color || 'var(--color-primary)'}"
                             >
                               <span>{hGrade.hierarchy?.icon || '🔵'}</span>
@@ -1603,14 +1603,14 @@
                           {/each}
                         {/if}
                         {#if member.isTutor}
-                          <span class="inline-flex items-center gap-1 item rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-indigo-600 shadow-sm shadow-indigo-500/5 transition-all animate-in zoom-in-95 duration-300">
+                          <span class="inline-flex items-center gap-1 item rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-0.5 text-xs font-semibold text-indigo-600 shadow-sm shadow-indigo-500/5 transition-all animate-in zoom-in-95 duration-300">
                             <Papicon icon="shield" size={12} />
                             {m.sm_tutor_badge()}
                           </span>
                         {/if}
                         {#if member.suspendedAt}
                           <span
-                            class="inline-flex items-center gap-1 rounded-full border border-orange-500/25 bg-orange-500/10 px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-orange-600"
+                            class="inline-flex items-center gap-1 rounded-full border border-orange-500/25 bg-orange-500/10 px-2.5 py-0.5 text-xs font-semibold text-orange-600"
                             title={member.suspendedReason || m.sm_suspended_since({ date: new Date(member.suspendedAt).toLocaleDateString() })}
                           >
                             <Papicon icon="pause" size={12} />
@@ -1621,7 +1621,7 @@
                           {m.sm_member_since({ date: new Date(member.joinedStaffAt).toLocaleDateString() })}
                         </span>
                         {#if (member.warnings?.length || 0) > 0}
-                          <span class="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-amber-700">
+                          <span class="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
                             <Papicon icon="alert-triangle" size={12} />
                             {member.warnings?.length || 0} {m.sm_warn_count_label()}{(member.warnings?.length || 0) > 1 ? 's' : ''}
                           </span>
@@ -1744,14 +1744,14 @@
             {#if rolesAccess.canConfigure}
               <button
                 onclick={openAddHierarchyForm}
-                class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+                class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
               >
                 <Papicon icon="plus" size={14} />
                 {m.sm_btn_new_hierarchy()}
               </button>
               <button
                 onclick={() => showAddRoleForm = !showAddRoleForm}
-                class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+                class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
               >
                 <Papicon icon={showAddRoleForm ? 'x' : 'plus'} size={14} />
                 {showAddRoleForm ? m.sm_aria_close() : m.sm_btn_new_role()}
@@ -1770,7 +1770,7 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label>
-                <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">{m.sm_field_base_role()} <span class="text-on-surface-variant/50 normal-case tracking-normal">{m.sm_optional_tag()}</span></span>
+                <span class="block text-xs font-semibold text-on-surface mb-2">{m.sm_field_base_role()} <span class="text-on-surface-variant/50 normal-case tracking-normal">{m.sm_optional_tag()}</span></span>
                 <select bind:value={baseStaffRoleId} onchange={saveStaffConfig} disabled={!rolesAccess.canConfigure} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
                   <option value={null}>{m.sm_none_option()}</option>
                   {#each availableDiscordRoles as dr}
@@ -1781,7 +1781,7 @@
             </div>
             <div>
               <label>
-                <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">{m.sm_field_test_role()} <span class="text-on-surface-variant/50 normal-case tracking-normal">{m.sm_optional_tag()}</span></span>
+                <span class="block text-xs font-semibold text-on-surface mb-2">{m.sm_field_test_role()} <span class="text-on-surface-variant/50 normal-case tracking-normal">{m.sm_optional_tag()}</span></span>
                 <select bind:value={testStaffRoleId} onchange={saveStaffConfig} disabled={!rolesAccess.canConfigure} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
                   <option value={null}>{m.sm_none_option()}</option>
                   {#each availableDiscordRoles as dr}
@@ -1792,19 +1792,19 @@
             </div>
             <div>
               <label>
-                <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">{m.sm_field_meeting_announce_channel()} <span class="text-on-surface-variant/50 normal-case tracking-normal">{m.sm_text_tag()}</span></span>
+                <span class="block text-xs font-semibold text-on-surface mb-2">{m.sm_field_meeting_announce_channel()} <span class="text-on-surface-variant/50 normal-case tracking-normal">{m.sm_text_tag()}</span></span>
                 <SearchableSelect bind:value={meetingAnnouncementChannelId} options={meetingAnnouncementChannelOptions} placeholder={m.sm_none_option()} className="w-full" />
               </label>
             </div>
             <div>
               <label>
-                <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">{m.sm_field_meeting_voice_channel()}</span>
+                <span class="block text-xs font-semibold text-on-surface mb-2">{m.sm_field_meeting_voice_channel()}</span>
                 <SearchableSelect bind:value={meetingVoiceChannelId} options={meetingVoiceChannelOptions} placeholder={m.sm_none_option()} className="w-full" />
               </label>
             </div>
             <div>
               <label>
-                <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">{m.sm_field_staff_announce_channel()} <span class="text-on-surface-variant/50 normal-case tracking-normal">{m.sm_optional_tag()}</span></span>
+                <span class="block text-xs font-semibold text-on-surface mb-2">{m.sm_field_staff_announce_channel()} <span class="text-on-surface-variant/50 normal-case tracking-normal">{m.sm_optional_tag()}</span></span>
                 <SearchableSelect bind:value={staffAnnouncementChannelId} options={availableDiscordChannels.map(dc => ({ id: dc.id, name: `#${dc.name}` }))} placeholder={m.sm_none_option()} className="w-full" />
               </label>
             </div>
@@ -1886,7 +1886,7 @@
               </div>
 
               <div class="flex justify-end">
-                <button onclick={createStaffRole} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all active:scale-[0.98]">
+                <button onclick={createStaffRole} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold text-white transition-all active:scale-[0.98]">
                   {m.sm_btn_create_association()}
                 </button>
               </div>
@@ -1998,7 +1998,7 @@
                               <h5 class="text-sm font-semibold text-on-surface flex items-center gap-2">
                                 {role.name}
                                 {#if role.isResponsable}
-                                  <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-2xs font-semibold uppercase tracking-wider">{m.sm_role_chief_badge()}</span>
+                                  <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-xs font-semibold">{m.sm_role_chief_badge()}</span>
                                 {/if}
                                 <span class="inline-flex items-center rounded-full bg-outline-variant/20 px-2 py-0.5 text-2xs font-bold text-on-surface-variant">
                                   {m.sm_role_weight_label({ level: role.level })}
@@ -2159,7 +2159,7 @@
           </div>
           <button
             onclick={openWarnForm}
-            class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+            class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
           >
             <Papicon icon={showWarnForm ? 'x' : 'plus'} size={14} />
             {showWarnForm ? m.common_cancel() : m.sm_btn_new_warning()}
@@ -2206,7 +2206,7 @@
                    />
                 </div>
                 <div class="flex justify-end mt-4">
-                  <button onclick={issueWarning} class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-sm transition-all hover:bg-amber-600 active:scale-[0.98]">
+                  <button onclick={issueWarning} class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-8 py-3 text-xs font-semibold text-white shadow-sm transition-all hover:bg-amber-600 active:scale-[0.98]">
                     <Papicon icon="gavel" size={14} />
                     {m.sm_btn_sanction()}
                   </button>
@@ -2228,7 +2228,7 @@
               <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
                   <thead>
-                    <tr class="bg-surface-container-high/30 text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/40">
+                    <tr class="bg-surface-container-high/30 text-xs font-semibold text-on-surface-variant/40">
                       <th class="px-6 py-4">{m.sm_col_member()}</th>
                       <th class="px-6 py-4">{m.sm_col_reason()}</th>
                       <th class="px-6 py-4">{m.sm_col_issued_by()}</th>
@@ -2274,12 +2274,12 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-center">
                           {#if warn.isActive}
-                            <span class="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-amber-600 border border-amber-500/20">
+                            <span class="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-600 border border-amber-500/20">
                               <span class="w-1 h-1 rounded-full bg-amber-600 animate-pulse"></span>
                               {m.sm_status_active()}
                             </span>
                           {:else}
-                            <span class="inline-flex items-center rounded-full bg-outline-variant/10 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/40">{m.sm_status_expired()}</span>
+                            <span class="inline-flex items-center rounded-full bg-outline-variant/10 px-2.5 py-1 text-xs font-semibold text-on-surface-variant/40">{m.sm_status_expired()}</span>
                           {/if}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right">
@@ -2320,7 +2320,7 @@
           </div>
           <button
             onclick={openBlacklistForm}
-            class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-rose-500/20 bg-rose-500/10 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-rose-700 transition-colors hover:bg-rose-500 hover:text-white"
+            class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-rose-500/20 bg-rose-500/10 px-6 py-3 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-500 hover:text-white"
           >
             <Papicon icon={showBlacklistForm ? 'x' : 'slash'} size={14} />
             {showBlacklistForm ? m.common_cancel() : m.sm_btn_blacklist()}
@@ -2367,7 +2367,7 @@
                    />
                 </div>
                 <div class="flex justify-end mt-4">
-                  <button onclick={blacklistStaff} class="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-600 px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-sm transition-all hover:bg-rose-700 active:scale-[0.98]">
+                  <button onclick={blacklistStaff} class="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-600 px-8 py-3 text-xs font-semibold text-white shadow-sm transition-all hover:bg-rose-700 active:scale-[0.98]">
                     <Papicon icon="slash" size={14} />
                     {m.sm_btn_apply_blacklist()}
                   </button>
@@ -2405,7 +2405,7 @@
                         {member.displayName || member.username || m.sm_unknown_user()}
                       </h4>
                       <div class="flex items-center gap-3 mt-1.5 flex-wrap">
-                        <span class="inline-flex items-center rounded-full border border-rose-500/20 bg-rose-500/10 px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-rose-700">
+                        <span class="inline-flex items-center rounded-full border border-rose-500/20 bg-rose-500/10 px-2.5 py-0.5 text-xs font-semibold text-rose-700">
                           {m.sm_blacklisted_badge()}
                         </span>
                         {#if member.blacklistEntries?.[0]?.reason}
@@ -2452,7 +2452,7 @@
           </div>
           <button
             onclick={() => showPollForm = !showPollForm}
-            class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/10 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+            class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/10 px-6 py-3 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
           >
             <Papicon icon={showPollForm ? 'x' : 'plus'} size={14} />
             {showPollForm ? m.common_cancel() : m.sm_btn_new_poll()}
@@ -2495,7 +2495,7 @@
                   {m.sm_btn_add_option()}
                 </button>
                 <div class="pt-6 border-t border-outline-variant/10">
-                   <button onclick={createPoll} disabled={isSavingPoll} class="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-8 py-4 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all active:scale-[0.98] disabled:opacity-50">
+                   <button onclick={createPoll} disabled={isSavingPoll} class="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-8 py-4 text-xs font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-50">
                     <Papicon icon={isSavingPoll ? 'refresh-cw' : 'check-square'} size={14} class={isSavingPoll ? 'animate-spin' : ''} />
                     {m.sm_btn_publish_poll()}
                   </button>
@@ -2531,7 +2531,7 @@
           {:else if polls.length === 0}
             <div class="p-16 flex flex-col items-center justify-center text-center opacity-40">
               <Papicon icon="list" size={60} />
-              <p class="mt-4 text-sm font-bold uppercase tracking-widest">{m.sm_empty_polls()}</p>
+              <p class="mt-4 text-sm font-semibold">{m.sm_empty_polls()}</p>
             </div>
           {:else}
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -2602,7 +2602,7 @@
                   </div>
 
                   <div class="mt-6 pt-4 border-t border-outline-variant/10 flex items-center justify-between">
-                    <span class="text-2xs font-bold text-on-surface-variant/40 uppercase tracking-widest">{m.sm_poll_total_votes({ total: totalWeight.toFixed(1) })}</span>
+                    <span class="text-xs font-semibold text-on-surface-variant/40">{m.sm_poll_total_votes({ total: totalWeight.toFixed(1) })}</span>
                     {#if poll.closesAt && !isClosed}
                       <span class="text-2xs font-medium text-amber-600/70 italic flex items-center gap-1">
                         <Papicon icon="clock" size={12} />
@@ -2629,7 +2629,7 @@
                 <div class="p-2 rounded-xl bg-primary/10 text-primary">
                   <Papicon icon="BarChart" size={18} />
                 </div>
-                <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">{m.sm_chart_score_distribution()}</h4>
+                <h4 class="text-sm font-semibold text-on-surface">{m.sm_chart_score_distribution()}</h4>
               </div>
               <div class="h-50">
                 <Chart data={progressionChartData} type="bar" height={200} options={{ indexAxis: 'y', scales: { x: { beginAtZero: true, max: 100 } } }} />
@@ -2641,7 +2641,7 @@
                 <div class="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
                   <Papicon icon="Activity" size={18} />
                 </div>
-                <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">{m.sm_chart_activity_comparison()}</h4>
+                <h4 class="text-sm font-semibold text-on-surface">{m.sm_chart_activity_comparison()}</h4>
               </div>
               <div class="h-50">
                 <Chart data={activityChartData} type="bar" height={200} options={{ indexAxis: 'y', scales: { x: { beginAtZero: true } } }} />
@@ -2833,7 +2833,7 @@
 
           <div class="space-y-6">
             <div>
-              <span class="mb-3 block text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/60">{m.sm_execution_mode()}</span>
+              <span class="mb-3 block text-xs font-semibold text-on-surface-variant/60">{m.sm_execution_mode()}</span>
               <div class="flex gap-2 rounded-lg border border-outline-variant/20 bg-surface p-1">
                 <label class="flex-1 cursor-pointer">
                   <input type="radio" name="actionMode" value="validation" checked={actionMode === 'validation'} onchange={() => { actionMode = 'validation'; saveStaffConfig(); }} class="peer sr-only" />
@@ -2853,7 +2853,7 @@
             </div>
 
             <div>
-              <span class="mb-3 block text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/60">{m.sm_warn_thresholds()}</span>
+              <span class="mb-3 block text-xs font-semibold text-on-surface-variant/60">{m.sm_warn_thresholds()}</span>
               <div class="flex gap-4">
                 <div class="flex-1 rounded-lg border border-orange-500/20 bg-orange-500/5 p-4">
                   <div class="flex items-center justify-between mb-2">

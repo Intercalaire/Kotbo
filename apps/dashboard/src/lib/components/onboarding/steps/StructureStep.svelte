@@ -350,7 +350,7 @@
           <!-- Ce qui est deja la, grise. Une reprise qui ne cree que trois
                salons sur quinze donne l'impression de n'avoir rien fait ; avec
                cette liste, on lit que douze etaient deja bons. -->
-          <p class="pt-3 pb-1 text-2xs font-semibold uppercase tracking-wide text-on-surface-variant/35">
+          <p class="pt-3 pb-1 text-xs font-semibold text-on-surface-variant/35">
             {mapped ? 'Relié à ce qui existe' : 'Déjà en place'}
           </p>
           {#each present as item (item.key)}

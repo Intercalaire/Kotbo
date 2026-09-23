@@ -313,7 +313,7 @@
 
       <div class="p-3 space-y-1">
         {#if category && decisionOf(category.key).mode !== 'skip'}
-          <p class="px-1 pb-1 text-2xs font-semibold uppercase tracking-wide text-on-surface-variant/40 truncate">
+          <p class="px-1 pb-1 text-xs font-semibold text-on-surface-variant/40 truncate">
             {decisionOf(category.key).mode === 'adopt'
               ? template?.inventory.channels.find((c) => c.id === decisionOf(category.key).id)?.name ?? category.name
               : category.name}

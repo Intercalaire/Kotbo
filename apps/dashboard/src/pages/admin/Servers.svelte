@@ -558,7 +558,7 @@
 
       <!-- Synchronisations -->
       <div class="rounded-xl border border-outline-variant/25 bg-surface-container-low/40 p-3.5 space-y-3">
-        <p class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">Collecte de données</p>
+        <p class="text-xs font-semibold text-on-surface-variant">Collecte de données</p>
 
         {#each [
           {
@@ -603,7 +603,7 @@
 
       <!-- Activation -->
       <div class="rounded-xl border border-outline-variant/25 bg-surface-container-low/40 p-3.5 space-y-2">
-        <p class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">Activation</p>
+        <p class="text-xs font-semibold text-on-surface-variant">Activation</p>
         <div class="flex items-center justify-between gap-3">
           <span class="text-body-sm text-on-surface-variant">Code utilisé</span>
           <span class="text-body-sm font-mono font-semibold text-on-surface">{guild.activationCode ?? '-'}</span>
@@ -618,7 +618,7 @@
 
       <!-- Actions -->
       <div class="space-y-2">
-        <p class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">Actions</p>
+        <p class="text-xs font-semibold text-on-surface-variant">Actions</p>
 
         <button
           type="button"

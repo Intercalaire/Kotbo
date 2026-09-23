@@ -71,19 +71,19 @@
 
     <div class="grid grid-cols-4 gap-4">
       <div class="bg-surface-container-high/30 p-6 rounded-lg border border-outline-variant/5">
-        <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.an_inv_total_codes()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.an_inv_total_codes()}</p>
         <p class="text-lg font-semibold text-purple-500">{invites.length}</p>
       </div>
       <div class="bg-surface-container-high/30 p-6 rounded-lg border border-outline-variant/5">
-        <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.an_inv_active_codes()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.an_inv_active_codes()}</p>
         <p class="text-lg font-semibold text-cyan-500">{activeInvites}</p>
       </div>
       <div class="bg-surface-container-high/30 p-6 rounded-lg border border-outline-variant/5">
-        <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.an_inv_total_uses()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.an_inv_total_uses()}</p>
         <p class="text-lg font-semibold text-emerald-500">{totalUses}</p>
       </div>
       <div class="bg-surface-container-high/30 p-6 rounded-lg border border-outline-variant/5">
-        <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.an_inv_avg_per_code()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.an_inv_avg_per_code()}</p>
         <p class="text-lg font-semibold text-orange-500">{averageUses}</p>
       </div>
     </div>
@@ -153,7 +153,7 @@
                 </div>
                 <div class="text-right">
                   <p class="text-2xl font-semibold text-emerald-500">{invite.uses || 0}</p>
-                  <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_inv_uses_label()}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant/40">{m.an_inv_uses_label()}</p>
                 </div>
               </div>
             </div>

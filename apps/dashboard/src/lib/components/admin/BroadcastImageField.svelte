@@ -123,7 +123,7 @@
 
 <div class="space-y-2">
   <div class="flex items-center justify-between gap-2">
-    <label for="img-{label}" class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">
+    <label for="img-{label}" class="text-xs font-semibold text-on-surface-variant">
       {label}
     </label>
     {#if value.trim() && diagnosis}

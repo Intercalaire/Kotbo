@@ -162,7 +162,7 @@
       <h3 class="text-lg font-semibold text-on-surface mb-6">Détail des activations par module</h3>
       <div class="overflow-x-auto rounded-lg border border-outline-variant/10">
         <table class="w-full text-sm">
-          <thead class="bg-surface/40 text-left text-2xs uppercase tracking-wider text-on-surface-variant/50">
+          <thead class="bg-surface/40 text-left text-xs text-on-surface-variant/50">
             <tr>
               <th class="px-4 py-3">Module</th>
               <th class="px-4 py-3">Serveurs actifs</th>
@@ -201,7 +201,7 @@
       <h3 class="text-lg font-semibold text-on-surface mb-6">Statistiques d'utilisation</h3>
       <div class="overflow-x-auto rounded-lg border border-outline-variant/10">
         <table class="w-full text-sm">
-          <thead class="bg-surface/40 text-left text-2xs uppercase tracking-wider text-on-surface-variant/50">
+          <thead class="bg-surface/40 text-left text-xs text-on-surface-variant/50">
             <tr>
               <th class="px-4 py-3">Module</th>
               <th class="px-4 py-3">Utilisations totales</th>
@@ -232,7 +232,7 @@
       <h3 class="text-lg font-semibold text-on-surface mb-6">Métriques de performance</h3>
       <div class="overflow-x-auto rounded-lg border border-outline-variant/10">
         <table class="w-full text-sm">
-          <thead class="bg-surface/40 text-left text-2xs uppercase tracking-wider text-on-surface-variant/50">
+          <thead class="bg-surface/40 text-left text-xs text-on-surface-variant/50">
             <tr>
               <th class="px-4 py-3">Module</th>
               <th class="px-4 py-3">Temps de réponse moyen</th>

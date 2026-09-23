@@ -253,13 +253,13 @@
       {/if}
 
       <div class="flex justify-end gap-3 pt-1">
-        <button type="button" onclick={closeModal} class="rounded-lg px-6 py-3 text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/60 transition-colors hover:text-on-surface focus-visible:outline-2 focus-visible:outline-primary">
+        <button type="button" onclick={closeModal} class="rounded-lg px-6 py-3 text-xs font-semibold text-on-surface-variant/60 transition-colors hover:text-on-surface focus-visible:outline-2 focus-visible:outline-primary">
           {m.common_cancel()}
         </button>
         <button
           type="submit"
           disabled={loadingMessages}
-          class="inline-flex items-center gap-2 rounded-lg bg-primary px-7 py-3 text-2xs font-semibold uppercase tracking-widest text-on-primary transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
+          class="inline-flex items-center gap-2 rounded-lg bg-primary px-7 py-3 text-xs font-semibold text-on-primary transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
         >
           <Papicon icon="search" size={14} />
           {m.sev_search_submit()}
@@ -296,7 +296,7 @@
           <p class="mt-1 max-w-md text-xs leading-relaxed text-on-surface-variant/55">
             {searchedChannelCount > 1 ? m.sev_empty_hint_other({ count: searchedChannelCount }) : m.sev_empty_hint_one({ count: searchedChannelCount })}
           </p>
-          <button type="button" onclick={() => (step = 'search')} class="mt-6 rounded-lg bg-primary px-6 py-3 text-2xs font-semibold uppercase tracking-widest text-on-primary active:scale-[0.98]">
+          <button type="button" onclick={() => (step = 'search')} class="mt-6 rounded-lg bg-primary px-6 py-3 text-xs font-semibold text-on-primary active:scale-[0.98]">
             {m.sev_edit_search()}
           </button>
         </div>
@@ -409,14 +409,14 @@
           <p class="mr-auto self-center text-2xs text-on-surface-variant/50">
             {m.sev_one_transcript_per_channel()}
           </p>
-          <button type="button" onclick={() => (step = 'search')} class="rounded-lg px-5 py-3 text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/60 transition-colors hover:text-on-surface focus-visible:outline-2 focus-visible:outline-primary">
+          <button type="button" onclick={() => (step = 'search')} class="rounded-lg px-5 py-3 text-xs font-semibold text-on-surface-variant/60 transition-colors hover:text-on-surface focus-visible:outline-2 focus-visible:outline-primary">
             {m.sev_edit_search()}
           </button>
           <button
             type="button"
             onclick={generateTranscripts}
             disabled={totalSelectedCount === 0}
-            class="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-2xs font-semibold uppercase tracking-widest text-on-primary transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+            class="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-xs font-semibold text-on-primary transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Papicon icon="check-circle" size={14} />
             {m.sev_add_to_transcript({ count: totalSelectedCount })}
@@ -449,7 +449,7 @@
         </div>
       {/each}
       <div class="flex justify-end pt-2">
-        <button type="button" onclick={closeModal} class="rounded-lg bg-primary px-7 py-3 text-2xs font-semibold uppercase tracking-widest text-on-primary active:scale-[0.98]">
+        <button type="button" onclick={closeModal} class="rounded-lg bg-primary px-7 py-3 text-xs font-semibold text-on-primary active:scale-[0.98]">
           {m.sev_done()}
         </button>
       </div>

@@ -584,7 +584,7 @@
         <div>
           <h1 class="text-lg font-extrabold tracking-tight text-slate-800 dark:text-slate-100">{guildName}</h1>
           {#if clansEnabled}
-            <div class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-semibold text-xs uppercase tracking-wider">
+            <div class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-semibold text-xs">
               <span class="text-amber-500"><Papicon icon="Shield" size={14} /></span>
               <span>{m.clan_public_header_subtitle({ n: currentClanSeason })}</span>
             </div>
@@ -610,7 +610,7 @@
               </div>
             {/if}
           {:else if rpgEnabled}
-            <div class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-semibold text-xs uppercase tracking-wider">
+            <div class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-semibold text-xs">
               <span class="text-fuchsia-500"><Papicon icon="Sparkles" size={14} /></span>
               <span>{m.rpg_public_title()}</span>
             </div>
@@ -619,7 +619,7 @@
       </div>
 
       <div class="flex items-center gap-3 self-start sm:self-auto">
-        <div class="flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0c1322] p-0.5 text-2xs font-bold uppercase tracking-wider">
+        <div class="flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0c1322] p-0.5 text-xs font-semibold">
           {#each locales as loc}
             <button
               type="button"
@@ -647,7 +647,7 @@
         <div class="relative flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-500/20 dark:border-emerald-500/10 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 absolute"></span>
-          <span class="ml-2.5 uppercase tracking-wider text-2xs">{m.clan_public_live_badge()}</span>
+          <span class="ml-2.5 text-xs">{m.clan_public_live_badge()}</span>
         </div>
       </div>
     </header>
@@ -748,19 +748,19 @@
               <div class="flex flex-wrap gap-6">
                 {#if raid.status === 'OPEN' && raidIsClanWide}
                   <div>
-                    <span class="block text-2xs uppercase tracking-[0.14em] font-bold text-slate-500">{m.rpg_public_clans_title()}</span>
+                    <span class="block text-xs font-semibold text-slate-500">{m.rpg_public_clans_title()}</span>
                     <b class="font-mono text-[16px] text-slate-100">{m.rpg_public_summary({ engaged: clansEngaged, total: rpgClans.length })}</b>
                   </div>
                   {#if bossesDown > 0}
                     <div>
-                      <span class="block text-2xs uppercase tracking-[0.14em] font-bold text-slate-500">{m.rpg_public_raid_bar()}</span>
+                      <span class="block text-xs font-semibold text-slate-500">{m.rpg_public_raid_bar()}</span>
                       <b class="font-mono text-[16px] text-emerald-300">{m.rpg_public_summary_bosses({ count: bossesDown })}</b>
                     </div>
                   {/if}
                 {/if}
                 {#if raid.status === 'OPEN'}
                   <div>
-                    <span class="block text-2xs uppercase tracking-[0.14em] font-bold text-slate-500">{m.clan_public_col_date()}</span>
+                    <span class="block text-xs font-semibold text-slate-500">{m.clan_public_col_date()}</span>
                     <b class="font-mono text-[16px] text-slate-100">{new Date(raid.opensAt).toLocaleString(dateLocale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</b>
                   </div>
                 {/if}
@@ -851,7 +851,7 @@
                     <p class="text-2xs text-slate-400 dark:text-slate-500">{m.clan_public_member_count({ n: clan.memberCount })}</p>
                   </div>
                   <div class="ml-auto text-right">
-                    <span class="block text-2xs font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_season_xp_label()}</span>
+                    <span class="block text-xs font-semibold text-slate-400">{m.clan_public_season_xp_label()}</span>
                     <b class="font-mono text-[17px] font-bold text-slate-800 dark:text-slate-100 tabular-nums">{clan.totalXp.toLocaleString(dateLocale())}</b>
                     {#if debtOwed > 0}
                       <span
@@ -941,7 +941,7 @@
                     type="button"
                     onclick={() => toggle(openMembers, clan.id)}
                     aria-expanded={openMembers[clan.id] === true}
-                    class="px-2.5 py-1.5 rounded-lg text-2xs font-bold uppercase tracking-wider bg-slate-50 dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                    class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-50 dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer inline-flex items-center gap-1.5"
                   >
                     {m.clan_board_fold_members()}
                     <span class="font-mono opacity-70">{clan.memberCount}</span>
@@ -1034,7 +1034,7 @@
           <div class="min-w-0 lg:relative lg:h-full">
           <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-0 lg:absolute lg:inset-0">
             <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-              <h2 class="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
+              <h2 class="text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
                 <Papicon icon="Activity" size={14} />
                 {m.clan_public_recent_scores_title()}
               </h2>
@@ -1134,7 +1134,7 @@
                 <div class="tape-accent"></div>
                 <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
                 <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-                  <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                  <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
                     <Papicon icon="Trophy" size={14} />
                     {m.clan_public_bettors_title()}
                   </h2>
@@ -1219,7 +1219,7 @@
             {#if displayedBets.length > 0}
               <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
                 <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-                  <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                  <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
                     <Papicon icon="Sparkles" size={14} />
                     {m.clan_public_bets_title()}
                   </h2>
@@ -1250,7 +1250,7 @@
         <div class="space-y-6 relative z-10">
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm px-5 py-4">
-              <p class="text-2xs font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_total_label()}</p>
+              <p class="text-xs font-semibold text-slate-400">{m.clan_public_debt_total_label()}</p>
               <b class="block font-mono text-[22px] font-bold text-rose-500 tabular-nums mt-0.5">{debtTotals.owed.toLocaleString(dateLocale())}</b>
               {#if debtTotals.engaged > 0}
                 <p class="text-2xs text-slate-400 dark:text-slate-500 mt-1 leading-snug" title={m.clan_public_debt_engaged_desc()}>
@@ -1259,14 +1259,14 @@
               {/if}
             </div>
             <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm px-5 py-4">
-              <p class="text-2xs font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_people_label()}</p>
+              <p class="text-xs font-semibold text-slate-400">{m.clan_public_debt_people_label()}</p>
               <b class="block font-mono text-[22px] font-bold text-slate-800 dark:text-slate-100 tabular-nums mt-0.5">{debtTotals.count}</b>
               {#if debtTotals.partial}
                 <p class="text-2xs text-slate-400 dark:text-slate-500 mt-1 leading-snug">{m.clan_public_debt_search_scope()}</p>
               {/if}
             </div>
             <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm px-5 py-4">
-              <p class="text-2xs font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_average_label()}</p>
+              <p class="text-xs font-semibold text-slate-400">{m.clan_public_debt_average_label()}</p>
               <b class="block font-mono text-[22px] font-bold text-slate-800 dark:text-slate-100 tabular-nums mt-0.5">{debtAverage.toLocaleString(dateLocale())}</b>
               <p class="text-2xs text-slate-400 dark:text-slate-500 mt-1 leading-snug">{m.clan_public_debt_average_hint()}</p>
             </div>
@@ -1289,7 +1289,7 @@
                       <p class="text-2xs text-slate-400">{m.clan_public_debt_debtors({ n: clan.debtorCount })}</p>
                     </div>
                     <div class="ml-auto text-right">
-                      <span class="block text-2xs font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_clan_total()}</span>
+                      <span class="block text-xs font-semibold text-slate-400">{m.clan_public_debt_clan_total()}</span>
                       <b class="font-mono text-[15px] text-rose-500 tabular-nums">{clan.totalDebt.toLocaleString(dateLocale())}</b>
                       {#if clan.totalEngaged > 0}
                         <span class="block text-2xs text-slate-400 dark:text-slate-500">{m.clan_public_debt_engaged_hint({ amount: clan.totalEngaged.toLocaleString(dateLocale()) })}</span>
@@ -1325,7 +1325,7 @@
               {#if displayedUnaffiliated.length > 0}
                 <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
                   <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-                    <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">{m.clan_public_debt_unaffiliated_title()}</h2>
+                    <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200">{m.clan_public_debt_unaffiliated_title()}</h2>
                     <p class="text-2xs text-slate-400 dark:text-slate-500 mt-1">{m.clan_public_debt_unaffiliated_desc()}</p>
                   </div>
                   {#each displayedUnaffiliated as debtor (debtor.userId)}
@@ -1356,7 +1356,7 @@
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-6 items-start relative z-10">
           <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
             <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-              <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
+              <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
                 <Papicon icon="Crown" size={14} class="text-red-400" />
                 <EmojiText value={raidRecap.bossEmoji} /> {raidRecap.bossName}
               </h2>
@@ -1389,7 +1389,7 @@
           {#if raidRecap.strikers.length > 0}
             <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
               <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-                <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
                   <Papicon icon="Grades" size={14} />
                   {m.clan_board_raid_strikers()}
                 </h2>
@@ -1422,7 +1422,7 @@
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-6 items-start relative z-10">
           <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
             <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-              <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
+              <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
                 <Papicon icon="Grades" size={14} />
                 {m.rpg_public_solo_title()}
               </h2>
@@ -1456,7 +1456,7 @@
           {#if (solo?.quests ?? []).length > 0}
             <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
               <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-                <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
                   <Papicon icon="Tasks" size={14} />
                   {m.rpg_public_solo_quests()}
                 </h2>

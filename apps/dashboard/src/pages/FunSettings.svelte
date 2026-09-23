@@ -255,12 +255,12 @@
             </div>
             <div>
               <h3 class="text-lg font-semibold tracking-tight text-on-surface">{m.fun_counting_title()}</h3>
-              <p class="text-2xs text-on-surface-variant/55 uppercase font-bold tracking-wider">{m.fun_counting_subtitle()}</p>
+              <p class="text-xs text-on-surface-variant/55 font-semibold">{m.fun_counting_subtitle()}</p>
             </div>
           </div>
 
           <div class="space-y-1.5">
-            <label for="countingChannel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.fun_channel_label()}</label>
+            <label for="countingChannel" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.fun_channel_label()}</label>
             <SearchableSelect
               id="countingChannel"
               bind:value={config.funCountingChannelId}
@@ -308,12 +308,12 @@
             </div>
             <div>
               <h3 class="text-lg font-semibold tracking-tight text-on-surface">{m.fun_oneword_title()}</h3>
-              <p class="text-2xs text-on-surface-variant/55 uppercase font-bold tracking-wider">{m.fun_oneword_subtitle()}</p>
+              <p class="text-xs text-on-surface-variant/55 font-semibold">{m.fun_oneword_subtitle()}</p>
             </div>
           </div>
 
           <div class="space-y-1.5">
-            <label for="oneWordStoryChannel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.fun_channel_label()}</label>
+            <label for="oneWordStoryChannel" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.fun_channel_label()}</label>
             <SearchableSelect
               id="oneWordStoryChannel"
               bind:value={config.funOneWordStoryChannelId}
@@ -349,12 +349,12 @@
             </div>
             <div>
               <h3 class="text-lg font-semibold tracking-tight text-on-surface">{m.fun_guess_title()}</h3>
-              <p class="text-2xs text-on-surface-variant/55 uppercase font-bold tracking-wider">{m.fun_guess_subtitle()}</p>
+              <p class="text-xs text-on-surface-variant/55 font-semibold">{m.fun_guess_subtitle()}</p>
             </div>
           </div>
 
           <div class="space-y-1.5">
-            <label for="guessNumberChannel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.fun_channel_label()}</label>
+            <label for="guessNumberChannel" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.fun_channel_label()}</label>
             <SearchableSelect
               id="guessNumberChannel"
               bind:value={config.funGuessNumberChannelId}
@@ -394,12 +394,12 @@
             </div>
             <div>
               <h3 class="text-lg font-semibold tracking-tight text-on-surface">{m.fun_wordchain_title()}</h3>
-              <p class="text-2xs text-on-surface-variant/55 uppercase font-bold tracking-wider">{m.fun_wordchain_subtitle()}</p>
+              <p class="text-xs text-on-surface-variant/55 font-semibold">{m.fun_wordchain_subtitle()}</p>
             </div>
           </div>
 
           <div class="space-y-1.5">
-            <label for="wordChainChannel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.fun_channel_label()}</label>
+            <label for="wordChainChannel" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.fun_channel_label()}</label>
             <SearchableSelect
               id="wordChainChannel"
               bind:value={config.funWordChainChannelId}
@@ -439,12 +439,12 @@
             </div>
             <div>
               <h3 class="text-lg font-semibold tracking-tight text-on-surface">{m.fun_emojiriddle_title()}</h3>
-              <p class="text-2xs text-on-surface-variant/55 uppercase font-bold tracking-wider">{m.fun_emojiriddle_subtitle()}</p>
+              <p class="text-xs text-on-surface-variant/55 font-semibold">{m.fun_emojiriddle_subtitle()}</p>
             </div>
           </div>
 
           <div class="space-y-1.5">
-            <label for="emojiRiddleChannel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.fun_channel_label()}</label>
+            <label for="emojiRiddleChannel" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.fun_channel_label()}</label>
             <SearchableSelect
               id="emojiRiddleChannel"
               bind:value={config.funEmojiRiddleChannelId}
@@ -483,12 +483,12 @@
             </div>
             <div>
               <h3 class="text-lg font-semibold tracking-tight text-on-surface">{m.fun_neversay_title()}</h3>
-              <p class="text-2xs text-on-surface-variant/55 uppercase font-bold tracking-wider">{m.fun_neversay_subtitle()}</p>
+              <p class="text-xs text-on-surface-variant/55 font-semibold">{m.fun_neversay_subtitle()}</p>
             </div>
           </div>
 
           <div class="space-y-1.5">
-            <label for="neverSayChannel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.fun_channel_label()}</label>
+            <label for="neverSayChannel" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.fun_channel_label()}</label>
             <SearchableSelect
               id="neverSayChannel"
               bind:value={config.funNeverSayChannelId}
@@ -514,12 +514,12 @@
             </div>
             <div>
               <h3 class="text-lg font-semibold tracking-tight text-on-surface">{m.fun_emojionly_title()}</h3>
-              <p class="text-2xs text-on-surface-variant/55 uppercase font-bold tracking-wider">{m.fun_emojionly_subtitle()}</p>
+              <p class="text-xs text-on-surface-variant/55 font-semibold">{m.fun_emojionly_subtitle()}</p>
             </div>
           </div>
 
           <div class="space-y-1.5">
-            <label for="emojiOnlyChannel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.fun_channel_label()}</label>
+            <label for="emojiOnlyChannel" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.fun_channel_label()}</label>
             <SearchableSelect
               id="emojiOnlyChannel"
               bind:value={config.funEmojiOnlyChannelId}

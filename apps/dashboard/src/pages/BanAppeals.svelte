@@ -535,7 +535,7 @@
 
                   {#if (detail.appeal.messages && detail.appeal.messages.length > 0) || detail.appeal.infoRequest}
                     <div class="rounded-lg bg-blue-500/5 border border-blue-500/20 p-4 space-y-4">
-                      <p class="text-2xs font-semibold text-blue-500 flex items-center gap-1.5 uppercase tracking-wider">
+                      <p class="text-xs font-semibold text-blue-500 flex items-center gap-1.5">
                         <Papicon icon="message-square" size={14} />
                         {m.ba_discussion()}
                       </p>

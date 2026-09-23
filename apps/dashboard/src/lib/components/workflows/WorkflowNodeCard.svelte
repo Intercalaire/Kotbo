@@ -180,7 +180,7 @@
       <div class="px-2 py-2 my-1 rounded-lg bg-surface-container-highest/40 border border-outline-variant/15 space-y-1.5 nodrag">
         {#each def.config as field}
           <div class="space-y-1">
-            <label for="node-cfg-{id}-{field.key}" class="text-2xs font-bold text-on-surface-variant/80 uppercase tracking-wider block">
+            <label for="node-cfg-{id}-{field.key}" class="text-xs font-semibold text-on-surface-variant/80 block">
               {field.label}
             </label>
 
@@ -291,7 +291,7 @@
           {@const connected = isInputConnected(inputPort.id)}
           {#if !connected}
             <div class="px-2 py-1.5 rounded-lg bg-surface-container-highest/30 border border-outline-variant/10 space-y-1 nodrag">
-              <label for="direct-input-{id}-{inputPort.id}" class="text-2xs font-bold text-on-surface-variant/70 uppercase tracking-wider block">
+              <label for="direct-input-{id}-{inputPort.id}" class="text-xs font-semibold text-on-surface-variant/70 block">
                 {getDataPortLabel(inputPort)} (Direct)
               </label>
 

@@ -380,7 +380,7 @@
             { key: 'maxPruneBatch' as const, label: m.ghost_max_batch(), help: m.ghost_max_batch_help(), min: 1, max: 500 },
           ] as field}
             <div class="space-y-1.5">
-              <label for="ghost-{field.key}" class="text-2xs font-bold text-on-surface-variant/70 uppercase tracking-widest">
+              <label for="ghost-{field.key}" class="text-xs font-semibold text-on-surface-variant/70">
                 {field.label}
               </label>
               <input
@@ -409,7 +409,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="ghost-protected-roles" class="text-2xs font-bold text-on-surface-variant/70 uppercase tracking-widest">
+            <label for="ghost-protected-roles" class="text-xs font-semibold text-on-surface-variant/70">
               {m.ghost_protected_roles()}
             </label>
             <MultiSelect
@@ -423,7 +423,7 @@
         </div>
 
         <div class="space-y-1.5">
-          <label for="ghost-prune-reason" class="text-2xs font-bold text-on-surface-variant/70 uppercase tracking-widest">
+          <label for="ghost-prune-reason" class="text-xs font-semibold text-on-surface-variant/70">
             {m.ghost_prune_reason()}
           </label>
           <input
@@ -490,7 +490,7 @@
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
-              <tr class="text-2xs uppercase tracking-widest text-on-surface-variant/50 border-b border-outline-variant/10">
+              <tr class="text-xs text-on-surface-variant/50 border-b border-outline-variant/10">
                 <th class="text-left font-bold px-4 py-3">{m.ghost_table_member()}</th>
                 <th class="text-left font-bold px-4 py-3">{m.ghost_table_status()}</th>
                 <th class="text-left font-bold px-4 py-3 whitespace-nowrap">{m.ghost_table_last_message()}</th>
@@ -610,7 +610,7 @@
         <div class="p-5 space-y-5">
           <!-- Étape 1 : cible + prévisualisation -->
           <div class="space-y-2">
-            <span class="text-2xs font-bold text-on-surface-variant/70 uppercase tracking-widest">{m.ghost_prune_target()}</span>
+            <span class="text-xs font-semibold text-on-surface-variant/70">{m.ghost_prune_target()}</span>
             <div class="flex gap-2">
               {#each ['INACTIVE', 'SPECTATOR'] as const as status}
                 <button

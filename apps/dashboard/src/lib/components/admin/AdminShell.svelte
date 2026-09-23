@@ -276,7 +276,7 @@
         {#each navGroups as group (group.label)}
           <div class="space-y-0.5">
             {#if !sidebarCollapsed}
-              <p class="text-2xs font-bold uppercase tracking-wider text-on-surface-variant px-3 pb-1.5">{group.label}</p>
+              <p class="text-xs font-semibold text-on-surface-variant px-3 pb-1.5">{group.label}</p>
             {:else}
               <div class="h-px bg-outline-variant/25 mx-3 mb-2"></div>
             {/if}
@@ -315,7 +315,7 @@
         {#if health && !sidebarCollapsed}
           <div class="space-y-2">
             <div class="flex items-center justify-between text-2xs">
-              <span class="font-semibold uppercase tracking-wider text-on-surface-variant">Mémoire</span>
+              <span class="font-semibold text-on-surface-variant">Mémoire</span>
               <span class="font-mono font-semibold tabular-nums {toneText[heapTone]}">{heapPercent}%</span>
             </div>
             <div class="h-1.5 bg-on-surface/8 rounded-full overflow-hidden">
@@ -376,7 +376,7 @@
 
           {#each navGroups as group (group.label)}
             <div class="space-y-0.5">
-              <p class="text-2xs font-bold uppercase tracking-wider text-on-surface-variant px-2 pb-1">{group.label}</p>
+              <p class="text-xs font-semibold text-on-surface-variant px-2 pb-1">{group.label}</p>
               {#each group.items as item (item.path)}
                 {@const active = isActive(item.path, item.exact)}
                 <a

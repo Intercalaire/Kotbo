@@ -1041,7 +1041,7 @@
 
           <!-- Calendars / Type Filters -->
           <div class="bg-surface-container-low p-4 rounded-xl border border-outline-variant/30 shadow-sm">
-            <h3 class="text-2xs font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-3">{m.planning_my_calendars()}</h3>
+            <h3 class="text-xs font-semibold text-on-surface-variant/60 mb-3">{m.planning_my_calendars()}</h3>
             <div class="flex flex-col gap-1">
               {#each [
                 { key: 'meeting', label: m.planning_cal_meetings(), color: 'emerald' },
@@ -1072,7 +1072,7 @@
           <!-- Staff Members -->
           <div class="bg-surface-container-low p-4 rounded-xl border border-outline-variant/30 shadow-sm">
             <div class="flex items-center justify-between mb-3">
-              <h3 class="text-2xs font-semibold text-on-surface-variant/60 uppercase tracking-widest">{m.planning_people()}</h3>
+              <h3 class="text-xs font-semibold text-on-surface-variant/60">{m.planning_people()}</h3>
               <button
                 onclick={toggleEveryone}
                 class="text-2xs font-semibold uppercase px-2 py-0.5 rounded transition-all {selectedStaffIds.length === activeStaff.length ? 'bg-primary/20 text-primary' : 'text-on-surface-variant/50 hover:text-on-surface-variant'}"
@@ -1188,7 +1188,7 @@
                         {/if}
                         <div class="flex items-center gap-2 mt-1.5">
                           {#if task.priority === 'HIGH'}
-                            <span class="text-2xs font-bold uppercase tracking-wider text-red-400 flex items-center gap-0.5">
+                            <span class="text-xs font-semibold text-red-400 flex items-center gap-0.5">
                               <Papicon icon="alert-triangle" size={9} /> {m.planning_task_important()}
                             </span>
                           {/if}
@@ -1336,7 +1336,7 @@
           <!-- Call-specific fields -->
           {#if currentTab === 'call'}
             <div class="border border-outline-variant/15 rounded-lg p-4 bg-surface-container/30 space-y-3">
-              <div class="flex items-center gap-2 text-2xs font-semibold text-on-surface-variant/60 uppercase tracking-widest">
+              <div class="flex items-center gap-2 text-xs font-semibold text-on-surface-variant/60">
                 <Papicon icon="headphones" size={12} />
                 {m.planning_discord_config()}
               </div>
@@ -1372,7 +1372,7 @@
               {/if}
 
               <div>
-                <span class="block text-2xs font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-2">{m.planning_guests_staff()}</span>
+                <span class="block text-xs font-semibold text-on-surface-variant/60 mb-2">{m.planning_guests_staff()}</span>
                 <div class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar">
                   {#each activeStaff.filter(s => s.id !== myStaffRecord?.id) as staff}
                     <label class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-surface-container-high/30 rounded-md cursor-pointer hover:bg-surface-container-high/50 transition-colors">
@@ -1393,7 +1393,7 @@
 
               <!-- Members search section -->
               <div>
-                <span class="block text-2xs font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-2">{m.planning_guests_members()}</span>
+                <span class="block text-xs font-semibold text-on-surface-variant/60 mb-2">{m.planning_guests_members()}</span>
 
                 <!-- Selected members chips -->
                 {#if formInviteeMemberIds.length > 0}
@@ -1574,7 +1574,7 @@
             <div class="space-y-4 mb-4">
               <!-- Meeting Status and Moderation Actions -->
               <div class="flex items-center justify-between gap-3">
-                <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider {getStatusColor(raw.status)}">
+                <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold {getStatusColor(raw.status)}">
                   {formatStatus(raw.status)}
                 </span>
                 
@@ -1604,15 +1604,15 @@
               <!-- Attendance Stats -->
               <div class="grid grid-cols-3 gap-2 p-3 bg-surface-container-low rounded-lg text-center">
                 <div>
-                  <p class="text-2xs font-semibold text-on-surface-variant uppercase tracking-widest">{m.meetings_stat_present()}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant">{m.meetings_stat_present()}</p>
                   <p class="text-base font-bold text-emerald-500">{stats.present}</p>
                 </div>
                 <div class="border-x border-outline-variant/30">
-                  <p class="text-2xs font-semibold text-on-surface-variant uppercase tracking-widest">{m.meetings_stat_excused()}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant">{m.meetings_stat_excused()}</p>
                   <p class="text-base font-bold text-amber-500">{stats.excused}</p>
                 </div>
                 <div>
-                  <p class="text-2xs font-semibold text-on-surface-variant uppercase tracking-widest">{m.meetings_stat_absent()}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant">{m.meetings_stat_absent()}</p>
                   <p class="text-base font-bold text-red-500">{stats.absent}</p>
                 </div>
               </div>
@@ -1620,7 +1620,7 @@
               <!-- Attendance List -->
               {#if raw.presences && raw.presences.length > 0}
                 <div class="space-y-2">
-                  <span class="block text-2xs font-semibold text-on-surface-variant/60 uppercase tracking-widest px-1">{m.meetings_presence_list_title()}</span>
+                  <span class="block text-xs font-semibold text-on-surface-variant/60 px-1">{m.meetings_presence_list_title()}</span>
                   <div class="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-1">
                     {#each raw.presences as presence}
                       <div class="flex items-center justify-between p-2 bg-surface-container-low/50 rounded-lg border border-outline-variant/10 hover:bg-surface-container-low transition-colors group">
@@ -1652,7 +1652,7 @@
                           </div>
                         </div>
                         <div class="shrink-0">
-                          <span class="inline-flex items-center rounded-full px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider {getStatusColor(presence.status)}">
+                          <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold {getStatusColor(presence.status)}">
                             {formatStatus(presence.status)}
                           </span>
                         </div>
@@ -1874,7 +1874,7 @@
 
           {#if permMode === 'RESTRICTED'}
             <div>
-              <span class="block text-2xs font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-2">{m.planning_perm_roles()}</span>
+              <span class="block text-xs font-semibold text-on-surface-variant/60 mb-2">{m.planning_perm_roles()}</span>
               {#if (dashboardStore.state.discordRoles || []).length === 0}
                 <p class="text-2xs text-on-surface-variant/40">{m.planning_perm_no_roles()}</p>
               {:else}
@@ -1892,7 +1892,7 @@
             </div>
 
             <div>
-              <span class="block text-2xs font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-2">{m.planning_perm_members()}</span>
+              <span class="block text-xs font-semibold text-on-surface-variant/60 mb-2">{m.planning_perm_members()}</span>
 
               {#if permUserIds.length > 0}
                 <div class="flex flex-wrap gap-1.5 mb-2">
@@ -2091,7 +2091,7 @@
 
         <div class="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
           <div>
-            <label for="edit-meeting-title" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">{m.meetings_field_title_label()}</label>
+            <label for="edit-meeting-title" class="block text-xs font-semibold text-on-surface-variant mb-2">{m.meetings_field_title_label()}</label>
             <FormInput 
               id="edit-meeting-title"
               bind:value={editMeetingTitle}
@@ -2101,7 +2101,7 @@
           </div>
 
           <div>
-            <label for="edit-meeting-date" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">{m.meetings_field_start_label()}</label>
+            <label for="edit-meeting-date" class="block text-xs font-semibold text-on-surface-variant mb-2">{m.meetings_field_start_label()}</label>
             <FormInput 
               id="edit-meeting-date"
               type="datetime-local"
@@ -2111,7 +2111,7 @@
           </div>
 
           <div>
-            <label for="edit-meeting-end-date" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">{m.meetings_field_end_label()}</label>
+            <label for="edit-meeting-end-date" class="block text-xs font-semibold text-on-surface-variant mb-2">{m.meetings_field_end_label()}</label>
             <FormInput 
               id="edit-meeting-end-date"
               type="datetime-local"

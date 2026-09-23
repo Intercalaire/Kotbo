@@ -65,7 +65,7 @@
 
   {#if template?.maturity.reasons.length}
     <div class="mt-5 flex flex-wrap items-center gap-2">
-      <span class="inline-flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wider text-on-surface-variant/40">
+      <span class="inline-flex items-center gap-1.5 text-xs font-medium text-on-surface-variant/40">
         <Papicon icon="check-circle" size={12} />
         Ce qu'on a lu
       </span>

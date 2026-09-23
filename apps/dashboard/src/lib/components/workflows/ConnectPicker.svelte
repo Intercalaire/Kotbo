@@ -99,7 +99,7 @@
         {#each [{ items: exact, label: '' }, { items: coerced, label: m.wf_connect_coerced() }] as group (group.label)}
           {#if group.items.length > 0}
             {#if group.label}
-              <p class="pt-3 pb-1 text-2xs font-bold uppercase tracking-widest text-on-surface-variant/70">{group.label}</p>
+              <p class="pt-3 pb-1 text-xs font-semibold text-on-surface-variant/70">{group.label}</p>
             {/if}
             {#each group.items as entry (entry.def.type)}
               <button

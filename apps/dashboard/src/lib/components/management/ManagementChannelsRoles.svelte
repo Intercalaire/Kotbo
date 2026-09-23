@@ -181,7 +181,7 @@
         {@const items = group.items.filter(({ feature }) => matches(feature))}
         {#if items.length > 0}
           <section class="space-y-1">
-            <p class="flex items-center gap-2 px-1 text-2xs font-bold uppercase tracking-widest text-on-surface-variant/50">
+            <p class="flex items-center gap-2 px-1 text-xs font-semibold text-on-surface-variant/50">
               <Papicon icon={categoryIcons[group.category] || 'Grid'} size={12} />
               {categoryLabel(group.category)}
             </p>

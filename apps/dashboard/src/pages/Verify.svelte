@@ -258,7 +258,7 @@
           </p>
 
           <div class="mt-4 rounded-lg border border-white/5 bg-white/3 px-3 py-2.5">
-            <p class="text-white/50 text-2xs font-semibold uppercase tracking-wide mb-1.5">Données collectées lors de la vérification</p>
+            <p class="text-white/50 text-xs font-semibold mb-1.5">Données collectées lors de la vérification</p>
             <ul class="text-white/40 text-2xs leading-relaxed space-y-1 list-disc list-inside">
               <li>Identité Discord (identifiant, pseudo, avatar)</li>
               <li>Adresse IP</li>

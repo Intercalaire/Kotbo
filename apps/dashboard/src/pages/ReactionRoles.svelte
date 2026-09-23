@@ -373,7 +373,7 @@
       <form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-6 pt-2">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="space-y-1.5">
-            <label for="modal-title" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.reaction_roles_field_title()}</label>
+            <label for="modal-title" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.reaction_roles_field_title()}</label>
             <input
               id="modal-title"
               type="text"
@@ -386,7 +386,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="modal-channel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.reaction_roles_field_channel()}</label>
+            <label for="modal-channel" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.reaction_roles_field_channel()}</label>
             <SearchableSelect
               id="modal-channel"
               bind:value={formChannelId}
@@ -406,7 +406,7 @@
         {/if}
 
         <div class="space-y-1.5">
-          <label for="modal-mode" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.reaction_roles_field_mode()}</label>
+          <label for="modal-mode" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.reaction_roles_field_mode()}</label>
           <FormSelect
             id="modal-mode"
             bind:value={formButtonMode}
@@ -423,7 +423,7 @@
 
         <!-- Live Discord Message Preview -->
         <div class="p-5 rounded-xl bg-[#36393f] border border-[#202225] text-[#dcddde] font-sans space-y-3 shadow-inner">
-          <div class="flex items-center gap-1.5 text-2xs font-semibold uppercase text-[#8e9297] tracking-wider select-none">
+          <div class="flex items-center gap-1.5 text-xs font-semibold text-[#8e9297] select-none">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> {m.reaction_roles_live_preview()}
           </div>
 
@@ -472,7 +472,7 @@
         <!-- Options / Boutons -->
         <div class="space-y-3 pt-2">
           <div class="flex items-center justify-between">
-            <span class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.reaction_roles_buttons_config({ n: formOptions.length })}</span>
+            <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.reaction_roles_buttons_config({ n: formOptions.length })}</span>
             <button
               type="button"
               onclick={addOption}

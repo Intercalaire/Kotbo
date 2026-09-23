@@ -668,7 +668,7 @@ import { errorMessage } from '@kotbo/shared';
             <div class="absolute inset-2 rounded-full border-4 border-secondary/10 border-t-secondary animate-spin" style="animation-direction: reverse; animation-duration: 1.5s;"></div>
           </div>
           <div class="flex flex-col items-center text-center mt-2">
-            <span class="text-sm font-semibold uppercase tracking-wider text-primary animate-pulse">{m.an_network_loading()}</span>
+            <span class="text-sm font-semibold text-primary animate-pulse">{m.an_network_loading()}</span>
             <LoadingHint context="network" />
           </div>
         </div>
@@ -677,7 +677,7 @@ import { errorMessage } from '@kotbo/shared';
           <div class="w-12 h-12 rounded-full bg-error/10 flex items-center justify-center text-error mb-2">
             <Papicon icon="alert-octagon" size={24} />
           </div>
-          <span class="text-sm font-semibold uppercase tracking-wider">{m.an_network_error()}</span>
+          <span class="text-sm font-semibold">{m.an_network_error()}</span>
           <span class="text-xs text-on-surface-variant/60 max-w-md">{interactionsError}</span>
           <button 
             onclick={loadInteractions}

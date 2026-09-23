@@ -200,7 +200,7 @@
     <!-- 1. Réglages -->
     <section class="space-y-4">
       <div class="space-y-2">
-        <p class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_rebalance_mode_label()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_rebalance_mode_label()}</p>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {#each modes as option (option.id)}
             <button
@@ -223,7 +223,7 @@
       </div>
 
       <div class="space-y-2">
-        <p class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_rebalance_targets_label()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_rebalance_targets_label()}</p>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {#each clans as clan (clan.id)}
             <label class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-outline-variant/15 bg-surface-container-high/30 cursor-pointer hover:bg-surface-container-high/60 transition-colors">
@@ -245,7 +245,7 @@
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="space-y-1.5">
-          <label for="rebalance-size" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_rebalance_size_label()}</label>
+          <label for="rebalance-size" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_rebalance_size_label()}</label>
           <input
             id="rebalance-size"
             type="number"
@@ -258,7 +258,7 @@
           <p class="text-2xs text-on-surface-variant/60 ml-1">{m.clan_rebalance_size_hint()}</p>
         </div>
         <div class="space-y-1.5">
-          <label for="rebalance-protect" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_rebalance_protect_label()}</label>
+          <label for="rebalance-protect" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_rebalance_protect_label()}</label>
           <input
             id="rebalance-protect"
             type="number"
@@ -315,7 +315,7 @@
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm border-collapse">
             <thead>
-              <tr class="text-2xs uppercase tracking-widest text-on-surface-variant/60">
+              <tr class="text-xs text-on-surface-variant/60">
                 <th class="py-1.5 font-bold">{m.clan_rebalance_col_clan()}</th>
                 <th class="py-1.5 font-bold text-right">{m.clan_rebalance_col_before()}</th>
                 <th class="py-1.5 font-bold text-right">{m.clan_rebalance_col_after()}</th>
@@ -327,7 +327,7 @@
                   <td class="py-1.5">
                     {clan.name}
                     {#if clan.isTarget}
-                      <span class="ml-1.5 text-2xs font-bold uppercase tracking-wider text-secondary">{m.clan_rebalance_target_tag()}</span>
+                      <span class="ml-1.5 text-xs font-semibold text-secondary">{m.clan_rebalance_target_tag()}</span>
                     {/if}
                   </td>
                   <td class="py-1.5 text-right tabular-nums">{clan.before}</td>
@@ -352,7 +352,7 @@
           <p class="text-sm text-on-surface-variant/70 text-center py-4">{m.clan_rebalance_no_moves()}</p>
         {:else}
           <div class="space-y-1.5">
-            <p class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">
+            <p class="text-xs font-semibold text-on-surface-variant/60 ml-1">
               {m.clan_rebalance_moves_heading({ count: preview.moves.length })}
             </p>
             <ul class="divide-y divide-outline-variant/10 border border-outline-variant/15 rounded-lg max-h-72 overflow-y-auto">
@@ -393,7 +393,7 @@
 
         {#if preview.excludedMembers.length > 0}
           <div class="space-y-1.5">
-            <p class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_rebalance_excluded_heading()}</p>
+            <p class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_rebalance_excluded_heading()}</p>
             <div class="flex flex-wrap gap-1.5">
               {#each preview.excludedMembers as member (member.key)}
                 <button
@@ -416,7 +416,7 @@
         <section class="space-y-3 border-t border-outline-variant/15 pt-5">
           <p class="text-xs text-on-surface-variant/80">{m.clan_rebalance_confirm_desc({ count: preview.moves.length })}</p>
           <div class="space-y-1.5">
-            <label for="rebalance-confirm" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">
+            <label for="rebalance-confirm" class="text-xs font-semibold text-on-surface-variant/60 ml-1">
               {m.clan_type_to_confirm_label({ word: confirmWord })}
             </label>
             <input
@@ -424,7 +424,7 @@
               type="text"
               bind:value={confirmInput}
               placeholder={confirmWord}
-              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none font-bold uppercase tracking-wider"
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none font-semibold"
             />
           </div>
         </section>

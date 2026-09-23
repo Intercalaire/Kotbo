@@ -81,7 +81,7 @@
         <div class="flex items-center gap-1.5 flex-wrap">
           <span class="text-sm font-medium text-[#f2f3f5]">{author}</span>
           {#if bot}
-            <span class="text-2xs font-semibold uppercase tracking-wide px-1 py-px rounded bg-[#5865f2] text-white">
+            <span class="text-xs font-semibold px-1 py-px rounded bg-[#5865f2] text-white">
               App
             </span>
           {/if}

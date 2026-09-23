@@ -162,14 +162,14 @@
   <SettingsGroup title={m.ma_title()} description={m.ma_desc()}>
     {#snippet actions()}
       <div class="flex items-center gap-2">
-        <span class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40 hidden md:inline">
+        <span class="text-xs font-semibold text-on-surface-variant/40 hidden md:inline">
           {m.ma_reset_preset_label()}
         </span>
         {#each PRESETS as preset}
           <button
             type="button"
             onclick={() => onApplyPreset(preset.key)}
-            class="px-3 py-1.5 rounded-lg border border-outline-variant/20 hover:bg-surface-container-high transition-colors text-2xs font-semibold uppercase tracking-widest"
+            class="px-3 py-1.5 rounded-lg border border-outline-variant/20 hover:bg-surface-container-high transition-colors text-xs font-semibold"
           >
             {preset.label()}
           </button>
@@ -230,7 +230,7 @@
             {@const items = group.items.filter(({ feature }) => matches(feature))}
             {#if items.length > 0}
               <section class="space-y-1">
-                <p class="flex items-center gap-2 px-1 pt-2 text-2xs font-bold uppercase tracking-widest text-on-surface-variant/50">
+                <p class="flex items-center gap-2 px-1 pt-2 text-xs font-semibold text-on-surface-variant/50">
                   <Papicon icon={categoryIcons[group.category] || 'Grid'} size={12} />
                   {categoryLabel(group.category)}
                 </p>
@@ -373,7 +373,7 @@
                             <tbody class="divide-y divide-outline-variant/5">
                               <tr>
                                 <th colspan={permissions.length + 2} class="pt-4 pb-1 text-left">
-                                  <span class="flex items-center gap-2 text-2xs font-bold uppercase tracking-widest text-on-surface-variant/50">
+                                  <span class="flex items-center gap-2 text-xs font-semibold text-on-surface-variant/50">
                                     <Papicon icon={categoryIcons[group.category] || 'Grid'} size={12} />
                                     {categoryLabel(group.category)}
                                   </span>

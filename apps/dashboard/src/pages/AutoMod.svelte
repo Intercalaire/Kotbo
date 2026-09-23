@@ -332,7 +332,7 @@
             {#if config.spamEnabled}
               <div class="grid grid-cols-2 gap-4 animate-in fade-in duration-300">
                 <div class="space-y-1.5">
-                  <label for="spamLimit" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_spam_max_messages()}</label>
+                  <label for="spamLimit" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_spam_max_messages()}</label>
                   <input 
                     id="spamLimit"
                     type="number" 
@@ -345,7 +345,7 @@
                 </div>
 
                 <div class="space-y-1.5">
-                  <label for="spamInterval" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_spam_interval()}</label>
+                  <label for="spamInterval" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_spam_interval()}</label>
                   <input 
                     id="spamInterval"
                     type="number" 
@@ -358,7 +358,7 @@
                 </div>
 
                 <div class="col-span-2 space-y-1.5">
-                  <label for="spamAction" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_spam_action_label()}</label>
+                  <label for="spamAction" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_spam_action_label()}</label>
                   <select 
                     id="spamAction"
                     bind:value={config.spamAction}
@@ -390,7 +390,7 @@
             {#if config.linksEnabled}
               <div class="space-y-4 animate-in fade-in duration-300">
                 <div class="space-y-1.5">
-                  <label for="linksAction" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_links_action_label()}</label>
+                  <label for="linksAction" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_links_action_label()}</label>
                   <select 
                     id="linksAction"
                     bind:value={config.linksAction}
@@ -403,7 +403,7 @@
                 </div>
 
                 <div class="space-y-1.5">
-                  <label for="whitelist" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_links_whitelist_label()}</label>
+                  <label for="whitelist" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_links_whitelist_label()}</label>
                   <textarea 
                     id="whitelist"
                     bind:value={whitelistInput} 
@@ -433,7 +433,7 @@
             {#if config.capsEnabled}
               <div class="grid grid-cols-2 gap-4 animate-in fade-in duration-300">
                 <div class="space-y-1.5">
-                  <label for="capsThresh" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_caps_threshold()}</label>
+                  <label for="capsThresh" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_caps_threshold()}</label>
                   <input 
                     id="capsThresh"
                     type="number" 
@@ -446,7 +446,7 @@
                 </div>
 
                 <div class="space-y-1.5">
-                  <label for="capsMin" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_caps_minlength()}</label>
+                  <label for="capsMin" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_caps_minlength()}</label>
                   <input 
                     id="capsMin"
                     type="number" 
@@ -481,7 +481,7 @@
 
               {#if config.emojisEnabled}
                 <div class="space-y-1.5 animate-in fade-in duration-300">
-                  <label for="emojisLim" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.am_limit_per_message()}</label>
+                  <label for="emojisLim" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.am_limit_per_message()}</label>
                   <input 
                     id="emojisLim"
                     type="number" 
@@ -512,7 +512,7 @@
 
               {#if config.mentionsEnabled}
                 <div class="space-y-1.5 animate-in fade-in duration-300">
-                  <label for="mentionsLim" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.am_limit_per_message()}</label>
+                  <label for="mentionsLim" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.am_limit_per_message()}</label>
                   <input 
                     id="mentionsLim"
                     type="number" 
@@ -551,7 +551,7 @@
 
               {#if config.ghostPingEnabled}
                 <div class="space-y-1.5 animate-in fade-in duration-300">
-                  <label for="ghostPingAction" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.am_sanction_label()}</label>
+                  <label for="ghostPingAction" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.am_sanction_label()}</label>
                   <select 
                     id="ghostPingAction"
                     bind:value={config.ghostPingAction}
@@ -585,7 +585,7 @@
 
               {#if config.antiEveryoneEnabled}
                 <div class="space-y-1.5 animate-in fade-in duration-300">
-                  <label for="antiEveryoneAction" class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.am_sanction_label()}</label>
+                  <label for="antiEveryoneAction" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.am_sanction_label()}</label>
                   <select 
                     id="antiEveryoneAction"
                     bind:value={config.antiEveryoneAction}
@@ -611,7 +611,7 @@
             <Papicon icon="Shield" size={20} />
           </div>
           <div>
-            <h2 class="text-sm font-bold text-on-surface uppercase tracking-widest flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-on-surface flex items-center gap-2">
               {m.am_discord_native_title()}
             </h2>
             <p class="text-xs text-on-surface-variant/70 mt-1">
@@ -642,7 +642,7 @@
             {#if config.customWordsEnabled}
               <div class="space-y-4 animate-in fade-in duration-300">
                 <div class="space-y-1.5">
-                  <label for="customWordsAction" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_action_label()}</label>
+                  <label for="customWordsAction" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_action_label()}</label>
                   <select
                     id="customWordsAction"
                     bind:value={config.customWordsAction}
@@ -657,7 +657,7 @@
 
                 {#if config.customWordsAction === 'TIMEOUT'}
                   <div class="space-y-1.5">
-                    <label for="customWordsTimeout" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_timeout_duration_sec()}</label>
+                    <label for="customWordsTimeout" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_timeout_duration_sec()}</label>
                     <input
                       id="customWordsTimeout"
                       type="number" min="5" max="2419200"
@@ -669,7 +669,7 @@
                 {/if}
 
                 <div class="space-y-1.5">
-                  <label for="customWords" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_customwords_list_label()}</label>
+                  <label for="customWords" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_customwords_list_label()}</label>
                   <textarea
                     id="customWords"
                     bind:value={customWordsInput}
@@ -681,7 +681,7 @@
                 </div>
 
                 <div class="space-y-1.5">
-                  <label for="customWordsAllow" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_customwords_allow_label()}</label>
+                  <label for="customWordsAllow" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_customwords_allow_label()}</label>
                   <textarea
                     id="customWordsAllow"
                     bind:value={customWordsAllowInput}
@@ -715,7 +715,7 @@
             {#if config.profanityEnabled}
               <div class="space-y-4 animate-in fade-in duration-300">
                 <div class="space-y-3">
-                  <span class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_profanity_categories()}</span>
+                  <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_profanity_categories()}</span>
                   <div class="space-y-2">
                     <label class="flex items-center gap-3 p-3 bg-surface-container-high/30 rounded-lg cursor-pointer hover:bg-surface-container-high/50 transition-colors">
                       <input type="checkbox" bind:checked={config.profanityPresetProfanity} disabled={!canManageSettings} class="rounded border-outline-variant/30" />
@@ -742,7 +742,7 @@
                 </div>
 
                 <div class="space-y-1.5">
-                  <label for="profanityAction" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_action_label()}</label>
+                  <label for="profanityAction" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_action_label()}</label>
                   <select
                     id="profanityAction"
                     bind:value={config.profanityAction}
@@ -757,7 +757,7 @@
 
                 {#if config.profanityAction === 'TIMEOUT'}
                   <div class="space-y-1.5">
-                    <label for="profanityTimeout" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_timeout_duration_sec()}</label>
+                    <label for="profanityTimeout" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_timeout_duration_sec()}</label>
                     <input
                       id="profanityTimeout"
                       type="number" min="5" max="2419200"
@@ -769,7 +769,7 @@
                 {/if}
 
                 <div class="space-y-1.5">
-                  <label for="profanityAllow" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_profanity_allow_label()}</label>
+                  <label for="profanityAllow" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_profanity_allow_label()}</label>
                   <textarea
                     id="profanityAllow"
                     bind:value={profanityAllowInput}
@@ -803,7 +803,7 @@
             {#if config.inviteFilterEnabled}
               <div class="space-y-4 animate-in fade-in duration-300">
                 <div class="space-y-1.5">
-                  <label for="inviteFilterAction" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_action_label()}</label>
+                  <label for="inviteFilterAction" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_action_label()}</label>
                   <select
                     id="inviteFilterAction"
                     bind:value={config.inviteFilterAction}
@@ -818,7 +818,7 @@
 
                 {#if config.inviteFilterAction === 'TIMEOUT'}
                   <div class="space-y-1.5">
-                    <label for="inviteFilterTimeout" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_timeout_duration_sec()}</label>
+                    <label for="inviteFilterTimeout" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_timeout_duration_sec()}</label>
                     <input
                       id="inviteFilterTimeout"
                       type="number" min="5" max="2419200"
@@ -830,7 +830,7 @@
                 {/if}
 
                 <div class="space-y-1.5">
-                  <label for="inviteAllowed" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_invitefilter_allowed_label()}</label>
+                  <label for="inviteAllowed" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_invitefilter_allowed_label()}</label>
                   <textarea
                     id="inviteAllowed"
                     bind:value={inviteAllowedGuildsInput}
@@ -877,7 +877,7 @@
           {#if config.antiBotEnabled}
             <div class="space-y-5 animate-in fade-in duration-300">
               <div class="space-y-1.5">
-                <label for="antiBotAction" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_antibot_action_label()}</label>
+                <label for="antiBotAction" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_antibot_action_label()}</label>
                 <select
                   id="antiBotAction"
                   bind:value={config.antiBotAction}
@@ -891,7 +891,7 @@
 
               <!-- Bypass users -->
               <div class="space-y-3 pt-2 border-t border-outline-variant/10">
-                <span class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_antibot_bypass_title()}</span>
+                <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_antibot_bypass_title()}</span>
                 <p class="text-xs text-on-surface-variant/50 ml-2">{m.am_antibot_bypass_desc()}</p>
                 {#if isOwner}
                   <div class="flex gap-2">
@@ -970,7 +970,7 @@
 
               <!-- Rôles sécurité -->
               <div class="space-y-3 pt-2 border-t border-outline-variant/10">
-                <span class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_adminlock_security_roles()}</span>
+                <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_adminlock_security_roles()}</span>
                 <p class="text-xs text-on-surface-variant/50 ml-2">{m.am_adminlock_security_roles_desc()}</p>
                 {#if isOwner}
                   <div class="flex gap-2">
@@ -1010,7 +1010,7 @@
 
               <!-- Salon de notification -->
               <div class="space-y-1.5 pt-2 border-t border-outline-variant/10">
-                <label for="adminLockNotifyChannel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_adminlock_notify_channel()}</label>
+                <label for="adminLockNotifyChannel" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_adminlock_notify_channel()}</label>
                 <p class="text-xs text-on-surface-variant/50 ml-2 mb-1">{m.am_adminlock_notify_channel_desc()}</p>
                 <select
                   id="adminLockNotifyChannel"
@@ -1029,7 +1029,7 @@
               <div class="space-y-4 pt-2 border-t border-outline-variant/10">
                 <div class="flex items-center justify-between">
                   <div>
-                    <span class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_burst_title()}</span>
+                    <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_burst_title()}</span>
                     <p class="text-xs text-on-surface-variant/50 ml-2 mt-1">
                       {m.am_burst_desc()}
                     </p>
@@ -1044,7 +1044,7 @@
                 {#if config.burstSuspendEnabled}
                   <div class="grid grid-cols-2 gap-4 animate-in fade-in duration-300">
                     <div class="space-y-1.5">
-                      <label for="burstFastLimit" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_burst_fast()}</label>
+                      <label for="burstFastLimit" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_burst_fast()}</label>
                       <div class="flex items-center gap-2">
                         <input id="burstFastLimit" type="number" min="1" max="100" bind:value={config.burstSuspendFastLimit} disabled={!isOwner}
                           class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none" />
@@ -1055,7 +1055,7 @@
                       </div>
                     </div>
                     <div class="space-y-1.5">
-                      <label for="burstSlowLimit" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_burst_slow()}</label>
+                      <label for="burstSlowLimit" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_burst_slow()}</label>
                       <div class="flex items-center gap-2">
                         <input id="burstSlowLimit" type="number" min="1" max="500" bind:value={config.burstSuspendSlowLimit} disabled={!isOwner}
                           class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none" />
@@ -1113,7 +1113,7 @@
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <!-- Ignored roles -->
             <div class="space-y-3">
-              <span class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_exempt_roles()}</span>
+              <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_exempt_roles()}</span>
               {#if canManageSettings}
                 <div class="flex gap-2">
                   <div class="flex-1">
@@ -1152,7 +1152,7 @@
 
             <!-- Ignored channels -->
             <div class="space-y-3 lg:border-l lg:border-outline-variant/10 lg:pl-8">
-              <span class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_exempt_channels()}</span>
+              <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_exempt_channels()}</span>
               {#if canManageSettings}
                 <div class="flex gap-2">
                   <div class="flex-1">

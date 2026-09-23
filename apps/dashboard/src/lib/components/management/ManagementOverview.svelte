@@ -79,7 +79,7 @@
     >
       <span class="bg-amber-500/10 p-2 rounded-lg text-amber-500 shrink-0"><Papicon icon="Warning" size={18} /></span>
       <span>
-        <span class="block text-2xs font-bold uppercase tracking-widest text-amber-500">{m.mgmt_incomplete_config()}</span>
+        <span class="block text-xs font-semibold text-amber-500">{m.mgmt_incomplete_config()}</span>
         <span class="block text-xs text-on-surface-variant/60 mt-1">
           {m.mgmt_missing_channels({ list: missingChannels.map((c) => c.label).join(', ') })}
           <b>{m.mgmt_tab_channels_roles()}</b> {m.mgmt_to_configure()}
@@ -90,7 +90,7 @@
 
   <SettingsGroup title={m.mgmt_features_status()}>
     {#snippet actions()}
-      <div class="flex gap-4 text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40">
+      <div class="flex gap-4 text-xs font-semibold text-on-surface-variant/40">
         <span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> {m.common_active()}</span>
         <span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-on-surface-variant/30"></span> {m.common_inactive()}</span>
       </div>
@@ -99,7 +99,7 @@
     <div class="space-y-6">
       {#each groupedFeatures as group}
         <section class="space-y-2">
-          <p class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/50">{categoryLabel(group.category)}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/50">{categoryLabel(group.category)}</p>
           <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
             {#each group.items as { feature } (feature.featureKey)}
               {@const moduleActive = featureModuleState(modulesById, feature.featureKey)}

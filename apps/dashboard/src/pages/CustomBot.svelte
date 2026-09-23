@@ -244,7 +244,7 @@
 
     <!-- Bot Token -->
     <div class="section-card p-5 space-y-4">
-      <h3 class="text-sm font-semibold text-on-surface uppercase tracking-wider flex items-center gap-2">
+      <h3 class="text-sm font-semibold text-on-surface flex items-center gap-2">
         <Papicon icon="key" size={14} class="text-primary" />
         Token du Bot
       </h3>
@@ -307,14 +307,14 @@
 
     <!-- Bot Profile Customization -->
     <div class="section-card p-5 space-y-4">
-      <h3 class="text-sm font-semibold text-on-surface uppercase tracking-wider flex items-center gap-2">
+      <h3 class="text-sm font-semibold text-on-surface flex items-center gap-2">
         <Papicon icon="user" size={14} class="text-primary" />
         Profil du Bot
       </h3>
 
       <!-- Banner -->
       <div>
-        <label for="bot-banner-url" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Banniere</label>
+        <label for="bot-banner-url" class="text-xs text-on-surface-variant block mb-1.5 font-medium">Banniere</label>
         {#if botBannerUrl}
           <div class="relative rounded-xl overflow-hidden mb-2">
             <img src={botBannerUrl} alt="Banner" class="w-full h-32 object-cover" />
@@ -331,7 +331,7 @@
       <div class="grid grid-cols-[auto_1fr] gap-4">
         <!-- Avatar -->
         <div>
-          <label for="bot-avatar-url" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Avatar</label>
+          <label for="bot-avatar-url" class="text-xs text-on-surface-variant block mb-1.5 font-medium">Avatar</label>
           <div class="w-24 h-24 rounded-xl bg-surface-container border-2 border-dashed border-outline-variant flex items-center justify-center overflow-hidden">
             {#if botAvatarUrl}
               <img src={botAvatarUrl} alt="Avatar" class="w-full h-full object-cover" />
@@ -350,7 +350,7 @@
         <!-- Name + Bio -->
         <div class="space-y-3">
           <div>
-            <label for="bot-name" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Nom</label>
+            <label for="bot-name" class="text-xs text-on-surface-variant block mb-1.5 font-medium">Nom</label>
             <input
               id="bot-name"
               bind:value={botName}
@@ -359,7 +359,7 @@
             />
           </div>
           <div>
-            <label for="bot-bio" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Bio</label>
+            <label for="bot-bio" class="text-xs text-on-surface-variant block mb-1.5 font-medium">Bio</label>
             <textarea
               id="bot-bio"
               bind:value={botBio}
@@ -376,14 +376,14 @@
 
     <!-- Status & Activity -->
     <div class="section-card p-5 space-y-4">
-      <h3 class="text-sm font-semibold text-on-surface uppercase tracking-wider flex items-center gap-2">
+      <h3 class="text-sm font-semibold text-on-surface flex items-center gap-2">
         <Papicon icon="activity" size={14} class="text-primary" />
         Statut & Activite
       </h3>
 
       <!-- Status -->
       <div>
-        <label for="bot-status" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Statut</label>
+        <label for="bot-status" class="text-xs text-on-surface-variant block mb-1.5 font-medium">Statut</label>
         <div class="relative">
           <select
             id="bot-status"
@@ -403,7 +403,7 @@
       <!-- Activity -->
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label for="activity-type" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Type d'activite</label>
+          <label for="activity-type" class="text-xs text-on-surface-variant block mb-1.5 font-medium">Type d'activite</label>
           <select
             id="activity-type"
             bind:value={activityType}
@@ -415,7 +415,7 @@
           </select>
         </div>
         <div>
-          <label for="activity-text" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Texte d'activite</label>
+          <label for="activity-text" class="text-xs text-on-surface-variant block mb-1.5 font-medium">Texte d'activite</label>
           <input
             id="activity-text"
             bind:value={activityText}
@@ -428,7 +428,7 @@
 
       {#if activityType === 'STREAMING'}
         <div>
-          <label for="activity-url" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">URL du stream</label>
+          <label for="activity-url" class="text-xs text-on-surface-variant block mb-1.5 font-medium">URL du stream</label>
           <input
             id="activity-url"
             bind:value={activityUrl}
@@ -441,7 +441,7 @@
 
     <!-- Custom Dashboard URL -->
     <div class="section-card p-5 space-y-3">
-      <h3 class="text-sm font-semibold text-on-surface uppercase tracking-wider flex items-center gap-2">
+      <h3 class="text-sm font-semibold text-on-surface flex items-center gap-2">
         <Papicon icon="globe" size={14} class="text-primary" />
         Dashboard Personnalise
       </h3>
@@ -455,7 +455,7 @@
 
     <!-- OAuth Credentials (optional) -->
     <div class="section-card p-5 space-y-3">
-      <h3 class="text-sm font-semibold text-on-surface uppercase tracking-wider flex items-center gap-2">
+      <h3 class="text-sm font-semibold text-on-surface flex items-center gap-2">
         <Papicon icon="shield" size={14} class="text-primary" />
         OAuth (optionnel)
       </h3>

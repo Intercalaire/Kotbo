@@ -2123,7 +2123,7 @@
                 <div class="flex items-center gap-2">
                   <span class="w-2 h-2 rounded-full {link.enabled ? 'bg-emerald-400' : 'bg-red-400'}"></span>
                   <p class="text-sm font-medium text-on-surface truncate">{link.otherGuildName}</p>
-                  <span class="text-2xs font-medium uppercase tracking-wide px-1 py-0.5 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
+                  <span class="text-xs font-medium px-1 py-0.5 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
                     {link.isMain ? 'Staff' : m.home_main_label()}
                   </span>
                 </div>

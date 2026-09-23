@@ -114,7 +114,7 @@
     <!-- Sans case a cocher : ces motifs sont acquis, et les presenter comme un
          choix ferait croire qu'on peut les perdre en decochant. -->
     <p class="mb-4 flex flex-wrap items-center gap-1.5 rounded-xl border border-outline-variant/25 bg-surface-container-lowest/30 px-3.5 py-3">
-      <span class="mr-1 text-xs font-semibold uppercase tracking-wide text-on-surface-variant/45">
+      <span class="mr-1 text-xs font-semibold text-on-surface-variant/45">
         Déjà repris
       </span>
       {#each inherited as type (type.id)}

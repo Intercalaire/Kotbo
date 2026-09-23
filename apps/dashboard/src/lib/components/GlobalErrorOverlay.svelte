@@ -59,7 +59,7 @@
     <!-- Error Message Snippet -->
     <div class="w-full text-left bg-surface-container border border-outline-variant rounded-lg p-4 overflow-hidden">
       <div class="flex items-center justify-between border-b border-outline-variant/50 pb-2 mb-3">
-        <span class="text-xs font-medium uppercase tracking-wider text-on-surface-variant">{m.d6_error_details()}</span>
+        <span class="text-xs font-medium text-on-surface-variant">{m.d6_error_details()}</span>
         <span class="text-xs text-error font-semibold font-mono text-right">CRITICAL</span>
       </div>
       <p class="font-mono text-xs md:text-sm text-error break-words whitespace-pre-wrap font-semibold leading-relaxed">
@@ -68,7 +68,7 @@
       {#if errorStack}
         <div class="mt-4 pt-3 border-t border-outline-variant/30">
           <details class="group">
-            <summary class="text-xs font-bold uppercase tracking-wider text-on-surface-variant cursor-pointer select-none hover:text-on-surface transition-colors flex items-center gap-2">
+            <summary class="text-xs font-semibold text-on-surface-variant cursor-pointer select-none hover:text-on-surface transition-colors flex items-center gap-2">
               <Papicon icon="chevron-right" size={14} class="transition-transform group-open:rotate-90" />
               Stack Trace
             </summary>

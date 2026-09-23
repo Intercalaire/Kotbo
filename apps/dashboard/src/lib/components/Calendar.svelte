@@ -423,7 +423,7 @@
       <div class="grid grid-cols-7 h-full overflow-y-auto custom-scrollbar">
         <!-- Day headers -->
         {#each weekDaysShort as day}
-          <div class="p-3 text-center text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/70 border-b border-r border-outline-variant/10 last:border-r-0 bg-surface-container-lowest/50 sticky top-0 z-10">
+          <div class="p-3 text-center text-xs font-semibold text-on-surface-variant/70 border-b border-r border-outline-variant/10 last:border-r-0 bg-surface-container-lowest/50 sticky top-0 z-10">
             {day}
           </div>
         {/each}
@@ -489,7 +489,7 @@
           <div class="border-r border-outline-variant/10"></div>
           {#each calendarDays as { date }}
             <div class="py-2.5 px-2 text-center border-r border-outline-variant/10 last:border-r-0 {isToday(date) ? 'bg-primary/5' : ''}">
-              <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/60">{weekDaysShort[(date.getDay() + 6) % 7]}</p>
+              <p class="text-xs font-semibold text-on-surface-variant/60">{weekDaysShort[(date.getDay() + 6) % 7]}</p>
               <p class="text-lg font-bold {isToday(date) ? 'text-primary' : 'text-on-surface'} leading-tight">
                 {#if isToday(date)}
                   <span class="inline-flex items-center justify-center w-8 h-8 bg-primary text-white rounded-full">{date.getDate()}</span>

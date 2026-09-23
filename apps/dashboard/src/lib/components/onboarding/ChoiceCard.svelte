@@ -46,7 +46,7 @@
            : 'border-outline-variant/40 hover:border-primary/45 hover:bg-surface-container-low/50'}"
 >
   {#if badge}
-    <span class="absolute top-4 right-4 text-2xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary/15 text-primary">
+    <span class="absolute top-4 right-4 text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/15 text-primary">
       {badge}
     </span>
   {/if}

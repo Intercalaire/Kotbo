@@ -21,7 +21,7 @@
           <Papicon icon="TrendUp" size={20} class="text-primary" />
           {m.sp_title()}
         </h3>
-        <p class="text-2xs text-on-surface-variant/50 mt-1 uppercase tracking-widest font-bold">{m.sp_subtitle()}</p>
+        <p class="text-xs text-on-surface-variant/50 mt-1 font-semibold">{m.sp_subtitle()}</p>
       </div>
     </div>
 

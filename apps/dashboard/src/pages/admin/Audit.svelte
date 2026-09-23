@@ -302,7 +302,7 @@
       {#each grouped as [day, dayEntries] (day)}
         <div class="space-y-2">
           <div class="flex items-center gap-3">
-            <p class="text-2xs font-bold uppercase tracking-wider text-on-surface-variant">{day}</p>
+            <p class="text-xs font-semibold text-on-surface-variant">{day}</p>
             <div class="flex-1 h-px bg-outline-variant/25"></div>
             <span class="text-2xs text-on-surface-variant tabular-nums">{dayEntries.length}</span>
           </div>
@@ -403,7 +403,7 @@
 
       {#if entry.metadata}
         <div>
-          <p class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Métadonnées</p>
+          <p class="text-xs font-semibold text-on-surface-variant mb-1.5">Métadonnées</p>
           <pre class="text-2xs font-mono text-on-surface-variant bg-surface-container-low/60 border border-outline-variant/25 rounded-xl p-3 overflow-x-auto">{JSON.stringify(entry.metadata, null, 2)}</pre>
         </div>
       {/if}

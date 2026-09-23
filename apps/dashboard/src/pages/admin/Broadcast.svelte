@@ -498,7 +498,7 @@
           <div class="space-y-4">
             <div>
               <div class="flex items-center justify-between mb-1.5">
-                <label for="bc-title" class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">Titre</label>
+                <label for="bc-title" class="text-xs font-semibold text-on-surface-variant">Titre</label>
                 <span class="text-2xs tabular-nums {titleOver ? 'text-red-500 font-semibold' : 'text-on-surface-variant'}">{title.length}/256</span>
               </div>
               <div class="flex gap-2">
@@ -524,7 +524,7 @@
 
             <div>
               <div class="flex items-center justify-between mb-1.5">
-                <label for="bc-message" class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">Message</label>
+                <label for="bc-message" class="text-xs font-semibold text-on-surface-variant">Message</label>
                 <span class="text-2xs tabular-nums {messageOver ? 'text-red-500 font-semibold' : 'text-on-surface-variant'}">{message.length}/4000</span>
               </div>
               <textarea
@@ -548,7 +548,7 @@
 
             {#if showEmojiPicker}
               <div class="rounded-xl border border-outline-variant/25 bg-surface-container-low/60 p-3">
-                <p class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant mb-2">
+                <p class="text-xs font-semibold text-on-surface-variant mb-2">
                   Insérer dans {pickerTarget === 'title' ? 'le titre' : 'le message'}
                 </p>
                 <div class="flex flex-wrap gap-1 max-h-40 overflow-y-auto">
@@ -576,7 +576,7 @@
 
             <div>
               <div class="flex items-center justify-between mb-1.5">
-                <label for="bc-footer" class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">Pied de page</label>
+                <label for="bc-footer" class="text-xs font-semibold text-on-surface-variant">Pied de page</label>
                 <span class="text-2xs tabular-nums {footerOver ? 'text-red-500 font-semibold' : 'text-on-surface-variant'}">{footerText.length}/2048</span>
               </div>
               <input
@@ -588,7 +588,7 @@
             </div>
 
             <div>
-              <label for="bc-color" class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5 block">Couleur de la barre</label>
+              <label for="bc-color" class="text-xs font-semibold text-on-surface-variant mb-1.5 block">Couleur de la barre</label>
               <div class="flex items-center gap-2">
                 <input id="bc-color" type="color" bind:value={color} class="w-10 h-10 rounded-xl border border-outline-variant/25 bg-transparent cursor-pointer" />
                 <input
@@ -626,7 +626,7 @@
         <AdminCard title="Ciblage et diffusion" icon="Target" tone="warning">
           <div class="space-y-4">
             <div>
-              <span class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant mb-2 block">Destinataires</span>
+              <span class="text-xs font-semibold text-on-surface-variant mb-2 block">Destinataires</span>
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {#each [
                   { value: 'ALL' as const, label: 'Tous les serveurs', count: guilds.length, icon: 'Globe' },
@@ -676,7 +676,7 @@
             {/if}
 
             <div>
-              <label for="bc-pref" class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5 block">
+              <label for="bc-pref" class="text-xs font-semibold text-on-surface-variant mb-1.5 block">
                 Salon de repli
               </label>
               <select
@@ -1185,7 +1185,7 @@
 <Modal bind:open={showTemplateModal} title="Enregistrer comme modèle" size="sm">
   <div class="space-y-4">
     <div>
-      <label for="tpl-name" class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5 block">
+      <label for="tpl-name" class="text-xs font-semibold text-on-surface-variant mb-1.5 block">
         Nom du modèle
       </label>
       <input

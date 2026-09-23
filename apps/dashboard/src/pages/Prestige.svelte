@@ -1175,15 +1175,15 @@
 
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div class="px-4 py-3 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg space-y-1">
-              <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_about_earn_title()}</p>
+              <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_about_earn_title()}</p>
               <p class="text-xs text-on-surface-variant/70 leading-relaxed">{m.prg_about_earn_desc()}</p>
             </div>
             <div class="px-4 py-3 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg space-y-1">
-              <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_about_lose_title()}</p>
+              <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_about_lose_title()}</p>
               <p class="text-xs text-on-surface-variant/70 leading-relaxed">{m.prg_about_lose_desc()}</p>
             </div>
             <div class="px-4 py-3 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg space-y-1">
-              <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_about_spend_title()}</p>
+              <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_about_spend_title()}</p>
               <p class="text-xs text-on-surface-variant/70 leading-relaxed">{m.prg_about_spend_desc()}</p>
             </div>
           </div>
@@ -1253,7 +1253,7 @@
           {#if gainMode.simple}
             <div class="space-y-2">
               <div class="flex items-baseline justify-between gap-3">
-                <label for="rpGains" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_gains_level_label()}</label>
+                <label for="rpGains" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.prg_gains_level_label()}</label>
                 <span class="text-xs font-semibold text-primary">{GAIN_LABELS[gainsStep - 1]()}</span>
               </div>
               <input
@@ -1267,19 +1267,19 @@
 
               <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                 <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                  <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_tile_rp_per_xp()}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_tile_rp_per_xp()}</p>
                   <p class="text-sm font-semibold text-on-surface">×{config.rpPerXp}</p>
                 </div>
                 <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                  <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_reaction_rp()}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_field_reaction_rp()}</p>
                   <p class="text-sm font-semibold text-on-surface">{config.reactionRp} RP</p>
                 </div>
                 <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                  <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_reaction_cap()}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_field_reaction_cap()}</p>
                   <p class="text-sm font-semibold text-on-surface">{config.reactionDailyCap}</p>
                 </div>
                 <div class="px-3 py-2.5 bg-primary/5 border border-primary/15 rounded-lg">
-                  <p class="text-2xs font-bold text-primary/70 uppercase tracking-widest">{m.prg_tile_daily()}</p>
+                  <p class="text-xs font-semibold text-primary/70">{m.prg_tile_daily()}</p>
                   <p class="text-sm font-semibold text-primary">≈ {Math.round(estimatedRpPerDay).toLocaleString()} RP</p>
                 </div>
               </div>
@@ -1342,7 +1342,7 @@
             {#if streakMode.simple}
               <div class="space-y-2">
                 <div class="flex items-baseline justify-between gap-3">
-                  <label for="streakLevel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_streak_level_label()}</label>
+                  <label for="streakLevel" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.prg_streak_level_label()}</label>
                   <span class="text-xs font-semibold text-primary">{STREAK_LABELS[streakStep - 1]()}</span>
                 </div>
                 <input
@@ -1356,19 +1356,19 @@
 
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_streak_bonus()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_field_streak_bonus()}</p>
                     <p class="text-sm font-semibold text-on-surface">+{Math.round((config.streakBonusPerDay ?? 0) * 100)} %/j</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_streak_max()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_field_streak_max()}</p>
                     <p class="text-sm font-semibold text-on-surface">+{Math.round((config.streakMaxBonus ?? 0) * 100)} %</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_streak_grace()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_field_streak_grace()}</p>
                     <p class="text-sm font-semibold text-on-surface">{config.streakGraceDays} j</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_streak_max_freezes()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_field_streak_max_freezes()}</p>
                     <p class="text-sm font-semibold text-on-surface">{config.streakMaxFreezes}</p>
                   </div>
                 </div>
@@ -1473,7 +1473,7 @@
                role Discord de plus a tenir. -->
           <div class="space-y-2">
             <div class="flex items-baseline justify-between gap-3">
-              <label for="tierCount" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_ladder_count_label()}</label>
+              <label for="tierCount" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.prg_ladder_count_label()}</label>
               <span class="text-xs font-semibold text-primary">{m.prg_ladder_count_value({ count: tierCountStep })}</span>
             </div>
             <input
@@ -1494,7 +1494,7 @@
             <div class="space-y-6">
               <div class="space-y-2">
                 <div class="flex items-baseline justify-between gap-3">
-                  <label for="ladderPace" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_ladder_pace_label()}</label>
+                  <label for="ladderPace" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.prg_ladder_pace_label()}</label>
                   <span class="text-xs font-semibold text-primary">{LADDER_PACE_LABELS[pacePreviewStep - 1]()}</span>
                 </div>
                 <input
@@ -1509,7 +1509,7 @@
 
               <div class="space-y-2">
                 <div class="flex items-baseline justify-between gap-3">
-                  <label for="ladderSteep" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_ladder_steep_label()}</label>
+                  <label for="ladderSteep" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.prg_ladder_steep_label()}</label>
                   <span class="text-xs font-semibold text-primary">{LADDER_STEEP_LABELS[steepPreviewStep - 1]()}</span>
                 </div>
                 <input
@@ -1556,7 +1556,7 @@
           {/if}
 
           <div class="space-y-2">
-            <span class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_ladder_divisions_label()}</span>
+            <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.prg_ladder_divisions_label()}</span>
             <FilterPills
               label={m.prg_ladder_divisions_label()}
               options={[1, 2, 3, 4, 5].map((count) => ({ value: String(count), label: String(count) }))}
@@ -1643,7 +1643,7 @@
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {#each ladderMilestones as tier (tier.key)}
                 <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                  <p class="text-2xs font-bold uppercase tracking-widest truncate" style="color: {tier.color}">{tier.name}</p>
+                  <p class="text-xs font-semibold truncate" style="color: {tier.color}">{tier.name}</p>
                   <p class="text-sm font-semibold text-on-surface">{tier.minRp.toLocaleString()} RP</p>
                   <p class="text-2xs font-semibold text-primary">{formatDuration(estimateDays(tier.minRp))}</p>
                 </div>
@@ -1848,7 +1848,7 @@
             {#if decayMode.simple}
               <div class="space-y-2">
                 <div class="flex items-baseline justify-between gap-3">
-                  <label for="decayLevel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.prg_decay_level_label()}</label>
+                  <label for="decayLevel" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.prg_decay_level_label()}</label>
                   <span class="text-xs font-semibold text-primary">{DECAY_LABELS[decayStep - 1]()}</span>
                 </div>
                 <input
@@ -1862,15 +1862,15 @@
 
                 <div class="grid grid-cols-3 gap-3 pt-2">
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_decay_grace()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_field_decay_grace()}</p>
                     <p class="text-sm font-semibold text-on-surface">{config.decayGraceDays} j</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_decay_rp()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_field_decay_rp()}</p>
                     <p class="text-sm font-semibold text-on-surface">−{config.decayRpPerDay}/j</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_field_decay_percent()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_field_decay_percent()}</p>
                     <p class="text-sm font-semibold text-on-surface">−{Math.round((config.decayPercentPerDay ?? 0) * 100)} %/j</p>
                   </div>
                 </div>
@@ -2371,15 +2371,15 @@
 
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">RP</p>
+                    <p class="text-xs font-semibold text-on-surface-variant/60">RP</p>
                     <p class="text-sm font-semibold text-on-surface tabular-nums">{memberProfile.rp.toLocaleString()}</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_member_peak()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_member_peak()}</p>
                     <p class="text-sm font-semibold text-on-surface tabular-nums">{memberProfile.peakRp.toLocaleString()}</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_member_streak()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_member_streak()}</p>
                     <p class="text-sm font-semibold text-on-surface">
                       {m.prg_streak_days({ days: memberProfile.streakDays })}
                       {#if !memberProfile.streakAlive}
@@ -2388,7 +2388,7 @@
                     </p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_member_next()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_member_next()}</p>
                     <p class="text-sm font-semibold text-on-surface">
                       {memberProfile.nextTier
                         ? m.prg_member_next_value({ rp: memberProfile.rpRemaining.toLocaleString(), tier: memberProfile.nextTier.name })
@@ -2399,7 +2399,7 @@
 
                 {#if memberCurve}
                   <div class="space-y-1.5">
-                    <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_member_history()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_member_history()}</p>
                     <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="w-full h-20 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
                       <path d={memberCurve} fill="none" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke" class="text-primary" />
                     </svg>

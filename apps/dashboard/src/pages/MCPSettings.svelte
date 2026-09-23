@@ -348,7 +348,7 @@
 
   <!-- Endpoint -->
   <div class="bg-[#1a1d23] border border-white/8 rounded-xl p-4">
-    <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2.5">{m.mcp_endpoint_label()}</p>
+    <p class="text-xs font-medium text-gray-500 mb-2.5">{m.mcp_endpoint_label()}</p>
     <div class="flex items-center gap-2">
       <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2.5 text-sm text-gray-200 font-mono break-all">
         {endpointUrl || m.mcp_endpoint_select_server()}
@@ -458,7 +458,7 @@
               <div class="px-4 pb-4 pt-1 border-t border-white/5 bg-black/20 space-y-3">
                 <!-- Client ID -->
                 <div class="space-y-1">
-                  <p class="text-2xs font-medium text-gray-500 uppercase tracking-wide">{m.mcp_client_id_label()}</p>
+                  <p class="text-xs font-medium text-gray-500">{m.mcp_client_id_label()}</p>
                   <div class="flex items-center gap-2">
                     <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2 text-xs font-mono text-gray-300 break-all">
                       {key.id}
@@ -474,7 +474,7 @@
 
                 <!-- Client Secret (display key) -->
                 <div class="space-y-1">
-                  <p class="text-2xs font-medium text-gray-500 uppercase tracking-wide">
+                  <p class="text-xs font-medium text-gray-500">
                     {m.mcp_client_secret_label()} <span class="text-gray-700 normal-case font-normal">{m.mcp_client_secret_hint()}</span>
                   </p>
                   <div class="flex items-center gap-2">
@@ -486,7 +486,7 @@
 
                 <!-- Endpoint for this guild -->
                 <div class="space-y-1">
-                  <p class="text-2xs font-medium text-gray-500 uppercase tracking-wide">{m.mcp_endpoint_url_label()}</p>
+                  <p class="text-xs font-medium text-gray-500">{m.mcp_endpoint_url_label()}</p>
                   <div class="flex items-center gap-2">
                     <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2 text-xs font-mono text-gray-300 break-all">
                       {endpointUrl}
@@ -504,7 +504,7 @@
                 <div class="space-y-1 rounded-lg border border-amber-400/15 bg-amber-400/5 p-3">
                   <div class="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <p class="text-2xs font-medium text-amber-300 uppercase tracking-wide">{m.mcp_direct_url_title()}</p>
+                      <p class="text-xs font-medium text-amber-300">{m.mcp_direct_url_title()}</p>
                       <p class="mt-0.5 text-xs text-amber-200/70">
                         {m.mcp_direct_url_desc()}
                       </p>
@@ -529,7 +529,7 @@
 
                 <!-- Permissions list -->
                 <div class="space-y-1">
-                  <p class="text-2xs font-medium text-gray-500 uppercase tracking-wide">{m.mcp_permissions_label()}</p>
+                  <p class="text-xs font-medium text-gray-500">{m.mcp_permissions_label()}</p>
                   <div class="flex flex-wrap gap-1.5">
                     {#each key.permissions as perm}
                       <span class="px-2 py-1 rounded-lg text-xs font-medium
@@ -666,7 +666,7 @@
         <div class="space-y-4 max-h-[380px] overflow-y-auto pr-1">
           <!-- Lecture Section -->
           <div>
-            <h4 class="text-2xs font-bold text-gray-500 uppercase tracking-wider mb-2 border-b border-white/5 pb-1">{m.mcp_perm_read_section()}</h4>
+            <h4 class="text-xs font-semibold text-gray-500 mb-2 border-b border-white/5 pb-1">{m.mcp_perm_read_section()}</h4>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
               {#each readPermissions as perm}
                 <div class="flex items-center justify-between p-2.5 rounded-lg border border-white/5 bg-black/20 hover:border-white/10 hover:bg-white/[0.01] transition-all">
@@ -691,7 +691,7 @@
 
           <!-- Ecriture Section -->
           <div>
-            <h4 class="text-2xs font-bold text-gray-500 uppercase tracking-wider mb-2 border-b border-white/5 pb-1">{m.mcp_perm_write_section()}</h4>
+            <h4 class="text-xs font-semibold text-gray-500 mb-2 border-b border-white/5 pb-1">{m.mcp_perm_write_section()}</h4>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
               {#each writePermissions as perm}
                 <div class="flex items-center justify-between p-2.5 rounded-lg border border-white/5 bg-black/20 hover:border-white/10 hover:bg-white/[0.01] transition-all">
@@ -767,7 +767,7 @@
     <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
       <div class="space-y-4">
         <div class="space-y-2">
-          <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">{m.mcp_help_tutorial_title({ name: currentGuide.name })}</p>
+          <p class="text-xs font-medium text-gray-500">{m.mcp_help_tutorial_title({ name: currentGuide.name })}</p>
           <ol class="space-y-2">
             {#each currentGuide.steps as step, index}
               <li class="flex gap-2 text-sm text-gray-300">
@@ -803,7 +803,7 @@
       <div class="space-y-3">
         <div class="rounded-lg border border-white/8 bg-black/20 p-3">
           <div class="mb-2 flex items-center justify-between gap-2">
-            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">{m.mcp_help_mcp_url()}</p>
+            <p class="text-xs font-medium text-gray-500">{m.mcp_help_mcp_url()}</p>
             <button
               disabled={!endpointUrl}
               onclick={() => copy(endpointUrl, 'help-endpoint')}
@@ -818,7 +818,7 @@
         </div>
 
         <div class="rounded-lg border border-white/8 bg-black/20 p-3">
-          <p class="mb-2 text-xs font-medium text-gray-500 uppercase tracking-wide">{m.mcp_help_fields_to_fill()}</p>
+          <p class="mb-2 text-xs font-medium text-gray-500">{m.mcp_help_fields_to_fill()}</p>
           <div class="space-y-2">
             {#each currentGuide.fields as field}
               <div class="rounded-lg border border-white/6 bg-black/25 px-3 py-2">

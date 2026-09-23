@@ -160,7 +160,7 @@
               {/if}
             </div>
             {#if !member.isOnServer}
-              <span class="text-2xs font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-surface-container-low text-on-surface-variant/60 shrink-0">{m.member_search_left_badge()}</span>
+              <span class="text-xs font-semibold px-1.5 py-0.5 rounded bg-surface-container-low text-on-surface-variant/60 shrink-0">{m.member_search_left_badge()}</span>
             {/if}
           </button>
         {/each}

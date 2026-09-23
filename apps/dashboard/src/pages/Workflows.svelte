@@ -581,7 +581,7 @@
             ] as slot (slot.label)}
               {@const entries = Object.entries(slot.values ?? {})}
               <div class="p-3 rounded-2xl bg-surface-container-high/50 border border-outline-variant/10 space-y-2">
-                <h3 class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/70">{slot.label}</h3>
+                <h3 class="text-xs font-semibold text-on-surface-variant/70">{slot.label}</h3>
                 {#if entries.length === 0}
                   <p class="text-2xs text-on-surface-variant/70">{m.wf_replay_no_value()}</p>
                 {:else}
@@ -606,7 +606,7 @@
     <div class="space-y-4">
       <div class="flex flex-wrap items-end gap-3">
         <div class="flex-1 min-w-56 space-y-1.5">
-          <label for="wf-name" class="text-2xs font-bold text-on-surface-variant/70 uppercase tracking-widest">{m.wf_name()}</label>
+          <label for="wf-name" class="text-xs font-semibold text-on-surface-variant/70">{m.wf_name()}</label>
           <input
             id="wf-name"
             bind:value={form.name}

@@ -78,7 +78,7 @@
 
 <div class="space-y-5 pt-5 border-t border-outline-variant/10">
   <div>
-    <h5 class="text-xs font-semibold flex items-center gap-2 text-primary uppercase tracking-wider">
+    <h5 class="text-xs font-semibold flex items-center gap-2 text-primary">
       <Papicon icon="shield" size={14} />
       {m.cm_tv_policy_title()}
     </h5>

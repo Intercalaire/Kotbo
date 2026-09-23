@@ -83,7 +83,7 @@
               <Papicon icon="crown" size={22} />
             </div>
             <div class="mt-2">
-              <span class="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-2xs font-bold uppercase tracking-wider">
+              <span class="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-xs font-semibold">
                 {m.staff_orgchart_global_chief()}
               </span>
               <p class="text-lg font-bold text-on-surface mt-2 tracking-tight">{schema.chiefStaff.name || m.staff_orgchart_unknown_name()}</p>

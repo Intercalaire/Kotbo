@@ -345,7 +345,7 @@
       <div class="max-h-[60vh] overflow-y-auto py-1">
         {#each Object.entries(filteredItems()) as [group, items]}
           <div class="px-1 pb-0.5">
-            <p class="text-2xs font-medium uppercase tracking-wider text-on-surface-variant px-2.5 py-1.5">{group}</p>
+            <p class="text-xs font-medium text-on-surface-variant px-2.5 py-1.5">{group}</p>
             {#each items as item}
               {@const globalIdx = flatItems().indexOf(item)}
               {@const isSelected = globalIdx === selectedIndex}

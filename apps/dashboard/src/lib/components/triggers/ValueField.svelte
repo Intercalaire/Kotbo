@@ -110,7 +110,7 @@
     />
     {#if textTokens.length > 0}
       <span class="flex flex-wrap items-center gap-1">
-        <span class="text-2xs text-on-surface-variant/70 uppercase tracking-wider">{m.wf_insert()}</span>
+        <span class="text-xs text-on-surface-variant/70">{m.wf_insert()}</span>
         {#each textTokens.slice(0, 8) as token (token.path)}
           <button
             type="button"

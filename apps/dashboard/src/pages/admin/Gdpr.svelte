@@ -150,15 +150,15 @@
           <div class="grid grid-cols-3 gap-3 mt-5">
             <div class="rounded-xl bg-on-surface/3 border border-outline-variant/10 px-4 py-3">
               <p class="text-2xl font-bold text-on-surface">{preview.meta.totalRecords}</p>
-              <p class="text-2xs uppercase tracking-wider text-on-surface-variant/40 font-semibold">{m.d7_gdpr_records()}</p>
+              <p class="text-xs text-on-surface-variant/40 font-semibold">{m.d7_gdpr_records()}</p>
             </div>
             <div class="rounded-xl bg-on-surface/3 border border-outline-variant/10 px-4 py-3">
               <p class="text-2xl font-bold text-on-surface">{preview.categories.length}</p>
-              <p class="text-2xs uppercase tracking-wider text-on-surface-variant/40 font-semibold">{m.d7_gdpr_categories()}</p>
+              <p class="text-xs text-on-surface-variant/40 font-semibold">{m.d7_gdpr_categories()}</p>
             </div>
             <div class="rounded-xl bg-on-surface/3 border border-outline-variant/10 px-4 py-3">
               <p class="text-2xl font-bold text-on-surface">{preview.meta.guildCount}</p>
-              <p class="text-2xs uppercase tracking-wider text-on-surface-variant/40 font-semibold">{m.d7_gdpr_servers()}</p>
+              <p class="text-xs text-on-surface-variant/40 font-semibold">{m.d7_gdpr_servers()}</p>
             </div>
           </div>
 

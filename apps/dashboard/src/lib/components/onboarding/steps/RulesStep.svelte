@@ -135,7 +135,7 @@
     <!-- En grise et sans case : ces articles sont acquis, les remontrer comme
          un choix ferait croire qu'on peut les perdre en decochant. -->
     <section class="mb-4 rounded-2xl border border-outline-variant/25 bg-surface-container-lowest/30 p-4">
-      <h2 class="text-xs font-semibold uppercase tracking-wide text-on-surface-variant/45">
+      <h2 class="text-xs font-semibold text-on-surface-variant/45">
         Déjà en place
       </h2>
       <ul class="mt-2 space-y-1.5">

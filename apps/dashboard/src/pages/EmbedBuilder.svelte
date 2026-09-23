@@ -238,7 +238,7 @@
       <!-- Editor Form -->
       <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 h-fit max-h-[85vh] overflow-y-auto scrollbar-thin pr-3">
         <div class="p-5 rounded-lg bg-surface-container-high/20 border border-outline-variant/10 space-y-4">
-          <h3 class="text-sm font-semibold uppercase tracking-wider text-on-surface-variant/80">{m.embed_builder_templates_title()}</h3>
+          <h3 class="text-sm font-semibold text-on-surface-variant/80">{m.embed_builder_templates_title()}</h3>
           {#if canManageSettings}
             <div class="flex flex-col sm:flex-row gap-2">
               <input
@@ -250,7 +250,7 @@
               <button
                 type="button"
                 onclick={saveCurrentAsTemplate}
-                class="px-4 py-2.5 bg-secondary/20 text-secondary font-semibold uppercase tracking-widest text-2xs rounded-xl hover:bg-secondary/30 transition-all"
+                class="px-4 py-2.5 bg-secondary/20 text-secondary font-semibold text-xs rounded-xl hover:bg-secondary/30 transition-all"
               >
                 {m.embed_builder_save_template_btn()}
               </button>
@@ -296,7 +296,7 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="space-y-1.5">
-            <label for="targetChan" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.embed_builder_channel_label()}</label>
+            <label for="targetChan" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.embed_builder_channel_label()}</label>
             <SearchableSelect 
               id="targetChan"
               bind:value={targetChannelId} 
@@ -308,7 +308,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="msgId" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.embed_builder_msg_id_label()}</label>
+            <label for="msgId" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.embed_builder_msg_id_label()}</label>
             <input 
               id="msgId"
               type="text" 
@@ -321,7 +321,7 @@
         </div>
 
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-          <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">{m.embed_builder_msg_text_header()}</h4>
+          <h4 class="text-xs font-semibold text-on-surface-variant/80">{m.embed_builder_msg_text_header()}</h4>
           <div class="space-y-1.5">
             <label for="msgContent" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_content_label()}</label>
             <textarea 
@@ -335,7 +335,7 @@
         </div>
 
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-          <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">{m.embed_builder_author_header()}</h4>
+          <h4 class="text-xs font-semibold text-on-surface-variant/80">{m.embed_builder_author_header()}</h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
               <label for="authorName" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_author_name_label()}</label>
@@ -374,7 +374,7 @@
         </div>
 
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-          <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">{m.embed_builder_main_content_header()}</h4>
+          <h4 class="text-xs font-semibold text-on-surface-variant/80">{m.embed_builder_main_content_header()}</h4>
           <div class="space-y-1.5">
             <label for="embedTitle" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_embed_title_label()}</label>
             <input 
@@ -460,7 +460,7 @@
         <!-- Fields Builder -->
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
           <div class="flex items-center justify-between">
-            <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">{m.embed_builder_fields_header({ n: embed.fields.length })}</h4>
+            <h4 class="text-xs font-semibold text-on-surface-variant/80">{m.embed_builder_fields_header({ n: embed.fields.length })}</h4>
             <button 
               type="button" 
               onclick={addField} 
@@ -527,7 +527,7 @@
         </div>
 
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-          <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">{m.embed_builder_footer_header()}</h4>
+          <h4 class="text-xs font-semibold text-on-surface-variant/80">{m.embed_builder_footer_header()}</h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
               <label for="footerText" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_footer_text_label()}</label>

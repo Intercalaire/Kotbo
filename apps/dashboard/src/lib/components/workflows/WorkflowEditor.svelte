@@ -660,7 +660,7 @@
     {#if !readonly}
     <aside class="w-60 shrink-0 overflow-y-auto rounded-2xl bg-surface-container-high/50 border border-outline-variant/10 p-3 space-y-3">
       <div>
-        <h3 class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-0.5">{m.wf_palette()}</h3>
+        <h3 class="text-xs font-semibold text-on-surface-variant/70 mb-0.5">{m.wf_palette()}</h3>
         <p class="text-2xs text-on-surface-variant/70">{m.wf_palette_hint()}</p>
       </div>
 
@@ -745,7 +745,7 @@
       {#if selectedEdge}
         <div class="p-3 rounded-xl bg-surface-container-highest/60 border border-outline-variant/20 space-y-2">
           <div class="flex items-center justify-between">
-            <h3 class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/70">{m.wf_edge_selected()}</h3>
+            <h3 class="text-xs font-semibold text-on-surface-variant/70">{m.wf_edge_selected()}</h3>
             <button
               onclick={deleteSelectedEdge}
               class="px-2 py-1 rounded-lg text-xs font-semibold text-red-700 dark:text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-colors flex items-center gap-1"
@@ -766,7 +766,7 @@
       {:else if selectedNode && selectedDef}
         <div>
           <div class="flex items-center justify-between mb-2">
-            <h3 class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/70">{m.wf_node_config()}</h3>
+            <h3 class="text-xs font-semibold text-on-surface-variant/70">{m.wf_node_config()}</h3>
             <button
               onclick={deleteSelected}
               class="p-1 rounded text-red-700 dark:text-red-400 hover:bg-red-500/10 transition-colors"
@@ -780,7 +780,7 @@
 
           {#each selectedDef.config ?? [] as field}
             <div class="space-y-1 mb-2.5">
-              <label for="cfg-{field.key}" class="text-2xs font-bold text-on-surface-variant/70 uppercase tracking-widest">
+              <label for="cfg-{field.key}" class="text-xs font-semibold text-on-surface-variant/70">
                 {field.label}
               </label>
 
@@ -878,7 +878,7 @@
         </div>
       {:else}
         <div class="p-3 rounded-xl bg-surface-container-highest/40 border border-outline-variant/15 space-y-2">
-          <h3 class="text-2xs font-bold uppercase tracking-widest text-primary flex items-center gap-1.5">
+          <h3 class="text-xs font-semibold text-primary flex items-center gap-1.5">
             <Papicon icon="Info" size={13} />
             <span>{m.wf_tips_title()}</span>
           </h3>
@@ -892,7 +892,7 @@
 
       <!-- Problèmes de validation -->
       <div>
-        <h3 class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">{m.wf_issues()}</h3>
+        <h3 class="text-xs font-semibold text-on-surface-variant/70 mb-2">{m.wf_issues()}</h3>
         {#if issues.length === 0}
           <p class="text-2xs text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
             <Papicon icon="Check" size={12} /> {m.wf_no_issues()}
@@ -952,7 +952,7 @@
                 </span>
                 <h4 class="text-xs font-bold text-on-surface group-hover:text-amber-700 dark:group-hover:text-amber-300 transition-colors">{template.name}</h4>
               </div>
-              <span class="px-2 py-0.5 rounded text-2xs font-semibold bg-surface-container-highest text-on-surface-variant/70 uppercase tracking-wider">
+              <span class="px-2 py-0.5 rounded text-xs font-semibold bg-surface-container-highest text-on-surface-variant/70">
                 {template.category}
               </span>
             </div>

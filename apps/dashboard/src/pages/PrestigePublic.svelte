@@ -122,7 +122,7 @@
 
         <div>
           <h1 class="text-lg font-semibold tracking-tight text-slate-800 dark:text-slate-100">{guildName}</h1>
-          <div class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-semibold text-xs uppercase tracking-wider">
+          <div class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-semibold text-xs">
             <span class="text-indigo-500"><Papicon icon="shield" size={14} /></span>
             <span>{m.prestige_public_header_subtitle()}</span>
           </div>
@@ -130,7 +130,7 @@
       </div>
 
       <div class="flex items-center gap-3 self-start sm:self-auto">
-        <div class="flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0c1322] p-0.5 text-2xs font-bold uppercase tracking-wider">
+        <div class="flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0c1322] p-0.5 text-xs font-semibold">
           {#each locales as loc}
             <button
               type="button"
@@ -193,19 +193,19 @@
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
             <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{entries.length}</p>
-            <p class="text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.prestige_public_stat_members()}</p>
+            <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">{m.prestige_public_stat_members()}</p>
           </div>
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
             <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100 truncate">{topTier}</p>
-            <p class="text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.prestige_public_stat_top_tier()}</p>
+            <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">{m.prestige_public_stat_top_tier()}</p>
           </div>
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
             <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{bestStreak}</p>
-            <p class="text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.prestige_public_stat_streak()}</p>
+            <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">{m.prestige_public_stat_streak()}</p>
           </div>
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
             <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{formatRp(totalRp)}</p>
-            <p class="text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.prestige_public_stat_total_rp()}</p>
+            <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">{m.prestige_public_stat_total_rp()}</p>
           </div>
         </div>
       {/if}
@@ -222,7 +222,7 @@
                 style="border-color:{entry.tier.color}"
               />
               <p class="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{entry.displayName ?? entry.userId}</p>
-              <p class="text-2xs font-bold uppercase tracking-wider" style="color:{entry.tier.color}">{entry.tier.name}</p>
+              <p class="text-xs font-semibold" style="color:{entry.tier.color}">{entry.tier.name}</p>
               <p class="text-lg font-bold text-slate-800 dark:text-slate-100 tabular-nums">{entry.rp.toLocaleString(dateLocale())} <span class="text-2xs font-medium text-slate-400">RP</span></p>
             </div>
           {/each}
@@ -290,7 +290,7 @@
         </p>
         <a
           href="/"
-          class="font-bold text-slate-700 dark:text-slate-300 hover:text-slate-500 dark:hover:text-slate-400 transition-colors uppercase tracking-wider flex items-center gap-1"
+          class="font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-500 dark:hover:text-slate-400 transition-colors flex items-center gap-1"
         >
           <span>{m.leveling_public_footer_dashboard()}</span>
           <span>→</span>

@@ -293,7 +293,7 @@
     
     return escapeHtml(text)
       // Headers
-      .replace(/^### (.*$)/gim, '<h5 class="text-sm font-semibold uppercase tracking-wider text-primary mt-4 mb-2">$1</h5>')
+      .replace(/^### (.*$)/gim, '<h5 class="text-sm font-semibold text-primary mt-4 mb-2">$1</h5>')
       .replace(/^## (.*$)/gim, '<h4 class="text-base font-semibold text-on-surface mt-6 mb-3 border-b border-outline-variant/20 pb-1">$1</h4>')
       .replace(/^# (.*$)/gim, '<h3 class="text-xl font-semibold text-on-surface mt-8 mb-4">$1</h3>')
       // Bold & Italic
@@ -366,7 +366,7 @@
         <div class="space-y-4">
           <!-- Title -->
           <div class="space-y-1.5">
-            <label for="news-title" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.news_field_title_label()}</label>
+            <label for="news-title" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.news_field_title_label()}</label>
             <input 
               id="news-title" 
               type="text" 
@@ -379,7 +379,7 @@
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <!-- Category -->
             <div class="space-y-1.5">
-              <label for="news-category" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.news_field_category_label()}</label>
+              <label for="news-category" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.news_field_category_label()}</label>
               <input 
                 id="news-category" 
                 type="text"
@@ -397,7 +397,7 @@
 
             <!-- Subcategory -->
             <div class="space-y-1.5">
-              <label for="news-subcategory" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.news_field_subcategory_label()}</label>
+              <label for="news-subcategory" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.news_field_subcategory_label()}</label>
               <input 
                 id="news-subcategory" 
                 type="text"
@@ -422,7 +422,7 @@
           </div>
 
           <div class="space-y-2 rounded-lg border border-outline-variant/10 bg-surface-container-high/20 p-4">
-            <p class="text-2xs font-bold text-on-surface-variant/70 uppercase tracking-widest">{m.news_publish_mode_label()}</p>
+            <p class="text-xs font-semibold text-on-surface-variant/70">{m.news_publish_mode_label()}</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
                 type="button"
@@ -446,7 +446,7 @@
 
           <!-- Image URL -->
           <div class="space-y-1.5">
-            <label for="news-image" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.news_field_image_label()}</label>
+            <label for="news-image" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.news_field_image_label()}</label>
             <input 
               id="news-image" 
               type="text" 
@@ -458,7 +458,7 @@
 
           <!-- Summary -->
           <div class="space-y-1.5">
-            <label for="news-summary" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.news_field_summary_label()}</label>
+            <label for="news-summary" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.news_field_summary_label()}</label>
             <textarea 
               id="news-summary" 
               bind:value={summary} 
@@ -470,7 +470,7 @@
 
           <!-- Content (Markdown) -->
           <div class="space-y-1.5">
-            <label for="news-content" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.news_field_content_label()}</label>
+            <label for="news-content" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.news_field_content_label()}</label>
             <textarea 
               id="news-content" 
               bind:value={content} 
@@ -510,11 +510,11 @@
             <img src={imageUrl} alt="Illustration" class="w-full h-48 object-cover rounded-lg mb-6 border border-outline-variant/20" />
           {/if}
           <div class="mb-4 flex flex-wrap gap-2">
-            <span class="px-3 py-1 text-2xs font-semibold uppercase tracking-wider rounded-full bg-primary/10 text-primary">
+            <span class="px-3 py-1 text-xs font-semibold rounded-full bg-primary/10 text-primary">
               {category}
             </span>
             {#if subcategory}
-              <span class="px-3 py-1 text-2xs font-semibold uppercase tracking-wider rounded-full bg-secondary/10 text-secondary">
+              <span class="px-3 py-1 text-xs font-semibold rounded-full bg-secondary/10 text-secondary">
                 {subcategory}
               </span>
             {/if}
@@ -581,7 +581,7 @@
             </div>
 
             <div class="flex items-center gap-2">
-              <label for="filter-category" class="text-2xs font-bold text-on-surface-variant/50 uppercase tracking-wider">{m.news_filter_label()}</label>
+              <label for="filter-category" class="text-xs font-semibold text-on-surface-variant/50">{m.news_filter_label()}</label>
               <select 
                 id="filter-category" 
                 bind:value={categoryFilter} 
@@ -616,7 +616,7 @@
                     <div class="space-y-2">
                       <div class="flex items-center gap-2 text-primary">
                         <Papicon icon="globe" size={18} />
-                        <span class="text-2xs font-semibold uppercase tracking-wider">{m.news_forum_view_badge()}</span>
+                        <span class="text-xs font-semibold">{m.news_forum_view_badge()}</span>
                       </div>
                       <h4 class="text-lg font-semibold text-on-surface">{m.news_forum_view_title()}</h4>
                       <p class="text-xs text-on-surface-variant/70 max-w-2xl">
@@ -624,8 +624,8 @@
                       </p>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                      <span class="px-3 py-1.5 rounded-full bg-primary/10 text-primary text-2xs font-semibold uppercase tracking-wider">{m.news_forum_articles_count({ n: filteredArticles.length })}</span>
-                      <span class="px-3 py-1.5 rounded-full bg-secondary/10 text-secondary text-2xs font-semibold uppercase tracking-wider">{m.news_forum_categories_count({ n: forumSections.length })}</span>
+                      <span class="px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-semibold">{m.news_forum_articles_count({ n: filteredArticles.length })}</span>
+                      <span class="px-3 py-1.5 rounded-full bg-secondary/10 text-secondary text-xs font-semibold">{m.news_forum_categories_count({ n: forumSections.length })}</span>
                     </div>
                   </div>
                 </div>
@@ -641,13 +641,13 @@
                             </span>
                             <div>
                               <h5 class="text-base font-semibold text-on-surface">{section.categoryName}</h5>
-                              <p class="text-2xs uppercase tracking-[0.18em] text-on-surface-variant/55">{m.news_forum_subjects_count({ n: section.totalCount })}</p>
+                              <p class="text-xs text-on-surface-variant/55">{m.news_forum_subjects_count({ n: section.totalCount })}</p>
                             </div>
                           </div>
                         </div>
                         <div class="flex flex-wrap gap-2">
                           {#each section.subcategories as subcategorySection}
-                            <span class="rounded-full border border-outline-variant/15 bg-surface-container-high/40 px-3 py-1 text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/75">
+                            <span class="rounded-full border border-outline-variant/15 bg-surface-container-high/40 px-3 py-1 text-xs font-semibold text-on-surface-variant/75">
                               {subcategorySection.subcategoryName} · {subcategorySection.totalCount}
                             </span>
                           {/each}
@@ -682,20 +682,20 @@
 
                                       <div class="min-w-0 space-y-2">
                                         <div class="flex flex-wrap items-center gap-2">
-                                          <span class="rounded-full bg-primary/10 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-primary">
+                                          <span class="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
                                             {art.category}
                                           </span>
                                           {#if art.subcategory}
-                                            <span class="rounded-full bg-secondary/10 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-secondary">
+                                            <span class="rounded-full bg-secondary/10 px-2.5 py-1 text-xs font-semibold text-secondary">
                                               {art.subcategory}
                                             </span>
                                           {/if}
                                           {#if art.published}
-                                            <span class="rounded-full bg-emerald-100 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400">
+                                            <span class="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400">
                                               {m.news_badge_published()}
                                             </span>
                                           {:else}
-                                            <span class="rounded-full bg-slate-100 px-2.5 py-1 text-2xs font-semibold uppercase tracking-widest text-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
+                                            <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
                                               {m.news_badge_draft()}
                                             </span>
                                           {/if}
@@ -765,11 +765,11 @@
                         </td>
                         <td class="px-6 py-5">
                           <div class="flex flex-col gap-1">
-                            <span class="px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider rounded-full bg-primary/10 text-primary w-fit">
+                            <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-primary/10 text-primary w-fit">
                               {art.category}
                             </span>
                             {#if art.subcategory}
-                              <span class="text-2xs text-secondary font-bold uppercase tracking-wider ml-1">↳ {art.subcategory}</span>
+                              <span class="text-xs text-secondary font-semibold ml-1">↳ {art.subcategory}</span>
                             {/if}
                           </div>
                         </td>
@@ -786,11 +786,11 @@
                         </td>
                         <td class="px-6 py-5">
                           {#if art.published}
-                            <span class="px-2.5 py-1 text-2xs font-semibold uppercase tracking-widest rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400">
+                            <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400">
                               {m.news_badge_published()}
                             </span>
                           {:else}
-                            <span class="px-2.5 py-1 text-2xs font-semibold uppercase tracking-widest rounded-full bg-slate-100 text-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
+                            <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
                               {m.news_badge_draft()}
                             </span>
                           {/if}
@@ -831,7 +831,7 @@
               {#if canEdit}
                 <button 
                   onclick={openCreate}
-                  class="mt-6 px-6 py-2.5 bg-primary text-on-primary font-semibold uppercase tracking-widest text-2xs rounded-xl transition-all"
+                  class="mt-6 px-6 py-2.5 bg-primary text-on-primary font-semibold text-xs rounded-xl transition-all"
                 >
                   {m.news_create_btn()}
                 </button>
@@ -849,7 +849,7 @@
               <div class="space-y-3 max-w-3xl">
                 <div class="flex items-center gap-2 text-primary">
                   <Papicon icon="rss" size={18} />
-                  <span class="text-2xs font-semibold uppercase tracking-wider">{m.news_config_badge()}</span>
+                  <span class="text-xs font-semibold">{m.news_config_badge()}</span>
                 </div>
                 <div class="space-y-2">
                   <h3 class="text-2xl md:text-lg font-semibold tracking-tight text-on-surface">{m.news_config_title()}</h3>
@@ -859,10 +859,10 @@
                 </div>
               </div>
               <div class="flex flex-wrap gap-2">
-                <span class="rounded-full bg-surface-container-high/70 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">
+                <span class="rounded-full bg-surface-container-high/70 px-3 py-1.5 text-xs font-semibold text-on-surface-variant">
                   {m.news_config_links_count({ n: categoryConfigs.length })}
                 </span>
-                <span class="rounded-full bg-primary/10 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-primary">
+                <span class="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
                   {m.news_config_channels_count({ n: dashboardStore.state.discordChannels?.length || 0 })}
                 </span>
               </div>
@@ -888,7 +888,7 @@
                 <div class="space-y-4">
                   <!-- Category Input -->
                   <div class="space-y-1.5">
-                    <label for="config-category" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-wider">{m.news_config_rubric_label()}</label>
+                    <label for="config-category" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.news_config_rubric_label()}</label>
                     <input
                       id="config-category"
                       type="text"
@@ -906,7 +906,7 @@
 
                   <!-- Subcategory Input -->
                   <div class="space-y-1.5">
-                    <label for="config-subcategory" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-wider">{m.news_config_subrubric_label()}</label>
+                    <label for="config-subcategory" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.news_config_subrubric_label()}</label>
                     <input
                       id="config-subcategory"
                       type="text"
@@ -918,7 +918,7 @@
 
                   <!-- Discord Channel Selector -->
                   <div class="space-y-1.5">
-                    <label for="config-channel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-wider">{m.news_config_channel_label()}</label>
+                    <label for="config-channel" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.news_config_channel_label()}</label>
                     <SearchableSelect id="config-channel" bind:value={configChannelId} options={(dashboardStore.state.discordChannels || []).map(channel => ({ id: channel.id, name: channelDisplayName(channel) }))} placeholder={m.news_config_channel_ph()} className="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
                   </div>
 
@@ -942,7 +942,7 @@
                     {m.news_config_index_desc()}
                   </p>
                 </div>
-                <div class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/45">
+                <div class="text-xs font-semibold text-on-surface-variant/45">
                   {m.news_config_public_badge()}
                 </div>
               </div>
@@ -969,11 +969,11 @@
                       <div class="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
                         <div class="space-y-3 min-w-0">
                           <div class="flex flex-wrap items-center gap-2">
-                            <span class="rounded-full bg-primary/10 px-3 py-1 text-2xs font-semibold uppercase tracking-wider text-primary">
+                            <span class="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
                               {config.category}
                             </span>
                             {#if config.subcategory}
-                              <span class="rounded-full bg-secondary/10 px-3 py-1 text-2xs font-semibold uppercase tracking-wider text-secondary">
+                              <span class="rounded-full bg-secondary/10 px-3 py-1 text-xs font-semibold text-secondary">
                                 {config.subcategory}
                               </span>
                             {/if}
@@ -987,13 +987,13 @@
                         </div>
 
                         <div class="flex flex-col gap-2 md:items-end">
-                          <span class="inline-flex w-fit items-center rounded-full border border-outline-variant/10 bg-surface-container-low px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-on-surface-variant">
+                          <span class="inline-flex w-fit items-center rounded-full border border-outline-variant/10 bg-surface-container-low px-3 py-1.5 text-xs font-semibold text-on-surface-variant">
                             {m.news_config_dedicated_rss()}
                           </span>
                           {#if canEdit}
                             <button
                               onclick={() => handleDeleteConfig(config.id)}
-                              class="inline-flex items-center gap-2 rounded-full border border-outline-variant/10 bg-transparent px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-on-surface-variant hover:border-red-500/20 hover:text-red-500 transition-all"
+                              class="inline-flex items-center gap-2 rounded-full border border-outline-variant/10 bg-transparent px-3 py-1.5 text-xs font-semibold text-on-surface-variant hover:border-red-500/20 hover:text-red-500 transition-all"
                               title={m.reaction_roles_delete_tooltip()}
                             >
                               <Papicon icon="trash" size={14} />
@@ -1004,7 +1004,7 @@
                       </div>
 
                       <div class="mt-5 rounded-lg border border-outline-variant/10 bg-surface-container-low/40 px-4 py-3">
-                        <p class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/45 mb-2">{m.news_config_public_feed_label()}</p>
+                        <p class="text-xs font-semibold text-on-surface-variant/45 mb-2">{m.news_config_public_feed_label()}</p>
                         <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                           <p class="font-mono text-2xs text-on-surface break-all">
                             {API_BASE_URL}/api/public/rss/{currentGuildId}/{encodeURIComponent(config.category)}{config.subcategory ? `/${encodeURIComponent(config.subcategory)}` : ''}

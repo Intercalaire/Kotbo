@@ -260,7 +260,7 @@
   <section class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-xl space-y-5">
     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
       <div>
-        <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.us_quick_overview()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant/60">{m.us_quick_overview()}</p>
         <h2 class="text-lg font-semibold mt-1">{m.us_active_settings()}</h2>
       </div>
       <div class="flex flex-wrap gap-2">
@@ -286,7 +286,7 @@
     <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
       {#each activeSummary as item}
         <div class="rounded-lg border border-outline-variant/20 bg-surface-container-high/20 p-4">
-          <p class="text-2xs font-bold text-on-surface-variant/50 uppercase tracking-widest">{item.label}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/50">{item.label}</p>
           <p class="mt-2 text-sm font-semibold text-on-surface truncate">{item.value}</p>
         </div>
       {/each}
@@ -314,7 +314,7 @@
 
       <!-- Theme Presets -->
       <div class="space-y-3">
-        <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.us_theme()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant/60">{m.us_theme()}</p>
         <div class="grid grid-cols-3 gap-2.5">
           {#each THEME_PRESETS as preset}
             <button
@@ -422,7 +422,7 @@
 
       <!-- Accent Color -->
       <div class="space-y-3">
-        <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.us_accent_color()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant/60">{m.us_accent_color()}</p>
         <div class="flex flex-wrap gap-3">
           {#each accentColors as color}
             <button
@@ -478,7 +478,7 @@
 
         <!-- Language -->
         <div class="space-y-3">
-          <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.us_interface_language()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/60">{m.us_interface_language()}</p>
           <div class="grid grid-cols-2 gap-3">
             {#each languages as lang}
               <button
@@ -497,7 +497,7 @@
 
         <!-- Date format -->
         <div class="space-y-3">
-          <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.us_date_format()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/60">{m.us_date_format()}</p>
           <div class="space-y-2">
             {#each dateFormats as fmt}
               <button
@@ -524,7 +524,7 @@
 
         <!-- Fuseau horaire des statistiques -->
         <div class="space-y-3">
-          <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.us_timezone()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/60">{m.us_timezone()}</p>
           <select
             value={timezoneChoice}
             onchange={(e) => handleTimezone((e.currentTarget as HTMLSelectElement).value)}
@@ -553,7 +553,7 @@
 
       <!-- Sidebar behavior -->
       <div class="space-y-3">
-        <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.us_sidebar_behavior()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant/60">{m.us_sidebar_behavior()}</p>
         <div class="space-y-2">
           {#each sidebarBehaviors as behavior}
             <button

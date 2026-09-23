@@ -195,7 +195,7 @@
           <div class="flex items-center gap-1.5 flex-wrap">
             <span class="text-body-sm font-medium text-[#f2f3f5]">{line.author}</span>
             {#if line.fresh}
-              <span class="text-2xs font-semibold uppercase tracking-wide px-1 py-px rounded bg-[#4e5058] text-[#dbdee1]">
+              <span class="text-xs font-semibold px-1 py-px rounded bg-[#4e5058] text-[#dbdee1]">
                 nouveau
               </span>
             {/if}

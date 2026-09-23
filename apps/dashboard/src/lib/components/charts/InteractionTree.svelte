@@ -442,15 +442,15 @@
     <div class="absolute bottom-4 right-5 z-10 flex items-center gap-3 pointer-events-none">
       <div class="flex items-center gap-1">
         <div class="w-2 h-2 rounded-full legend-mention"></div>
-        <span class="text-2xs font-semibold uppercase tracking-wider graph-legend-text">{m.d6_it_mentions()}</span>
+        <span class="text-xs font-semibold graph-legend-text">{m.d6_it_mentions()}</span>
       </div>
       <div class="flex items-center gap-1">
         <div class="w-2 h-2 rounded-full legend-reply"></div>
-        <span class="text-2xs font-semibold uppercase tracking-wider graph-legend-text">{m.d6_it_replies()}</span>
+        <span class="text-xs font-semibold graph-legend-text">{m.d6_it_replies()}</span>
       </div>
       <div class="flex items-center gap-1">
         <div class="w-2 h-2 rounded-full legend-reaction"></div>
-        <span class="text-2xs font-semibold uppercase tracking-wider graph-legend-text">{m.d6_it_reactions()}</span>
+        <span class="text-xs font-semibold graph-legend-text">{m.d6_it_reactions()}</span>
       </div>
     </div>
 
@@ -691,7 +691,7 @@
       {@const targetNode = nodes.find(n => n.id === hoveredEdge.to)}
       <div class="absolute bottom-4 left-4 right-4 z-10 graph-edge-tooltip animate-fade-in">
         <div class="flex items-center justify-between pb-1.5 mb-1.5 edge-tooltip-header">
-          <span class="text-2xs font-semibold uppercase tracking-wider edge-tooltip-title">{m.d6_it_interaction()}</span>
+          <span class="text-xs font-semibold edge-tooltip-title">{m.d6_it_interaction()}</span>
           <span class="text-2xs font-semibold truncate edge-tooltip-path">
             {sourceNode?.label ?? '?'} → {targetNode?.label ?? '?'}
           </span>
@@ -700,19 +700,19 @@
           {#if hoveredEdge.mentionCount > 0}
             <div class="flex items-center gap-1">
               <div class="w-1.5 h-1.5 rounded-full legend-mention"></div>
-              <span class="text-2xs font-semibold uppercase tracking-wider edge-tooltip-count">@ {hoveredEdge.mentionCount}</span>
+              <span class="text-xs font-semibold edge-tooltip-count">@ {hoveredEdge.mentionCount}</span>
             </div>
           {/if}
           {#if hoveredEdge.replyCount > 0}
             <div class="flex items-center gap-1">
               <div class="w-1.5 h-1.5 rounded-full legend-reply"></div>
-              <span class="flex items-center gap-1 text-2xs font-semibold uppercase tracking-wider edge-tooltip-count"><Papicon icon="text-bubble" size={9} />{hoveredEdge.replyCount}</span>
+              <span class="flex items-center gap-1 text-xs font-semibold edge-tooltip-count"><Papicon icon="text-bubble" size={9} />{hoveredEdge.replyCount}</span>
             </div>
           {/if}
           {#if hoveredEdge.reactionCount > 0}
             <div class="flex items-center gap-1">
               <div class="w-1.5 h-1.5 rounded-full legend-reaction"></div>
-              <span class="flex items-center gap-1 text-2xs font-semibold uppercase tracking-wider edge-tooltip-count"><Papicon icon="heart" size={9} />{hoveredEdge.reactionCount}</span>
+              <span class="flex items-center gap-1 text-xs font-semibold edge-tooltip-count"><Papicon icon="heart" size={9} />{hoveredEdge.reactionCount}</span>
             </div>
           {/if}
         </div>

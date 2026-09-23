@@ -156,7 +156,7 @@
          sont des noms, et c'est la qu'on les lit sur Discord. -->
     <div class="rounded-xl overflow-hidden border border-black/25 shadow-sm bg-[#2b2d31]">
       <div class="px-3.5 py-2.5 border-b border-black/25">
-        <p class="text-xs font-semibold uppercase tracking-wide text-[#949ba4]">
+        <p class="text-xs font-semibold text-[#949ba4]">
           {language === 'fr' ? 'Accueil' : 'Welcome'}
         </p>
       </div>

@@ -154,7 +154,7 @@
       </div>
 
       <div class="max-h-[50vh] overflow-y-auto py-1">
-        <p class="text-2xs font-medium uppercase tracking-wider text-on-surface-variant px-3 py-1.5">
+        <p class="text-xs font-medium text-on-surface-variant px-3 py-1.5">
           {m.d7_servers_count({ count: filteredGroups.length })}
         </p>
 
@@ -208,10 +208,10 @@
                 <p class="text-sm leading-none truncate flex items-center gap-1.5">
                   {guild.name}
                   {#if guild.isStaffServer}
-                    <span class="text-2xs font-medium uppercase tracking-wide px-1 py-0.5 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">{m.d7_staff()}</span>
+                    <span class="text-xs font-medium px-1 py-0.5 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">{m.d7_staff()}</span>
                   {/if}
                   {#if isActive}
-                    <span class="text-2xs font-medium uppercase tracking-wide px-1 py-0.5 rounded bg-primary/10 text-primary">{m.d7_current()}</span>
+                    <span class="text-xs font-medium px-1 py-0.5 rounded bg-primary/10 text-primary">{m.d7_current()}</span>
                   {/if}
                 </p>
                 <p class="text-2xs text-on-surface-variant mt-0.5 truncate">

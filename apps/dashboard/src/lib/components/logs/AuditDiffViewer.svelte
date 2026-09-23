@@ -258,7 +258,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="audit-retention" class="text-2xs font-bold text-on-surface-variant/70 uppercase tracking-widest">
+            <label for="audit-retention" class="text-xs font-semibold text-on-surface-variant/70">
               {m.audit_retention_days()}
             </label>
             <input
@@ -275,7 +275,7 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="space-y-1.5">
-            <label for="audit-ignored-channels" class="text-2xs font-bold text-on-surface-variant/70 uppercase tracking-widest">
+            <label for="audit-ignored-channels" class="text-xs font-semibold text-on-surface-variant/70">
               {m.audit_ignored_channels()}
             </label>
             <MultiSelect
@@ -286,7 +286,7 @@
             />
           </div>
           <div class="space-y-1.5">
-            <label for="audit-ignored-roles" class="text-2xs font-bold text-on-surface-variant/70 uppercase tracking-widest">
+            <label for="audit-ignored-roles" class="text-xs font-semibold text-on-surface-variant/70">
               {m.audit_ignored_users()}
             </label>
             <MultiSelect
@@ -429,7 +429,7 @@
 
                 {#each event.changes as change}
                   <div class="space-y-2">
-                    <h4 class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/60">
+                    <h4 class="text-xs font-semibold text-on-surface-variant/60">
                       {change.label}
                     </h4>
 
@@ -445,7 +445,7 @@
                       <div class="rounded-xl border border-outline-variant/10 overflow-x-auto">
                         <table class="w-full font-mono text-xs border-collapse">
                           <thead>
-                            <tr class="text-2xs uppercase tracking-widest text-on-surface-variant/40">
+                            <tr class="text-xs text-on-surface-variant/40">
                               <th class="text-left font-bold px-3 py-2 w-1/2">{m.audit_before()}</th>
                               <th class="text-left font-bold px-3 py-2 w-1/2 border-l border-outline-variant/10">{m.audit_after()}</th>
                             </tr>
@@ -487,11 +487,11 @@
                       <!-- Champ scalaire : ancienne valeur barrée, nouvelle en vert -->
                       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div class="px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-300 wrap-break-word">
-                          <span class="block text-2xs uppercase tracking-widest opacity-60 mb-0.5">{m.audit_before()}</span>
+                          <span class="block text-xs opacity-60 mb-0.5">{m.audit_before()}</span>
                           {displayValue(change.before)}
                         </div>
                         <div class="px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 wrap-break-word">
-                          <span class="block text-2xs uppercase tracking-widest opacity-60 mb-0.5">{m.audit_after()}</span>
+                          <span class="block text-xs opacity-60 mb-0.5">{m.audit_after()}</span>
                           {displayValue(change.after)}
                         </div>
                       </div>

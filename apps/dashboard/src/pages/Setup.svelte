@@ -235,7 +235,7 @@
                   <Papicon icon="arrow-right" size={13} />
                 </span>
                 {#if index === 0}
-                  <span class="text-2xs font-semibold uppercase tracking-wider text-primary">
+                  <span class="text-xs font-semibold text-primary">
                     À faire maintenant
                   </span>
                 {/if}
@@ -269,7 +269,7 @@
             </svg>
             <div class="absolute inset-0 flex flex-col items-center justify-center">
               <span class="text-2xl font-bold tracking-tight {textColor(percent)}">{percent}%</span>
-              <span class="text-2xs uppercase tracking-widest text-on-surface-variant/70">
+              <span class="text-xs text-on-surface-variant/70">
                 {progress.done}/{progress.total}
               </span>
             </div>

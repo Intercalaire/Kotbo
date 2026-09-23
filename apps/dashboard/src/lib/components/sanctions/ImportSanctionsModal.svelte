@@ -169,7 +169,7 @@
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {#each SANCTION_IMPORT_FIELDS as field (field)}
             <div class="space-y-1">
-              <label for="mapping-{field}" class="text-2xs font-semibold text-on-surface-variant/60 uppercase tracking-wide">{FIELD_LABELS[field]()}</label>
+              <label for="mapping-{field}" class="text-xs font-semibold text-on-surface-variant/60">{FIELD_LABELS[field]()}</label>
               <FormSelect
                 id="mapping-{field}"
                 value={mapping[field] ?? ''}

@@ -318,7 +318,7 @@
             </svg>
             <div class="absolute inset-0 flex flex-col items-center justify-center">
               <span class="text-4xl font-bold tracking-tight {scoreColor(report.score)}">{report.score}</span>
-              <span class="text-2xs uppercase tracking-widest text-on-surface-variant/70">Note {report.grade}</span>
+              <span class="text-xs text-on-surface-variant/70">Note {report.grade}</span>
             </div>
           </div>
 

@@ -1839,7 +1839,7 @@
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center justify-between gap-2">
                       <p class="text-sm font-semibold text-on-surface truncate">@{ticket.username || m.e1_tickets_anonymous()}</p>
-                      <span class="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase tracking-wider border shrink-0 {getStatusColor(ticket.status)}">
+                      <span class="px-2 py-0.5 rounded-full text-xs font-semibold border shrink-0 {getStatusColor(ticket.status)}">
                         {getStatusLabel(ticket.status)}
                       </span>
                     </div>
@@ -1903,11 +1903,11 @@
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
                   <h3 class="text-sm lg:text-base font-semibold text-on-surface truncate">@{selectedTicketDetail?.username || m.e1_tickets_user_fallback()}</h3>
-                  <span class="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase tracking-wider border {getStatusColor(selectedTicketDetail?.status)}">
+                  <span class="px-2 py-0.5 rounded-full text-xs font-semibold border {getStatusColor(selectedTicketDetail?.status)}">
                     {getStatusLabel(selectedTicketDetail?.status)}
                   </span>
                   {#if selectedTicketDetail?.mode && selectedTicketDetail.mode !== 'CHANNEL'}
-                    <span class="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">
                       {selectedTicketDetail.mode === 'DM' ? m.e1_tickets_mode_dm() : m.e1_tickets_mode_thread()}
                     </span>
                   {/if}
@@ -1944,7 +1944,7 @@
             <div class="flex items-center gap-2 mt-3 overflow-x-auto pb-1 scrollbar-hide">
               <button
                 onclick={() => openMemberCase(selectedTicketDetail.userId, selectedTicketDetail.username)}
-                class="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-lg text-2xs font-semibold uppercase tracking-wider hover:bg-indigo-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                class="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-lg text-xs font-semibold hover:bg-indigo-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
               >
                 <Papicon icon="shield" size={12} /> {m.e1_tickets_btn_case()}
               </button>
@@ -1952,13 +1952,13 @@
               {#if selectedTicketDetail?.status === 'OPEN'}
                 {#if selectedTicketDetail.claimedBy !== authStore.user?.id}
                   <button onclick={claimTicket}
-                    class="px-3 py-1.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-2xs font-semibold uppercase tracking-wider hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                    class="px-3 py-1.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-xs font-semibold hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                   >
                     <Papicon icon="user-check" size={12} /> {m.e1_tickets_btn_claim()}
                   </button>
                 {/if}
                 <button onclick={() => showCloseModal = true}
-                  class="px-3 py-1.5 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-lg text-2xs font-semibold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                  class="px-3 py-1.5 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-lg text-xs font-semibold hover:bg-rose-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                 >
                   <Papicon icon="x-circle" size={12} /> {m.e1_tickets_btn_close()}
                 </button>
@@ -1966,7 +1966,7 @@
 
               {#if selectedTicketDetail?.status === 'CLAIMED' && selectedTicketDetail.claimedById !== authStore.user?.id && (config.ticketAllowOverclaim ?? true) && config.ticketOverclaimPermission !== 'NONE'}
                 <button onclick={claimTicket}
-                  class="px-3 py-1.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-2xs font-semibold uppercase tracking-wider hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                  class="px-3 py-1.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-xs font-semibold hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                 >
                   <Papicon icon="user-check" size={12} /> {m.e1_tickets_btn_overclaim()}
                 </button>
@@ -1975,7 +1975,7 @@
               {#if selectedTicketDetail?.status === 'CLOSED' || selectedTicketDetail?.status === 'ARCHIVED'}
                 {#if selectedTicketDetail.channelId}
                   <button onclick={reopenTicket}
-                    class="px-3 py-1.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg text-2xs font-semibold uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                    class="px-3 py-1.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg text-xs font-semibold hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                   >
                     <Papicon icon="refresh" size={12} /> {m.e1_tickets_btn_reopen()}
                   </button>
@@ -1985,13 +1985,13 @@
                        posée juste avant lui pour se présenter d'abord. -->
                   {#if selectedTicketDetail.status === 'ARCHIVED'}
                     <button onclick={() => archiveTicket(true)}
-                      class="px-3 py-1.5 bg-sky-500/10 text-sky-400 border border-sky-500/20 rounded-lg text-2xs font-semibold uppercase tracking-wider hover:bg-sky-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                      class="px-3 py-1.5 bg-sky-500/10 text-sky-400 border border-sky-500/20 rounded-lg text-xs font-semibold hover:bg-sky-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                     >
                       <Papicon icon="upload" size={12} /> {m.e1_tickets_btn_unarchive()}
                     </button>
                   {:else}
                     <button onclick={() => archiveTicket(false)}
-                      class="px-3 py-1.5 bg-slate-500/10 text-slate-400 border border-slate-500/20 rounded-lg text-2xs font-semibold uppercase tracking-wider hover:bg-slate-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                      class="px-3 py-1.5 bg-slate-500/10 text-slate-400 border border-slate-500/20 rounded-lg text-xs font-semibold hover:bg-slate-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                     >
                       <Papicon icon="archive" size={12} /> {m.e1_tickets_btn_archive()}
                     </button>
@@ -1999,13 +1999,13 @@
 
                   {#if deletionLock}
                     <button onclick={unlockTicket}
-                      class="px-3 py-1.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-2xs font-semibold uppercase tracking-wider hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                      class="px-3 py-1.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-xs font-semibold hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                     >
                       <Papicon icon="unlock" size={12} /> {m.e1_tickets_btn_unlock()}
                     </button>
                   {:else}
                     <button onclick={() => showLockModal = true}
-                      class="px-3 py-1.5 bg-outline-variant/10 text-on-surface-variant border border-outline-variant/20 rounded-lg text-2xs font-semibold uppercase tracking-wider hover:bg-on-surface-variant hover:text-surface transition-all flex items-center gap-1.5 shrink-0"
+                      class="px-3 py-1.5 bg-outline-variant/10 text-on-surface-variant border border-outline-variant/20 rounded-lg text-xs font-semibold hover:bg-on-surface-variant hover:text-surface transition-all flex items-center gap-1.5 shrink-0"
                     >
                       <Papicon icon="lock" size={12} /> {m.e1_tickets_btn_lock()}
                     </button>
@@ -2036,7 +2036,7 @@
 
               {#if selectedTicketDetail?.transcriptId}
                 <a href="/transcripts/{selectedTicketDetail.transcriptId}" target="_blank"
-                  class="px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-2xs font-semibold uppercase tracking-wider hover:bg-blue-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                  class="px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-semibold hover:bg-blue-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                 >
                   <Papicon icon="external-link" size={12} /> {m.e1_tickets_original_transcript()}
                 </a>
@@ -2061,7 +2061,7 @@
               <div class="mt-3 flex gap-2 items-center">
                 <FormInput type="text" bind:value={ticketRenameName} placeholder={m.e1_tickets_rename_ph()} className="flex-1" />
                 <button onclick={renameTicket} disabled={renameAction.state.loading || !ticketRenameName.trim()}
-                  class="px-3 py-2.5 bg-primary text-white rounded-lg text-2xs font-semibold uppercase tracking-wider disabled:opacity-50 flex items-center gap-1.5 shrink-0"
+                  class="px-3 py-2.5 bg-primary text-white rounded-lg text-xs font-semibold disabled:opacity-50 flex items-center gap-1.5 shrink-0"
                 >
                   <Papicon icon="edit" size={12} />
                   {renameAction.state.loading ? '...' : m.e1_tickets_rename_btn()}
@@ -2103,7 +2103,7 @@
                     <div class="flex items-baseline gap-1.5 flex-wrap">
                       <span class="text-xs lg:text-sm font-bold text-white">{msg.authorName || m.e1_tickets_anonymous()}</span>
                       {#if msg.isStaff}
-                        <span class="bg-[#5865F2] text-white text-2xs lg:text-2xs font-semibold uppercase px-1 py-0.5 rounded tracking-wider leading-none">{m.e1_tickets_staff_badge()}</span>
+                        <span class="bg-[#5865F2] text-white text-xs lg:text-2xs font-semibold px-1 py-0.5 rounded leading-none">{m.e1_tickets_staff_badge()}</span>
                       {/if}
                       <span class="text-2xs lg:text-2xs text-white/40">{new Date(msg.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
@@ -2267,7 +2267,7 @@
           <button
             onclick={runTicketSetup}
             disabled={setupAction.state.loading}
-            class="px-4 py-2.5 bg-surface-container-high text-on-surface rounded-xl text-2xs font-semibold uppercase tracking-wider active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2 shrink-0"
+            class="px-4 py-2.5 bg-surface-container-high text-on-surface rounded-xl text-xs font-semibold active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2 shrink-0"
           >
             <Papicon icon="sparkles" size={13} />
             {setupAction.state.loading ? m.e1_tickets_setup_running() : m.e1_tickets_setup()}
@@ -2275,7 +2275,7 @@
           <button
             onclick={sendEmbedPanel}
             disabled={sendEmbedAction.state.loading || !ticketChannelId}
-            class="px-4 py-2.5 bg-primary text-white rounded-xl text-2xs font-semibold uppercase tracking-wider active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2 shrink-0"
+            class="px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-semibold active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2 shrink-0"
           >
             <Papicon icon="send" size={13} />
             {sendEmbedAction.state.loading ? m.e1_tickets_sending() : m.e1_tickets_send_embed()}
@@ -2945,7 +2945,7 @@
           <div class="px-4 lg:px-5 pb-5 border-t border-outline-variant/10 pt-4 space-y-4">
             <div class="flex justify-end">
               <button onclick={addTicketType}
-                class="px-3 py-2 bg-primary text-white rounded-lg text-2xs font-semibold uppercase tracking-wider active:scale-[0.98] transition-transform flex items-center gap-1.5"
+                class="px-3 py-2 bg-primary text-white rounded-lg text-xs font-semibold active:scale-[0.98] transition-transform flex items-center gap-1.5"
               >
                 <Papicon icon="plus" size={13} /> {m.e1_tickets_add_type()}
               </button>
@@ -2970,13 +2970,13 @@
                         <div class="flex flex-wrap items-center gap-1.5 mt-1">
                           <!-- Mode badge -->
                           {#if ticketType.mode === 'CHANNEL'}
-                            <span class="px-1.5 py-0.5 rounded text-2xs font-semibold tracking-wider uppercase bg-blue-500/10 text-blue-400 border border-blue-500/15">{m.e1_tickets_badge_channel()}</span>
+                            <span class="px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/15">{m.e1_tickets_badge_channel()}</span>
                           {:else if ticketType.mode === 'DM'}
-                            <span class="px-1.5 py-0.5 rounded text-2xs font-semibold tracking-wider uppercase bg-purple-500/10 text-purple-400 border border-purple-500/15">{m.e1_tickets_badge_dm()}</span>
+                            <span class="px-1.5 py-0.5 rounded text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/15">{m.e1_tickets_badge_dm()}</span>
                           {:else if ticketType.mode === 'THREAD'}
-                            <span class="px-1.5 py-0.5 rounded text-2xs font-semibold tracking-wider uppercase bg-amber-500/10 text-amber-400 border border-amber-500/15">{m.e1_tickets_badge_thread()}</span>
+                            <span class="px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/15">{m.e1_tickets_badge_thread()}</span>
                           {:else}
-                            <span class="px-1.5 py-0.5 rounded text-2xs font-semibold tracking-wider uppercase bg-surface-container-high text-on-surface-variant/60 border border-outline-variant/10">{m.e1_tickets_badge_global_mode()}</span>
+                            <span class="px-1.5 py-0.5 rounded text-xs font-semibold bg-surface-container-high text-on-surface-variant/60 border border-outline-variant/10">{m.e1_tickets_badge_global_mode()}</span>
                           {/if}
 
                           <!-- Staff Role Badge -->
@@ -3179,7 +3179,7 @@
                               <button
                                 onclick={() => addCustomField(index)}
                                 disabled={(ticketType.formCustomFields || []).length >= 5}
-                                class="px-2 py-1 bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 rounded-lg text-2xs font-semibold uppercase tracking-wider transition-colors flex items-center gap-1"
+                                class="px-2 py-1 bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1"
                               >
                                 <Papicon icon="plus" size={11} /> {m.e1_tickets_add_question()}
                               </button>
@@ -3629,7 +3629,7 @@
           <button
             onclick={addToBlacklist}
             disabled={blacklistAddAction.state.loading || !blacklistUserId.trim()}
-            class="px-4 py-2.5 bg-primary text-white rounded-xl text-2xs font-semibold uppercase tracking-wider active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2"
+            class="px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-semibold active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2"
           >
             <Papicon icon="user-minus" size={13} />
             {blacklistAddAction.state.loading ? m.e1_tickets_bl_adding() : m.e1_tickets_bl_add()}
@@ -3960,7 +3960,7 @@
       </div>
       <p class="text-sm text-on-surface-variant/80 mb-6">{m.e1_tickets_lock_modal_intro()}</p>
 
-      <label class="block text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/70 mb-2" for="ticket-lock-duration">
+      <label class="block text-xs font-semibold text-on-surface-variant/70 mb-2" for="ticket-lock-duration">
         {m.e1_tickets_lock_duration()}
       </label>
       <div id="ticket-lock-duration" class="grid grid-cols-2 gap-2 mb-6">

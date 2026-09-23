@@ -75,7 +75,7 @@
       <div class="p-5 space-y-4 overflow-y-auto">
         <!-- Boutons d'insertion rapide de variables -->
         <div class="space-y-1.5">
-          <p id="msg-modal-variables" class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/70">
+          <p id="msg-modal-variables" class="text-xs font-semibold text-on-surface-variant/70">
             Insérer une variable dynamique
           </p>
           <div class="flex flex-wrap gap-2" role="group" aria-labelledby="msg-modal-variables">
@@ -108,7 +108,7 @@
 
         <!-- Zone de texte -->
         <div class="space-y-1.5">
-          <label for="msg-modal-input" class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/70">
+          <label for="msg-modal-input" class="text-xs font-semibold text-on-surface-variant/70">
             Contenu du message
           </label>
           <textarea
@@ -122,7 +122,7 @@
 
         <!-- Aperçu Discord WYSIWYG -->
         <div class="space-y-1.5">
-          <p class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/70 flex items-center gap-1.5">
+          <p class="text-xs font-semibold text-on-surface-variant/70 flex items-center gap-1.5">
             <Papicon icon="Camera" size={12} />
             <span>Aperçu Discord (WYSIWYG)</span>
           </p>
@@ -135,7 +135,7 @@
               <div class="space-y-1 min-w-0 flex-1">
                 <div class="flex items-center gap-2">
                   <span class="font-semibold text-white text-sm">Kotbo</span>
-                  <span class="px-1 py-0.2 rounded bg-[#5865f2] text-2xs font-bold text-white uppercase tracking-wider">BOT</span>
+                  <span class="px-1 py-0.2 rounded bg-[#5865f2] text-xs font-semibold text-white">BOT</span>
                   <span class="text-2xs text-[#949ba4]">Aujourd'hui à 12:00</span>
                 </div>
                 <div class="text-sm leading-relaxed whitespace-pre-wrap break-words">

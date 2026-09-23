@@ -195,7 +195,7 @@
       </div>
 
       <div class="mt-2 flex items-baseline justify-between gap-3">
-        <p class="text-2xs font-semibold uppercase tracking-wider text-primary/75 truncate">
+        <p class="text-xs font-semibold text-primary/75 truncate">
           {visiblePhases.find((phase) => phase.key === currentPhase)?.label ?? ''}
         </p>
         <p class="text-2xs font-medium text-on-surface-variant/40 shrink-0">
@@ -224,7 +224,7 @@
                 <span class="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
                   <Papicon icon={definition.icon} size={14} />
                 </span>
-                <span class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/45">
+                <span class="text-xs font-semibold text-on-surface-variant/45">
                   {definition.label()}
                 </span>
               </div>
@@ -246,7 +246,7 @@
                boutique, la colonne de gauche est plus longue que l'ecran, et un
                apercu reste en haut ne montre plus rien de ce qu'on modifie. -->
           <aside class="min-w-0 lg:sticky lg:top-6">
-            <p class="mb-2.5 flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/35">
+            <p class="mb-2.5 flex items-center gap-1.5 text-xs font-semibold text-on-surface-variant/35">
               <Papicon icon="eye" size={12} />
               {m.onb_shell_preview_hint()}
             </p>
@@ -261,7 +261,7 @@
               <span class="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
                 <Papicon icon={definition.icon} size={14} />
               </span>
-              <span class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/45">
+              <span class="text-xs font-semibold text-on-surface-variant/45">
                 {definition.label()}
               </span>
             </div>

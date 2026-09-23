@@ -269,7 +269,7 @@
     {#each [{ key: 'then' as const, label: m.wf_then() }, { key: 'otherwise' as const, label: m.wf_else() }] as branch (branch.key)}
       <div class="px-3 pb-3">
         <div class="pl-3 border-l border-dashed border-outline-variant/25 space-y-2">
-          <p class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/70">{branch.label}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/70">{branch.label}</p>
 
           {#each (step as ConditionStep)[branch.key] as child, index (child.id)}
             {@const movable = movableSteps((step as ConditionStep)[branch.key], index)}

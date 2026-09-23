@@ -132,15 +132,15 @@
             <h3 class="text-base font-semibold text-on-surface truncate">{card.name}</h3>
           </div>
           {#if running}
-            <span class="shrink-0 text-2xs font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-tertiary/15 text-tertiary">
+            <span class="shrink-0 text-xs font-semibold px-2 py-1 rounded-lg bg-tertiary/15 text-tertiary">
               {m.prg_presets_active()}
             </span>
           {:else if selected}
-            <span class="shrink-0 text-2xs font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-primary/15 text-primary">
+            <span class="shrink-0 text-xs font-semibold px-2 py-1 rounded-lg bg-primary/15 text-primary">
               {m.prg_presets_selected()}
             </span>
           {:else if card.recommended}
-            <span class="shrink-0 text-2xs font-bold uppercase tracking-widest px-2 py-1 rounded-lg border border-primary/30 text-primary/80">
+            <span class="shrink-0 text-xs font-semibold px-2 py-1 rounded-lg border border-primary/30 text-primary/80">
               {m.prg_presets_recommended()}
             </span>
           {/if}
@@ -151,19 +151,19 @@
         {#if detailed}
           <div class="grid grid-cols-2 gap-2.5 mt-5">
             <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-              <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_tile_rp_per_xp()}</p>
+              <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_tile_rp_per_xp()}</p>
               <p class="text-sm font-semibold text-on-surface">×{values.rpPerXp}</p>
             </div>
             <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-              <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_tile_tiers()}</p>
+              <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_tile_tiers()}</p>
               <p class="text-sm font-semibold text-on-surface">{values.ladderTierCount}</p>
             </div>
             <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-              <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_tile_apex()}</p>
+              <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_tile_apex()}</p>
               <p class="text-sm font-semibold text-on-surface">{rankedValuesApexRp(values).toLocaleString()} RP</p>
             </div>
             <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-              <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.prg_tile_decay()}</p>
+              <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_tile_decay()}</p>
               <p class="text-sm font-semibold text-on-surface">{values.decayEnabled ? m.prg_tile_decay_on() : m.prg_tile_decay_off()}</p>
             </div>
           </div>

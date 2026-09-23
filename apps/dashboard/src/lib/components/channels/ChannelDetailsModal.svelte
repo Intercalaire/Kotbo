@@ -283,12 +283,12 @@
           {#if activeTab === 'resume'}
             <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
               <div class="premium-card p-5 rounded-xl">
-                <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.chd_kpi_messages()}</p>
+                <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_kpi_messages()}</p>
                 <p class="text-2xl font-semibold text-primary">{formatNumber(details.activity.totals.messages)}</p>
                 <p class="text-2xs font-bold {changeClass(details.activity.change.messages)}">{formatChange(details.activity.change.messages)}</p>
               </div>
               <div class="premium-card p-5 rounded-xl">
-                <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.chd_kpi_share()}</p>
+                <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_kpi_share()}</p>
                 <p class="text-2xl font-semibold text-cyan-500">{details.activity.share.messagesPct} %</p>
                 <p class="text-2xs font-bold text-on-surface-variant/50">
                   {details.activity.share.rank
@@ -297,17 +297,17 @@
                 </p>
               </div>
               <div class="premium-card p-5 rounded-xl">
-                <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.chd_kpi_authors()}</p>
+                <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_kpi_authors()}</p>
                 <p class="text-2xl font-semibold text-purple-500">{details.activity.totals.uniqueAuthorsAvg}</p>
                 <p class="text-2xs font-bold text-on-surface-variant/50">{m.chd_kpi_authors_hint()}</p>
               </div>
               <div class="premium-card p-5 rounded-xl">
-                <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.chd_kpi_active_days()}</p>
+                <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_kpi_active_days()}</p>
                 <p class="text-2xl font-semibold text-orange-500">{details.activity.totals.activeDays}<span class="text-sm text-on-surface-variant/40">/{details.period}</span></p>
                 <p class="text-2xs font-bold text-on-surface-variant/50">{m.chd_kpi_avg_per_day({ value: details.activity.totals.avgMessagesPerDay })}</p>
               </div>
               <div class="premium-card p-5 rounded-xl">
-                <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.chd_kpi_voice()}</p>
+                <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_kpi_voice()}</p>
                 <p class="text-2xl font-semibold text-emerald-500">{formatNumber(details.activity.totals.voiceMinutes)}</p>
                 <p class="text-2xs font-bold {changeClass(details.activity.change.voiceMinutes)}">{formatChange(details.activity.change.voiceMinutes)}</p>
               </div>
@@ -606,15 +606,15 @@
           {:else if activeTab === 'contenu'}
             <div class="grid grid-cols-3 gap-4">
               <div class="premium-card p-5 rounded-xl">
-                <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.chd_counter_attachments()}</p>
+                <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_counter_attachments()}</p>
                 <p class="text-2xl font-semibold text-cyan-500">{formatNumber(details.content.counters.attachments)}</p>
               </div>
               <div class="premium-card p-5 rounded-xl">
-                <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.chd_counter_replies()}</p>
+                <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_counter_replies()}</p>
                 <p class="text-2xl font-semibold text-purple-500">{formatNumber(details.content.counters.replies)}</p>
               </div>
               <div class="premium-card p-5 rounded-xl">
-                <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.chd_counter_bots()}</p>
+                <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_counter_bots()}</p>
                 <p class="text-2xl font-semibold text-orange-500">{formatNumber(details.content.counters.botMessages)}</p>
               </div>
             </div>
@@ -736,11 +736,11 @@
             {:else}
               <div class="grid grid-cols-2 gap-4">
                 <div class="premium-card p-5 rounded-xl">
-                  <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.chd_deleted_messages()}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_deleted_messages()}</p>
                   <p class="text-2xl font-semibold text-red-500">{formatNumber(details.moderation.deleted)}</p>
                 </div>
                 <div class="premium-card p-5 rounded-xl">
-                  <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.chd_edited_messages()}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_edited_messages()}</p>
                   <p class="text-2xl font-semibold text-amber-500">{formatNumber(details.moderation.edited)}</p>
                 </div>
               </div>
@@ -861,7 +861,7 @@
                 </div>
                 {#if details.channel?.topic}
                   <div class="pt-3 border-t border-outline-variant/10">
-                    <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-1">{m.chd_meta_topic()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant/40 mb-1">{m.chd_meta_topic()}</p>
                     <p class="text-xs text-on-surface-variant/80 wrap-break-word">{details.channel.topic}</p>
                   </div>
                 {/if}

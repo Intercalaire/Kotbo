@@ -91,7 +91,7 @@
 
       <div class="px-2 py-2 max-h-[420px] overflow-y-auto">
         {#each tree as category (category.key)}
-          <p class="px-2 pt-2.5 pb-1 text-2xs font-semibold uppercase tracking-wide text-[#949ba4]">
+          <p class="px-2 pt-2.5 pb-1 text-xs font-semibold text-[#949ba4]">
             {category.name}
             {#if category.already}<span class="ml-1 font-medium normal-case tracking-normal text-[#6d7178]">— déjà là</span>{/if}
           </p>

@@ -216,21 +216,21 @@
     <!-- Summary stats -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
       <div class="bg-surface-container-high/30 rounded-lg p-4 border border-outline-variant/5">
-        <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-1">{m.d4_hm_period_total()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant/40 mb-1">{m.d4_hm_period_total()}</p>
         <p class="text-lg font-semibold text-on-surface {metric === 'net' && totalValue < 0 ? 'text-rose-400' : metric === 'net' && totalValue > 0 ? 'text-emerald-400' : ''}">
           {metric === 'net' && totalValue > 0 ? '+' : ''}{totalValue.toLocaleString(dateLocale())}
           <span class="text-xs font-bold text-on-surface-variant/40">{cfg.unit}</span>
         </p>
       </div>
       <div class="bg-surface-container-high/30 rounded-lg p-4 border border-outline-variant/5">
-        <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-1">{m.d4_hm_absolute_peak()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant/40 mb-1">{m.d4_hm_absolute_peak()}</p>
         <p class="text-lg font-semibold text-on-surface">
           {metric === 'net' && peakCell.val > 0 ? '+' : ''}{peakCell.val.toLocaleString(dateLocale())}
           <span class="text-xs font-bold text-on-surface-variant/40">{cfg.unit}</span>
         </p>
       </div>
       <div class="bg-surface-container-high/30 rounded-lg p-4 border border-outline-variant/5 md:col-span-2">
-        <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-1">{m.d4_hm_peak_hour()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant/40 mb-1">{m.d4_hm_peak_hour()}</p>
         <p class="text-base font-semibold text-on-surface flex items-center gap-2">
           <Papicon icon="Lightning" size={14} class="text-amber-400" />
           {bestSlot}
@@ -346,7 +346,7 @@
 
     <!-- Legend -->
     <div class="flex items-center justify-center gap-3 pt-6 mt-2 border-t border-outline-variant/10 flex-wrap">
-      <span class="text-2xs font-semibold text-on-surface-variant/40 uppercase tracking-widest">{m.d4_hm_intensity()}</span>
+      <span class="text-xs font-semibold text-on-surface-variant/40">{m.d4_hm_intensity()}</span>
       <div class="flex items-center gap-1.5">
         <div class="w-3 h-3 rounded border border-white/5" style="background: rgba(255,255,255,0.04)"></div>
         <div class="w-5 h-4 rounded" style="background: {cfg.color1}60"></div>
@@ -402,7 +402,7 @@
         {@const slotTotal = slot.hours.reduce((s, h) => s + hourTotals[h], 0)}
         {@const slotPct = totalValue > 0 ? Math.round((slotTotal / totalValue) * 100) : 0}
         <div class="bg-surface-container-high/20 rounded-lg p-4 border border-outline-variant/5 text-center space-y-2">
-          <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/50">{slot.label}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/50">{slot.label}</p>
           <p class="text-2xs text-on-surface-variant/30">{slot.range}</p>
           <p class="text-base font-semibold text-on-surface">{slotPct}%</p>
           <div class="h-1 bg-surface-container-high rounded-full overflow-hidden">

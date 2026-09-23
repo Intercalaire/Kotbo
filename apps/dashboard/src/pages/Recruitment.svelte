@@ -510,7 +510,7 @@
         </div>
         <div class="text-xs">
             <p class="text-2xl font-semibold text-on-surface leading-none">{stats.pending}</p>
-            <p class="text-2xs uppercase tracking-widest text-on-surface-variant/70 font-bold mt-1">{m.recruit_stat_pending()}</p>
+            <p class="text-xs text-on-surface-variant/70 font-semibold mt-1">{m.recruit_stat_pending()}</p>
         </div>
       </div>
       <div class="px-6 py-4 rounded-xl bg-surface-container-low/50 border border-outline-variant/10 flex items-center gap-4 hover:shadow-sm hover:shadow-primary/5 transition-all">
@@ -519,7 +519,7 @@
         </div>
         <div class="text-xs">
             <p class="text-2xl font-semibold text-on-surface leading-none">{stats.oral}</p>
-            <p class="text-2xs uppercase tracking-widest text-on-surface-variant/70 font-bold mt-1">{m.recruit_stat_oral()}</p>
+            <p class="text-xs text-on-surface-variant/70 font-semibold mt-1">{m.recruit_stat_oral()}</p>
         </div>
       </div>
       <div class="px-6 py-4 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-4 hover:shadow-sm hover:shadow-rose-500/20 transition-all">
@@ -528,7 +528,7 @@
         </div>
         <div class="text-xs text-rose-500">
             <p class="text-2xl font-semibold leading-none">{stats.autoRejected}</p>
-            <p class="text-2xs uppercase tracking-widest font-bold mt-1 opacity-70">{m.recruit_stat_auto_rejected()}</p>
+            <p class="text-xs font-semibold mt-1 opacity-70">{m.recruit_stat_auto_rejected()}</p>
         </div>
       </div>
     </div>
@@ -603,7 +603,7 @@
                                   <h3 class="text-xl font-semibold text-on-surface font-headline tracking-tight">{candidature.username || m.recruit_anonymous()}</h3>
                                   <div class="flex flex-wrap items-center gap-3 mt-1">
                                       <span class="text-xs font-bold text-on-surface-variant/75">{new Date(candidature.createdAt).toLocaleDateString(dateLocale())}</span>
-                                      <span class="px-3 py-1 rounded-full text-2xs font-semibold uppercase tracking-widest border {getStatusColor(candidature.status)}">
+                                      <span class="px-3 py-1 rounded-full text-xs font-semibold border {getStatusColor(candidature.status)}">
                                           {getStatusLabel(candidature.status)}
                                       </span>
                                       {#if candidature.discordId}
@@ -635,7 +635,7 @@
                           {#each Object.entries(candidature.data) as [key, value]}
                              {#if typeof value !== 'object' || Array.isArray(value)}
                               <div class="space-y-1">
-                                  <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/70 leading-tight">{fieldLabels[key] || key}</p>
+                                  <p class="text-xs font-semibold text-on-surface-variant/70 leading-tight">{fieldLabels[key] || key}</p>
                                   <div class="text-sm font-medium text-on-surface/80 bg-surface-container/30 rounded-xl px-4 py-2 border border-outline-variant/5">
                                      <div class="max-h-32 overflow-y-auto scrollbar-hide whitespace-pre-wrap">{formatValue(value)}</div>
                                   </div>
@@ -699,7 +699,7 @@
                       {/if}
                       
                       {#if candidature.reapplyAfter && new Date(candidature.reapplyAfter) > new Date()}
-                         <div class="text-2xs uppercase font-bold tracking-widest text-on-surface-variant/50 text-center mt-2">
+                         <div class="text-xs font-semibold text-on-surface-variant/50 text-center mt-2">
                            {m.recruit_reapply_after({ date: new Date(candidature.reapplyAfter).toLocaleDateString(dateLocale()) })}
                          </div>
                       {/if}

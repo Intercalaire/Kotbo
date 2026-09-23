@@ -1460,11 +1460,11 @@
             <!-- Left panel: scales list -->
             <div class="w-full lg:w-1/3 space-y-4 border-r border-outline-variant/10 lg:pr-8">
               <div class="flex items-center justify-between">
-                <span class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/60">{m.sc_my_scales()}</span>
+                <span class="text-xs font-semibold text-on-surface-variant/60">{m.sc_my_scales()}</span>
                 {#if !showAddTableField}
                   <button 
                     onclick={() => showAddTableField = true}
-                    class="text-xs font-semibold text-primary hover:text-primary/80 transition uppercase tracking-wider"
+                    class="text-xs font-semibold text-primary hover:text-primary/80 transition"
                   >
                     {m.sc_add()}
                   </button>
@@ -1480,7 +1480,7 @@
                   />
                   <button 
                     onclick={addSanctionTable}
-                    class="px-3 py-1 bg-primary text-on-primary rounded-xl text-2xs font-semibold uppercase tracking-wider"
+                    class="px-3 py-1 bg-primary text-on-primary rounded-xl text-xs font-semibold"
                   >
                     {m.sc_ok()}
                   </button>
@@ -1540,7 +1540,7 @@
 
                     <!-- Exporter -->
                     <div class="flex items-center gap-2">
-                      <span class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/60 mr-2">{m.sc_export_scale()}</span>
+                      <span class="text-xs font-semibold text-on-surface-variant/60 mr-2">{m.sc_export_scale()}</span>
                       <button 
                         onclick={() => exportTableToImage(currentTable)}
                         class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
@@ -1577,7 +1577,7 @@
                     <div class="overflow-x-auto rounded-lg border border-outline-variant/10 bg-surface-container-low/20">
                       <table class="w-full text-left border-collapse font-inter text-xs">
                         <thead>
-                          <tr class="bg-surface-container-high/40 text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/70 border-b border-outline-variant/15 select-none">
+                          <tr class="bg-surface-container-high/40 text-xs font-semibold text-on-surface-variant/70 border-b border-outline-variant/15 select-none">
                             <th class="py-3 px-4 w-20 text-center border-r border-outline-variant/10">{m.sc_col_tier()}</th>
                             <th class="py-3 px-4 w-48 border-r border-outline-variant/10">{m.sc_col_action()}</th>
                             <th class="py-3 px-4 w-48 border-r border-outline-variant/10">{m.sc_col_duration()}</th>
@@ -1674,7 +1674,7 @@
                             <td colspan="5" class="p-0">
                               <button 
                                 onclick={() => addTier(selectedTableIndex)}
-                                class="w-full py-2.5 text-center text-2xs font-semibold uppercase tracking-wider text-primary hover:text-primary/80 hover:bg-primary/5 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                class="w-full py-2.5 text-center text-xs font-semibold text-primary hover:text-primary/80 hover:bg-primary/5 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                               >
                                 <Papicon icon="plus" size={12} />
                                 {m.sc_insert_tier()}
@@ -1714,7 +1714,7 @@
       <div class="relative bg-linear-to-br from-primary/10 via-surface to-surface p-8 border-b border-outline-variant/5">
         <div class="flex items-start justify-between gap-4">
           <div>
-            <p class="text-2xs font-semibold uppercase tracking-wider text-primary">{m.sc_sanction_file()}</p>
+            <p class="text-xs font-semibold text-primary">{m.sc_sanction_file()}</p>
             <h3 id="modal-title" class="text-2xl font-semibold text-on-surface mt-1">{typeLabel(selectedSanction.type)}</h3>
             <p class="text-xs font-bold text-on-surface-variant/60 mt-1">
               {m.sc_applied_to()}
@@ -1773,7 +1773,7 @@
                 <p class="text-xs font-medium text-on-surface-variant/40 px-1">{m.sc_evidence()}</p>
                 <div class="flex flex-wrap gap-2">
                   {#each selectedReport.evidenceLinks as link}
-                    <a href={link} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-primary/5 px-4 py-2.5 text-2xs font-semibold text-primary uppercase tracking-widest transition-all hover:bg-primary/10">
+                    <a href={link} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-primary/5 px-4 py-2.5 text-xs font-semibold text-primary transition-all hover:bg-primary/10">
                       <Papicon icon="external-link" size={14} />
                       {m.sc_evidence_link()}
                     </a>
@@ -1804,7 +1804,7 @@
               {#if canEditSelectedReport}
                 <button
                   onclick={startEditing}
-                  class="inline-flex items-center gap-2 rounded-lg bg-primary px-8 py-3 text-2xs font-semibold text-on-primary uppercase tracking-widest transition-all active:scale-95"
+                  class="inline-flex items-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold text-on-primary transition-all active:scale-95"
                 >
                   <Papicon icon="edit-3" size={16} />
                   {m.sc_edit_report()}
@@ -1875,14 +1875,14 @@
               {#if isEditing}
                 <button
                   onclick={() => isEditing = false}
-                  class="flex-1 py-4 rounded-lg bg-on-surface/5 text-2xs font-semibold uppercase tracking-widest text-on-surface-variant transition-all hover:bg-on-surface/10"
+                  class="flex-1 py-4 rounded-lg bg-on-surface/5 text-xs font-semibold text-on-surface-variant transition-all hover:bg-on-surface/10"
                 >
                   {m.common_cancel()}
                 </button>
                 <button
                   onclick={handleUpdateReport}
                   disabled={updateReportBusy}
-                  class="flex-2 py-4 rounded-lg bg-primary text-on-primary text-2xs font-semibold uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
+                  class="flex-2 py-4 rounded-lg bg-primary text-on-primary text-xs font-semibold transition-all active:scale-95 disabled:opacity-50"
                 >
                   {updateReportBusy ? m.sc_saving() : m.sc_update_report()}
                 </button>
@@ -1890,7 +1890,7 @@
                 <button
                   onclick={submitReport}
                   disabled={creatingReport || !canCreateSelectedReport}
-                  class="w-full py-4 rounded-lg bg-primary text-on-primary text-2xs font-semibold uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
+                  class="w-full py-4 rounded-lg bg-primary text-on-primary text-xs font-semibold transition-all active:scale-95 disabled:opacity-50"
                 >
                   {creatingReport ? m.sc_creating() : m.sc_finalize_report()}
                 </button>
@@ -1923,7 +1923,7 @@
       tabindex="-1"
     >
       <div>
-        <p class="text-2xs font-semibold uppercase tracking-wider text-red-500">{m.sc_sensitive_action()}</p>
+        <p class="text-xs font-semibold text-red-500">{m.sc_sensitive_action()}</p>
         <h3 id="delete-sanction-title" class="mt-1 text-xl font-semibold text-on-surface">{m.sc_confirm_deletion()}</h3>
         <p class="mt-2 text-sm text-on-surface-variant">
           {m.sc_delete_confirm_pre()} <span class="font-bold text-on-surface">{typeLabel(pendingDeletion.type)}</span>

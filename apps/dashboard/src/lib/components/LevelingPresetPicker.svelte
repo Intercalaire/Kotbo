@@ -144,15 +144,15 @@
             <h3 class="text-base font-semibold text-on-surface truncate">{card.name}</h3>
           </div>
           {#if running}
-            <span class="shrink-0 text-2xs font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-tertiary/15 text-tertiary">
+            <span class="shrink-0 text-xs font-semibold px-2 py-1 rounded-lg bg-tertiary/15 text-tertiary">
               {m.lv_presets_active()}
             </span>
           {:else if selected}
-            <span class="shrink-0 text-2xs font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-primary/15 text-primary">
+            <span class="shrink-0 text-xs font-semibold px-2 py-1 rounded-lg bg-primary/15 text-primary">
               {m.lv_presets_selected()}
             </span>
           {:else if card.recommended}
-            <span class="shrink-0 text-2xs font-bold uppercase tracking-widest px-2 py-1 rounded-lg border border-primary/30 text-primary/80">
+            <span class="shrink-0 text-xs font-semibold px-2 py-1 rounded-lg border border-primary/30 text-primary/80">
               {m.lv_presets_recommended()}
             </span>
           {/if}
@@ -163,19 +163,19 @@
         {#if detailed}
           <div class="grid grid-cols-2 gap-2.5 mt-5">
             <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-              <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_message()}</p>
+              <p class="text-xs font-semibold text-on-surface-variant/60">{m.lv_gains_tile_message()}</p>
               <p class="text-sm font-semibold text-on-surface">{values.xpMin} – {values.xpMax}</p>
             </div>
             <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-              <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_cooldown()}</p>
+              <p class="text-xs font-semibold text-on-surface-variant/60">{m.lv_gains_tile_cooldown()}</p>
               <p class="text-sm font-semibold text-on-surface">{values.cooldownSeconds} s</p>
             </div>
             <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-              <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_hourly()}</p>
+              <p class="text-xs font-semibold text-on-surface-variant/60">{m.lv_gains_tile_hourly()}</p>
               <p class="text-sm font-semibold text-on-surface">≈ {levelingValuesHourlyXp(values).toLocaleString()}</p>
             </div>
             <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-              <p class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_presets_tile_level_10()}</p>
+              <p class="text-xs font-semibold text-on-surface-variant/60">{m.lv_presets_tile_level_10()}</p>
               <p class="text-sm font-semibold text-on-surface">{levelingValuesXpForLevel(values, 10).toLocaleString()} XP</p>
             </div>
           </div>

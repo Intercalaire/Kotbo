@@ -525,23 +525,23 @@
         {/each}
       {:else}
         <div class="premium-card p-4 rounded-lg">
-          <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/50">{m.iv_tab_invites()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/50">{m.iv_tab_invites()}</p>
           <p class="text-2xl font-semibold text-primary">{totalInvites}</p>
         </div>
         <div class="premium-card p-4 rounded-lg">
-          <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/50">{m.iv_sources_count()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/50">{m.iv_sources_count()}</p>
           <p class="text-2xl font-semibold text-cyan-500">{sourceStats.length}</p>
         </div>
         <div class="premium-card p-4 rounded-lg">
-          <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/50">{m.iv_attributed_joins()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/50">{m.iv_attributed_joins()}</p>
           <p class="text-2xl font-semibold text-primary">{sourceCoverage}%</p>
         </div>
         <div class="premium-card p-4 rounded-lg">
-          <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/50">{m.iv_total_joins()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/50">{m.iv_total_joins()}</p>
           <p class="text-2xl font-semibold text-emerald-500">{totalJoins}</p>
         </div>
         <div class="premium-card p-4 rounded-lg">
-          <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/50">{m.iv_retention()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/50">{m.iv_retention()}</p>
           <p class="text-2xl font-semibold text-cyan-500">{retentionRate}%</p>
         </div>
       {/if}
@@ -785,7 +785,7 @@
           <div class="max-w-2xl">
             <div class="flex items-center gap-2 text-cyan-500 mb-3">
               <Papicon icon="Route" size={18} />
-              <span class="text-2xs font-semibold uppercase tracking-[0.18em]">{m.iv_join_attribution()}</span>
+              <span class="text-xs font-semibold">{m.iv_join_attribution()}</span>
             </div>
             <h3 class="text-xl font-semibold text-on-surface">{m.iv_channel_growth_question()}</h3>
             <p class="mt-2 text-sm text-on-surface-variant/60 leading-relaxed">
@@ -794,7 +794,7 @@
           </div>
           <div class="source-overview-metric">
             {#if leadingSource}
-              <span class="text-2xs uppercase tracking-widest text-on-surface-variant/50">{m.iv_best_source()}</span>
+              <span class="text-xs text-on-surface-variant/50">{m.iv_best_source()}</span>
               <strong class="text-lg text-on-surface mt-1">{leadingSource.name}</strong>
               <span class="text-xs text-emerald-500 mt-1">{leadingSource.joinedCount > 1 ? m.iv_join_other({ count: leadingSource.joinedCount }) : m.iv_join_one({ count: leadingSource.joinedCount })}</span>
             {:else}
@@ -840,7 +840,7 @@
             <div class="overflow-x-auto">
               <table class="w-full min-w-[720px]">
                 <thead>
-                  <tr class="text-left text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/45 border-b border-outline-variant/10">
+                  <tr class="text-left text-xs font-semibold text-on-surface-variant/45 border-b border-outline-variant/10">
                     <th class="px-5 py-3">{m.iv_col_source()}</th>
                     <th class="px-4 py-3">{m.iv_chart_links()}</th>
                     <th class="px-4 py-3 text-right">{m.iv_chart_joins()}</th>

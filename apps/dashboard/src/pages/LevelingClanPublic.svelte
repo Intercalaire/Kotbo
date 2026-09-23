@@ -424,7 +424,7 @@
           <h1 class="text-lg font-extrabold tracking-tight text-slate-800 dark:text-slate-100">
             {guildName}
           </h1>
-          <div class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-semibold text-xs uppercase tracking-wider">
+          <div class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-semibold text-xs">
             <span class="text-amber-500"><Papicon icon="Shield" size={14} /></span>
             <span>{m.clan_public_header_subtitle({ n: currentClanSeason })}</span>
           </div>
@@ -454,7 +454,7 @@
 
       <div class="flex items-center gap-3 self-start sm:self-auto">
         <!-- Sélecteur de langue -->
-        <div class="flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0c1322] p-0.5 text-2xs font-bold uppercase tracking-wider">
+        <div class="flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0c1322] p-0.5 text-xs font-semibold">
           {#each locales as loc}
             <button
               type="button"
@@ -482,7 +482,7 @@
         <div class="relative flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-500/20 dark:border-emerald-500/10 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 absolute"></span>
-          <span class="ml-2.5 uppercase tracking-wider text-2xs">{m.clan_public_live_badge()}</span>
+          <span class="ml-2.5 text-xs">{m.clan_public_live_badge()}</span>
         </div>
       </div>
     </header>
@@ -590,18 +590,18 @@
                   {clan.name}
                 </h2>
                 
-                <span class="px-3 py-1 bg-slate-50 dark:bg-[#0c1322] border border-slate-200/50 dark:border-slate-800 rounded-full text-2xs font-bold text-slate-500 uppercase tracking-wider">
+                <span class="px-3 py-1 bg-slate-50 dark:bg-[#0c1322] border border-slate-200/50 dark:border-slate-800 rounded-full text-xs font-semibold text-slate-500">
                   {m.clan_public_member_count({ n: clan.memberCount })}
                 </span>
               </div>
 
               <!-- Score Card -->
               <div class="flex items-center justify-between p-3.5 rounded-xl bg-slate-50/50 dark:bg-[#0c1322]/50 border border-slate-200/10">
-                <span class="text-2xs font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_season_xp_label()}</span>
+                <span class="text-xs font-semibold text-slate-400">{m.clan_public_season_xp_label()}</span>
                 <div class="flex items-center gap-2">
                   {#if debtOwed > 0}
                     <span
-                      class="text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20"
+                      class="text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20"
                       title={m.clan_public_credit_badge_hint()}
                     >
                       {m.clan_public_credit_badge({ amount: debtOwed.toLocaleString(dateLocale()) })}
@@ -692,7 +692,7 @@
             <!-- ─── Palmarès des parieurs de la saison ─── -->
             <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative">
               <div class="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
-                <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
                   <span class="text-indigo-500"><Papicon icon="Trophy" size={16} /></span>
                   {m.clan_public_bettors_title()}
                 </h2>
@@ -715,7 +715,7 @@
               <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
                   <thead>
-                    <tr class="text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                    <tr class="text-xs font-semibold text-slate-400 dark:text-slate-500">
                       <th class="px-6 py-3">#</th>
                       <th class="px-6 py-3">{m.clan_public_col_user()}</th>
                       <th class="px-6 py-3 text-center">{m.clan_public_bettors_col_record()}</th>
@@ -749,7 +749,7 @@
                         </td>
                         <td class="px-6 py-3 text-center whitespace-nowrap">
                           {#if bettor.bestStreak > 1}
-                            <span class="text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">
                               {m.clan_public_bettors_streak({ n: bettor.bestStreak })}
                             </span>
                           {:else}
@@ -802,7 +802,7 @@
             <!-- ─── Derniers paris tranchés ─── -->
             <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative">
               <div class="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
-                <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
                   <span class="text-indigo-500"><Papicon icon="Sparkles" size={16} /></span>
                   {m.clan_public_bets_title()}
                 </h2>
@@ -833,7 +833,7 @@
                         +{betNetGain(bet).toLocaleString(dateLocale())}
                       </span>
                       {#if bet.creditUsed > 0}
-                        <span class="text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20 whitespace-nowrap">
+                        <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20 whitespace-nowrap">
                           {m.clan_public_bets_on_credit({ amount: bet.creditUsed.toLocaleString(dateLocale()) })}
                         </span>
                       {/if}
@@ -848,7 +848,7 @@
         <!-- ─── Onglet Dettes : mêmes colonnes, même lecture ─── -->
         <div class="grid gap-4 sm:grid-cols-3 relative z-10">
           <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-            <p class="text-2xs font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_total_label()}</p>
+            <p class="text-xs font-semibold text-slate-400">{m.clan_public_debt_total_label()}</p>
             <p class="text-2xl font-black text-rose-500 tracking-tight mt-1">{debtTotals.owed.toLocaleString(dateLocale())}</p>
             {#if debtTotals.engaged > 0}
               <p class="text-2xs text-slate-400 dark:text-slate-500 mt-1 leading-snug" title={m.clan_public_debt_engaged_desc()}>
@@ -857,14 +857,14 @@
             {/if}
           </div>
           <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-            <p class="text-2xs font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_people_label()}</p>
+            <p class="text-xs font-semibold text-slate-400">{m.clan_public_debt_people_label()}</p>
             <p class="text-2xl font-black text-slate-700 dark:text-slate-200 tracking-tight mt-1">{debtTotals.count.toLocaleString(dateLocale())}</p>
             {#if debtTotals.partial}
               <p class="text-2xs text-slate-400 dark:text-slate-500 mt-1 leading-snug">{m.clan_public_debt_search_scope()}</p>
             {/if}
           </div>
           <div class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-            <p class="text-2xs font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_average_label()}</p>
+            <p class="text-xs font-semibold text-slate-400">{m.clan_public_debt_average_label()}</p>
             <p class="text-2xl font-black text-amber-500 tracking-tight mt-1">{debtAverage.toLocaleString(dateLocale())}</p>
             <p class="text-2xs text-slate-400 dark:text-slate-500 mt-1 leading-snug">{m.clan_public_debt_average_hint()}</p>
           </div>
@@ -895,13 +895,13 @@
                       <span class="inline-block w-3.5 h-3.5 rounded-full" style="background-color: {clan.roleColor || '#e2e8f0'};"></span>
                       {clan.name}
                     </h2>
-                    <span class="px-3 py-1 bg-slate-50 dark:bg-[#0c1322] border border-slate-200/50 dark:border-slate-800 rounded-full text-2xs font-bold text-slate-500 uppercase tracking-wider">
+                    <span class="px-3 py-1 bg-slate-50 dark:bg-[#0c1322] border border-slate-200/50 dark:border-slate-800 rounded-full text-xs font-semibold text-slate-500">
                       {m.clan_public_debt_debtors({ n: clan.debtorCount })}
                     </span>
                   </div>
 
                   <div class="flex items-center justify-between p-3.5 rounded-xl bg-slate-50/50 dark:bg-[#0c1322]/50 border border-slate-200/10">
-                    <span class="text-2xs font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_debt_clan_total()}</span>
+                    <span class="text-xs font-semibold text-slate-400">{m.clan_public_debt_clan_total()}</span>
                     <span class="text-right">
                       <span class="block text-lg font-black text-rose-500 tracking-tight">
                         {clan.totalDebt.toLocaleString(dateLocale())}
@@ -966,7 +966,7 @@
           {#if displayedUnaffiliated.length > 0}
             <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative z-10">
               <div class="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
-                <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">{m.clan_public_debt_unaffiliated_title()}</h2>
+                <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200">{m.clan_public_debt_unaffiliated_title()}</h2>
                 <p class="text-2xs text-slate-400 dark:text-slate-500 mt-1">{m.clan_public_debt_unaffiliated_desc()}</p>
               </div>
               <div class="p-4 space-y-1.5">
@@ -992,7 +992,7 @@
       <!-- ─── Section « Derniers Scores » ─── -->
       <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative">
         <div class="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
-          <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
+          <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
             <span class="text-emerald-500"><Papicon icon="Activity" size={16} /></span>
             {m.clan_public_recent_scores_title()}
           </h2>
@@ -1007,7 +1007,7 @@
           <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
               <thead>
-                <tr class="text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                <tr class="text-xs font-semibold text-slate-400 dark:text-slate-500">
                   <th class="px-6 py-3">{m.clan_public_col_date()}</th>
                   <th class="px-6 py-3">{m.clan_public_col_user()}</th>
                   <th class="px-6 py-3">{m.clan_public_col_source()}</th>
@@ -1023,7 +1023,7 @@
                         {#if s.isClan}
                           <span class="inline-block w-3 h-3 rounded-full shrink-0" style="background-color: {s.clanColor || '#e2e8f0'};"></span>
                           <span class="font-bold text-slate-700 dark:text-slate-200 truncate">{s.displayName}</span>
-                          <span class="text-2xs font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 shrink-0">{m.clan_public_clan_badge()}</span>
+                          <span class="text-xs font-semibold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 shrink-0">{m.clan_public_clan_badge()}</span>
                         {:else}
                           {#if s.avatarUrl}
                             <img src={s.avatarUrl} alt={s.displayName} class="w-6 h-6 rounded-full border border-slate-200/50 dark:border-slate-800 shrink-0" />
@@ -1036,43 +1036,43 @@
                     </td>
                     <td class="px-6 py-3">
                       {#if s.source === 'ADMIN'}
-                        <span class="inline-flex items-center gap-1 text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-500 border border-violet-500/20">{m.clan_public_admin_badge()}</span>
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-500 border border-violet-500/20">{m.clan_public_admin_badge()}</span>
                       {:else if s.source === 'BOOST'}
-                        <span class="inline-flex items-center gap-1 text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-500 border border-pink-500/20">{m.clan_public_source_boost()}</span>
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-500 border border-pink-500/20">{m.clan_public_source_boost()}</span>
                       {:else if s.source === 'BET'}
-                        <span class="inline-flex items-center gap-1 text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">{m.clan_public_source_bet()}</span>
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">{m.clan_public_source_bet()}</span>
                       {:else if s.source === 'BET_TOP1'}
-                        <span class="inline-flex items-center gap-1 text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">{m.clan_public_source_bet_top1()}</span>
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">{m.clan_public_source_bet_top1()}</span>
                       {:else if s.source === 'BET_TOP2'}
-                        <span class="inline-flex items-center gap-1 text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">{m.clan_public_source_bet_top2()}</span>
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">{m.clan_public_source_bet_top2()}</span>
                       {:else if s.source === 'BET_TOP3'}
-                        <span class="inline-flex items-center gap-1 text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">{m.clan_public_source_bet_top3()}</span>
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">{m.clan_public_source_bet_top3()}</span>
                       {:else if s.source === 'DEBT'}
-                        <span class="inline-flex items-center gap-1 text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20">{m.clan_public_source_debt()}</span>
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20">{m.clan_public_source_debt()}</span>
                       {:else if s.source === 'DROP'}
-                        <span class="inline-flex items-center gap-1 text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-500 border border-teal-500/20">{m.clan_public_source_drop()}</span>
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-500 border border-teal-500/20">{m.clan_public_source_drop()}</span>
                       {:else if s.source === 'RPG_BOSS'}
-                        <span class="inline-flex items-center gap-1 text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg_boss()}</span>
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg_boss()}</span>
                       {:else if s.source === 'RPG_MOB'}
-                        <span class="inline-flex items-center gap-1 text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg_mob()}</span>
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg_mob()}</span>
                       {:else if s.source === 'RPG_QUEST'}
-                        <span class="inline-flex items-center gap-1 text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg_quest()}</span>
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg_quest()}</span>
                       {:else if s.source === 'RPG_RAID'}
-                        <span class="inline-flex items-center gap-1 text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg_raid()}</span>
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg_raid()}</span>
                       {:else if s.source === 'RPG_ITEM'}
-                        <span class="inline-flex items-center gap-1 text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg_item()}</span>
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg_item()}</span>
                       {:else if s.source === 'RPG_FIRST_KILL'}
                         <!-- Or : un exploit unique, qui se détache des gains RPG ordinaires. -->
-                        <span class="inline-flex items-center gap-1 text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-500 border border-yellow-500/30"><Papicon icon="award" size={10} /> {m.clan_public_source_rpg_first_kill()}</span>
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-500 border border-yellow-500/30"><Papicon icon="award" size={10} /> {m.clan_public_source_rpg_first_kill()}</span>
                       {:else if s.source === 'RPG'}
                         <!-- Gains enregistres avant la separation des trois origines. -->
-                        <span class="inline-flex items-center gap-1 text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg()}</span>
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg()}</span>
                       {:else if s.source === 'DAILY_ALGO'}
                         <!-- Ambre : ni le violet, ni le rose, ni le bleu ciel ne sont pris,
                              et l'orange sert déjà aux pseudos dans ce même tableau. -->
-                        <span class="inline-flex items-center gap-1 text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">{m.clan_public_source_daily_algo()}</span>
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">{m.clan_public_source_daily_algo()}</span>
                       {:else}
-                        <span class="inline-flex items-center gap-1 text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-500 border border-sky-500/20">{m.clan_public_source_xp()}</span>
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-500 border border-sky-500/20">{m.clan_public_source_xp()}</span>
                       {/if}
                     </td>
                     <td class="px-6 py-3 text-right whitespace-nowrap">

@@ -670,7 +670,7 @@
             <div class="space-y-4 animate-in fade-in duration-300">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="space-y-1.5">
-                  <label for="wChannel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_broadcast_channel()}</label>
+                  <label for="wChannel" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_broadcast_channel()}</label>
                   <SearchableSelect 
                     id="wChannel"
                     bind:value={config.welcomeChannelId} 
@@ -684,7 +684,7 @@
 
               <div class="space-y-1.5">
                 <div class="flex items-center justify-between ml-2 mb-1">
-                  <label for="wMsg" class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.announcements_message_content()}</label>
+                  <label for="wMsg" class="text-xs font-semibold text-on-surface-variant/60">{m.announcements_message_content()}</label>
                   <button
                     onclick={() => showWelcomePresets = !showWelcomePresets}
                     class="text-2xs font-bold text-primary/70 hover:text-primary flex items-center gap-1.5 transition-colors"
@@ -733,7 +733,7 @@
 
                 {#if config.welcomeImageEnabled}
                   <div class="space-y-1.5 pt-2 animate-in fade-in duration-300">
-                    <label for="wImgUrl" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_welcome_image_url_label()}</label>
+                    <label for="wImgUrl" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_welcome_image_url_label()}</label>
                     <input 
                       id="wImgUrl"
                       type="url" 
@@ -747,7 +747,7 @@
               </div>
 
               <div class="space-y-1.5">
-                <span class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_discord_preview()}</span>
+                <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_discord_preview()}</span>
                 <div class="p-5 rounded-lg bg-surface-container-high/35 border border-outline-variant/15 text-sm text-on-surface font-semibold font-sans whitespace-pre-wrap select-none relative overflow-hidden">
                   <div class="flex items-start gap-4">
                     <div class="w-10 h-10 rounded-full bg-outline-variant/30 flex items-center justify-center text-xs font-semibold text-on-surface-variant/60">BOT</div>
@@ -769,7 +769,7 @@
                             <div class="w-12 h-12 rounded-full border border-primary/20 bg-surface-container/85 flex items-center justify-center text-sm font-semibold text-primary">JD</div>
                             <span class="text-xs font-semibold text-white leading-none drop-shadow-sm">{m.announcements_preview_welcome_title()}</span>
                             <span class="text-2xs font-bold text-[#57f287] leading-none font-sans">JEANDUPONT</span>
-                            <span class="text-2xs text-[#b8bcc8] font-medium uppercase tracking-wider">{m.announcements_preview_welcome_sub({ count: '1,234', server: 'KOTBO SERVER' })}</span>
+                            <span class="text-xs text-[#b8bcc8] font-medium">{m.announcements_preview_welcome_sub({ count: '1,234', server: 'KOTBO SERVER' })}</span>
                           </div>
                         </div>
                       {/if}
@@ -803,7 +803,7 @@
             <div class="space-y-4 animate-in fade-in duration-300">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="space-y-1.5">
-                  <label for="lChannel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_broadcast_channel()}</label>
+                  <label for="lChannel" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_broadcast_channel()}</label>
                   <SearchableSelect 
                     id="lChannel"
                     bind:value={config.leaveChannelId} 
@@ -817,7 +817,7 @@
 
               <div class="space-y-1.5">
                 <div class="flex items-center justify-between ml-2 mb-1">
-                  <label for="lMsg" class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.announcements_message_content()}</label>
+                  <label for="lMsg" class="text-xs font-semibold text-on-surface-variant/60">{m.announcements_message_content()}</label>
                   <button
                     onclick={() => showLeavePresets = !showLeavePresets}
                     class="text-2xs font-bold text-primary/70 hover:text-primary flex items-center gap-1.5 transition-colors"
@@ -852,7 +852,7 @@
               </div>
 
               <div class="space-y-1.5 pt-4">
-                <span class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_discord_preview()}</span>
+                <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_discord_preview()}</span>
                 <div class="p-5 rounded-lg bg-surface-container-high/35 border border-outline-variant/15 text-sm text-on-surface font-semibold font-sans whitespace-pre-wrap select-none relative overflow-hidden">
                   <div class="flex items-start gap-4">
                     <div class="w-10 h-10 rounded-full bg-outline-variant/30 flex items-center justify-center text-xs font-semibold text-on-surface-variant/60">BOT</div>
@@ -895,7 +895,7 @@
             <div class="space-y-4 animate-in fade-in duration-300">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="space-y-1.5">
-                  <label for="bChannel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_broadcast_channel()}</label>
+                  <label for="bChannel" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_broadcast_channel()}</label>
                   <SearchableSelect 
                     id="bChannel"
                     bind:value={config.boostChannelId} 
@@ -909,7 +909,7 @@
 
               <div class="space-y-1.5">
                 <div class="flex items-center justify-between ml-2 mb-1">
-                  <label for="bMsg" class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.announcements_boost_content_label()}</label>
+                  <label for="bMsg" class="text-xs font-semibold text-on-surface-variant/60">{m.announcements_boost_content_label()}</label>
                   <button
                     onclick={() => showBoostPresets = !showBoostPresets}
                     class="text-2xs font-bold text-primary/70 hover:text-primary flex items-center gap-1.5 transition-colors"
@@ -958,7 +958,7 @@
 
                 {#if config.boostImageEnabled}
                   <div class="space-y-1.5 pt-2 animate-in fade-in duration-300">
-                    <label for="bImgUrl" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_boost_image_url_label()}</label>
+                    <label for="bImgUrl" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_boost_image_url_label()}</label>
                     <input 
                       id="bImgUrl"
                       type="url" 
@@ -972,7 +972,7 @@
               </div>
 
               <div class="space-y-1.5">
-                <span class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_discord_preview()}</span>
+                <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_discord_preview()}</span>
                 <div class="p-5 rounded-lg bg-surface-container-high/35 border border-outline-variant/15 text-sm text-on-surface font-semibold font-sans whitespace-pre-wrap select-none relative overflow-hidden">
                   <div class="flex items-start gap-4">
                     <div class="w-10 h-10 rounded-full bg-outline-variant/30 flex items-center justify-center text-xs font-semibold text-on-surface-variant/60">BOT</div>
@@ -994,7 +994,7 @@
                             <div class="w-12 h-12 rounded-full border border-primary/20 bg-surface-container/85 flex items-center justify-center text-sm font-semibold text-primary">JD</div>
                             <span class="text-xs font-semibold text-white leading-none drop-shadow-sm">{m.announcements_preview_boost_title()}</span>
                             <span class="text-2xs font-bold text-[#57f287] leading-none font-sans">JEANDUPONT</span>
-                            <span class="text-2xs text-[#b8bcc8] font-medium uppercase tracking-wider">{m.announcements_preview_boost_sub({ count: '1,234', boosts: '18' })}</span>
+                            <span class="text-xs text-[#b8bcc8] font-medium">{m.announcements_preview_boost_sub({ count: '1,234', boosts: '18' })}</span>
                           </div>
                         </div>
                       {/if}
@@ -1022,7 +1022,7 @@
             <p class="text-xs text-on-surface-variant/70 font-medium">{m.announcements_autorole_join_desc()}</p>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
               <div class="space-y-1.5">
-                <label for="joinRole" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_autorole_assigned_role()}</label>
+                <label for="joinRole" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_autorole_assigned_role()}</label>
                 <SearchableSelect 
                   id="joinRole"
                   bind:value={config.joinRoleId} 
@@ -1064,7 +1064,7 @@
             {#if config.tagAutoRoleEnabled}
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 animate-in fade-in duration-300">
                 <div class="space-y-1.5">
-                  <label for="tagRole" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_autorole_tag_role_label()}</label>
+                  <label for="tagRole" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_autorole_tag_role_label()}</label>
                   <SearchableSelect
                     id="tagRole"
                     bind:value={config.tagAutoRoleId}
@@ -1104,7 +1104,7 @@
             {#if config.statusScanEnabled}
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 animate-in fade-in duration-300">
                 <div class="space-y-1.5">
-                  <label for="statusKeyword" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_autorole_status_keyword_label()}</label>
+                  <label for="statusKeyword" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_autorole_status_keyword_label()}</label>
                   <input
                     id="statusKeyword"
                     type="text"
@@ -1117,7 +1117,7 @@
                 </div>
 
                 <div class="space-y-1.5">
-                  <label for="statusScope" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_autorole_status_scope_label()}</label>
+                  <label for="statusScope" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_autorole_status_scope_label()}</label>
                   <select
                     id="statusScope"
                     bind:value={config.statusScanScope}
@@ -1131,7 +1131,7 @@
                 </div>
 
                 <div class="space-y-1.5 md:col-span-2">
-                  <label for="statusRole" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_autorole_status_role_label()}</label>
+                  <label for="statusRole" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_autorole_status_role_label()}</label>
                   <SearchableSelect
                     id="statusRole"
                     bind:value={config.statusScanRoleId}
@@ -1203,7 +1203,7 @@
                 <div class="space-y-5 animate-in fade-in duration-300">
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="space-y-1.5">
-                      <label for="threadChannel" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_thread_parent_channel()}</label>
+                      <label for="threadChannel" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_thread_parent_channel()}</label>
                       <SearchableSelect
                         id="threadChannel"
                         bind:value={threadConfig.channelId}
@@ -1214,7 +1214,7 @@
                       />
                     </div>
                     <div class="space-y-1.5">
-                      <span class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_thread_mode_label()}</span>
+                      <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_thread_mode_label()}</span>
                       <div class="inline-flex w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 p-1 gap-1">
                         <button
                           type="button"
@@ -1237,7 +1237,7 @@
                   </div>
 
                   <div class="space-y-1.5">
-                    <label for="threadNameTemplate" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_thread_name_template_label()}</label>
+                    <label for="threadNameTemplate" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_thread_name_template_label()}</label>
                     <input
                       id="threadNameTemplate"
                       type="text"
@@ -1250,7 +1250,7 @@
 
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="space-y-1.5">
-                      <label for="autoArchive" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_thread_auto_archive_label()}</label>
+                      <label for="autoArchive" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_thread_auto_archive_label()}</label>
                       <select
                         id="autoArchive"
                         bind:value={threadConfig.autoArchiveMinutes}
@@ -1289,7 +1289,7 @@
                     </div>
                     {#if threadConfig.inactivityDeleteEnabled}
                       <div class="space-y-1.5">
-                        <label for="inactivityDeleteHours" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_thread_inactivity_delete_hours_label()}</label>
+                        <label for="inactivityDeleteHours" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_thread_inactivity_delete_hours_label()}</label>
                         <input
                           id="inactivityDeleteHours"
                           type="number"
@@ -1311,7 +1311,7 @@
                     </h4>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div class="space-y-1.5">
-                        <label for="webhookName" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_thread_webhook_name_label()}</label>
+                        <label for="webhookName" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_thread_webhook_name_label()}</label>
                         <input
                           id="webhookName"
                           type="text"
@@ -1322,7 +1322,7 @@
                         />
                       </div>
                       <div class="space-y-1.5">
-                        <label for="webhookAvatar" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_thread_webhook_avatar_label()}</label>
+                        <label for="webhookAvatar" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_thread_webhook_avatar_label()}</label>
                         <input
                           id="webhookAvatar"
                           type="url"
@@ -1353,7 +1353,7 @@
                     {#if threadConfig.menuEnabled}
                       <div class="space-y-4 animate-in fade-in duration-300">
                         <div class="space-y-1.5">
-                          <span class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_thread_menu_style_label()}</span>
+                          <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_thread_menu_style_label()}</span>
                           <div class="inline-flex w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 p-1 gap-1">
                             <button
                               type="button"
@@ -1376,7 +1376,7 @@
 
                         {#if threadConfig.menuStyle === 'select'}
                           <div class="space-y-1.5 animate-in fade-in duration-200">
-                            <label for="menuPlaceholder" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_thread_placeholder_label()}</label>
+                            <label for="menuPlaceholder" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_thread_placeholder_label()}</label>
                             <input
                               id="menuPlaceholder"
                               type="text"
@@ -1389,7 +1389,7 @@
                         {/if}
 
                         <div class="space-y-1.5">
-                          <label for="menuEmbedTitle" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_thread_embed_title_label()}</label>
+                          <label for="menuEmbedTitle" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_thread_embed_title_label()}</label>
                           <input
                             id="menuEmbedTitle"
                             type="text"
@@ -1401,7 +1401,7 @@
                         </div>
 
                         <div class="space-y-1.5">
-                          <label for="menuEmbedDesc" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_thread_embed_desc_label()}</label>
+                          <label for="menuEmbedDesc" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_thread_embed_desc_label()}</label>
                           <textarea
                             id="menuEmbedDesc"
                             bind:value={threadConfig.embedDescription}
@@ -1412,7 +1412,7 @@
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div class="space-y-1.5">
-                            <label for="menuEmbedColor" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_thread_embed_color_label()}</label>
+                            <label for="menuEmbedColor" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_thread_embed_color_label()}</label>
                             <div class="flex gap-2">
                               <input
                                 id="menuEmbedColor"
@@ -1431,7 +1431,7 @@
                             </div>
                           </div>
                           <div class="space-y-1.5">
-                            <label for="menuEmbedImg" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_thread_embed_image_label()}</label>
+                            <label for="menuEmbedImg" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_thread_embed_image_label()}</label>
                             <input
                               id="menuEmbedImg"
                               type="url"
@@ -1443,7 +1443,7 @@
                           </div>
                         </div>
                         <div class="space-y-1.5">
-                          <label for="menuEmbedThumb" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_thread_embed_thumb_label()}</label>
+                          <label for="menuEmbedThumb" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_thread_embed_thumb_label()}</label>
                           <input
                             id="menuEmbedThumb"
                             type="url"
@@ -1456,7 +1456,7 @@
 
                         <!-- Preview -->
                         <div class="space-y-1.5">
-                          <span class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_thread_embed_preview_label()}</span>
+                          <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.announcements_thread_embed_preview_label()}</span>
                           <div class="p-5 rounded-lg bg-surface-container-high/35 border-l-4 relative overflow-hidden" style="border-left-color: {threadConfig.embedColor || '#5865F2'}">
                             <div class="flex gap-4">
                               {#if threadConfig.embedThumbnailUrl}
@@ -1533,7 +1533,7 @@
                   {#each threadSteps as step, index (step.localId)}
                     <div class="p-5 rounded-lg bg-surface-container-high/20 border border-outline-variant/10 space-y-3">
                       <div class="flex items-center justify-between">
-                        <span class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.announcements_thread_message_num({ n: index + 1 })}</span>
+                        <span class="text-xs font-semibold text-on-surface-variant/60">{m.announcements_thread_message_num({ n: index + 1 })}</span>
                         <div class="flex items-center gap-1">
                           <button type="button" onclick={() => moveStep(index, -1)} disabled={!canManageSettings || index === 0} class="p-2 rounded-lg hover:bg-surface-container-high text-on-surface-variant/60 disabled:opacity-30 transition-all" title={m.announcements_move_up()}>
                             <Papicon icon="ArrowUp" size={14} />
@@ -1557,7 +1557,7 @@
 
                       <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div class="space-y-1">
-                          <label for="step-name-{index}" class="text-2xs font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">{m.announcements_thread_step_name_label()}</label>
+                          <label for="step-name-{index}" class="text-xs font-semibold text-on-surface-variant/50 ml-1">{m.announcements_thread_step_name_label()}</label>
                           <input
                             id="step-name-{index}"
                             type="text"
@@ -1568,7 +1568,7 @@
                           />
                         </div>
                         <div class="space-y-1">
-                          <label for="step-avatar-{index}" class="text-2xs font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">{m.announcements_thread_step_avatar_label()}</label>
+                          <label for="step-avatar-{index}" class="text-xs font-semibold text-on-surface-variant/50 ml-1">{m.announcements_thread_step_avatar_label()}</label>
                           <input
                             id="step-avatar-{index}"
                             type="url"
@@ -1579,7 +1579,7 @@
                           />
                         </div>
                         <div class="space-y-1">
-                          <label for="step-delay-{index}" class="text-2xs font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">{m.announcements_thread_step_delay_label()}</label>
+                          <label for="step-delay-{index}" class="text-xs font-semibold text-on-surface-variant/50 ml-1">{m.announcements_thread_step_delay_label()}</label>
                           <input
                             id="step-delay-{index}"
                             type="number"
@@ -1636,7 +1636,7 @@
                   {#each threadPages as page, index (page.localId)}
                     <div class="p-5 rounded-lg bg-surface-container-high/20 border border-outline-variant/10 space-y-3">
                       <div class="flex items-center justify-between">
-                        <span class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.announcements_thread_page_num({ n: index + 1 })}</span>
+                        <span class="text-xs font-semibold text-on-surface-variant/60">{m.announcements_thread_page_num({ n: index + 1 })}</span>
                         <div class="flex items-center gap-1">
                           <button type="button" onclick={() => movePage(index, -1)} disabled={!canManageSettings || index === 0} class="p-2 rounded-lg hover:bg-surface-container-high text-on-surface-variant/60 disabled:opacity-30 transition-all" title={m.announcements_move_up()}>
                             <Papicon icon="ArrowUp" size={14} />
@@ -1652,7 +1652,7 @@
 
                       <div class="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3">
                         <div class="space-y-1">
-                          <label for="page-label-{index}" class="text-2xs font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">{m.announcements_thread_page_label()}</label>
+                          <label for="page-label-{index}" class="text-xs font-semibold text-on-surface-variant/50 ml-1">{m.announcements_thread_page_label()}</label>
                           <input
                             id="page-label-{index}"
                             type="text"
@@ -1664,11 +1664,11 @@
                           />
                         </div>
                         <div class="space-y-1">
-                          <span class="text-2xs font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest block">{m.announcements_thread_page_emoji()}</span>
+                          <span class="text-xs font-semibold text-on-surface-variant/50 ml-1 block">{m.announcements_thread_page_emoji()}</span>
                           <EmojiPicker bind:value={page.emoji} disabled={!canManageSettings} />
                         </div>
                         <div class="space-y-1">
-                          <label for="page-summary-{index}" class="text-2xs font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">{m.announcements_thread_page_summary()}</label>
+                          <label for="page-summary-{index}" class="text-xs font-semibold text-on-surface-variant/50 ml-1">{m.announcements_thread_page_summary()}</label>
                           <input
                             id="page-summary-{index}"
                             type="text"
@@ -1682,7 +1682,7 @@
                       </div>
 
                       <div class="space-y-1.5">
-                        <span class="text-2xs font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">{m.announcements_thread_page_action()}</span>
+                        <span class="text-xs font-semibold text-on-surface-variant/50 ml-1">{m.announcements_thread_page_action()}</span>
                         <div class="inline-flex w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 p-1 gap-1">
                           <button
                             type="button"
@@ -1714,7 +1714,7 @@
                       {#if page.actionType === 'EMBED'}
                         <div class="space-y-3 animate-in fade-in duration-200">
                           <div class="space-y-1">
-                            <label for="page-embed-title-{index}" class="text-2xs font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">{m.announcements_thread_embed_title_label()}</label>
+                            <label for="page-embed-title-{index}" class="text-xs font-semibold text-on-surface-variant/50 ml-1">{m.announcements_thread_embed_title_label()}</label>
                             <input
                               id="page-embed-title-{index}"
                               type="text"
@@ -1725,7 +1725,7 @@
                             />
                           </div>
                           <div class="space-y-1">
-                            <label for="page-embed-desc-{index}" class="text-2xs font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">{m.announcements_thread_page_embed_desc()}</label>
+                            <label for="page-embed-desc-{index}" class="text-xs font-semibold text-on-surface-variant/50 ml-1">{m.announcements_thread_page_embed_desc()}</label>
                             <textarea
                               id="page-embed-desc-{index}"
                               bind:value={page.embedDescription}
@@ -1736,18 +1736,18 @@
  
                           <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div class="space-y-1">
-                              <span class="text-2xs font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest block">{m.announcements_thread_embed_color_label()}</span>
+                              <span class="text-xs font-semibold text-on-surface-variant/50 ml-1 block">{m.announcements_thread_embed_color_label()}</span>
                               <div class="flex gap-2">
                                 <input type="color" bind:value={page.embedColor} class="w-9 h-9 border-0 bg-transparent rounded-lg cursor-pointer shrink-0" disabled={!canManageSettings} aria-label={m.announcements_thread_embed_color_label()} />
                                 <input type="text" bind:value={page.embedColor} placeholder="#5865F2" class="flex-1 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none font-mono" disabled={!canManageSettings} aria-label={m.announcements_thread_embed_color_label()} />
                               </div>
                             </div>
                             <div class="space-y-1">
-                              <label for="page-embed-image-{index}" class="text-2xs font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">{m.announcements_thread_embed_image_label()}</label>
+                              <label for="page-embed-image-{index}" class="text-xs font-semibold text-on-surface-variant/50 ml-1">{m.announcements_thread_embed_image_label()}</label>
                               <input id="page-embed-image-{index}" type="url" bind:value={page.embedImageUrl} placeholder="https://..." class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none" disabled={!canManageSettings} />
                             </div>
                             <div class="space-y-1">
-                              <label for="page-embed-thumbnail-{index}" class="text-2xs font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">{m.announcements_thread_embed_thumb_label()}</label>
+                              <label for="page-embed-thumbnail-{index}" class="text-xs font-semibold text-on-surface-variant/50 ml-1">{m.announcements_thread_embed_thumb_label()}</label>
                               <input id="page-embed-thumbnail-{index}" type="url" bind:value={page.embedThumbnailUrl} placeholder="https://..." class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none" disabled={!canManageSettings} />
                             </div>
                           </div>
@@ -1756,7 +1756,7 @@
                         <div class="space-y-3 animate-in fade-in duration-200">
                           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div class="space-y-1">
-                              <span class="text-2xs font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest block">{m.announcements_thread_page_role_label()}</span>
+                              <span class="text-xs font-semibold text-on-surface-variant/50 ml-1 block">{m.announcements_thread_page_role_label()}</span>
                               <SearchableSelect
                                 bind:value={page.roleId}
                                 options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
@@ -1766,7 +1766,7 @@
                               />
                             </div>
                             <div class="space-y-1">
-                              <span class="text-2xs font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest block">{m.announcements_thread_page_role_behavior()}</span>
+                              <span class="text-xs font-semibold text-on-surface-variant/50 ml-1 block">{m.announcements_thread_page_role_behavior()}</span>
                               <div class="grid grid-cols-2 sm:grid-cols-4 w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 p-1 gap-1">
                                 <button type="button" onclick={() => page.roleAction = 'ADD'} disabled={!canManageSettings} class="flex-1 px-2 py-2 rounded-md text-xs font-medium transition-all {page.roleAction === 'ADD' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}">{m.announcements_role_action_add()}</button>
                                 <button type="button" onclick={() => page.roleAction = 'REMOVE'} disabled={!canManageSettings} class="flex-1 px-2 py-2 rounded-md text-xs font-medium transition-all {page.roleAction === 'REMOVE' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}">{m.announcements_role_action_remove()}</button>
@@ -1779,7 +1779,7 @@
                             {@const groupMembers = exclusiveGroupMembers(page)}
                             <div class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
                               <div class="space-y-1">
-                                <label for="page-role-group-{index}" class="text-2xs font-bold text-amber-600 dark:text-amber-400 ml-1 uppercase tracking-widest">{m.announcements_role_exclusive_group_label()}</label>
+                                <label for="page-role-group-{index}" class="text-xs font-semibold text-amber-600 dark:text-amber-400 ml-1">{m.announcements_role_exclusive_group_label()}</label>
                                 <input
                                   id="page-role-group-{index}"
                                   type="text"
@@ -1826,7 +1826,7 @@
                           </div>
                           {#if page.linkMode === 'channel'}
                             <div class="space-y-1">
-                              <span class="text-2xs font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest block">{m.announcements_channel_label()}</span>
+                              <span class="text-xs font-semibold text-on-surface-variant/50 ml-1 block">{m.announcements_channel_label()}</span>
                               <SearchableSelect
                                 bind:value={page.linkChannelId}
                                 options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
@@ -1837,7 +1837,7 @@
                             </div>
                           {:else}
                             <div class="space-y-1">
-                              <label for="page-link-url-{index}" class="text-2xs font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">{m.announcements_link_external_url()}</label>
+                              <label for="page-link-url-{index}" class="text-xs font-semibold text-on-surface-variant/50 ml-1">{m.announcements_link_external_url()}</label>
                               <input
                                 id="page-link-url-{index}"
                                 type="url"

@@ -23,7 +23,7 @@
 <div class="space-y-5">
   {#each groups as group (group)}
     <section class="space-y-2">
-      <h4 class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/70">
+      <h4 class="text-xs font-semibold text-on-surface-variant/70">
         {TRIGGER_GROUP_LABELS[group]}
       </h4>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-2">

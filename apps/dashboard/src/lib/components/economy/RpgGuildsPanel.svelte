@@ -191,7 +191,7 @@
           {#if expandedId === rpgGuild.id}
             <div class="border-t border-outline-variant/10 p-5 grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div class="space-y-2">
-                <h5 class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/50">{m.eco_guilds_members_title()}</h5>
+                <h5 class="text-xs font-semibold text-on-surface-variant/50">{m.eco_guilds_members_title()}</h5>
                 {#if rpgGuild.description}
                   <p class="text-xs text-on-surface-variant/70 italic">{rpgGuild.description}</p>
                 {/if}
@@ -220,7 +220,7 @@
                 </ul>
               </div>
               <div class="space-y-2">
-                <h5 class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/50">{m.eco_guilds_village_title()}</h5>
+                <h5 class="text-xs font-semibold text-on-surface-variant/50">{m.eco_guilds_village_title()}</h5>
                 {#if rpgGuild.buildings.length === 0}
                   <p class="text-xs text-on-surface-variant/50 italic">{m.eco_guilds_village_empty()}</p>
                 {:else}
@@ -250,11 +250,11 @@
 
       <div class="grid grid-cols-3 gap-3">
         <div class="col-span-2 space-y-1">
-          <label for="guildName" class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_guilds_field_name()}</label>
+          <label for="guildName" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_guilds_field_name()}</label>
           <input id="guildName" type="text" maxlength="32" bind:value={editing.name} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
         <div class="space-y-1">
-          <label for="guildEmoji" class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_guilds_field_emoji()}</label>
+          <label for="guildEmoji" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_guilds_field_emoji()}</label>
           <div class="flex gap-2">
             <input id="guildEmoji" type="text" bind:value={editing.emoji} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
             <EmojiPicker bind:value={editing.emoji} />
@@ -263,17 +263,17 @@
       </div>
 
       <div class="space-y-1">
-        <label for="guildDesc" class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_guilds_field_description()}</label>
+        <label for="guildDesc" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_guilds_field_description()}</label>
         <textarea id="guildDesc" maxlength="300" bind:value={editing.description} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none h-16 resize-none"></textarea>
       </div>
 
       <div class="grid grid-cols-2 gap-3">
         <div class="space-y-1">
-          <label for="guildTreasury" class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_guilds_field_treasury({ currency: currencyName })}</label>
+          <label for="guildTreasury" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_guilds_field_treasury({ currency: currencyName })}</label>
           <input id="guildTreasury" type="number" min="0" bind:value={editing.treasury} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
         <div class="space-y-1">
-          <label for="guildOwner" class="text-2xs font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_guilds_field_owner()}</label>
+          <label for="guildOwner" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_guilds_field_owner()}</label>
           <select id="guildOwner" bind:value={editing.ownerId} class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none text-on-surface">
             {#each editing.members as member (member.userId)}
               <option value={member.userId}>{member.displayName}</option>

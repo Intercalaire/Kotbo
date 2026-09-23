@@ -109,7 +109,7 @@
           <h1 class="text-lg font-semibold tracking-tight text-slate-800 dark:text-slate-100">
             {guildName}
           </h1>
-          <div class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-semibold text-xs uppercase tracking-wider">
+          <div class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-semibold text-xs">
             <span class="text-amber-500"><Papicon icon="Trophy" size={14} /></span>
             <span>{m.leveling_public_header_subtitle()}</span>
           </div>
@@ -118,7 +118,7 @@
 
       <div class="flex items-center gap-3 self-start sm:self-auto">
         <!-- Sélecteur de langue -->
-        <div class="flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0c1322] p-0.5 text-2xs font-bold uppercase tracking-wider">
+        <div class="flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0c1322] p-0.5 text-xs font-semibold">
           {#each locales as loc}
             <button
               type="button"
@@ -146,7 +146,7 @@
         <div class="relative flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-500/20 dark:border-emerald-500/10 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 absolute"></span>
-          <span class="ml-2.5 uppercase tracking-wider text-2xs">{m.leveling_public_live_badge()}</span>
+          <span class="ml-2.5 text-xs">{m.leveling_public_live_badge()}</span>
         </div>
       </div>
     </header>
@@ -196,19 +196,19 @@
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
             <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{levels.length}</p>
-            <p class="text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.leveling_public_stat_members()}</p>
+            <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">{m.leveling_public_stat_members()}</p>
           </div>
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
             <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{maxLevel}</p>
-            <p class="text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.leveling_public_stat_max_level()}</p>
+            <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">{m.leveling_public_stat_max_level()}</p>
           </div>
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
             <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{avgLevel}</p>
-            <p class="text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.leveling_public_stat_avg_level()}</p>
+            <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">{m.leveling_public_stat_avg_level()}</p>
           </div>
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
             <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{formatXp(totalXp)}</p>
-            <p class="text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.leveling_public_stat_total_xp()}</p>
+            <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">{m.leveling_public_stat_total_xp()}</p>
           </div>
         </div>
       {/if}
@@ -348,7 +348,7 @@
         <div class="border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="bg-slate-50 dark:bg-[#0c1322] border-b border-slate-200 dark:border-slate-800 text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              <tr class="bg-slate-50 dark:bg-[#0c1322] border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-400 dark:text-slate-500">
                 <th class="px-5 py-3.5 w-16 text-center">{m.leveling_public_col_rank()}</th>
                 <th class="px-6 py-3.5">{m.leveling_public_col_member()}</th>
                 <th class="px-6 py-3.5 w-24">{m.leveling_public_col_level()}</th>
@@ -455,7 +455,7 @@
         </p>
         <a
           href="/"
-          class="font-bold text-slate-700 dark:text-slate-300 hover:text-slate-500 dark:hover:text-slate-400 transition-colors uppercase tracking-wider flex items-center gap-1"
+          class="font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-500 dark:hover:text-slate-400 transition-colors flex items-center gap-1"
         >
           <span>{m.leveling_public_footer_dashboard()}</span>
           <span>→</span>

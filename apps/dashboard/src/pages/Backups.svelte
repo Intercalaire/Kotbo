@@ -363,7 +363,7 @@
                 <h3 class="text-base font-semibold truncate leading-snug text-primary">{creatingBackup.name}</h3>
                 <p class="text-xs text-on-surface-variant/60 font-semibold mt-0.5">{m.backups_in_progress()}</p>
               </div>
-              <span class="px-2.5 py-1 bg-primary/10 border border-primary/20 text-primary text-2xs font-semibold rounded-lg uppercase tracking-wider shrink-0">
+              <span class="px-2.5 py-1 bg-primary/10 border border-primary/20 text-primary text-xs font-semibold rounded-lg shrink-0">
                 {Math.round(creatingBackup.progress)}%
               </span>
             </div>
@@ -415,7 +415,7 @@
                 <p class="text-xs text-on-surface-variant/60 font-semibold mt-0.5">{formatDate(backup.createdAt)}</p>
               </div>
               {#if backup.isPreset}
-                <span class="px-2.5 py-1 bg-primary/10 border border-primary/20 text-primary text-2xs font-semibold rounded-lg uppercase tracking-wider shrink-0">{m.backups_preset_badge()}</span>
+                <span class="px-2.5 py-1 bg-primary/10 border border-primary/20 text-primary text-xs font-semibold rounded-lg shrink-0">{m.backups_preset_badge()}</span>
               {/if}
             </div>
 
@@ -519,7 +519,7 @@
 <Modal bind:open={showCreateModal} title={m.backups_create_modal_title()}>
   <div class="space-y-6">
     <div class="space-y-2">
-      <span class="block text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.backups_field_name()}</span>
+      <span class="block text-xs font-semibold text-on-surface-variant/60 ml-2">{m.backups_field_name()}</span>
       <input
         type="text"
         bind:value={createOptions.name}
@@ -529,7 +529,7 @@
     </div>
     
     <div class="space-y-2">
-      <span class="block text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.backups_field_desc()}</span>
+      <span class="block text-xs font-semibold text-on-surface-variant/60 ml-2">{m.backups_field_desc()}</span>
       <input
         type="text"
         bind:value={createOptions.description}
@@ -539,7 +539,7 @@
     </div>
 
     <div class="space-y-3">
-      <span class="block text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.backups_field_include()}</span>
+      <span class="block text-xs font-semibold text-on-surface-variant/60 ml-2">{m.backups_field_include()}</span>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3 bg-surface-container-high/20 border border-outline-variant/5 p-4 rounded-lg">
         <label class="flex items-center gap-3 cursor-pointer group">
           <input 
@@ -620,7 +620,7 @@
 <Modal bind:open={showImportModal} title={m.backups_import_modal_title()}>
   <div class="space-y-6">
     <div class="space-y-2">
-      <span class="block text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.backups_field_file()}</span>
+      <span class="block text-xs font-semibold text-on-surface-variant/60 ml-2">{m.backups_field_file()}</span>
       <input
         type="file"
         accept=".json" 
@@ -630,7 +630,7 @@
     </div>
     
     <div class="space-y-2">
-      <span class="block text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.backups_field_name_optional()}</span>
+      <span class="block text-xs font-semibold text-on-surface-variant/60 ml-2">{m.backups_field_name_optional()}</span>
       <input
         type="text"
         bind:value={createOptions.name}

@@ -1473,7 +1473,7 @@
       >
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div class="space-y-1.5">
-            <span class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.giv_cfg_required_label()}</span>
+            <span class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.giv_cfg_required_label()}</span>
             <MultiSelect
               id="giveaway-required-roles"
               bind:values={config.requiredRoleIds}
@@ -1484,7 +1484,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <span class="text-2xs font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.giv_cfg_blocked_label()}</span>
+            <span class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.giv_cfg_blocked_label()}</span>
             <MultiSelect
               id="giveaway-blocked-roles"
               bind:values={config.blockedRoleIds}
@@ -2117,7 +2117,7 @@
                 {#if !giveaway.ended}
                   <button
                     onclick={() => handleEnd(giveaway.id)}
-                    class="px-3.5 py-2 bg-secondary hover:bg-secondary-hover text-on-secondary text-2xs font-semibold uppercase tracking-wider rounded-xl transition-all shadow-md shadow-secondary/10 cursor-pointer flex items-center gap-1.5"
+                    class="px-3.5 py-2 bg-secondary hover:bg-secondary-hover text-on-secondary text-xs font-semibold rounded-xl transition-all shadow-md shadow-secondary/10 cursor-pointer flex items-center gap-1.5"
                     title={m.giv_title_pick_winner()}
                   >
                     <Papicon icon="Sparkles" size={11} />
@@ -2126,7 +2126,7 @@
                 {:else}
                   <button
                     onclick={() => handleReroll(giveaway.id)}
-                    class="px-3.5 py-2 bg-outline-variant/20 hover:bg-outline-variant/35 text-on-surface text-2xs font-semibold uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                    class="px-3.5 py-2 bg-outline-variant/20 hover:bg-outline-variant/35 text-on-surface text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
                     title={m.giv_title_reroll()}
                   >
                     <Papicon icon="Refresh" size={11} />

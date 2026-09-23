@@ -420,16 +420,16 @@
                     <span class="flex items-center gap-2 flex-wrap">
                       <span class="text-sm font-medium text-on-surface group-hover:text-primary transition-colors">{nameOf(mod.id)}</span>
                       {#if mod.isFixed}
-                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-semibold uppercase tracking-wide bg-surface-container-high text-on-surface-variant/70">
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-surface-container-high text-on-surface-variant/70">
                           <Papicon icon="Lock" size={9} /> {m.mc_badge_core()}
                         </span>
                       {/if}
                       {#if locked}
-                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-semibold uppercase tracking-wide bg-primary/15 text-primary">
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-primary/15 text-primary">
                           <Papicon icon="Lock" size={9} /> {planLabel(mod.requiredPlan)}
                         </span>
                       {:else if blocked}
-                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-semibold uppercase tracking-wide bg-amber-500/15 text-amber-600">
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-500/15 text-amber-600">
                           {m.mc_badge_blocked()}
                         </span>
                       {/if}
@@ -594,7 +594,7 @@
 
       {#if (mod.requires?.length ?? 0) > 0}
         <div class="space-y-2">
-          <h3 class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/60">{m.mc_requires()}</h3>
+          <h3 class="text-xs font-semibold text-on-surface-variant/60">{m.mc_requires()}</h3>
           <ul class="space-y-1.5">
             {#each mod.requires! as key}
               {@const dep = moduleById.get(key)}
@@ -614,7 +614,7 @@
 
       {#if (mod.dependents?.length ?? 0) > 0}
         <div class="space-y-2">
-          <h3 class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant/60">
+          <h3 class="text-xs font-semibold text-on-surface-variant/60">
             {m.mc_stops_with()}
           </h3>
           <ul class="space-y-1.5">

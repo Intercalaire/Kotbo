@@ -69,7 +69,7 @@
 <div class="space-y-6">
   <div class="flex items-center justify-between border-b border-outline-variant/10 pb-4">
     <div>
-      <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">{title}</h3>
+      <h3 class="text-sm font-semibold text-on-surface">{title}</h3>
       <p class="text-xs text-on-surface-variant/70 mt-1">{description}</p>
     </div>
     <button 
@@ -101,7 +101,7 @@
                 class="flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all {entry[perm.key] ? 'bg-primary/10 border-primary/20 text-primary shadow-sm' : 'bg-transparent border-outline-variant/10 text-on-surface-variant/40 hover:border-outline-variant/30'}"
               >
                 <Papicon icon={perm.icon} size={14} />
-                <span class="text-2xs font-semibold uppercase tracking-wider">{perm.label}</span>
+                <span class="text-xs font-semibold">{perm.label}</span>
               </button>
             {/each}
           </div>

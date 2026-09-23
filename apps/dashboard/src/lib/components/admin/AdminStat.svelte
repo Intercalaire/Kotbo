@@ -56,7 +56,7 @@
 >
   <div class="flex items-start justify-between gap-3">
     <div class="min-w-0">
-      <p class="text-2xs font-semibold uppercase tracking-wider text-on-surface-variant truncate">{label}</p>
+      <p class="text-xs font-semibold text-on-surface-variant truncate">{label}</p>
       {#if loading}
         <div class="mt-2 h-8 w-24 rounded-lg bg-on-surface/8 animate-pulse"></div>
       {:else}

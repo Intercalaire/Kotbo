@@ -1042,7 +1042,7 @@
                     </div>
 
                     <div class="flex items-center gap-3 sm:pt-6">
-                      <span class="text-2xs font-bold uppercase tracking-widest text-on-surface-variant/60">{m.cm_sticky_enabled_label()}</span>
+                      <span class="text-xs font-semibold text-on-surface-variant/60">{m.cm_sticky_enabled_label()}</span>
                       <input
                         type="checkbox"
                         aria-label={m.cm_sticky_enabled_label()}
@@ -1534,7 +1534,7 @@
                 {#each config.statsConfig.customStats as custom, index}
                   <div class="p-5 bg-surface-container-high/10 border border-outline-variant/5 rounded-xl space-y-4 transition-all">
                     <div class="flex items-center justify-between border-b border-outline-variant/10 pb-3 mb-2">
-                      <span class="text-2xs font-semibold uppercase tracking-wider text-primary">{m.cm_counter_n({ n: index + 1 })}</span>
+                      <span class="text-xs font-semibold text-primary">{m.cm_counter_n({ n: index + 1 })}</span>
                       <button
                         type="button"
                         onclick={() => {
@@ -1811,7 +1811,7 @@
                   {#each config.tempVoiceGenerators as generator, index}
                     <div class="p-5 bg-surface-container-high/10 border border-outline-variant/5 rounded-xl space-y-4 transition-all">
                       <div class="flex items-center justify-between border-b border-outline-variant/10 pb-3 mb-2">
-                        <span class="text-2xs font-semibold uppercase tracking-wider text-primary">{m.cm_generator_n({ n: index + 2 })}</span>
+                        <span class="text-xs font-semibold text-primary">{m.cm_generator_n({ n: index + 2 })}</span>
                         <button
                           type="button"
                           onclick={() => {
@@ -1939,7 +1939,7 @@
 
               <!-- Description of Chat Control Embed -->
               <div class="p-5 bg-primary/5 border border-primary/20 rounded-xl mt-4">
-                <h4 class="text-xs font-semibold text-primary uppercase tracking-wider mb-2">{m.cm_management_embed_title()}</h4>
+                <h4 class="text-xs font-semibold text-primary mb-2">{m.cm_management_embed_title()}</h4>
                 <p class="text-xs text-on-surface-variant/80 leading-relaxed">
                   {m.cm_management_embed_intro()}
                   <br/><strong class="text-on-surface font-semibold">• {m.cm_embed_bullet_lock()}</strong> {m.cm_embed_bullet_lock_desc()}
@@ -2074,7 +2074,7 @@
                             type="button"
                             onclick={() => handleDeleteChannel(chan.id)}
                             disabled={actionInProgress}
-                            class="px-2.5 py-1.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-2xs font-semibold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-1"
+                            class="px-2.5 py-1.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-xs font-semibold hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-1"
                           >
                             <Papicon icon="trash-2" size={12} />
                             {m.common_close()}
@@ -2150,7 +2150,7 @@
                         type="button"
                         onclick={() => handleDeleteChannel(chan.id)}
                         disabled={actionInProgress}
-                        class="px-2.5 py-1.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-2xs font-semibold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-1"
+                        class="px-2.5 py-1.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-xs font-semibold hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-1"
                       >
                         <Papicon icon="trash-2" size={12} />
                         {m.cm_close_channel_full()}

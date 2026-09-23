@@ -189,11 +189,11 @@
 
           <div class="grid grid-cols-2 gap-2">
             <div class="bg-on-surface/4 rounded-xl p-3 space-y-0.5">
-              <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/30">Mode actif</p>
+              <p class="text-xs font-semibold text-on-surface-variant/30">Mode actif</p>
               <p class="text-sm font-semibold text-on-surface uppercase">{shardState?.config.mode ?? 'auto'}</p>
             </div>
             <div class="bg-on-surface/4 rounded-xl p-3 space-y-0.5">
-              <p class="text-2xs font-semibold uppercase tracking-widest text-on-surface-variant/30">En ligne</p>
+              <p class="text-xs font-semibold text-on-surface-variant/30">En ligne</p>
               <p class="text-sm font-semibold text-emerald-400">{shardState?.onlineShardCount ?? 0}/{shardConfiguredCount}</p>
             </div>
           </div>
@@ -226,7 +226,7 @@
               type="button"
               onclick={handleReconfigureShards}
               disabled={shardActionLoading === 'reconfigure'}
-              class="w-full py-2.5 rounded-xl bg-primary text-on-primary font-semibold text-xs uppercase tracking-widest transition-all disabled:opacity-40"
+              class="w-full py-2.5 rounded-xl bg-primary text-on-primary font-semibold text-xs transition-all disabled:opacity-40"
             >
               {shardActionLoading === 'reconfigure' ? 'Enregistrement...' : 'Appliquer'}
             </button>
@@ -234,7 +234,7 @@
               type="button"
               onclick={handleRestartAllShards}
               disabled={shardActionLoading === 'restart-all'}
-              class="w-full py-2.5 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/20 font-semibold text-xs uppercase tracking-widest transition-all hover:bg-amber-500/25 disabled:opacity-40"
+              class="w-full py-2.5 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/20 font-semibold text-xs transition-all hover:bg-amber-500/25 disabled:opacity-40"
             >
               {shardActionLoading === 'restart-all' ? 'Redémarrage...' : 'Redémarrer tout'}
             </button>
