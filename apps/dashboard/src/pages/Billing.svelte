@@ -89,7 +89,7 @@
    * le site et ne voit rien ici doit comprendre d'où vient la différence.
    */
   const TRIAL_REASONS: Record<string, string> = {
-    already_used_by_user: "Vous avez déjà utilisé votre essai gratuit sur un serveur. Il est offert une seule fois par compte Discord.",
+    already_used_by_user: "Tu as déjà utilisé ton essai gratuit sur un serveur. Il est offert une seule fois par compte Discord.",
     already_used_by_guild: "Ce serveur a déjà bénéficié de son essai gratuit.",
     guild_has_subscription: "Ce serveur est déjà abonné : le changement d'offre se fait au prorata depuis le portail Stripe.",
     plan_not_eligible: "Cette offre ne comporte pas d'essai gratuit.",
@@ -110,7 +110,7 @@
     pending = null;
 
     if (!url) {
-      toast.error("Impossible d'ouvrir la page de paiement. Réessayez dans un instant.");
+      toast.error("Impossible d'ouvrir la page de paiement. Réessaie dans un instant.");
       return;
     }
     // Redirection dans l'onglet courant : Stripe nous renverra sur /billing.
@@ -137,7 +137,7 @@
     const checkout = params.get('checkout');
 
     if (checkout === 'success') {
-      toast.success('Paiement accepté, merci ! Votre offre est en cours d\'activation.');
+      toast.success('Paiement accepté, merci ! Ton offre est en cours d\'activation.');
       setTimeout(load, 2500);
     } else if (checkout === 'cancelled') {
       toast.info('Paiement annulé, aucun montant n\'a été débité.');
@@ -156,7 +156,7 @@
       </div>
       <div class="min-w-0">
         <h1 class="text-xl font-semibold text-on-surface tracking-tight leading-tight">Facturation</h1>
-        <p class="text-[13px] text-on-surface-variant leading-relaxed max-w-xl">
+        <p class="text-body-sm text-on-surface-variant leading-relaxed max-w-xl">
           L'offre de ce serveur détermine les modules disponibles. Paiement et factures sont gérés par Stripe.
         </p>
       </div>
@@ -171,12 +171,12 @@
     </div>
   {:else if !status}
     <div class="rounded-xl border border-outline-variant/40 bg-surface-container-low p-6 text-sm text-on-surface-variant">
-      Impossible de charger l'état de facturation. Réessayez dans un instant.
+      Impossible de charger l'état de facturation. Réessaie dans un instant.
     </div>
   {:else if !status.enabled}
     <div class="rounded-xl border border-outline-variant/40 bg-surface-container-low p-6 space-y-2">
       <h2 class="text-sm font-semibold text-on-surface">Facturation non activée sur cette instance</h2>
-      <p class="text-[13px] text-on-surface-variant leading-relaxed max-w-2xl">
+      <p class="text-body-sm text-on-surface-variant leading-relaxed max-w-2xl">
         Cette installation de Kotbo n'a pas de clé Stripe configurée : tous les modules suivent
         la configuration du serveur, sans offre commerciale. C'est le fonctionnement normal
         d'une instance auto-hébergée ou en marque blanche.
@@ -187,16 +187,16 @@
     <section class="rounded-xl border border-outline-variant/40 bg-surface-container-low p-5 space-y-4">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="space-y-1">
-          <span class="text-[11px] uppercase tracking-wide text-on-surface-variant font-medium">Offre en cours</span>
+          <span class="text-xs text-on-surface-variant font-medium">Offre en cours</span>
           <div class="flex items-center gap-2.5">
             <h2 class="text-lg font-semibold text-on-surface">{status.planName}</h2>
             {#if statusInfo}
               <span
-                class="px-2 py-0.5 rounded-md text-[11px] font-medium border {statusInfo.tone === 'ok'
-                  ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                class="px-2 py-0.5 rounded-md text-2xs font-medium border {statusInfo.tone === 'ok'
+                  ? 'bg-success/10 text-success border-success/20'
                   : statusInfo.tone === 'warn'
-                    ? 'bg-amber-500/10 text-amber-500 border-amber-500/20'
-                    : 'bg-red-500/10 text-red-500 border-red-500/20'}"
+                    ? 'bg-warning/10 text-warning border-warning/20'
+                    : 'bg-error/10 text-error border-error/20'}"
               >
                 {statusInfo.label}
               </span>
@@ -204,7 +204,7 @@
           </div>
 
           {#if status.currentPeriodEnd}
-            <p class="text-[13px] text-on-surface-variant">
+            <p class="text-body-sm text-on-surface-variant">
               {#if status.cancelAtPeriodEnd}
                 Résiliation demandée - accès conservé jusqu'au {formatDate(status.currentPeriodEnd)}.
               {:else}
@@ -227,9 +227,9 @@
       </div>
 
       {#if status.status === 'past_due'}
-        <div class="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3 text-[13px] text-amber-600 dark:text-amber-400 leading-relaxed">
-          Le dernier prélèvement a échoué. Votre serveur garde son accès pendant que Stripe
-          réessaie, mais mettez à jour votre moyen de paiement pour éviter une coupure.
+        <div class="rounded-lg bg-warning/10 border border-warning/20 p-3 text-body-sm text-warning leading-relaxed">
+          Le dernier prélèvement a échoué. Ton serveur garde son accès pendant que Stripe
+          réessaie, mais mets à jour ton moyen de paiement pour éviter une coupure.
         </div>
       {/if}
     </section>
@@ -242,15 +242,15 @@
         </div>
         <div class="space-y-1 min-w-0">
           <h2 class="text-sm font-semibold text-on-surface">{trial.days} jours d'essai gratuit</h2>
-          <p class="text-[13px] text-on-surface-variant leading-relaxed">
-            Choisissez une offre ci-dessous : les {trial.days} premiers jours ne sont pas facturés. Une carte
-            est demandée par Stripe mais n'est débitée qu'à la fin de l'essai, et vous pouvez résilier avant
+          <p class="text-body-sm text-on-surface-variant leading-relaxed">
+            Choisis une offre ci-dessous : les {trial.days} premiers jours ne sont pas facturés. Une carte
+            est demandée par Stripe mais n'est débitée qu'à la fin de l'essai, et tu peux résilier avant
             sans rien payer. L'essai est offert une fois par compte Discord.
           </p>
         </div>
       </div>
     {:else if trialReasonText}
-      <p class="text-[12px] text-on-surface-variant/80 text-center">{trialReasonText}</p>
+      <p class="text-xs text-on-surface-variant/80 text-center">{trialReasonText}</p>
     {/if}
 
     <!-- ── Sélecteur de périodicité ──────────────────────────────────────── -->
@@ -272,7 +272,7 @@
         >
           Annuel
           {#if yearlySavingPercent > 0}
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-500 font-semibold">
+            <span class="text-2xs px-1.5 py-0.5 rounded bg-success/20 text-success font-semibold">
               −{yearlySavingPercent}%
             </span>
           {/if}
@@ -294,12 +294,12 @@
             <div class="flex items-center justify-between gap-2">
               <h3 class="text-base font-semibold text-on-surface">{plan.name}</h3>
               {#if isCurrent}
-                <span class="text-[10px] uppercase tracking-wide font-semibold px-2 py-0.5 rounded bg-primary/15 text-primary">
+                <span class="text-xs font-semibold px-2 py-0.5 rounded bg-primary/15 text-primary">
                   Actuel
                 </span>
               {/if}
             </div>
-            <p class="text-[13px] text-on-surface-variant leading-snug">{plan.tagline}</p>
+            <p class="text-body-sm text-on-surface-variant leading-snug">{plan.tagline}</p>
           </div>
 
           <div class="min-h-[3rem]">
@@ -310,7 +310,7 @@
                 </span>
                 <span class="text-xs text-on-surface-variant">/{interval === 'month' ? 'mois' : 'an'}</span>
               </div>
-              <p class="text-[11px] text-on-surface-variant/70 mt-0.5">
+              <p class="text-2xs text-on-surface-variant/70 mt-0.5">
                 TTC, par serveur Discord{#if trialAvailable && plan.purchasable}&nbsp;- après l'essai{/if}
               </p>
             {:else if plan.key === 'FREE'}
@@ -320,9 +320,9 @@
             {/if}
           </div>
 
-          <p class="text-[12px] text-on-surface-variant leading-relaxed flex-1">{plan.description}</p>
+          <p class="text-xs text-on-surface-variant leading-relaxed flex-1">{plan.description}</p>
 
-          <div class="text-[12px] text-on-surface-variant flex items-center gap-1.5 pt-1 border-t border-outline-variant/30">
+          <div class="text-xs text-on-surface-variant flex items-center gap-1.5 pt-1 border-t border-outline-variant/30">
             <Papicon name="LayoutGrid" size={14} />
             {#if plan.memberRange}
               <span>
@@ -339,7 +339,7 @@
 
           {#if isCurrent}
             <button disabled class="h-9 rounded-lg text-sm font-medium bg-surface-container text-on-surface-variant cursor-default">
-              Votre offre
+              Ton offre
             </button>
           {:else if plan.key === 'CUSTOM'}
             <a
@@ -380,7 +380,7 @@
                  est une erreur de configuration de l'instance. -->
             <button disabled class="h-9 rounded-lg text-sm font-medium bg-surface-container text-on-surface-variant/50 cursor-default">
               {currentPlan === 'CUSTOM'
-                ? 'Compris dans votre accord'
+                ? 'Compris dans ton accord'
                 : !isUpgrade
                   ? 'Offre inférieure'
                   : 'Bientôt disponible'}
@@ -390,7 +390,7 @@
       {/each}
     </section>
 
-    <p class="text-[12px] text-on-surface-variant/70 text-center leading-relaxed max-w-2xl mx-auto">
+    <p class="text-xs text-on-surface-variant/70 text-center leading-relaxed max-w-2xl mx-auto">
       Paiement sécurisé par Stripe. Résiliable à tout moment depuis « Gérer mon abonnement » ;
       l'accès est conservé jusqu'à la fin de la période déjà réglée.{#if trialAvailable}{' '}
         Résilier pendant l'essai n'entraîne aucun prélèvement.{/if}

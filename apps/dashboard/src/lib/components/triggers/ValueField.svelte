@@ -92,7 +92,7 @@
   const chipClass = $derived(
     `inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
       isEmpty && !optional
-        ? 'bg-amber-500/10 border-amber-500/40 text-amber-800 dark:text-amber-200'
+        ? 'bg-warning/10 border-warning/40 text-amber-800'
         : 'bg-surface-container-highest border-outline-variant/25 text-on-surface hover:border-primary/40'
     }`,
   );
@@ -110,12 +110,12 @@
     />
     {#if textTokens.length > 0}
       <span class="flex flex-wrap items-center gap-1">
-        <span class="text-[10px] text-on-surface-variant/70 uppercase tracking-wider">{m.wf_insert()}</span>
+        <span class="text-xs text-on-surface-variant/70">{m.wf_insert()}</span>
         {#each textTokens.slice(0, 8) as token (token.path)}
           <button
             type="button"
             onclick={() => insertToken(token.path)}
-            class="px-1.5 py-0.5 rounded-md text-[10px] bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors"
+            class="px-1.5 py-0.5 rounded-md text-2xs bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors"
           >{token.label}</button>
         {/each}
       </span>

@@ -162,14 +162,14 @@
   <SettingsGroup title={m.ma_title()} description={m.ma_desc()}>
     {#snippet actions()}
       <div class="flex items-center gap-2">
-        <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 hidden md:inline">
+        <span class="text-xs font-semibold text-on-surface-variant/40 hidden md:inline">
           {m.ma_reset_preset_label()}
         </span>
         {#each PRESETS as preset}
           <button
             type="button"
             onclick={() => onApplyPreset(preset.key)}
-            class="px-3 py-1.5 rounded-lg border border-outline-variant/20 hover:bg-surface-container-high transition-colors text-[11px] font-semibold uppercase tracking-widest"
+            class="px-3 py-1.5 rounded-lg border border-outline-variant/20 hover:bg-surface-container-high transition-colors text-xs font-semibold"
           >
             {preset.label()}
           </button>
@@ -178,7 +178,7 @@
     {/snippet}
 
     {#if roleEntries.length === 0}
-      <p class="text-[13px] text-amber-400/90 leading-relaxed">{m.ma_roles_empty()}</p>
+      <p class="text-body-sm text-warning/90 leading-relaxed">{m.ma_roles_empty()}</p>
     {:else}
       <div class="space-y-4">
         <div class="flex items-center justify-between gap-4 flex-wrap">
@@ -191,7 +191,7 @@
                   type="button"
                   onclick={() => (viewMode = view.id)}
                   aria-pressed={viewMode === view.id}
-                  class="px-3 h-7 rounded-md text-[11px] font-semibold transition-colors {viewMode === view.id
+                  class="px-3 h-7 rounded-md text-2xs font-semibold transition-colors {viewMode === view.id
                     ? 'bg-primary text-on-primary'
                     : 'text-on-surface-variant hover:text-on-surface'}"
                 >
@@ -218,8 +218,8 @@
             <div class="flex items-start gap-2.5">
               <span class="mt-0.5 text-on-surface-variant/50 shrink-0"><Papicon icon={perm.icon} size={13} /></span>
               <div class="min-w-0">
-                <dt class="text-[13px] font-medium text-on-surface">{perm.label}</dt>
-                <dd class="text-[12px] leading-relaxed text-on-surface-variant/75">{perm.desc}</dd>
+                <dt class="text-body-sm font-medium text-on-surface">{perm.label}</dt>
+                <dd class="text-xs leading-relaxed text-on-surface-variant/75">{perm.desc}</dd>
               </div>
             </div>
           {/each}
@@ -230,7 +230,7 @@
             {@const items = group.items.filter(({ feature }) => matches(feature))}
             {#if items.length > 0}
               <section class="space-y-1">
-                <p class="flex items-center gap-2 px-1 pt-2 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/50">
+                <p class="flex items-center gap-2 px-1 pt-2 text-xs font-semibold text-on-surface-variant/50">
                   <Papicon icon={categoryIcons[group.category] || 'Grid'} size={12} />
                   {categoryLabel(group.category)}
                 </p>
@@ -250,7 +250,7 @@
                           <span class="text-sm font-medium truncate">{moduleName(feature.featureKey, feature.featureName)}</span>
                         </span>
                         <span class="flex items-center gap-3 shrink-0">
-                          <span class="text-[11px] font-medium {isOpen(feature) ? 'text-on-surface-variant/40' : 'text-primary'}">
+                          <span class="text-2xs font-medium {isOpen(feature) ? 'text-on-surface-variant/40' : 'text-primary'}">
                             {isOpen(feature) ? m.ma_state_open() : m.ma_state_restricted()}
                           </span>
                           <span class="transition-transform {expanded ? 'rotate-180' : ''}">
@@ -261,13 +261,13 @@
 
                       {#if expanded}
                         <div class="px-4 pb-4 space-y-3">
-                          <p class="text-[12px] text-on-surface-variant/60 leading-relaxed">
+                          <p class="text-xs text-on-surface-variant/60 leading-relaxed">
                             {isOpen(feature) ? m.ma_hint_open() : m.ma_hint_restricted()}
                           </p>
                           <div class="overflow-x-auto">
                             <table class="w-full text-left border-collapse min-w-[26rem]">
                               <thead>
-                                <tr class="text-[11px] font-medium text-on-surface-variant/50">
+                                <tr class="text-2xs font-medium text-on-surface-variant/50">
                                   <th class="py-2 pr-4 font-medium">{m.ma_col_role()}</th>
                                   {#each permissions as perm}
                                     <th class="py-2 px-2 text-center font-medium" title={perm.desc}>
@@ -284,9 +284,9 @@
                                     <td class="py-2 pr-4">
                                       <span class="inline-flex items-center gap-2">
                                         <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background-color:{roleDotColor(role.color)}"></span>
-                                        <span class="text-[13px] font-medium">{role.name}</span>
+                                        <span class="text-body-sm font-medium">{role.name}</span>
                                       </span>
-                                      <span class="ml-2 text-[10px] text-on-surface-variant/40">{grantedCount(feature, role.id)}/{permissions.length}</span>
+                                      <span class="ml-2 text-2xs text-on-surface-variant/40">{grantedCount(feature, role.id)}/{permissions.length}</span>
                                     </td>
                                     {#each permissions as perm}
                                       <td class="py-2 px-2 text-center">
@@ -295,7 +295,7 @@
                                           aria-label="{role.name} - {perm.label}"
                                           aria-pressed={!!rule[perm.key]}
                                           onclick={() => togglePermission(idx, role.id, perm.key)}
-                                          class="w-7 h-7 rounded-lg inline-flex items-center justify-center transition-all {rule[perm.key] ? 'bg-emerald-500/20 text-emerald-500 hover:bg-emerald-500/30' : 'bg-surface-container-high/40 text-on-surface-variant/30 hover:bg-surface-container-high/70'}"
+                                          class="w-7 h-7 rounded-lg inline-flex items-center justify-center transition-all {rule[perm.key] ? 'bg-success/20 text-success hover:bg-success/30' : 'bg-surface-container-high/40 text-on-surface-variant/30 hover:bg-surface-container-high/70'}"
                                         >
                                           <Papicon icon={rule[perm.key] ? 'Check' : 'X'} size={12} />
                                         </button>
@@ -306,7 +306,7 @@
                                         <button
                                           type="button"
                                           onclick={() => removeRule(idx, role.id)}
-                                          class="text-[11px] font-medium text-on-surface-variant/50 hover:text-error transition-colors"
+                                          class="text-2xs font-medium text-on-surface-variant/50 hover:text-error transition-colors"
                                         >
                                           {m.ma_remove_rule()}
                                         </button>
@@ -341,7 +341,7 @@
                     <span class="text-sm font-medium truncate">{role.name}</span>
                   </span>
                   <span class="flex items-center gap-3 shrink-0">
-                    <span class="text-[11px] font-medium {ruled > 0 ? 'text-primary' : 'text-on-surface-variant/40'}">
+                    <span class="text-2xs font-medium {ruled > 0 ? 'text-primary' : 'text-on-surface-variant/40'}">
                       {ruled > 0 ? m.ma_role_ruled_count({ count: ruled }) : m.ma_role_no_rule()}
                     </span>
                     <span class="transition-transform {expanded ? 'rotate-180' : ''}">
@@ -352,11 +352,11 @@
 
                 {#if expanded}
                   <div class="px-4 pb-4 space-y-3">
-                    <p class="text-[12px] text-on-surface-variant/60 leading-relaxed">{m.ma_role_hint()}</p>
+                    <p class="text-xs text-on-surface-variant/60 leading-relaxed">{m.ma_role_hint()}</p>
                     <div class="overflow-x-auto">
                       <table class="w-full text-left border-collapse min-w-[26rem]">
                         <thead>
-                          <tr class="text-[11px] font-medium text-on-surface-variant/50">
+                          <tr class="text-2xs font-medium text-on-surface-variant/50">
                             <th class="py-2 pr-4 font-medium">{m.ma_col_module()}</th>
                             {#each permissions as perm}
                               <th class="py-2 px-2 text-center font-medium" title={perm.desc}>
@@ -373,7 +373,7 @@
                             <tbody class="divide-y divide-outline-variant/5">
                               <tr>
                                 <th colspan={permissions.length + 2} class="pt-4 pb-1 text-left">
-                                  <span class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/50">
+                                  <span class="flex items-center gap-2 text-xs font-semibold text-on-surface-variant/50">
                                     <Papicon icon={categoryIcons[group.category] || 'Grid'} size={12} />
                                     {categoryLabel(group.category)}
                                   </span>
@@ -387,10 +387,10 @@
                                   <td class="py-2 pr-4">
                                     <span class="inline-flex items-center gap-2">
                                       <span class="w-1.5 h-1.5 rounded-full shrink-0 {moduleActive === false ? 'bg-on-surface-variant/30' : 'bg-emerald-500'}"></span>
-                                      <span class="text-[13px] font-medium">{moduleName(feature.featureKey, feature.featureName)}</span>
+                                      <span class="text-body-sm font-medium">{moduleName(feature.featureKey, feature.featureName)}</span>
                                     </span>
                                     {#if isOpen(feature)}
-                                      <span class="ml-2 text-[10px] text-on-surface-variant/40">{m.ma_state_open()}</span>
+                                      <span class="ml-2 text-2xs text-on-surface-variant/40">{m.ma_state_open()}</span>
                                     {/if}
                                   </td>
                                   {#each permissions as perm}
@@ -400,7 +400,7 @@
                                         aria-label="{moduleName(feature.featureKey, feature.featureName)} - {perm.label}"
                                         aria-pressed={!!rule[perm.key]}
                                         onclick={() => togglePermission(idx, role.id, perm.key)}
-                                        class="w-7 h-7 rounded-lg inline-flex items-center justify-center transition-all {rule[perm.key] ? 'bg-emerald-500/20 text-emerald-500 hover:bg-emerald-500/30' : 'bg-surface-container-high/40 text-on-surface-variant/30 hover:bg-surface-container-high/70'}"
+                                        class="w-7 h-7 rounded-lg inline-flex items-center justify-center transition-all {rule[perm.key] ? 'bg-success/20 text-success hover:bg-success/30' : 'bg-surface-container-high/40 text-on-surface-variant/30 hover:bg-surface-container-high/70'}"
                                       >
                                         <Papicon icon={rule[perm.key] ? 'Check' : 'X'} size={12} />
                                       </button>
@@ -411,7 +411,7 @@
                                       <button
                                         type="button"
                                         onclick={() => removeRule(idx, role.id)}
-                                        class="text-[11px] font-medium text-on-surface-variant/50 hover:text-error transition-colors"
+                                        class="text-2xs font-medium text-on-surface-variant/50 hover:text-error transition-colors"
                                       >
                                         {m.ma_remove_rule()}
                                       </button>

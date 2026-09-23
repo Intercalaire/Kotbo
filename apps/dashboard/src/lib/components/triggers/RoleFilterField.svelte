@@ -38,7 +38,7 @@
 
 <div class="space-y-1.5 {compact ? 'nodrag' : ''}">
   {#if !compact}
-    <p class="text-[11px] font-medium text-on-surface-variant/80">{m.wf_role_filter_label()}</p>
+    <p class="text-2xs font-medium text-on-surface-variant/80">{m.wf_role_filter_label()}</p>
   {/if}
 
   <div class="flex flex-wrap gap-1.5">
@@ -47,20 +47,20 @@
         type="button"
         onclick={() => remove(id)}
         aria-label={m.wf_role_filter_remove({ name: labels.get(id) ?? id })}
-        class="group flex items-center gap-1 pl-2 pr-1.5 py-0.5 rounded-md text-[11px] bg-primary/10 border border-primary/25 text-on-surface hover:bg-primary/20 transition-colors"
+        class="group flex items-center gap-1 pl-2 pr-1.5 py-0.5 rounded-md text-2xs bg-primary/10 border border-primary/25 text-on-surface hover:bg-primary/20 transition-colors"
       >
         <span class="truncate max-w-40">{labels.get(id) ?? m.wf_role_filter_unknown()}</span>
         <Papicon icon="Cross" size={10} class="opacity-50 group-hover:opacity-90" />
       </button>
     {:else}
-      <span class="text-[11px] text-on-surface-variant/70">{m.wf_role_filter_all()}</span>
+      <span class="text-2xs text-on-surface-variant/70">{m.wf_role_filter_all()}</span>
     {/each}
   </div>
 
   <select
     value=""
     onchange={(e) => { add(e.currentTarget.value); e.currentTarget.value = ''; }}
-    class="w-full px-2 py-1 rounded-lg bg-surface-container-highest border border-outline-variant/20 text-[11px] text-on-surface {compact ? 'nodrag' : ''}"
+    class="w-full px-2 py-1 rounded-lg bg-surface-container-highest border border-outline-variant/20 text-2xs text-on-surface {compact ? 'nodrag' : ''}"
   >
     <option value="">{m.wf_role_filter_add()}</option>
     {#each roles.filter((o) => !selected.includes(o.id)) as option (option.id)}

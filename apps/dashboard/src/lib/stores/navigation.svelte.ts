@@ -11,7 +11,7 @@ import {
   staffItems,
   crossServerItems,
   configItems,
-  resolveSecurityRedirect,
+  resolveLegacyHref,
   type PageConfig,
 } from '../config/pages';
 import { m } from '../i18n';
@@ -33,8 +33,6 @@ const MAX_RECENTS = 6;
 /** Staff-only pages that non-admins reach only when they hold the matching role. */
 const STAFF_SHARED_PAGES = [
   '/planning',
-  '/absences',
-  '/meetings',
   '/tickets',
   '/recruitment',
   '/evaluations',
@@ -50,7 +48,7 @@ function sanitizeHrefs(entries: unknown, limit: number): string[] {
         // Les favoris et recents enregistres avant la refonte securite pointent
         // vers des URL qui n'existent plus : on les reecrit a la lecture plutot
         // que de les laisser disparaitre silencieusement.
-        .map((entry) => resolveSecurityRedirect(entry) ?? entry)
+        .map((entry) => resolveLegacyHref(entry) ?? entry)
         .filter(Boolean),
     ),
   ].slice(0, limit);
@@ -241,6 +239,17 @@ class NavigationStore {
 
     return ordered.filter((group) => group.items.length > 0);
   });
+
+  /**
+   * Groupes affiches dans le menu (barre laterale, menu mobile) : sans les
+   * pages marquees `hidden`, que l'on atteint depuis un hub. La palette garde
+   * `groups` et les propose toujours.
+   */
+  readonly menuGroups = $derived(
+    this.groups
+      .map((group) => ({ ...group, items: group.items.filter((item) => !item.hidden) }))
+      .filter((group) => group.items.length > 0),
+  );
 
   /** Flat list of every reachable page, used for search. */
   readonly allItems = $derived(this.groups.flatMap((group) => group.items));

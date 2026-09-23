@@ -169,7 +169,7 @@
 >
   <div class="space-y-7">
     <div>
-      <p class="text-[13px] font-semibold text-on-surface mb-2.5">{m.onb_staff_mode_label()}</p>
+      <p class="text-body-sm font-semibold text-on-surface mb-2.5">{m.onb_staff_mode_label()}</p>
       <div class="grid gap-2.5 sm:grid-cols-2">
         <ChoiceCard
           label={m.onb_staff_mode_create()}
@@ -190,7 +190,7 @@
 
     {#if mode === 'create'}
       <div>
-        <p class="text-[13px] font-semibold text-on-surface mb-2.5">{m.onb_staff_structure_label()}</p>
+        <p class="text-body-sm font-semibold text-on-surface mb-2.5">{m.onb_staff_structure_label()}</p>
         <div class="space-y-2.5">
           {#each STAFF_STRUCTURES as entry (entry.key)}
             <ChoiceCard
@@ -206,8 +206,8 @@
       </div>
 
       <div>
-        <p class="text-[13px] font-semibold text-on-surface mb-1">{m.onb_staff_poles_label()}</p>
-        <p class="text-[12.5px] text-on-surface-variant/60 leading-relaxed mb-3">
+        <p class="text-body-sm font-semibold text-on-surface mb-1">{m.onb_staff_poles_label()}</p>
+        <p class="text-xs text-on-surface-variant/60 leading-relaxed mb-3">
           {m.onb_staff_poles_hint()}
         </p>
         <div class="grid gap-2.5 sm:grid-cols-2">
@@ -232,7 +232,7 @@
         onclick={createLadder}
         disabled={onboardingData.busy}
         class="inline-flex items-center gap-2 rounded-xl border border-primary/40 bg-primary/[0.06] px-4 py-2.5
-               text-[13.5px] font-semibold text-primary transition hover:bg-primary/[0.11]
+               text-body-sm font-semibold text-primary transition hover:bg-primary/[0.11]
                disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
       >
         <Papicon
@@ -244,10 +244,10 @@
       </button>
     {:else}
       <div>
-        <p class="text-[13px] font-semibold text-on-surface mb-2.5">{m.onb_staff_pick()}</p>
+        <p class="text-body-sm font-semibold text-on-surface mb-2.5">{m.onb_staff_pick()}</p>
 
         {#if roles.length === 0}
-          <p class="rounded-2xl border border-dashed border-outline-variant/40 px-4 py-6 text-center text-[13px] text-on-surface-variant/55 leading-relaxed">
+          <p class="rounded-2xl border border-dashed border-outline-variant/40 px-4 py-6 text-center text-body-sm text-on-surface-variant/55 leading-relaxed">
             {m.onb_staff_empty()}
           </p>
         {:else}
@@ -265,7 +265,7 @@
               </ToggleCard>
             {/each}
           </div>
-          <p class="mt-2 text-[12px] text-on-surface-variant/45 tabular-nums">
+          <p class="mt-2 text-xs text-on-surface-variant/45 tabular-nums">
             {m.onb_staff_selected({ count: selection.length })}
           </p>
         {/if}
@@ -292,7 +292,7 @@
          une structure de six roles ne se juge pas sur son nombre. -->
     {#if mode === 'create'}
       <div class="rounded-2xl border border-outline-variant/30 bg-surface-container-lowest/50 p-4">
-        <p class="text-[12.5px] font-semibold text-on-surface mb-3">{m.onb_staff_ladder_title()}</p>
+        <p class="text-xs font-semibold text-on-surface mb-3">{m.onb_staff_ladder_title()}</p>
 
         <div class="space-y-2">
           {#each ladder as role, index (role.key)}
@@ -302,20 +302,20 @@
                 style="background-color: {role.color}"
               ></span>
               <div class="min-w-0 flex-1">
-                <p class="text-[13px] font-medium text-on-surface truncate">{role.name}</p>
-                <p class="text-[11.5px] text-on-surface-variant/50 leading-snug">{role.duty}</p>
+                <p class="text-body-sm font-medium text-on-surface truncate">{role.name}</p>
+                <p class="text-2xs text-on-surface-variant/50 leading-snug">{role.duty}</p>
               </div>
             </div>
           {/each}
         </div>
 
-        <p class="mt-4 pt-3 border-t border-outline-variant/20 text-[12px] text-on-surface-variant/50 leading-relaxed">
+        <p class="mt-4 pt-3 border-t border-outline-variant/20 text-xs text-on-surface-variant/50 leading-relaxed">
           {m.onb_staff_ladder_hint()}
         </p>
       </div>
     {:else}
       <div class="rounded-2xl border border-outline-variant/30 bg-surface-container-lowest/50 p-4">
-        <p class="text-[12.5px] font-semibold text-on-surface mb-3">{m.onb_staff_preview_title()}</p>
+        <p class="text-xs font-semibold text-on-surface mb-3">{m.onb_staff_preview_title()}</p>
 
         <div class="space-y-2">
           {#each roles.filter((role) => selection.includes(role.id)).slice(0, 8) as role (role.id)}
@@ -324,15 +324,15 @@
                 class="w-2 h-2 rounded-full shrink-0"
                 style="background-color: {role.color && role.color !== '#000000' ? role.color : '#64748b'}"
               ></span>
-              <span class="text-[13px] text-on-surface-variant/80 flex-1 min-w-0 truncate">{role.name}</span>
-              <span class="text-[11px] tabular-nums text-on-surface-variant/35"></span>
+              <span class="text-body-sm text-on-surface-variant/80 flex-1 min-w-0 truncate">{role.name}</span>
+              <span class="text-2xs tabular-nums text-on-surface-variant/35"></span>
             </div>
           {:else}
-            <p class="text-[12.5px] text-on-surface-variant/40 py-3">Aucun rôle retenu pour l'instant.</p>
+            <p class="text-xs text-on-surface-variant/40 py-3">Aucun rôle retenu pour l'instant.</p>
           {/each}
         </div>
 
-        <p class="mt-4 pt-3 border-t border-outline-variant/20 text-[12px] text-on-surface-variant/50 leading-relaxed">
+        <p class="mt-4 pt-3 border-t border-outline-variant/20 text-xs text-on-surface-variant/50 leading-relaxed">
           {m.onb_staff_preview_hint()}
         </p>
       </div>
@@ -343,7 +343,7 @@
     <button
       type="button"
       onclick={skip}
-      class="text-[13px] font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
+      class="text-body-sm font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
     >
       Passer
     </button>
@@ -351,7 +351,7 @@
       type="button"
       onclick={apply}
       disabled={onboardingData.busy}
-      class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[14px] font-semibold text-on-primary
+      class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary
              hover:brightness-110 transition disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
     >
       {onboardingData.busy ? 'Enregistrement…' : 'Continuer'}

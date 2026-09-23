@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import { fetchPulseData, refreshPulse, fetchPredictions } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
   import { m } from '../lib/i18n';
@@ -120,12 +122,6 @@
     activeTab = resolveTabFromUrl('/pulse', pulseTabs, 'apercu') as TabId;
   });
 
-  const tabs: { id: TabId; label: () => string; icon: string }[] = [
-    { id: 'apercu', label: () => m.pulse_tab_overview(), icon: 'layout' },
-    { id: 'sante', label: () => m.pulse_tab_health(), icon: 'heart' },
-    { id: 'predictions', label: () => m.pulse_tab_predictions(), icon: 'trending-up' },
-  ];
-
   /**
    * Le diagnostic porte toujours sur la dernière journée **complète** : score,
    * sous-scores, tendance et alertes ne sont comparables qu'entre jours entiers.
@@ -201,15 +197,15 @@
   }
 
   function trendClass(trend: string): string {
-    if (trend === 'UP') return 'text-emerald-500';
-    if (trend === 'DOWN') return 'text-rose-500';
+    if (trend === 'UP') return 'text-success';
+    if (trend === 'DOWN') return 'text-error';
     return 'text-on-surface-variant';
   }
 
   function severityClasses(severity: string): string {
-    if (severity === 'danger') return 'bg-rose-500/10 text-rose-500 border border-rose-500/15';
-    if (severity === 'warning') return 'bg-amber-500/10 text-amber-500 border border-amber-500/15';
-    if (severity === 'success') return 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/15';
+    if (severity === 'danger') return 'bg-error/10 text-error border border-error/15';
+    if (severity === 'warning') return 'bg-warning/10 text-warning border border-warning/15';
+    if (severity === 'success') return 'bg-success/10 text-success border border-success/15';
     return 'bg-primary/10 text-primary border border-primary/15';
   }
 
@@ -307,7 +303,7 @@
 <ModulePage title={m.pulse_title()} description={m.pulse_desc()} icon="activity" featureKey="dashboard">
   {#snippet actions()}
     <button
-      class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+      class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
       onclick={handleRefresh}
       disabled={refreshing}
     >
@@ -328,17 +324,13 @@
   {/snippet}
 
   <!-- ======================== TABS ======================== -->
-  <div class="tab-group w-fit mb-6">
-    {#each tabs as tab (tab.id)}
-      <button
-        class="tab-button {activeTab === tab.id ? 'active' : ''}"
-        onclick={() => gotoTab('/pulse', tab.id, 'apercu')}
-      >
-        <Papicon icon={tab.icon} size={15} />
-        {tab.label()}
-      </button>
-    {/each}
-  </div>
+  <Tabs
+    label={m.pulse_title()}
+    class="mb-6"
+    tabs={pageTabItems('/pulse')}
+    active={activeTab}
+    onchange={(id) => gotoTab('/pulse', id, 'apercu')}
+  />
 
   {#if loading}
     <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
@@ -373,9 +365,9 @@
             <!-- Indicateur provisoire : la journée en cours n'est pas comparable
                  à une journée entière, on l'affiche sans tendance ni alertes. -->
             <div class="w-full pt-3 mt-1 border-t border-outline-variant/10 flex flex-col items-center gap-0.5">
-              <span class="text-[11px] text-on-surface-variant/60">{m.pulse_today_partial()}</span>
+              <span class="text-2xs text-on-surface-variant/60">{m.pulse_today_partial()}</span>
               <span class="text-xl font-bold" style="color: {scoreColor(today.score)}">{today.score}<span class="text-xs text-on-surface-variant/50">/100</span></span>
-              <span class="text-[10px] text-amber-500 text-center leading-tight">{m.pulse_partial_hint()}</span>
+              <span class="text-2xs text-warning text-center leading-tight">{m.pulse_partial_hint()}</span>
             </div>
           {/if}
         </div>
@@ -422,7 +414,7 @@
               <div class="text-xs font-medium text-on-surface-variant/60 mt-1">{m.pulse_metric_active()}</div>
             </div>
             <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
-              <div class="text-2xl font-bold {displayedMetrics.membersJoined > displayedMetrics.membersLeft ? 'text-emerald-500' : ''}">
+              <div class="text-2xl font-bold {displayedMetrics.membersJoined > displayedMetrics.membersLeft ? 'text-success' : ''}">
                 +{displayedMetrics.membersJoined} / -{displayedMetrics.membersLeft}
               </div>
               <div class="text-xs font-medium text-on-surface-variant/60 mt-1">{m.pulse_metric_flow()}</div>
@@ -525,7 +517,7 @@
             <span class="text-on-surface-variant/60"> · {m.pulse_observed_days({ days: predData.observedDays })}</span>
           </p>
           {#if predData.growthForecast.confidence < 50}
-            <p class="text-xs text-amber-500 flex items-center gap-1.5">
+            <p class="text-xs text-warning flex items-center gap-1.5">
               <Papicon icon="alert-triangle" size={13} />
               {m.pulse_confidence_low()}
             </p>
@@ -570,7 +562,7 @@
           </div>
 
           {#if predData.seasonality.lowConfidence}
-            <p class="text-xs text-amber-500 flex items-center gap-1.5">
+            <p class="text-xs text-warning flex items-center gap-1.5">
               <Papicon icon="alert-triangle" size={13} />
               {m.pulse_seasonality_low()}
             </p>
@@ -672,7 +664,7 @@
           <div class="flex items-center gap-4">
             <div class="w-20 h-20 rounded-full border-[5px] flex flex-col items-center justify-center shrink-0" style="border-color: {scoreColor(displayed.score)}">
               <span class="text-2xl font-bold text-on-surface leading-none">{displayed.score}</span>
-              <span class="text-[10px] text-on-surface-variant/60">/100</span>
+              <span class="text-2xs text-on-surface-variant/60">/100</span>
             </div>
             <div class="flex flex-col gap-1">
               <span class="text-base font-semibold">{scoreLabel(displayed.score)}</span>
@@ -707,7 +699,7 @@
 
           {#if displayed.alerts.length > 0}
             <div class="space-y-1.5 pt-2 border-t border-outline-variant/10">
-              <h4 class="text-[13px] font-medium text-on-surface-variant/60">{m.pulse_alerts()}</h4>
+              <h4 class="text-body-sm font-medium text-on-surface-variant/60">{m.pulse_alerts()}</h4>
               {#each displayed.alerts.slice(0, 3) as alert, i (alert.code ?? i)}
                 <div class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs {severityClasses(alert.severity)}">
                   <Papicon icon={severityIcon(alert.severity)} size={14} />
@@ -756,7 +748,7 @@
           </div>
           {#if predData.anomalies.length > 0}
             <div class="space-y-1.5 pt-2 border-t border-outline-variant/10">
-              <h4 class="text-[13px] font-medium text-on-surface-variant/60">{m.pulse_anomalies_title()}</h4>
+              <h4 class="text-body-sm font-medium text-on-surface-variant/60">{m.pulse_anomalies_title()}</h4>
               {#each predData.anomalies.slice(0, 3) as anomaly (anomaly.metric + anomaly.dateKey)}
                 <div class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs {severityClasses(anomaly.severity)}">
                   <Papicon icon={anomaly.type === 'spike' ? 'arrow-up' : 'arrow-down'} size={14} />

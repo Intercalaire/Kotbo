@@ -264,14 +264,14 @@
 >
   {#snippet actions()}
     {#if lastRefresh}
-      <span class="text-[12px] text-on-surface-variant tabular-nums hidden sm:block">
+      <span class="text-xs text-on-surface-variant tabular-nums hidden sm:block">
         Actualisé {relativeTime(lastRefresh.toISOString())}
       </span>
     {/if}
     <button
       type="button"
       onclick={() => load(true)}
-      class="h-9 px-3.5 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 border border-outline-variant/25 text-[13px] font-semibold text-on-surface-variant hover:text-on-surface transition inline-flex items-center gap-2"
+      class="h-9 px-3.5 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 border border-outline-variant/25 text-body-sm font-semibold text-on-surface-variant hover:text-on-surface transition inline-flex items-center gap-2"
     >
       <Papicon icon="RefreshCw" size={13} />
       Actualiser
@@ -279,11 +279,11 @@
   {/snippet}
 
   {#if error}
-    <div class="rounded-2xl border border-red-500/30 bg-red-500/8 p-4 flex items-start gap-3">
-      <Papicon icon="AlertTriangle" size={18} class="text-red-500 mt-0.5 shrink-0" />
+    <div class="rounded-2xl border border-error/30 bg-error/8 p-4 flex items-start gap-3">
+      <Papicon icon="AlertTriangle" size={18} class="text-error mt-0.5 shrink-0" />
       <div>
-        <p class="text-sm font-semibold text-red-600 dark:text-red-400">Impossible de joindre l’API du bot</p>
-        <p class="text-[13px] text-on-surface-variant mt-0.5">{error}</p>
+        <p class="text-sm font-semibold text-error">Impossible de joindre l’API du bot</p>
+        <p class="text-body-sm text-on-surface-variant mt-0.5">{error}</p>
       </div>
     </div>
   {/if}
@@ -339,20 +339,20 @@
           <li class="flex items-start gap-3 p-3 rounded-xl bg-surface-container-low/50 border border-outline-variant/20">
             <div
               class="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center
-                {alert.tone === 'danger' ? 'bg-red-500/12 text-red-500'
-                  : alert.tone === 'warning' ? 'bg-amber-500/12 text-amber-500'
+                {alert.tone === 'danger' ? 'bg-error/12 text-error'
+                  : alert.tone === 'warning' ? 'bg-warning/12 text-warning'
                     : 'bg-sky-500/12 text-sky-500'}"
             >
               <Papicon icon={alert.icon} size={15} />
             </div>
             <div class="min-w-0 flex-1">
-              <p class="text-[13.5px] font-semibold text-on-surface">{alert.title}</p>
-              <p class="text-[12.5px] text-on-surface-variant mt-0.5 leading-snug">{alert.detail}</p>
+              <p class="text-body-sm font-semibold text-on-surface">{alert.title}</p>
+              <p class="text-xs text-on-surface-variant mt-0.5 leading-snug">{alert.detail}</p>
             </div>
             {#if alert.href}
               <a
                 href={alert.href}
-                class="shrink-0 h-8 px-3 rounded-lg bg-on-surface/6 hover:bg-on-surface/10 text-[12px] font-semibold text-on-surface-variant hover:text-on-surface transition inline-flex items-center gap-1.5"
+                class="shrink-0 h-8 px-3 rounded-lg bg-on-surface/6 hover:bg-on-surface/10 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition inline-flex items-center gap-1.5"
               >
                 Ouvrir
                 <Papicon icon="ChevronRight" size={11} />
@@ -363,9 +363,9 @@
       </ul>
     </AdminCard>
   {:else if !loading && stats}
-    <div class="rounded-2xl border border-emerald-500/25 bg-emerald-500/8 p-4 flex items-center gap-3">
-      <Papicon icon="CheckCircle" size={18} class="text-emerald-500 shrink-0" />
-      <p class="text-[13.5px] text-emerald-700 dark:text-emerald-300">
+    <div class="rounded-2xl border border-success/25 bg-success/8 p-4 flex items-center gap-3">
+      <Papicon icon="CheckCircle" size={18} class="text-success shrink-0" />
+      <p class="text-body-sm text-success">
         Aucun point d’attention : shards complets, mémoire et latence dans les clous.
       </p>
     </div>
@@ -383,7 +383,7 @@
           <button
             type="button"
             onclick={() => (metric = option.value)}
-            class="h-7 px-2.5 rounded-md text-[12px] font-semibold transition
+            class="h-7 px-2.5 rounded-md text-xs font-semibold transition
               {metric === option.value ? 'bg-surface-container-lowest text-on-surface shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}"
           >
             {option.label}
@@ -395,7 +395,7 @@
           <button
             type="button"
             onclick={() => changeWindow(option.value)}
-            class="h-7 px-2.5 rounded-md text-[12px] font-semibold transition
+            class="h-7 px-2.5 rounded-md text-xs font-semibold transition
               {window_ === option.value ? 'bg-surface-container-lowest text-on-surface shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}"
           >
             {option.label}
@@ -414,20 +414,20 @@
       {#if series?.peak && samples.length > 1}
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-outline-variant/20">
           <div>
-            <p class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Pic heap</p>
+            <p class="text-xs font-semibold text-on-surface-variant">Pic heap</p>
             <p class="text-[15px] font-semibold text-on-surface tabular-nums mt-0.5">{formatBytes(series.peak.heapUsed)}</p>
           </div>
           <div>
-            <p class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Pic RSS</p>
+            <p class="text-xs font-semibold text-on-surface-variant">Pic RSS</p>
             <p class="text-[15px] font-semibold text-on-surface tabular-nums mt-0.5">{formatBytes(series.peak.rss)}</p>
           </div>
           <div>
-            <p class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Pic ping</p>
+            <p class="text-xs font-semibold text-on-surface-variant">Pic ping</p>
             <p class="text-[15px] font-semibold text-on-surface tabular-nums mt-0.5">{series.peak.averagePing} ms</p>
           </div>
           <div>
-            <p class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Tendance heap</p>
-            <p class="text-[15px] font-semibold tabular-nums mt-0.5 {series.heapTrendPerHour > 0 ? 'text-amber-500' : 'text-emerald-500'}">
+            <p class="text-xs font-semibold text-on-surface-variant">Tendance heap</p>
+            <p class="text-[15px] font-semibold tabular-nums mt-0.5 {series.heapTrendPerHour > 0 ? 'text-warning' : 'text-success'}">
               {series.heapTrendPerHour >= 0 ? '+' : ''}{formatBytes(Math.abs(series.heapTrendPerHour))}/h
             </p>
           </div>
@@ -449,8 +449,8 @@
           { label: 'Soumissions algo', value: stats ? formatNumber(stats.dailyAlgoSubmissions) : '-' },
         ] as entry (entry.label)}
           <div class="flex items-center justify-between gap-3">
-            <dt class="text-[13px] text-on-surface-variant">{entry.label}</dt>
-            <dd class="text-[13px] font-semibold text-on-surface tabular-nums">{entry.value}</dd>
+            <dt class="text-body-sm text-on-surface-variant">{entry.label}</dt>
+            <dd class="text-body-sm font-semibold text-on-surface tabular-nums">{entry.value}</dd>
           </div>
         {/each}
       </dl>
@@ -459,11 +459,11 @@
     <!-- Plus gros serveurs -->
     <AdminCard title="Plus gros serveurs" icon="Server" tone="primary">
       {#snippet actions()}
-        <a href="/admin/servers" class="text-[12px] font-semibold text-primary hover:underline">Tout voir</a>
+        <a href="/admin/servers" class="text-xs font-semibold text-primary hover:underline">Tout voir</a>
       {/snippet}
 
       {#if topGuilds.length === 0}
-        <p class="text-[13px] text-on-surface-variant py-4 text-center">Aucun serveur chargé.</p>
+        <p class="text-body-sm text-on-surface-variant py-4 text-center">Aucun serveur chargé.</p>
       {:else}
         <ul class="space-y-2">
           {#each topGuilds as guild (guild.id)}
@@ -475,11 +475,11 @@
                   <Papicon icon="Server" size={12} class="text-on-surface-variant" />
                 {/if}
               </div>
-              <span class="flex-1 min-w-0 text-[13px] font-medium text-on-surface truncate">{guild.name}</span>
+              <span class="flex-1 min-w-0 text-body-sm font-medium text-on-surface truncate">{guild.name}</span>
               {#if !guild.activated}
                 <AdminBadge size="sm" label="Inactif" tone="warning" />
               {/if}
-              <span class="text-[12px] font-semibold text-on-surface-variant tabular-nums">{formatNumber(guild.memberCount)}</span>
+              <span class="text-xs font-semibold text-on-surface-variant tabular-nums">{formatNumber(guild.memberCount)}</span>
             </li>
           {/each}
         </ul>
@@ -489,11 +489,11 @@
     <!-- Activité admin -->
     <AdminCard title="Activité admin" icon="ClipboardList" tone="neutral">
       {#snippet actions()}
-        <a href="/admin/audit" class="text-[12px] font-semibold text-primary hover:underline">Journal</a>
+        <a href="/admin/audit" class="text-xs font-semibold text-primary hover:underline">Journal</a>
       {/snippet}
 
       {#if auditTrail.length === 0}
-        <p class="text-[13px] text-on-surface-variant py-4 text-center leading-snug">
+        <p class="text-body-sm text-on-surface-variant py-4 text-center leading-snug">
           Aucune action enregistrée pour l’instant. Le journal se remplit dès la prochaine action sensible.
         </p>
       {:else}
@@ -502,8 +502,8 @@
             <li class="flex items-start gap-2.5">
               <span class="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 {entry.outcome === 'OK' ? 'bg-emerald-500' : 'bg-red-500'}"></span>
               <div class="min-w-0">
-                <p class="text-[12.5px] text-on-surface leading-snug">{entry.summary}</p>
-                <p class="text-[11px] text-on-surface-variant mt-0.5">
+                <p class="text-xs text-on-surface leading-snug">{entry.summary}</p>
+                <p class="text-2xs text-on-surface-variant mt-0.5">
                   <span class="font-mono">{entry.action}</span> · {relativeTime(entry.createdAt)}
                 </p>
               </div>
@@ -518,7 +518,7 @@
   {#if recentBroadcasts.length > 0}
     <AdminCard title="Dernières annonces globales" icon="Megaphone" tone="warning">
       {#snippet actions()}
-        <a href="/admin/broadcast" class="text-[12px] font-semibold text-primary hover:underline">Console d’annonces</a>
+        <a href="/admin/broadcast" class="text-xs font-semibold text-primary hover:underline">Console d’annonces</a>
       {/snippet}
 
       <ul class="space-y-2">
@@ -526,17 +526,17 @@
           <li class="flex items-center gap-3 p-2.5 rounded-xl bg-surface-container-low/40 border border-outline-variant/20">
             <span class="w-1 h-8 rounded-full shrink-0" style="background: {log.color}"></span>
             <div class="min-w-0 flex-1">
-              <p class="text-[13px] font-semibold text-on-surface truncate">{log.title}</p>
-              <p class="text-[11.5px] text-on-surface-variant">{relativeTime(log.createdAt)} · {log.username ?? log.sentBy}</p>
+              <p class="text-body-sm font-semibold text-on-surface truncate">{log.title}</p>
+              <p class="text-2xs text-on-surface-variant">{relativeTime(log.createdAt)} · {log.username ?? log.sentBy}</p>
             </div>
             <div class="text-right shrink-0">
-              <p class="text-[13px] font-semibold text-on-surface tabular-nums">
-                <span class="text-emerald-500">{log.successCount}</span>
+              <p class="text-body-sm font-semibold text-on-surface tabular-nums">
+                <span class="text-success">{log.successCount}</span>
                 {#if log.failCount > 0}
-                  <span class="text-on-surface-variant">/</span><span class="text-red-500">{log.failCount}</span>
+                  <span class="text-on-surface-variant">/</span><span class="text-error">{log.failCount}</span>
                 {/if}
               </p>
-              <p class="text-[11px] text-on-surface-variant tabular-nums">sur {log.totalTargeted}</p>
+              <p class="text-2xs text-on-surface-variant tabular-nums">sur {log.totalTargeted}</p>
             </div>
           </li>
         {/each}

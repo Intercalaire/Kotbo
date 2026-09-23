@@ -34,10 +34,10 @@
       icon: 'Flag',
       description: m.ev_ctf_desc(),
       color: 'from-emerald-500/20 to-teal-500/20',
-      border: 'border-emerald-500/30 hover:border-emerald-400/60',
-      iconBg: 'bg-emerald-500/10 text-emerald-400',
+      border: 'border-success/30 hover:border-success/60',
+      iconBg: 'bg-success/10 text-success',
       tag: m.ev_ctf_tag(),
-      tagColor: 'bg-emerald-500/15 text-emerald-400',
+      tagColor: 'bg-success/15 text-success',
     },
     {
       type: 'CUSTOM',
@@ -93,9 +93,9 @@
     switch (status) {
       case 'DRAFT': return 'bg-on-surface/5 text-on-surface-variant/60';
       case 'PUBLISHED': return 'bg-blue-500/10 text-blue-500';
-      case 'ONGOING': return 'bg-emerald-500/10 text-emerald-500';
+      case 'ONGOING': return 'bg-success/10 text-success';
       case 'COMPLETED': return 'bg-purple-500/10 text-purple-500';
-      case 'CANCELLED': return 'bg-red-500/10 text-red-500';
+      case 'CANCELLED': return 'bg-error/10 text-error';
       default: return 'bg-on-surface/5 text-on-surface-variant/60';
     }
   }
@@ -212,7 +212,7 @@
             <div class="flex flex-col gap-2">
               <div class="flex items-center gap-3">
                 <span class="text-lg font-semibold text-on-surface">{et.label}</span>
-                <span class="px-2.5 py-0.5 rounded-lg text-[11px] font-semibold uppercase tracking-widest {et.tagColor}">
+                <span class="px-2.5 py-0.5 rounded-lg text-xs font-semibold {et.tagColor}">
                   {et.tag}
                 </span>
               </div>
@@ -251,7 +251,7 @@
       {#if canManageEvents}
         <button
           onclick={() => showTypeModal = true}
-          class="px-4 py-2 bg-primary text-on-primary rounded-xl font-medium text-[13px] transition-transform"
+          class="px-4 py-2 bg-primary text-on-primary rounded-xl font-medium text-body-sm transition-transform"
         >
           {m.ev_new_event()}
         </button>
@@ -267,7 +267,7 @@
       </div>
       <div class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10">
         <p class="text-xs font-medium text-on-surface-variant/40">{m.ev_ongoing_events()}</p>
-        <p class="text-lg font-semibold text-emerald-500 mt-2">{events.filter(e => e.status === 'ONGOING').length}</p>
+        <p class="text-lg font-semibold text-success mt-2">{events.filter(e => e.status === 'ONGOING').length}</p>
       </div>
       <div class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10">
         <p class="text-xs font-medium text-on-surface-variant/40">{m.ev_participations_registrations()}</p>
@@ -286,37 +286,37 @@
                  pousse les boutons hors de la carte. -->
             <div class="flex items-center gap-6 min-w-0 flex-1">
               <div class="w-16 h-16 shrink-0 rounded-xl flex items-center justify-center
- {event.type === 'CTF' ? 'bg-emerald-500/10 text-emerald-400' : event.type === 'CUSTOM' ? 'bg-purple-500/10 text-purple-400' : 'bg-blue-500/10 text-blue-400'}">
+ {event.type === 'CTF' ? 'bg-success/10 text-success' : event.type === 'CUSTOM' ? 'bg-purple-500/10 text-purple-400' : 'bg-blue-500/10 text-blue-400'}">
                 <Papicon icon={event.type === 'CTF' ? 'Flag' : event.type === 'CUSTOM' ? 'Calendar' : 'HelpCircle'} size={24} />
               </div>
               <div class="min-w-0 flex-1">
                 <div class="flex items-center flex-wrap gap-x-3 gap-y-1.5">
                   <h4 class="text-xl font-semibold text-on-surface truncate">{event.title}</h4>
-                  <span class="shrink-0 px-3 py-1 rounded-lg text-[11px] font-semibold uppercase tracking-widest {getStatusColor(event.status)} border border-current/10">
+                  <span class="shrink-0 px-3 py-1 rounded-lg text-xs font-semibold {getStatusColor(event.status)} border border-current/10">
                     {getStatusLabel(event.status)}
                   </span>
-                  <span class="shrink-0 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold uppercase tracking-widest
- {event.type === 'CTF' ? 'bg-emerald-500/15 text-emerald-400' : event.type === 'CUSTOM' ? 'bg-purple-500/15 text-purple-400' : 'bg-blue-500/15 text-blue-400'}">
+                  <span class="shrink-0 px-2.5 py-0.5 rounded-lg text-2xs font-semibold uppercase tracking-widest
+ {event.type === 'CTF' ? 'bg-success/15 text-success' : event.type === 'CUSTOM' ? 'bg-purple-500/15 text-purple-400' : 'bg-blue-500/15 text-blue-400'}">
                     {event.type === 'CTF' ? 'CTF' : event.type === 'CUSTOM' ? 'Custom' : 'Quiz'}
                   </span>
                 </div>
                 <p class="text-on-surface-variant/60 mt-1 line-clamp-1">{event.description || m.ev_no_description()}</p>
                 <div class="flex items-center flex-wrap gap-4 mt-3">
                   {#if event.type === 'CTF'}
-                    <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
+                    <span class="text-2xs font-bold text-on-surface-variant/40 flex items-center gap-1.5">
                       <Papicon icon="Flag" size={12} /> {m.ev_count_challenges({ count: event._count?.ctfChallenges || 0 })}
                     </span>
                   {:else if event.type === 'QUIZ'}
-                    <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
+                    <span class="text-2xs font-bold text-on-surface-variant/40 flex items-center gap-1.5">
                       <Papicon icon="HelpCircle" size={12} /> {m.ev_count_questions({ count: event._count?.questions || 0 })}
                     </span>
                   {/if}
                   {#if event.type === 'CUSTOM'}
-                    <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
+                    <span class="text-2xs font-bold text-on-surface-variant/40 flex items-center gap-1.5">
                       <Papicon icon="UserPlus" size={12} /> {m.ev_count_registrations({ count: event._count?.registrations || 0 })}
                     </span>
                   {:else}
-                    <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
+                    <span class="text-2xs font-bold text-on-surface-variant/40 flex items-center gap-1.5">
                       <Papicon icon="Users" size={12} /> {m.ev_count_participants({ count: event._count?.participants || 0 })}
                     </span>
                   {/if}
@@ -358,7 +358,7 @@
               {#if canManageEvents}
                 <button 
                   onclick={() => deleteEvent(event.id, event.title)}
-                  class="px-6 py-3 bg-red-500/10 text-red-500 rounded-lg text-xs font-medium border border-red-500/20 hover:bg-red-500/20 transition-colors flex items-center gap-2 whitespace-nowrap"
+                  class="px-6 py-3 bg-error/10 text-error rounded-lg text-xs font-medium border border-error/20 hover:bg-error/20 transition-colors flex items-center gap-2 whitespace-nowrap"
                 >
                   <Papicon icon="Trash" size={12} /> {m.ev_btn_delete()}
                 </button>
@@ -372,7 +372,7 @@
             </div>
             <p class="text-on-surface-variant/60 font-semibold text-xl">{m.ev_no_event_title()}</p>
             {#if canManageEvents}
-              <button onclick={() => showTypeModal = true} class="mt-6 text-primary font-semibold uppercase text-[10px] tracking-widest hover:underline">
+              <button onclick={() => showTypeModal = true} class="mt-6 text-primary font-semibold text-xs hover:underline">
                 {m.ev_create_first()}
               </button>
             {/if}

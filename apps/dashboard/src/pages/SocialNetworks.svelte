@@ -3,6 +3,8 @@
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
@@ -240,28 +242,12 @@
   description={m.social_page_desc()}
   icon="share-2"
 >
-  {#snippet actions()}
-      <div class="flex bg-surface-container-high/40 p-1.5 rounded-lg border border-outline-variant/20">
-        <button
-          onclick={() => gotoTab('/social-networks', 'youtube', 'youtube')}
-          class="px-5 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-300 flex items-center gap-2 {activeTab === 'youtube' ? 'bg-red-600 text-white shadow-sm ' : 'text-on-surface-variant/70 hover:text-on-surface'}"
-        >
-          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M23.498 6.163a3.003 3.003 0 0 0-2.11-2.11C19.518 3.545 12 3.545 12 3.545s-7.518 0-9.388.508a3.003 3.003 0 0 0-2.11 2.11C0 8.033 0 12 0 12s0 3.967.502 5.837a3.003 3.003 0 0 0 2.11 2.11c1.87.508 9.388.508 9.388.508s7.518 0 9.388-.508a3.002 3.002 0 0 0 2.11-2.11C24 15.967 24 12 24 12s0-3.967-.502-5.837zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-          </svg>
-          <span>YouTube</span>
-        </button>
-        <button
-          onclick={() => gotoTab('/social-networks', 'twitch', 'youtube')}
-          class="px-5 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-300 flex items-center gap-2 {activeTab === 'twitch' ? 'bg-[#9146FF] text-white shadow-lg shadow-[#9146FF]/20 ' : 'text-on-surface-variant/70 hover:text-on-surface'}"
-        >
-          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/>
-          </svg>
-          <span>Twitch</span>
-        </button>
-      </div>
-  {/snippet}
+  <Tabs
+    label={m.social_page_title()}
+    tabs={pageTabItems('/social-networks')}
+    active={activeTab}
+    onchange={(id) => gotoTab('/social-networks', id, 'youtube')}
+  />
 
   <div class="bg-surface-container-low/40 p-6 rounded-xl border border-outline-variant/20 flex flex-col md:flex-row md:items-center justify-between gap-6">
     <div class="space-y-1">
@@ -273,7 +259,7 @@
     </div>
     <div class="flex items-center gap-4 bg-surface-container-high/40 px-5 py-3 rounded-lg border border-outline-variant/10">
       <span class="text-xs font-medium text-primary">{m.social_banner_active_label()}</span>
-      <span class="px-2.5 py-1 bg-emerald-500/10 text-emerald-500 rounded-lg text-[10px] font-semibold uppercase">{m.social_banner_online_badge()}</span>
+      <span class="px-2.5 py-1 bg-success/10 text-success rounded-lg text-2xs font-semibold uppercase">{m.social_banner_online_badge()}</span>
     </div>
   </div>
 
@@ -299,7 +285,7 @@
       <div class="lg:col-span-1">
         {#if activeTab === 'youtube'}
           <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 sticky top-8 shadow-sm">
-            <h3 class="text-lg font-semibold flex items-center gap-2.5 text-red-500">
+            <h3 class="text-lg font-semibold flex items-center gap-2.5 text-error">
               <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path d="M23.498 6.163a3.003 3.003 0 0 0-2.11-2.11C19.518 3.545 12 3.545 12 3.545s-7.518 0-9.388.508a3.003 3.003 0 0 0-2.11 2.11C0 8.033 0 12 0 12s0 3.967.502 5.837a3.003 3.003 0 0 0 2.11 2.11c1.87.508 9.388.508 9.388.508s7.518 0 9.388-.508a3.002 3.002 0 0 0 2.11-2.11C24 15.967 24 12 24 12s0-3.967-.502-5.837zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
               </svg>
@@ -308,67 +294,67 @@
 
             <div class="space-y-4">
               <div class="space-y-1.5">
-                <label for="yt-query" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.social_yt_query_label()}</label>
+                <label for="yt-query" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.social_yt_query_label()}</label>
                 <input
                   id="yt-query"
                   type="text"
                   placeholder={m.social_yt_query_ph()}
                   bind:value={ytForm.query}
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-error/30 transition-all text-on-surface"
                 />
               </div>
 
               <div class="space-y-1.5">
-                <label for="yt-chan" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.social_channel_alerts_label()}</label>
-                <SearchableSelect id="yt-chan" bind:value={ytForm.discordChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder={m.social_default_channel_ph()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-red-600/30 transition-all" />
+                <label for="yt-chan" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.social_channel_alerts_label()}</label>
+                <SearchableSelect id="yt-chan" bind:value={ytForm.discordChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder={m.social_default_channel_ph()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-error/30 transition-all" />
               </div>
 
               <div class="space-y-1.5">
-                <label for="yt-mention" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.social_mention_label()}</label>
+                <label for="yt-mention" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.social_mention_label()}</label>
                 <SearchableSelect
                   id="yt-mention"
                   bind:value={ytForm.mention}
                   options={mentionOptions}
                   placeholder={m.social_mention_ph()}
-                  className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-red-600/30 transition-all"
+                  className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-error/30 transition-all"
                 />
               </div>
 
               <div class="pt-4 border-t border-outline-variant/10">
-                <p class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest mb-3">{m.social_messages_by_type()}</p>
+                <p class="text-xs font-semibold text-on-surface-variant/60 ml-2 mb-3">{m.social_messages_by_type()}</p>
 
                 <div class="space-y-3">
                   <div class="space-y-1.5">
-                    <label for="yt-live-msg" class="text-[11px] font-bold text-on-surface-variant/50 ml-2">{m.social_msg_type_live()}</label>
+                    <label for="yt-live-msg" class="text-2xs font-bold text-on-surface-variant/50 ml-2">{m.social_msg_type_live()}</label>
                     <input
                       id="yt-live-msg"
                       type="text"
                       placeholder={m.social_yt_live_msg_ph()}
                       bind:value={ytForm.liveMessage}
-                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-error/30 transition-all text-on-surface"
                     />
-                    <p class="text-[10px] text-on-surface-variant/40 ml-2">{m.social_msg_vars_hint()}</p>
+                    <p class="text-2xs text-on-surface-variant/40 ml-2">{m.social_msg_vars_hint()}</p>
                   </div>
 
                   <div class="space-y-1.5">
-                    <label for="yt-video-msg" class="text-[11px] font-bold text-on-surface-variant/50 ml-2">{m.social_msg_type_video()}</label>
+                    <label for="yt-video-msg" class="text-2xs font-bold text-on-surface-variant/50 ml-2">{m.social_msg_type_video()}</label>
                     <input
                       id="yt-video-msg"
                       type="text"
                       placeholder={m.social_yt_video_msg_ph()}
                       bind:value={ytForm.videoMessage}
-                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-error/30 transition-all text-on-surface"
                     />
                   </div>
 
                   <div class="space-y-1.5">
-                    <label for="yt-short-msg" class="text-[11px] font-bold text-on-surface-variant/50 ml-2">{m.social_msg_type_short()}</label>
+                    <label for="yt-short-msg" class="text-2xs font-bold text-on-surface-variant/50 ml-2">{m.social_msg_type_short()}</label>
                     <input
                       id="yt-short-msg"
                       type="text"
                       placeholder={m.social_yt_short_msg_ph()}
                       bind:value={ytForm.shortMessage}
-                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-error/30 transition-all text-on-surface"
                     />
                   </div>
                 </div>
@@ -377,7 +363,7 @@
               <button
                 onclick={handleAddYoutube}
                 disabled={!canManage}
-                class="w-full mt-4 py-3.5 bg-red-600 hover:bg-red-700 text-white font-medium text-[13px] rounded-lg shadow-sm active:scale-[0.98] transition-all disabled:opacity-50"
+                class="w-full mt-4 py-3.5 bg-red-600 hover:bg-red-700 text-white font-medium text-body-sm rounded-lg shadow-sm active:scale-[0.98] transition-all disabled:opacity-50"
               >
                 {m.social_yt_add_btn()}
               </button>
@@ -394,7 +380,7 @@
 
             <div class="space-y-4">
               <div class="space-y-1.5">
-                <label for="twitch-query" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.social_twitch_query_label()}</label>
+                <label for="twitch-query" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.social_twitch_query_label()}</label>
                 <input
                   id="twitch-query"
                   type="text"
@@ -405,12 +391,12 @@
               </div>
 
               <div class="space-y-1.5">
-                <label for="twitch-chan" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.social_channel_alerts_label()}</label>
+                <label for="twitch-chan" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.social_channel_alerts_label()}</label>
                 <SearchableSelect id="twitch-chan" bind:value={twitchForm.discordChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder={m.social_default_channel_ph()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-[#9146FF]/30 transition-all" />
               </div>
 
               <div class="space-y-1.5">
-                <label for="twitch-mention" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.social_mention_label()}</label>
+                <label for="twitch-mention" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.social_mention_label()}</label>
                 <SearchableSelect
                   id="twitch-mention"
                   bind:value={twitchForm.mention}
@@ -421,7 +407,7 @@
               </div>
 
               <div class="space-y-1.5">
-                <label for="twitch-live-msg" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.social_twitch_live_msg_label()}</label>
+                <label for="twitch-live-msg" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.social_twitch_live_msg_label()}</label>
                 <input
                   id="twitch-live-msg"
                   type="text"
@@ -429,13 +415,13 @@
                   bind:value={twitchForm.liveMessage}
                   class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#9146FF]/30 transition-all text-on-surface"
                 />
-                <p class="text-[10px] text-on-surface-variant/40 ml-2">{m.social_msg_vars_hint()}</p>
+                <p class="text-2xs text-on-surface-variant/40 ml-2">{m.social_msg_vars_hint()}</p>
               </div>
 
               <button
                 onclick={handleAddTwitch}
                 disabled={!canManage}
-                class="w-full mt-4 py-3.5 bg-[#9146FF] hover:bg-[#772ce8] text-white font-medium text-[13px] rounded-lg shadow-lg shadow-[#9146FF]/20 active:scale-[0.98] transition-all disabled:opacity-50"
+                class="w-full mt-4 py-3.5 bg-[#9146FF] hover:bg-[#772ce8] text-white font-medium text-body-sm rounded-lg shadow-lg shadow-[#9146FF]/20 active:scale-[0.98] transition-all disabled:opacity-50"
               >
                 {m.social_twitch_add_btn()}
               </button>
@@ -490,7 +476,7 @@
                           onclick={() => handleDeleteYoutube(follow.id)}
                           disabled={!canManage}
                           title={m.social_unfollow_tooltip()}
-                          class="p-3 bg-red-600/10 hover:bg-red-600/20 text-red-600 rounded-xl transition-all"
+                          class="p-3 bg-error/10 hover:bg-error/20 text-error rounded-xl transition-all"
                         >
                           <Papicon icon="Trash" size={16} />
                         </button>
@@ -499,53 +485,53 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                       <div class="space-y-1">
-                        <span class="text-[11px] font-bold text-on-surface-variant/50 uppercase">{m.social_channel_alerts_label()}</span>
+                        <span class="text-2xs font-bold text-on-surface-variant/50 uppercase">{m.social_channel_alerts_label()}</span>
                         <SearchableSelect bind:value={follow.discordChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder={m.social_default_channel_short_ph()} className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
                       </div>
 
                       <div class="space-y-1">
-                        <label for="yt-mention-{follow.id}" class="text-[11px] font-bold text-on-surface-variant/50 uppercase">{m.social_mention_label()}</label>
+                        <label for="yt-mention-{follow.id}" class="text-2xs font-bold text-on-surface-variant/50 uppercase">{m.social_mention_label()}</label>
                         <SearchableSelect
                           id="yt-mention-{follow.id}"
                           bind:value={follow.mentionKey}
                           options={mentionOptions}
                           placeholder={m.social_mention_ph()}
-                          className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-red-600/30 transition-all"
+                          className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-error/30 transition-all"
                         />
                       </div>
                     </div>
 
                     <div class="mb-6 p-4 rounded-lg bg-surface-container/30 border border-outline-variant/5">
-                      <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest mb-3">{m.social_messages_by_type()}</p>
+                      <p class="text-xs font-semibold text-on-surface-variant/60 mb-3">{m.social_messages_by_type()}</p>
                       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="space-y-1">
-                          <label for="yt-live-msg-{follow.id}" class="text-[11px] font-bold text-on-surface-variant/50">{m.social_msg_type_live()}</label>
+                          <label for="yt-live-msg-{follow.id}" class="text-2xs font-bold text-on-surface-variant/50">{m.social_msg_type_live()}</label>
                           <input
                             id="yt-live-msg-{follow.id}"
                             type="text"
                             bind:value={follow.liveMessage}
                             placeholder={m.social_default_msg_ph()}
-                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-error/30 transition-all text-on-surface"
                           />
                         </div>
                         <div class="space-y-1">
-                          <label for="yt-video-msg-{follow.id}" class="text-[11px] font-bold text-on-surface-variant/50">{m.social_msg_type_video()}</label>
+                          <label for="yt-video-msg-{follow.id}" class="text-2xs font-bold text-on-surface-variant/50">{m.social_msg_type_video()}</label>
                           <input
                             id="yt-video-msg-{follow.id}"
                             type="text"
                             bind:value={follow.videoMessage}
                             placeholder={m.social_default_msg_ph()}
-                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-error/30 transition-all text-on-surface"
                           />
                         </div>
                         <div class="space-y-1">
-                          <label for="yt-short-msg-{follow.id}" class="text-[11px] font-bold text-on-surface-variant/50">{m.social_msg_type_short()}</label>
+                          <label for="yt-short-msg-{follow.id}" class="text-2xs font-bold text-on-surface-variant/50">{m.social_msg_type_short()}</label>
                           <input
                             id="yt-short-msg-{follow.id}"
                             type="text"
                             bind:value={follow.shortMessage}
                             placeholder={m.social_default_msg_ph()}
-                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-error/30 transition-all text-on-surface"
                           />
                         </div>
                       </div>
@@ -588,7 +574,7 @@
                           {/if}
                           {follow.streamerName}
                         </h4>
-                        <p class="text-[10px] uppercase font-bold text-on-surface-variant/40">
+                        <p class="text-2xs uppercase font-bold text-on-surface-variant/40">
                           {follow.isLive ? m.social_status_live() : m.social_status_offline()}
                         </p>
                       </div>
@@ -606,7 +592,7 @@
                           onclick={() => handleDeleteTwitch(follow.id)}
                           disabled={!canManage}
                           title={m.social_unfollow_tooltip()}
-                          class="p-3 bg-red-600/10 hover:bg-red-600/20 text-red-600 rounded-xl transition-all"
+                          class="p-3 bg-error/10 hover:bg-error/20 text-error rounded-xl transition-all"
                         >
                           <Papicon icon="Trash" size={16} />
                         </button>
@@ -615,12 +601,12 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div class="space-y-1">
-                        <span class="text-[11px] font-bold text-on-surface-variant/50 uppercase">{m.social_channel_alerts_label()}</span>
+                        <span class="text-2xs font-bold text-on-surface-variant/50 uppercase">{m.social_channel_alerts_label()}</span>
                         <SearchableSelect bind:value={follow.discordChannelId} options={(availableChannels || []).map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder={m.social_default_channel_short_ph()} className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
                       </div>
 
                       <div class="space-y-1">
-                        <label for="twitch-mention-{follow.id}" class="text-[11px] font-bold text-on-surface-variant/50 uppercase">{m.social_mention_label()}</label>
+                        <label for="twitch-mention-{follow.id}" class="text-2xs font-bold text-on-surface-variant/50 uppercase">{m.social_mention_label()}</label>
                         <SearchableSelect
                           id="twitch-mention-{follow.id}"
                           bind:value={follow.mentionKey}
@@ -631,7 +617,7 @@
                       </div>
 
                       <div class="space-y-1">
-                        <label for="twitch-live-msg-{follow.id}" class="text-[11px] font-bold text-on-surface-variant/50 uppercase">{m.social_twitch_live_msg_label()}</label>
+                        <label for="twitch-live-msg-{follow.id}" class="text-2xs font-bold text-on-surface-variant/50 uppercase">{m.social_twitch_live_msg_label()}</label>
                         <input
                           id="twitch-live-msg-{follow.id}"
                           type="text"

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { FilterPills } from '../lib/components/ui';
   import { m } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy, untrack } from 'svelte';
@@ -184,9 +185,9 @@
   });
 
   const statusColors: Record<string, string> = {
-    'PENDING': 'bg-amber-400/20 text-amber-400 border-amber-400/20',
-    'APPROVED': 'bg-emerald-400/20 text-emerald-400 border-emerald-400/20',
-    'REJECTED': 'bg-rose-400/20 text-rose-400 border-rose-400/20',
+    'PENDING': 'bg-warning/20 text-warning border-warning/20',
+    'APPROVED': 'bg-success/20 text-success border-success/20',
+    'REJECTED': 'bg-error/20 text-error border-error/20',
     'IMPLEMENTED': 'bg-sky-400/20 text-sky-400 border-sky-400/20'
   };
 
@@ -207,17 +208,15 @@
   featureKey="suggestions"
 >
   {#snippet actions()}
-    <div class="tab-group" role="tablist">
-      {#each ['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'IMPLEMENTED'] as filter}
-        <button
-          onclick={() => currentFilter = filter as any}
-          role="tab" aria-selected={currentFilter === filter}
-          class="tab-button {currentFilter === filter ? 'active' : ''}"
-        >
-          {filter === 'ALL' ? m.suggestions_filter_all() : statusLabels[filter]}
-        </button>
-      {/each}
-    </div>
+    <FilterPills
+      label={m.suggestions_filter_all()}
+      options={(['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'IMPLEMENTED'] as const).map((filter) => ({
+        value: filter,
+        label: filter === 'ALL' ? m.suggestions_filter_all() : statusLabels[filter],
+      }))}
+      value={currentFilter}
+      onchange={(value) => (currentFilter = value as typeof currentFilter)}
+    />
   {/snippet}
 
   <InlineFeedback state={actionState} />
@@ -245,14 +244,14 @@
 
             <div class="flex items-center gap-3">
               <!-- Upvote Downvote pills -->
-              <div class="flex items-center gap-1.5 px-3 py-1 bg-emerald-400/10 border border-emerald-400/20 text-emerald-400 rounded-full text-xs font-semibold">
+              <div class="flex items-center gap-1.5 px-3 py-1 bg-success/10 border border-success/20 text-success rounded-full text-xs font-semibold">
                 <Papicon icon="ThumbsUp" size={12} /> {suggestion.upvoters.length}
               </div>
-              <div class="flex items-center gap-1.5 px-3 py-1 bg-rose-400/10 border border-rose-400/20 text-rose-400 rounded-full text-xs font-semibold">
+              <div class="flex items-center gap-1.5 px-3 py-1 bg-error/10 border border-error/20 text-error rounded-full text-xs font-semibold">
                 <Papicon icon="Minus" size={12} /> {suggestion.downvoters.length}
               </div>
               <!-- Status badge -->
-              <span class="px-4 py-1.5 rounded-full text-[13px] font-medium border {statusColors[suggestion.status]}">
+              <span class="px-4 py-1.5 rounded-full text-body-sm font-medium border {statusColors[suggestion.status]}">
                 {statusLabels[suggestion.status]}
               </span>
             </div>
@@ -265,7 +264,7 @@
           {#if suggestion.responseText}
             <!-- Public response display -->
             <div class="p-5 rounded-lg bg-secondary/5 border border-secondary/15 space-y-2 animate-in fade-in duration-200">
-              <div class="flex items-center gap-2 text-xs font-semibold text-secondary uppercase tracking-wider">
+              <div class="flex items-center gap-2 text-xs font-semibold text-secondary">
                 <Papicon icon="User" size={14} /> {m.suggestions_staff_response()}
               </div>
               <p class="text-sm text-on-surface-variant font-medium leading-relaxed font-sans">{suggestion.responseText}</p>
@@ -276,7 +275,7 @@
             <!-- Moderation actions form -->
             <div class="space-y-4 pt-4 border-t border-outline-variant/10 animate-in fade-in duration-300">
               <div class="space-y-1.5">
-                <label for={`resp-${suggestion.id}`} class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.suggestions_public_comment_label()}</label>
+                <label for={`resp-${suggestion.id}`} class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.suggestions_public_comment_label()}</label>
                 <textarea 
                   id={`resp-${suggestion.id}`}
                   bind:value={responseDrafts[suggestion.id]} 
@@ -289,21 +288,21 @@
                 <button 
                   onclick={() => handleResolve(suggestion.id, 'REJECTED')}
                   disabled={!responseDrafts[suggestion.id]?.trim()}
-                  class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-[13px] font-medium rounded-lg transition-all disabled:opacity-50"
+                  class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-body-sm font-medium rounded-lg transition-all disabled:opacity-50"
                 >
                   {m.suggestions_btn_reject()}
                 </button>
                 <button 
                   onclick={() => handleResolve(suggestion.id, 'APPROVED')}
                   disabled={!responseDrafts[suggestion.id]?.trim()}
-                  class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-medium rounded-lg transition-all disabled:opacity-50"
+                  class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-body-sm font-medium rounded-lg transition-all disabled:opacity-50"
                 >
                   {m.suggestions_btn_approve()}
                 </button>
                 <button 
                   onclick={() => handleResolve(suggestion.id, 'IMPLEMENTED')}
                   disabled={!responseDrafts[suggestion.id]?.trim()}
-                  class="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-[13px] font-medium rounded-lg transition-all disabled:opacity-50"
+                  class="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-body-sm font-medium rounded-lg transition-all disabled:opacity-50"
                 >
                   {m.suggestions_btn_implement()}
                 </button>

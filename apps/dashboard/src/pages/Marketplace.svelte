@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import { fetchMarketplaceData } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
@@ -31,10 +33,10 @@
 
   function getStatusClass(status: string): string {
     const map: Record<string, string> = {
-      ACTIVE: 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/15',
+      ACTIVE: 'bg-success/10 text-success border border-success/15',
       SOLD: 'bg-primary/10 text-primary border border-primary/15',
       CANCELLED: 'bg-surface-container-high/40 text-on-surface-variant border border-outline-variant/10',
-      EXPIRED: 'bg-amber-500/10 text-amber-500 border border-amber-500/15',
+      EXPIRED: 'bg-warning/10 text-warning border border-warning/15',
     };
     return map[status] ?? '';
   }
@@ -87,7 +89,7 @@
   <!-- ======================== STATS ROW ======================== -->
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
     <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-4 flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-500/10 text-emerald-500">
+      <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-success/10 text-success">
         <Papicon icon="shopping-bag" size={20} />
       </div>
       <div class="flex flex-col">
@@ -105,7 +107,7 @@
       </div>
     </div>
     <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-4 flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-amber-500/10 text-amber-500">
+      <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-warning/10 text-warning">
         <Papicon icon="dollar-sign" size={20} />
       </div>
       <div class="flex flex-col">
@@ -116,22 +118,15 @@
   </div>
 
   <!-- ======================== TABS ======================== -->
-  <div class="tab-group w-fit">
-    <button
-      class="px-5 py-2.5 rounded-xl text-[13px] font-medium transition-all flex items-center gap-1.5 {tab === 'listings' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
-      onclick={() => gotoTab('/marketplace', 'listings', 'listings')}
-    >
-      <Papicon icon="grid" size={14} />
-      {m.mar_tab_listings({ count: data.activeListings.length })}
-    </button>
-    <button
-      class="px-5 py-2.5 rounded-xl text-[13px] font-medium transition-all flex items-center gap-1.5 {tab === 'history' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
-      onclick={() => gotoTab('/marketplace', 'history', 'listings')}
-    >
-      <Papicon icon="clock" size={14} />
-      {m.mar_tab_history({ count: data.recentTransactions.length })}
-    </button>
-  </div>
+  <Tabs
+    label={m.mar_page_title()}
+    tabs={pageTabItems('/marketplace').map((item) => ({
+      ...item,
+      badge: item.id === 'listings' ? data.activeListings.length : data.recentTransactions.length,
+    }))}
+    active={tab}
+    onchange={(id) => gotoTab('/marketplace', id, 'listings')}
+  />
 
   <!-- ======================== TAB: LISTINGS ======================== -->
   {#if tab === 'listings'}
@@ -153,7 +148,7 @@
 
             <!-- Price row -->
             <div class="flex justify-between items-center">
-              <span class="flex items-center gap-1.5 text-base font-bold text-amber-500">
+              <span class="flex items-center gap-1.5 text-base font-bold text-warning">
                 <Papicon icon="dollar-sign" size={14} />
                 {m.mar_price_coins({ price: listing.price.toLocaleString() })}
               </span>
@@ -224,11 +219,11 @@
 
             <!-- Price + date -->
             <div class="flex flex-col items-end gap-0.5 shrink-0">
-              <span class="flex items-center gap-1 text-sm font-semibold text-amber-500">
+              <span class="flex items-center gap-1 text-sm font-semibold text-warning">
                 <Papicon icon="dollar-sign" size={13} />
                 {m.mar_price_coins({ price: tx.price.toLocaleString() })}
               </span>
-              <span class="text-[10px] text-on-surface-variant/60">{new Date(tx.createdAt).toLocaleDateString('fr-FR')}</span>
+              <span class="text-2xs text-on-surface-variant/60">{new Date(tx.createdAt).toLocaleDateString('fr-FR')}</span>
             </div>
           </div>
         {/each}

@@ -55,8 +55,8 @@
   }
 
   const getChangeColor = (change: number) => {
-    if (change > 0) return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-    if (change < 0) return 'text-red-400 bg-red-500/10 border-red-500/20';
+    if (change > 0) return 'text-success bg-success/10 border-success/20';
+    if (change < 0) return 'text-error bg-error/10 border-error/20';
     return 'text-on-surface-variant/40 bg-surface-container-high border-outline-variant/10';
   };
 
@@ -123,7 +123,7 @@
         {#each currentOptions as opt}
           <button
             onclick={() => setOffset(opt.offset)}
-            class="px-3 py-1.5 rounded-xl text-[11px] font-semibold uppercase tracking-widest transition-all duration-200 border {selectedOffset === opt.offset ? 'bg-primary/10 text-primary border-primary/30 shadow-inner' : 'text-on-surface-variant/50 border-outline-variant/10 hover:bg-surface-container-high hover:text-on-surface'}"
+            class="px-3 py-1.5 rounded-xl text-2xs font-semibold uppercase tracking-widest transition-all duration-200 border {selectedOffset === opt.offset ? 'bg-primary/10 text-primary border-primary/30 shadow-inner' : 'text-on-surface-variant/50 border-outline-variant/10 hover:bg-surface-container-high hover:text-on-surface'}"
           >
             {selectedMode === 'week' ? m.an_wk_offset_week({ n: opt.offset }) : m.an_wk_offset_month({ n: opt.offset })}
           </button>
@@ -134,17 +134,17 @@
 
   <!-- Period Legend -->
   <div class="flex flex-wrap items-center gap-3">
-    <div class="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-400/10 border border-slate-400/15 text-[10px] font-semibold uppercase text-slate-400">
+    <div class="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-400/10 border border-slate-400/15 text-2xs font-semibold uppercase text-on-surface-variant">
       <div class="w-2 h-2 rounded-full bg-slate-400/50"></div>
       {previousPeriodLabel}
     </div>
     <div class="text-on-surface-variant/30 text-xs font-bold">→</div>
-    <div class="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 border border-primary/20 text-[10px] font-semibold uppercase text-primary">
+    <div class="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 border border-primary/20 text-2xs font-semibold uppercase text-primary">
       <div class="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
       {currentPeriodLabel}
     </div>
     {#if loading}
-      <div class="flex items-center gap-2 text-[10px] font-bold text-on-surface-variant/40">
+      <div class="flex items-center gap-2 text-2xs font-bold text-on-surface-variant/40">
         <div class="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
         {m.common_loading()}
       </div>
@@ -170,7 +170,7 @@
               <div class="p-2.5 rounded-xl border border-outline-variant/10 bg-surface-container-low transition-transform duration-500" style="color: {metric.color}">
                 <Papicon icon={metric.icon} size={20} />
               </div>
-              <p class="text-[10px] font-semibold text-on-surface-variant/50 uppercase tracking-wider">{metric.label}</p>
+              <p class="text-xs font-semibold text-on-surface-variant/50">{metric.label}</p>
             </div>
             <div class="px-2.5 py-1 rounded-xl flex items-center gap-1 border text-xs font-semibold {getChangeColor(metric.change)}">
               <Papicon icon={getChangeIcon(metric.change)} size={12} />
@@ -182,11 +182,11 @@
           <div class="relative space-y-3 mb-5">
             <!-- Current period -->
             <div class="space-y-1">
-              <div class="flex items-center justify-between text-[11px] font-semibold uppercase tracking-widest">
+              <div class="flex items-center justify-between text-xs font-semibold">
                 <span class="text-primary/80">{currentPeriodLabel}</span>
                 <span class="text-on-surface font-semibold text-sm">
                   {thisVal.toLocaleString(dateLocale())}
-                  {#if metric.suffix}<span class="text-[10px] text-on-surface-variant/40 ml-0.5">{metric.suffix}</span>{/if}
+                  {#if metric.suffix}<span class="text-2xs text-on-surface-variant/40 ml-0.5">{metric.suffix}</span>{/if}
                 </span>
               </div>
               <div class="h-2 bg-surface-container-high rounded-full overflow-hidden">
@@ -196,11 +196,11 @@
 
             <!-- Previous period -->
             <div class="space-y-1">
-              <div class="flex items-center justify-between text-[11px] font-semibold uppercase tracking-widest">
+              <div class="flex items-center justify-between text-xs font-semibold">
                 <span class="text-on-surface-variant/40">{previousPeriodLabel}</span>
                 <span class="text-on-surface-variant/60 text-sm font-bold">
                   {lastVal.toLocaleString(dateLocale())}
-                  {#if metric.suffix}<span class="text-[10px] ml-0.5 opacity-50">{metric.suffix}</span>{/if}
+                  {#if metric.suffix}<span class="text-2xs ml-0.5 opacity-50">{metric.suffix}</span>{/if}
                 </span>
               </div>
               <div class="h-2 bg-surface-container-high rounded-full overflow-hidden">
@@ -211,8 +211,8 @@
 
           <!-- Delta absolute -->
           <div class="relative pt-4 border-t border-outline-variant/10 flex items-center justify-between">
-            <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/30">{m.an_wk_absolute_change()}</span>
-            <span class="text-xs font-semibold {pct >= 0 ? 'text-emerald-400' : 'text-red-400'}">
+            <span class="text-xs font-semibold text-on-surface-variant/30">{m.an_wk_absolute_change()}</span>
+            <span class="text-xs font-semibold {pct >= 0 ? 'text-success' : 'text-error'}">
               {thisVal - lastVal >= 0 ? '+' : ''}{(thisVal - lastVal).toLocaleString(dateLocale())}
               {#if metric.suffix}<span class="opacity-60 ml-0.5">{metric.suffix}</span>{/if}
             </span>

@@ -401,7 +401,7 @@ export async function uploadGuildEmoji(
   guildId = authStore.selectedGuildId,
 ): Promise<GuildEmojiSet> {
   if (!GUILD_EMOJI_ACCEPTED.includes(file.type)) {
-    throw new Error(`Format non supporté (${file.type || 'inconnu'}). Utilisez PNG, JPEG, GIF ou WEBP.`);
+    throw new Error(`Format non supporté (${file.type || 'inconnu'}). Utilise PNG, JPEG, GIF ou WEBP.`);
   }
   if (file.size > GUILD_EMOJI_MAX_BYTES) {
     throw new Error(`Image trop lourde : ${Math.round(GUILD_EMOJI_MAX_BYTES / 1024)} Ko maximum.`);

@@ -103,7 +103,7 @@
                 <span class="text-primary font-bold">#</span>
                 <span>{t.channelName}</span>
               </div>
-              <div class="text-[10px] text-on-surface-variant/50 mt-0.5">
+              <div class="text-2xs text-on-surface-variant/50 mt-0.5">
                 {m.sta_generated_on({ date: formatDate(t.createdAt) })} <span class="font-mono">{t.id}</span>
               </div>
             </div>

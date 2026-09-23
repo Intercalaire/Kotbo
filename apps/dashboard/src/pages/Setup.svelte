@@ -46,6 +46,7 @@
   import { wizard } from '../lib/stores/onboardingWizard.svelte';
   import { TRACKS, type TrackKey } from '../lib/onboarding';
   import ServerTemplatePanel from '../lib/components/ServerTemplatePanel.svelte';
+  import QuickSetupHub from '../lib/components/onboarding/QuickSetupHub.svelte';
 
   import { errorMessage } from '@kotbo/shared';
   type Step = {
@@ -147,8 +148,8 @@
   }
 
   function textColor(value: number): string {
-    if (value >= 85) return 'text-emerald-500';
-    if (value >= 50) return 'text-amber-500';
+    if (value >= 85) return 'text-success';
+    if (value >= 50) return 'text-warning';
     return 'text-primary';
   }
 
@@ -203,7 +204,7 @@
 
 <ModulePage
   title="Prise en main"
-  description="Par quoi commencer, ce qui manque, et ce que vous aviez laissé de côté"
+  description="Par quoi commencer, ce qui manque, et ce que tu avais laissé de côté"
   icon="compass"
   featureKey="settings"
 >
@@ -214,7 +215,7 @@
   {#if loading && steps.length === 0}
     <LoadingHint context="config" />
   {:else if steps.length === 0}
-    <EmptyState icon="compass" title="Parcours indisponible" description="Relancez le calcul." />
+    <EmptyState icon="compass" title="Parcours indisponible" description="Relance le calcul." />
   {:else}
     <div class="space-y-4">
       <!-- ── Les trois prochaines actions ───────────────────────────────── -->
@@ -234,16 +235,16 @@
                   <Papicon icon="arrow-right" size={13} />
                 </span>
                 {#if index === 0}
-                  <span class="text-[10px] font-semibold uppercase tracking-wider text-primary">
+                  <span class="text-xs font-semibold text-primary">
                     À faire maintenant
                   </span>
                 {/if}
               </div>
 
-              <p class="text-[14px] font-semibold text-on-surface leading-tight">{action.label}</p>
-              <p class="mt-1 text-[12.5px] text-on-surface-variant/70 leading-relaxed">{action.why}</p>
+              <p class="text-sm font-semibold text-on-surface leading-tight">{action.label}</p>
+              <p class="mt-1 text-xs text-on-surface-variant/70 leading-relaxed">{action.why}</p>
               {#if action.detail}
-                <p class="mt-2 text-[11px] px-1.5 py-0.5 rounded bg-error/10 text-error inline-block">
+                <p class="mt-2 text-2xs px-1.5 py-0.5 rounded bg-error/10 text-error inline-block">
                   manque : {action.detail}
                 </p>
               {/if}
@@ -268,7 +269,7 @@
             </svg>
             <div class="absolute inset-0 flex flex-col items-center justify-center">
               <span class="text-2xl font-bold tracking-tight {textColor(percent)}">{percent}%</span>
-              <span class="text-[10px] uppercase tracking-widest text-on-surface-variant/70">
+              <span class="text-xs text-on-surface-variant/70">
                 {progress.done}/{progress.total}
               </span>
             </div>
@@ -276,8 +277,8 @@
 
           <div class="min-w-0 flex-1 text-center sm:text-left">
             {#if remaining.length === 0}
-              <p class="text-sm font-semibold text-emerald-500">Tout est configuré.</p>
-              <p class="text-[13px] text-on-surface-variant mt-1 leading-relaxed">
+              <p class="text-sm font-semibold text-success">Tout est configuré.</p>
+              <p class="text-body-sm text-on-surface-variant mt-1 leading-relaxed">
                 Les points essentiels sont couverts. Le reste se règle module par module,
                 au fil de ce dont le serveur a besoin.
               </p>
@@ -285,7 +286,7 @@
               <p class="text-sm font-semibold text-on-surface">
                 {remaining.length} point{remaining.length > 1 ? 's' : ''} à régler
               </p>
-              <p class="text-[13px] text-on-surface-variant mt-1 leading-relaxed">
+              <p class="text-body-sm text-on-surface-variant mt-1 leading-relaxed">
                 Le prochain : <a href={remaining[0].href} class="text-primary hover:underline font-medium">{remaining[0].label}</a>.
                 {remaining[0].why}
               </p>
@@ -293,6 +294,8 @@
           </div>
         </div>
       </SectionCard>
+
+      <QuickSetupHub />
 
       <!-- ── Monter le serveur ──────────────────────────────────────────── -->
       {#if canBuildServer}
@@ -307,7 +310,7 @@
                 <button
                   type="button"
                   onclick={() => (templateOpen = !templateOpen)}
-                  class="px-3 py-1.5 text-[12px] font-medium rounded-lg text-primary hover:bg-primary/10 transition-colors"
+                  class="px-3 py-1.5 text-xs font-medium rounded-lg text-primary hover:bg-primary/10 transition-colors"
                 >
                   {templateOpen ? 'Masquer' : 'Revoir'}
                 </button>
@@ -315,7 +318,7 @@
             {/snippet}
 
             {#if templateApplied && !templateOpen}
-              <p class="text-[13px] text-on-surface-variant leading-relaxed">
+              <p class="text-body-sm text-on-surface-variant leading-relaxed">
                 La structure a été posée : elle ne se relance pas. « Revoir » rouvre le
                 détail de ce qui a été créé.
               </p>
@@ -337,8 +340,8 @@
           {@const groupDone = groupSteps.filter((s) => s.done).length}
           <SectionCard title={group.title} description={group.description} icon={group.icon}>
             {#snippet actions()}
-              <span class="text-[11px] px-2 py-0.5 rounded-full font-semibold
-                {groupDone === groupSteps.length ? 'bg-emerald-500/10 text-emerald-500' : 'bg-surface-container text-on-surface-variant'}">
+              <span class="text-2xs px-2 py-0.5 rounded-full font-semibold
+                {groupDone === groupSteps.length ? 'bg-success/10 text-success' : 'bg-surface-container text-on-surface-variant'}">
                 {groupDone}/{groupSteps.length}
               </span>
             {/snippet}
@@ -354,26 +357,26 @@
                       : 'border-primary/25 bg-primary/[0.04] hover:border-primary/45'}"
                   >
                     <div class="w-6 h-6 shrink-0 rounded-full flex items-center justify-center mt-0.5
-                      {step.done ? 'bg-emerald-500/15 text-emerald-500' : 'bg-primary/15 text-primary'}">
+                      {step.done ? 'bg-success/15 text-success' : 'bg-primary/15 text-primary'}">
                       <Papicon icon={step.done ? 'check' : 'arrow-right'} size={13} />
                     </div>
 
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-2 flex-wrap">
-                        <span class="text-[13.5px] font-semibold {step.done ? 'text-on-surface-variant' : 'text-on-surface'}">
+                        <span class="text-body-sm font-semibold {step.done ? 'text-on-surface-variant' : 'text-on-surface'}">
                           {step.label}
                         </span>
                         {#if !step.done && step.detail}
-                          <span class="text-[10.5px] px-1.5 py-0.5 rounded bg-error/10 text-error">
+                          <span class="text-2xs px-1.5 py-0.5 rounded bg-error/10 text-error">
                             manque : {step.detail}
                           </span>
                         {:else if step.done && step.detail}
-                          <span class="text-[10.5px] px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">
+                          <span class="text-2xs px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">
                             {step.detail}
                           </span>
                         {/if}
                       </div>
-                      <p class="mt-0.5 text-[12.5px] text-on-surface-variant leading-relaxed">{step.why}</p>
+                      <p class="mt-0.5 text-xs text-on-surface-variant leading-relaxed">{step.why}</p>
                     </div>
                   </a>
                 </li>
@@ -388,8 +391,8 @@
              decoche « L'economie » le premier jour ne savait pas encore ce que
              Kotbo faisait ; ici, il le sait, et personne ne le lui reproposait. -->
         <SectionCard
-          title="Ce que vous n'avez pas encore configuré"
-          description="Vous l'aviez laissé de côté à la mise en place. Rien ne presse - mais voilà ce que ça apporterait."
+          title="Ce que tu n'as pas encore configuré"
+          description="Tu l'avais laissé de côté à la mise en place. Rien ne presse - mais voilà ce que ça apporterait."
           icon="package"
         >
           <div class="grid gap-2.5 sm:grid-cols-2">
@@ -403,8 +406,8 @@
                   <Papicon icon={track.icon} size={15} />
                 </span>
                 <div class="min-w-0 flex-1">
-                  <p class="text-[13.5px] font-semibold text-on-surface">{track.label()}</p>
-                  <p class="mt-0.5 text-[12.5px] text-on-surface-variant/60 leading-relaxed">{track.outcome()}</p>
+                  <p class="text-body-sm font-semibold text-on-surface">{track.label()}</p>
+                  <p class="mt-0.5 text-xs text-on-surface-variant/60 leading-relaxed">{track.outcome()}</p>
                 </div>
                 <Papicon icon="ChevronRight" size={14} class="mt-1 shrink-0 text-on-surface-variant/30" />
               </a>

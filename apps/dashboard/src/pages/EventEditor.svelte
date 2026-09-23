@@ -219,20 +219,20 @@
     <div class="flex gap-3">
       <button 
         onclick={() => router.goto('/events')}
-        class="px-5 py-2.5 bg-surface-container-high rounded-xl font-medium text-[13px] border border-outline-variant/10 hover:bg-surface-container-highest transition-colors"
+        class="px-5 py-2.5 bg-surface-container-high rounded-xl font-medium text-body-sm border border-outline-variant/10 hover:bg-surface-container-highest transition-colors"
       >
         {m.eve_btn_back()}
       </button>
       <button
         onclick={save}
         disabled={isSaving}
-        class="px-5 py-2.5 bg-surface-container-highest text-on-surface rounded-xl font-medium text-[13px] border border-outline-variant/10 transition-transform"
+        class="px-5 py-2.5 bg-surface-container-highest text-on-surface rounded-xl font-medium text-body-sm border border-outline-variant/10 transition-transform"
       >
         {isSaving ? m.eve_btn_saving() : m.eve_btn_save()}
       </button>
       <button
         onclick={publish}
-        class="px-4 py-2 bg-primary text-on-primary rounded-xl font-medium text-[13px] transition-transform"
+        class="px-4 py-2 bg-primary text-on-primary rounded-xl font-medium text-body-sm transition-transform"
       >
         {m.eve_btn_publish_discord()}
       </button>
@@ -464,7 +464,7 @@
         <section class="space-y-8">
           <div class="flex items-center justify-between px-2">
             <h3 class="text-xl font-semibold text-on-surface">{m.eve_ctf_challenges_title({ count: event.ctfChallenges?.length || 0 })}</h3>
-            <button onclick={addCtfChallenge} class="text-primary font-semibold uppercase text-[10px] tracking-widest flex items-center gap-2">
+            <button onclick={addCtfChallenge} class="text-primary font-semibold text-xs flex items-center gap-2">
               <Papicon icon="Plus" size={14} /> {m.eve_btn_add_challenge()}
             </button>
           </div>
@@ -472,12 +472,12 @@
           <div class="space-y-8">
             {#each event.ctfChallenges || [] as challenge, cIdx}
               <div class="bg-surface-container-low/30 rounded-xl border border-outline-variant/10 p-10 space-y-8 relative overflow-hidden group">
-                <div class="absolute top-0 left-0 w-2 h-full bg-emerald-500/20"></div>
+                <div class="absolute top-0 left-0 w-2 h-full bg-success/20"></div>
                 
                 <div class="flex flex-col gap-6">
                   <div class="flex items-center justify-between">
-                    <span class="text-xs font-medium text-emerald-500">{m.eve_challenge_label({ number: cIdx + 1 })}</span>
-                    <button onclick={() => removeCtfChallenge(cIdx)} class="text-rose-500 hover:text-rose-600 transition-colors">
+                    <span class="text-xs font-medium text-success">{m.eve_challenge_label({ number: cIdx + 1 })}</span>
+                    <button onclick={() => removeCtfChallenge(cIdx)} class="text-error hover:text-error transition-colors">
                       <Papicon icon="Trash2" size={16} />
                     </button>
                   </div>
@@ -583,11 +583,11 @@
               />
               <button 
                 onclick={triggerImport} 
-                class="px-4 py-2 bg-surface-container-high text-on-surface-variant rounded-xl font-bold text-[13px] border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2"
+                class="px-4 py-2 bg-surface-container-high text-on-surface-variant rounded-xl font-bold text-body-sm border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2"
               >
                 <Papicon icon="FileUp" size={14} /> {m.eve_btn_import_csv()}
               </button>
-              <button onclick={addQuestion} class="text-primary font-semibold uppercase text-[10px] tracking-widest flex items-center gap-2">
+              <button onclick={addQuestion} class="text-primary font-semibold text-xs flex items-center gap-2">
                 <Papicon icon="Plus" size={14} /> {m.eve_btn_add_question()}
               </button>
             </div>
@@ -602,7 +602,7 @@
                   <div class="flex-1 space-y-6">
                     <div class="flex items-center justify-between">
                       <span class="text-xs font-medium text-primary">{m.eve_question_label({ number: qIdx + 1 })}</span>
-                      <button onclick={() => removeQuestion(qIdx)} class="text-rose-500 hover:text-rose-600 transition-colors">
+                      <button onclick={() => removeQuestion(qIdx)} class="text-error hover:text-error transition-colors">
                         <Papicon icon="Trash2" size={16} />
                       </button>
                     </div>
@@ -640,7 +640,7 @@
                         <div class="flex items-center gap-3">
                           <button 
                             onclick={() => question.correctOptionIndex = oIdx}
-                            class="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all {question.correctOptionIndex === oIdx ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-outline-variant/20 text-transparent'}"
+                            class="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all {question.correctOptionIndex === oIdx ? 'bg-emerald-500 border-success text-white' : 'border-outline-variant/20 text-transparent'}"
                           >
                             <Papicon icon="Check" size={12} />
                           </button>
@@ -649,13 +649,13 @@
                             bind:value={question.options[oIdx]} 
                             class="flex-1 bg-surface-container-high/50 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm font-bold text-on-surface focus:outline-none focus:border-primary/50 transition-colors"
                           />
-                          <button onclick={() => removeOption(qIdx, oIdx)} class="text-on-surface-variant/20 hover:text-rose-500 transition-colors">
+                          <button onclick={() => removeOption(qIdx, oIdx)} class="text-on-surface-variant/20 hover:text-error transition-colors">
                             <Papicon icon="X" size={14} />
                           </button>
                         </div>
                       {/each}
                     </div>
-                    <p class="text-[11px] font-bold text-on-surface-variant/30 italic font-bold">{m.eve_correct_answer_hint()}</p>
+                    <p class="text-2xs font-bold text-on-surface-variant/30 italic font-bold">{m.eve_correct_answer_hint()}</p>
                   </div>
                 </div>
               </div>

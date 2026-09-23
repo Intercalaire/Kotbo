@@ -205,7 +205,7 @@
       <RefreshButton onClick={fetchForms} loading={loading} label={m.common_refresh()} />
       <button 
         onclick={() => showCreateModal = true}
-        class="px-4 py-2 bg-primary text-white rounded-xl font-medium text-[13px] transition-transform flex items-center gap-2"
+        class="px-4 py-2 bg-primary text-white rounded-xl font-medium text-body-sm transition-transform flex items-center gap-2"
       >
         <Papicon icon="add" size={16} />
         {m.cf_new_form()}
@@ -225,9 +225,9 @@
         {/each}
       </div>
     {:else if error}
-      <div class="rounded-xl border border-rose-500/20 bg-rose-500/10 px-8 py-10 text-center">
-        <Papicon icon="error" size={48} class="text-rose-500 mb-4" />
-        <p class="text-xl font-bold text-rose-700">{error}</p>
+      <div class="rounded-xl border border-error/20 bg-error/10 px-8 py-10 text-center">
+        <Papicon icon="error" size={48} class="text-error mb-4" />
+        <p class="text-xl font-bold text-error">{error}</p>
       </div>
     {:else if forms.length === 0}
       <div class="flex flex-col items-center justify-center py-32 text-on-surface-variant/30 border-2 border-dashed border-outline-variant/10 rounded-[4rem] bg-surface-container-low/20">
@@ -260,7 +260,7 @@
                     {m.cf_public_link()}
                   </span>
                   <div class="flex items-center gap-1 min-w-0 max-w-[150px]">
-                    <span class="truncate text-[10px] font-mono">{window.location.origin}/form/{form.id}</span>
+                    <span class="truncate text-2xs font-mono">{window.location.origin}/form/{form.id}</span>
                     <button
                       onclick={() => {
                         navigator.clipboard.writeText(`${window.location.origin}/form/${form.id}`);
@@ -305,7 +305,7 @@
                   />
                 </div>
                 {#if form.isRecruitment}
-                  <p class="text-[10px] text-on-surface-variant/40 font-sans -mt-2">
+                  <p class="text-2xs text-on-surface-variant/40 font-sans -mt-2">
                     {m.cf_discord_auth_always()}
                   </p>
 
@@ -317,7 +317,7 @@
                     <select
                       value={form.hierarchyId || ''}
                       onchange={(e) => updateFormHierarchy(form.id, (e.currentTarget as HTMLSelectElement).value)}
-                      class="min-w-0 max-w-40 bg-surface-container rounded-lg px-2 py-1.5 text-[11px] font-semibold outline-none border border-outline-variant/20 focus:border-primary"
+                      class="min-w-0 max-w-40 bg-surface-container rounded-lg px-2 py-1.5 text-2xs font-semibold outline-none border border-outline-variant/20 focus:border-primary"
                     >
                       <option value="">{m.cf_hierarchy_lowest_role()}</option>
                       {#each hierarchies as h}
@@ -326,7 +326,7 @@
                     </select>
                   </div>
                   {#if hierarchies.length > 0}
-                    <p class="text-[10px] text-on-surface-variant/40 font-sans -mt-2">
+                    <p class="text-2xs text-on-surface-variant/40 font-sans -mt-2">
                       {m.cf_hierarchy_hint()}
                     </p>
                   {/if}
@@ -348,7 +348,7 @@
             <div class="flex gap-2 w-full pt-4 border-t border-outline-variant/10">
               <button
                 onclick={() => router.goto(`/forms/builder/${form.id}`)}
-                class="flex-1 px-3 py-2.5 rounded-xl bg-primary/10 text-primary text-[13px] font-medium hover:bg-primary/20 transition-all flex items-center justify-center gap-1.5"
+                class="flex-1 px-3 py-2.5 rounded-xl bg-primary/10 text-primary text-body-sm font-medium hover:bg-primary/20 transition-all flex items-center justify-center gap-1.5"
                 title={m.cf_btn_edit()}
               >
                 <Papicon icon="edit" size={13} />
@@ -356,7 +356,7 @@
               </button>
               <button
                 onclick={() => router.goto(`/forms/${form.id}/responses`)}
-                class="flex-1 px-3 py-2.5 rounded-xl bg-surface-container text-on-surface-variant text-[13px] font-medium hover:bg-surface-container-high transition-all flex items-center justify-center gap-1.5"
+                class="flex-1 px-3 py-2.5 rounded-xl bg-surface-container text-on-surface-variant text-body-sm font-medium hover:bg-surface-container-high transition-all flex items-center justify-center gap-1.5"
                 title={m.cf_btn_responses()}
               >
                 <Papicon icon="assignment" size={13} />
@@ -364,7 +364,7 @@
               </button>
               <button
                 onclick={() => deleteForm(form.id)}
-                class="px-3 py-2.5 rounded-xl bg-rose-500/10 text-rose-500 text-[13px] font-medium hover:bg-rose-500/20 transition-all"
+                class="px-3 py-2.5 rounded-xl bg-error/10 text-error text-body-sm font-medium hover:bg-error/20 transition-all"
                 title={m.cf_btn_delete()}
               >
                 <Papicon icon="delete" size={14} />
@@ -394,7 +394,7 @@
       
       <div class="p-8 space-y-6">
         <div>
-          <label for="form-name" class="block text-[13px] font-medium text-on-surface-variant/60 mb-2 font-sans">{m.cf_field_name_label()}</label>
+          <label for="form-name" class="block text-body-sm font-medium text-on-surface-variant/60 mb-2 font-sans">{m.cf_field_name_label()}</label>
           <FormInput 
             id="form-name"
             type="text" 
@@ -404,7 +404,7 @@
           />
         </div>
         <div>
-          <label for="form-description" class="block text-[13px] font-medium text-on-surface-variant/60 mb-2 font-sans">{m.cf_field_desc_label()}</label>
+          <label for="form-description" class="block text-body-sm font-medium text-on-surface-variant/60 mb-2 font-sans">{m.cf_field_desc_label()}</label>
           <textarea 
             id="form-description"
             bind:value={newFormDescription}

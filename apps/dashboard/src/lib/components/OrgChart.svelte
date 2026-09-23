@@ -78,17 +78,17 @@
       <!-- Chief Staff Node -->
       {#if schema.chiefStaff && (schema.chiefStaff.name || schema.chiefStaff.userId)}
         <div class="chief-staff-node mb-8 flex flex-col items-center">
-          <div class="chief-staff-card group relative p-6 pt-8 rounded-2xl bg-linear-to-br from-amber-500/10 to-yellow-600/5 border border-amber-500/30 backdrop-blur-md max-w-sm text-center">
-            <div class="absolute -top-6 left-1/2 -translate-x-1/2 w-12 h-12 rounded-full bg-linear-to-br from-amber-400 to-amber-600 text-white flex items-center justify-center shadow-lg border border-amber-300/30 group-hover:scale-110 transition-transform duration-300">
+          <div class="chief-staff-card group relative p-6 pt-8 rounded-2xl bg-linear-to-br from-amber-500/10 to-yellow-600/5 border border-warning/30 backdrop-blur-md max-w-sm text-center">
+            <div class="absolute -top-6 left-1/2 -translate-x-1/2 w-12 h-12 rounded-full bg-linear-to-br from-amber-400 to-amber-600 text-white flex items-center justify-center shadow-lg border border-warning/30 group-hover:scale-110 transition-transform duration-300">
               <Papicon icon="crown" size={22} />
             </div>
             <div class="mt-2">
-              <span class="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-bold uppercase tracking-wider">
+              <span class="px-2.5 py-0.5 rounded-full bg-warning/10 text-warning border border-warning/20 text-xs font-semibold">
                 {m.staff_orgchart_global_chief()}
               </span>
               <p class="text-lg font-bold text-on-surface mt-2 tracking-tight">{schema.chiefStaff.name || m.staff_orgchart_unknown_name()}</p>
               {#if schema.chiefStaff.userId}
-                <span class="text-[10px] font-mono text-on-surface-variant/40 bg-surface-container-high/40 px-2 py-0.5 rounded-md mt-1.5 inline-block">
+                <span class="text-2xs font-mono text-on-surface-variant/40 bg-surface-container-high/40 px-2 py-0.5 rounded-md mt-1.5 inline-block">
                   ID: {schema.chiefStaff.userId}
                 </span>
               {/if}

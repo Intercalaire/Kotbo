@@ -11,6 +11,7 @@
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { Tabs } from '../lib/components/ui';
   import { notificationsStore } from '../lib/stores/notifications.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
@@ -38,8 +39,8 @@
   });
 
   const TYPE_META: Record<string, { icon: string; text: string; bg: string }> = {
-    SUCCESS: { icon: 'check-circle', text: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-    WARNING: { icon: 'alert-triangle', text: 'text-amber-500', bg: 'bg-amber-500/10' },
+    SUCCESS: { icon: 'check-circle', text: 'text-success', bg: 'bg-success/10' },
+    WARNING: { icon: 'alert-triangle', text: 'text-warning', bg: 'bg-warning/10' },
     ERROR: { icon: 'alert-circle', text: 'text-error', bg: 'bg-error/10' },
     INFO: { icon: 'info', text: 'text-primary', bg: 'bg-primary/10' },
   };
@@ -140,26 +141,13 @@
     </select>
   </label>
 
-  <div class="inbox-tabs border-b border-outline-variant/10 mb-5 overflow-x-auto no-scrollbar">
-    {#each tabs as tab (tab.id)}
-      <button
-        onclick={() => gotoTab('/inbox', tab.id, 'tous')}
-        class="tab-button {currentTab === tab.id ? 'active' : ''}"
-      >
-        <span class="inline-flex items-center gap-2">
-          <Papicon icon={tab.icon} size={15} />
-          {tabLabel(tab.id)}
-          {#if unreadByTab[tab.id] > 0}
-            <span class="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-primary/15 text-primary">
-              {unreadByTab[tab.id]}
-            </span>
-          {/if}
-        </span>
-        {#if currentTab === tab.id}
-          <div class="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-full"></div>
-        {/if}
-      </button>
-    {/each}
+  <div class="inbox-tabs mb-5">
+    <Tabs
+      label={m.nav_inbox()}
+      tabs={tabs.map((tab) => ({ id: tab.id, label: tabLabel(tab.id), icon: tab.icon, badge: unreadByTab[tab.id] > 0 ? unreadByTab[tab.id] : undefined }))}
+      active={currentTab}
+      onchange={(id) => gotoTab('/inbox', id, 'tous')}
+    />
   </div>
 
   <SectionCard
@@ -197,15 +185,15 @@
 
             <div class="min-w-0 flex-1">
               <div class="flex items-start justify-between gap-3">
-                <h3 class="text-[13.5px] font-semibold text-on-surface leading-snug wrap-break-word">
+                <h3 class="text-body-sm font-semibold text-on-surface leading-snug wrap-break-word">
                   {notif.title}
                 </h3>
-                <span class="text-[11px] text-on-surface-variant/60 whitespace-nowrap shrink-0 tabular-nums">
+                <span class="text-2xs text-on-surface-variant/60 whitespace-nowrap shrink-0 tabular-nums">
                   {formatDate(notif.createdAt)}
                 </span>
               </div>
 
-              <p class="mt-1 text-[12.5px] text-on-surface-variant leading-relaxed">
+              <p class="mt-1 text-xs text-on-surface-variant leading-relaxed">
                 {notif.message}
               </p>
 
@@ -213,7 +201,7 @@
                 {#if notif.link}
                   <a
                     href={notif.link}
-                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
                     bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 transition-colors"
                   >
                     <Papicon icon="external-link" size={13} />
@@ -225,7 +213,7 @@
                   <button
                     type="button"
                     onclick={() => notificationsStore.markAsRead(notif.id)}
-                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
                     bg-surface-container text-on-surface border border-outline-variant/40
                     hover:border-outline-variant transition-colors"
                   >
@@ -235,7 +223,7 @@
                 {/if}
 
                 {#if currentTab === 'tous'}
-                  <span class="text-[11px] px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">
+                  <span class="text-2xs px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">
                     {tabLabel(getCategory(notif))}
                   </span>
                 {/if}

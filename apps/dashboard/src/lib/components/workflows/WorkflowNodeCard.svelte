@@ -56,14 +56,14 @@
   /**
    * Un seul anneau à la fois.
    *
-   * Empiler `ring-2 ring-red-500` et `ring-2 ring-amber-400` laissait l'ordre
+   * Empiler `ring-2 ring-error` et `ring-2 ring-warning` laissait l'ordre
    * de la feuille de style décider, pas celui des classes : un pas en erreur
    * finissait cerclé d'ambre, ce qui cachait justement l'erreur. L'échec passe
    * donc devant le rejeu, qui passe devant la sélection.
    */
   const ring = $derived(
-    data.replayStatus === 'ERROR' ? 'ring-2 ring-red-500'
-      : data.replayOrder != null ? 'ring-2 ring-amber-400'
+    data.replayStatus === 'ERROR' ? 'ring-2 ring-error'
+      : data.replayOrder != null ? 'ring-2 ring-warning'
         : selected ? 'ring-2 ring-primary/30'
           : '',
   );
@@ -107,7 +107,7 @@
      raison, la surface repeinte étant proportionnelle au rayon. -->
 <div
   class="rounded-xl border-2 bg-surface-container-high shadow-lg min-w-64 overflow-visible transition-colors relative
-    {data.hasError && !selected ? 'border-red-500' : selected ? 'border-primary' : 'border-outline-variant/30'}
+    {data.hasError && !selected ? 'border-error' : selected ? 'border-primary' : 'border-outline-variant/30'}
     {ring}"
   style="--accent: {accent}"
 >
@@ -117,7 +117,7 @@
     <span class="text-xs font-bold text-on-surface tracking-wide truncate">{def?.label ?? data.nodeType}</span>
     {#if data.replayOrder != null}
       <span
-        class="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm {data.replayStatus === 'ERROR'
+        class="ml-auto text-2xs font-bold px-1.5 py-0.5 rounded shadow-sm {data.replayStatus === 'ERROR'
           ? 'bg-red-500 text-white'
           : data.replayStatus === 'SKIPPED'
             ? 'bg-surface-container-highest text-on-surface-variant'
@@ -180,7 +180,7 @@
       <div class="px-2 py-2 my-1 rounded-lg bg-surface-container-highest/40 border border-outline-variant/15 space-y-1.5 nodrag">
         {#each def.config as field}
           <div class="space-y-1">
-            <label for="node-cfg-{id}-{field.key}" class="text-[9px] font-bold text-on-surface-variant/80 uppercase tracking-wider block">
+            <label for="node-cfg-{id}-{field.key}" class="text-xs font-semibold text-on-surface-variant/80 block">
               {field.label}
             </label>
 
@@ -291,7 +291,7 @@
           {@const connected = isInputConnected(inputPort.id)}
           {#if !connected}
             <div class="px-2 py-1.5 rounded-lg bg-surface-container-highest/30 border border-outline-variant/10 space-y-1 nodrag">
-              <label for="direct-input-{id}-{inputPort.id}" class="text-[9px] font-bold text-on-surface-variant/70 uppercase tracking-wider block">
+              <label for="direct-input-{id}-{inputPort.id}" class="text-xs font-semibold text-on-surface-variant/70 block">
                 {getDataPortLabel(inputPort)} (Direct)
               </label>
 
@@ -340,7 +340,7 @@
                   <button
                     type="button"
                     onclick={() => openWysiwyg(inputPort.id, `Éditer "${getDataPortLabel(inputPort)}"`)}
-                    class="nodrag w-full px-2 py-1 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 transition-all flex items-center justify-center gap-1"
+                    class="nodrag w-full px-2 py-1 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-2xs font-semibold text-indigo-700 dark:text-indigo-300 transition-all flex items-center justify-center gap-1"
                   >
                     <Papicon icon="TextBubble" size={11} />
                     <span>Éditeur WYSIWYG / Aperçu</span>
@@ -377,7 +377,7 @@
       <button
         type="button"
         onclick={() => openWysiwyg('value', 'Éditer le texte fixe')}
-        class="nodrag w-full px-2 py-1 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 transition-all flex items-center justify-center gap-1"
+        class="nodrag w-full px-2 py-1 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-2xs font-semibold text-indigo-700 dark:text-indigo-300 transition-all flex items-center justify-center gap-1"
       >
         <Papicon icon="TextBubble" size={11} />
         <span>Éditeur WYSIWYG / Aperçu</span>

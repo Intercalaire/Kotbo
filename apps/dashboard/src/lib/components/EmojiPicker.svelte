@@ -290,7 +290,7 @@
           <button
             type="button"
             onclick={() => { activeSource = source.id as typeof activeSource; search = ''; }}
-            class="flex-1 px-2 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all {activeSource === source.id ? 'bg-primary/15 text-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}"
+            class="flex-1 px-2 py-1.5 rounded-md text-2xs font-bold uppercase tracking-wider transition-all {activeSource === source.id ? 'bg-primary/15 text-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}"
           >
             {source.label}
           </button>
@@ -308,9 +308,9 @@
 
       {#if activeSource === 'server'}
         {#if loadingServer}
-          <div class="py-6 text-center text-[10px] text-on-surface-variant/40 italic">{m.d1_emoji_server_loading()}</div>
+          <div class="py-6 text-center text-2xs text-on-surface-variant/40 italic">{m.d1_emoji_server_loading()}</div>
         {:else if serverError}
-          <div class="py-4 text-center text-[10px] text-error">{serverError}</div>
+          <div class="py-4 text-center text-2xs text-error">{serverError}</div>
         {:else}
           <div class="grid grid-cols-6 gap-1 max-h-40 overflow-y-auto pr-1 scrollbar-thin select-none">
             {#each filteredServerEmojis as emoji (emoji.id)}
@@ -323,13 +323,13 @@
                 <img src={emoji.url} alt=":{emoji.name}:" class="h-6 w-6 object-contain" loading="lazy" />
               </button>
             {:else}
-              <div class="col-span-6 text-center text-[10px] text-on-surface-variant/40 italic py-4">
+              <div class="col-span-6 text-center text-2xs text-on-surface-variant/40 italic py-4">
                 {m.d1_emoji_server_empty()}
               </div>
             {/each}
           </div>
           {#if emojiSet}
-            <div class="flex items-center justify-between text-[10px] text-on-surface-variant/50">
+            <div class="flex items-center justify-between text-2xs text-on-surface-variant/50">
               <span>{m.d1_emoji_server_slots({
                 used: String(emojiSet.slots.staticUsed),
                 total: String(emojiSet.slots.total)
@@ -371,14 +371,14 @@
             {/if}
           {/each}
           {#if filteredEmojis.filter(e => e.trim()).length === 0}
-            <div class="col-span-6 text-center text-[10px] text-on-surface-variant/40 italic py-4">
+            <div class="col-span-6 text-center text-2xs text-on-surface-variant/40 italic py-4">
               {m.d1_emoji_none()}
             </div>
           {/if}
         </div>
       {:else}
         {#if emojiSet && !emojiSet.canUpload}
-          <div class="py-4 text-center text-[10px] text-on-surface-variant/50 leading-relaxed">
+          <div class="py-4 text-center text-2xs text-on-surface-variant/50 leading-relaxed">
             {m.d1_emoji_upload_forbidden()}
           </div>
         {:else}
@@ -402,7 +402,7 @@
                   placeholder={m.d1_emoji_upload_name()}
                   class="w-full bg-transparent border-b border-outline-variant/20 pb-1 text-xs focus:outline-none focus:border-primary text-on-surface"
                 />
-                <span class="text-[10px] text-on-surface-variant/40">{Math.round(uploadFile.size / 1024)} Ko</span>
+                <span class="text-2xs text-on-surface-variant/40">{Math.round(uploadFile.size / 1024)} Ko</span>
               </div>
               <button type="button" onclick={clearUpload} class="text-on-surface-variant/40 hover:text-error" title={m.d1_emoji_upload_clear()}>
                 <Papicon icon="x" size={14} />
@@ -426,8 +426,8 @@
               class="flex flex-col items-center justify-center gap-2 w-full py-6 rounded-xl border border-dashed transition-all {dragOver ? 'border-primary bg-primary/5' : 'border-outline-variant/25 hover:border-outline-variant/50'}"
             >
               <Papicon icon="upload" size={20} class="text-on-surface-variant/50" />
-              <span class="text-[11px] text-on-surface-variant/70">{m.d1_emoji_upload_drop()}</span>
-              <span class="text-[10px] text-on-surface-variant/40">{m.d1_emoji_upload_hint({ max: String(maxKb) })}</span>
+              <span class="text-2xs text-on-surface-variant/70">{m.d1_emoji_upload_drop()}</span>
+              <span class="text-2xs text-on-surface-variant/40">{m.d1_emoji_upload_hint({ max: String(maxKb) })}</span>
             </button>
           {/if}
         {/if}

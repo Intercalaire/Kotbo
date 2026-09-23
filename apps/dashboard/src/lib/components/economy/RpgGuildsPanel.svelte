@@ -151,7 +151,7 @@
               <EmojiText value={rpgGuild.emoji} size="1.25rem" class="text-xl" />
               <div class="min-w-0">
                 <h4 class="font-semibold text-sm truncate">{rpgGuild.name}</h4>
-                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-on-surface-variant/60 mt-0.5">
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-on-surface-variant/60 mt-0.5">
                   <span>{m.eco_guilds_level({ level: rpgGuild.level, xp: rpgGuild.xp })}</span>
                   <span>{m.eco_guilds_members({ count: rpgGuild.members.length, capacity: rpgGuild.capacity })}</span>
                   <span>{m.eco_guilds_treasury({ amount: rpgGuild.treasury, currency: currencyName })}</span>
@@ -191,7 +191,7 @@
           {#if expandedId === rpgGuild.id}
             <div class="border-t border-outline-variant/10 p-5 grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div class="space-y-2">
-                <h5 class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50">{m.eco_guilds_members_title()}</h5>
+                <h5 class="text-xs font-semibold text-on-surface-variant/50">{m.eco_guilds_members_title()}</h5>
                 {#if rpgGuild.description}
                   <p class="text-xs text-on-surface-variant/70 italic">{rpgGuild.description}</p>
                 {/if}
@@ -199,7 +199,7 @@
                   {#each rpgGuild.members as member (member.userId)}
                     <li class="flex items-center justify-between gap-3 text-xs bg-surface-container-high/40 rounded-lg px-3 py-2">
                       <span class="flex items-center gap-2 min-w-0">
-                        {#if member.userId === rpgGuild.ownerId}<Papicon icon="Crown" size={12} class="text-amber-400" />{/if}
+                        {#if member.userId === rpgGuild.ownerId}<Papicon icon="Crown" size={12} class="text-warning" />{/if}
                         <span class="truncate font-semibold">{member.displayName}</span>
                         <span class="text-on-surface-variant/50">{m.eco_player_level_xp({ level: member.level, xp: member.xp })}</span>
                       </span>
@@ -220,7 +220,7 @@
                 </ul>
               </div>
               <div class="space-y-2">
-                <h5 class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50">{m.eco_guilds_village_title()}</h5>
+                <h5 class="text-xs font-semibold text-on-surface-variant/50">{m.eco_guilds_village_title()}</h5>
                 {#if rpgGuild.buildings.length === 0}
                   <p class="text-xs text-on-surface-variant/50 italic">{m.eco_guilds_village_empty()}</p>
                 {:else}
@@ -229,7 +229,7 @@
                       <li class="text-xs bg-surface-container-high/40 rounded-lg px-3 py-2">
                         <span class="font-semibold"><EmojiText value={building.emoji} /> {building.name}</span>
                         <span class="text-on-surface-variant/50 ml-2">{m.eco_guilds_building_level({ level: building.level, max: building.maxLevel })}</span>
-                        {#if building.effect}<div class="text-[11px] text-on-surface-variant/60 mt-0.5">{building.effect}</div>{/if}
+                        {#if building.effect}<div class="text-2xs text-on-surface-variant/60 mt-0.5">{building.effect}</div>{/if}
                       </li>
                     {/each}
                   </ul>
@@ -250,11 +250,11 @@
 
       <div class="grid grid-cols-3 gap-3">
         <div class="col-span-2 space-y-1">
-          <label for="guildName" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_guilds_field_name()}</label>
+          <label for="guildName" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_guilds_field_name()}</label>
           <input id="guildName" type="text" maxlength="32" bind:value={editing.name} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
         <div class="space-y-1">
-          <label for="guildEmoji" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_guilds_field_emoji()}</label>
+          <label for="guildEmoji" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_guilds_field_emoji()}</label>
           <div class="flex gap-2">
             <input id="guildEmoji" type="text" bind:value={editing.emoji} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
             <EmojiPicker bind:value={editing.emoji} />
@@ -263,17 +263,17 @@
       </div>
 
       <div class="space-y-1">
-        <label for="guildDesc" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_guilds_field_description()}</label>
+        <label for="guildDesc" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_guilds_field_description()}</label>
         <textarea id="guildDesc" maxlength="300" bind:value={editing.description} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none h-16 resize-none"></textarea>
       </div>
 
       <div class="grid grid-cols-2 gap-3">
         <div class="space-y-1">
-          <label for="guildTreasury" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_guilds_field_treasury({ currency: currencyName })}</label>
+          <label for="guildTreasury" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_guilds_field_treasury({ currency: currencyName })}</label>
           <input id="guildTreasury" type="number" min="0" bind:value={editing.treasury} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
         <div class="space-y-1">
-          <label for="guildOwner" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_guilds_field_owner()}</label>
+          <label for="guildOwner" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_guilds_field_owner()}</label>
           <select id="guildOwner" bind:value={editing.ownerId} class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none text-on-surface">
             {#each editing.members as member (member.userId)}
               <option value={member.userId}>{member.displayName}</option>
@@ -294,7 +294,7 @@
           type="button"
           onclick={save}
           disabled={actionState.state.loading}
-          class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all disabled:opacity-50"
+          class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-body-sm font-medium rounded-lg transition-all disabled:opacity-50"
         >
           {m.eco_btn_save()}
         </button>

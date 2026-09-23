@@ -163,7 +163,7 @@
   {#if loading && !plan}
     <LoadingHint context="config" />
   {:else if !plan}
-    <EmptyState icon="alert-triangle" title="Analyse indisponible" description="Relancez l'analyse du serveur." />
+    <EmptyState icon="alert-triangle" title="Analyse indisponible" description="Relance l'analyse du serveur." />
   {:else}
     <div class="space-y-4">
       <!-- ── Bots détectés ──────────────────────────────────────────────── -->
@@ -172,7 +172,7 @@
         description="Kotbo reconnaît les bots les plus répandus par leur nom, puis cherche sur le serveur la trace des fonctions qu'ils utilisent vraiment."
       >
         {#if plan.bots.length === 0}
-          <p class="text-[13px] text-on-surface-variant">
+          <p class="text-body-sm text-on-surface-variant">
             Aucun autre bot sur ce serveur. Rien à reprendre.
           </p>
         {:else}
@@ -192,9 +192,9 @@
                     <Papicon icon="robot" size={14} class={bot.label ? 'text-primary' : 'text-on-surface-variant/50'} />
                   {/if}
                   <div class="min-w-0">
-                    <p class="text-[13px] font-medium text-on-surface truncate">{bot.label ?? bot.username}</p>
+                    <p class="text-body-sm font-medium text-on-surface truncate">{bot.label ?? bot.username}</p>
                     {#if bot.label && bot.label !== bot.username}
-                      <p class="text-[11px] text-on-surface-variant/60 truncate">{bot.username}</p>
+                      <p class="text-2xs text-on-surface-variant/60 truncate">{bot.username}</p>
                     {/if}
                   </div>
                 </div>
@@ -206,7 +206,7 @@
                   <div class="mt-2 flex flex-wrap gap-1">
                     {#each bot.covers as feature}
                       <span
-                        class="text-[10.5px] px-1.5 py-0.5 rounded {activeFeatures.has(feature)
+                        class="text-2xs px-1.5 py-0.5 rounded {activeFeatures.has(feature)
                           ? 'bg-primary/10 text-primary'
                           : 'bg-surface-container text-on-surface-variant/60'}"
                       >
@@ -217,7 +217,7 @@
                   {#if bot.activeFeatures.length > 0}
                     <ul class="mt-2 space-y-0.5">
                       {#each bot.activeFeatures as entry (entry.feature)}
-                        <li class="text-[11px] text-on-surface-variant/70 leading-relaxed">
+                        <li class="text-2xs text-on-surface-variant/70 leading-relaxed">
                           <span class="text-primary/80">{FEATURE_LABELS[entry.feature] ?? entry.feature}</span> · {entry.evidence}
                         </li>
                       {/each}
@@ -228,11 +228,11 @@
                        un bot de bump ou de musique. Le dire, plutot que de
                        renvoyer le staff verifier a la main un bot dont il n'y
                        a rien a reprendre. -->
-                  <p class="mt-1.5 text-[11.5px] text-on-surface-variant/60">
+                  <p class="mt-1.5 text-2xs text-on-surface-variant/60">
                     Rien à reprendre  Kotbo ne couvre pas ce que fait ce bot.
                   </p>
                 {:else}
-                  <p class="mt-1.5 text-[11.5px] text-on-surface-variant/60">Bot non reconnu  à vérifier à la main.</p>
+                  <p class="mt-1.5 text-2xs text-on-surface-variant/60">Bot non reconnu  à vérifier à la main.</p>
                 {/if}
               </div>
             {/each}
@@ -282,17 +282,17 @@
 
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2 flex-wrap">
-                      <h4 class="text-[13.5px] font-semibold text-on-surface">{finding.title}</h4>
-                      <span class="text-[10.5px] px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">
+                      <h4 class="text-body-sm font-semibold text-on-surface">{finding.title}</h4>
+                      <span class="text-2xs px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">
                         {FEATURE_LABELS[finding.feature] ?? finding.feature}
                       </span>
                     </div>
-                    <p class="mt-1 text-[12.5px] text-on-surface-variant leading-relaxed">{finding.detail}</p>
+                    <p class="mt-1 text-xs text-on-surface-variant leading-relaxed">{finding.detail}</p>
 
                     {#if finding.entities.length > 0}
                       <div class="mt-2 flex flex-wrap gap-1">
                         {#each finding.entities as entity (entity.id)}
-                          <span class="text-[11px] px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">
+                          <span class="text-2xs px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">
                             {entity.name}
                           </span>
                         {/each}
@@ -304,11 +304,11 @@
                     {/if}
 
                     {#if finding.action}
-                      <p class="mt-2 text-[12px] text-primary/90 pl-2.5 border-l-2 border-primary/40">
+                      <p class="mt-2 text-xs text-primary/90 pl-2.5 border-l-2 border-primary/40">
                         {finding.action}
                       </p>
                     {:else}
-                      <p class="mt-2 text-[11.5px] text-on-surface-variant/60 italic">
+                      <p class="mt-2 text-2xs text-on-surface-variant/60 italic">
                         Constat informatif : rien à appliquer automatiquement.
                       </p>
                     {/if}
@@ -323,16 +323,16 @@
       <!-- ── Import d'un export ─────────────────────────────────────────── -->
       <SectionCard
         title="Importer un export"
-        description="Les bots n'exportent pas le même format. Kotbo ne devine donc rien : il relève les identifiants Discord du fichier et vous laissez chacun à sa place."
+        description="Les bots n'exportent pas le même format. Kotbo ne devine donc rien : il relève les identifiants Discord du fichier et tu remets chacun à sa place."
       >
         <input
           type="file"
           accept="application/json,.json"
           onchange={handleFile}
           disabled={inspecting}
-          class="block w-full text-[13px] text-on-surface-variant
+          class="block w-full text-body-sm text-on-surface-variant
           file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border file:border-outline-variant/40
-          file:bg-surface-container file:text-on-surface file:text-[12px] file:font-medium
+          file:bg-surface-container file:text-on-surface file:text-xs file:font-medium
           hover:file:border-outline-variant file:cursor-pointer"
         />
 
@@ -341,10 +341,10 @@
             {#each uniqueCandidates as candidate (candidate.value)}
               <div class="flex flex-col sm:flex-row sm:items-center gap-2 rounded-xl border border-outline-variant/30 bg-surface-container-low/40 px-3 py-2.5">
                 <div class="min-w-0 flex-1">
-                  <p class="text-[12.5px] font-medium text-on-surface truncate">
+                  <p class="text-xs font-medium text-on-surface truncate">
                     {candidate.kind === 'channel' ? '#' : '@'}{candidate.name}
                   </p>
-                  <p class="text-[11px] text-on-surface-variant/60 font-mono truncate">{candidate.path}</p>
+                  <p class="text-2xs text-on-surface-variant/60 font-mono truncate">{candidate.path}</p>
                 </div>
                 <FormSelect
                   value={assignments[candidate.value] ?? ''}
@@ -383,10 +383,10 @@
           <ul class="space-y-2">
             {#each plan.manualSteps as step (step.feature)}
               <li class="flex items-start gap-2.5">
-                <Papicon icon="alert-triangle" size={14} class="text-amber-500 mt-0.5 shrink-0" />
+                <Papicon icon="alert-triangle" size={14} class="text-warning mt-0.5 shrink-0" />
                 <div>
-                  <p class="text-[13px] font-medium text-on-surface">{step.label}</p>
-                  <p class="text-[12px] text-on-surface-variant leading-relaxed">{step.why}</p>
+                  <p class="text-body-sm font-medium text-on-surface">{step.label}</p>
+                  <p class="text-xs text-on-surface-variant leading-relaxed">{step.why}</p>
                 </div>
               </li>
             {/each}

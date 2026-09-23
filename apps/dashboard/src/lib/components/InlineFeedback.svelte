@@ -25,7 +25,7 @@
 </script>
 
 {#if hasError || hasMessage || idleText}
-  <div class="text-xs font-semibold {hasError ? 'text-red-600' : hasMessage ? 'text-emerald-600' : 'text-on-surface-variant'}">
+  <div class="text-xs font-semibold {hasError ? 'text-error' : hasMessage ? 'text-success' : 'text-on-surface-variant'}">
     {#if hasError}
       <span>{displayError}</span>
     {:else if hasMessage}

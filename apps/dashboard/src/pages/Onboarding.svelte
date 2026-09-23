@@ -110,7 +110,7 @@
       // rien, et laisser la personne coincee sur un parcours qu'elle ne peut
       // pas traverser est pire que de la renvoyer choisir un autre serveur.
       if (errorStatus(err) === 403) {
-        globalNotice.show(errorMessage(err) || "Vous n'avez pas les droits necessaires pour cette action.");
+        globalNotice.show(errorMessage(err) || "Tu n'as pas les droits nécessaires pour cette action.");
         router.goto('/servers');
         return;
       }

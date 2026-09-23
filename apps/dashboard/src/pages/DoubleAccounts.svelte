@@ -4,6 +4,8 @@
   import { onMount, onDestroy, untrack } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { fetchLinkedAccounts, updateLinkedAccountStatus, deleteLinkedAccount, fetchMemberCase, fetchFeatureConfigurations, updateFeatureConfiguration, updateModuleStatus, scanSuspectedDetections, fetchSuspectedDetections, fetchVerificationConfig, updateVerificationConfig, linkDetectedAccount, dismissDetection, restoreDetection, fetchMessageLogStats, updateMessageLogConfig } from '../lib/api';
@@ -147,15 +149,15 @@
   });
 
   function scoreColor(score: number): string {
-    if (score >= 60) return 'text-rose-500';
-    if (score >= 30) return 'text-amber-500';
-    return 'text-yellow-500';
+    if (score >= 60) return 'text-error';
+    if (score >= 30) return 'text-warning';
+    return 'text-warning';
   }
 
   function scoreBg(score: number): string {
-    if (score >= 60) return 'bg-rose-500/10 border-rose-500/20';
-    if (score >= 30) return 'bg-amber-500/10 border-amber-500/20';
-    return 'bg-yellow-500/10 border-yellow-500/20';
+    if (score >= 60) return 'bg-error/10 border-error/20';
+    if (score >= 30) return 'bg-warning/10 border-warning/20';
+    return 'bg-warning/10 border-warning/20';
   }
 
   async function handleLinkDetection(detection: DetectionItem, altUserId: string) {
@@ -657,35 +659,22 @@
   {/snippet}
 
   <!-- Tab Navigation -->
-  <div class="flex gap-1 rounded-lg border border-outline-variant/10 bg-surface-container-low/70 p-1 mb-6 overflow-x-auto">
-    {#each [
-      { key: 'links', label: m.da_tab_links(), icon: 'Link2' },
-      { key: 'detections', label: m.da_tab_detections(), icon: 'ShieldAlert', count: detections.length },
-      { key: 'network', label: m.da_tab_network(), icon: 'GitMerge' },
-      { key: 'verification', label: m.da_tab_verification(), icon: 'ShieldCheck' },
-      { key: 'config', label: m.da_tab_config(), icon: 'Settings' },
-    ] as tab (tab.key)}
-      <button
-        onclick={() => gotoTab('/security/accounts', tab.key, 'links')}
-        class="tab-button {activeTab === tab.key ? 'active' : ''}"
-      >
-        <Papicon icon={tab.icon} size={14} />
-        <span>{tab.label}</span>
-        {#if tab.count}
-          <span class="tab-button {activeTab === tab.key ? 'active' : ''}">{tab.count}</span>
-        {/if}
-      </button>
-    {/each}
-  </div>
+  <Tabs
+    label={m.da_page_title()}
+    class="mb-6"
+    tabs={pageTabItems('/security/accounts').map((item) => item.id === 'detections' && detections.length ? { ...item, badge: detections.length } : item)}
+    active={activeTab}
+    onchange={(id) => gotoTab('/security/accounts', id, 'links')}
+  />
 
   <!-- ═══ TAB: Liaisons ═══ -->
   {#if activeTab === 'links'}
     <div class="flex flex-wrap items-center gap-2 mb-6">
       {#each [
         { key: 'ALL', label: m.da_filter_all(), color: 'text-primary' },
-        { key: 'PENDING', label: m.da_filter_pending(), color: 'text-amber-500' },
-        { key: 'VALIDATED', label: m.da_filter_validated(), color: 'text-emerald-500' },
-        { key: 'REJECTED', label: m.da_filter_rejected(), color: 'text-rose-500' },
+        { key: 'PENDING', label: m.da_filter_pending(), color: 'text-warning' },
+        { key: 'VALIDATED', label: m.da_filter_validated(), color: 'text-success' },
+        { key: 'REJECTED', label: m.da_filter_rejected(), color: 'text-error' },
       ] as f (f.key)}
         <button
           onclick={() => filterStatus = f.key as any}
@@ -703,8 +692,8 @@
         <LoadingHint context="data" />
       </div>
     {:else if error}
-      <div class="rounded-lg border border-rose-500/20 bg-rose-500/5 p-6 text-center">
-        <p class="text-rose-500 font-bold text-sm">{error}</p>
+      <div class="rounded-lg border border-error/20 bg-error/5 p-6 text-center">
+        <p class="text-error font-bold text-sm">{error}</p>
         <button onclick={loadData} class="mt-3 text-xs font-semibold text-primary">{m.da_retry()}</button>
       </div>
     {:else if filteredAccounts.length === 0}
@@ -724,10 +713,10 @@
             <!-- Header: status + date -->
             <div class="flex items-center justify-between mb-3">
               <span class="px-2 py-0.5 rounded text-xs font-medium
- {link.status === 'VALIDATED' ? 'bg-emerald-500/10 text-emerald-500' : link.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500' : 'bg-rose-500/10 text-rose-500'}">
+ {link.status === 'VALIDATED' ? 'bg-success/10 text-success' : link.status === 'PENDING' ? 'bg-warning/10 text-warning' : 'bg-error/10 text-error'}">
                 {link.status === 'VALIDATED' ? m.da_link_validated() : link.status === 'PENDING' ? m.da_link_pending() : m.da_link_rejected()}
               </span>
-              <span class="text-[10px] text-on-surface-variant/30">{new Date(link.createdAt).toLocaleDateString('fr-FR')}</span>
+              <span class="text-2xs text-on-surface-variant/30">{new Date(link.createdAt).toLocaleDateString('fr-FR')}</span>
             </div>
 
             <!-- Users link -->
@@ -744,24 +733,24 @@
             </div>
 
             {#if link.reason}
-              <p class="text-[11px] text-on-surface-variant/60 italic mb-3 px-1">"{link.reason}"</p>
+              <p class="text-2xs text-on-surface-variant/60 italic mb-3 px-1">"{link.reason}"</p>
             {/if}
 
             <!-- Actions -->
             <div class="flex items-center gap-2 pt-3 border-t border-outline-variant/5">
               {#if link.status === 'PENDING'}
                 <button onclick={() => handleUpdateStatus(link.id, 'VALIDATED')} disabled={saveAction.state.loading}
-                  class="flex-1 py-2 rounded-lg bg-emerald-500/10 text-emerald-500 text-xs font-medium hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-1.5 disabled:opacity-50">
+                  class="flex-1 py-2 rounded-lg bg-success/10 text-success text-xs font-medium hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-1.5 disabled:opacity-50">
                   <Papicon icon="Check" size={12} /> {m.da_validate()}
                 </button>
                 <button onclick={() => handleUpdateStatus(link.id, 'REJECTED')} disabled={saveAction.state.loading}
-                  class="flex-1 py-2 rounded-lg bg-rose-500/10 text-rose-500 text-xs font-medium hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-1.5 disabled:opacity-50">
+                  class="flex-1 py-2 rounded-lg bg-error/10 text-error text-xs font-medium hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-1.5 disabled:opacity-50">
                   <Papicon icon="X" size={12} /> {m.da_reject()}
                 </button>
               {:else}
                 <span class="flex-1 text-xs font-medium text-on-surface-variant/20">{link.type}</span>
                 <button onclick={() => handleDelete(link.id)} disabled={saveAction.state.loading}
-                  class="p-2 rounded-lg text-rose-500 hover:bg-rose-500/10 transition-colors disabled:opacity-50" title={m.da_delete()}>
+                  class="p-2 rounded-lg text-error hover:bg-error/10 transition-colors disabled:opacity-50" title={m.da_delete()}>
                   <Papicon icon="Trash2" size={14} />
                 </button>
               {/if}
@@ -781,11 +770,11 @@
       </div>
       <div class="rounded-lg border border-outline-variant/10 bg-surface-container-low/40 p-4 text-center">
         <p class="text-xs font-medium text-on-surface-variant/40">{m.da_present()}</p>
-        <p class="mt-1 text-xl font-bold text-emerald-500">{detectionStats.onServer}</p>
+        <p class="mt-1 text-xl font-bold text-success">{detectionStats.onServer}</p>
       </div>
       <div class="rounded-lg border border-outline-variant/10 bg-surface-container-low/40 p-4 text-center">
         <p class="text-xs font-medium text-on-surface-variant/40">{m.da_left()}</p>
-        <p class="mt-1 text-xl font-bold text-amber-500">{detectionStats.left}</p>
+        <p class="mt-1 text-xl font-bold text-warning">{detectionStats.left}</p>
       </div>
     </div>
 
@@ -812,7 +801,7 @@
 
       <!-- Statut de la détection intelligente (télémétrie) -->
       {#if messageLoggingEnabled === true}
-        <span class="flex items-center gap-1.5 text-xs font-bold text-emerald-500">
+        <span class="flex items-center gap-1.5 text-xs font-bold text-success">
           <Papicon icon="Sparkles" size={13} /> {m.da_smart_detection_active()}
         </span>
       {:else if messageLoggingEnabled === false}
@@ -853,7 +842,7 @@
       </div>
     {:else if detections.length === 0}
       <div class="flex flex-col items-center py-20 text-center rounded-lg border border-outline-variant/10 bg-surface-container-low/30">
-        <div class="h-14 w-14 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+        <div class="h-14 w-14 rounded-xl bg-success/10 flex items-center justify-center text-success">
           <Papicon icon="ShieldCheck" size={28} />
         </div>
         <h3 class="mt-5 text-base font-bold text-on-surface">{m.da_no_detection()}</h3>
@@ -875,25 +864,25 @@
                 <div class="flex flex-wrap items-center gap-1.5">
                   <h4 class="text-sm font-bold text-on-surface truncate">{d.displayName || d.username || d.id}</h4>
                   {#if d.evidence}
-                    <span class="px-1.5 py-0.5 rounded text-[9px] font-bold border {scoreBg(d.evidence.totalScore)} {scoreColor(d.evidence.totalScore)}">
+                    <span class="px-1.5 py-0.5 rounded text-2xs font-bold border {scoreBg(d.evidence.totalScore)} {scoreColor(d.evidence.totalScore)}">
                       {d.evidence.totalScore}/100
                     </span>
                   {/if}
-                  <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase {d.isOnServer ? 'bg-emerald-500/10 text-emerald-500' : 'bg-zinc-500/10 text-zinc-400'}">
+                  <span class="px-1.5 py-0.5 rounded text-2xs font-bold uppercase {d.isOnServer ? 'bg-success/10 text-success' : 'bg-zinc-500/10 text-on-surface-variant'}">
                     {d.isOnServer ? m.da_member_present() : m.da_member_left()}
                   </span>
                 </div>
-                <p class="text-[11px] text-on-surface-variant/50 mt-0.5">@{d.username || m.da_unknown()} · {d.id}</p>
-                <p class="text-xs text-amber-500 font-bold mt-1.5">{d.accountAgeLabel}</p>
+                <p class="text-2xs text-on-surface-variant/50 mt-0.5">@{d.username || m.da_unknown()} · {d.id}</p>
+                <p class="text-xs text-warning font-bold mt-1.5">{d.accountAgeLabel}</p>
 
                 <!-- Suspected alts inline -->
                 {#if d.suspectedAlts && d.suspectedAlts.length > 0}
                   <div class="flex flex-wrap items-center gap-1.5 mt-2">
                     <Papicon icon="Link2" size={11} class="text-on-surface-variant/30" />
-                    <span class="text-[10px] font-bold text-on-surface-variant/40">Alt(s) :</span>
+                    <span class="text-2xs font-bold text-on-surface-variant/40">Alt(s) :</span>
                     {#each d.suspectedAlts as alt}
                       <button onclick={() => openMemberCase(alt.userId, alt.username || alt.userId)}
-                        class="flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-container-high/50 text-[10px] font-bold text-on-surface hover:text-primary transition-colors">
+                        class="flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-container-high/50 text-2xs font-bold text-on-surface hover:text-primary transition-colors">
                         {#if alt.avatarUrl}<img src={alt.avatarUrl} alt="" class="w-3.5 h-3.5 rounded-full" />{/if}
                         @{alt.username || alt.userId}
                       </button>
@@ -905,10 +894,10 @@
                 {#if d.evidence && d.evidence.reasons.length > 0}
                   <div class="mt-2 space-y-0.5">
                     {#each d.evidence.reasons.slice(0, 2) as r}
-                      <p class="text-[10px] text-on-surface-variant/50"><span class="font-mono {scoreColor(r.score)}">{r.score}pts</span> {r.label.replace(/<@\d+>/g, (m) => { const alt = d.suspectedAlts?.find(a => m.includes(a.userId)); return alt?.username ? `@${alt.username}` : m; })}</p>
+                      <p class="text-2xs text-on-surface-variant/50"><span class="font-mono {scoreColor(r.score)}">{r.score}pts</span> {r.label.replace(/<@\d+>/g, (m) => { const alt = d.suspectedAlts?.find(a => m.includes(a.userId)); return alt?.username ? `@${alt.username}` : m; })}</p>
                     {/each}
                     {#if d.evidence.reasons.length > 2}
-                      <p class="text-[10px] text-on-surface-variant/30">{m.da_more_signals({ count: d.evidence.reasons.length - 2 })}</p>
+                      <p class="text-2xs text-on-surface-variant/30">{m.da_more_signals({ count: d.evidence.reasons.length - 2 })}</p>
                     {/if}
                   </div>
                 {/if}
@@ -920,7 +909,7 @@
               {#if d.suspectedAlts && d.suspectedAlts.length > 0}
                 <button onclick={() => { const alt = d.suspectedAlts?.[0]; if (alt) handleLinkDetection(d, alt.userId); }}
                   disabled={saveAction.state.loading}
-                  class="flex-1 py-2 rounded-lg bg-emerald-500/10 text-emerald-500 text-xs font-medium hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 min-w-25">
+                  class="flex-1 py-2 rounded-lg bg-success/10 text-success text-xs font-medium hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 min-w-25">
                   <Papicon icon="Link2" size={12} /> {m.da_link()}
                 </button>
               {/if}
@@ -1070,16 +1059,16 @@
               {#if hoveredLink.reasons && hoveredLink.reasons.length > 0}
                 <ul class="space-y-1.5">
                   {#each hoveredLink.reasons as reason}
-                    <li class="text-[10px] text-on-surface-variant leading-relaxed">
-                      <span class="font-bold text-amber-500">[{reason.score}pts]</span> {reason.label}
+                    <li class="text-2xs text-on-surface-variant leading-relaxed">
+                      <span class="font-bold text-warning">[{reason.score}pts]</span> {reason.label}
                       {#if reason.detail}
-                        <br/><span class="text-on-surface-variant/50 text-[9px]">{reason.detail}</span>
+                        <br/><span class="text-on-surface-variant/50 text-2xs">{reason.detail}</span>
                       {/if}
                     </li>
                   {/each}
                 </ul>
               {:else}
-                <p class="text-[10px] text-on-surface-variant/60 italic">{m.da_no_detail({ score: hoveredLink.score })}</p>
+                <p class="text-2xs text-on-surface-variant/60 italic">{m.da_no_detail({ score: hoveredLink.score })}</p>
               {/if}
             </div>
           {/if}
@@ -1094,8 +1083,8 @@
               {/if}
               <div>
                 <p class="text-xs font-bold text-on-surface">{hoveredNode.label}</p>
-                <p class="text-[9px] text-on-surface-variant/60">ID: {hoveredNode.id}</p>
-                <p class="text-[10px] mt-0.5 font-bold {hoveredNode.type === 'suspect' ? 'text-rose-400' : 'text-emerald-400'}">
+                <p class="text-2xs text-on-surface-variant/60">ID: {hoveredNode.id}</p>
+                <p class="text-2xs mt-0.5 font-bold {hoveredNode.type === 'suspect' ? 'text-error' : 'text-success'}">
                   {hoveredNode.type === 'suspect' ? m.da_suspect_score({ score: hoveredNode.score }) : m.da_alt_suspected()}
                 </p>
               </div>
@@ -1182,9 +1171,9 @@
               <SearchableSelect bind:value={verifConfig.verificationLogChannelId} options={dashboardStore.state.discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.da_default()} className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
             </label>
             <label class="space-y-1.5 sm:col-span-2 lg:col-span-3">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">{m.da_fallback_channel()}</span>
+              <span class="text-xs font-semibold text-on-surface-variant/40">{m.da_fallback_channel()}</span>
               <SearchableSelect bind:value={verifConfig.verificationFallbackChannelId} options={dashboardStore.state.discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.da_default_verify_channel()} className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
-              <span class="block text-[11px] text-on-surface-variant/50">{m.da_fallback_channel_desc()}</span>
+              <span class="block text-2xs text-on-surface-variant/50">{m.da_fallback_channel_desc()}</span>
             </label>
           </div>
 
@@ -1279,7 +1268,7 @@
                     <span class="text-xs text-on-surface-variant/40 whitespace-nowrap">{m.da_disabled()}</span>
                   {/if}
                 </div>
-                <p class="text-[10px] text-on-surface-variant/40">{m.da_empty_to_disable()}</p>
+                <p class="text-2xs text-on-surface-variant/40">{m.da_empty_to_disable()}</p>
               </label>
 
               <label class="space-y-1.5">
@@ -1330,14 +1319,14 @@
                   }}
                   class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm"
                 />
-                <p class="text-[10px] text-on-surface-variant/40">{m.da_warn_auto_archive_hint()}</p>
+                <p class="text-2xs text-on-surface-variant/40">{m.da_warn_auto_archive_hint()}</p>
               </label>
 
               <label class="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" bind:checked={verifConfig.countArchivedInWarnScore} class="mt-0.5 accent-indigo-500" />
                 <span>
                   <span class="text-sm font-medium text-on-surface block">{m.da_count_archived()}</span>
-                  <span class="text-[11px] text-on-surface-variant/50 block mt-0.5">{m.da_count_archived_desc()}</span>
+                  <span class="text-2xs text-on-surface-variant/50 block mt-0.5">{m.da_count_archived_desc()}</span>
                 </span>
               </label>
             </div>
@@ -1348,7 +1337,7 @@
                 <input type="checkbox" bind:checked={verifConfig.warnWeightingEnabled} class="mt-0.5 accent-indigo-500" />
                 <span>
                   <span class="text-sm font-medium text-on-surface block">{m.da_weighted_warns()}</span>
-                  <span class="text-[11px] text-on-surface-variant/50 block mt-0.5">
+                  <span class="text-2xs text-on-surface-variant/50 block mt-0.5">
                     {m.da_weighted_warns_desc_1()} <code class="text-indigo-400">/sanction warn</code>. {m.da_weighted_warns_desc_2()}
                     <strong>{m.da_weighted_warns_score()}</strong> {m.da_weighted_warns_desc_3()}
                   </span>
@@ -1370,7 +1359,7 @@
                     }}
                     class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm"
                   />
-                  <p class="text-[10px] text-on-surface-variant/40">
+                  <p class="text-2xs text-on-surface-variant/40">
                     {m.da_warn_decay_hint()}
                   </p>
                 </label>
@@ -1392,7 +1381,7 @@
                 <input type="checkbox" bind:checked={verifConfig.wordStatsEnabled} class="mt-0.5 accent-indigo-500" />
                 <span>
                   <span class="text-sm font-medium text-on-surface block">{m.da_word_stats()}</span>
-                  <span class="text-[11px] text-on-surface-variant/50 block mt-0.5">
+                  <span class="text-2xs text-on-surface-variant/50 block mt-0.5">
                     {m.da_word_stats_desc_1()} <strong>{m.da_word_stats_tab()}</strong> {m.da_word_stats_of_stats()}
                     {m.da_word_stats_privacy()}
                   </span>
@@ -1406,7 +1395,7 @@
                 <input type="checkbox" bind:checked={verifConfig.banHygieneEnabled} class="mt-0.5 accent-indigo-500" />
                 <span>
                   <span class="text-sm font-medium text-on-surface block">{m.da_ban_hygiene()}</span>
-                  <span class="text-[11px] text-on-surface-variant/50 block mt-0.5">
+                  <span class="text-2xs text-on-surface-variant/50 block mt-0.5">
                     {m.da_ban_hygiene_desc_1()}
                     <strong>{m.da_ban_hygiene_deleted()}</strong>{m.da_ban_hygiene_desc_2()}
                   </span>
@@ -1420,12 +1409,12 @@
              empechait d'enregistrer l'extinction de la verification. -->
         <div class="flex flex-wrap gap-2">
           <button onclick={saveVerifConfig}
-            class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-[13px] font-medium hover:bg-indigo-500 transition-all flex items-center gap-1.5">
+            class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-body-sm font-medium hover:bg-indigo-500 transition-all flex items-center gap-1.5">
             <Papicon icon="Save" size={13} /> {m.da_save()}
           </button>
           {#if verifConfig.verificationEnabled && verifConfig.verificationMode === 'EMBED' && verifConfig.verificationChannelId}
             <button onclick={deployVerifEmbed} disabled={deployingEmbed}
-              class="px-5 py-2.5 border border-indigo-500/20 text-indigo-400 rounded-lg text-[13px] font-medium hover:bg-indigo-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-1.5">
+              class="px-5 py-2.5 border border-indigo-500/20 text-indigo-400 rounded-lg text-body-sm font-medium hover:bg-indigo-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-1.5">
               {#if deployingEmbed}
                 <div class="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent"></div>
                 {m.da_sending()}
@@ -1450,7 +1439,7 @@
         <!-- Module toggle -->
         <div class="flex items-center justify-between gap-4 p-4 rounded-xl border border-outline-variant/10 bg-surface-container-low/30">
           <div class="flex items-center gap-3">
-            <div class="h-9 w-9 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
+            <div class="h-9 w-9 rounded-lg bg-success/10 flex items-center justify-center text-success shrink-0">
               <Papicon icon="Users" size={18} />
             </div>
             <div>
@@ -1527,7 +1516,7 @@
           {/if}
           <div>
             <h3 class="text-sm font-bold text-on-surface">{m.da_detection_report()}</h3>
-            <p class="text-[11px] text-on-surface-variant/50">@{det.username || det.id}</p>
+            <p class="text-2xs text-on-surface-variant/50">@{det.username || det.id}</p>
           </div>
         </div>
         <button onclick={() => reportModalDetection = null} class="p-1.5 rounded-lg hover:bg-surface-container-high transition-colors text-on-surface-variant/40">
@@ -1542,7 +1531,7 @@
             <div class="text-2xl font-bold {scoreColor(det.evidence.totalScore)}">{det.evidence.totalScore}</div>
             <div>
               <p class="text-xs font-bold text-on-surface">{m.da_trust_score()}</p>
-              <p class="text-[10px] text-on-surface-variant/50">{det.evidence.totalScore >= 60 ? m.da_risk_high() : det.evidence.totalScore >= 30 ? m.da_risk_medium() : m.da_risk_low()} - {det.evidence.reasons.length > 1 ? m.da_signal_other({ count: det.evidence.reasons.length }) : m.da_signal_one({ count: det.evidence.reasons.length })}</p>
+              <p class="text-2xs text-on-surface-variant/50">{det.evidence.totalScore >= 60 ? m.da_risk_high() : det.evidence.totalScore >= 30 ? m.da_risk_medium() : m.da_risk_low()} - {det.evidence.reasons.length > 1 ? m.da_signal_other({ count: det.evidence.reasons.length }) : m.da_signal_one({ count: det.evidence.reasons.length })}</p>
             </div>
           </div>
         {/if}
@@ -1561,7 +1550,7 @@
                   </button>
                   <button onclick={() => { handleLinkDetection(det, alt.userId); reportModalDetection = null; }}
                     disabled={saveAction.state.loading}
-                    class="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 text-xs font-medium hover:bg-emerald-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-1">
+                    class="shrink-0 px-3 py-1.5 rounded-lg bg-success/10 text-success text-xs font-medium hover:bg-emerald-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-1">
                     <Papicon icon="Link2" size={11} /> {m.da_link()}
                   </button>
                 </div>
@@ -1581,13 +1570,13 @@
                     <div class="min-w-0 flex-1">
                       <p class="text-xs font-bold text-on-surface">{reason.label.replace(/<@\d+>/g, (m) => { const alt = det.suspectedAlts?.find(a => m.includes(a.userId)); return alt?.username ? `@${alt.username}` : m; })}</p>
                       {#if reason.detail}
-                        <p class="text-[10px] text-on-surface-variant/40 mt-0.5">{reason.detail}</p>
+                        <p class="text-2xs text-on-surface-variant/40 mt-0.5">{reason.detail}</p>
                       {/if}
                     </div>
-                    <span class="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold {scoreColor(reason.score)} {scoreBg(reason.score)}">{reason.score}pts</span>
+                    <span class="shrink-0 px-2 py-0.5 rounded text-2xs font-bold {scoreColor(reason.score)} {scoreBg(reason.score)}">{reason.score}pts</span>
                   </div>
                   <div class="mt-1.5">
-                    <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-surface-container-high text-on-surface-variant/30">{reason.type.replace(/_/g, ' ')}</span>
+                    <span class="px-1.5 py-0.5 rounded text-xs font-semibold bg-surface-container-high text-on-surface-variant/30">{reason.type.replace(/_/g, ' ')}</span>
                   </div>
                 </div>
               {/each}
@@ -1598,7 +1587,7 @@
         <!-- Member info -->
         <div>
           <h4 class="text-xs font-medium text-on-surface-variant/40 mb-2">{m.da_information()}</h4>
-          <div class="grid grid-cols-2 gap-2 text-[11px]">
+          <div class="grid grid-cols-2 gap-2 text-2xs">
             <div class="p-2.5 rounded-lg bg-surface-container-low/40">
               <span class="text-on-surface-variant/40">{m.da_created()}</span>
               <p class="font-bold text-on-surface">{formatRelative(det.accountCreatedAt)}</p>
@@ -1609,7 +1598,7 @@
             </div>
             <div class="p-2.5 rounded-lg bg-surface-container-low/40">
               <span class="text-on-surface-variant/40">{m.da_account_age()}</span>
-              <p class="font-bold text-amber-500">{det.accountAgeLabel}</p>
+              <p class="font-bold text-warning">{det.accountAgeLabel}</p>
             </div>
             <div class="p-2.5 rounded-lg bg-surface-container-low/40">
               <span class="text-on-surface-variant/40">{m.da_messages()}</span>
@@ -1674,11 +1663,11 @@
           {m.da_modal_body_1()} <strong>{m.da_telemetry()}</strong> {m.da_modal_body_2()}
         </p>
         <ul class="text-xs text-on-surface-variant/70 space-y-1.5">
-          <li class="flex items-start gap-2"><Papicon icon="Check" size={13} class="text-emerald-500 shrink-0 mt-0.5" /> {m.da_modal_bullet_1()}</li>
-          <li class="flex items-start gap-2"><Papicon icon="Check" size={13} class="text-emerald-500 shrink-0 mt-0.5" /> {m.da_modal_bullet_2()}</li>
-          <li class="flex items-start gap-2"><Papicon icon="Check" size={13} class="text-emerald-500 shrink-0 mt-0.5" /> {m.da_modal_bullet_3()}</li>
+          <li class="flex items-start gap-2"><Papicon icon="Check" size={13} class="text-success shrink-0 mt-0.5" /> {m.da_modal_bullet_1()}</li>
+          <li class="flex items-start gap-2"><Papicon icon="Check" size={13} class="text-success shrink-0 mt-0.5" /> {m.da_modal_bullet_2()}</li>
+          <li class="flex items-start gap-2"><Papicon icon="Check" size={13} class="text-success shrink-0 mt-0.5" /> {m.da_modal_bullet_3()}</li>
         </ul>
-        <div class="flex items-start gap-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/15 text-[11px] text-amber-300/90">
+        <div class="flex items-start gap-2 p-3 rounded-lg bg-warning/5 border border-warning/15 text-2xs text-amber-300/90">
           <Papicon icon="Info" size={13} class="shrink-0 mt-0.5" />
           <span>{m.da_modal_retention()}</span>
         </div>

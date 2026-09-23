@@ -3,6 +3,8 @@
   import { onMount, onDestroy, untrack } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
@@ -850,78 +852,13 @@
       <span>{loadError}</span>
     </div>
   {:else}
-    <!-- Tab Switcher -->
-    <div class="flex border-b border-outline-variant/20 mb-8 overflow-x-auto no-scrollbar">
-      <button
-        onclick={() => gotoTab('/channels-management', 'by-channel', 'by-channel')}
-        class="tab-button {activeTab === 'by-channel' ? 'active' : ''}"
-      >
-        Par salon
-        {#if activeTab === 'by-channel'}
-          <div class="absolute bottom-0 left-6 right-6 h-0.5 bg-primary rounded-t-full"></div>
-        {/if}
-      </button>
-
-      <button 
-        onclick={() => gotoTab('/channels-management', 'auto-thread', 'by-channel')}
-        class="tab-button {activeTab === 'auto-thread' ? 'active' : ''}"
-      >
-        Auto-Thread
-        {#if activeTab === 'auto-thread'}
-          <div class="absolute bottom-0 left-6 right-6 h-0.5 bg-primary rounded-t-full"></div>
-        {/if}
-      </button>
-
-      <button
-        onclick={() => gotoTab('/channels-management', 'sticky', 'by-channel')}
-        class="tab-button {activeTab === 'sticky' ? 'active' : ''}"
-      >
-        {m.cm_tab_sticky()}
-        {#if activeTab === 'sticky'}
-          <div class="absolute bottom-0 left-6 right-6 h-0.5 bg-primary rounded-t-full"></div>
-        {/if}
-      </button>
-
-      <button
-        onclick={() => gotoTab('/channels-management', 'stats', 'by-channel')}
-        class="tab-button {activeTab === 'stats' ? 'active' : ''}"
-      >
-        {m.cm_tab_stats()}
-        {#if activeTab === 'stats'}
-          <div class="absolute bottom-0 left-6 right-6 h-0.5 bg-primary rounded-t-full"></div>
-        {/if}
-      </button>
-
-      <button
-        onclick={() => gotoTab('/channels-management', 'temp-voice', 'by-channel')}
-        class="tab-button {activeTab === 'temp-voice' ? 'active' : ''}"
-      >
-        {m.cm_tab_temp_voice()}
-        {#if activeTab === 'temp-voice'}
-          <div class="absolute bottom-0 left-6 right-6 h-0.5 bg-primary rounded-t-full"></div>
-        {/if}
-      </button>
-
-      <button
-        onclick={() => gotoTab('/channels-management', 'access-requests', 'by-channel')}
-        class="tab-button {activeTab === 'access-requests' ? 'active' : ''}"
-      >
-        {m.cm_tab_access_requests()}
-        {#if activeTab === 'access-requests'}
-          <div class="absolute bottom-0 left-6 right-6 h-0.5 bg-primary rounded-t-full"></div>
-        {/if}
-      </button>
-
-      <button
-        onclick={() => gotoTab('/channels-management', 'honeypot', 'by-channel')}
-        class="tab-button {activeTab === 'honeypot' ? 'active' : ''}"
-      >
-        {m.cm_tab_honeypot()}
-        {#if activeTab === 'honeypot'}
-          <div class="absolute bottom-0 left-6 right-6 h-0.5 bg-primary rounded-t-full"></div>
-        {/if}
-      </button>
-    </div>
+    <Tabs
+      label={m.cm_page_label()}
+      class="mb-8"
+      tabs={pageTabItems('/channels-management')}
+      active={activeTab}
+      onchange={(id) => gotoTab('/channels-management', id, 'by-channel')}
+    />
 
     <!-- Active Content Tab -->
     <div class="grid grid-cols-1 gap-8">
@@ -931,7 +868,7 @@
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 class="text-sm font-semibold text-on-surface">Fonctionnalités par salon</h3>
-              <p class="text-[13px] text-on-surface-variant mt-0.5">
+              <p class="text-body-sm text-on-surface-variant mt-0.5">
                 Chaque salon et ce qui y est actif. Les fonctionnalités uniques (comptage,
                 salon piège…) se déplacent : les activer ici les retire du salon précédent.
               </p>
@@ -947,7 +884,7 @@
           {#if byChannelLoading}
             <div class="flex justify-center py-8"><LoadingHint context="config" /></div>
           {:else if visibleByChannel.length === 0}
-            <p class="text-[13px] text-on-surface-variant/70 py-8 text-center">Aucun salon ne correspond au filtre.</p>
+            <p class="text-body-sm text-on-surface-variant/70 py-8 text-center">Aucun salon ne correspond au filtre.</p>
           {:else}
             <div class="space-y-1.5">
               {#each visibleByChannel as ch (ch.id)}
@@ -960,18 +897,18 @@
                     <div class="flex items-center gap-2.5 min-w-0">
                       <Papicon icon={ch.type === 'voice' ? 'volume-2' : ch.type === 'forum' ? 'message-square' : 'hash'} size={15} class="text-on-surface-variant/60 shrink-0" />
                       <div class="min-w-0">
-                        <p class="text-[13px] font-medium text-on-surface truncate">{ch.name}</p>
+                        <p class="text-body-sm font-medium text-on-surface truncate">{ch.name}</p>
                         {#if ch.categoryName}
-                          <p class="text-[11px] text-on-surface-variant/60 truncate">{ch.categoryName}</p>
+                          <p class="text-2xs text-on-surface-variant/60 truncate">{ch.categoryName}</p>
                         {/if}
                       </div>
                     </div>
                     <div class="flex items-center gap-1.5 shrink-0">
                       {#each ch.features.slice(0, 3) as key}
-                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">{featureLabel(key)}</span>
+                        <span class="text-2xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">{featureLabel(key)}</span>
                       {/each}
                       {#if ch.features.length > 3}
-                        <span class="text-[10px] text-on-surface-variant/60">+{ch.features.length - 3}</span>
+                        <span class="text-2xs text-on-surface-variant/60">+{ch.features.length - 3}</span>
                       {/if}
                       <Papicon icon={expandedChannelId === ch.id ? 'chevron-up' : 'chevron-down'} size={15} class="text-on-surface-variant/40" />
                     </div>
@@ -989,7 +926,7 @@
                               onchange={(e) => setChannelFeature(ch, key, e.currentTarget.checked)}
                               class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30"
                             />
-                            <span class="text-[12.5px] text-on-surface">{featureLabel(key)}</span>
+                            <span class="text-xs text-on-surface">{featureLabel(key)}</span>
                           </label>
                         {/each}
                       </div>
@@ -998,7 +935,7 @@
                            contenu à saisir : on renvoie vers leur onglet plutôt
                            que d'en faire une case à cocher trompeuse. -->
                       {#if ch.features.includes('sticky') || ch.features.includes('tempVoiceGenerator')}
-                        <p class="text-[11.5px] text-on-surface-variant/70">
+                        <p class="text-2xs text-on-surface-variant/70">
                           Ce salon porte aussi :
                           {#if ch.features.includes('sticky')}<span class="text-on-surface">un message collé</span>{/if}
                           {#if ch.features.includes('sticky') && ch.features.includes('tempVoiceGenerator')}, {/if}
@@ -1010,7 +947,7 @@
                       <div class="flex flex-wrap gap-2 pt-1 border-t border-outline-variant/10">
                         <button
                           type="button"
-                          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium
+                          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
                           bg-surface-container text-on-surface border border-outline-variant/40
                           hover:border-outline-variant disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           disabled={!ch.manageable}
@@ -1022,7 +959,7 @@
                         </button>
                         <button
                           type="button"
-                          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium
+                          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
                           bg-error/10 text-error border border-error/30 hover:bg-error/20
                           disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           disabled={!ch.manageable}
@@ -1150,7 +1087,7 @@
 
           <div class="flex items-start gap-2 p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/10">
             <span class="text-primary mt-0.5 shrink-0"><Papicon icon="Info" size={14} /></span>
-            <p class="text-[11px] text-on-surface-variant/70 font-medium leading-relaxed">
+            <p class="text-2xs text-on-surface-variant/70 font-medium leading-relaxed">
               {m.cm_sticky_info()}
             </p>
           </div>
@@ -1174,12 +1111,12 @@
                         disabled={!!sticky.id}
                       />
                       {#if sticky.id}
-                        <p class="text-[10px] text-on-surface-variant/40">{m.cm_sticky_channel_locked_hint()}</p>
+                        <p class="text-2xs text-on-surface-variant/40">{m.cm_sticky_channel_locked_hint()}</p>
                       {/if}
                     </div>
 
                     <div class="flex items-center gap-3 sm:pt-6">
-                      <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">{m.cm_sticky_enabled_label()}</span>
+                      <span class="text-xs font-semibold text-on-surface-variant/60">{m.cm_sticky_enabled_label()}</span>
                       <input
                         type="checkbox"
                         aria-label={m.cm_sticky_enabled_label()}
@@ -1199,7 +1136,7 @@
                       placeholder={m.cm_sticky_content_placeholder()}
                       class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/30 transition-all resize-y"
                     ></textarea>
-                    <p class="text-[10px] text-on-surface-variant/40">{m.cm_sticky_placeholders_hint()}</p>
+                    <p class="text-2xs text-on-surface-variant/40">{m.cm_sticky_placeholders_hint()}</p>
                   </div>
 
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1213,7 +1150,7 @@
                         bind:value={sticky.messageThreshold}
                         class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/30 transition-all"
                       />
-                      <p class="text-[10px] text-on-surface-variant/40">{m.cm_sticky_threshold_hint()}</p>
+                      <p class="text-2xs text-on-surface-variant/40">{m.cm_sticky_threshold_hint()}</p>
                     </div>
 
                     <div class="space-y-1.5">
@@ -1226,14 +1163,14 @@
                         bind:value={sticky.cooldownSeconds}
                         class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/30 transition-all"
                       />
-                      <p class="text-[10px] text-on-surface-variant/40">{m.cm_sticky_cooldown_hint()}</p>
+                      <p class="text-2xs text-on-surface-variant/40">{m.cm_sticky_cooldown_hint()}</p>
                     </div>
                   </div>
 
                   <div class="flex items-center justify-between p-4 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl">
                     <div class="space-y-0.5">
                       <label for="sticky-embed-{index}" class="text-xs font-bold text-on-surface/80 block">{m.cm_sticky_embed_label()}</label>
-                      <p class="text-[10px] text-on-surface-variant/60">{m.cm_sticky_embed_desc()}</p>
+                      <p class="text-2xs text-on-surface-variant/60">{m.cm_sticky_embed_desc()}</p>
                     </div>
                     <input
                       id="sticky-embed-{index}"
@@ -1284,7 +1221,7 @@
                       type="button"
                       onclick={() => handleDeleteSticky(index)}
                       disabled={stickyBusy === sticky.channelId}
-                      class="px-3.5 py-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-xs font-bold hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-2 disabled:opacity-50"
+                      class="px-3.5 py-2 bg-error/10 text-error border border-error/20 rounded-lg text-xs font-bold hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-2 disabled:opacity-50"
                     >
                       <Papicon icon="trash-2" size={13} />
                       {m.common_delete()}
@@ -1671,7 +1608,7 @@
                 {#each config.statsConfig.customStats as custom, index}
                   <div class="p-5 bg-surface-container-high/10 border border-outline-variant/5 rounded-xl space-y-4 transition-all">
                     <div class="flex items-center justify-between border-b border-outline-variant/10 pb-3 mb-2">
-                      <span class="text-[10px] font-semibold uppercase tracking-wider text-primary">{m.cm_counter_n({ n: index + 1 })}</span>
+                      <span class="text-xs font-semibold text-primary">{m.cm_counter_n({ n: index + 1 })}</span>
                       <button
                         type="button"
                         onclick={() => {
@@ -1786,7 +1723,7 @@
                           placeholder={custom.type === 'goal' ? m.cm_template_goal_placeholder() : m.cm_template_name_placeholder()} 
                           class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                         />
-                        <p class="text-[11px] text-on-surface-variant/40 mt-1">
+                        <p class="text-2xs text-on-surface-variant/40 mt-1">
                           {m.cm_count_placeholder_hint({ code: '{count}' })}
                           {#if custom.type === 'goal'}
                             {m.cm_goal_placeholder_hint({ code: '{goal}' })}
@@ -1819,7 +1756,7 @@
                 </button>
               </div>
             </div>
-            <p class="text-[10px] text-on-surface-variant/40 mt-4 block">{m.cm_stats_refresh_hint()}</p>
+            <p class="text-2xs text-on-surface-variant/40 mt-4 block">{m.cm_stats_refresh_hint()}</p>
           {/if}
         </section>
 
@@ -1908,7 +1845,7 @@
                   placeholder={m.cm_template_user_placeholder()} 
                   class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/30 transition-all"
                 />
-                <p class="text-[10px] text-on-surface-variant/40 mt-1">{m.cm_user_placeholder_hint({ code: '{user}' })}</p>
+                <p class="text-2xs text-on-surface-variant/40 mt-1">{m.cm_user_placeholder_hint({ code: '{user}' })}</p>
               </div>
 
               <!-- Role Restriction Selection -->
@@ -1920,7 +1857,7 @@
                   bind:value={config.tempVoiceRequiredRoleId} 
                   placeholder={m.cm_no_role_required_open_placeholder()}
                 />
-                <p class="text-[10px] text-on-surface-variant/40">{m.cm_required_role_scope_hint()}</p>
+                <p class="text-2xs text-on-surface-variant/40">{m.cm_required_role_scope_hint()}</p>
               </div>
 
               <!-- Permissions appliquées aux salons créés -->
@@ -1948,7 +1885,7 @@
                   {#each config.tempVoiceGenerators as generator, index}
                     <div class="p-5 bg-surface-container-high/10 border border-outline-variant/5 rounded-xl space-y-4 transition-all">
                       <div class="flex items-center justify-between border-b border-outline-variant/10 pb-3 mb-2">
-                        <span class="text-[10px] font-semibold uppercase tracking-wider text-primary">{m.cm_generator_n({ n: index + 2 })}</span>
+                        <span class="text-xs font-semibold text-primary">{m.cm_generator_n({ n: index + 2 })}</span>
                         <button
                           type="button"
                           onclick={() => {
@@ -2076,7 +2013,7 @@
 
               <!-- Description of Chat Control Embed -->
               <div class="p-5 bg-primary/5 border border-primary/20 rounded-xl mt-4">
-                <h4 class="text-xs font-semibold text-primary uppercase tracking-wider mb-2">{m.cm_management_embed_title()}</h4>
+                <h4 class="text-xs font-semibold text-primary mb-2">{m.cm_management_embed_title()}</h4>
                 <p class="text-xs text-on-surface-variant/80 leading-relaxed">
                   {m.cm_management_embed_intro()}
                   <br/><strong class="text-on-surface font-semibold">• {m.cm_embed_bullet_lock()}</strong> {m.cm_embed_bullet_lock_desc()}
@@ -2149,14 +2086,14 @@
                                 type="button"
                                 onclick={() => handleRenameChannel(chan.id)}
                                 disabled={actionInProgress}
-                                class="px-2 py-1 bg-primary text-white text-[10px] font-semibold rounded-md active:scale-[0.98] transition-transform"
+                                class="px-2 py-1 bg-primary text-white text-2xs font-semibold rounded-md active:scale-[0.98] transition-transform"
                               >
                                 {m.cm_validate()}
                               </button>
                               <button
                                 type="button"
                                 onclick={() => editingChannel = null}
-                                class="px-2 py-1 bg-surface-container text-on-surface text-[10px] font-semibold rounded-md border border-outline-variant/20"
+                                class="px-2 py-1 bg-surface-container text-on-surface text-2xs font-semibold rounded-md border border-outline-variant/20"
                               >
                                 {m.common_cancel()}
                               </button>
@@ -2191,7 +2128,7 @@
                           </div>
                         </td>
                         <td class="py-3 px-4 text-center">
-                          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-semibold bg-primary/10 text-primary border border-primary/20">
                             <Papicon icon="user" size={11} />
                             {chan.membersCount}
                           </span>
@@ -2211,7 +2148,7 @@
                             type="button"
                             onclick={() => handleDeleteChannel(chan.id)}
                             disabled={actionInProgress}
-                            class="px-2.5 py-1.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-1"
+                            class="px-2.5 py-1.5 bg-error/10 text-error border border-error/20 rounded-lg text-xs font-semibold hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-1"
                           >
                             <Papicon icon="trash-2" size={12} />
                             {m.common_close()}
@@ -2239,7 +2176,7 @@
                             type="button"
                             onclick={() => handleRenameChannel(chan.id)}
                             disabled={actionInProgress}
-                            class="px-2 py-1 bg-primary text-white text-[10px] font-semibold rounded-md"
+                            class="px-2 py-1 bg-primary text-white text-2xs font-semibold rounded-md"
                           >
                             OK
                           </button>
@@ -2266,14 +2203,14 @@
                         {/if}
                         <span class="text-on-surface-variant">{chan.creatorName}</span>
                       </div>
-                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-semibold bg-primary/10 text-primary border border-primary/20">
                         <Papicon icon="user" size={10} />
                         {chan.membersCount} {m.cm_members_connected_suffix()}
                       </span>
                     </div>
 
                     <div class="space-y-1">
-                      <span class="text-[10px] font-bold text-on-surface-variant/60 block">{m.cm_reservation_label()}</span>
+                      <span class="text-2xs font-bold text-on-surface-variant/60 block">{m.cm_reservation_label()}</span>
                       <SearchableSelect 
                         options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} 
                         value={chan.roleId || ''} 
@@ -2287,7 +2224,7 @@
                         type="button"
                         onclick={() => handleDeleteChannel(chan.id)}
                         disabled={actionInProgress}
-                        class="px-2.5 py-1.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-[9px] font-semibold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-1"
+                        class="px-2.5 py-1.5 bg-error/10 text-error border border-error/20 rounded-lg text-xs font-semibold hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-1"
                       >
                         <Papicon icon="trash-2" size={12} />
                         {m.cm_close_channel_full()}
@@ -2358,11 +2295,11 @@
                         />
                         {mode.label()}
                       </span>
-                      <span class="text-[10px] text-on-surface-variant/60 leading-relaxed">{mode.hint()}</span>
+                      <span class="text-2xs text-on-surface-variant/60 leading-relaxed">{mode.hint()}</span>
                     </label>
                   {/each}
                 </div>
-                <p class="text-[10px] text-on-surface-variant/40">{m.cm_ar_notify_fallback_hint()}</p>
+                <p class="text-2xs text-on-surface-variant/40">{m.cm_ar_notify_fallback_hint()}</p>
               </div>
 
               {#if config.tempVoiceAccessRequest.notifyVia === 'CHANNEL'}
@@ -2389,7 +2326,7 @@
                     bind:value={config.tempVoiceAccessRequest.requestExpiresMinutes}
                     class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/30 transition-all"
                   />
-                  <p class="text-[10px] text-on-surface-variant/40">{m.cm_ar_expiry_hint()}</p>
+                  <p class="text-2xs text-on-surface-variant/40">{m.cm_ar_expiry_hint()}</p>
                 </div>
 
                 <div class="space-y-1.5">
@@ -2402,7 +2339,7 @@
                     bind:value={config.tempVoiceAccessRequest.denyCooldownMinutes}
                     class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/30 transition-all"
                   />
-                  <p class="text-[10px] text-on-surface-variant/40">{m.cm_ar_cooldown_hint()}</p>
+                  <p class="text-2xs text-on-surface-variant/40">{m.cm_ar_cooldown_hint()}</p>
                 </div>
               </div>
             </div>
@@ -2440,7 +2377,7 @@
             {/each}
           </div>
 
-          <p class="text-[10px] text-on-surface-variant/40">{m.cm_ar_admin_footer()}</p>
+          <p class="text-2xs text-on-surface-variant/40">{m.cm_ar_admin_footer()}</p>
 
           <!-- Panneau compact : pas une permission modérateur mais un choix de
                présentation des sous-panneaux éphémères. Séparé des sept lignes
@@ -2449,7 +2386,7 @@
             <div class="flex items-center justify-between gap-4 p-4 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl">
               <div class="space-y-0.5">
                 <label for="panel-compact-mode-toggle" class="text-xs font-bold text-on-surface/80 block">{m.cm_ar_admin_panel_compact_title()}</label>
-                <p class="text-[10px] text-on-surface-variant/60">{m.cm_ar_admin_panel_compact_desc()}</p>
+                <p class="text-2xs text-on-surface-variant/60">{m.cm_ar_admin_panel_compact_desc()}</p>
               </div>
               <div class="flex items-center gap-2 shrink-0">
                 <input
@@ -2478,12 +2415,12 @@
               <label for="reservation-roles-select" class="text-xs font-bold text-on-surface/80 block">
                 {m.cm_ar_reservation_roles_label()}
               </label>
-              <p class="text-[10px] text-on-surface-variant/40">{m.cm_ar_reservation_roles_hint()}</p>
+              <p class="text-2xs text-on-surface-variant/40">{m.cm_ar_reservation_roles_hint()}</p>
 
               {#if config.tempVoiceModPermissions.reservableRoleIds.length > 0}
                 <div class="flex flex-wrap gap-2">
                   {#each config.tempVoiceModPermissions.reservableRoleIds as roleId (roleId)}
-                    <span class="inline-flex items-center gap-1.5 bg-primary/10 border border-primary/20 text-primary text-[11px] font-semibold rounded-full pl-3 pr-1.5 py-1">
+                    <span class="inline-flex items-center gap-1.5 bg-primary/10 border border-primary/20 text-primary text-2xs font-semibold rounded-full pl-3 pr-1.5 py-1">
                       @{reservableRoleName(roleId)}
                       <button
                         type="button"
@@ -2499,7 +2436,7 @@
               {/if}
 
               {#if config.tempVoiceModPermissions.reservableRoleIds.length >= MAX_RESERVABLE_ROLES}
-                <p class="text-[10px] text-on-surface-variant/60">{m.cm_ar_reservation_roles_full({ max: MAX_RESERVABLE_ROLES })}</p>
+                <p class="text-2xs text-on-surface-variant/60">{m.cm_ar_reservation_roles_full({ max: MAX_RESERVABLE_ROLES })}</p>
               {:else}
                 <SearchableSelect
                   id="reservation-roles-select"
@@ -2542,7 +2479,7 @@
                     on:change={(e) => { config.tempVoiceModPermissions.reservationFallbackChannelId = (e.detail?.value as string | undefined) || null; }}
                     placeholder={m.cm_select_channel_placeholder()}
                   />
-                  <p class="text-[10px] text-on-surface-variant/40">{m.cm_ar_reservation_fallback_hint()}</p>
+                  <p class="text-2xs text-on-surface-variant/40">{m.cm_ar_reservation_fallback_hint()}</p>
                 </div>
               {/if}
             </div>
@@ -2620,7 +2557,7 @@
                   <option value="KICK">{m.cm_opt_kick_simple()}</option>
                   <option value="WARN">{m.cm_opt_warn_simple()}</option>
                 </select>
-                <p class="text-[10px] text-on-surface-variant/40 mt-1">{m.cm_sanction_select_hint()}</p>
+                <p class="text-2xs text-on-surface-variant/40 mt-1">{m.cm_sanction_select_hint()}</p>
               </div>
 
               {#if config.honeypotSanction === 'KICK' || config.honeypotSanction === 'SOFTBAN'}
@@ -2628,7 +2565,7 @@
                 <div class="flex items-center justify-between p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl transition-all">
                   <div class="space-y-0.5">
                     <label for="honeypot-reinvite-toggle" class="text-xs font-bold text-on-surface/80 block">{m.cm_auto_reinvite_label()}</label>
-                    <p class="text-[10px] text-on-surface-variant/60">{m.cm_auto_reinvite_desc()}</p>
+                    <p class="text-2xs text-on-surface-variant/60">{m.cm_auto_reinvite_desc()}</p>
                   </div>
                   <div class="flex items-center gap-2">
                     <input 
@@ -2643,7 +2580,7 @@
 
               <!-- Alert Warning Card -->
               <div class="p-5 bg-error/10 border border-error/20 text-error rounded-xl space-y-3">
-                <h4 class="text-[13px] font-medium flex items-center gap-2">
+                <h4 class="text-body-sm font-medium flex items-center gap-2">
                   <Papicon icon="alert-triangle" size={16} />
                   {m.cm_security_warning_title()}
                 </h4>

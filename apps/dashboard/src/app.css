@@ -77,10 +77,14 @@
   --color-tertiary-container: var(--tertiary-container-color);
   --color-on-tertiary-container: var(--on-tertiary-container-color);
 
-  --color-error: #dc2626;
-  --color-on-error: #ffffff;
-  --color-error-container: #fef2f2;
-  --color-on-error-container: #991b1b;
+  /* L'erreur etait la seule couleur de statut commune aux deux themes : un
+     rouge 600 qui tombait a 4,1:1 en texte sur fond sombre, et un conteneur
+     rose pale qui restait clair en mode sombre. Elle suit maintenant le
+     primaire : remplissage clair et texte fonce en sombre. */
+  --color-error: var(--error-color);
+  --color-on-error: var(--on-error-color);
+  --color-error-container: var(--error-container-color);
+  --color-on-error-container: var(--on-error-container-color);
 
   /* Le theme portait l'erreur mais ni l'avertissement ni la reussite, que les
      pages ecrivaient donc en dur. Un ambre ou un vert vif tiennent sur fond
@@ -88,6 +92,14 @@
      chacun leur valeur par theme, comme le reste de la palette. */
   --color-warning: var(--warning-color);
   --color-success: var(--success-color);
+
+  /* Echelle de texte du dashboard : 2xs (11px), xs (12px), body-sm (13px),
+     sm (14px). Les pages ecrivaient une quinzaine de tailles en dur, de 8 a
+     13,5px ; tout ce qui passait sous 11px devenait illisible. Les deux crans
+     ajoutes ne fixent pas de hauteur de ligne, comme les valeurs arbitraires
+     qu'ils remplacent : la mise en page ne bouge pas. */
+  --text-2xs: 0.6875rem;
+  --text-body-sm: 0.8125rem;
 
   --font-headline: "Outfit", "Inter", system-ui, -apple-system, sans-serif;
   --font-body: "Inter", system-ui, -apple-system, sans-serif;
@@ -172,6 +184,10 @@
   --on-tertiary-container-color: #6d28d9;
   --warning-color: #b45309;
   --success-color: #15803d;
+  --error-color: #dc2626;
+  --on-error-color: #ffffff;
+  --error-container-color: #fef2f2;
+  --on-error-container-color: #991b1b;
 }
 
 :root.dark {
@@ -201,6 +217,10 @@
   --on-tertiary-container-color: #ddd6fe;
   --warning-color: #fbbf24;
   --success-color: #4ade80;
+  --error-color: #f87171;
+  --on-error-color: #450a0a;
+  --error-container-color: #450a0a;
+  --on-error-container-color: #fecaca;
 }
 
 @layer base {
@@ -516,12 +536,148 @@
 
 .btn-danger {
   background: transparent;
-  color: #dc2626;
-  border-color: rgba(220, 38, 38, 0.25);
+  color: var(--error-color);
+  border-color: color-mix(in srgb, var(--error-color) 30%, transparent);
 }
-.btn-danger:hover:not(:disabled) { background: rgba(220, 38, 38, 0.08); }
+.btn-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--error-color) 10%, transparent); }
 
 .btn-sm { padding: 0.3125rem 0.75rem; font-size: 0.75rem; }
+
+/* Bouton icone seule : carre, meme hauteur que ses voisins a libelle. */
+.btn-icon { padding: 0.5rem; aspect-ratio: 1; }
+.btn-sm.btn-icon { padding: 0.3125rem; }
+
+.btn-spinner {
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 9999px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: btn-spin 0.7s linear infinite;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .btn-spinner { animation-duration: 2s; }
+}
+
+/* ── Onglets : compteur ───────────────────────────────── */
+
+.tab-badge {
+  min-width: 1.125rem;
+  padding: 0 0.3125rem;
+  border-radius: 9999px;
+  background: var(--surface-container-high);
+  color: var(--on-surface-variant);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.125rem;
+  text-align: center;
+}
+.tab-button.active .tab-badge {
+  background: var(--primary-container-color);
+  color: var(--on-primary-container-color);
+}
+
+/* ── Filtres : pastilles, a ne pas confondre avec les onglets ── */
+
+.filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  border: 1px solid var(--outline-variant);
+  background: transparent;
+  color: var(--on-surface-variant);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.filter-pill:hover:not(:disabled) { background: var(--surface-hover); color: var(--on-surface); }
+.filter-pill:disabled { opacity: 0.5; cursor: not-allowed; }
+.filter-pill[aria-pressed="true"] {
+  background: var(--primary-container-color);
+  border-color: color-mix(in srgb, var(--primary-color) 35%, transparent);
+  color: var(--on-primary-container-color);
+}
+.filter-pill__count {
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+/* ── Encadres d'information ───────────────────────────── */
+
+.callout {
+  --callout-color: var(--primary-color);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--callout-color) 25%, transparent);
+  background: color-mix(in srgb, var(--callout-color) 6%, transparent);
+}
+.callout--success { --callout-color: var(--success-color); }
+.callout--warning { --callout-color: var(--warning-color); }
+.callout--danger { --callout-color: var(--error-color); }
+
+.callout__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--callout-color) 12%, transparent);
+  color: var(--callout-color);
+}
+.callout__body { min-width: 0; padding-top: 0.3125rem; }
+.callout__title { font-size: 0.875rem; font-weight: 600; color: var(--on-surface); }
+.callout__text { font-size: 0.8125rem; line-height: 1.55; color: var(--on-surface-variant); }
+.callout__title + .callout__text { margin-top: 0.125rem; }
+.callout__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.625rem; }
+
+/* ── Champs de saisie ─────────────────────────────────── */
+
+/* Les champs ecrivaient `focus:outline-none` sans rien a la place : au
+   clavier, on ne voyait plus ou l'on etait. */
+.input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--outline-variant);
+  background: var(--surface-container);
+  color: var(--on-surface);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.input::placeholder { color: color-mix(in srgb, var(--on-surface-variant) 60%, transparent); }
+.input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 18%, transparent);
+}
+.input:disabled { opacity: 0.5; cursor: not-allowed; }
+.field--invalid .input,
+.input[aria-invalid="true"] { border-color: var(--error-color); }
+
+.field { display: flex; flex-direction: column; min-width: 0; }
+.field-required { color: var(--error-color); }
+.field-error {
+  font-size: 0.75rem;
+  color: var(--error-color);
+  margin-top: 0.25rem;
+}
 
 /* ── Formulaires - label calme (remplace les 10px MAJUSCULES) ── */
 

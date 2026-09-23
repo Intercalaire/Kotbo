@@ -104,7 +104,7 @@
     </div>
 
     {#if error}
-      <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+      <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-error/10 border border-error/20 text-error text-sm">
         <Papicon icon="AlertTriangle" size={16} />
         {error}
       </div>
@@ -150,15 +150,15 @@
           <div class="grid grid-cols-3 gap-3 mt-5">
             <div class="rounded-xl bg-on-surface/3 border border-outline-variant/10 px-4 py-3">
               <p class="text-2xl font-bold text-on-surface">{preview.meta.totalRecords}</p>
-              <p class="text-[11px] uppercase tracking-wider text-on-surface-variant/40 font-semibold">{m.d7_gdpr_records()}</p>
+              <p class="text-xs text-on-surface-variant/40 font-semibold">{m.d7_gdpr_records()}</p>
             </div>
             <div class="rounded-xl bg-on-surface/3 border border-outline-variant/10 px-4 py-3">
               <p class="text-2xl font-bold text-on-surface">{preview.categories.length}</p>
-              <p class="text-[11px] uppercase tracking-wider text-on-surface-variant/40 font-semibold">{m.d7_gdpr_categories()}</p>
+              <p class="text-xs text-on-surface-variant/40 font-semibold">{m.d7_gdpr_categories()}</p>
             </div>
             <div class="rounded-xl bg-on-surface/3 border border-outline-variant/10 px-4 py-3">
               <p class="text-2xl font-bold text-on-surface">{preview.meta.guildCount}</p>
-              <p class="text-[11px] uppercase tracking-wider text-on-surface-variant/40 font-semibold">{m.d7_gdpr_servers()}</p>
+              <p class="text-xs text-on-surface-variant/40 font-semibold">{m.d7_gdpr_servers()}</p>
             </div>
           </div>
 
@@ -171,7 +171,7 @@
           {/if}
 
           {#if preview.meta.errors.length}
-            <div class="mt-4 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs">
+            <div class="mt-4 px-4 py-3 rounded-xl bg-warning/10 border border-warning/20 text-warning text-xs">
               <p class="font-semibold mb-1">{m.d7_gdpr_collect_warnings({ count: preview.meta.errors.length })}</p>
               <ul class="list-disc list-inside space-y-0.5 opacity-80">
                 {#each preview.meta.errors as e}<li>{e}</li>{/each}

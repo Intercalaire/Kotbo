@@ -228,15 +228,15 @@
                 <button
                   onclick={() => handleToggle(inst)}
                   class="p-2 rounded-lg hover:bg-surface-container transition-colors"
-                  class:text-emerald-500={inst.enabled}
-                  class:text-red-500={!inst.enabled}
+                  class:text-success={inst.enabled}
+                  class:text-error={!inst.enabled}
                   title={inst.enabled ? 'Desactiver' : 'Activer'}
                 >
                   <Papicon icon={inst.enabled ? 'toggle-right' : 'toggle-left'} size={16} />
                 </button>
                 <button
                   onclick={() => handleDelete(inst)}
-                  class="p-2 rounded-lg hover:bg-red-500/10 transition-colors text-red-500"
+                  class="p-2 rounded-lg hover:bg-error/10 transition-colors text-error"
                   title="Supprimer"
                 >
                   <Papicon icon="trash" size={16} />
@@ -292,7 +292,7 @@
                   <span class="text-sm font-mono text-on-surface">{guild.id}</span>
                   <button
                     onclick={() => handleUnbindGuild(guild.id)}
-                    class="text-xs text-red-500 hover:underline"
+                    class="text-xs text-error hover:underline"
                   >
                     Detacher
                   </button>
@@ -346,7 +346,7 @@
             </div>
 
             <hr class="border-outline-variant" />
-            <p class="text-xs font-medium text-on-surface-variant uppercase tracking-wider">Discord App</p>
+            <p class="text-xs font-medium text-on-surface-variant">Discord App</p>
 
             <div>
               <label for="create-discord-token" class="text-xs text-on-surface-variant block mb-1">Bot Token *</label>
@@ -368,7 +368,7 @@
             </div>
 
             <hr class="border-outline-variant" />
-            <p class="text-xs font-medium text-on-surface-variant uppercase tracking-wider">Dashboard</p>
+            <p class="text-xs font-medium text-on-surface-variant">Dashboard</p>
 
             <div class="grid grid-cols-2 gap-3">
               <div>
@@ -382,7 +382,7 @@
             </div>
 
             <hr class="border-outline-variant" />
-            <p class="text-xs font-medium text-on-surface-variant uppercase tracking-wider">Branding</p>
+            <p class="text-xs font-medium text-on-surface-variant">Branding</p>
 
             <div class="grid grid-cols-2 gap-3">
               <div>
@@ -407,7 +407,7 @@
             </div>
 
             <hr class="border-outline-variant" />
-            <p class="text-xs font-medium text-on-surface-variant uppercase tracking-wider">Proprietaire</p>
+            <p class="text-xs font-medium text-on-surface-variant">Proprietaire</p>
 
             <div class="grid grid-cols-2 gap-3">
               <div>

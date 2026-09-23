@@ -319,9 +319,9 @@
             bind:values={ignoredDraft}
             options={guildChannels.map((c) => ({ id: c.id, name: `#${c.name}` }))}
             disabled={savingConfig}
-            accentClass="bg-rose-500/20 text-rose-300 border-rose-500/40"
+            accentClass="bg-error/20 text-rose-300 border-error/40"
           />
-          <p class="text-[11px] text-on-surface-variant/50">{m.ms_ignored_channels_help()}</p>
+          <p class="text-2xs text-on-surface-variant/50">{m.ms_ignored_channels_help()}</p>
         </div>
       {/if}
 
@@ -520,7 +520,7 @@
                 <div class="flex items-center gap-2 flex-wrap">
                   <span class="text-sm font-semibold text-on-surface">{message.authorName}</span>
                   {#if message.isBot}
-                    <span class="px-1.5 py-0.5 text-[10px] font-bold bg-primary/20 text-primary rounded">BOT</span>
+                    <span class="px-1.5 py-0.5 text-2xs font-bold bg-primary/20 text-primary rounded">BOT</span>
                   {/if}
                   <span class="text-xs text-on-surface-variant/50">#{message.channelName}</span>
                   <span class="text-xs text-on-surface-variant/40">· {formatDate(message.createdAt)}</span>
@@ -528,7 +528,7 @@
                     <span class="text-xs text-on-surface-variant/40">{m.ms_edited()}</span>
                   {/if}
                   {#if message.deletedAt}
-                    <span class="px-1.5 py-0.5 text-[10px] font-bold bg-error/20 text-error rounded">{m.ms_deleted_badge()}</span>
+                    <span class="px-1.5 py-0.5 text-2xs font-bold bg-error/20 text-error rounded">{m.ms_deleted_badge()}</span>
                   {/if}
                 </div>
 
@@ -558,7 +558,7 @@
                   <div class="flex items-center gap-2 shrink-0">
                     <button
                       onclick={() => confirmDelete(message.id)}
-                      class="px-2.5 py-1 text-xs font-medium bg-error text-white rounded-md hover:bg-error/90 transition-colors"
+                      class="px-2.5 py-1 text-xs font-medium bg-error text-on-error rounded-md hover:bg-error/90 transition-colors"
                     >{m.common_delete()}</button>
                     <button
                       onclick={() => (pendingDeleteId = null)}

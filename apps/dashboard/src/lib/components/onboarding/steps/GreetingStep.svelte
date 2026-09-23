@@ -37,7 +37,7 @@
   const rendered = $derived(
     message
       .replaceAll('{user}', `@${authStore.user?.username ?? 'nouveau'}`)
-      .replaceAll('{server}', selectedGuild?.name ?? 'votre serveur')
+      .replaceAll('{server}', selectedGuild?.name ?? 'ton serveur')
   );
 
   $effect(() => {
@@ -83,7 +83,7 @@
       <button
         type="button"
         onclick={() => { message = tone.text; celebrateStep(); }}
-        class="inline-flex items-center gap-1.5 rounded-full border border-outline-variant/40 bg-surface-container-low/40 px-3 py-1.5 text-[12.5px] font-medium text-on-surface-variant/80
+        class="inline-flex items-center gap-1.5 rounded-full border border-outline-variant/40 bg-surface-container-low/40 px-3 py-1.5 text-xs font-medium text-on-surface-variant/80
                hover:border-primary/45 hover:text-on-surface transition-colors"
       >
         <Papicon icon={tone.icon} size={13} />
@@ -92,19 +92,19 @@
     {/each}
   </div>
 
-  <label for="welcome-message" class="block text-[13px] font-semibold text-on-surface mb-2">
+  <label for="welcome-message" class="block text-body-sm font-semibold text-on-surface mb-2">
     Message de bienvenue
   </label>
   <textarea
     id="welcome-message"
     bind:value={message}
     rows="5"
-    class="w-full rounded-xl border border-outline-variant/40 bg-surface-container-low/40 px-4 py-3 text-[14px] text-on-surface
+    class="w-full rounded-xl border border-outline-variant/40 bg-surface-container-low/40 px-4 py-3 text-sm text-on-surface
            placeholder-on-surface-variant/40 focus:outline-none focus:border-primary/50 resize-none"
     placeholder="Bienvenue {'{user}'} !"
   ></textarea>
 
-  <p class="mt-2 text-[12px] text-on-surface-variant/55 leading-relaxed">
+  <p class="mt-2 text-xs text-on-surface-variant/55 leading-relaxed">
     <code class="px-1 py-0.5 rounded bg-surface-container text-on-surface-variant">{'{user}'}</code>
     mentionne l'arrivant,
     <code class="px-1 py-0.5 rounded bg-surface-container text-on-surface-variant">{'{server}'}</code>

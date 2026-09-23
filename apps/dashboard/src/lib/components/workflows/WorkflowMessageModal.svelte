@@ -59,7 +59,7 @@
           </div>
           <div>
             <h3 class="text-sm font-bold text-on-surface">{title}</h3>
-            <p class="text-[11px] text-on-surface-variant/70">Éditeur avec aperçu Discord en temps réel</p>
+            <p class="text-2xs text-on-surface-variant/70">Éditeur avec aperçu Discord en temps réel</p>
           </div>
         </div>
         <button
@@ -75,7 +75,7 @@
       <div class="p-5 space-y-4 overflow-y-auto">
         <!-- Boutons d'insertion rapide de variables -->
         <div class="space-y-1.5">
-          <p id="msg-modal-variables" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70">
+          <p id="msg-modal-variables" class="text-xs font-semibold text-on-surface-variant/70">
             Insérer une variable dynamique
           </p>
           <div class="flex flex-wrap gap-2" role="group" aria-labelledby="msg-modal-variables">
@@ -85,7 +85,7 @@
               class="px-2.5 py-1 rounded-lg text-xs font-medium bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/25 transition-all flex items-center gap-1"
             >
               <span>@Membre</span>
-              <span class="text-[10px] opacity-60">{"{membre}"}</span>
+              <span class="text-2xs opacity-60">{"{membre}"}</span>
             </button>
             <button
               type="button"
@@ -93,36 +93,36 @@
               class="px-2.5 py-1 rounded-lg text-xs font-medium bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30 hover:bg-sky-500/25 transition-all flex items-center gap-1"
             >
               <span>#Salon</span>
-              <span class="text-[10px] opacity-60">{"{salon}"}</span>
+              <span class="text-2xs opacity-60">{"{salon}"}</span>
             </button>
             <button
               type="button"
               onclick={() => insertVariable('{serveur}')}
-              class="px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all flex items-center gap-1"
+              class="px-2.5 py-1 rounded-lg text-xs font-medium bg-success/15 text-success border border-success/30 hover:bg-success/25 transition-all flex items-center gap-1"
             >
               <span>Nom du serveur</span>
-              <span class="text-[10px] opacity-60">{"{serveur}"}</span>
+              <span class="text-2xs opacity-60">{"{serveur}"}</span>
             </button>
           </div>
         </div>
 
         <!-- Zone de texte -->
         <div class="space-y-1.5">
-          <label for="msg-modal-input" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70">
+          <label for="msg-modal-input" class="text-xs font-semibold text-on-surface-variant/70">
             Contenu du message
           </label>
           <textarea
             id="msg-modal-input"
             bind:value={text}
             rows="5"
-            placeholder="Saisissez le texte de votre message ici..."
+            placeholder="Saisis le texte de ton message ici..."
             class="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-highest border border-outline-variant/30 text-sm text-on-surface focus:border-primary/50 focus:outline-none transition-all resize-y"
           ></textarea>
         </div>
 
         <!-- Aperçu Discord WYSIWYG -->
         <div class="space-y-1.5">
-          <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70 flex items-center gap-1.5">
+          <p class="text-xs font-semibold text-on-surface-variant/70 flex items-center gap-1.5">
             <Papicon icon="Camera" size={12} />
             <span>Aperçu Discord (WYSIWYG)</span>
           </p>
@@ -135,8 +135,8 @@
               <div class="space-y-1 min-w-0 flex-1">
                 <div class="flex items-center gap-2">
                   <span class="font-semibold text-white text-sm">Kotbo</span>
-                  <span class="px-1 py-0.2 rounded bg-[#5865f2] text-[9px] font-bold text-white uppercase tracking-wider">BOT</span>
-                  <span class="text-[11px] text-[#949ba4]">Aujourd'hui à 12:00</span>
+                  <span class="px-1 py-0.2 rounded bg-[#5865f2] text-xs font-semibold text-white">BOT</span>
+                  <span class="text-2xs text-[#949ba4]">Aujourd'hui à 12:00</span>
                 </div>
                 <div class="text-sm leading-relaxed whitespace-pre-wrap break-words">
                   {@html renderedDiscordText()}

@@ -96,7 +96,7 @@
   <div id="chart-flux" class="premium-card p-8 rounded-xl space-y-8">
     <div class="flex items-center justify-between flex-wrap gap-3">
       <div class="flex items-center gap-4">
-        <div class="bg-emerald-500/10 p-3 rounded-lg text-emerald-500">
+        <div class="bg-success/10 p-3 rounded-lg text-success">
           <Papicon icon="Users" size={24} />
         </div>
         <div>
@@ -124,7 +124,7 @@
         <button
           onclick={handleRescanMembers}
           disabled={scanningMembers}
-          class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-surface-container-high border border-outline-variant/10 text-on-surface-variant/60 hover:text-emerald-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-surface-container-high border border-outline-variant/10 text-on-surface-variant/60 hover:text-success transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           title={m.an_mem_sync_title()}
         >
           <Papicon icon="ArrowsClockwise" size={16} />
@@ -138,12 +138,12 @@
         <!-- Stats -->
         <div class="flex gap-4">
           <div class="flex flex-col items-end">
-             <span class="text-sm font-semibold text-emerald-500">+{chartLabels.reduce((a, b) => a + (b.membersJoined || 0), 0)}</span>
-             <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_joins()}</span>
+             <span class="text-sm font-semibold text-success">+{chartLabels.reduce((a, b) => a + (b.membersJoined || 0), 0)}</span>
+             <span class="text-xs font-semibold text-on-surface-variant/40">{m.an_mem_joins()}</span>
           </div>
           <div class="flex flex-col items-end">
-             <span class="text-sm font-semibold text-rose-500">-{chartLabels.reduce((a, b) => a + (b.membersLeft || 0), 0)}</span>
-             <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_leaves()}</span>
+             <span class="text-sm font-semibold text-error">-{chartLabels.reduce((a, b) => a + (b.membersLeft || 0), 0)}</span>
+             <span class="text-xs font-semibold text-on-surface-variant/40">{m.an_mem_leaves()}</span>
           </div>
         </div>
       </div>
@@ -241,16 +241,16 @@
 
     <div class="grid grid-cols-3 gap-4 border-t border-outline-variant/10 pt-6">
       <div class="space-y-1">
-        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_avg_joins_per_day()}</p>
-        <p class="text-2xl font-semibold text-emerald-500">{Math.round(chartLabels.reduce((a, b) => a + (b.membersJoined || 0), 0) / Math.max(chartLabels.length, 1))}</p>
+        <p class="text-xs font-semibold text-on-surface-variant/40">{m.an_mem_avg_joins_per_day()}</p>
+        <p class="text-2xl font-semibold text-success">{Math.round(chartLabels.reduce((a, b) => a + (b.membersJoined || 0), 0) / Math.max(chartLabels.length, 1))}</p>
       </div>
       <div class="space-y-1">
-        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_avg_leaves_per_day()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant/40">{m.an_mem_avg_leaves_per_day()}</p>
         <p class="text-2xl font-semibold text-orange-500">{Math.round(chartLabels.reduce((a, b) => a + (b.membersLeft || 0), 0) / Math.max(chartLabels.length, 1))}</p>
       </div>
       <div class="space-y-1">
-        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_net()}</p>
-        <p class="text-2xl font-semibold {chartLabels.reduce((a, b) => a + (b.membersJoined || 0) - (b.membersLeft || 0), 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}">
+        <p class="text-xs font-semibold text-on-surface-variant/40">{m.an_mem_net()}</p>
+        <p class="text-2xl font-semibold {chartLabels.reduce((a, b) => a + (b.membersJoined || 0) - (b.membersLeft || 0), 0) >= 0 ? 'text-success' : 'text-error'}">
           {chartLabels.reduce((a, b) => a + (b.membersJoined || 0) - (b.membersLeft || 0), 0)}
         </p>
       </div>
@@ -302,15 +302,15 @@
 
     <div class="grid grid-cols-3 gap-4 border-t border-outline-variant/10 pt-6">
       <div class="space-y-1">
-        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_peak_record()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant/40">{m.an_mem_peak_record()}</p>
         <p class="text-2xl font-semibold text-cyan-500">{Math.max(...chartLabels.map(l => l.peakOnline || 0), 0)}</p>
       </div>
       <div class="space-y-1">
-        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_average()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant/40">{m.an_mem_average()}</p>
         <p class="text-2xl font-semibold text-cyan-500">{Math.round(chartLabels.reduce((a, b) => a + (b.onlineMembers || 0), 0) / Math.max(chartLabels.length, 1))}</p>
       </div>
       <div class="space-y-1">
-        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_minimum()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant/40">{m.an_mem_minimum()}</p>
         <p class="text-2xl font-semibold text-cyan-500">{Math.min(...chartLabels.filter(l => l.onlineMembers > 0).map(l => l.onlineMembers || 0), 0)}</p>
       </div>
     </div>
@@ -338,7 +338,7 @@
           />
           <div class="flex flex-col items-end">
             <span class="text-2xl font-semibold text-indigo-500">{data.clanTaggedMembersCount || 0}</span>
-            <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_current_members()}</span>
+            <span class="text-xs font-semibold text-on-surface-variant/40">{m.an_mem_current_members()}</span>
           </div>
         </div>
       </div>
@@ -369,16 +369,16 @@
 
       <div class="grid grid-cols-3 gap-4 border-t border-outline-variant/10 pt-6">
         <div class="space-y-1">
-          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_period_start()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/40">{m.an_mem_period_start()}</p>
           <p class="text-2xl font-semibold text-indigo-500">{chartLabels[0]?.taggedMembersCount || 0}</p>
         </div>
         <div class="space-y-1">
-          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_period_end()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/40">{m.an_mem_period_end()}</p>
           <p class="text-2xl font-semibold text-indigo-500">{chartLabels[chartLabels.length - 1]?.taggedMembersCount || 0}</p>
         </div>
         <div class="space-y-1">
-          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_growth()}</p>
-          <p class="text-2xl font-semibold {growth >= 0 ? 'text-emerald-500' : 'text-rose-500'}">
+          <p class="text-xs font-semibold text-on-surface-variant/40">{m.an_mem_growth()}</p>
+          <p class="text-2xl font-semibold {growth >= 0 ? 'text-success' : 'text-error'}">
             {growth >= 0 ? `+${growth}` : growth}
           </p>
         </div>

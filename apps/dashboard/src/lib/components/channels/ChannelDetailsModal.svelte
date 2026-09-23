@@ -99,16 +99,16 @@
 
   function changeClass(value: number | null | undefined) {
     if (value === null || value === undefined) return 'text-on-surface-variant/50';
-    if (value > 0) return 'text-emerald-500';
-    if (value < 0) return 'text-red-500';
+    if (value > 0) return 'text-success';
+    if (value < 0) return 'text-error';
     return 'text-on-surface-variant/70';
   }
 
   const HEALTH_STYLES: Record<string, { label: () => string; class: string; icon: string }> = {
-    HEALTHY: { label: () => m.chd_health_healthy(), class: 'bg-emerald-500/10 text-emerald-500', icon: 'CheckCircle' },
+    HEALTHY: { label: () => m.chd_health_healthy(), class: 'bg-success/10 text-success', icon: 'CheckCircle' },
     OVERLOADED: { label: () => m.chd_health_overloaded(), class: 'bg-orange-500/10 text-orange-500', icon: 'Fire' },
-    UNDERUSED: { label: () => m.chd_health_underused(), class: 'bg-amber-500/10 text-amber-500', icon: 'Warning' },
-    DEAD: { label: () => m.chd_health_dead(), class: 'bg-red-500/10 text-red-500', icon: 'Ghost' },
+    UNDERUSED: { label: () => m.chd_health_underused(), class: 'bg-warning/10 text-warning', icon: 'Warning' },
+    DEAD: { label: () => m.chd_health_dead(), class: 'bg-error/10 text-error', icon: 'Ghost' },
     UNKNOWN: { label: () => m.chd_health_unknown(), class: 'bg-surface-container-high/40 text-on-surface-variant/60', icon: 'Info' },
   };
   const healthStyle = $derived(HEALTH_STYLES[details?.health?.status ?? 'UNKNOWN'] ?? HEALTH_STYLES.UNKNOWN);
@@ -271,10 +271,10 @@
             <span class="text-sm font-bold">{m.chd_loading()}</span>
           </div>
         {:else if error}
-          <div class="p-4 rounded-lg bg-red-500/10 text-red-500 text-sm font-bold">{error}</div>
+          <div class="p-4 rounded-lg bg-error/10 text-error text-sm font-bold">{error}</div>
         {:else if details}
           {#if !details.channel}
-            <div class="p-4 rounded-lg bg-amber-500/10 text-amber-600 text-xs font-bold">
+            <div class="p-4 rounded-lg bg-warning/10 text-warning text-xs font-bold">
               {m.chd_channel_gone()}
             </div>
           {/if}
@@ -283,33 +283,33 @@
           {#if activeTab === 'resume'}
             <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
               <div class="premium-card p-5 rounded-xl">
-                <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.chd_kpi_messages()}</p>
+                <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_kpi_messages()}</p>
                 <p class="text-2xl font-semibold text-primary">{formatNumber(details.activity.totals.messages)}</p>
-                <p class="text-[11px] font-bold {changeClass(details.activity.change.messages)}">{formatChange(details.activity.change.messages)}</p>
+                <p class="text-2xs font-bold {changeClass(details.activity.change.messages)}">{formatChange(details.activity.change.messages)}</p>
               </div>
               <div class="premium-card p-5 rounded-xl">
-                <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.chd_kpi_share()}</p>
+                <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_kpi_share()}</p>
                 <p class="text-2xl font-semibold text-cyan-500">{details.activity.share.messagesPct} %</p>
-                <p class="text-[11px] font-bold text-on-surface-variant/50">
+                <p class="text-2xs font-bold text-on-surface-variant/50">
                   {details.activity.share.rank
                     ? m.chd_kpi_rank({ rank: details.activity.share.rank, total: details.activity.share.channelCount })
                     : '-'}
                 </p>
               </div>
               <div class="premium-card p-5 rounded-xl">
-                <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.chd_kpi_authors()}</p>
+                <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_kpi_authors()}</p>
                 <p class="text-2xl font-semibold text-purple-500">{details.activity.totals.uniqueAuthorsAvg}</p>
-                <p class="text-[11px] font-bold text-on-surface-variant/50">{m.chd_kpi_authors_hint()}</p>
+                <p class="text-2xs font-bold text-on-surface-variant/50">{m.chd_kpi_authors_hint()}</p>
               </div>
               <div class="premium-card p-5 rounded-xl">
-                <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.chd_kpi_active_days()}</p>
+                <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_kpi_active_days()}</p>
                 <p class="text-2xl font-semibold text-orange-500">{details.activity.totals.activeDays}<span class="text-sm text-on-surface-variant/40">/{details.period}</span></p>
-                <p class="text-[11px] font-bold text-on-surface-variant/50">{m.chd_kpi_avg_per_day({ value: details.activity.totals.avgMessagesPerDay })}</p>
+                <p class="text-2xs font-bold text-on-surface-variant/50">{m.chd_kpi_avg_per_day({ value: details.activity.totals.avgMessagesPerDay })}</p>
               </div>
               <div class="premium-card p-5 rounded-xl">
-                <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.chd_kpi_voice()}</p>
-                <p class="text-2xl font-semibold text-emerald-500">{formatNumber(details.activity.totals.voiceMinutes)}</p>
-                <p class="text-[11px] font-bold {changeClass(details.activity.change.voiceMinutes)}">{formatChange(details.activity.change.voiceMinutes)}</p>
+                <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_kpi_voice()}</p>
+                <p class="text-2xl font-semibold text-success">{formatNumber(details.activity.totals.voiceMinutes)}</p>
+                <p class="text-2xs font-bold {changeClass(details.activity.change.voiceMinutes)}">{formatChange(details.activity.change.voiceMinutes)}</p>
               </div>
             </div>
 
@@ -324,7 +324,7 @@
                     </div>
                   </div>
                   {#if details.activity.totals.peakDateKey}
-                    <span class="px-3 py-1 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-500">
+                    <span class="px-3 py-1 rounded-full text-2xs font-semibold bg-warning/10 text-warning">
                       {m.chd_peak({ date: formatDate(details.activity.totals.peakDateKey), count: details.activity.totals.peakMessages })}
                     </span>
                   {/if}
@@ -363,7 +363,7 @@
                     <span class="font-bold text-on-surface">{details.health.metrics.uniqueAuthorsAvg}</span>
                   </div>
                   {#if details.health.excluded}
-                    <p class="pt-2 border-t border-outline-variant/10 text-[11px] font-bold text-amber-500">{m.chd_health_excluded()}</p>
+                    <p class="pt-2 border-t border-outline-variant/10 text-2xs font-bold text-warning">{m.chd_health_excluded()}</p>
                   {/if}
                 </div>
               </div>
@@ -390,7 +390,7 @@
                         </div>
                         <div class="text-right shrink-0">
                           <p class="text-sm font-semibold text-primary">{formatNumber(person.messages)}</p>
-                          <p class="text-[10px] font-bold text-on-surface-variant/40">{person.sharePct} %</p>
+                          <p class="text-2xs font-bold text-on-surface-variant/40">{person.sharePct} %</p>
                         </div>
                       </button>
                     {/each}
@@ -422,7 +422,7 @@
                   </div>
                   <div class="flex justify-between">
                     <span class="text-on-surface-variant/60">{m.chd_meta_visibility()}</span>
-                    <span class="font-bold {details.channel?.isPrivate ? 'text-amber-500' : 'text-on-surface'}">{details.channel?.isPrivate ? m.chd_private() : m.chd_public()}</span>
+                    <span class="font-bold {details.channel?.isPrivate ? 'text-warning' : 'text-on-surface'}">{details.channel?.isPrivate ? m.chd_private() : m.chd_public()}</span>
                   </div>
                   <div class="flex justify-between">
                     <span class="text-on-surface-variant/60">{m.chd_meta_threads()}</span>
@@ -452,7 +452,7 @@
                     <button
                       type="button"
                       onclick={() => activityMetric = metric as typeof activityMetric}
-                      class="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors
+                      class="px-3 py-1.5 rounded-lg text-2xs font-bold transition-colors
                         {activityMetric === metric ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}"
                     >
                       {metricLabel(metric)}
@@ -479,7 +479,7 @@
                   </div>
                 </div>
                 {#if details.heatmap.available && details.heatmap.peak}
-                  <span class="px-3 py-1 rounded-full text-[11px] font-semibold bg-orange-500/10 text-orange-500">
+                  <span class="px-3 py-1 rounded-full text-2xs font-semibold bg-orange-500/10 text-orange-500">
                     {m.chd_heatmap_peak({
                       day: dayNames[details.heatmap.peak.day],
                       hour: String(details.heatmap.peak.hour).padStart(2, '0'),
@@ -496,14 +496,14 @@
                       {#each Array.from({ length: 24 }, (_, h) => h) as hour}
                         <div class="flex-1 text-center">
                           {#if hour % 3 === 0}
-                            <span class="text-[10px] font-semibold text-on-surface-variant/40">{String(hour).padStart(2, '0')}</span>
+                            <span class="text-2xs font-semibold text-on-surface-variant/40">{String(hour).padStart(2, '0')}</span>
                           {/if}
                         </div>
                       {/each}
                     </div>
                     {#each details.heatmap.matrix as row, day}
                       <div class="flex items-center gap-1">
-                        <span class="w-10 text-[10px] font-semibold uppercase text-on-surface-variant/50 text-right pr-1">{dayNames[day]}</span>
+                        <span class="w-10 text-2xs font-semibold uppercase text-on-surface-variant/50 text-right pr-1">{dayNames[day]}</span>
                         {#each row as value, hour}
                           <div
                             class="flex-1 aspect-square rounded"
@@ -580,7 +580,7 @@
                         <img src={memberAvatarSrc(person.avatarUrl, person.userTag, person.userId)} alt="" class="w-10 h-10 rounded-xl object-cover" />
                         <div class="min-w-0">
                           <p class="text-sm font-semibold truncate group-hover:text-primary transition-colors">{person.userTag}</p>
-                          <p class="text-[10px] text-on-surface-variant/50 font-mono">{m.chd_last_message({ date: formatDateTime(person.lastMessageAt) })}</p>
+                          <p class="text-2xs text-on-surface-variant/50 font-mono">{m.chd_last_message({ date: formatDateTime(person.lastMessageAt) })}</p>
                         </div>
                       </div>
                       <div class="flex items-center gap-4 shrink-0">
@@ -589,7 +589,7 @@
                         </div>
                         <div class="text-right w-20">
                           <p class="text-sm font-semibold text-primary">{formatNumber(person.messages)}</p>
-                          <p class="text-[10px] font-bold text-on-surface-variant/40">{person.sharePct} %</p>
+                          <p class="text-2xs font-bold text-on-surface-variant/40">{person.sharePct} %</p>
                         </div>
                       </div>
                     </button>
@@ -606,15 +606,15 @@
           {:else if activeTab === 'contenu'}
             <div class="grid grid-cols-3 gap-4">
               <div class="premium-card p-5 rounded-xl">
-                <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.chd_counter_attachments()}</p>
+                <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_counter_attachments()}</p>
                 <p class="text-2xl font-semibold text-cyan-500">{formatNumber(details.content.counters.attachments)}</p>
               </div>
               <div class="premium-card p-5 rounded-xl">
-                <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.chd_counter_replies()}</p>
+                <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_counter_replies()}</p>
                 <p class="text-2xl font-semibold text-purple-500">{formatNumber(details.content.counters.replies)}</p>
               </div>
               <div class="premium-card p-5 rounded-xl">
-                <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.chd_counter_bots()}</p>
+                <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_counter_bots()}</p>
                 <p class="text-2xl font-semibold text-orange-500">{formatNumber(details.content.counters.botMessages)}</p>
               </div>
             </div>
@@ -622,14 +622,14 @@
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div class="premium-card p-5 rounded-xl space-y-4">
                 <div class="flex items-center gap-3">
-                  <div class="p-2 rounded-xl bg-amber-500/10 text-amber-500"><Papicon icon="Bookmark" size={18} /></div>
+                  <div class="p-2 rounded-xl bg-warning/10 text-warning"><Papicon icon="Bookmark" size={18} /></div>
                   <h4 class="text-sm font-semibold">{m.chd_pinned_title()}</h4>
                 </div>
                 {#if details.content.pinned.length > 0}
                   <div class="space-y-2 max-h-72 overflow-y-auto custom-scrollbar pr-2">
                     {#each details.content.pinned as pin}
                       <div class="p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/10">
-                        <p class="text-[11px] font-bold text-on-surface-variant/60">{pin.authorName} • {formatDateTime(pin.createdAt)}</p>
+                        <p class="text-2xs font-bold text-on-surface-variant/60">{pin.authorName} • {formatDateTime(pin.createdAt)}</p>
                         <p class="text-xs text-on-surface mt-1 wrap-break-word">{truncate(pin.content) || m.chd_empty_message()}</p>
                       </div>
                     {/each}
@@ -641,7 +641,7 @@
 
               <div class="premium-card p-5 rounded-xl space-y-4">
                 <div class="flex items-center gap-3">
-                  <div class="p-2 rounded-xl bg-emerald-500/10 text-emerald-500"><Papicon icon="GitBranch" size={18} /></div>
+                  <div class="p-2 rounded-xl bg-success/10 text-success"><Papicon icon="GitBranch" size={18} /></div>
                   <h4 class="text-sm font-semibold">{m.chd_threads_title()}</h4>
                 </div>
                 {#if details.content.threads.length > 0}
@@ -650,14 +650,14 @@
                       <div class="p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/10 flex items-center justify-between gap-3">
                         <div class="min-w-0">
                           <p class="text-xs font-semibold truncate">{thread.name}</p>
-                          <p class="text-[10px] text-on-surface-variant/50">
+                          <p class="text-2xs text-on-surface-variant/50">
                             {m.chd_thread_stats({ messages: thread.messageCount ?? 0, members: thread.memberCount ?? 0 })}
                           </p>
                         </div>
                         {#if thread.locked}
-                          <span class="px-2 py-1 rounded-full text-[10px] font-bold bg-red-500/10 text-red-500 shrink-0">{m.chd_thread_locked()}</span>
+                          <span class="px-2 py-1 rounded-full text-2xs font-bold bg-error/10 text-error shrink-0">{m.chd_thread_locked()}</span>
                         {:else if thread.archived}
-                          <span class="px-2 py-1 rounded-full text-[10px] font-bold bg-surface-container-high text-on-surface-variant/60 shrink-0">{m.chd_thread_archived()}</span>
+                          <span class="px-2 py-1 rounded-full text-2xs font-bold bg-surface-container-high text-on-surface-variant/60 shrink-0">{m.chd_thread_archived()}</span>
                         {/if}
                       </div>
                     {/each}
@@ -679,18 +679,18 @@
                     <div class="p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/10">
                       <div class="flex items-center gap-2">
                         <img src={memberAvatarSrc(msg.authorAvatar, msg.authorName, msg.authorId)} alt="" class="w-6 h-6 rounded-lg object-cover" />
-                        <span class="text-[11px] font-bold text-on-surface">{msg.authorName}</span>
+                        <span class="text-2xs font-bold text-on-surface">{msg.authorName}</span>
                         {#if msg.isBot}
-                          <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-primary/10 text-primary">BOT</span>
+                          <span class="px-1.5 py-0.5 rounded text-2xs font-bold bg-primary/10 text-primary">BOT</span>
                         {/if}
-                        <span class="text-[10px] text-on-surface-variant/40">{formatDateTime(msg.createdAt)}</span>
+                        <span class="text-2xs text-on-surface-variant/40">{formatDateTime(msg.createdAt)}</span>
                         {#if msg.editedAt}
-                          <span class="text-[10px] text-amber-500 font-bold">{m.chd_edited()}</span>
+                          <span class="text-2xs text-warning font-bold">{m.chd_edited()}</span>
                         {/if}
                       </div>
                       <p class="text-xs text-on-surface-variant/80 mt-1 wrap-break-word">{truncate(msg.content, 240) || m.chd_empty_message()}</p>
                       {#if msg.hasAttachment || msg.embedCount > 0}
-                        <p class="text-[10px] font-bold text-cyan-500 mt-1">{m.chd_has_media()}</p>
+                        <p class="text-2xs font-bold text-cyan-500 mt-1">{m.chd_has_media()}</p>
                       {/if}
                     </div>
                   {/each}
@@ -715,9 +715,9 @@
                         <p class="text-xs font-semibold truncate">
                           {link.otherGuildName ?? link.otherGuildId} • #{link.otherChannelName ?? link.otherChannelId}
                         </p>
-                        <p class="text-[10px] text-on-surface-variant/50">{link.direction}</p>
+                        <p class="text-2xs text-on-surface-variant/50">{link.direction}</p>
                       </div>
-                      <span class="px-2 py-1 rounded-full text-[10px] font-bold shrink-0 {link.enabled ? 'bg-emerald-500/10 text-emerald-500' : 'bg-surface-container-high text-on-surface-variant/60'}">
+                      <span class="px-2 py-1 rounded-full text-2xs font-bold shrink-0 {link.enabled ? 'bg-success/10 text-success' : 'bg-surface-container-high text-on-surface-variant/60'}">
                         {link.enabled ? m.chd_link_enabled() : m.chd_link_disabled()}
                       </span>
                     </div>
@@ -736,19 +736,19 @@
             {:else}
               <div class="grid grid-cols-2 gap-4">
                 <div class="premium-card p-5 rounded-xl">
-                  <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.chd_deleted_messages()}</p>
-                  <p class="text-2xl font-semibold text-red-500">{formatNumber(details.moderation.deleted)}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_deleted_messages()}</p>
+                  <p class="text-2xl font-semibold text-error">{formatNumber(details.moderation.deleted)}</p>
                 </div>
                 <div class="premium-card p-5 rounded-xl">
-                  <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.chd_edited_messages()}</p>
-                  <p class="text-2xl font-semibold text-amber-500">{formatNumber(details.moderation.edited)}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_edited_messages()}</p>
+                  <p class="text-2xl font-semibold text-warning">{formatNumber(details.moderation.edited)}</p>
                 </div>
               </div>
 
               {#if details.moderation.topDeleted.length > 0}
                 <div class="premium-card p-5 rounded-xl space-y-4">
                   <div class="flex items-center gap-3">
-                    <div class="p-2 rounded-xl bg-red-500/10 text-red-500"><Papicon icon="UserX" size={18} /></div>
+                    <div class="p-2 rounded-xl bg-error/10 text-error"><Papicon icon="UserX" size={18} /></div>
                     <h4 class="text-sm font-semibold">{m.chd_top_deleted()}</h4>
                   </div>
                   <div class="space-y-2">
@@ -759,7 +759,7 @@
                         onclick={() => openMember(row.userId)}
                       >
                         <span class="text-xs font-semibold">{row.userTag}</span>
-                        <span class="text-xs font-bold text-red-500">{row.count}</span>
+                        <span class="text-xs font-bold text-error">{row.count}</span>
                       </button>
                     {/each}
                   </div>
@@ -768,17 +768,17 @@
 
               <div class="premium-card p-5 rounded-xl space-y-4">
                 <div class="flex items-center gap-3">
-                  <div class="p-2 rounded-xl bg-red-500/10 text-red-500"><Papicon icon="Trash" size={18} /></div>
+                  <div class="p-2 rounded-xl bg-error/10 text-error"><Papicon icon="Trash" size={18} /></div>
                   <h4 class="text-sm font-semibold">{m.chd_recent_deleted()}</h4>
                 </div>
                 {#if details.moderation.recentDeleted.length > 0}
                   <div class="space-y-2 max-h-96 overflow-y-auto custom-scrollbar pr-2">
                     {#each details.moderation.recentDeleted as msg}
-                      <div class="p-3 rounded-lg bg-red-500/5 border border-red-500/10">
+                      <div class="p-3 rounded-lg bg-error/5 border border-error/10">
                         <div class="flex items-center gap-2">
                           <img src={memberAvatarSrc(msg.authorAvatar, msg.authorName, msg.authorId)} alt="" class="w-6 h-6 rounded-lg object-cover" />
-                          <span class="text-[11px] font-bold text-on-surface">{msg.authorName}</span>
-                          <span class="text-[10px] text-on-surface-variant/40">{m.chd_deleted_at({ date: formatDateTime(msg.deletedAt) })}</span>
+                          <span class="text-2xs font-bold text-on-surface">{msg.authorName}</span>
+                          <span class="text-2xs text-on-surface-variant/40">{m.chd_deleted_at({ date: formatDateTime(msg.deletedAt) })}</span>
                         </div>
                         <p class="text-xs text-on-surface-variant/80 mt-1 wrap-break-word">{truncate(msg.content, 240) || m.chd_empty_message()}</p>
                       </div>
@@ -793,7 +793,7 @@
             {#if details.health.alerts.length > 0}
               <div class="premium-card p-5 rounded-xl space-y-4">
                 <div class="flex items-center gap-3">
-                  <div class="p-2 rounded-xl bg-amber-500/10 text-amber-500"><Papicon icon="Warning" size={18} /></div>
+                  <div class="p-2 rounded-xl bg-warning/10 text-warning"><Papicon icon="Warning" size={18} /></div>
                   <h4 class="text-sm font-semibold">{m.chd_health_alerts()}</h4>
                 </div>
                 <div class="space-y-2">
@@ -801,10 +801,10 @@
                     <div class="p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/10">
                       <div class="flex items-center justify-between gap-3">
                         <span class="text-xs font-bold">{alert.type}</span>
-                        <span class="px-2 py-1 rounded-full text-[10px] font-bold bg-surface-container-high text-on-surface-variant/70">{alert.status}</span>
+                        <span class="px-2 py-1 rounded-full text-2xs font-bold bg-surface-container-high text-on-surface-variant/70">{alert.status}</span>
                       </div>
-                      <p class="text-[11px] text-on-surface-variant/60 mt-1">{alert.reason ?? '-'}</p>
-                      <p class="text-[10px] text-on-surface-variant/40 mt-1">{formatDateTime(alert.createdAt)} • {m.chd_confidence({ value: alert.confidence })}</p>
+                      <p class="text-2xs text-on-surface-variant/60 mt-1">{alert.reason ?? '-'}</p>
+                      <p class="text-2xs text-on-surface-variant/40 mt-1">{formatDateTime(alert.createdAt)} • {m.chd_confidence({ value: alert.confidence })}</p>
                     </div>
                   {/each}
                 </div>
@@ -846,7 +846,7 @@
                   </div>
                   <div class="flex justify-between">
                     <span class="text-on-surface-variant/60">{m.chd_meta_nsfw()}</span>
-                    <span class="font-bold {details.channel?.nsfw ? 'text-red-500' : 'text-on-surface'}">{details.channel?.nsfw ? m.chd_yes() : m.chd_no()}</span>
+                    <span class="font-bold {details.channel?.nsfw ? 'text-error' : 'text-on-surface'}">{details.channel?.nsfw ? m.chd_yes() : m.chd_no()}</span>
                   </div>
                   {#if details.channel?.bitrate}
                     <div class="flex justify-between">
@@ -861,7 +861,7 @@
                 </div>
                 {#if details.channel?.topic}
                   <div class="pt-3 border-t border-outline-variant/10">
-                    <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-1">{m.chd_meta_topic()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant/40 mb-1">{m.chd_meta_topic()}</p>
                     <p class="text-xs text-on-surface-variant/80 wrap-break-word">{details.channel.topic}</p>
                   </div>
                 {/if}
@@ -880,10 +880,10 @@
                           <span class="w-2 h-2 rounded-full shrink-0" style="background: {overwrite.color ?? 'var(--color-primary)'}"></span>
                           <span class="text-xs font-semibold truncate">{overwrite.isEveryone ? '@everyone' : overwrite.name}</span>
                         </div>
-                        <span class="text-[10px] font-bold shrink-0">
-                          <span class="text-emerald-500">+{overwrite.allow}</span>
+                        <span class="text-2xs font-bold shrink-0">
+                          <span class="text-success">+{overwrite.allow}</span>
                           <span class="text-on-surface-variant/30 mx-1">/</span>
-                          <span class="text-red-500">−{overwrite.deny}</span>
+                          <span class="text-error">−{overwrite.deny}</span>
                         </span>
                       </div>
                     {/each}
@@ -908,9 +908,9 @@
                     <div class="p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/10">
                       <div class="flex items-center justify-between gap-3">
                         <span class="text-xs font-bold">{event.eventType}</span>
-                        <span class="text-[10px] text-on-surface-variant/40">{formatDateTime(event.createdAt)}</span>
+                        <span class="text-2xs text-on-surface-variant/40">{formatDateTime(event.createdAt)}</span>
                       </div>
-                      <p class="text-[11px] text-on-surface-variant/60 mt-1">
+                      <p class="text-2xs text-on-surface-variant/60 mt-1">
                         {m.chd_audit_by({ author: event.executorName ?? m.chd_unknown() })}
                         {#if event.changedFields?.length}
                           • {event.changedFields.join(', ')}

@@ -1,10 +1,12 @@
 <script lang="ts">
+  import { Tabs } from '../lib/components/ui';
   import { onMount } from 'svelte';
   import { API_BASE_URL, dashboardFetch } from '../lib/api';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
+  import { useUnsavedChanges } from '../lib/useUnsavedChanges.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import { m, dateLocale } from '../lib/i18n';
@@ -71,7 +73,22 @@
   let actionReason = $state('');
   let actionInProgress = $state(false);
   let config = $state<AppealConfig | null>(null);
+  /** Derniere configuration connue du serveur : la barre d'enregistrement compare a elle. */
+  let savedConfig = $state<AppealConfig | null>(null);
   let configSaving = $state(false);
+
+  function snapshot(value: AppealConfig | null): AppealConfig | null {
+    return value ? structuredClone($state.snapshot(value)) as AppealConfig : null;
+  }
+
+  useUnsavedChanges({
+    id: 'ban-appeals',
+    label: m.nav_ban_appeals(),
+    getConfig: () => config,
+    getSaved: () => savedConfig,
+    onSave: () => saveConfig(),
+    onReset: () => { config = snapshot(savedConfig); },
+  });
   let forms = $state<{ id: string; name: string }[]>([]);
   let blacklist = $state<BlacklistEntry[]>([]);
   let staffServerChannels = $state<{ id: string; name: string }[]>([]);
@@ -98,19 +115,19 @@
   });
 
   const OUTCOME_META: Record<Outcome, { label: string; classes: string; icon: string }> = $derived({
-    PENDING: { label: m.ba_outcome_pending(), classes: 'bg-amber-500/10 text-amber-500 border-amber-500/30', icon: 'clock' },
+    PENDING: { label: m.ba_outcome_pending(), classes: 'bg-warning/10 text-warning border-warning/30', icon: 'clock' },
     UPHELD: { label: m.ba_outcome_upheld(), classes: 'bg-surface-container text-on-surface-variant border-outline-variant/30', icon: 'gavel' },
-    ARCHIVED: { label: m.ba_outcome_archived(), classes: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30', icon: 'inbox' },
-    DELETED: { label: m.ba_outcome_deleted(), classes: 'bg-rose-500/10 text-rose-500 border-rose-500/30', icon: 'trash' },
-    LOCKED: { label: m.ba_outcome_locked(), classes: 'bg-rose-900/20 text-rose-400 border-rose-900/40', icon: 'lock' },
+    ARCHIVED: { label: m.ba_outcome_archived(), classes: 'bg-success/10 text-success border-success/30', icon: 'inbox' },
+    DELETED: { label: m.ba_outcome_deleted(), classes: 'bg-error/10 text-error border-error/30', icon: 'trash' },
+    LOCKED: { label: m.ba_outcome_locked(), classes: 'bg-rose-900/20 text-error border-rose-900/40', icon: 'lock' },
   });
 
   const STATUS_META: Record<string, { label: string; classes: string }> = $derived({
-    PENDING: { label: m.ba_status_pending(), classes: 'bg-amber-500/10 text-amber-500 border-amber-500/30' },
+    PENDING: { label: m.ba_status_pending(), classes: 'bg-warning/10 text-warning border-warning/30' },
     NEEDS_INFO: { label: m.ba_status_needs_info(), classes: 'bg-blue-500/10 text-blue-500 border-blue-500/30' },
-    ACCEPTED: { label: m.ba_status_accepted(), classes: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' },
-    DENIED: { label: m.ba_status_denied(), classes: 'bg-rose-500/10 text-rose-500 border-rose-500/30' },
-    DENIED_PERMANENT: { label: m.ba_status_denied_permanent(), classes: 'bg-rose-900/20 text-rose-400 border-rose-900/40' },
+    ACCEPTED: { label: m.ba_status_accepted(), classes: 'bg-success/10 text-success border-success/30' },
+    DENIED: { label: m.ba_status_denied(), classes: 'bg-error/10 text-error border-error/30' },
+    DENIED_PERMANENT: { label: m.ba_status_denied_permanent(), classes: 'bg-rose-900/20 text-error border-rose-900/40' },
   });
 
   // ── API ────────────────────────────────────────────────────────────────────
@@ -154,6 +171,7 @@
           cooldownByType: null, formIdByType: null, notifyOnSanctionDM: false,
           excludeIssuingModerator: true, notifyIssuingModerator: true,
         };
+        savedConfig = snapshot(config);
       }
       if (formsRes.ok) forms = ((await formsRes.json()).forms ?? []).map((f: { id: string; name: string }) => ({ id: f.id, name: f.name }));
       if (staffServerRes.ok) {
@@ -299,8 +317,9 @@
     actionInProgress = false;
   }
 
-  async function saveConfig(extra: Record<string, unknown> = {}) {
-    if (!config) return;
+  async function saveConfig(extra: Record<string, unknown> = {}): Promise<boolean> {
+    if (!config) return false;
+    let saved = false;
     configSaving = true;
     try {
       const res = await dashboardFetch(`/appeals/config`, {
@@ -332,6 +351,8 @@
       });
       if (res.ok) {
         config = (await res.json()).config;
+        savedConfig = snapshot(config);
+        saved = true;
         toast.success(m.ba_config_saved());
         if (extra.createDefaultForm) await loadConfig();
       } else {
@@ -339,6 +360,7 @@
       }
     } catch { toast.error(m.ba_error_network()); }
     configSaving = false;
+    return saved;
   }
 
   async function removeFromBlacklist(userId: string) {
@@ -379,21 +401,17 @@
     </button>
   {/snippet}
 
-  <!-- Tabs -->
-  <div class="tab-group w-fit" role="tablist">
-    {#each [
+  <Tabs
+    label={m.nav_ban_appeals()}
+    tabs={[
       { id: 'queue', label: m.ba_tab_queue({ count: queue.length }) },
       { id: 'history', label: m.ba_tab_history() },
       { id: 'config', label: m.ba_tab_config() },
       { id: 'blacklist', label: m.ba_tab_blacklist({ count: blacklist.length }) },
-    ] as t}
-      <button onclick={() => { tab = t.id as typeof tab; detail = null; }}
-        role="tab" aria-selected={tab === t.id}
-        class="tab-button {tab === t.id ? 'active' : ''}">
-        {t.label}
-      </button>
-    {/each}
-  </div>
+    ]}
+    active={tab}
+    onchange={(id) => { tab = id as typeof tab; detail = null; }}
+  />
 
   {#if loading}
     <div class="flex justify-center py-16">
@@ -434,7 +452,7 @@
                   {#if appeal.banReason} · {m.ba_ban_label()} {appeal.banReason}{/if}
                 </p>
               </div>
-              <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border shrink-0 {meta.classes}">{meta.label}</span>
+              <span class="px-2.5 py-1 rounded-full text-2xs font-bold border shrink-0 {meta.classes}">{meta.label}</span>
               <Papicon icon={detail?.appeal.id === appeal.id ? 'expand_less' : 'expand_more'} size={18} />
             </button>
 
@@ -449,7 +467,7 @@
                   {#if detail.appeal.sanctions && detail.appeal.sanctions.length > 0}
                     {@const decided = detail.appeal.status !== 'PENDING' && detail.appeal.status !== 'NEEDS_INFO'}
                     <div>
-                      <p class="text-[13px] font-medium text-on-surface-variant/50 mb-2">
+                      <p class="text-body-sm font-medium text-on-surface-variant/50 mb-2">
                         {m.ba_contested_sanctions({ count: detail.appeal.sanctions.length })}
                       </p>
                       <div class="space-y-2">
@@ -466,10 +484,10 @@
                                 </p>
                                 <p class="text-xs text-on-surface-variant/80 mt-0.5 break-words">{item.sanctionReason}</p>
                                 {#if !item.sanctionId}
-                                  <p class="text-[11px] text-rose-400 mt-1">{m.ba_item_sanction_gone()}</p>
+                                  <p class="text-2xs text-error mt-1">{m.ba_item_sanction_gone()}</p>
                                 {/if}
                               </div>
-                              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 {ometa.classes}">{ometa.label}</span>
+                              <span class="px-2 py-0.5 rounded-full text-2xs font-bold border shrink-0 {ometa.classes}">{ometa.label}</span>
                             </div>
 
                             {#if item.memberStatement}
@@ -493,22 +511,22 @@
                                 </button>
                               </div>
                             {:else if item.outcomeNote}
-                              <p class="text-[11px] text-on-surface-variant/60">{item.outcomeNote}</p>
+                              <p class="text-2xs text-on-surface-variant/60">{item.outcomeNote}</p>
                             {/if}
                           </div>
                         {/each}
                       </div>
-                      <p class="text-[11px] text-on-surface-variant/50 mt-2">{m.ba_contested_hint()}</p>
+                      <p class="text-2xs text-on-surface-variant/50 mt-2">{m.ba_contested_hint()}</p>
                     </div>
                   {/if}
 
                   <!-- Réponses du formulaire -->
                   <div>
-                    <p class="text-[13px] font-medium text-on-surface-variant/50 mb-2">{m.ba_answers()}</p>
+                    <p class="text-body-sm font-medium text-on-surface-variant/50 mb-2">{m.ba_answers()}</p>
                     <div class="space-y-2">
                       {#each Object.entries(detail.appeal.data || {}) as [key, value]}
                         <div class="rounded-lg bg-surface border border-outline-variant/15 p-3">
-                          <p class="text-[11px] font-semibold text-on-surface-variant/60">{key.replace(/^appeal_/, '').replace(/_/g, ' ')}</p>
+                          <p class="text-2xs font-semibold text-on-surface-variant/60">{key.replace(/^appeal_/, '').replace(/_/g, ' ')}</p>
                           <p class="text-sm text-on-surface mt-1 whitespace-pre-wrap break-words">{Array.isArray(value) ? value.join(', ') : String(value)}</p>
                         </div>
                       {/each}
@@ -517,7 +535,7 @@
 
                   {#if (detail.appeal.messages && detail.appeal.messages.length > 0) || detail.appeal.infoRequest}
                     <div class="rounded-lg bg-blue-500/5 border border-blue-500/20 p-4 space-y-4">
-                      <p class="text-[11px] font-semibold text-blue-500 flex items-center gap-1.5 uppercase tracking-wider">
+                      <p class="text-xs font-semibold text-blue-500 flex items-center gap-1.5">
                         <Papicon icon="message-square" size={14} />
                         {m.ba_discussion()}
                       </p>
@@ -563,7 +581,7 @@
                   <!-- Contexte -->
                   <div class="grid md:grid-cols-2 gap-4">
                     <div>
-                      <p class="text-[13px] font-medium text-on-surface-variant/50 mb-2">
+                      <p class="text-body-sm font-medium text-on-surface-variant/50 mb-2">
                         {m.ba_sanction_history({ count: detail.sanctions.length })}
                       </p>
                       {#if detail.sanctions.length === 0}
@@ -574,8 +592,8 @@
                             <div class="rounded-lg bg-surface border border-outline-variant/15 px-3 py-2 text-xs {s.archivedAt ? 'opacity-60' : ''}">
                               <span class="font-bold">{TYPE_LABELS[s.type] ?? s.type}</span>
                               <span class="text-on-surface-variant/50"> · {formatDate(s.createdAt)}{s.moderatorTag ? ` · ${s.moderatorTag}` : ''}</span>
-                              {#if s.archivedAt}<span class="ml-1 text-emerald-500 font-semibold">· {m.ba_badge_archived()}</span>{/if}
-                              {#if !s.appealable}<span class="ml-1 text-rose-400 font-semibold">· {m.ba_badge_locked()}</span>{/if}
+                              {#if s.archivedAt}<span class="ml-1 text-success font-semibold">· {m.ba_badge_archived()}</span>{/if}
+                              {#if !s.appealable}<span class="ml-1 text-error font-semibold">· {m.ba_badge_locked()}</span>{/if}
                               <p class="text-on-surface-variant/80 mt-0.5 truncate">{s.reason}</p>
                             </div>
                           {/each}
@@ -583,7 +601,7 @@
                       {/if}
                     </div>
                     <div>
-                      <p class="text-[13px] font-medium text-on-surface-variant/50 mb-2">
+                      <p class="text-body-sm font-medium text-on-surface-variant/50 mb-2">
                         {m.ba_previous_appeals({ count: detail.previousAppeals.length })}
                       </p>
                       {#if detail.previousAppeals.length === 0}
@@ -594,7 +612,7 @@
                             {@const pmeta = STATUS_META[pa.status] ?? STATUS_META.PENDING}
                             <div class="rounded-lg bg-surface border border-outline-variant/15 px-3 py-2 text-xs flex items-center justify-between gap-2">
                               <span class="text-on-surface-variant/70">{formatDate(pa.createdAt)}</span>
-                              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border {pmeta.classes}">{pmeta.label}</span>
+                              <span class="px-2 py-0.5 rounded-full text-2xs font-bold border {pmeta.classes}">{pmeta.label}</span>
                             </div>
                           {/each}
                         </div>
@@ -626,7 +644,7 @@
                           <Papicon icon="message-square" size={14} /> {m.ba_request_info()}
                         </button>
                       </div>
-                      <p class="text-[11px] text-on-surface-variant/50">
+                      <p class="text-2xs text-on-surface-variant/50">
                         {m.ba_decision_hint({ days: config?.cooldownDays ?? 30 })}
                       </p>
                     </div>
@@ -640,7 +658,7 @@
                       {#if detail.appeal.decisionReason}
                         <p class="text-on-surface-variant/80 mt-1">{detail.appeal.decisionReason}</p>
                       {/if}
-                      <p class="text-[11px] mt-2 flex items-center gap-1.5 {detail.appeal.dmDelivered ? 'text-emerald-500' : 'text-amber-500'}">
+                      <p class="text-2xs mt-2 flex items-center gap-1.5 {detail.appeal.dmDelivered ? 'text-success' : 'text-warning'}">
                         {#if detail.appeal.dmDelivered}
                           <Papicon icon="check" size={12} />
                           <span>{m.ba_dm_delivered()}</span>
@@ -688,7 +706,7 @@
                 </button>
               {/if}
             </div>
-            <p class="text-[11px] text-on-surface-variant/50 mt-1.5">
+            <p class="text-2xs text-on-surface-variant/50 mt-1.5">
               {m.ba_form_hint()}
             </p>
           </div>
@@ -717,7 +735,7 @@
                 {/if}
               </select>
               {#if staffServerChannels.length > 0}
-                <p class="text-[11px] text-on-surface-variant/50 mt-1.5">
+                <p class="text-2xs text-on-surface-variant/50 mt-1.5">
                   {m.ba_staff_channel_hint()}
                 </p>
               {/if}
@@ -813,7 +831,7 @@
                   {#if active}
                     <div class="grid sm:grid-cols-2 gap-3 mt-3 pt-3 border-t border-outline-variant/10">
                       <label class="space-y-1">
-                        <span class="text-[11px] font-semibold text-on-surface-variant/60">{m.ba_type_cooldown()}</span>
+                        <span class="text-2xs font-semibold text-on-surface-variant/60">{m.ba_type_cooldown()}</span>
                         <input type="number" min="0" max="365"
                           placeholder={String(config.cooldownDays)}
                           value={config.cooldownByType?.[type] ?? ''}
@@ -821,7 +839,7 @@
                           class="w-full bg-surface-container rounded-lg px-3 py-2 text-sm outline-none border border-outline-variant/20" />
                       </label>
                       <label class="space-y-1">
-                        <span class="text-[11px] font-semibold text-on-surface-variant/60">{m.ba_type_form()}</span>
+                        <span class="text-2xs font-semibold text-on-surface-variant/60">{m.ba_type_form()}</span>
                         <select value={config.formIdByType?.[type] ?? ''}
                           onchange={(e) => setTypeForm(type, e.currentTarget.value)}
                           class="w-full bg-surface-container rounded-lg px-3 py-2 text-sm outline-none border border-outline-variant/20">
@@ -918,17 +936,11 @@
                 class="w-full bg-surface-container rounded-lg px-3 py-2.5 text-xs outline-none border border-outline-variant/20 resize-none"></textarea>
             </div>
           </div>
-          <p class="text-[11px] text-on-surface-variant/50">
+          <p class="text-2xs text-on-surface-variant/50">
             {m.ba_variables()} {'{server}'}, {'{reason}'}, {'{invite}'} {m.ba_variables_invite_only()}
           </p>
         </div>
 
-        <div class="flex justify-end">
-          <button onclick={() => saveConfig()} disabled={configSaving}
-            class="px-6 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60">
-            {configSaving ? m.ba_saving() : m.common_save()}
-          </button>
-        </div>
       </div>
     {/if}
 
@@ -951,7 +963,7 @@
               </p>
             </div>
             <button onclick={() => removeFromBlacklist(entry.userId)}
-              class="px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-500 text-xs font-bold hover:bg-rose-500/20 transition-colors shrink-0">
+              class="px-3 py-1.5 rounded-lg bg-error/10 text-error text-xs font-bold hover:bg-error/20 transition-colors shrink-0">
               {m.ba_remove()}
             </button>
           </div>

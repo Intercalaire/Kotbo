@@ -107,10 +107,10 @@
     <!-- Distribution Chart -->
     <div class="premium-card p-6 rounded-xl flex flex-col items-center justify-center min-h-[220px]">
       <div class="flex items-center gap-3 mb-6 w-full">
-        <div class="p-2 rounded-xl bg-amber-500/10 text-amber-500">
+        <div class="p-2 rounded-xl bg-warning/10 text-warning">
           <Papicon icon="ChartPieSlice" size={18} />
         </div>
-        <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">{m.d4_distribution()}</h4>
+        <h4 class="text-sm font-semibold text-on-surface">{m.d4_distribution()}</h4>
       </div>
       <div class="h-32 w-32 relative">
         <Chart data={distributionData} type="doughnut" height={128} options={doughnutOptions} />
@@ -124,10 +124,10 @@
     <!-- Trend Chart -->
     <div class="premium-card p-6 rounded-xl flex flex-col min-h-[220px] space-y-4">
       <div class="flex items-center gap-3">
-        <div class="p-2 rounded-xl bg-rose-500/10 text-rose-500">
+        <div class="p-2 rounded-xl bg-error/10 text-error">
           <Papicon icon="ChartLineUp" size={18} />
         </div>
-        <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">{m.d4_trend()}</h4>
+        <h4 class="text-sm font-semibold text-on-surface">{m.d4_trend()}</h4>
       </div>
       <div class="flex-grow h-[140px]">
         <Chart data={trendChartData} type="line" height={140} options={trendOptions} />
@@ -162,7 +162,7 @@
               <img src={getAvatar(mod.avatarUrl, mod.moderatorTag, mod.userId)} alt="" class="w-8 h-8 rounded-lg object-cover" />
               <div>
                 <p class="text-sm font-semibold text-on-surface">@{mod.moderatorTag}</p>
-                <p class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">{m.d4_moderation_activity()}</p>
+                <p class="text-xs font-semibold text-on-surface-variant/40">{m.d4_moderation_activity()}</p>
               </div>
             </div>
             <span class="text-sm font-semibold text-primary">{m.d4_count_actions({ count: mod.count })}</span>
@@ -178,7 +178,7 @@
     <div class="premium-card p-8 rounded-xl space-y-6 flex flex-col">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <div class="p-2 rounded-xl bg-rose-500/10 text-rose-500">
+          <div class="p-2 rounded-xl bg-error/10 text-error">
             <Papicon icon="UserFocus" size={20} />
           </div>
           <h3 class="text-lg font-semibold text-on-surface">{m.d4_sanctioned_members()}</h3>
@@ -200,10 +200,10 @@
               <img src={getAvatar(member.avatarUrl, member.targetTag, member.targetUserId)} alt="" class="w-8 h-8 rounded-lg object-cover" />
               <div>
                 <p class="text-sm font-semibold text-on-surface">@{member.targetTag}</p>
-                <p class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">{m.d4_recidivism()}</p>
+                <p class="text-xs font-semibold text-on-surface-variant/40">{m.d4_recidivism()}</p>
               </div>
             </div>
-            <span class="text-sm font-semibold text-rose-500">{m.d4_count_sanctions({ count: member.count })}</span>
+            <span class="text-sm font-semibold text-error">{m.d4_count_sanctions({ count: member.count })}</span>
           </button>
         {/each}
         {#if topSanctionedMembers.length === 0}
@@ -217,7 +217,7 @@
   <div class="premium-card p-8 rounded-xl space-y-8">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-4">
-        <div class="bg-rose-500/10 p-3 rounded-lg text-rose-500">
+        <div class="bg-error/10 p-3 rounded-lg text-error">
           <Papicon icon="Gavel" size={24} />
         </div>
         <div>
@@ -248,14 +248,14 @@
             <div>
               <div class="flex items-center gap-2">
                 <p class="text-sm font-semibold text-on-surface">@{sanction.targetTag}</p>
-                <span class="px-2 py-0.5 rounded-lg text-[11px] font-semibold tracking-widest uppercase" style="background: {getSanctionColor(sanction.type)}20; color: {getSanctionColor(sanction.type)}">{sanction.type}</span>
+                <span class="px-2 py-0.5 rounded-lg text-xs font-semibold" style="background: {getSanctionColor(sanction.type)}20; color: {getSanctionColor(sanction.type)}">{sanction.type}</span>
               </div>
               <p class="text-xs font-medium text-on-surface-variant/60 mt-0.5 line-clamp-1">{sanction.reason || m.d4_no_reason_specified()}</p>
             </div>
           </div>
           <div class="flex items-center justify-between md:justify-end gap-6 border-t md:border-t-0 border-outline-variant/5 pt-3 md:pt-0 shrink-0">
             <div class="text-right">
-              <p class="text-[11px] font-semibold text-on-surface-variant/40 uppercase tracking-widest">{m.d4_moderator()}</p>
+              <p class="text-xs font-semibold text-on-surface-variant/40">{m.d4_moderator()}</p>
               <div class="flex items-center gap-2 mt-0.5">
                 <img src={getAvatar(sanction.moderatorAvatarUrl, sanction.moderatorTag, sanction.moderatorUserId)} alt="" class="w-5 h-5 rounded-md object-cover" />
                 <p class="text-xs font-bold text-on-surface">@{sanction.moderatorTag}</p>
@@ -294,8 +294,8 @@
   title={m.d4_sanctioned_members()}
   subtitle={m.d4_mod_ranking_by_recidivism()}
   icon="UserFocus"
-  iconBgClass="bg-rose-500/10"
-  iconColorClass="text-rose-500"
+  iconBgClass="bg-error/10"
+  iconColorClass="text-error"
   type="sanctioned"
   data={topSanctionedMembers}
   {onOpenMember}
@@ -307,8 +307,8 @@
   title={m.d4_recent_history()}
   subtitle={m.d4_latest_moderation_actions()}
   icon="Gavel"
-  iconBgClass="bg-rose-500/10"
-  iconColorClass="text-rose-500"
+  iconBgClass="bg-error/10"
+  iconColorClass="text-error"
   type="recent_sanctions"
   data={recentSanctions}
   {onOpenMember}

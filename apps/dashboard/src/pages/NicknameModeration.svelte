@@ -2,6 +2,8 @@
   import { onMount, onDestroy } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
@@ -53,8 +55,8 @@
     threat:     { label: m.nm_cat_threat(),     color: 'text-orange-400',   bg: 'bg-orange-400/10 border-orange-400/20' },
     sexual:     { label: m.nm_cat_sexual(),     color: 'text-pink-400',     bg: 'bg-pink-400/10 border-pink-400/20' },
     lgbtphobia: { label: m.nm_cat_lgbtphobia(), color: 'text-purple-400',   bg: 'bg-purple-400/10 border-purple-400/20' },
-    hate:       { label: m.nm_cat_hate(),       color: 'text-red-600',      bg: 'bg-red-600/10 border-red-600/20' },
-    insult:     { label: m.nm_cat_insult(),     color: 'text-yellow-400',   bg: 'bg-yellow-400/10 border-yellow-400/20' },
+    hate:       { label: m.nm_cat_hate(),       color: 'text-error',      bg: 'bg-error/10 border-error/20' },
+    insult:     { label: m.nm_cat_insult(),     color: 'text-warning',   bg: 'bg-warning/10 border-warning/20' },
   });
 
   // ---------------------------------------------------------------------------
@@ -433,7 +435,7 @@
              En liste plate, on ne voyait pas que couper un groupe entier eteint
              le module sans eteindre son interrupteur principal. -->
         <div class="flex flex-col gap-2">
-          <p class="text-[13px] font-medium text-on-surface-variant/50">{m.nm_group_when()}</p>
+          <p class="text-body-sm font-medium text-on-surface-variant/50">{m.nm_group_when()}</p>
           <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
             <span class="text-sm text-on-surface-variant/80">{m.nm_watch_join()}</span>
             <ToggleSwitch checked={onJoin} onToggle={(value) => saveGranularToggle('onJoin', value)} disabled={!enabled || saveToggleAction.state.loading} />
@@ -451,7 +453,7 @@
         </div>
 
         <div class="flex flex-col gap-2">
-          <p class="text-[13px] font-medium text-on-surface-variant/50">{m.nm_group_what()}</p>
+          <p class="text-body-sm font-medium text-on-surface-variant/50">{m.nm_group_what()}</p>
           <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
             <span class="text-sm text-on-surface-variant/80">{m.nm_watch_invisible()}</span>
             <ToggleSwitch checked={checkInvisible} onToggle={(value) => saveGranularToggle('checkInvisible', value)} disabled={!enabled || saveToggleAction.state.loading} />
@@ -498,17 +500,15 @@
         </p>
       </div>
 
-      <!-- Tabs -->
-      <div class="tab-group w-fit">
-        {#each [{ key: 'custom', label: m.nm_tab_custom({ count: customWords.length }) }, { key: 'global', label: m.nm_tab_global({ count: globalWords.length }) }] as tab}
-          <button
-            onclick={() => gotoTab('/security/filters/nicknames', tab.key, 'custom')}
-            class="tab-button {activeTab === tab.key ? 'active' : ''}"
-          >
-            {tab.label}
-          </button>
-        {/each}
-      </div>
+      <Tabs
+        label={m.nm_page_title()}
+        tabs={pageTabItems('/security/filters/nicknames').map((item) => ({
+          ...item,
+          badge: item.id === 'custom' ? customWords.length : globalWords.length,
+        }))}
+        active={activeTab}
+        onchange={(id) => gotoTab('/security/filters/nicknames', id, 'custom')}
+      />
 
       <!-- L'interrupteur qui commande la liste est deux sections plus haut : le
            bandeau le ramene ici plutot que d'obliger a remonter. -->
@@ -568,6 +568,7 @@
         <!-- Liste des mots personnalisés -->
         {#if customWords.length > 0}
           <div class="section-card-flush">
+            <div class="overflow-x-auto">
             <table class="data-table">
               <thead>
                 <tr>
@@ -604,6 +605,7 @@
                 {/each}
               </tbody>
             </table>
+            </div>
           </div>
           <p class="text-xs text-on-surface-variant/40 text-right font-sans">{m.nm_custom_count({ count: customWords.length })}</p>
         {:else}
@@ -622,6 +624,7 @@
               <Papicon icon="lock" size={12} />
               <span>{m.nm_global_readonly()}</span>
             </div>
+            <div class="overflow-x-auto">
             <table class="data-table">
               <thead>
                 <tr>
@@ -650,6 +653,7 @@
                 {/each}
               </tbody>
             </table>
+            </div>
           </div>
           <p class="text-xs text-on-surface-variant/40 text-right font-sans">{m.nm_global_count({ count: globalWords.length })}</p>
         {:else}

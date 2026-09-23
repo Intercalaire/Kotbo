@@ -130,7 +130,7 @@
                 {selectedGuild.name.slice(0, 1).toUpperCase()}
               </span>
             {/if}
-            <span class="text-[13px] font-medium text-on-surface-variant/70 truncate">
+            <span class="text-body-sm font-medium text-on-surface-variant/70 truncate">
               {selectedGuild.name}
             </span>
           </span>
@@ -142,7 +142,7 @@
           <button
             type="button"
             onclick={onEditTracks}
-            class="inline-flex items-center gap-1.5 text-[13px] font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
+            class="inline-flex items-center gap-1.5 text-body-sm font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
           >
             <Papicon icon="list-checks" size={13} />
             <span class="hidden md:inline">{m.onb_tracks_edit()}</span>
@@ -164,7 +164,7 @@
 
         <a
           href="/servers"
-          class="inline-flex items-center gap-1.5 text-[13px] font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
+          class="inline-flex items-center gap-1.5 text-body-sm font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
         >
           <Papicon icon="arrow-left-right" size={13} />
           <span class="hidden sm:inline">Changer de serveur</span>
@@ -195,10 +195,10 @@
       </div>
 
       <div class="mt-2 flex items-baseline justify-between gap-3">
-        <p class="text-[11px] font-semibold uppercase tracking-wider text-primary/75 truncate">
+        <p class="text-xs font-semibold text-primary/75 truncate">
           {visiblePhases.find((phase) => phase.key === currentPhase)?.label ?? ''}
         </p>
-        <p class="text-[11px] font-medium text-on-surface-variant/40 shrink-0">
+        <p class="text-2xs font-medium text-on-surface-variant/40 shrink-0">
           {definition.label()} · {index + 1}/{wizard.total}
         </p>
       </div>
@@ -224,7 +224,7 @@
                 <span class="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
                   <Papicon icon={definition.icon} size={14} />
                 </span>
-                <span class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/45">
+                <span class="text-xs font-semibold text-on-surface-variant/45">
                   {definition.label()}
                 </span>
               </div>
@@ -246,7 +246,7 @@
                boutique, la colonne de gauche est plus longue que l'ecran, et un
                apercu reste en haut ne montre plus rien de ce qu'on modifie. -->
           <aside class="min-w-0 lg:sticky lg:top-6">
-            <p class="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/35">
+            <p class="mb-2.5 flex items-center gap-1.5 text-xs font-semibold text-on-surface-variant/35">
               <Papicon icon="eye" size={12} />
               {m.onb_shell_preview_hint()}
             </p>
@@ -261,7 +261,7 @@
               <span class="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
                 <Papicon icon={definition.icon} size={14} />
               </span>
-              <span class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/45">
+              <span class="text-xs font-semibold text-on-surface-variant/45">
                 {definition.label()}
               </span>
             </div>
@@ -289,7 +289,7 @@
         <button
           type="button"
           onclick={() => wizard.back()}
-          class="inline-flex items-center gap-1.5 text-[13px] font-medium text-on-surface-variant/60 hover:text-on-surface transition-colors"
+          class="inline-flex items-center gap-1.5 text-body-sm font-medium text-on-surface-variant/60 hover:text-on-surface transition-colors"
         >
           <Papicon icon="ChevronLeft" size={14} />
           Retour

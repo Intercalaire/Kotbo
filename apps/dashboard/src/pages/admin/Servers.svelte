@@ -382,7 +382,7 @@
       type="button"
       onclick={handleReconcile}
       disabled={reconciling}
-      class="h-9 px-3.5 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 border border-outline-variant/25 text-[13px] font-semibold text-on-surface-variant hover:text-on-surface transition disabled:opacity-50 inline-flex items-center gap-2"
+      class="h-9 px-3.5 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 border border-outline-variant/25 text-body-sm font-semibold text-on-surface-variant hover:text-on-surface transition disabled:opacity-50 inline-flex items-center gap-2"
     >
       {#if reconciling}
         <span class="w-3.5 h-3.5 rounded-full border-2 border-on-surface-variant/30 border-t-on-surface-variant animate-spin"></span>
@@ -394,9 +394,9 @@
   {/snippet}
 
   {#if error}
-    <div class="rounded-2xl border border-red-500/30 bg-red-500/8 p-4 flex items-start gap-3">
-      <Papicon icon="AlertTriangle" size={18} class="text-red-500 mt-0.5 shrink-0" />
-      <p class="text-[13.5px] text-red-600 dark:text-red-400">{error}</p>
+    <div class="rounded-2xl border border-error/30 bg-error/8 p-4 flex items-start gap-3">
+      <Papicon icon="AlertTriangle" size={18} class="text-error mt-0.5 shrink-0" />
+      <p class="text-body-sm text-error">{error}</p>
     </div>
   {/if}
 
@@ -466,8 +466,8 @@
               {/if}
             </div>
             <div class="min-w-0">
-              <p class="text-[13.5px] font-semibold text-on-surface truncate group-hover:text-primary transition-colors">{guild.name}</p>
-              <p class="text-[11.5px] text-on-surface-variant font-mono truncate">{guild.id}</p>
+              <p class="text-body-sm font-semibold text-on-surface truncate group-hover:text-primary transition-colors">{guild.name}</p>
+              <p class="text-2xs text-on-surface-variant font-mono truncate">{guild.id}</p>
             </div>
           </button>
         </td>
@@ -484,7 +484,7 @@
                 <div class="h-1 rounded-full bg-on-surface/10 overflow-hidden">
                   <div class="h-full bg-sky-500 rounded-full transition-all duration-500" style="width: {progress.percent}%"></div>
                 </div>
-                <p class="text-[10.5px] text-on-surface-variant mt-0.5 tabular-nums truncate">{progress.label}</p>
+                <p class="text-2xs text-on-surface-variant mt-0.5 tabular-nums truncate">{progress.label}</p>
               </div>
             {:else if hasFailure(guild)}
               <AdminBadge size="sm" label="Synchro en échec" tone="danger" />
@@ -493,15 +493,15 @@
         </td>
 
         <td class="px-4 py-3 text-right">
-          <span class="text-[13px] font-semibold text-on-surface tabular-nums">{formatNumber(guild.memberCount)}</span>
+          <span class="text-body-sm font-semibold text-on-surface tabular-nums">{formatNumber(guild.memberCount)}</span>
         </td>
 
         <td class="px-4 py-3 text-right hidden md:table-cell">
-          <span class="text-[12.5px] text-on-surface-variant tabular-nums">#{guild.shardId}</span>
+          <span class="text-xs text-on-surface-variant tabular-nums">#{guild.shardId}</span>
         </td>
 
         <td class="px-4 py-3 text-right hidden lg:table-cell">
-          <span class="text-[12.5px] text-on-surface-variant">{formatDate(guild.joinedAt)}</span>
+          <span class="text-xs text-on-surface-variant">{formatDate(guild.joinedAt)}</span>
         </td>
 
         <td class="px-4 py-3">
@@ -550,7 +550,7 @@
             <AdminBadge label={guild.activated ? 'Activé' : 'Non activé'} tone={guild.activated ? 'success' : 'neutral'} dot />
             <AdminBadge label="Shard #{guild.shardId}" tone="neutral" size="sm" />
           </div>
-          <p class="text-[12.5px] text-on-surface-variant mt-1">
+          <p class="text-xs text-on-surface-variant mt-1">
             {formatNumber(guild.memberCount)} membres · rejoint le {formatDate(guild.joinedAt)}
           </p>
         </div>
@@ -558,7 +558,7 @@
 
       <!-- Synchronisations -->
       <div class="rounded-xl border border-outline-variant/25 bg-surface-container-low/40 p-3.5 space-y-3">
-        <p class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Collecte de données</p>
+        <p class="text-xs font-semibold text-on-surface-variant">Collecte de données</p>
 
         {#each [
           {
@@ -582,20 +582,20 @@
         ] as job (job.key)}
           <div class="space-y-1">
             <div class="flex items-center justify-between gap-2">
-              <span class="text-[13px] text-on-surface">{job.label}</span>
+              <span class="text-body-sm text-on-surface">{job.label}</span>
               <AdminBadge size="sm" label={scrapeLabel[job.status as ScrapeStatus]} tone={scrapeTone[job.status as ScrapeStatus]} />
             </div>
             {#if job.detail}
-              <p class="text-[11.5px] text-on-surface-variant tabular-nums">{job.detail}</p>
+              <p class="text-2xs text-on-surface-variant tabular-nums">{job.detail}</p>
             {/if}
             {#if job.error}
-              <p class="text-[11.5px] text-red-500 leading-snug">{job.error}</p>
+              <p class="text-2xs text-error leading-snug">{job.error}</p>
             {/if}
           </div>
         {/each}
 
         {#if guild.statsConfig?.fullSyncStatus === 'IN_PROGRESS'}
-          <p class="text-[12px] text-sky-600 dark:text-sky-400">
+          <p class="text-xs text-sky-600 dark:text-sky-400">
             Synchronisation complète en cours - étape&nbsp;: {guild.statsConfig.fullSyncStage === 'MEMBERS' ? 'membres' : 'historique'}.
           </p>
         {/if}
@@ -603,14 +603,14 @@
 
       <!-- Activation -->
       <div class="rounded-xl border border-outline-variant/25 bg-surface-container-low/40 p-3.5 space-y-2">
-        <p class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Activation</p>
+        <p class="text-xs font-semibold text-on-surface-variant">Activation</p>
         <div class="flex items-center justify-between gap-3">
-          <span class="text-[13px] text-on-surface-variant">Code utilisé</span>
-          <span class="text-[13px] font-mono font-semibold text-on-surface">{guild.activationCode ?? '-'}</span>
+          <span class="text-body-sm text-on-surface-variant">Code utilisé</span>
+          <span class="text-body-sm font-mono font-semibold text-on-surface">{guild.activationCode ?? '-'}</span>
         </div>
         <div class="flex items-center justify-between gap-3">
-          <span class="text-[13px] text-on-surface-variant">Mise en place</span>
-          <span class="text-[13px] text-on-surface">
+          <span class="text-body-sm text-on-surface-variant">Mise en place</span>
+          <span class="text-body-sm text-on-surface">
             {guild.serverTemplateAppliedAt ? formatDate(guild.serverTemplateAppliedAt) : 'Jamais faite'}
           </span>
         </div>
@@ -618,12 +618,12 @@
 
       <!-- Actions -->
       <div class="space-y-2">
-        <p class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Actions</p>
+        <p class="text-xs font-semibold text-on-surface-variant">Actions</p>
 
         <button
           type="button"
           onclick={() => handleInvite(guild)}
-          class="w-full h-10 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 text-[13px] font-semibold text-on-surface transition inline-flex items-center justify-center gap-2"
+          class="w-full h-10 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 text-body-sm font-semibold text-on-surface transition inline-flex items-center justify-center gap-2"
         >
           <Papicon icon="Link" size={14} />
           Créer une invitation
@@ -633,7 +633,7 @@
           type="button"
           onclick={() => run(guild.id, () => rescanAdminGuildStats(guild.id, false))}
           disabled={busy}
-          class="w-full h-10 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 text-[13px] font-semibold text-on-surface transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
+          class="w-full h-10 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 text-body-sm font-semibold text-on-surface transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
         >
           <Papicon icon="Search" size={14} />
           Relancer le scan des statistiques
@@ -643,7 +643,7 @@
           type="button"
           onclick={() => handleResync(guild)}
           disabled={busy}
-          class="w-full h-10 rounded-xl bg-sky-500/12 text-sky-600 dark:text-sky-400 border border-sky-500/25 hover:bg-sky-500/18 text-[13px] font-semibold transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
+          class="w-full h-10 rounded-xl bg-sky-500/12 text-sky-600 dark:text-sky-400 border border-sky-500/25 hover:bg-sky-500/18 text-body-sm font-semibold transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
         >
           <Papicon icon="RefreshCw" size={14} />
           Synchroniser toutes les données
@@ -653,7 +653,7 @@
           type="button"
           onclick={() => handleResetTemplate(guild)}
           disabled={busy}
-          class="w-full h-10 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 text-[13px] font-semibold text-on-surface transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
+          class="w-full h-10 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 text-body-sm font-semibold text-on-surface transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
         >
           <Papicon icon="Layers" size={14} />
           Rouvrir la mise en place du serveur
@@ -664,7 +664,7 @@
             type="button"
             onclick={() => handleDeactivate(guild)}
             disabled={busy}
-            class="w-full h-10 rounded-xl bg-amber-500/12 text-amber-600 dark:text-amber-400 border border-amber-500/25 hover:bg-amber-500/18 text-[13px] font-semibold transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
+            class="w-full h-10 rounded-xl bg-warning/12 text-warning border border-warning/25 hover:bg-warning/18 text-body-sm font-semibold transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
           >
             <Papicon icon="Ban" size={14} />
             Désactiver le serveur
@@ -674,7 +674,7 @@
             type="button"
             onclick={() => handleActivate(guild)}
             disabled={busy}
-            class="w-full h-10 rounded-xl bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/18 text-[13px] font-semibold transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
+            class="w-full h-10 rounded-xl bg-success/12 text-success border border-success/25 hover:bg-success/18 text-body-sm font-semibold transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
           >
             <Papicon icon="Key" size={14} />
             Activer automatiquement
@@ -685,7 +685,7 @@
           type="button"
           onclick={() => handleLeave(guild)}
           disabled={busy}
-          class="w-full h-10 rounded-xl bg-red-500/12 text-red-600 dark:text-red-400 border border-red-500/25 hover:bg-red-500/18 text-[13px] font-semibold transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
+          class="w-full h-10 rounded-xl bg-error/12 text-error border border-error/25 hover:bg-error/18 text-body-sm font-semibold transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
         >
           <Papicon icon="LogOut" size={14} />
           Faire quitter le bot

@@ -278,7 +278,7 @@
         <Papicon icon="ShieldAlert" size={16} />
         Anti-spam comportemental
       </h2>
-      <p class="text-[12.5px] text-on-surface-variant mt-0.5 leading-relaxed max-w-2xl">
+      <p class="text-xs text-on-surface-variant mt-0.5 leading-relaxed max-w-2xl">
         Moteur de score multi-signaux, distinct des filtres à seuil ci-dessus : il combine des indices
         d'automatisation, de diffusion et de répétition plutôt que de compter les messages.
       </p>
@@ -300,8 +300,8 @@
       <div class="space-y-4">
         <div class="flex items-center justify-between gap-4">
           <div class="min-w-0">
-            <p class="text-[14px] font-medium text-on-surface">Moteur anti-spam</p>
-            <p class="text-[12.5px] text-on-surface-variant mt-0.5">
+            <p class="text-sm font-medium text-on-surface">Moteur anti-spam</p>
+            <p class="text-xs text-on-surface-variant mt-0.5">
               Évalue chaque message et applique une action selon le score obtenu.
             </p>
           </div>
@@ -310,20 +310,20 @@
 
         <div
           class="flex items-center justify-between gap-4 rounded-xl border px-4 py-3 transition-colors
-          {config.shadowMode ? 'border-sky-500/40 bg-sky-500/5' : 'border-amber-500/40 bg-amber-500/5'}"
+          {config.shadowMode ? 'border-sky-500/40 bg-sky-500/5' : 'border-warning/40 bg-warning/5'}"
         >
           <div class="min-w-0">
-            <p class="text-[14px] font-medium text-on-surface flex items-center gap-2">
+            <p class="text-sm font-medium text-on-surface flex items-center gap-2">
               <Papicon icon={config.shadowMode ? 'Eye' : 'Zap'} size={15} />
               Mode observation
             </p>
-            <p class="text-[12.5px] text-on-surface-variant mt-0.5 leading-relaxed">
+            <p class="text-xs text-on-surface-variant mt-0.5 leading-relaxed">
               {#if config.shadowMode}
-                Actif : rien n'est supprimé ni sanctionné. Laissez tourner deux à trois semaines,
+                Actif : rien n'est supprimé ni sanctionné. Laisse tourner deux à trois semaines,
                 puis calez les seuils sur la répartition observée ci-dessous avant de désactiver.
               {:else}
-                <span class="text-amber-500 font-medium">Désactivé</span> : les sanctions sont
-                réellement appliquées. Assurez-vous d'avoir tranché assez de détections pour que
+                <span class="text-warning font-medium">Désactivé</span> : les sanctions sont
+                réellement appliquées. Vérifie que tu as tranché assez de détections pour que
                 les seuils soient justifiés.
               {/if}
             </p>
@@ -333,10 +333,10 @@
 
         <div class="grid sm:grid-cols-2 gap-3">
           <label class="block">
-            <span class="text-[12.5px] font-medium text-on-surface-variant">Salon d'alerte</span>
+            <span class="text-xs font-medium text-on-surface-variant">Salon d'alerte</span>
             <select
               bind:value={config.alertChannelId}
-              class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface"
+              class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface"
             >
               <option value={null}>Salon de logs par défaut</option>
               {#each channels as channel (channel.id)}
@@ -346,7 +346,7 @@
           </label>
 
           <label class="block">
-            <span class="text-[12.5px] font-medium text-on-surface-variant">
+            <span class="text-xs font-medium text-on-surface-variant">
               Durée d'exclusion temporaire (minutes)
             </span>
             <input
@@ -354,7 +354,7 @@
               min="1"
               max="40320"
               bind:value={config.timeoutMinutes}
-              class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface"
+              class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface"
             />
           </label>
         </div>
@@ -372,7 +372,7 @@
           <div class="flex items-end gap-1 h-24">
             {#each stats.histogram as band (band.from)}
               <div class="flex-1 flex flex-col items-center justify-end gap-1 group relative">
-                <span class="text-[10px] text-on-surface-variant/60 tabular-nums opacity-0 group-hover:opacity-100 transition-opacity">
+                <span class="text-2xs text-on-surface-variant/60 tabular-nums opacity-0 group-hover:opacity-100 transition-opacity">
                   {band.count}
                 </span>
                 <div
@@ -380,7 +380,7 @@
                   style="height: {Math.max(2, (band.count / histogramMax) * 76)}px"
                   title="{band.count} message(s) entre {band.from} et {band.to}"
                 ></div>
-                <span class="text-[10px] text-on-surface-variant/50 tabular-nums">{band.from}</span>
+                <span class="text-2xs text-on-surface-variant/50 tabular-nums">{band.from}</span>
               </div>
             {/each}
           </div>
@@ -389,30 +389,30 @@
             <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
               <div class="rounded-lg bg-sky-500/10 px-2 py-2">
                 <div class="text-[15px] font-semibold text-sky-500 tabular-nums">{projection.logged}</div>
-                <div class="text-[11px] text-on-surface-variant">journalisés</div>
+                <div class="text-2xs text-on-surface-variant">journalisés</div>
               </div>
-              <div class="rounded-lg bg-amber-500/10 px-2 py-2">
-                <div class="text-[15px] font-semibold text-amber-500 tabular-nums">{projection.deleted}</div>
-                <div class="text-[11px] text-on-surface-variant">supprimés</div>
+              <div class="rounded-lg bg-warning/10 px-2 py-2">
+                <div class="text-[15px] font-semibold text-warning tabular-nums">{projection.deleted}</div>
+                <div class="text-2xs text-on-surface-variant">supprimés</div>
               </div>
               <div class="rounded-lg bg-orange-500/10 px-2 py-2">
                 <div class="text-[15px] font-semibold text-orange-500 tabular-nums">{projection.timedOut}</div>
-                <div class="text-[11px] text-on-surface-variant">exclus</div>
+                <div class="text-2xs text-on-surface-variant">exclus</div>
               </div>
               <div class="rounded-lg bg-error/10 px-2 py-2">
                 <div class="text-[15px] font-semibold text-error tabular-nums">{projection.banned}</div>
-                <div class="text-[11px] text-on-surface-variant">bannis</div>
+                <div class="text-2xs text-on-surface-variant">bannis</div>
               </div>
             </div>
-            <p class="mt-2 text-[12px] text-on-surface-variant/70 text-center">
+            <p class="mt-2 text-xs text-on-surface-variant/70 text-center">
               Projection sur les {stats.total} évaluations des 14 derniers jours avec les seuils actuels.
             </p>
           {/if}
         </div>
       {:else}
-        <p class="mb-5 text-[13px] text-on-surface-variant leading-relaxed rounded-lg bg-surface-container/60 px-3 py-2.5">
-          Aucune évaluation enregistrée pour l'instant. Activez le moteur en mode observation :
-          l'histogramme se remplira et permettra de choisir des seuils sur vos données plutôt qu'au jugé.
+        <p class="mb-5 text-body-sm text-on-surface-variant leading-relaxed rounded-lg bg-surface-container/60 px-3 py-2.5">
+          Aucune évaluation enregistrée pour l'instant. Active le moteur en mode observation :
+          l'histogramme se remplira et permettra de choisir des seuils sur tes données plutôt qu'au jugé.
         </p>
       {/if}
 
@@ -425,8 +425,8 @@
         ] as row (row.field)}
           <div>
             <div class="flex items-baseline justify-between gap-3">
-              <span class="text-[13px] font-medium text-on-surface">{row.label}</span>
-              <span class="text-[13px] font-semibold tabular-nums text-on-surface">{config[row.field]}</span>
+              <span class="text-body-sm font-medium text-on-surface">{row.label}</span>
+              <span class="text-body-sm font-semibold tabular-nums text-on-surface">{config[row.field]}</span>
             </div>
             <input
               type="range"
@@ -435,7 +435,7 @@
               bind:value={config[row.field]}
               class="w-full mt-1 {row.color}"
             />
-            <p class="text-[12px] text-on-surface-variant/70">{row.help}</p>
+            <p class="text-xs text-on-surface-variant/70">{row.help}</p>
           </div>
         {/each}
       </div>
@@ -459,15 +459,15 @@
           )}
           <div class="flex items-start justify-between gap-4 rounded-xl border border-outline-variant/30 px-4 py-3">
             <div class="min-w-0">
-              <p class="text-[13.5px] font-medium text-on-surface flex items-center gap-2">
+              <p class="text-body-sm font-medium text-on-surface flex items-center gap-2">
                 {toggle.label}
                 {#if usage}
-                  <span class="text-[11px] px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">
+                  <span class="text-2xs px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">
                     {usage.count} déclenchements · poids ×{usage.weight.toFixed(2)}
                   </span>
                 {/if}
               </p>
-              <p class="text-[12.5px] text-on-surface-variant mt-1 leading-relaxed">{toggle.help}</p>
+              <p class="text-xs text-on-surface-variant mt-1 leading-relaxed">{toggle.help}</p>
             </div>
             <ToggleSwitch
               checked={config[toggle.field] as boolean}
@@ -479,27 +479,27 @@
 
       <div class="mt-5 pt-4 border-t border-outline-variant/30 grid sm:grid-cols-3 gap-3">
         <label class="block">
-          <span class="text-[12.5px] font-medium text-on-surface-variant">Fenêtre d'observation (s)</span>
+          <span class="text-xs font-medium text-on-surface-variant">Fenêtre d'observation (s)</span>
           <input
             type="number" min="5" max="300"
             bind:value={config.windowSeconds}
-            class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface"
+            class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface"
           />
         </label>
         <label class="block">
-          <span class="text-[12.5px] font-medium text-on-surface-variant">Salons pour la diffusion</span>
+          <span class="text-xs font-medium text-on-surface-variant">Salons pour la diffusion</span>
           <input
             type="number" min="2" max="20"
             bind:value={config.crossChannelThreshold}
-            class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface"
+            class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface"
           />
         </label>
         <label class="block">
-          <span class="text-[12.5px] font-medium text-on-surface-variant">Similarité des doublons</span>
+          <span class="text-xs font-medium text-on-surface-variant">Similarité des doublons</span>
           <input
             type="number" min="0.5" max="1" step="0.01"
             bind:value={config.duplicateSimilarity}
-            class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-[13px] text-on-surface"
+            class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface"
           />
         </label>
       </div>
@@ -513,7 +513,7 @@
     >
       <div class="space-y-4">
         <div>
-          <p class="text-[12.5px] font-medium text-on-surface-variant mb-2">
+          <p class="text-xs font-medium text-on-surface-variant mb-2">
             Rôles exemptés
             {#if config.bypassRoleIds.length > 0}
               <span class="text-on-surface-variant/60">({config.bypassRoleIds.length})</span>
@@ -523,7 +523,7 @@
             {#each roles as role (role.id)}
               <button
                 type="button"
-                class="px-2.5 py-1 rounded-full text-[12px] font-medium border transition-colors
+                class="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors
                 {config.bypassRoleIds.includes(role.id)
                   ? 'bg-primary/15 border-primary/40 text-primary'
                   : 'bg-surface-container-low border-outline-variant/40 text-on-surface-variant hover:text-on-surface'}"
@@ -536,20 +536,20 @@
         </div>
 
         <div>
-          <p class="text-[12.5px] font-medium text-on-surface-variant mb-2">
+          <p class="text-xs font-medium text-on-surface-variant mb-2">
             Salons exemptés
             {#if config.bypassChannelIds.length > 0}
               <span class="text-on-surface-variant/60">({config.bypassChannelIds.length})</span>
             {/if}
           </p>
-          <p class="text-[11.5px] text-on-surface-variant/70 mb-2">
+          <p class="text-2xs text-on-surface-variant/70 mb-2">
             Utile pour les salons de spam assumé (mèmes, bots, tests) où la répétition est la norme.
           </p>
           <div class="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto">
             {#each channels as channel (channel.id)}
               <button
                 type="button"
-                class="px-2.5 py-1 rounded-full text-[12px] font-medium border transition-colors
+                class="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors
                 {config.bypassChannelIds.includes(channel.id)
                   ? 'bg-primary/15 border-primary/40 text-primary'
                   : 'bg-surface-container-low border-outline-variant/40 text-on-surface-variant hover:text-on-surface'}"
@@ -570,7 +570,7 @@
       icon="Scale"
     >
       {#snippet actions()}
-        <label class="flex items-center gap-2 text-[12px] text-on-surface-variant cursor-pointer select-none">
+        <label class="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer select-none">
           <input
             type="checkbox"
             checked={pendingOnly}
@@ -586,7 +586,7 @@
 
       {#if stats && stats.labelsNeeded > 0}
         <div class="mb-4 rounded-lg border border-sky-500/30 bg-sky-500/5 px-3 py-2.5">
-          <p class="text-[12.5px] text-on-surface-variant leading-relaxed">
+          <p class="text-xs text-on-surface-variant leading-relaxed">
             <span class="font-medium text-on-surface">{stats.labelsNeeded} décision(s)</span>
             manquante(s) avant que le recalibrage automatique des poids puisse tourner. Il faut à la
             fois des vrais et des faux positifs - sans les deux, il n'y a rien à discriminer.
@@ -610,42 +610,42 @@
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-2 flex-wrap">
                     <span
-                      class="text-[12px] font-semibold tabular-nums px-1.5 py-0.5 rounded
+                      class="text-xs font-semibold tabular-nums px-1.5 py-0.5 rounded
                       {sample.score >= config.timeoutThreshold
                         ? 'bg-error/15 text-error'
                         : sample.score >= config.deleteThreshold
-                          ? 'bg-amber-500/15 text-amber-500'
+                          ? 'bg-warning/15 text-warning'
                           : 'bg-sky-500/15 text-sky-500'}"
                     >
                       {sample.score}/100
                     </span>
-                    <span class="text-[12px] text-on-surface-variant">
-                      <code class="text-[11px]">{sample.userId}</code> dans <span class="text-on-surface">#{channels.find((c) => c.id === sample.channelId)?.name ?? sample.channelId}</span>
+                    <span class="text-xs text-on-surface-variant">
+                      <code class="text-2xs">{sample.userId}</code> dans <span class="text-on-surface">#{channels.find((c) => c.id === sample.channelId)?.name ?? sample.channelId}</span>
                     </span>
                     {#if sample.shadow}
-                      <span class="text-[10.5px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-500">observation</span>
+                      <span class="text-2xs px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-500">observation</span>
                     {/if}
                     {#if sample.label}
                       <span
-                        class="text-[10.5px] px-1.5 py-0.5 rounded {sample.label === 'TRUE_POSITIVE'
+                        class="text-2xs px-1.5 py-0.5 rounded {sample.label === 'TRUE_POSITIVE'
                           ? 'bg-error/10 text-error'
-                          : 'bg-emerald-500/10 text-emerald-500'}"
+                          : 'bg-success/10 text-success'}"
                       >
                         {sample.label === 'TRUE_POSITIVE' ? 'vrai positif' : 'faux positif'}
                       </span>
                     {/if}
-                    <span class="text-[11px] text-on-surface-variant/60 ml-auto">{formatRelative(sample.createdAt)}</span>
+                    <span class="text-2xs text-on-surface-variant/60 ml-auto">{formatRelative(sample.createdAt)}</span>
                   </div>
 
                   {#if sample.contentPreview}
-                    <p class="mt-2 text-[12.5px] text-on-surface-variant bg-surface-container/60 rounded px-2.5 py-1.5 font-mono leading-relaxed wrap-break-word">
+                    <p class="mt-2 text-xs text-on-surface-variant bg-surface-container/60 rounded px-2.5 py-1.5 font-mono leading-relaxed wrap-break-word">
                       {sample.contentPreview}
                     </p>
                   {/if}
 
                   <div class="mt-2 flex flex-wrap gap-1">
                     {#each Object.entries(sample.features?.signals ?? {}) as [type, score]}
-                      <span class="text-[11px] px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">
+                      <span class="text-2xs px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">
                         {SIGNAL_LABELS[type] ?? type} <span class="tabular-nums opacity-60">{score}</span>
                       </span>
                     {/each}
@@ -656,7 +656,7 @@
                   <div class="flex flex-col gap-1.5 shrink-0">
                     <button
                       type="button"
-                      class="px-2.5 py-1 rounded-lg text-[12px] font-medium bg-error/15 text-error border border-error/30 hover:bg-error/25 disabled:opacity-50 transition-colors"
+                      class="px-2.5 py-1 rounded-lg text-xs font-medium bg-error/15 text-error border border-error/30 hover:bg-error/25 disabled:opacity-50 transition-colors"
                       disabled={decidingId !== null}
                       onclick={() => decide(sample, true)}
                     >
@@ -664,7 +664,7 @@
                     </button>
                     <button
                       type="button"
-                      class="px-2.5 py-1 rounded-lg text-[12px] font-medium bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 hover:bg-emerald-500/25 disabled:opacity-50 transition-colors"
+                      class="px-2.5 py-1 rounded-lg text-xs font-medium bg-success/15 text-success border border-success/30 hover:bg-success/25 disabled:opacity-50 transition-colors"
                       disabled={decidingId !== null}
                       onclick={() => decide(sample, false)}
                     >
@@ -682,11 +682,11 @@
     {#if dirty}
       <div class="sticky bottom-4 z-10">
         <div class="flex items-center justify-between gap-4 rounded-xl border border-primary/40 bg-surface-container-high/95 backdrop-blur px-4 py-3 shadow-lg">
-          <p class="text-[13px] text-on-surface">Modifications non enregistrées</p>
+          <p class="text-body-sm text-on-surface">Modifications non enregistrées</p>
           <div class="flex items-center gap-2">
             <button
               type="button"
-              class="px-3 py-1.5 rounded-lg text-[12.5px] font-medium text-on-surface-variant hover:text-on-surface transition-colors"
+              class="px-3 py-1.5 rounded-lg text-xs font-medium text-on-surface-variant hover:text-on-surface transition-colors"
               onclick={reset}
               disabled={saving}
             >
@@ -694,7 +694,7 @@
             </button>
             <button
               type="button"
-              class="px-3.5 py-1.5 rounded-lg text-[12.5px] font-medium bg-primary text-on-primary hover:opacity-90 disabled:opacity-50 transition-opacity"
+              class="px-3.5 py-1.5 rounded-lg text-xs font-medium bg-primary text-on-primary hover:opacity-90 disabled:opacity-50 transition-opacity"
               onclick={save}
               disabled={saving}
             >

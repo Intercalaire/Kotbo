@@ -70,7 +70,7 @@
   <!-- Barre de salon -->
   <div class="flex items-center gap-2 px-3.5 py-2.5 bg-[#2b2d31] border-b border-black/25">
     <span class="text-[#80848e] text-[17px] leading-none font-medium">#</span>
-    <span class="text-[13px] font-semibold text-[#dbdee1] truncate">{channel}</span>
+    <span class="text-body-sm font-semibold text-[#dbdee1] truncate">{channel}</span>
   </div>
 
   <!-- Le message -->
@@ -79,17 +79,17 @@
       <img src={avatarUrl} alt="" class="w-9 h-9 rounded-full shrink-0 bg-[#1e1f22]" />
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-1.5 flex-wrap">
-          <span class="text-[14px] font-medium text-[#f2f3f5]">{author}</span>
+          <span class="text-sm font-medium text-[#f2f3f5]">{author}</span>
           {#if bot}
-            <span class="text-[10px] font-semibold uppercase tracking-wide px-1 py-px rounded bg-[#5865f2] text-white">
+            <span class="text-xs font-semibold px-1 py-px rounded bg-[#5865f2] text-white">
               App
             </span>
           {/if}
-          <span class="text-[11px] text-[#949ba4]">{stamp}</span>
+          <span class="text-2xs text-[#949ba4]">{stamp}</span>
         </div>
 
         {#if content}
-          <p class="mt-0.5 text-[14px] leading-[1.4] text-[#dbdee1] whitespace-pre-wrap break-words">
+          <p class="mt-0.5 text-sm leading-[1.4] text-[#dbdee1] whitespace-pre-wrap break-words">
             {#each tokens as token, index (index)}
               {#if token.kind === 'bold'}
                 <strong class="font-bold">{token.value}</strong>

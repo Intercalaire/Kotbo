@@ -305,7 +305,7 @@
       UNKNOWN: m.d7_inv_ghost_unknown,
     };
     const colors: Record<string, string> = {
-      ACTIVE: 'text-emerald-500',
+      ACTIVE: 'text-success',
       SPECTATOR: 'text-cyan-500',
       INACTIVE: 'text-orange-500',
       NEW: 'text-purple-500',
@@ -451,7 +451,7 @@
             <span class="text-sm font-bold">{m.d7_inv_loading_details()}</span>
           </div>
         {:else if error}
-          <div class="p-4 rounded-lg bg-red-500/10 text-red-500 text-sm font-bold">{error}</div>
+          <div class="p-4 rounded-lg bg-error/10 text-error text-sm font-bold">{error}</div>
         {:else if details}
 
           <!-- ══════════════ RÉSUMÉ ══════════════ -->
@@ -463,7 +463,7 @@
                     <Papicon icon="TrendingUp" size={18} />
                   </div>
                   <div>
-                    <h4 class="text-sm font-semibold uppercase tracking-widest text-on-surface-variant/60">{m.d7_inv_joins_trend()}</h4>
+                    <h4 class="text-sm font-semibold text-on-surface-variant/60">{m.d7_inv_joins_trend()}</h4>
                     <p class="text-xs text-on-surface-variant/40">{m.d7_inv_period_evolution()}</p>
                   </div>
                 </div>
@@ -482,7 +482,7 @@
                 <div class="grid grid-cols-1 gap-4">
                   <div>
                     <p class="text-xs font-medium text-on-surface-variant/50">{m.d7_inv_joins()}</p>
-                    <p class="text-lg font-semibold text-emerald-500">{details.trend?.totalJoined ?? 0}</p>
+                    <p class="text-lg font-semibold text-success">{details.trend?.totalJoined ?? 0}</p>
                   </div>
                   <div>
                     <p class="text-xs font-medium text-on-surface-variant/50">{m.d7_inv_departures()}</p>
@@ -534,22 +534,22 @@
                   </div>
                   <div class="flex justify-between text-xs">
                     <span class="text-on-surface-variant/60">{m.d7_inv_temporary()}</span>
-                    <span class="font-bold {details.invite?.isTemporary ? 'text-amber-500' : 'text-on-surface-variant/70'}">{details.invite?.isTemporary ? m.d7_yes() : m.d7_no()}</span>
+                    <span class="font-bold {details.invite?.isTemporary ? 'text-warning' : 'text-on-surface-variant/70'}">{details.invite?.isTemporary ? m.d7_yes() : m.d7_no()}</span>
                   </div>
                   <div class="flex justify-between text-xs">
                     <span class="text-on-surface-variant/60">{m.d7_inv_suspended_label()}</span>
-                    <span class="font-bold {details.invite?.isSuspended ? 'text-amber-500' : 'text-on-surface-variant/70'}">{details.invite?.isSuspended ? m.d7_yes() : m.d7_no()}</span>
+                    <span class="font-bold {details.invite?.isSuspended ? 'text-warning' : 'text-on-surface-variant/70'}">{details.invite?.isSuspended ? m.d7_yes() : m.d7_no()}</span>
                   </div>
                   <div class="flex justify-between text-xs">
                     <span class="text-on-surface-variant/60">{m.d7_inv_deleted_label()}</span>
-                    <span class="font-bold {details.invite?.isDeleted ? 'text-red-500' : 'text-on-surface-variant/70'}">{details.invite?.isDeleted ? m.d7_yes() : m.d7_no()}</span>
+                    <span class="font-bold {details.invite?.isDeleted ? 'text-error' : 'text-on-surface-variant/70'}">{details.invite?.isDeleted ? m.d7_yes() : m.d7_no()}</span>
                   </div>
                 </div>
               </div>
 
               <div class="premium-card p-5 rounded-xl space-y-4">
                 <div class="flex items-center gap-3">
-                  <div class="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
+                  <div class="p-2 rounded-xl bg-success/10 text-success">
                     <Papicon icon="User" size={18} />
                   </div>
                   <h4 class="text-sm font-semibold">{m.d7_inv_creator()}</h4>
@@ -603,18 +603,18 @@
               <div class="premium-card p-5 rounded-xl space-y-4">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-3">
-                    <div class="p-2 rounded-xl bg-amber-500/10 text-amber-500"><Papicon icon="Trophy" size={18} /></div>
+                    <div class="p-2 rounded-xl bg-warning/10 text-warning"><Papicon icon="Trophy" size={18} /></div>
                     <div>
                       <h4 class="text-sm font-semibold">{m.d7_inv_ranking_title()}</h4>
                       <p class="text-xs text-on-surface-variant/40">{m.d7_inv_ranking_subtitle()}</p>
                     </div>
                   </div>
                   <div class="text-right">
-                    <p class="text-2xl font-semibold text-amber-500">
+                    <p class="text-2xl font-semibold text-warning">
                       {details.ranking.rank ? `#${details.ranking.rank}` : '-'}
                       <span class="text-xs text-on-surface-variant/40">/ {details.ranking.totalCodes}</span>
                     </p>
-                    <p class="text-[11px] font-bold text-on-surface-variant/50">{m.d7_inv_ranking_share({ pct: formatPct(details.ranking.sharePct) })}</p>
+                    <p class="text-2xs font-bold text-on-surface-variant/50">{m.d7_inv_ranking_share({ pct: formatPct(details.ranking.sharePct) })}</p>
                   </div>
                 </div>
                 {#if details.ranking.topCodes.length > 0}
@@ -644,30 +644,30 @@
             {#if details.retention}
               <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div class="premium-card p-5 rounded-xl">
-                  <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.d7_inv_retention_rate()}</p>
-                  <p class="text-2xl font-semibold text-emerald-500">{formatPct(details.retention.retentionPct)}</p>
-                  <p class="text-[11px] font-bold text-on-surface-variant/50">{m.d7_inv_retention_ratio({ stayed: details.retention.stayed, total: details.retention.total })}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_retention_rate()}</p>
+                  <p class="text-2xl font-semibold text-success">{formatPct(details.retention.retentionPct)}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant/50">{m.d7_inv_retention_ratio({ stayed: details.retention.stayed, total: details.retention.total })}</p>
                 </div>
                 <div class="premium-card p-5 rounded-xl">
-                  <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.d7_inv_avg_lifetime()}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_avg_lifetime()}</p>
                   <p class="text-2xl font-semibold text-cyan-500">{formatDays(details.retention.avgLifetimeDays)}</p>
-                  <p class="text-[11px] font-bold text-on-surface-variant/50">{m.d7_inv_median_lifetime({ value: formatDays(details.retention.medianLifetimeDays) })}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant/50">{m.d7_inv_median_lifetime({ value: formatDays(details.retention.medianLifetimeDays) })}</p>
                 </div>
                 <div class="premium-card p-5 rounded-xl">
-                  <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.d7_inv_same_day_leavers()}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_same_day_leavers()}</p>
                   <p class="text-2xl font-semibold text-orange-500">{details.retention.sameDayLeavers}</p>
-                  <p class="text-[11px] font-bold text-on-surface-variant/50">{formatPct(details.retention.sameDayLeaversPct)}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant/50">{formatPct(details.retention.sameDayLeaversPct)}</p>
                 </div>
                 <div class="premium-card p-5 rounded-xl">
-                  <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.d7_inv_departures()}</p>
-                  <p class="text-2xl font-semibold text-red-500">{details.retention.left}</p>
-                  <p class="text-[11px] font-bold text-on-surface-variant/50">{m.d7_inv_total_joins({ count: details.retention.total })}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_departures()}</p>
+                  <p class="text-2xl font-semibold text-error">{details.retention.left}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant/50">{m.d7_inv_total_joins({ count: details.retention.total })}</p>
                 </div>
               </div>
 
               <div class="premium-card p-5 rounded-xl space-y-5">
                 <div class="flex items-center gap-3">
-                  <div class="p-2 rounded-xl bg-emerald-500/10 text-emerald-500"><Papicon icon="Activity" size={18} /></div>
+                  <div class="p-2 rounded-xl bg-success/10 text-success"><Papicon icon="Activity" size={18} /></div>
                   <div>
                     <h4 class="text-sm font-semibold">{m.d7_inv_survival_title()}</h4>
                     <p class="text-xs text-on-surface-variant/40">{m.d7_inv_survival_subtitle()}</p>
@@ -704,35 +704,35 @@
               {@const lvlDelta = deltaVsGuild(q.avgLevel, q.guildAvgLevel)}
 
               {#if q.sampled}
-                <div class="p-3 rounded-lg bg-amber-500/10 text-amber-600 text-[11px] font-bold">
+                <div class="p-3 rounded-lg bg-warning/10 text-warning text-2xs font-bold">
                   {m.d7_inv_quality_sampled({ count: q.analyzed })}
                 </div>
               {/if}
 
               <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div class="premium-card p-5 rounded-xl">
-                  <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.d7_inv_avg_messages()}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_avg_messages()}</p>
                   <p class="text-2xl font-semibold text-primary">{q.avgMessages ?? '-'}</p>
-                  <p class="text-[11px] font-bold {msgDelta === null ? 'text-on-surface-variant/50' : msgDelta >= 0 ? 'text-emerald-500' : 'text-red-500'}">
+                  <p class="text-2xs font-bold {msgDelta === null ? 'text-on-surface-variant/50' : msgDelta >= 0 ? 'text-success' : 'text-error'}">
                     {msgDelta === null ? m.d7_inv_no_comparison() : m.d7_inv_vs_guild({ delta: `${msgDelta > 0 ? '+' : ''}${msgDelta}` })}
                   </p>
                 </div>
                 <div class="premium-card p-5 rounded-xl">
-                  <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.d7_inv_avg_level()}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_avg_level()}</p>
                   <p class="text-2xl font-semibold text-purple-500">{q.avgLevel ?? '-'}</p>
-                  <p class="text-[11px] font-bold {lvlDelta === null ? 'text-on-surface-variant/50' : lvlDelta >= 0 ? 'text-emerald-500' : 'text-red-500'}">
+                  <p class="text-2xs font-bold {lvlDelta === null ? 'text-on-surface-variant/50' : lvlDelta >= 0 ? 'text-success' : 'text-error'}">
                     {lvlDelta === null ? m.d7_inv_no_comparison() : m.d7_inv_vs_guild({ delta: `${lvlDelta > 0 ? '+' : ''}${lvlDelta}` })}
                   </p>
                 </div>
                 <div class="premium-card p-5 rounded-xl">
-                  <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.d7_inv_young_accounts()}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_young_accounts()}</p>
                   <p class="text-2xl font-semibold text-orange-500">{q.youngAccounts}</p>
-                  <p class="text-[11px] font-bold text-on-surface-variant/50">{formatPct(q.youngAccountsPct)} • {m.d7_inv_young_hint()}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant/50">{formatPct(q.youngAccountsPct)} • {m.d7_inv_young_hint()}</p>
                 </div>
                 <div class="premium-card p-5 rounded-xl">
-                  <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.d7_inv_sanctioned()}</p>
-                  <p class="text-2xl font-semibold text-red-500">{q.sanctionedMembers}</p>
-                  <p class="text-[11px] font-bold text-on-surface-variant/50">{m.d7_inv_sanctions_total({ count: q.sanctionsCount })}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_sanctioned()}</p>
+                  <p class="text-2xl font-semibold text-error">{q.sanctionedMembers}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant/50">{m.d7_inv_sanctions_total({ count: q.sanctionsCount })}</p>
                 </div>
               </div>
 
@@ -764,13 +764,13 @@
                     <p class="text-xs text-on-surface-variant/50 py-6 text-center">{m.d7_inv_no_data_available()}</p>
                   {/if}
                   {#if q.bots > 0}
-                    <p class="pt-2 border-t border-outline-variant/10 text-[11px] font-bold text-amber-500">{m.d7_inv_bots_detected({ count: q.bots })}</p>
+                    <p class="pt-2 border-t border-outline-variant/10 text-2xs font-bold text-warning">{m.d7_inv_bots_detected({ count: q.bots })}</p>
                   {/if}
                 </div>
 
                 <div class="premium-card p-5 rounded-xl space-y-4">
                   <div class="flex items-center gap-3">
-                    <div class="p-2 rounded-xl bg-red-500/10 text-red-500"><Papicon icon="Gavel" size={18} /></div>
+                    <div class="p-2 rounded-xl bg-error/10 text-error"><Papicon icon="Gavel" size={18} /></div>
                     <h4 class="text-sm font-semibold">{m.d7_inv_top_sanctioned()}</h4>
                   </div>
                   {#if q.topSanctioned.length > 0}
@@ -782,7 +782,7 @@
                           onclick={() => openMember(row.userId)}
                         >
                           <span class="text-xs font-semibold truncate">{row.userTag}</span>
-                          <span class="text-xs font-bold text-red-500 shrink-0">{row.count}</span>
+                          <span class="text-xs font-bold text-error shrink-0">{row.count}</span>
                         </button>
                       {/each}
                     </div>
@@ -822,7 +822,7 @@
                     <h4 class="text-sm font-semibold">{m.d7_inv_hourly_title()}</h4>
                   </div>
                   {#if details.timing?.peakHour !== null && details.timing?.peakHour !== undefined}
-                    <span class="px-3 py-1 rounded-full text-[11px] font-semibold bg-primary/10 text-primary">
+                    <span class="px-3 py-1 rounded-full text-2xs font-semibold bg-primary/10 text-primary">
                       {m.d7_inv_peak_hour({ hour: String(details.timing.peakHour).padStart(2, '0') })}
                     </span>
                   {/if}
@@ -843,7 +843,7 @@
                     <h4 class="text-sm font-semibold">{m.d7_inv_weekday_title()}</h4>
                   </div>
                   {#if details.timing?.peakWeekday !== null && details.timing?.peakWeekday !== undefined}
-                    <span class="px-3 py-1 rounded-full text-[11px] font-semibold bg-cyan-500/10 text-cyan-500">
+                    <span class="px-3 py-1 rounded-full text-2xs font-semibold bg-cyan-500/10 text-cyan-500">
                       {m.d7_inv_peak_weekday({ day: weekdayNames[details.timing.peakWeekday] })}
                     </span>
                   {/if}
@@ -952,7 +952,7 @@
                       <img src={memberAvatarSrc(join.avatarUrl, join.userTag, join.userId)} alt="" class="w-10 h-10 rounded-xl object-cover" />
                       <div class="min-w-0">
                         <p class="text-sm font-semibold text-on-surface group-hover:text-primary transition-colors truncate">{join.userTag}</p>
-                        <p class="text-[10px] text-on-surface-variant/50 font-mono truncate">{join.userId} • {formatDateTime(join.joinedAt)}</p>
+                        <p class="text-2xs text-on-surface-variant/50 font-mono truncate">{join.userId} • {formatDateTime(join.joinedAt)}</p>
                       </div>
                     </div>
                     <div class="flex items-center gap-4 shrink-0">
@@ -962,7 +962,7 @@
                       </div>
                       <div class="text-right">
                         <p class="text-xs font-medium text-on-surface-variant/40">{m.d7_inv_status()}</p>
-                        <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-semibold {join.leftAt ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}">
+                        <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-2xs font-semibold {join.leftAt ? 'bg-error/10 text-error' : 'bg-success/10 text-success'}">
                           {join.leftAt ? m.d7_inv_left() : m.d7_inv_present()}
                         </span>
                       </div>

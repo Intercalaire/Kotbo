@@ -37,7 +37,7 @@ export function parseDiscordEmojisAndMarkdown(text: string | null | undefined): 
     const escapedCode = escapeHtml(code.replace(/\n$/, ''));
     codeBlocks.push(
       `<div class="my-1.5 rounded bg-[#1e1f22] border border-white/5 overflow-hidden">` +
-      (lang ? `<div class="px-3 py-1 text-[10px] font-mono text-[#72767d] border-b border-white/5 uppercase tracking-wider">${escapeHtml(lang)}</div>` : '') +
+      (lang ? `<div class="px-3 py-1 text-2xs font-mono text-[#72767d] border-b border-white/5 uppercase tracking-wider">${escapeHtml(lang)}</div>` : '') +
       `<pre class="px-3 py-2 font-mono text-xs text-[#e3e5e8] whitespace-pre-wrap leading-relaxed overflow-x-auto">${escapedCode}</pre></div>`
     );
     return `\x00CODEBLOCK_${idx}\x00`;

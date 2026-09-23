@@ -65,7 +65,7 @@
   // navigation sheet renders exactly the same set of pages.
   const isModuleDisabled = navigationStore.isModuleDisabled;
   const isStaffServerGuild = $derived(navigationStore.isStaffServer);
-  const navGroups = $derived(navigationStore.groups);
+  const navGroups = $derived(navigationStore.menuGroups);
 
   const itemLabel = (item: PageConfig): string => {
     if (isPageWip(item))  return `${item.name} (WIP)`;
@@ -215,11 +215,11 @@
       <div class="flex flex-col min-w-0 flex-1">
         <span class="text-sm font-semibold text-on-surface leading-none truncate">{brandingStore.brandName}</span>
         {#if isStaffServerGuild}
-          <span class="inline-flex items-center gap-1 mt-0.5 w-fit px-1.5 py-0.5 rounded text-[9px] font-medium tracking-wide uppercase bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
+          <span class="inline-flex items-center gap-1 mt-0.5 w-fit px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
             Serveur Staff
           </span>
         {:else}
-          <span class="text-[10px] text-on-surface-variant mt-0.5">Dashboard</span>
+          <span class="text-2xs text-on-surface-variant mt-0.5">Dashboard</span>
         {/if}
       </div>
 
@@ -270,7 +270,7 @@
       {/if}
       <span class="min-w-0 flex-1">
         <span class="block truncate text-sm font-semibold text-on-surface">{currentGuild?.name ?? 'Serveur'}</span>
-        <span class="block text-[11px] text-on-surface-variant">
+        <span class="block text-2xs text-on-surface-variant">
           {authStore.guilds.length > 1 ? 'Toucher pour changer' : 'Serveur actuel'}
         </span>
       </span>
@@ -311,7 +311,7 @@
             <Papicon icon="x" size={11} />
           </button>
         {:else}
-          <kbd class="absolute right-2 top-1/2 -translate-y-1/2 px-1 py-0.5 rounded bg-surface-container-high text-[9px] font-medium font-mono leading-none text-on-surface-variant/40 pointer-events-none hidden lg:block">
+          <kbd class="absolute right-2 top-1/2 -translate-y-1/2 px-1 py-0.5 rounded bg-surface-container-high text-2xs font-medium font-mono leading-none text-on-surface-variant/40 pointer-events-none hidden lg:block">
             /
           </kbd>
         {/if}
@@ -327,11 +327,11 @@
  flex items-center justify-center w-7 h-7 rounded-md border
           transition-colors duration-150 shrink-0
           {showOnlyFavorites
-            ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-600 dark:text-amber-400'
+            ? 'bg-warning/10 border-warning/25 text-warning'
             : 'bg-surface-container border-outline-variant text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container-high'}
         "
       >
-        <Papicon icon="star" size={13} class={showOnlyFavorites ? 'fill-amber-500 text-amber-500' : ''} />
+        <Papicon icon="star" size={13} class={showOnlyFavorites ? 'fill-amber-500 text-warning' : ''} />
       </button>
     </div>
   {/if}
@@ -377,7 +377,7 @@
 
             {#if item.name === 'Inbox' && notificationsStore.unreadCount > 0}
               <div
-                class="absolute top-0.5 right-1 min-w-[14px] h-[14px] px-0.5 bg-primary text-white text-[8px] font-semibold rounded-full flex items-center justify-center"
+                class="absolute top-0.5 right-1 min-w-[14px] h-[14px] px-0.5 bg-primary text-white text-2xs font-semibold rounded-full flex items-center justify-center"
                 aria-label="{notificationsStore.unreadCount} notifications non lues"
               >
                 {notificationsStore.unreadCount > 9 ? '9+' : notificationsStore.unreadCount}
@@ -403,7 +403,7 @@
             bg-surface-container-lowest
           "
         >
-          <span class="flex-1 text-left text-[11px] font-medium text-on-surface-variant uppercase tracking-wider">
+          <span class="flex-1 text-left text-xs font-medium text-on-surface-variant">
             {group.label}
           </span>
           <div
@@ -443,23 +443,23 @@
                     size={16}
                     class="shrink-0 transition-colors duration-150 {isActiveNavItem(item.href) ? 'text-primary' : 'text-on-surface-variant/60 group-hover:text-on-surface/70'}"
                   />
-                  <span class="flex-1 min-w-0 text-[13px] leading-none truncate">{item.name}</span>
+                  <span class="flex-1 min-w-0 text-body-sm leading-none truncate">{item.name}</span>
                 </a>
 
                 <div class="flex items-center gap-1 pr-2 shrink-0">
                   {#if isPageWip(item)}
-                    <span class="px-1.5 py-0.5 rounded text-[9px] font-medium tracking-wide uppercase bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">
+                    <span class="px-1.5 py-0.5 rounded text-xs font-medium bg-warning/10 text-warning border border-warning/25">
                       WIP
                     </span>
                   {:else if isPageBeta(item)}
-                    <span class="px-1.5 py-0.5 rounded text-[9px] font-medium tracking-wide uppercase bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20">
+                    <span class="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20">
                       BETA
                     </span>
                   {/if}
 
                   {#if item.name === 'Inbox' && notificationsStore.unreadCount > 0}
                     <div
-                      class="min-w-[16px] h-[16px] px-0.5 bg-primary text-white text-[9px] font-medium rounded-full flex items-center justify-center"
+                      class="min-w-[16px] h-[16px] px-0.5 bg-primary text-white text-2xs font-medium rounded-full flex items-center justify-center"
                       aria-label="{notificationsStore.unreadCount} messages non lus"
                     >
                       {notificationsStore.unreadCount > 99 ? '99+' : notificationsStore.unreadCount}
@@ -474,13 +474,13 @@
                     class="
  flex items-center justify-center w-6 h-6 rounded
                       transition-all duration-150
-                      text-on-surface-variant/30 hover:text-amber-500
+                      text-on-surface-variant/30 hover:text-warning
                       {favorites.includes(item.href)
-                        ? 'opacity-100 text-amber-500'
+                        ? 'opacity-100 text-warning'
                         : 'opacity-0 group-hover:opacity-100 focus:opacity-100'}
                     "
                   >
-                    <Papicon icon="star" size={12} class={favorites.includes(item.href) ? 'fill-amber-500 text-amber-500' : ''} />
+                    <Papicon icon="star" size={12} class={favorites.includes(item.href) ? 'fill-amber-500 text-warning' : ''} />
                   </button>
                 </div>
               </div>
@@ -493,7 +493,7 @@
       {#if !isCollapsed}
         <div class="flex flex-col items-center py-8 text-center text-on-surface-variant/50 px-4">
           {#if showOnlyFavorites}
-            <Papicon icon="star" size={20} class="mb-2 text-amber-400" />
+            <Papicon icon="star" size={20} class="mb-2 text-warning" />
             <p class="text-xs">{m.sidebar_no_favorites()}</p>
           {:else}
             <Papicon icon="search" size={20} class="mb-2" />
@@ -518,13 +518,13 @@
           transition-colors duration-150 group
           {isCollapsed ? 'lg:justify-center py-2' : 'gap-2.5 px-3 py-2'}
           {isActiveNavItem('/admin')
-            ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/8'
-            : 'text-on-surface-variant hover:text-amber-600 dark:hover:text-amber-400 hover:bg-surface-container'}
+            ? 'text-warning bg-warning/10'
+            : 'text-on-surface-variant hover:text-warning hover:bg-surface-container'}
         "
       >
         <Papicon icon="lock" size={isCollapsed ? 18 : 16} class="shrink-0" />
         {#if !isCollapsed}
-          <span class="text-[13px]">{m.nav_administration()}</span>
+          <span class="text-body-sm">{m.nav_administration()}</span>
         {/if}
       </a>
     {/if}
@@ -551,7 +551,7 @@
       >
         <Papicon icon="credit-card" size={isCollapsed ? 18 : 16} class="shrink-0" />
         {#if !isCollapsed}
-          <span class="text-[13px]">{m.nav_billing()}</span>
+          <span class="text-body-sm">{m.nav_billing()}</span>
         {/if}
       </a>
     {/if}
@@ -573,10 +573,10 @@
       </div>
       {#if !isCollapsed}
         <div class="flex flex-col min-w-0">
-          <span class="text-[12px] font-medium text-on-surface truncate leading-none">
+          <span class="text-xs font-medium text-on-surface truncate leading-none">
             {authStore.user?.username ?? '…'}
           </span>
-          <span class="text-[10px] text-on-surface-variant mt-0.5">{m.nav_my_profile()}</span>
+          <span class="text-2xs text-on-surface-variant mt-0.5">{m.nav_my_profile()}</span>
         </div>
       {/if}
     </a>

@@ -182,11 +182,11 @@
   />
 
   {#if isLoading}
-    <p class="text-xs text-gray-500 mt-2 px-1">Recherche des membres...</p>
+    <p class="text-xs text-on-surface-variant mt-2 px-1">Recherche des membres...</p>
   {/if}
 
   {#if error}
-    <p class="text-xs text-red-400 mt-2 px-1">{error}</p>
+    <p class="text-xs text-error mt-2 px-1">{error}</p>
   {/if}
 
   {#if suggestions.length > 0}
@@ -203,7 +203,7 @@
               {#if suggestion.avatarUrl}
                 <img src={suggestion.avatarUrl} alt="" class="h-full w-full object-cover" />
               {:else}
-                <div class="h-full w-full flex items-center justify-center text-gray-500">
+                <div class="h-full w-full flex items-center justify-center text-on-surface-variant">
                   <Papicon icon="user" size={14} />
                 </div>
               {/if}
@@ -213,7 +213,7 @@
                 <span class="text-sm font-medium text-gray-200 group-hover:text-white transition-colors truncate">
                   {suggestion.displayName || suggestion.username}
                 </span>
-                <span class="text-[10px] text-gray-500 group-hover:text-gray-400 transition-colors shrink-0 ml-2">
+                <span class="text-2xs text-on-surface-variant group-hover:text-on-surface-variant transition-colors shrink-0 ml-2">
                   @{suggestion.username}
                 </span>
               </div>

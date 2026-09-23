@@ -233,7 +233,7 @@
   async function add() {
     const name = (lookup?.displayName ?? manualName).trim();
     if (!name) {
-      toast.error('Collez un lien ou donnez un nom.');
+      toast.error('Colle un lien ou donne un nom.');
       return;
     }
 
@@ -312,8 +312,8 @@
   const toneOf: Record<string, string> = {
     neutral: 'bg-surface-container text-on-surface-variant',
     info: 'bg-primary/10 text-primary',
-    success: 'bg-emerald-500/10 text-emerald-500',
-    warning: 'bg-amber-500/10 text-amber-500',
+    success: 'bg-success/10 text-success',
+    warning: 'bg-warning/10 text-warning',
     danger: 'bg-error/10 text-error',
   };
 
@@ -357,8 +357,8 @@
   <header class="px-4 py-3 border-b border-outline-variant/30 flex items-start gap-3">
     {#if creating}
       <div class="min-w-0 flex-1">
-        <p class="text-[14px] font-semibold text-on-surface">Ajouter un partenaire</p>
-        <p class="text-[11.5px] text-on-surface-variant">Un lien suffit, le reste se regle apres</p>
+        <p class="text-sm font-semibold text-on-surface">Ajouter un partenaire</p>
+        <p class="text-2xs text-on-surface-variant">Un lien suffit, le reste se regle apres</p>
       </div>
     {:else if data}
       {#if data.partner.iconUrl}
@@ -369,8 +369,8 @@
         </div>
       {/if}
       <div class="min-w-0 flex-1">
-        <p class="text-[14px] font-semibold text-on-surface truncate">{data.partner.displayName}</p>
-        <p class="text-[11.5px] text-on-surface-variant truncate">
+        <p class="text-sm font-semibold text-on-surface truncate">{data.partner.displayName}</p>
+        <p class="text-2xs text-on-surface-variant truncate">
           {typeMeta?.label ?? data.type} · suivi {tierMeta?.label ?? data.tier}
         </p>
       </div>
@@ -385,7 +385,7 @@
     {#if creating}
       <!-- ── Ajout ───────────────────────────────────────────────────── -->
       <label class="block">
-        <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Lien d'invitation</span>
+        <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">Lien d'invitation</span>
         <div class="flex gap-2">
           <div class="flex-1">
             <FormInput bind:value={inviteInput} placeholder="discord.gg/…" />
@@ -406,8 +406,8 @@
             <img src={lookup.iconUrl} alt="" class="w-9 h-9 rounded-lg object-cover" />
           {/if}
           <div class="min-w-0">
-            <p class="text-[13px] font-medium text-on-surface truncate">{lookup.displayName}</p>
-            <p class="text-[11px] text-on-surface-variant">
+            <p class="text-body-sm font-medium text-on-surface truncate">{lookup.displayName}</p>
+            <p class="text-2xs text-on-surface-variant">
               {#if lookup.memberCount}{lookup.memberCount.toLocaleString('fr-FR')} membres{/if}
               {#if !lookup.permanent} · lien temporaire{/if}
             </p>
@@ -415,7 +415,7 @@
         </div>
       {:else}
         <label class="block">
-          <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">
+          <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">
             ou simplement leur nom
           </span>
           <FormInput bind:value={manualName} placeholder="Nom du partenaire" />
@@ -423,7 +423,7 @@
       {/if}
 
       <div class="pt-1">
-        <p class="text-[11px] font-bold text-on-surface-variant/80 mb-1.5">Quel partenariat</p>
+        <p class="text-2xs font-bold text-on-surface-variant/80 mb-1.5">Quel partenariat</p>
         <div class="space-y-1.5">
           {#each presets as item (item.key)}
             <button
@@ -432,14 +432,14 @@
                 : 'border-outline-variant/20 hover:bg-surface-container'}"
               onclick={() => (presetKey = item.key)}
             >
-              <p class="text-[12.5px] font-medium text-on-surface flex items-center gap-1.5">
+              <p class="text-xs font-medium text-on-surface flex items-center gap-1.5">
                 <Papicon icon={item.icon} size={13} />
                 {item.label}
               </p>
               {#if presetKey === item.key}
                 <!-- Ce que ca pose n'apparait que sur la carte choisie : six
                      descriptions depliees noieraient le choix lui-meme. -->
-                <p class="text-[11px] text-on-surface-variant mt-1">{item.description}</p>
+                <p class="text-2xs text-on-surface-variant mt-1">{item.description}</p>
               {/if}
             </button>
           {/each}
@@ -447,31 +447,31 @@
       </div>
 
       {#if preset}
-        <p class="text-[11px] text-on-surface-variant">
+        <p class="text-2xs text-on-surface-variant">
           Pose {preset.commitments.length} engagement(s), {preset.benefits.length} avantage(s){preset.trackInvite
             ? ' et une invitation dediee'
             : ''}. Le dossier s'ouvre en piste, rien n'est applique avant activation.
         </p>
       {/if}
     {:else if loading && !data}
-      <p class="text-[12px] text-on-surface-variant">Chargement…</p>
+      <p class="text-xs text-on-surface-variant">Chargement…</p>
     {:else if data}
       <!-- ── Etat et action principale ──────────────────────────────── -->
       <div class="flex flex-wrap items-center gap-2">
-        <span class="text-[11px] px-2 py-0.5 rounded-full font-semibold {toneOf[stageMeta?.tone] ?? toneOf.neutral}">
+        <span class="text-2xs px-2 py-0.5 rounded-full font-semibold {toneOf[stageMeta?.tone] ?? toneOf.neutral}">
           {stageMeta?.label ?? data.stage}
         </span>
-        <span class="text-[11px] text-on-surface-variant">Sante {data.healthScore}/100</span>
+        <span class="text-2xs text-on-surface-variant">Sante {data.healthScore}/100</span>
         {#if bridged}
-          <span class="text-[11px] text-primary inline-flex items-center gap-1">
+          <span class="text-2xs text-primary inline-flex items-center gap-1">
             <Papicon icon="link" size={11} />pont
           </span>
         {/if}
       </div>
 
       {#if blockers.length > 0}
-        <div class="rounded-lg bg-amber-500/10 px-3 py-2">
-          <p class="text-[11px] text-amber-500">
+        <div class="rounded-lg bg-warning/10 px-3 py-2">
+          <p class="text-2xs text-warning">
             Avant d'activer : {blockers.join(' · ')}
           </p>
         </div>
@@ -498,7 +498,7 @@
         {#if otherStages.length > 0}
           <FormSelect
             value=""
-            className="text-[12px]"
+            className="text-xs"
             onchange={(event) => {
               const target = event.target as HTMLSelectElement;
               if (target.value) {
@@ -520,8 +520,8 @@
           <!-- Le motif se saisit ici. L'ancienne version passait par une boite
                du navigateur : sans contexte, sans annulation propre. -->
           <div class="rounded-lg border border-error/30 bg-error/5 px-3 py-2.5 space-y-2">
-            <p class="text-[12px] text-error font-medium">Rompre ce partenariat</p>
-            <p class="text-[11px] text-on-surface-variant">
+            <p class="text-xs text-error font-medium">Rompre ce partenariat</p>
+            <p class="text-2xs text-on-surface-variant">
               Les avantages sont retires, la vitrine depubliee. Le motif est conserve dans l'historique du
               partenaire.
             </p>
@@ -532,7 +532,7 @@
             </div>
           </div>
         {:else}
-          <button class="text-[11.5px] text-error hover:underline" onclick={() => (breaking = true)}>
+          <button class="text-2xs text-error hover:underline" onclick={() => (breaking = true)}>
             Rompre ce partenariat
           </button>
         {/if}
@@ -542,17 +542,17 @@
       <div class="grid grid-cols-3 gap-2">
         {#each [['Arrivees', report?.joins ?? 0], ['Restes', report?.stillHere ?? 0], ['Retention', report?.retentionRate == null ? '-' : `${report.retentionRate}%`]] as [label, value] (label)}
           <div class="rounded-lg bg-surface-container px-2 py-1.5 text-center">
-            <div class="text-[14px] font-semibold text-on-surface tabular-nums">{value}</div>
-            <div class="text-[10px] text-on-surface-variant">{label}</div>
+            <div class="text-sm font-semibold text-on-surface tabular-nums">{value}</div>
+            <div class="text-2xs text-on-surface-variant">{label}</div>
           </div>
         {/each}
       </div>
 
       {#if data.inviteCode}
-        <p class="text-[11px] text-on-surface-variant">Invitation dediee : discord.gg/{data.inviteCode}</p>
+        <p class="text-2xs text-on-surface-variant">Invitation dediee : discord.gg/{data.inviteCode}</p>
       {:else}
         <button
-          class="text-[11.5px] text-primary hover:underline"
+          class="text-2xs text-primary hover:underline"
           onclick={() => run(() => ensurePartnershipInvite(partnershipId as string), 'Invitation creee')}
         >
           Creer l'invitation qui compte leurs arrivees
@@ -568,8 +568,8 @@
           onclick={() => toggleSection(key)}
         >
           <span class="min-w-0 text-left">
-            <span class="text-[12.5px] text-on-surface block">{title}</span>
-            <span class="text-[11px] {alert ? 'text-amber-500' : 'text-on-surface-variant'} block truncate">
+            <span class="text-xs text-on-surface block">{title}</span>
+            <span class="text-2xs {alert ? 'text-warning' : 'text-on-surface-variant'} block truncate">
               {summary}
             </span>
           </span>
@@ -591,18 +591,18 @@
           <div class="px-3 pb-2 space-y-2">
             {#each data.commitments ?? [] as commitment (commitment.id)}
               <div class="flex items-start justify-between gap-2">
-                <span class="text-[12px] text-on-surface min-w-0">
+                <span class="text-xs text-on-surface min-w-0">
                   <span class="block truncate">
                     {commitment.label ?? labelOf(catalog?.commitments ?? [], commitment.kind)}
                   </span>
-                  <span class="text-[10.5px] text-on-surface-variant">
+                  <span class="text-2xs text-on-surface-variant">
                     {commitment.party === 'US' ? 'a notre charge' : commitment.party === 'BOTH' ? 'des deux cotes' : 'a leur charge'}
                     {#if commitment.targetCount} · {commitment.targetCount}/{commitment.targetPeriod}{/if}
                   </span>
                 </span>
                 <span class="flex items-center gap-1.5 shrink-0">
                   <button
-                    class="text-[10.5px] {commitment.state === 'BREACHED' ? 'text-error' : 'text-emerald-500'} hover:underline"
+                    class="text-2xs {commitment.state === 'BREACHED' ? 'text-error' : 'text-success'} hover:underline"
                     onclick={() =>
                       run(
                         () =>
@@ -627,7 +627,7 @@
 
             <div class="flex gap-1.5 items-end pt-1">
               <div class="flex-1">
-                <FormSelect bind:value={commitmentKind} className="w-full text-[12px]">
+                <FormSelect bind:value={commitmentKind} className="w-full text-xs">
                   {#each catalog?.commitments ?? [] as item (item.key)}
                     <option value={item.key}>{item.label}</option>
                   {/each}
@@ -637,7 +637,7 @@
                 <FormInput type="number" bind:value={commitmentCount} />
               </div>
               <div class="w-24">
-                <FormSelect bind:value={commitmentPeriod} className="w-full text-[12px]">
+                <FormSelect bind:value={commitmentPeriod} className="w-full text-xs">
                   <option value="week">/semaine</option>
                   <option value="month">/mois</option>
                   <option value="total">au total</option>
@@ -673,7 +673,7 @@
           <div class="px-3 pb-2 space-y-2">
             {#each data.benefits ?? [] as benefit (benefit.id)}
               <div class="flex items-center justify-between gap-2">
-                <span class="text-[12px] text-on-surface min-w-0 truncate">
+                <span class="text-xs text-on-surface min-w-0 truncate">
                   {labelOf(catalog?.benefits ?? [], benefit.kind)}
                   <span class="text-on-surface-variant">· {benefit.state.toLowerCase()}</span>
                 </span>
@@ -689,14 +689,14 @@
 
             <div class="flex gap-1.5 items-end pt-1">
               <div class="flex-1">
-                <FormSelect bind:value={benefitKind} className="w-full text-[12px]">
+                <FormSelect bind:value={benefitKind} className="w-full text-xs">
                   {#each catalog?.benefits ?? [] as item (item.key)}
                     <option value={item.key}>{item.label}</option>
                   {/each}
                 </FormSelect>
               </div>
               <div class="flex-1">
-                <FormSelect bind:value={benefitTarget} className="w-full text-[12px]">
+                <FormSelect bind:value={benefitTarget} className="w-full text-xs">
                   <option value="">Par defaut</option>
                   {#each roles as role (role.id)}
                     <option value={role.id}>@{role.name}</option>
@@ -737,7 +737,7 @@
                 onclick={() => run(() => revokePartnershipBenefits(partnershipId as string), 'Avantages retires')}
               />
             </div>
-            <p class="text-[10.5px] text-on-surface-variant">
+            <p class="text-2xs text-on-surface-variant">
               Ce qui existait avant le partenariat n'est jamais retire.
             </p>
           </div>
@@ -753,7 +753,7 @@
           <div class="px-3 pb-2 space-y-2">
             <FormInput bind:value={promoTitle} placeholder="Titre de l'annonce" />
             <FormTextarea bind:value={promoContent} rows={3} placeholder="Texte fourni par le partenaire" />
-            <FormSelect bind:value={promoChannel} className="w-full text-[12px]">
+            <FormSelect bind:value={promoChannel} className="w-full text-xs">
               <option value="">Salon des publicites</option>
               {#each channels as channel (channel.id)}
                 <option value={channel.id}>#{channel.name}</option>
@@ -800,11 +800,11 @@
                   checked={settings.autoPublishAds}
                   onchange={() => onsetting?.({ autoPublishAds: !settings.autoPublishAds })}
                 />
-                <span class="text-[11.5px] text-on-surface">Publier automatiquement, pour tous les partenaires</span>
+                <span class="text-2xs text-on-surface">Publier automatiquement, pour tous les partenaires</span>
               </label>
             {/if}
 
-            <p class="text-[10.5px] text-on-surface-variant">
+            <p class="text-2xs text-on-surface-variant">
               Les mentions sont neutralisees a la publication.
             </p>
           </div>
@@ -821,13 +821,13 @@
             <div class="px-3 pb-2 space-y-2">
               {#each data.agreements ?? [] as agreement (agreement.id)}
                 <div class="flex items-center justify-between gap-2">
-                  <span class="text-[12px] text-on-surface">
+                  <span class="text-xs text-on-surface">
                     v{agreement.version} · {agreement.state.toLowerCase()}
                     {#if agreement.acceptedByUs}· nous{/if}{#if agreement.acceptedByPartner}· eux{/if}
                   </span>
                   {#if agreement.state === 'DRAFT'}
                     <button
-                      class="text-[10.5px] text-primary hover:underline"
+                      class="text-2xs text-primary hover:underline"
                       onclick={() =>
                         run(() => agreementAction(partnershipId as string, agreement.id, 'propose'), 'Proposee')}
                     >
@@ -835,7 +835,7 @@
                     </button>
                   {:else if agreement.state === 'PROPOSED' && !agreement.acceptedByUs}
                     <button
-                      class="text-[10.5px] text-primary hover:underline"
+                      class="text-2xs text-primary hover:underline"
                       onclick={() =>
                         run(() => agreementAction(partnershipId as string, agreement.id, 'accept'), 'Acceptee')}
                     >
@@ -861,13 +861,13 @@
               <div class="pt-2 border-t border-outline-variant/10 space-y-2">
                 {#each data.payments ?? [] as payment (payment.id)}
                   <div class="flex items-center justify-between gap-2">
-                    <span class="text-[12px] text-on-surface">
+                    <span class="text-xs text-on-surface">
                       {money(payment.amountCents, payment.currency)} · {date(payment.dueAt)} ·
                       {payment.status.toLowerCase()}
                     </span>
                     {#if payment.status !== 'RECEIVED'}
                       <button
-                        class="text-[10.5px] text-emerald-500 hover:underline"
+                        class="text-2xs text-success hover:underline"
                         onclick={() =>
                           run(
                             () => settlePartnershipPayment(partnershipId as string, payment.id, {}),
@@ -896,7 +896,7 @@
                       run(async () => {
                         const euros = Number(String(paymentAmount).replace(',', '.'));
                         if (!Number.isFinite(euros) || euros <= 0) throw new Error('Montant invalide.');
-                        if (!paymentDue) throw new Error('Choisissez une date.');
+                        if (!paymentDue) throw new Error('Choisis une date.');
                         // Saisi en euros, stocke en centimes : demander des
                         // centimes a l'ecran etait une source d'erreur de
                         // facteur cent.
@@ -937,13 +937,13 @@
             </div>
 
             {#each data.notes ?? [] as note (note.id)}
-              <div class="rounded-lg bg-amber-500/5 px-2.5 py-1.5">
-                <p class="text-[11.5px] text-on-surface whitespace-pre-wrap">{note.body}</p>
+              <div class="rounded-lg bg-warning/5 px-2.5 py-1.5">
+                <p class="text-2xs text-on-surface whitespace-pre-wrap">{note.body}</p>
               </div>
             {/each}
 
             {#each (data.events ?? []).slice(0, 20) as event (event.id)}
-              <p class="text-[11px] text-on-surface-variant">
+              <p class="text-2xs text-on-surface-variant">
                 <span class="tabular-nums">{date(event.createdAt)}</span> · {event.summary}
               </p>
             {/each}
@@ -977,10 +977,10 @@
 
         {#if guestLink}
           <div class="rounded-lg bg-primary/5 border border-primary/20 px-3 py-2">
-            <p class="text-[10.5px] text-on-surface-variant mb-1">
+            <p class="text-2xs text-on-surface-variant mb-1">
               A transmettre au partenaire. Copie, et affiche une seule fois.
             </p>
-            <p class="text-[11px] text-on-surface break-all">{guestLink}</p>
+            <p class="text-2xs text-on-surface break-all">{guestLink}</p>
           </div>
         {/if}
 
@@ -991,7 +991,7 @@
               checked={settings.reciprocityChecks}
               onchange={() => onsetting?.({ reciprocityChecks: !settings.reciprocityChecks })}
             />
-            <span class="text-[11.5px] text-on-surface">
+            <span class="text-2xs text-on-surface">
               Verifier automatiquement, toutes les {settings.reciprocityIntervalHours} h
             </span>
           </label>

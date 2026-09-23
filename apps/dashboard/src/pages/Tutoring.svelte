@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { Tabs } from '../lib/components/ui';
   import { m, dateLocale } from '../lib/i18n';
   import { onMount } from 'svelte';
+  import { useUnsavedChanges } from '../lib/useUnsavedChanges.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -21,7 +23,8 @@
     updateFeatureConfiguration,
     createTestingPeriod,
     fetchStaffMembers,
-    fetchStaffRoles
+    fetchStaffRoles,
+    fetchStaffHierarchies
   } from '../lib/api';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
@@ -102,6 +105,22 @@
   
   let activeTab = $state('dashboard'); // dashboard, progress, config
   let config = $state<any>(null);
+  /** Derniere configuration enregistree : la barre d'enregistrement compare a elle. */
+  let savedConfig = $state<any>(null);
+  const snapshotConfig = (value: any) => (value ? structuredClone($state.snapshot(value)) : null);
+  const configDirty = $derived(JSON.stringify(config) !== JSON.stringify(savedConfig));
+
+  useUnsavedChanges({
+    id: 'tutoring',
+    label: m.tutoring_page_title(),
+    getConfig: () => config,
+    getSaved: () => savedConfig,
+    onSave: async () => {
+      await saveConfig();
+      return !configDirty;
+    },
+    onReset: () => { config = snapshotConfig(savedConfig); },
+  });
   let tutoringItems = $state<any[]>([]);
   let tutorApprentices = $state<any[]>([]);
   let apprenticeProgress = $state<any>(null);
@@ -121,7 +140,44 @@
     title: '',
     description: '',
     category: 'TOOLS',
-    sortOrder: 0
+    sortOrder: 0,
+    hierarchyId: '',
+    grade: ''
+  });
+
+  // Le ciblage d'un element par hierarchie et grade ne se reglait que depuis
+  // un onglet de la page Staff, fondu ici. Sans lui, reenregistrer un element
+  // depuis cette page effacait sa cible : l'API pose `null` sur tout champ absent.
+  let hierarchies = $state<any[]>([]);
+  let targetingLoaded = false;
+
+  async function loadTargetingData() {
+    if (targetingLoaded) return;
+    targetingLoaded = true;
+    const [hierarchyData, rolesData] = await Promise.all([
+      fetchStaffHierarchies().catch(() => ({ hierarchies: [] })),
+      allStaffRoles.length ? Promise.resolve({ roles: allStaffRoles }) : fetchStaffRoles().catch(() => ({ roles: [] })),
+    ]);
+    hierarchies = hierarchyData?.hierarchies || [];
+    allStaffRoles = rolesData?.roles || [];
+  }
+
+  const gradeOptions = $derived(
+    itemForm.hierarchyId
+      ? allStaffRoles.filter((role) => (role.hierarchyId ?? '') === itemForm.hierarchyId)
+      : allStaffRoles
+  );
+
+  function itemTargetLabel(item: { hierarchyId?: string | null; grade?: string | null }) {
+    if (!item.hierarchyId && !item.grade) return '';
+    const hierarchy = item.hierarchyId
+      ? hierarchies.find((h) => h.id === item.hierarchyId)?.name || m.sm_hierarchy_unknown()
+      : m.sm_hierarchy_all();
+    return `${hierarchy} · ${item.grade || m.sm_grade_all()}`;
+  }
+
+  $effect(() => {
+    if (activeTab === 'config') void loadTargetingData();
   });
 
   let endTutoringModalOpen = $state(false);
@@ -172,7 +228,11 @@
         fetchApprenticeProgress().catch(() => ({ progress: null }))
       ]);
 
-      config = configData?.config;
+      // Ce rechargement suit aussi chaque action sur le catalogue : il ne doit
+      // pas emporter des reglages modifies et pas encore enregistres.
+      const freshConfig = configData?.config;
+      if (!configDirty) config = freshConfig;
+      savedConfig = snapshotConfig(freshConfig);
       tutoringItems = itemsData?.items || [];
       tutorApprentices = tutorData?.apprentices || [];
       apprenticeProgress = apprenticeData?.progress;
@@ -225,6 +285,7 @@
         });
       }
 
+      savedConfig = snapshotConfig(config);
       await dashboardStore.refresh();
       return true;
     }, { successMessage: m.tutoring_config_saved() });
@@ -340,7 +401,9 @@
         title: item.title,
         description: item.description,
         category: item.category,
-        sortOrder: item.sortOrder || 0
+        sortOrder: item.sortOrder || 0,
+        hierarchyId: item.hierarchyId || '',
+        grade: item.grade || ''
       };
       selectedItem = item;
     } else {
@@ -349,17 +412,24 @@
         title: '',
         description: '',
         category: 'TOOLS',
-        sortOrder: tutoringItems.length
+        sortOrder: tutoringItems.length,
+        hierarchyId: '',
+        grade: ''
       };
       selectedItem = null;
     }
+    void loadTargetingData();
     itemModalOpen = true;
   }
 
   async function saveItem() {
     if (!itemForm.title.trim()) return;
     try {
-      await upsertTutoringItem(itemForm);
+      await upsertTutoringItem({
+        ...itemForm,
+        hierarchyId: itemForm.hierarchyId || null,
+        grade: itemForm.grade.trim() || null
+      });
       itemModalOpen = false;
       fetchData();
     } catch (err) {
@@ -395,31 +465,16 @@
 >
   {#snippet actions()}
     <div class="flex items-center gap-4">
-      <div class="flex items-center gap-2 p-1 bg-surface-container-high/50 rounded-lg border border-outline-variant/20 relative">
-        <button 
-          onclick={() => activeTab = 'dashboard'}
-          class="tab-button {activeTab === 'dashboard' ? 'active' : ''}"
-        >
-          <Papicon icon="grid" size={18} />
-          <span class="text-sm font-bold">{m.tutoring_tab_dashboard()}</span>
-        </button>
-        <button 
-          onclick={() => activeTab = 'progress'}
-          class="tab-button {activeTab === 'progress' ? 'active' : ''}"
-        >
-          <Papicon icon="trending-up" size={18} />
-          <span class="text-sm font-bold">{m.tutoring_tab_progress()}</span>
-        </button>
-        {#if authStore.isAdmin || tutorApprentices.length > 0}
-          <button 
-            onclick={() => activeTab = 'config'}
-            class="tab-button {activeTab === 'config' ? 'active' : ''}"
-          >
-            <Papicon icon="settings" size={18} />
-            <span class="text-sm font-bold">{m.tutoring_tab_config()}</span>
-          </button>
-        {/if}
-      </div>
+      <Tabs
+        label={m.nav_tutoring()}
+        tabs={[
+          { id: 'dashboard', label: m.tutoring_tab_dashboard(), icon: 'grid' },
+          { id: 'progress', label: m.tutoring_tab_progress(), icon: 'trending-up' },
+          ...(authStore.isAdmin || tutorApprentices.length > 0 ? [{ id: 'config', label: m.tutoring_tab_config(), icon: 'settings' }] : []),
+        ]}
+        active={activeTab}
+        onchange={(id) => (activeTab = id)}
+      />
 
       {#if authStore.isAdmin}
         <button 
@@ -427,7 +482,7 @@
           class="flex items-center gap-2 px-5 py-3 rounded-lg transition-all duration-300 bg-primary text-white active:scale-[0.98]"
         >
           <Papicon icon="plus" size={18} />
-          <span class="text-sm font-semibold uppercase tracking-wider">{m.tutoring_create_btn()}</span>
+          <span class="text-sm font-semibold">{m.tutoring_create_btn()}</span>
         </button>
       {/if}
     </div>
@@ -465,14 +520,14 @@
                     <div class="text-center">
                       <h3 class="font-semibold text-on-surface">{apprentice.staffMember.username}</h3>
                       {#if apprentice.mentor && apprentice.mentor.userId !== authStore.user?.id}
-                        <p class="text-[10px] font-bold text-primary uppercase tracking-wider">{m.tutoring_mentor_prefix({ name: apprentice.mentor.username })}</p>
+                        <p class="text-xs font-semibold text-primary">{m.tutoring_mentor_prefix({ name: apprentice.mentor.username })}</p>
                       {/if}
                       <p class="text-xs text-on-surface-variant">{m.tutoring_apprentice_since({ date: new Date(apprentice.startDate).toLocaleDateString(dateLocale()) })}</p>
                     </div>
                   </div>
                   
                   <div class="flex flex-col gap-2">
-                    <div class="flex justify-between text-[13px] font-medium text-on-surface-variant/70 px-2">
+                    <div class="flex justify-between text-body-sm font-medium text-on-surface-variant/70 px-2">
                       <span>{m.tutoring_progress_label()}</span>
                       <span>{getProgressPercentage(apprentice.checklistProgress)}%</span>
                     </div>
@@ -537,11 +592,11 @@
                             <Papicon icon="mic" size={20} />
                           </div>
                           <div>
-                            <div class="text-[10px] font-semibold uppercase text-primary tracking-widest">{m.tutoring_vocal_activity()}</div>
+                            <div class="text-xs font-semibold text-primary">{m.tutoring_vocal_activity()}</div>
                             <div class="text-lg font-semibold text-on-surface">
                               {Math.round(apprentice.vocalStats.voiceTimeSeconds / 3600)}h {Math.round((apprentice.vocalStats.voiceTimeSeconds % 3600) / 60)}m
                             </div>
-                            <div class="text-[11px] text-on-surface-variant">{m.tutoring_vocal_sessions_total({ count: apprentice.vocalStats.voiceSessionCount })}</div>
+                            <div class="text-2xs text-on-surface-variant">{m.tutoring_vocal_sessions_total({ count: apprentice.vocalStats.voiceSessionCount })}</div>
                           </div>
                         </div>
                       {/if}
@@ -552,10 +607,10 @@
                             <Papicon icon="calendar-off" size={20} />
                           </div>
                           <div class="flex-1 overflow-hidden">
-                            <div class="text-[10px] font-semibold uppercase text-warning tracking-widest">{m.tutoring_upcoming_absences()}</div>
+                            <div class="text-xs font-semibold text-warning">{m.tutoring_upcoming_absences()}</div>
                             <div class="flex flex-col gap-0.5">
                               {#each apprentice.absences as absence}
-                                <div class="text-[10px] font-bold text-on-surface truncate">
+                                <div class="text-2xs font-bold text-on-surface truncate">
                                   {new Date(absence.startDate).toLocaleDateString()} - {new Date(absence.endDate).toLocaleDateString()}
                                 </div>
                               {/each}
@@ -570,7 +625,7 @@
                     <h2 class="text-xl font-semibold text-on-surface">{m.tutoring_checklist_title()}</h2>
                     <div class="flex gap-2">
                       {#each categories as cat}
-                        <div class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-{cat.color}/10 text-{cat.color} text-[10px] font-bold uppercase">
+                        <div class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-{cat.color}/10 text-{cat.color} text-2xs font-bold uppercase">
                           <Papicon icon={cat.icon} size={12} />
                           {cat.label}
                         </div>
@@ -596,7 +651,7 @@
                             <div class="flex gap-2">
                               <button 
                                 onclick={() => setChecklistState(apprentice.id, item.id, 'KNOWN', progress?.state)}
-                                class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all text-[10px] font-semibold uppercase tracking-wider
+                                class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all text-2xs font-semibold uppercase tracking-wider
  {progress?.state === 'KNOWN' ? 'bg-primary/10 border-primary/30 text-primary shadow-sm shadow-primary/5' : 
                                    progress?.state === 'ACQUIRED' ? 'bg-surface-container-highest/30 border-outline-variant/20 text-on-surface-variant/30 cursor-not-allowed' :
                                    'bg-surface-container border-outline-variant/30 text-on-surface-variant hover:border-primary/50'}"
@@ -608,7 +663,7 @@
                               
                               <button 
                                 onclick={() => setChecklistState(apprentice.id, item.id, 'ACQUIRED', progress?.state)}
-                                class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all text-[10px] font-semibold uppercase tracking-wider
+                                class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all text-2xs font-semibold uppercase tracking-wider
  {progress?.state === 'ACQUIRED' ? 'bg-success/10 border-success/30 text-success shadow-sm shadow-success/5' : 
                                    'bg-surface-container border-outline-variant/30 text-on-surface-variant hover:border-success/50'}"
                               >
@@ -621,7 +676,7 @@
                           <p class="text-xs text-on-surface-variant leading-relaxed mb-2">{item.description}</p>
                           
                           {#if progress?.completedAt}
-                            <div class="flex items-center gap-1 text-[11px] font-medium text-primary/60">
+                            <div class="flex items-center gap-1 text-2xs font-medium text-primary/60">
                               <Papicon icon="clock" size={10} />
                               <span>{m.tutoring_validated_on({ date: new Date(progress.completedAt).toLocaleDateString(dateLocale()), name: apprentice.mentor?.username || m.tutoring_default_tutor() })}</span>
                             </div>
@@ -701,11 +756,11 @@
                     <Papicon icon="mic" size={32} />
                   </div>
                   <div>
-                    <h3 class="text-xs font-semibold uppercase text-primary tracking-widest mb-1">{m.tutoring_my_vocal_activity()}</h3>
+                    <h3 class="text-xs font-semibold text-primary mb-1">{m.tutoring_my_vocal_activity()}</h3>
                     <div class="text-lg font-semibold text-on-surface leading-none mb-1">
                       {Math.round(apprenticeProgress.vocalStats.voiceTimeSeconds / 3600)}h {Math.round((apprenticeProgress.vocalStats.voiceTimeSeconds % 3600) / 60)}m
                     </div>
-                    <p class="text-[10px] font-medium text-on-surface-variant uppercase tracking-wider">{m.tutoring_vocal_sessions_recorded({ count: apprenticeProgress.vocalStats.voiceSessionCount })}</p>
+                    <p class="text-xs font-medium text-on-surface-variant">{m.tutoring_vocal_sessions_recorded({ count: apprenticeProgress.vocalStats.voiceSessionCount })}</p>
                   </div>
                 </div>
               {/if}
@@ -716,12 +771,12 @@
                     <Papicon icon="calendar-off" size={32} />
                   </div>
                   <div class="flex-1 overflow-hidden">
-                    <h3 class="text-xs font-semibold uppercase text-warning tracking-widest mb-1">{m.tutoring_my_absences()}</h3>
+                    <h3 class="text-xs font-semibold text-warning mb-1">{m.tutoring_my_absences()}</h3>
                     <div class="flex flex-col gap-1">
                       {#each apprenticeProgress.absences.slice(0, 2) as absence}
                         <div class="flex items-center justify-between">
                           <span class="text-sm font-bold text-on-surface">{new Date(absence.startDate).toLocaleDateString()}</span>
-                          <span class="text-[10px] font-medium text-on-surface-variant">→ {new Date(absence.endDate).toLocaleDateString()}</span>
+                          <span class="text-2xs font-medium text-on-surface-variant">→ {new Date(absence.endDate).toLocaleDateString()}</span>
                         </div>
                       {/each}
                     </div>
@@ -758,7 +813,7 @@
                     <div class="p-6 bg-surface-container/30 rounded-xl border border-outline-variant/20 flex gap-4 animate-in slide-in-from-left-2 duration-300">
                       <div class="w-1.5 bg-primary/20 rounded-full"></div>
                       <div class="flex-1">
-                        <div class="text-[10px] font-bold text-primary uppercase tracking-widest mb-1">{new Date(log.date).toLocaleDateString()}</div>
+                        <div class="text-xs font-semibold text-primary mb-1">{new Date(log.date).toLocaleDateString()}</div>
                         <p class="text-on-surface font-medium">{log.content}</p>
                       </div>
                     </div>
@@ -789,10 +844,10 @@
               {#if apprenticeProgress.reports.length > 0}
                 {@const lastReport = apprenticeProgress.reports[0]}
                 <div class="flex items-center gap-2 mb-3">
-                  <div class="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase {lastReport.type === 'POSITIVE' ? 'bg-success/10 text-success' : lastReport.type === 'NEGATIVE' ? 'bg-error/10 text-error' : 'bg-warning/10 text-warning'}">
+                  <div class="px-2 py-0.5 rounded-md text-2xs font-semibold uppercase {lastReport.type === 'POSITIVE' ? 'bg-success/10 text-success' : lastReport.type === 'NEGATIVE' ? 'bg-error/10 text-error' : 'bg-warning/10 text-warning'}">
                     {formatReportType(lastReport.type)}
                   </div>
-                  <span class="text-[10px] font-bold text-on-surface-variant">{new Date(lastReport.createdAt).toLocaleDateString()}</span>
+                  <span class="text-2xs font-bold text-on-surface-variant">{new Date(lastReport.createdAt).toLocaleDateString()}</span>
                 </div>
                 <p class="text-sm text-on-surface-variant italic leading-relaxed">"{lastReport.content}"</p>
               {:else}
@@ -815,7 +870,7 @@
             </div>
           {:else}
             <div class="flex flex-col gap-2">
-              <label for="reportIntervalDays" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_report_interval()}</label>
+              <label for="reportIntervalDays" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_field_report_interval()}</label>
               <input 
                 id="reportIntervalDays"
                 type="number" 
@@ -825,7 +880,7 @@
             </div>
 
           <div class="flex flex-col gap-2">
-            <label for="reminderDaysBefore" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_reminder_days()}</label>
+            <label for="reminderDaysBefore" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_field_reminder_days()}</label>
             <input 
               id="reminderDaysBefore"
               type="number" 
@@ -835,7 +890,7 @@
           </div>
 
           <div class="flex flex-col gap-2">
-            <label for="minTestDays" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_min_test_days()}</label>
+            <label for="minTestDays" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_field_min_test_days()}</label>
             <input 
               id="minTestDays"
               type="number" 
@@ -847,7 +902,7 @@
             <div class="flex items-center justify-between p-4 bg-surface-container/50 rounded-lg border border-outline-variant/20">
               <div class="flex flex-col">
                 <span class="font-bold text-on-surface text-sm">{m.tutoring_toggle_vocal_label()}</span>
-                <span class="text-[10px] text-on-surface-variant">{m.tutoring_toggle_vocal_desc()}</span>
+                <span class="text-2xs text-on-surface-variant">{m.tutoring_toggle_vocal_desc()}</span>
               </div>
               <button 
                 onclick={() => config.showVocalActivity = !config.showVocalActivity}
@@ -861,7 +916,7 @@
             <div class="flex items-center justify-between p-4 bg-surface-container/50 rounded-lg border border-outline-variant/20">
               <div class="flex flex-col">
                 <span class="font-bold text-on-surface text-sm">{m.tutoring_toggle_absences_label()}</span>
-                <span class="text-[10px] text-on-surface-variant">{m.tutoring_toggle_absences_desc()}</span>
+                <span class="text-2xs text-on-surface-variant">{m.tutoring_toggle_absences_desc()}</span>
               </div>
               <button 
                 onclick={() => config.showAbsences = !config.showAbsences}
@@ -875,7 +930,7 @@
             <div class="flex items-center justify-between p-4 bg-surface-container/50 rounded-lg border border-outline-variant/20 mt-2">
               <div class="flex flex-col">
                 <span class="font-bold text-on-surface text-sm">{m.tutoring_toggle_dm_label()}</span>
-                <span class="text-[10px] text-on-surface-variant">{m.tutoring_toggle_dm_desc()}</span>
+                <span class="text-2xs text-on-surface-variant">{m.tutoring_toggle_dm_desc()}</span>
               </div>
               <button 
                 onclick={() => config.remindersEnabled = !config.remindersEnabled}
@@ -886,13 +941,6 @@
               </button>
             </div>
 
-          <button 
-            class="w-full py-4 mt-4 bg-primary text-white rounded-lg font-semibold shadow-sm shadow-primary/20 active:scale-[0.98] transition-all disabled:opacity-50"
-            onclick={saveConfig}
-            disabled={saveAction.state.loading}
-          >
-            {saveAction.state.loading ? m.tutoring_saving() : m.tutoring_save_btn()}
-          </button>
           {/if}
 
           {#if featureConfig}
@@ -928,12 +976,15 @@
                   <div>
                     <div class="flex items-center gap-2">
                       <span class="font-semibold text-on-surface">{item.title}</span>
-                      <span class="text-[10px] font-semibold uppercase px-2 py-0.5 bg-primary/5 text-primary rounded-md">{categories.find(c => c.id === item.category)?.label || item.category}</span>
+                      <span class="text-2xs font-semibold uppercase px-2 py-0.5 bg-primary/5 text-primary rounded-md">{categories.find(c => c.id === item.category)?.label || item.category}</span>
+                      {#if itemTargetLabel(item)}
+                        <span class="badge badge-neutral">{itemTargetLabel(item)}</span>
+                      {/if}
                     </div>
                     <p class="text-sm text-on-surface-variant line-clamp-1">{item.description}</p>
                   </div>
                 </div>
-                <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                <div class="flex gap-2">
                   <button 
                     onclick={() => openItemModal(item)}
                     class="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-primary transition-all"
@@ -1019,11 +1070,11 @@
         <div class="flex flex-col gap-6">
           <div class="p-4 bg-surface-container/50 rounded-lg border border-outline-variant/20 flex items-center justify-between">
             <div class="flex flex-col">
-              <span class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest">{m.tutoring_current_duration()}</span>
+              <span class="text-xs font-semibold text-on-surface-variant">{m.tutoring_current_duration()}</span>
               <span class="font-bold text-on-surface">{m.tutoring_days_unit({ count: getDaysInTest(selectedApprentice?.startDate) })}</span>
             </div>
             <div class="flex flex-col items-end">
-              <span class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest">{m.tutoring_required_duration()}</span>
+              <span class="text-xs font-semibold text-on-surface-variant">{m.tutoring_required_duration()}</span>
               <span class="font-bold text-on-surface">{m.tutoring_days_unit({ count: config?.minTestDays ?? 14 })}</span>
             </div>
           </div>
@@ -1046,7 +1097,7 @@
           {/if}
 
           <div class="flex flex-col gap-2">
-            <label for="notes" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_final_notes_label()}</label>
+            <label for="notes" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_final_notes_label()}</label>
             <textarea 
               id="notes"
               placeholder={m.tutoring_final_notes_ph()}
@@ -1060,7 +1111,7 @@
             <div class="p-4 bg-warning/10 border border-warning/20 rounded-lg flex items-center justify-between">
               <div class="flex flex-col">
                 <span class="font-bold text-warning">{m.tutoring_forced_validation()}</span>
-                <span class="text-[10px] text-on-surface-variant">{m.tutoring_forced_validation_desc()}</span>
+                <span class="text-2xs text-on-surface-variant">{m.tutoring_forced_validation_desc()}</span>
               </div>
               <Papicon icon="shield-alert" size={24} class="text-warning" />
             </div>
@@ -1075,7 +1126,7 @@
             </button>
             <button 
               onclick={submitEndTutoring}
-              class="flex-1 py-4 {endTutoringStatus === 'PASSED' ? 'bg-success' : 'bg-error'} text-white rounded-lg font-semibold shadow-sm transition-all active:scale-[0.98]"
+              class="flex-1 py-4 {endTutoringStatus === 'PASSED' ? 'bg-success text-white' : 'bg-error text-on-error'} rounded-lg font-semibold shadow-sm transition-all active:scale-[0.98]"
             >
               {m.common_confirm()}
             </button>
@@ -1095,7 +1146,7 @@
         
         <div class="flex flex-col gap-6">
           <div class="flex flex-col gap-2">
-            <label for="item-title" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_item_title_label()}</label>
+            <label for="item-title" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_item_title_label()}</label>
             <input 
               id="item-title"
               type="text" 
@@ -1106,7 +1157,7 @@
           </div>
 
           <div class="flex flex-col gap-2">
-            <label for="item-category" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_item_category_label()}</label>
+            <label for="item-category" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_item_category_label()}</label>
             <select 
               id="item-category"
               bind:value={itemForm.category}
@@ -1118,8 +1169,34 @@
             </select>
           </div>
 
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="flex flex-col gap-2">
+              <label for="item-hierarchy" class="field-label">{m.sm_field_target_hierarchy()}</label>
+              <select
+                id="item-hierarchy"
+                bind:value={itemForm.hierarchyId}
+                onchange={() => (itemForm.grade = '')}
+                class="input"
+              >
+                <option value="">{m.sm_hierarchy_all()}</option>
+                {#each hierarchies as hierarchy (hierarchy.id)}
+                  <option value={hierarchy.id}>{hierarchy.name}</option>
+                {/each}
+              </select>
+            </div>
+            <div class="flex flex-col gap-2">
+              <label for="item-grade" class="field-label">{m.sm_field_target_grade()}</label>
+              <select id="item-grade" bind:value={itemForm.grade} class="input">
+                <option value="">{m.sm_grade_all()}</option>
+                {#each gradeOptions as role (role.id ?? role.name)}
+                  <option value={role.name}>{role.name}</option>
+                {/each}
+              </select>
+            </div>
+          </div>
+
           <div class="flex flex-col gap-2">
-            <label for="item-desc" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_item_desc_label()}</label>
+            <label for="item-desc" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_item_desc_label()}</label>
             <textarea 
               id="item-desc"
               placeholder={m.tutoring_item_desc_ph()}
@@ -1164,7 +1241,7 @@
         {:else}
           <div class="flex flex-col gap-6">
             <div class="flex flex-col gap-2">
-              <label for="apprentice" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_apprentice()}</label>
+              <label for="apprentice" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_field_apprentice()}</label>
               <select 
                 id="apprentice"
                 bind:value={createTutoringForm.staffUserId}
@@ -1180,7 +1257,7 @@
             </div>
 
             <div class="flex flex-col gap-2">
-              <label for="mentor" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_mentor()}</label>
+              <label for="mentor" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_field_mentor()}</label>
               <select 
                 id="mentor"
                 bind:value={createTutoringForm.mentorId}
@@ -1196,7 +1273,7 @@
             </div>
 
             <div class="flex flex-col gap-2">
-              <label for="target-grade" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_target_grade()}</label>
+              <label for="target-grade" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_field_target_grade()}</label>
               <select 
                 id="target-grade"
                 bind:value={createTutoringForm.targetGrade}
@@ -1210,7 +1287,7 @@
             </div>
 
             <div class="flex flex-col gap-2">
-              <label for="duration" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_duration()}</label>
+              <label for="duration" class="text-xs font-semibold text-on-surface-variant pl-2">{m.tutoring_field_duration()}</label>
               <input 
                 id="duration"
                 type="number" 
@@ -1261,7 +1338,7 @@
           </button>
           <button 
             onclick={() => { confirmModal.onConfirm(); confirmModal.open = false; }}
-            class="flex-1 py-4 bg-error text-white rounded-lg font-semibold shadow-sm shadow-error/20 active:scale-[0.98] transition-all"
+            class="flex-1 py-4 bg-error text-on-error rounded-lg font-semibold shadow-sm shadow-error/20 active:scale-[0.98] transition-all"
           >
             {m.common_confirm()}
           </button>

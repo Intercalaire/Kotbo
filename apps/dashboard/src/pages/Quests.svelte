@@ -121,7 +121,7 @@
 >
   {#snippet actions()}
     <button
-      class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
+      class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
       onclick={openTemplates}
     >
       <Papicon icon="Plus" size={16} /> {m.que_btn_new()}
@@ -154,7 +154,7 @@
             {:else}
               <span class="px-2.5 py-0.5 bg-pink-500/10 text-pink-500 text-xs font-medium rounded-full">{m.que_freq_weekly()}</span>
             {/if}
-            <span class="text-[10px] text-on-surface-variant/40">{m.que_rewards_summary({ coins: tpl.rewardCoins, xp: tpl.rewardXp })}</span>
+            <span class="text-2xs text-on-surface-variant/40">{m.que_rewards_summary({ coins: tpl.rewardCoins, xp: tpl.rewardXp })}</span>
           </div>
         </button>
       {/each}
@@ -231,7 +231,7 @@
         {m.que_btn_cancel()}
       </button>
       <button
-        class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
+        class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
         onclick={handleCreate}
       >
         {m.que_btn_create()}
@@ -259,7 +259,7 @@
       </div>
     </div>
     <div class="bg-surface-container-high/30 rounded-xl p-4 flex items-center gap-3">
-      <div class="h-9 w-9 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
+      <div class="h-9 w-9 rounded-lg bg-success/10 flex items-center justify-center text-success shrink-0">
         <Papicon icon="Check" size={20} />
       </div>
       <div class="flex flex-col">
@@ -268,7 +268,7 @@
       </div>
     </div>
     <div class="bg-surface-container-high/30 rounded-xl p-4 flex items-center gap-3">
-      <div class="h-9 w-9 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
+      <div class="h-9 w-9 rounded-lg bg-warning/10 flex items-center justify-center text-warning shrink-0">
         <Papicon icon="Star" size={20} />
       </div>
       <div class="flex flex-col">
@@ -346,14 +346,14 @@
               </button>
             {:else}
               <button
-                class="px-4 py-2 bg-emerald-500/10 text-emerald-500 rounded-xl text-xs font-bold hover:bg-emerald-500/20 transition-all flex items-center gap-2"
+                class="px-4 py-2 bg-success/10 text-success rounded-xl text-xs font-bold hover:bg-success/20 transition-all flex items-center gap-2"
                 onclick={() => handleToggle(quest)}
               >
                 {m.que_btn_enable()}
               </button>
             {/if}
             <button
-              class="px-4 py-2 bg-rose-500/10 text-rose-500 rounded-xl text-xs font-bold hover:bg-rose-500/20 transition-all flex items-center gap-2"
+              class="px-4 py-2 bg-error/10 text-error rounded-xl text-xs font-bold hover:bg-error/20 transition-all flex items-center gap-2"
               onclick={() => handleDelete(quest.id)}
             >
               {m.que_btn_delete()}

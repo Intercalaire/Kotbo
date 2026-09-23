@@ -135,11 +135,11 @@
             </div>
 
             <div
-              class="flex items-start gap-3.5 p-4 rounded-xl bg-surface-container border border-amber-500/20 text-left"
+              class="flex items-start gap-3.5 p-4 rounded-xl bg-surface-container border border-warning/20 text-left"
               in:fly={{ y: 12, duration: 250, delay: 200, easing: cubicOut }}
             >
-              <div class="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
-                <Wrench class="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              <div class="w-10 h-10 rounded-xl bg-warning/10 flex items-center justify-center shrink-0">
+                <Wrench class="w-5 h-5 text-warning" />
               </div>
               <div class="min-w-0">
                 <p class="text-sm font-semibold text-on-surface mb-0.5">{m.d1_tw_config_title()}</p>

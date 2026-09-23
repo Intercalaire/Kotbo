@@ -40,7 +40,7 @@
 
 <WizardShell
   title="D'où part ce serveur ?"
-  lead="La suite n'est pas la même selon la réponse. Nous avons regardé votre serveur et coché la plus probable."
+  lead="La suite n'est pas la même selon la réponse. Nous avons regardé ton serveur et coché la plus probable."
 >
   <div class="space-y-3">
     <ChoiceCard
@@ -55,7 +55,7 @@
     <ChoiceCard
       label="Un serveur déjà en place"
       pitch="Des salons, des rôles, et peut-être déjà d'autres bots."
-      detail="Kotbo regarde d'abord ce que vous avez, reprend ce qu'il peut, et ne pose que ce qui manque."
+      detail="Kotbo regarde d'abord ce que tu as, reprend ce qu'il peut, et ne pose que ce qui manque."
       icon="robot"
       selected={kind === 'existing'}
       badge={suggested === 'existing' ? 'Recommandé' : undefined}
@@ -65,12 +65,12 @@
 
   {#if template?.maturity.reasons.length}
     <div class="mt-5 flex flex-wrap items-center gap-2">
-      <span class="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-on-surface-variant/40">
+      <span class="inline-flex items-center gap-1.5 text-xs font-medium text-on-surface-variant/40">
         <Papicon icon="check-circle" size={12} />
         Ce qu'on a lu
       </span>
       {#each template.maturity.reasons as reason (reason)}
-        <span class="text-[12px] font-medium px-2 py-1 rounded-lg bg-surface-container-low/60 border border-outline-variant/30 text-on-surface-variant/70">
+        <span class="text-xs font-medium px-2 py-1 rounded-lg bg-surface-container-low/60 border border-outline-variant/30 text-on-surface-variant/70">
           {reason}
         </span>
       {/each}

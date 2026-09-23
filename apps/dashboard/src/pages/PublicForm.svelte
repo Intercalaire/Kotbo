@@ -325,10 +325,10 @@
       <!-- Discord association section -->
       {#if !authStore.isAuthenticated}
         <div class="rounded-xl border p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm animate-in fade-in duration-300
- {authRequired ? 'border-amber-500/30 bg-amber-500/5' : 'border-blue-500/20 bg-blue-500/5'}">
+ {authRequired ? 'border-warning/30 bg-warning/5' : 'border-blue-500/20 bg-blue-500/5'}">
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0
- {authRequired ? 'bg-amber-500/10 text-amber-500' : 'bg-blue-500/10 text-blue-500'}">
+ {authRequired ? 'bg-warning/10 text-warning' : 'bg-blue-500/10 text-blue-500'}">
               <svg class="w-5 h-5 fill-current" viewBox="0 0 127.14 96.36">
                 <path d="M107.7,8.07A105.15,105.15,0,0,0,77.26,0a77.19,77.19,0,0,0-3.3,6.83A96.67,96.67,0,0,0,53.22,6.83,77.19,77.19,0,0,0,49.88,0,105.15,105.15,0,0,0,19.44,8.07C3.66,31.58-1.86,54.65,1,77.53A105.73,105.73,0,0,0,32,96.36a77.7,77.7,0,0,0,6.63-10.85,68.43,68.43,0,0,1-10.5-5c.9-.65,1.76-1.34,2.58-2a75.58,75.58,0,0,0,72.9,0c.82.71,1.68,1.4,2.58,2a68.69,68.69,0,0,1-10.5,5,77.7,77.7,0,0,0,6.63,10.85,105.73,105.73,0,0,0,31-18.83C129.87,49.86,124.15,26.91,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53S36.18,40.36,42.45,40.36,53.83,46,53.83,53,48.72,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.24,60,73.24,53S78.41,40.36,84.69,40.36,96.07,46,96.07,53,91,65.69,84.69,65.69Z"/>
               </svg>
@@ -346,29 +346,29 @@
           </div>
           <button
             onclick={loginWithDiscord}
-            class="px-4 py-2 text-white rounded-lg text-[13px] font-medium transition-all shadow-md shrink-0 flex items-center gap-2
+            class="px-4 py-2 text-white rounded-lg text-body-sm font-medium transition-all shadow-md shrink-0 flex items-center gap-2
  {authRequired ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'}"
           >
             Se connecter
           </button>
         </div>
       {:else}
-        <div class="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5 flex items-center justify-between gap-4 shadow-sm animate-in fade-in duration-300">
+        <div class="rounded-xl border border-success/20 bg-success/5 p-5 flex items-center justify-between gap-4 shadow-sm animate-in fade-in duration-300">
           <div class="flex items-center gap-3">
             {#if authStore.user?.avatar}
               <img 
                 src="https://cdn.discordapp.com/avatars/{authStore.user.id}/{authStore.user.avatar}.png" 
                 alt="Avatar" 
-                class="w-10 h-10 rounded-full shrink-0 border border-emerald-500/30" 
+                class="w-10 h-10 rounded-full shrink-0 border border-success/30" 
               />
             {:else}
-              <div class="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0 border border-emerald-500/30 font-semibold text-sm">
+              <div class="w-10 h-10 rounded-full bg-success/10 text-success flex items-center justify-center shrink-0 border border-success/30 font-semibold text-sm">
                 {authStore.user?.username?.charAt(0).toUpperCase()}
               </div>
             {/if}
             <div>
               <h4 class="font-semibold text-on-surface text-sm">Connecté avec Discord</h4>
-              <p class="text-xs text-on-surface-variant/70 mt-0.5">En tant que <span class="font-bold text-emerald-500">{authStore.user?.username}</span> (ID: {authStore.user?.id})</p>
+              <p class="text-xs text-on-surface-variant/70 mt-0.5">En tant que <span class="font-bold text-success">{authStore.user?.username}</span> (ID: {authStore.user?.id})</p>
             </div>
           </div>
           <button
@@ -385,11 +385,11 @@
       {#each currentFields as field (field.id)}
         {@const error = errors[field.id]}
         <div class="pf-card pf-field rounded-lg bg-surface border border-outline-variant/20 p-5 shadow-sm
- {error ? 'ring-2 ring-rose-500/40' : ''}">
+ {error ? 'ring-2 ring-error/40' : ''}">
 
           <label for={field.id} class="block font-semibold text-on-surface mb-1 text-[15px]">
             {field.label}
-            {#if field.required}<span class="text-rose-500 ml-1">*</span>{/if}
+            {#if field.required}<span class="text-error ml-1">*</span>{/if}
           </label>
           {#if field.description}
             <p class="text-xs text-on-surface-variant/60 mb-3 leading-relaxed">{field.description}</p>
@@ -554,7 +554,7 @@
           {/if}
 
           {#if error}
-            <p class="pf-error mt-2 text-xs text-rose-500 flex items-center gap-1">
+            <p class="pf-error mt-2 text-xs text-error flex items-center gap-1">
               <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 3a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 018 4zm0 7a1 1 0 110-2 1 1 0 010 2z"/>
               </svg>
@@ -567,7 +567,7 @@
 
       <!-- Submit error -->
       {#if submitError}
-        <div class="rounded-lg bg-rose-500/10 border border-rose-500/20 px-5 py-4 text-sm text-rose-600 font-medium">
+        <div class="rounded-lg bg-error/10 border border-error/20 px-5 py-4 text-sm text-error font-medium">
           {submitError}
         </div>
       {/if}

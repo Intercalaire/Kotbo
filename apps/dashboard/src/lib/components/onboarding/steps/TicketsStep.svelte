@@ -104,21 +104,21 @@
 </script>
 
 <WizardShell
-  title="Pourquoi vous écrit-on ?"
+  title="Pourquoi t'écrit-on ?"
   lead={inherited.length > 0
-    ? `${inherited.length} motif(s) ont été repris de votre ancien panneau : ils restent tels quels. Cochez ce que vous voulez ajouter.`
-    : 'Chaque motif retenu devient un bouton sur le panneau que Kotbo posera dans un instant. Un ticket ouvert crée un salon privé entre le membre et votre staff.'}
+    ? `${inherited.length} motif(s) ont été repris de ton ancien panneau : ils restent tels quels. Coche ce que tu veux ajouter.`
+    : 'Chaque motif retenu devient un bouton sur le panneau que Kotbo posera dans un instant. Un ticket ouvert crée un salon privé entre le membre et ton staff.'}
   {onEditTracks}
 >
   {#if inherited.length > 0}
     <!-- Sans case a cocher : ces motifs sont acquis, et les presenter comme un
          choix ferait croire qu'on peut les perdre en decochant. -->
     <p class="mb-4 flex flex-wrap items-center gap-1.5 rounded-xl border border-outline-variant/25 bg-surface-container-lowest/30 px-3.5 py-3">
-      <span class="mr-1 text-[12.5px] font-semibold uppercase tracking-wide text-on-surface-variant/45">
+      <span class="mr-1 text-xs font-semibold text-on-surface-variant/45">
         Déjà repris
       </span>
       {#each inherited as type (type.id)}
-        <span class="rounded-md bg-surface-container/70 px-1.5 py-0.5 text-[12px] text-on-surface-variant/70">
+        <span class="rounded-md bg-surface-container/70 px-1.5 py-0.5 text-xs text-on-surface-variant/70">
           {type.emoji ?? '🎫'} {type.label}
         </span>
       {/each}
@@ -139,22 +139,22 @@
       >
         <div class="flex items-center gap-2">
           <span class="text-[15px] leading-none">{preset.emoji}</span>
-          <span class="text-[14px] font-semibold text-on-surface">{preset.label}</span>
+          <span class="text-sm font-semibold text-on-surface">{preset.label}</span>
           {#if selected}
             <span class="ml-auto w-4 h-4 shrink-0 rounded-full bg-primary text-on-primary flex items-center justify-center">
               <Papicon icon="check" size={10} />
             </span>
           {/if}
         </div>
-        <p class="mt-1 text-[12.5px] text-on-surface-variant/60 leading-relaxed">{preset.description}</p>
+        <p class="mt-1 text-xs text-on-surface-variant/60 leading-relaxed">{preset.description}</p>
       </button>
     {/each}
   </div>
 
   <div class="mt-6">
-    <p class="flex items-center gap-2 text-[13px] font-semibold text-on-surface mb-2.5">
+    <p class="flex items-center gap-2 text-body-sm font-semibold text-on-surface mb-2.5">
       <Papicon icon="palette" size={14} class="text-primary" />
-      La couleur de vos panneaux
+      La couleur de tes panneaux
     </p>
     <div class="flex flex-wrap gap-2">
       {#each PANEL_COLORS as color (color.value)}
@@ -170,7 +170,7 @@
         ></button>
       {/each}
     </div>
-    <p class="mt-2 text-[12px] text-on-surface-variant/55 leading-relaxed">
+    <p class="mt-2 text-xs text-on-surface-variant/55 leading-relaxed">
       Elle vaut pour tous les panneaux que Kotbo publie : tickets, règlement, quêtes, drops.
     </p>
   </div>
@@ -201,7 +201,7 @@
     <button
       type="button"
       onclick={skip}
-      class="text-[13px] font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
+      class="text-body-sm font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
     >
       Passer
     </button>

@@ -97,8 +97,8 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
   ],
 
   '/security/filters/nicknames': [
-    { id: 'custom', label: () => m.nm_tab_custom(), icon: 'user' },
-    { id: 'global', label: () => m.nm_tab_global(), icon: 'globe' },
+    { id: 'custom', label: () => m.nm_tab_custom_label(), icon: 'user' },
+    { id: 'global', label: () => m.nm_tab_global_label(), icon: 'globe' },
   ],
 
   '/security/accounts': [
@@ -137,25 +137,30 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
   '/economy': [
     { id: 'config', label: () => m.eco_tab_config(), icon: 'settings' },
     { id: 'items', label: () => m.eco_tab_items(), icon: 'package' },
+    { id: 'blackmarket', label: () => m.eco_tab_blackmarket(), icon: 'moon' },
+    { id: 'players', label: () => m.eco_tab_players(), icon: 'users' },
+  ],
+
+  '/rpg': [
     { id: 'recettes', label: () => m.eco_tab_recipes(), icon: 'Hammer' },
     { id: 'bestiaire', label: () => m.eco_tab_bestiary(), icon: 'ghost' },
     { id: 'peche', label: () => m.eco_tab_fish(), icon: 'Fish' },
     { id: 'raid', label: () => m.eco_tab_raid(), icon: 'crown' },
     { id: 'quetes', label: () => m.eco_tab_quests(), icon: 'Tasks' },
+    { id: 'titres', label: () => m.eco_tab_titles(), icon: 'award' },
     { id: 'aventures', label: () => m.eco_tab_events(), icon: 'Compass' },
-    { id: 'blackmarket', label: () => m.eco_tab_blackmarket(), icon: 'moon' },
     { id: 'guildes', label: () => m.eco_tab_guilds(), icon: 'Shield' },
-    { id: 'players', label: () => m.eco_tab_players(), icon: 'users' },
   ],
 
   '/marketplace': [
-    { id: 'listings', label: () => m.mar_tab_listings(), icon: 'grid' },
-    { id: 'history', label: () => m.mar_tab_history(), icon: 'clock' },
+    { id: 'listings', label: () => m.mar_tab_listings_label(), icon: 'grid' },
+    { id: 'history', label: () => m.mar_tab_history_label(), icon: 'clock' },
   ],
 
   // ── Communauté ────────────────────────────────────────────────────────────
   '/giveaways': [
     { id: 'concours', label: () => m.giv_tab_giveaways(), icon: 'Sparkles' },
+    { id: 'modeles', label: () => m.giv_tab_templates(), icon: 'Copy' },
     { id: 'configuration', label: () => m.giv_tab_config(), icon: 'Settings' },
   ],
 
@@ -186,7 +191,6 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
     { id: 'blacklist', label: () => m.sm_tab_blacklist(), icon: 'user-x' },
     { id: 'polls', label: () => m.sm_tab_polls(), icon: 'bar-chart' },
     { id: 'leadership', label: () => m.sm_tab_leadership(), icon: 'crown' },
-    { id: 'tutoring', label: () => m.sm_tab_tutoring(), icon: 'book-open' },
     { id: 'permissions', label: () => m.sm_tab_permissions(), icon: 'lock' },
   ],
 
@@ -194,6 +198,7 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
     { id: 'tickets', label: () => m.e1_tickets_tab_tickets(), icon: 'message-square' },
     { id: 'transcripts', label: () => m.e1_tickets_tab_transcripts(), icon: 'file-text' },
     { id: 'satisfaction', label: () => m.e1_tickets_tab_satisfaction(), icon: 'star' },
+    { id: 'macros', label: () => m.e1_tickets_tab_macros(), icon: 'message-circle' },
     { id: 'blacklist', label: () => m.e1_tickets_tab_blacklist(), icon: 'user-x' },
     { id: 'config', label: () => m.e1_tickets_tab_config(), icon: 'settings' },
   ],
@@ -220,10 +225,12 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
   ],
 
   '/channels-management': [
+    { id: 'by-channel', label: () => m.cm_tab_by_channel(), icon: 'hash' },
     { id: 'auto-thread', label: () => m.cm_tab_auto_thread(), icon: 'git-branch' },
     { id: 'sticky', label: () => m.cm_tab_sticky(), icon: 'pin' },
     { id: 'stats', label: () => m.cm_tab_stats(), icon: 'bar-chart' },
     { id: 'temp-voice', label: () => m.cm_tab_temp_voice(), icon: 'mic' },
+    { id: 'access-requests', label: () => m.cm_tab_access_requests(), icon: 'key' },
     { id: 'honeypot', label: () => m.cm_tab_honeypot(), icon: 'shield-alert' },
   ],
 
@@ -246,6 +253,22 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
     { id: 'widget', label: () => m.us_tab_widget(), icon: 'Layout' },
   ],
 };
+
+/**
+ * Onglets d'une page, prêts pour le composant `Tabs`.
+ *
+ * Les pages lisent leurs onglets ici plutôt que de les réécrire : la barre
+ * affichée et la palette de commandes ne peuvent plus diverger. `visible`
+ * retire les onglets qu'un rôle ne doit pas voir.
+ */
+export function pageTabItems(
+  pageHref: string,
+  visible: (id: string) => boolean = () => true,
+): { id: string; label: string; icon?: string }[] {
+  return (PAGE_TABS[pageHref] ?? [])
+    .filter((tab) => visible(tab.id))
+    .map((tab) => ({ id: tab.id, label: tab.label(), icon: tab.icon }));
+}
 
 /**
  * Certaines entrées de navigation pointent déjà sur un onglet précis

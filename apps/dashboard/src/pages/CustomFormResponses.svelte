@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Tabs } from '../lib/components/ui';
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -220,7 +221,7 @@
 
 <ModulePage
   title={form ? `Réponses - ${form.name}` : 'Réponses au formulaire'}
-  description="Consultez et exportez toutes les réponses soumises."
+  description="Consulte et exporte toutes les réponses reçues."
   icon="assignment"
   featureKey="custom_forms"
 >
@@ -254,26 +255,16 @@
 
     <!-- Tabs Switch -->
     {#if form && responses.length > 0}
-      <div class="flex border-b border-outline-variant/10 mb-4 gap-1">
-        <button 
-          onclick={() => activeTab = 'list'} 
-          class="tab-button {activeTab === 'list' ? 'active' : ''}"
-        >
-          <span class="flex items-center gap-2">
-            <Papicon icon="assignment" size={16} />
-            Individuel ({filtered.length})
-          </span>
-        </button>
-        <button 
-          onclick={() => activeTab = 'analytics'} 
-          class="tab-button {activeTab === 'analytics' ? 'active' : ''}"
-        >
-          <span class="flex items-center gap-2">
-            <Papicon icon="pie_chart" size={16} />
-            Statistiques
-          </span>
-        </button>
-      </div>
+      <Tabs
+        label={form.name}
+        class="mb-4"
+        tabs={[
+          { id: 'list', label: 'Individuel', icon: 'assignment', badge: filtered.length },
+          { id: 'analytics', label: 'Statistiques', icon: 'pie_chart' },
+        ]}
+        active={activeTab}
+        onchange={(id) => (activeTab = id as typeof activeTab)}
+      />
     {/if}
 
     {#if loading}
@@ -281,7 +272,7 @@
         <div class="w-10 h-10 border-3 border-primary/20 border-t-primary rounded-full animate-spin"></div>
       </div>
     {:else if error}
-      <div class="rounded-lg bg-rose-500/10 border border-rose-500/20 p-5 text-rose-600 text-sm">{error}</div>
+      <div class="rounded-lg bg-error/10 border border-error/20 p-5 text-error text-sm">{error}</div>
     {:else if responses.length === 0}
       <div class="rounded-lg border-2 border-dashed border-outline-variant/20 p-16 text-center text-on-surface-variant/40">
         <Papicon icon="inbox" size={48} class="mb-3" />
@@ -304,14 +295,14 @@
             <p class="text-sm font-sans">Aucune réponse correspondante</p>
           </div>
         {:else}
-          <div class="rounded-lg border border-outline-variant/20 overflow-hidden shadow-sm">
+          <div class="rounded-lg border border-outline-variant/20 overflow-x-auto shadow-sm">
             <table class="w-full text-sm">
               <thead>
                 <tr class="bg-surface-container-low/60 border-b border-outline-variant/10">
-                  <th class="text-left px-5 py-3 font-bold text-on-surface-variant/60 text-xs uppercase tracking-wide">ID</th>
-                  <th class="text-left px-5 py-3 font-bold text-on-surface-variant/60 text-xs uppercase tracking-wide">Utilisateur Discord</th>
-                  <th class="text-left px-5 py-3 font-bold text-on-surface-variant/60 text-xs uppercase tracking-wide">Date de Soumission</th>
-                  <th class="text-left px-5 py-3 font-bold text-on-surface-variant/60 text-xs uppercase tracking-wide"></th>
+                  <th class="text-left px-5 py-3 font-semibold text-on-surface-variant/60 text-xs">ID</th>
+                  <th class="text-left px-5 py-3 font-semibold text-on-surface-variant/60 text-xs">Utilisateur Discord</th>
+                  <th class="text-left px-5 py-3 font-semibold text-on-surface-variant/60 text-xs">Date de Soumission</th>
+                  <th class="text-left px-5 py-3 font-semibold text-on-surface-variant/60 text-xs"></th>
                 </tr>
               </thead>
               <tbody>
@@ -351,7 +342,7 @@
               <div>
                 <div class="flex items-start justify-between border-b border-outline-variant/5 pb-2 mb-4">
                   <h4 class="font-semibold text-on-surface font-sans text-sm">{item.label}</h4>
-                  <span class="text-[10px] font-semibold text-on-surface-variant/50 bg-surface-container px-2.5 py-1 rounded-full uppercase tracking-wider shrink-0 ml-2">
+                  <span class="text-xs font-semibold text-on-surface-variant/50 bg-surface-container px-2.5 py-1 rounded-full shrink-0 ml-2">
                     {item.totalResponses} réponse{item.totalResponses !== 1 ? 's' : ''}
                   </span>
                 </div>
@@ -374,15 +365,15 @@
                 {:else if item.type === 'number'}
                   <div class="grid grid-cols-3 gap-3 text-center my-4">
                     <div class="bg-surface-container/30 border border-outline-variant/5 rounded-xl p-3">
-                      <span class="text-[13px] text-on-surface-variant/50 font-semibold block mb-1">Moyenne</span>
+                      <span class="text-body-sm text-on-surface-variant/50 font-semibold block mb-1">Moyenne</span>
                       <span class="text-lg font-bold text-primary">{item.average ?? 0}</span>
                     </div>
                     <div class="bg-surface-container/30 border border-outline-variant/5 rounded-xl p-3">
-                      <span class="text-[13px] text-on-surface-variant/50 font-semibold block mb-1">Min</span>
+                      <span class="text-body-sm text-on-surface-variant/50 font-semibold block mb-1">Min</span>
                       <span class="text-lg font-bold text-on-surface">{item.min ?? 0}</span>
                     </div>
                     <div class="bg-surface-container/30 border border-outline-variant/5 rounded-xl p-3">
-                      <span class="text-[13px] text-on-surface-variant/50 font-semibold block mb-1">Max</span>
+                      <span class="text-body-sm text-on-surface-variant/50 font-semibold block mb-1">Max</span>
                       <span class="text-lg font-bold text-on-surface">{item.max ?? 0}</span>
                     </div>
                   </div>
@@ -457,7 +448,7 @@
 
         <!-- Answers -->
         <div>
-          <h3 class="text-sm font-semibold text-on-surface-variant/60 uppercase tracking-wide mb-3 font-sans">Réponses aux questions</h3>
+          <h3 class="text-sm font-semibold text-on-surface-variant/60 mb-3 font-sans">Réponses aux questions</h3>
           <div class="space-y-3">
             {#each Object.entries(selectedResponse.data || {}) as [key, value]}
               <div class="bg-surface-container/60 rounded-xl p-3">

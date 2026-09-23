@@ -94,7 +94,7 @@
 
     {#if canManage}
       <div class="bg-surface-container-high/30 border border-outline-variant/10 rounded-lg p-4 space-y-3">
-        <h4 class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50">{m.eco_inventory_grant_title()}</h4>
+        <h4 class="text-xs font-semibold text-on-surface-variant/50">{m.eco_inventory_grant_title()}</h4>
         <div class="flex flex-col sm:flex-row gap-2">
           <div class="flex-1">
             <SearchableSelect
@@ -143,10 +143,10 @@
                   {entry.item.name}
                   <span class="text-on-surface-variant/60 font-normal">x{entry.quantity}</span>
                 </div>
-                <div class="flex flex-wrap items-center gap-2 mt-0.5 text-[10px]">
-                  <span class="uppercase tracking-widest text-primary bg-primary/10 px-2 py-0.5 rounded-full">{entry.item.type}</span>
-                  {#if entry.equipped}<span class="text-emerald-400 font-bold">{m.eco_inventory_equipped()}</span>{/if}
-                  {#if entry.upgrade > 0}<span class="text-amber-400 font-bold">+{entry.upgrade}</span>{/if}
+                <div class="flex flex-wrap items-center gap-2 mt-0.5 text-2xs">
+                  <span class="text-primary bg-primary/10 px-2 py-0.5 rounded-full">{entry.item.type}</span>
+                  {#if entry.equipped}<span class="text-success font-bold">{m.eco_inventory_equipped()}</span>{/if}
+                  {#if entry.upgrade > 0}<span class="text-warning font-bold">+{entry.upgrade}</span>{/if}
                 </div>
               </div>
             </div>

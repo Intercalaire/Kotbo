@@ -63,9 +63,9 @@
 
   const getColorForType = (type: string) => {
     switch (type) {
-      case 'SUCCESS': return 'text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-500/10';
-      case 'WARNING': return 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-500/10';
-      case 'ERROR': return 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-500/10';
+      case 'SUCCESS': return 'text-success bg-success/10';
+      case 'WARNING': return 'text-warning bg-warning/10';
+      case 'ERROR': return 'text-error bg-error/10';
       default: return 'text-primary bg-primary/10';
     }
   };
@@ -83,7 +83,7 @@
 
     {#if notificationsStore.unreadCount > 0}
       <div class="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-0.5 bg-primary rounded-full flex items-center justify-center">
-        <span class="text-[9px] font-medium text-white leading-none">
+        <span class="text-2xs font-medium text-white leading-none">
           {notificationsStore.unreadCount > 99 ? '99+' : notificationsStore.unreadCount}
         </span>
       </div>
@@ -99,7 +99,7 @@
         <div class="flex items-center gap-2">
           <span class="text-sm font-medium text-on-surface">{m.notif_header_title()}</span>
           {#if notificationsStore.unreadCount > 0}
-            <span class="px-1.5 py-0.5 rounded-full bg-primary/10 text-[10px] font-medium text-primary">
+            <span class="px-1.5 py-0.5 rounded-full bg-primary/10 text-2xs font-medium text-primary">
               {notificationsStore.unreadCount}
             </span>
           {/if}
@@ -107,7 +107,7 @@
         {#if notificationsStore.unreadCount > 0}
           <button
             onclick={() => notificationsStore.markAllAsRead()}
-            class="text-[11px] text-on-surface-variant hover:text-primary transition-colors"
+            class="text-2xs text-on-surface-variant hover:text-primary transition-colors"
           >
             {m.notif_mark_all_read()}
           </button>
@@ -151,11 +151,11 @@
                     <p class="text-xs text-on-surface truncate {notif.isRead ? '' : 'font-medium'}">
                       {notif.title}
                     </p>
-                    <span class="text-[9px] text-on-surface-variant whitespace-nowrap shrink-0">
+                    <span class="text-2xs text-on-surface-variant whitespace-nowrap shrink-0">
                       {new Date(notif.createdAt).toLocaleDateString('fr-FR')}
                     </span>
                   </div>
-                  <p class="text-[11px] text-on-surface-variant leading-tight line-clamp-2">
+                  <p class="text-2xs text-on-surface-variant leading-tight line-clamp-2">
                     {notif.message}
                   </p>
                 </div>

@@ -3,6 +3,7 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { fetchSecurityAudit, applySecurityFix, applyAllSecurityFixes } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import SectionCard from '../lib/components/SectionCard.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
@@ -84,9 +85,9 @@
 
   const SEVERITY_META: Record<Severity, { label: string; icon: string; text: string; bg: string; ring: string }> = {
     CRITICAL: { label: 'Critique', icon: 'AlertOctagon', text: 'text-error', bg: 'bg-error/10', ring: 'ring-error/30' },
-    WARNING: { label: 'Avertissement', icon: 'AlertTriangle', text: 'text-amber-500', bg: 'bg-amber-500/10', ring: 'ring-amber-500/30' },
+    WARNING: { label: 'Avertissement', icon: 'AlertTriangle', text: 'text-warning', bg: 'bg-warning/10', ring: 'ring-warning/30' },
     INFO: { label: 'Information', icon: 'Info', text: 'text-sky-500', bg: 'bg-sky-500/10', ring: 'ring-sky-500/30' },
-    OK: { label: 'Conforme', icon: 'ShieldCheck', text: 'text-emerald-500', bg: 'bg-emerald-500/10', ring: 'ring-emerald-500/30' },
+    OK: { label: 'Conforme', icon: 'ShieldCheck', text: 'text-success', bg: 'bg-success/10', ring: 'ring-success/30' },
   };
 
   /**
@@ -154,8 +155,8 @@
   const busy = $derived(fixingId !== null || bulkRunning);
 
   function scoreColor(value: number): string {
-    if (value >= 85) return 'text-emerald-500';
-    if (value >= 65) return 'text-amber-500';
+    if (value >= 85) return 'text-success';
+    if (value >= 65) return 'text-warning';
     if (value >= 45) return 'text-orange-500';
     return 'text-error';
   }
@@ -184,7 +185,7 @@
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/\*\*(.+?)\*\*/g, '<strong class="text-on-surface font-medium">$1</strong>')
-      .replace(/`(.+?)`/g, '<code class="px-1 py-0.5 rounded bg-surface-container text-[12px]">$1</code>');
+      .replace(/`(.+?)`/g, '<code class="px-1 py-0.5 rounded bg-surface-container text-xs">$1</code>');
   }
 
   async function load(showToast = false) {
@@ -206,9 +207,12 @@
   async function runFix(finding: Finding) {
     if (!finding.fix || busy) return;
     if (finding.fix.risky) {
-      const confirmed = window.confirm(
-        `${finding.fix.label}\n\nCette action modifie des permissions existantes du serveur. Confirmer ?`
-      );
+      const confirmed = await confirmDialog.ask({
+        title: finding.fix.label,
+        description: 'Cette action modifie des permissions existantes du serveur.',
+        confirmLabel: 'Appliquer',
+        variant: 'warning',
+      });
       if (!confirmed) return;
     }
 
@@ -314,26 +318,26 @@
             </svg>
             <div class="absolute inset-0 flex flex-col items-center justify-center">
               <span class="text-4xl font-bold tracking-tight {scoreColor(report.score)}">{report.score}</span>
-              <span class="text-[11px] uppercase tracking-widest text-on-surface-variant/70">Note {report.grade}</span>
+              <span class="text-xs text-on-surface-variant/70">Note {report.grade}</span>
             </div>
           </div>
 
           <div class="grid grid-cols-2 gap-2 w-full text-center">
             <div class="rounded-lg bg-error/10 px-3 py-2">
               <div class="text-lg font-semibold text-error">{counts.critical}</div>
-              <div class="text-[11px] text-on-surface-variant">Critiques</div>
+              <div class="text-2xs text-on-surface-variant">Critiques</div>
             </div>
-            <div class="rounded-lg bg-amber-500/10 px-3 py-2">
-              <div class="text-lg font-semibold text-amber-500">{counts.warning}</div>
-              <div class="text-[11px] text-on-surface-variant">Avertissements</div>
+            <div class="rounded-lg bg-warning/10 px-3 py-2">
+              <div class="text-lg font-semibold text-warning">{counts.warning}</div>
+              <div class="text-2xs text-on-surface-variant">Avertissements</div>
             </div>
             <div class="rounded-lg bg-sky-500/10 px-3 py-2">
               <div class="text-lg font-semibold text-sky-500">{counts.info}</div>
-              <div class="text-[11px] text-on-surface-variant">Informations</div>
+              <div class="text-2xs text-on-surface-variant">Informations</div>
             </div>
-            <div class="rounded-lg bg-emerald-500/10 px-3 py-2">
-              <div class="text-lg font-semibold text-emerald-500">{counts.ok}</div>
-              <div class="text-[11px] text-on-surface-variant">Conformes</div>
+            <div class="rounded-lg bg-success/10 px-3 py-2">
+              <div class="text-lg font-semibold text-success">{counts.ok}</div>
+              <div class="text-2xs text-on-surface-variant">Conformes</div>
             </div>
           </div>
 
@@ -345,24 +349,24 @@
               disabled={busy}
               onclick={openBulk}
             >
-              <span class="inline-flex items-center gap-1.5 text-[13px] font-semibold text-primary">
+              <span class="inline-flex items-center gap-1.5 text-body-sm font-semibold text-primary">
                 <Papicon icon="Sparkles" size={14} />
                 Tout activer
               </span>
-              <span class="block mt-0.5 text-[11.5px] text-on-surface-variant">
+              <span class="block mt-0.5 text-2xs text-on-surface-variant">
                 {safeFixes.length} correctif(s) sans risque · +{safeFixPoints} points
               </span>
             </button>
           {/if}
 
           {#if riskyFixCount > 0}
-            <p class="text-[11.5px] text-center text-on-surface-variant/75 leading-relaxed">
+            <p class="text-2xs text-center text-on-surface-variant/75 leading-relaxed">
               {riskyFixCount} autre(s) correctif(s) touchent des permissions existantes
               et se confirment un par un.
             </p>
           {/if}
 
-          <p class="text-[11px] text-on-surface-variant/60 text-center">
+          <p class="text-2xs text-on-surface-variant/60 text-center">
             Audit effectué en {formatDuration(report.durationMs)} ·
             {new Date(report.generatedAt).toLocaleString('fr-FR')}
           </p>
@@ -386,8 +390,8 @@
                 </div>
                 <div class="min-w-0 flex-1">
                   <div class="flex items-baseline justify-between gap-2">
-                    <span class="text-[13px] font-medium text-on-surface truncate">{cat.label}</span>
-                    <span class="text-[12px] font-semibold tabular-nums {scoreColor(cat.score)}">{cat.score}%</span>
+                    <span class="text-body-sm font-medium text-on-surface truncate">{cat.label}</span>
+                    <span class="text-xs font-semibold tabular-nums {scoreColor(cat.score)}">{cat.score}%</span>
                   </div>
                   <div class="mt-1 h-1.5 rounded-full bg-surface-container overflow-hidden">
                     <div
@@ -397,7 +401,7 @@
                   </div>
                 </div>
                 {#if cat.counts.critical > 0}
-                  <span class="text-[11px] font-semibold text-error shrink-0">{cat.counts.critical} crit.</span>
+                  <span class="text-2xs font-semibold text-error shrink-0">{cat.counts.critical} crit.</span>
                 {/if}
               </div>
             </button>
@@ -407,21 +411,21 @@
         <div class="mt-5 pt-4 border-t border-outline-variant/30 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
           <div>
             <div class="text-sm font-semibold text-on-surface">{report.stats.memberCount.toLocaleString('fr-FR')}</div>
-            <div class="text-[11px] text-on-surface-variant">Membres</div>
+            <div class="text-2xs text-on-surface-variant">Membres</div>
           </div>
           <div>
             <div class="text-sm font-semibold text-on-surface">{report.stats.adminMemberCount}</div>
-            <div class="text-[11px] text-on-surface-variant">Administrateurs</div>
+            <div class="text-2xs text-on-surface-variant">Administrateurs</div>
           </div>
           <div>
             <div class="text-sm font-semibold text-on-surface">{report.stats.botCount}</div>
-            <div class="text-[11px] text-on-surface-variant">Bots</div>
+            <div class="text-2xs text-on-surface-variant">Bots</div>
           </div>
           <div>
             <div class="text-sm font-semibold text-on-surface">
               {report.stats.webhookCount ?? '-'}
             </div>
-            <div class="text-[11px] text-on-surface-variant">Webhooks</div>
+            <div class="text-2xs text-on-surface-variant">Webhooks</div>
           </div>
         </div>
       </SectionCard>
@@ -429,17 +433,17 @@
 
     <!-- ── Controles non executes ─────────────────────────────────────── -->
     {#if report.degraded.length > 0}
-      <div class="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+      <div class="rounded-xl border border-warning/30 bg-warning/5 px-4 py-3">
         <div class="flex items-start gap-3">
-          <Papicon icon="AlertTriangle" size={16} class="text-amber-500 mt-0.5 shrink-0" />
+          <Papicon icon="AlertTriangle" size={16} class="text-warning mt-0.5 shrink-0" />
           <div class="min-w-0">
-            <p class="text-[13px] font-medium text-on-surface">Certains contrôles n'ont pas pu être exécutés</p>
+            <p class="text-body-sm font-medium text-on-surface">Certains contrôles n'ont pas pu être exécutés</p>
             <ul class="mt-1 space-y-0.5">
               {#each report.degraded as item}
-                <li class="text-[12px] text-on-surface-variant">• {item}</li>
+                <li class="text-xs text-on-surface-variant">• {item}</li>
               {/each}
             </ul>
-            <p class="mt-1.5 text-[12px] text-on-surface-variant/70">
+            <p class="mt-1.5 text-xs text-on-surface-variant/70">
               Le score ne tient pas compte de ces contrôles : il peut être optimiste.
             </p>
           </div>
@@ -453,7 +457,7 @@
       description="{visibleFindings.length} élément(s) affiché(s) sur {report.findings.length} contrôles."
     >
       {#snippet actions()}
-        <label class="flex items-center gap-2 text-[12px] text-on-surface-variant cursor-pointer select-none">
+        <label class="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer select-none">
           <input type="checkbox" bind:checked={showResolved} class="accent-primary" />
           Afficher les points conformes
         </label>
@@ -462,7 +466,7 @@
       <div class="flex flex-wrap gap-1.5 mb-4">
         <button
           type="button"
-          class="px-2.5 py-1 rounded-full text-[12px] font-medium border transition-colors
+          class="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors
           {severityFilter === 'ALL'
             ? 'bg-primary/15 border-primary/40 text-primary'
             : 'bg-surface-container-low border-outline-variant/40 text-on-surface-variant hover:text-on-surface'}"
@@ -474,7 +478,7 @@
           {@const meta = SEVERITY_META[sev as Severity]}
           <button
             type="button"
-            class="px-2.5 py-1 rounded-full text-[12px] font-medium border transition-colors inline-flex items-center gap-1.5
+            class="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors inline-flex items-center gap-1.5
             {severityFilter === sev
               ? `${meta.bg} border-current ${meta.text}`
               : 'bg-surface-container-low border-outline-variant/40 text-on-surface-variant hover:text-on-surface'}"
@@ -488,7 +492,7 @@
         {#if categoryFilter !== 'ALL'}
           <button
             type="button"
-            class="px-2.5 py-1 rounded-full text-[12px] font-medium border border-primary/40 bg-primary/15 text-primary inline-flex items-center gap-1.5"
+            class="px-2.5 py-1 rounded-full text-xs font-medium border border-primary/40 bg-primary/15 text-primary inline-flex items-center gap-1.5"
             onclick={() => (categoryFilter = 'ALL')}
           >
             {report.categories.find((c) => c.category === categoryFilter)?.label}
@@ -527,19 +531,19 @@
                   <Papicon icon={meta.icon} size={14} />
                 </div>
                 <div class="min-w-0 flex-1">
-                  <h4 class="text-[13.5px] font-semibold text-on-surface leading-snug">{finding.title}</h4>
+                  <h4 class="text-body-sm font-semibold text-on-surface leading-snug">{finding.title}</h4>
                   <div class="mt-1 flex flex-wrap items-center gap-1.5">
                     {#if finding.weight > 0}
-                      <span class="text-[11px] font-semibold tabular-nums {meta.text}">-{finding.weight} pts</span>
+                      <span class="text-2xs font-semibold tabular-nums {meta.text}">-{finding.weight} pts</span>
                     {/if}
-                    <span class="text-[10.5px] px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">
+                    <span class="text-2xs px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">
                       {report.categories.find((c) => c.category === finding.category)?.label}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <p class="mt-2.5 text-[12.5px] text-on-surface-variant leading-relaxed">
+              <p class="mt-2.5 text-xs text-on-surface-variant leading-relaxed">
                 {@html renderDetail(finding.detail)}
               </p>
 
@@ -547,14 +551,14 @@
                 <div class="mt-2 flex flex-wrap gap-1">
                   {#each finding.entities.slice(0, cap) as entity}
                     <span
-                      class="text-[11px] px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant"
+                      class="text-2xs px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant"
                       title={entity.detail ?? entity.id}
                     >
                       {entity.type === 'channel' ? '#' : entity.type === 'role' ? '@' : ''}{entity.name}
                     </span>
                   {/each}
                   {#if finding.entities.length > cap}
-                    <span class="text-[11px] px-1.5 py-0.5 text-on-surface-variant/60">
+                    <span class="text-2xs px-1.5 py-0.5 text-on-surface-variant/60">
                       +{finding.entities.length - cap}
                     </span>
                   {/if}
@@ -562,7 +566,7 @@
               {/if}
 
               {#if finding.recommendation}
-                <p class="mt-2 text-[12px] text-on-surface-variant/85 leading-relaxed pl-2.5 border-l-2 border-primary/40">
+                <p class="mt-2 text-xs text-on-surface-variant/85 leading-relaxed pl-2.5 border-l-2 border-primary/40">
                   {finding.recommendation}
                 </p>
               {/if}
@@ -572,7 +576,7 @@
                   {#if finding.fix}
                     <button
                       type="button"
-                      class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium
+                      class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
                       bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25
                       disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       disabled={busy}
@@ -585,7 +589,7 @@
                         <Papicon icon="Wrench" size={13} />
                         {finding.fix.label}
                         {#if finding.fix.risky}
-                          <span class="text-[10px] text-amber-500 ml-0.5">· confirmation</span>
+                          <span class="text-2xs text-warning ml-0.5">· confirmation</span>
                         {/if}
                       {/if}
                     </button>
@@ -594,7 +598,7 @@
                   {#if finding.link}
                     <a
                       href={finding.link.href}
-                      class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium
+                      class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
                       bg-surface-container text-on-surface border border-outline-variant/40
                       hover:border-outline-variant transition-colors"
                     >
@@ -627,13 +631,13 @@
     <div class="space-y-4">
       {#if bulkResult.applied.length > 0}
         <div>
-          <p class="text-[13px] font-medium text-emerald-500 mb-1.5">
+          <p class="text-body-sm font-medium text-success mb-1.5">
             {bulkResult.applied.length} correctif(s) appliqué(s)
           </p>
           <ul class="space-y-1">
             {#each bulkResult.applied as item}
-              <li class="text-[12.5px] text-on-surface-variant flex items-start gap-2">
-                <Papicon icon="CheckCircle" size={13} class="text-emerald-500 mt-0.5 shrink-0" />
+              <li class="text-xs text-on-surface-variant flex items-start gap-2">
+                <Papicon icon="CheckCircle" size={13} class="text-success mt-0.5 shrink-0" />
                 {item.title}
               </li>
             {/each}
@@ -643,12 +647,12 @@
 
       {#if bulkResult.failed.length > 0}
         <div>
-          <p class="text-[13px] font-medium text-error mb-1.5">
+          <p class="text-body-sm font-medium text-error mb-1.5">
             {bulkResult.failed.length} correctif(s) en échec
           </p>
           <ul class="space-y-1">
             {#each bulkResult.failed as item}
-              <li class="text-[12.5px] text-on-surface-variant flex items-start gap-2">
+              <li class="text-xs text-on-surface-variant flex items-start gap-2">
                 <Papicon icon="AlertOctagon" size={13} class="text-error mt-0.5 shrink-0" />
                 <span><span class="text-on-surface">{item.title}</span> - {item.message}</span>
               </li>
@@ -663,7 +667,7 @@
     </div>
   {:else}
     <div class="space-y-4">
-      <p class="text-[13px] text-on-surface-variant leading-relaxed">
+      <p class="text-body-sm text-on-surface-variant leading-relaxed">
         Ces correctifs activent des protections et n'enlèvent aucun droit existant.
         {#if riskyFixCount > 0}
           Les {riskyFixCount} correctif(s) qui modifient des permissions restent à confirmer un par un.
@@ -676,11 +680,11 @@
           <li class="flex items-start gap-2.5 rounded-lg border border-outline-variant/30 bg-surface-container-low/40 px-3 py-2">
             <Papicon icon={meta.icon} size={13} class="{meta.text} mt-0.5 shrink-0" />
             <div class="min-w-0 flex-1">
-              <p class="text-[12.5px] font-medium text-on-surface leading-snug">{finding.title}</p>
-              <p class="text-[11.5px] text-on-surface-variant mt-0.5">{finding.fix?.label}</p>
+              <p class="text-xs font-medium text-on-surface leading-snug">{finding.title}</p>
+              <p class="text-2xs text-on-surface-variant mt-0.5">{finding.fix?.label}</p>
             </div>
             {#if finding.weight > 0}
-              <span class="text-[11px] font-semibold tabular-nums text-primary shrink-0">+{finding.weight}</span>
+              <span class="text-2xs font-semibold tabular-nums text-primary shrink-0">+{finding.weight}</span>
             {/if}
           </li>
         {/each}

@@ -365,7 +365,7 @@
             placeholder={m.pa_response_placeholder()}
             class="w-full bg-surface-container rounded-xl px-4 py-3 text-sm outline-none border-b-2 border-primary/20 focus:border-primary transition-colors resize-y"></textarea>
           {#if submitError}
-            <p class="pf-error text-xs text-rose-500">{submitError}</p>
+            <p class="pf-error text-xs text-error">{submitError}</p>
           {/if}
           <div class="flex justify-end">
             <button onclick={sendInfoResponse} disabled={submitting || !infoResponseText.trim()}
@@ -524,7 +524,7 @@
           <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-5 shadow-sm space-y-3">
             <div>
               <p class="font-semibold text-on-surface text-[15px]">
-                {m.pa_pick_sanctions()}{#if selectionRequired}<span class="text-rose-500 ml-1">*</span>{/if}
+                {m.pa_pick_sanctions()}{#if selectionRequired}<span class="text-error ml-1">*</span>{/if}
               </p>
               <p class="text-xs text-on-surface-variant/60 mt-1">
                 {m.pa_pick_sanctions_desc({ count: maxSelectable })}
@@ -564,9 +564,9 @@
 
         {#each fields as field (field.id)}
           {@const error = errors[field.id]}
-          <div class="pf-card pf-field rounded-lg bg-surface border border-outline-variant/20 p-5 shadow-sm {error ? 'ring-2 ring-rose-500/40' : ''}">
+          <div class="pf-card pf-field rounded-lg bg-surface border border-outline-variant/20 p-5 shadow-sm {error ? 'ring-2 ring-error/40' : ''}">
             <label for={field.id} class="block font-semibold text-on-surface mb-1 text-[15px]">
-              {field.label}{#if field.required}<span class="text-rose-500 ml-1">*</span>{/if}
+              {field.label}{#if field.required}<span class="text-error ml-1">*</span>{/if}
             </label>
             {#if field.description}
               <p class="text-xs text-on-surface-variant/60 mb-3">{field.description}</p>
@@ -617,13 +617,13 @@
             {/if}
 
             {#if error}
-              <p class="pf-error mt-2 text-xs text-rose-500">{error}</p>
+              <p class="pf-error mt-2 text-xs text-error">{error}</p>
             {/if}
           </div>
         {/each}
 
         {#if submitError}
-          <div class="rounded-lg bg-rose-500/10 border border-rose-500/20 px-5 py-4 text-sm text-rose-600 font-medium">
+          <div class="rounded-lg bg-error/10 border border-error/20 px-5 py-4 text-sm text-error font-medium">
             {submitError}
           </div>
         {/if}

@@ -277,10 +277,10 @@
           <div class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full {RARITY_DOT[group.rarity]}"></span>
             <h4 class="text-sm font-semibold">{rarityLabel(group.rarity)}</h4>
-            <span class="text-[11px] text-on-surface-variant/50">{m.eco_fish_rarity_chance({ chance: rarityChance[group.rarity].toFixed(rarityChance[group.rarity] < 10 ? 1 : 0) })}</span>
+            <span class="text-2xs text-on-surface-variant/50">{m.eco_fish_rarity_chance({ chance: rarityChance[group.rarity].toFixed(rarityChance[group.rarity] < 10 ? 1 : 0) })}</span>
           </div>
           {#if group.fish.length === 0}
-            <p class="text-[11px] text-on-surface-variant/50 italic">{m.eco_fish_rarity_empty()}</p>
+            <p class="text-2xs text-on-surface-variant/50 italic">{m.eco_fish_rarity_empty()}</p>
           {:else}
             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
               {#each group.fish as fish (fish.key)}
@@ -290,7 +290,7 @@
                       <EmojiText value={fish.emoji} size="1.125rem" class="text-lg" />
                       <div class="min-w-0">
                         <p class="font-semibold text-sm truncate">{fish.name}</p>
-                        <span class="text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full inline-block mt-1 {fish.scope === 'DEFAULT' ? 'bg-outline-variant/15 text-on-surface-variant/70' : fish.overridesDefault ? 'bg-amber-500/10 text-amber-400' : 'bg-primary/10 text-primary'}">
+                        <span class="text-xs font-semibold px-2 py-0.5 rounded-full inline-block mt-1 {fish.scope === 'DEFAULT' ? 'bg-outline-variant/15 text-on-surface-variant/70' : fish.overridesDefault ? 'bg-warning/10 text-warning' : 'bg-primary/10 text-primary'}">
                           {fish.scope === 'DEFAULT' ? m.eco_fish_scope_default() : fish.overridesDefault ? m.eco_fish_scope_override() : m.eco_fish_scope_guild()}
                         </span>
                       </div>
@@ -305,8 +305,8 @@
                     {/if}
                   </div>
 
-                  <div class="flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
-                    <span class="text-amber-400 font-bold">+{fish.value} {currencyName}</span>
+                  <div class="flex flex-wrap gap-x-3 gap-y-1 text-2xs">
+                    <span class="text-warning font-bold">+{fish.value} {currencyName}</span>
                     <span class="text-sky-400 font-bold">+{fish.xp} XP</span>
                     <span class="text-on-surface-variant/50">{m.eco_fish_caught({ count: fish.caught })}</span>
                   </div>
@@ -358,15 +358,15 @@
                 <span class="w-2 h-2 rounded-full {RARITY_DOT[reward.tier]}"></span>
                 <p class="font-semibold text-sm">{reward.tier === 'COMPLETE' ? m.eco_fish_tier_complete() : m.eco_fish_tier_rarity({ rarity: rarityLabel(reward.tier) })}</p>
               </div>
-              <span class="text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full {reward.custom ? 'bg-primary/10 text-primary' : 'bg-outline-variant/15 text-on-surface-variant/70'}">
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full {reward.custom ? 'bg-primary/10 text-primary' : 'bg-outline-variant/15 text-on-surface-variant/70'}">
                 {reward.custom ? m.eco_fish_reward_custom() : m.eco_fish_reward_default()}
               </span>
             </div>
 
-            <div class="flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
-              {#if reward.coinReward > 0}<span class="text-amber-400 font-bold">+{reward.coinReward} {currencyName}</span>{/if}
+            <div class="flex flex-wrap gap-x-3 gap-y-1 text-2xs">
+              {#if reward.coinReward > 0}<span class="text-warning font-bold">+{reward.coinReward} {currencyName}</span>{/if}
               {#if reward.xpReward > 0}<span class="text-sky-400 font-bold">+{reward.xpReward} XP</span>{/if}
-              {#if reward.clanPoints > 0}<span class="text-emerald-400 font-bold flex items-center gap-1"><Papicon icon="Shield" size={11} /> +{reward.clanPoints}</span>{/if}
+              {#if reward.clanPoints > 0}<span class="text-success font-bold flex items-center gap-1"><Papicon icon="Shield" size={11} /> +{reward.clanPoints}</span>{/if}
               {#if reward.itemName}<span class="font-semibold flex items-center gap-1"><Papicon icon="package" size={11} /> {reward.itemName}</span>{/if}
               {#if reward.titleName}<span class="font-semibold text-amber-300 flex items-center gap-1"><Papicon icon="award" size={11} /> {reward.titleName}</span>{/if}
               {#if reward.roleId}<span class="font-semibold text-primary">{roleName(reward.roleId)}</span>{/if}
@@ -410,18 +410,18 @@
       <h3 class="text-xl font-semibold">{editingFish.key ? m.eco_fish_modal_edit() : m.eco_fish_modal_new()}</h3>
 
       {#if editingFish.nameLocked}
-        <p class="text-[11px] text-on-surface-variant/60 bg-surface-container-high/40 rounded-lg px-3 py-2 leading-relaxed">{m.eco_fish_name_locked_hint()}</p>
+        <p class="text-2xs text-on-surface-variant/60 bg-surface-container-high/40 rounded-lg px-3 py-2 leading-relaxed">{m.eco_fish_name_locked_hint()}</p>
       {:else if editingFish.key}
-        <p class="text-[11px] text-on-surface-variant/60 bg-surface-container-high/40 rounded-lg px-3 py-2 leading-relaxed">{m.eco_fish_rename_hint()}</p>
+        <p class="text-2xs text-on-surface-variant/60 bg-surface-container-high/40 rounded-lg px-3 py-2 leading-relaxed">{m.eco_fish_rename_hint()}</p>
       {/if}
 
       <div class="grid grid-cols-3 gap-3">
         <div class="col-span-2 space-y-1">
-          <label for="fishName" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_fish_field_name()}</label>
+          <label for="fishName" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_fish_field_name()}</label>
           <input id="fishName" type="text" maxlength="40" disabled={editingFish.nameLocked} bind:value={editingFish.name} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none disabled:opacity-60" />
         </div>
         <div class="space-y-1">
-          <label for="fishEmoji" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_item_emoji()}</label>
+          <label for="fishEmoji" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_item_emoji()}</label>
           <div class="flex gap-2">
             <input id="fishEmoji" type="text" bind:value={editingFish.emoji} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
             <EmojiPicker bind:value={editingFish.emoji} />
@@ -431,7 +431,7 @@
 
       <div class="grid grid-cols-3 gap-3">
         <div class="space-y-1">
-          <label for="fishRarity" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_fish_field_rarity()}</label>
+          <label for="fishRarity" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_fish_field_rarity()}</label>
           <select id="fishRarity" bind:value={editingFish.rarity} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-xs focus:outline-none">
             {#each RARITIES as rarity}
               <option value={rarity}>{rarityLabel(rarity)}</option>
@@ -439,11 +439,11 @@
           </select>
         </div>
         <div class="space-y-1">
-          <label for="fishValue" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{currencyName || m.eco_fish_field_value()}</label>
+          <label for="fishValue" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{currencyName || m.eco_fish_field_value()}</label>
           <input id="fishValue" type="number" min="0" bind:value={editingFish.value} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-xs focus:outline-none" />
         </div>
         <div class="space-y-1">
-          <label for="fishXp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">XP</label>
+          <label for="fishXp" class="text-xs font-semibold text-on-surface-variant/60 ml-2">XP</label>
           <input id="fishXp" type="number" min="0" bind:value={editingFish.xp} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-xs focus:outline-none" />
         </div>
       </div>
@@ -464,7 +464,7 @@
           type="button"
           onclick={saveFish}
           disabled={actionState.state.loading}
-          class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all disabled:opacity-50"
+          class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-body-sm font-medium rounded-lg transition-all disabled:opacity-50"
         >
           {m.eco_btn_save()}
         </button>
@@ -477,24 +477,24 @@
   <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
     <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-lg space-y-6 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
       <h3 class="text-xl font-semibold">{editingReward.tier === 'COMPLETE' ? m.eco_fish_tier_complete() : m.eco_fish_tier_rarity({ rarity: rarityLabel(editingReward.tier) })}</h3>
-      <p class="text-[11px] text-on-surface-variant/60 leading-relaxed">{m.eco_fish_reward_modal_hint()}</p>
+      <p class="text-2xs text-on-surface-variant/60 leading-relaxed">{m.eco_fish_reward_modal_hint()}</p>
 
       <div class="grid grid-cols-2 gap-3">
         <div class="space-y-1">
-          <label for="rewardCoins" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{currencyName || m.eco_fish_field_value()}</label>
+          <label for="rewardCoins" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{currencyName || m.eco_fish_field_value()}</label>
           <input id="rewardCoins" type="number" min="0" bind:value={editingReward.coinReward} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-xs focus:outline-none" />
         </div>
         <div class="space-y-1">
-          <label for="rewardXp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">XP</label>
+          <label for="rewardXp" class="text-xs font-semibold text-on-surface-variant/60 ml-2">XP</label>
           <input id="rewardXp" type="number" min="0" bind:value={editingReward.xpReward} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-xs focus:outline-none" />
         </div>
         <div class="col-span-2 space-y-1">
-          <label for="rewardClan" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_fish_reward_clan_points()}</label>
+          <label for="rewardClan" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_fish_reward_clan_points()}</label>
           <input id="rewardClan" type="number" min="0" bind:value={editingReward.clanPoints} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-xs focus:outline-none" />
-          <p class="text-[10px] text-on-surface-variant/50 leading-relaxed mt-1">{m.eco_fish_reward_clan_points_hint()}</p>
+          <p class="text-2xs text-on-surface-variant/50 leading-relaxed mt-1">{m.eco_fish_reward_clan_points_hint()}</p>
         </div>
         <div class="col-span-2 space-y-1">
-          <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_fish_reward_item()}</span>
+          <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_fish_reward_item()}</span>
           <SearchableSelect
             value={editingReward.itemName || null}
             options={itemOptions}
@@ -506,7 +506,7 @@
           />
         </div>
         <div class="col-span-2 space-y-1">
-          <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_fish_reward_role()}</span>
+          <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_fish_reward_role()}</span>
           <SearchableSelect
             value={editingReward.roleId || null}
             options={roles}
@@ -515,10 +515,10 @@
             className="w-full"
             on:change={(e: any) => { if (editingReward) editingReward.roleId = e.detail?.value ?? null; }}
           />
-          <p class="text-[10px] text-on-surface-variant/50 leading-relaxed mt-1">{m.eco_bestiary_first_kill_role_hint()}</p>
+          <p class="text-2xs text-on-surface-variant/50 leading-relaxed mt-1">{m.eco_bestiary_first_kill_role_hint()}</p>
         </div>
         <div class="col-span-2 space-y-1">
-          <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_fish_reward_title()}</span>
+          <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_fish_reward_title()}</span>
           <SearchableSelect
             value={editingReward.titleId || null}
             options={titleOptions}
@@ -539,7 +539,7 @@
           type="button"
           onclick={saveReward}
           disabled={actionState.state.loading}
-          class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all disabled:opacity-50"
+          class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-body-sm font-medium rounded-lg transition-all disabled:opacity-50"
         >
           {m.eco_btn_save()}
         </button>
