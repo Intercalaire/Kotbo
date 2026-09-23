@@ -3,6 +3,7 @@
   import { memberAvatarSrc } from '../lib/discordMedia';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { Tabs } from '../lib/components/ui';
   import { authStore } from '../lib/stores/auth.svelte';
   import {
     API_BASE_URL,
@@ -534,21 +535,14 @@
       </div>
     </div>
 
-    <!-- ── View Tabs / Toggle ────────────────────────────────────── -->
-    <div class="sticky top-6 z-40 flex justify-center">
-      <div class="flex gap-1 bg-surface-container-lowest/80 p-1.5 rounded-xl border border-outline-variant/10 shadow-sm shadow-surface/10 overflow-x-auto no-scrollbar">
-        {#each tabs as tab}
-          <button 
-            onclick={() => gotoTab(profileBase, tab.id, 'staff_overview')}
-            class="tab-button {activeTab === tab.id ? 'active' : ''}"
-          >
-            <span class="flex items-center gap-2 pointer-events-none">
-              <Papicon icon={tab.icon} size={16} class={activeTab === tab.id ? 'text-on-primary' : 'text-primary'} />
-              {tab.label}
-            </span>
-          </button>
-        {/each}
-      </div>
+    <div class="sticky z-30 flex justify-center top-[calc(var(--app-navbar-height)+0.5rem)]">
+      <Tabs
+        label={m.nav_my_profile()}
+        class="shadow-sm"
+        {tabs}
+        active={activeTab}
+        onchange={(id) => gotoTab(profileBase, id, 'staff_overview')}
+      />
     </div>
 
     <!-- ── Content Panel ────────────────────────────────── -->

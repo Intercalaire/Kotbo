@@ -3,6 +3,8 @@
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
@@ -240,28 +242,12 @@
   description={m.social_page_desc()}
   icon="share-2"
 >
-  {#snippet actions()}
-      <div class="flex bg-surface-container-high/40 p-1.5 rounded-lg border border-outline-variant/20">
-        <button
-          onclick={() => gotoTab('/social-networks', 'youtube', 'youtube')}
-          class="px-5 py-2.5 rounded-xl text-body-sm font-medium transition-all duration-300 flex items-center gap-2 {activeTab === 'youtube' ? 'bg-red-600 text-white shadow-sm ' : 'text-on-surface-variant/70 hover:text-on-surface'}"
-        >
-          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M23.498 6.163a3.003 3.003 0 0 0-2.11-2.11C19.518 3.545 12 3.545 12 3.545s-7.518 0-9.388.508a3.003 3.003 0 0 0-2.11 2.11C0 8.033 0 12 0 12s0 3.967.502 5.837a3.003 3.003 0 0 0 2.11 2.11c1.87.508 9.388.508 9.388.508s7.518 0 9.388-.508a3.002 3.002 0 0 0 2.11-2.11C24 15.967 24 12 24 12s0-3.967-.502-5.837zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-          </svg>
-          <span>YouTube</span>
-        </button>
-        <button
-          onclick={() => gotoTab('/social-networks', 'twitch', 'youtube')}
-          class="px-5 py-2.5 rounded-xl text-body-sm font-medium transition-all duration-300 flex items-center gap-2 {activeTab === 'twitch' ? 'bg-[#9146FF] text-white shadow-lg shadow-[#9146FF]/20 ' : 'text-on-surface-variant/70 hover:text-on-surface'}"
-        >
-          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/>
-          </svg>
-          <span>Twitch</span>
-        </button>
-      </div>
-  {/snippet}
+  <Tabs
+    label={m.social_page_title()}
+    tabs={pageTabItems('/social-networks')}
+    active={activeTab}
+    onchange={(id) => gotoTab('/social-networks', id, 'youtube')}
+  />
 
   <div class="bg-surface-container-low/40 p-6 rounded-xl border border-outline-variant/20 flex flex-col md:flex-row md:items-center justify-between gap-6">
     <div class="space-y-1">

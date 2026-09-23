@@ -3,6 +3,8 @@
   import { memberAvatarSrc } from '../lib/discordMedia';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
@@ -174,12 +176,12 @@
   });
 
   const totalInvites = $derived(invitations.length);
-  const tabs = $derived([
-    { id: 'invites' as Tab, label: m.iv_tab_invites(), icon: 'MailOpen', count: totalInvites },
-    { id: 'sources' as Tab, label: m.iv_tab_sources(), icon: 'Tags', count: sourceStats.length },
-    { id: 'top' as Tab, label: m.iv_tab_top(), icon: 'Crown', count: topInviters.length },
-    { id: 'suspensions' as Tab, label: m.iv_tab_suspensions(), icon: 'UserX', count: suspendedInviters.length },
-  ]);
+  const tabCounts = $derived<Record<Tab, number>>({
+    invites: totalInvites,
+    sources: sourceStats.length,
+    top: topInviters.length,
+    suspensions: suspendedInviters.length,
+  });
   const totalJoins = $derived(summary.totalJoined || 0);
   const totalLeft = $derived(summary.totalLeft || 0);
   const retentionRate = $derived(totalJoins > 0 ? Math.round(((totalJoins - totalLeft) / totalJoins) * 100) : 0);
@@ -545,19 +547,12 @@
       {/if}
     </div>
 
-    <!-- Onglets -->
-    <div class="flex gap-2 border-b border-outline-variant/20 pb-2">
-      {#each tabs as tab}
-        <button
-          class="tab-button {activeTab === tab.id ? 'active' : ''}"
-          onclick={() => gotoTab('/invitations', tab.id, 'invites')}
-        >
-          <Papicon icon={tab.icon} size={16} />
-          <span>{tab.label}</span>
-          <span class="tab-button {activeTab === tab.id ? 'active' : ''}">{tab.count}</span>
-        </button>
-      {/each}
-    </div>
+    <Tabs
+      label={m.iv_page_title()}
+      tabs={pageTabItems('/invitations').map((item) => ({ ...item, badge: tabCounts[item.id as Tab] }))}
+      active={activeTab}
+      onchange={(id) => gotoTab('/invitations', id, 'invites')}
+    />
 
     <!-- Contenu des onglets -->
     {#if activeTab === 'invites'}

@@ -3,6 +3,8 @@
   import { onMount, onDestroy, untrack } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
@@ -776,78 +778,13 @@
       <span>{loadError}</span>
     </div>
   {:else}
-    <!-- Tab Switcher -->
-    <div class="flex border-b border-outline-variant/20 mb-8 overflow-x-auto no-scrollbar">
-      <button
-        onclick={() => gotoTab('/channels-management', 'by-channel', 'by-channel')}
-        class="tab-button {activeTab === 'by-channel' ? 'active' : ''}"
-      >
-        {m.cm_tab_by_channel()}
-        {#if activeTab === 'by-channel'}
-          <div class="absolute bottom-0 left-6 right-6 h-0.5 bg-primary rounded-t-full"></div>
-        {/if}
-      </button>
-
-      <button 
-        onclick={() => gotoTab('/channels-management', 'auto-thread', 'by-channel')}
-        class="tab-button {activeTab === 'auto-thread' ? 'active' : ''}"
-      >
-        Auto-Thread
-        {#if activeTab === 'auto-thread'}
-          <div class="absolute bottom-0 left-6 right-6 h-0.5 bg-primary rounded-t-full"></div>
-        {/if}
-      </button>
-
-      <button
-        onclick={() => gotoTab('/channels-management', 'sticky', 'by-channel')}
-        class="tab-button {activeTab === 'sticky' ? 'active' : ''}"
-      >
-        {m.cm_tab_sticky()}
-        {#if activeTab === 'sticky'}
-          <div class="absolute bottom-0 left-6 right-6 h-0.5 bg-primary rounded-t-full"></div>
-        {/if}
-      </button>
-
-      <button
-        onclick={() => gotoTab('/channels-management', 'stats', 'by-channel')}
-        class="tab-button {activeTab === 'stats' ? 'active' : ''}"
-      >
-        {m.cm_tab_stats()}
-        {#if activeTab === 'stats'}
-          <div class="absolute bottom-0 left-6 right-6 h-0.5 bg-primary rounded-t-full"></div>
-        {/if}
-      </button>
-
-      <button
-        onclick={() => gotoTab('/channels-management', 'temp-voice', 'by-channel')}
-        class="tab-button {activeTab === 'temp-voice' ? 'active' : ''}"
-      >
-        {m.cm_tab_temp_voice()}
-        {#if activeTab === 'temp-voice'}
-          <div class="absolute bottom-0 left-6 right-6 h-0.5 bg-primary rounded-t-full"></div>
-        {/if}
-      </button>
-
-      <button
-        onclick={() => gotoTab('/channels-management', 'access-requests', 'by-channel')}
-        class="tab-button {activeTab === 'access-requests' ? 'active' : ''}"
-      >
-        {m.cm_tab_access_requests()}
-        {#if activeTab === 'access-requests'}
-          <div class="absolute bottom-0 left-6 right-6 h-0.5 bg-primary rounded-t-full"></div>
-        {/if}
-      </button>
-
-      <button
-        onclick={() => gotoTab('/channels-management', 'honeypot', 'by-channel')}
-        class="tab-button {activeTab === 'honeypot' ? 'active' : ''}"
-      >
-        {m.cm_tab_honeypot()}
-        {#if activeTab === 'honeypot'}
-          <div class="absolute bottom-0 left-6 right-6 h-0.5 bg-primary rounded-t-full"></div>
-        {/if}
-      </button>
-    </div>
+    <Tabs
+      label={m.cm_page_label()}
+      class="mb-8"
+      tabs={pageTabItems('/channels-management')}
+      active={activeTab}
+      onchange={(id) => gotoTab('/channels-management', id, 'by-channel')}
+    />
 
     <!-- Active Content Tab -->
     <div class="grid grid-cols-1 gap-8">

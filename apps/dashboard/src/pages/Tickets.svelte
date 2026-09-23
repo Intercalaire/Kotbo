@@ -5,6 +5,8 @@
   import { onMount, onDestroy } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
@@ -417,7 +419,7 @@
     ticketWelcomeFooter = savedSettingsConfig.ticketWelcomeFooter;
   }
 
-  async function changeTab(tab: 'tickets' | 'transcripts' | 'satisfaction' | 'blacklist' | 'config') {
+  async function changeTab(tab: typeof activeTab) {
     if (unsavedChanges.isDirty && unsavedChanges.ownerId === 'tickets') {
       const confirmLeave = await confirmDialog.ask({
         title: m.e1_tickets_unsaved_title(),
@@ -1756,27 +1758,13 @@
     </div>
   {/snippet}
 
-  <!-- Tab Switcher -->
-  <div class="tickets-primary-tabs flex border-b border-outline-variant/10 mb-6 overflow-x-auto scrollbar-hide">
-    {#each [
-      { key: 'tickets', label: m.e1_tickets_tab_tickets() },
-      { key: 'transcripts', label: m.e1_tickets_tab_transcripts() },
-      { key: 'satisfaction', label: m.e1_tickets_tab_satisfaction() },
-      { key: 'macros', label: m.e1_tickets_tab_macros() },
-      { key: 'blacklist', label: m.e1_tickets_tab_blacklist() },
-      { key: 'config', label: m.e1_tickets_tab_config() }
-    ] as tab}
-      <button
-        onclick={() => changeTab(tab.key as any)}
-        class="tab-button {activeTab === tab.key ? 'active' : ''}"
-      >
-        {tab.label}
-        {#if activeTab === tab.key}
-          <div class="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-full"></div>
-        {/if}
-      </button>
-    {/each}
-  </div>
+  <Tabs
+    label={m.e1_tickets_page_title()}
+    class="mb-6"
+    tabs={pageTabItems('/tickets')}
+    active={activeTab}
+    onchange={(id) => changeTab(id as typeof activeTab)}
+  />
 
   {#if activeTab === 'tickets'}
     <!-- Tickets Main View - mobile: master/detail pattern -->
@@ -4063,36 +4051,6 @@
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
-  @media (max-width: 767px) {
-    .tickets-primary-tabs {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      overflow: visible;
-      border: 1px solid var(--outline-variant);
-      border-radius: 0.875rem;
-      background: var(--surface-container-low);
-      padding: 0.25rem;
-      gap: 0.25rem;
-    }
-
-    .tickets-primary-tabs :global(.tab-button) {
-      width: 100%;
-      min-width: 0;
-      border-radius: 0.625rem;
-      text-align: center;
-      white-space: normal;
-    }
-
-    .tickets-primary-tabs :global(.tab-button.active) {
-      background: var(--surface-container-lowest);
-    }
-
-    .tickets-primary-tabs :global(.tab-button > div) {
-      right: 0.75rem;
-      left: 0.75rem;
-      width: auto;
-    }
-  }
 
   /* Satisfaction Tab Styles */
   .sat-grid { display: grid; grid-template-columns: 300px 1fr; gap: 1rem; }

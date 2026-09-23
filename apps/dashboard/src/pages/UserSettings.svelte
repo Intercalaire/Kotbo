@@ -2,6 +2,7 @@
   import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { Tabs } from '../lib/components/ui';
   import ProfileWidgetPanel from '../lib/components/ProfileWidgetPanel.svelte';
   import { userPrefs } from '../lib/stores/userPreferences.svelte';
   import { timezoneStore } from '../lib/stores/timezone.svelte';
@@ -243,21 +244,13 @@
     {/if}
   </header>
 
-  <!-- ─── Onglets ───────────────────────────────────────────────── -->
   <div class="flex justify-center">
-    <div class="flex gap-1 bg-surface-container-lowest/80 p-1.5 rounded-xl border border-outline-variant/10 shadow-sm shadow-surface/10 overflow-x-auto no-scrollbar">
-      {#each tabs as tab}
-        <button
-          onclick={() => gotoTab(SETTINGS_BASE, tab.id, 'preferences')}
-          class="tab-button {activeTab === tab.id ? 'active' : ''}"
-        >
-          <span class="flex items-center gap-2 pointer-events-none">
-            <Papicon icon={tab.icon} size={16} class={activeTab === tab.id ? 'text-on-primary' : 'text-primary'} />
-            {tab.label}
-          </span>
-        </button>
-      {/each}
-    </div>
+    <Tabs
+      label={m.nav_user_settings()}
+      {tabs}
+      active={activeTab}
+      onchange={(id) => gotoTab(SETTINGS_BASE, id, 'preferences')}
+    />
   </div>
 
 {#if activeTab === 'widget'}

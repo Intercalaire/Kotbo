@@ -2,6 +2,8 @@
   import { onMount, onDestroy } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
@@ -498,17 +500,15 @@
         </p>
       </div>
 
-      <!-- Tabs -->
-      <div class="tab-group w-fit">
-        {#each [{ key: 'custom', label: m.nm_tab_custom({ count: customWords.length }) }, { key: 'global', label: m.nm_tab_global({ count: globalWords.length }) }] as tab}
-          <button
-            onclick={() => gotoTab('/security/filters/nicknames', tab.key, 'custom')}
-            class="tab-button {activeTab === tab.key ? 'active' : ''}"
-          >
-            {tab.label}
-          </button>
-        {/each}
-      </div>
+      <Tabs
+        label={m.nm_page_title()}
+        tabs={pageTabItems('/security/filters/nicknames').map((item) => ({
+          ...item,
+          badge: item.id === 'custom' ? customWords.length : globalWords.length,
+        }))}
+        active={activeTab}
+        onchange={(id) => gotoTab('/security/filters/nicknames', id, 'custom')}
+      />
 
       <!-- L'interrupteur qui commande la liste est deux sections plus haut : le
            bandeau le ramene ici plutot que d'obliger a remonter. -->

@@ -4,6 +4,8 @@
   import { onMount, onDestroy, untrack } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { fetchLinkedAccounts, updateLinkedAccountStatus, deleteLinkedAccount, fetchMemberCase, fetchFeatureConfigurations, updateFeatureConfiguration, updateModuleStatus, scanSuspectedDetections, fetchSuspectedDetections, fetchVerificationConfig, updateVerificationConfig, linkDetectedAccount, dismissDetection, restoreDetection, fetchMessageLogStats, updateMessageLogConfig } from '../lib/api';
@@ -657,26 +659,13 @@
   {/snippet}
 
   <!-- Tab Navigation -->
-  <div class="flex gap-1 rounded-lg border border-outline-variant/10 bg-surface-container-low/70 p-1 mb-6 overflow-x-auto">
-    {#each [
-      { key: 'links', label: m.da_tab_links(), icon: 'Link2' },
-      { key: 'detections', label: m.da_tab_detections(), icon: 'ShieldAlert', count: detections.length },
-      { key: 'network', label: m.da_tab_network(), icon: 'GitMerge' },
-      { key: 'verification', label: m.da_tab_verification(), icon: 'ShieldCheck' },
-      { key: 'config', label: m.da_tab_config(), icon: 'Settings' },
-    ] as tab (tab.key)}
-      <button
-        onclick={() => gotoTab('/security/accounts', tab.key, 'links')}
-        class="tab-button {activeTab === tab.key ? 'active' : ''}"
-      >
-        <Papicon icon={tab.icon} size={14} />
-        <span>{tab.label}</span>
-        {#if tab.count}
-          <span class="tab-button {activeTab === tab.key ? 'active' : ''}">{tab.count}</span>
-        {/if}
-      </button>
-    {/each}
-  </div>
+  <Tabs
+    label={m.da_page_title()}
+    class="mb-6"
+    tabs={pageTabItems('/security/accounts').map((item) => item.id === 'detections' && detections.length ? { ...item, badge: detections.length } : item)}
+    active={activeTab}
+    onchange={(id) => gotoTab('/security/accounts', id, 'links')}
+  />
 
   <!-- ═══ TAB: Liaisons ═══ -->
   {#if activeTab === 'links'}

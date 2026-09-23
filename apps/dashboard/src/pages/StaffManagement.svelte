@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
@@ -180,6 +182,18 @@
   
   const canManageSettings = $derived(isAdmin || !!dashboardStore.state.access?.canManageSettings || !!directoryAccess.canConfigure || !!rolesAccess.canConfigure);
   const canModerate = $derived(canManageSettings || !!directoryAccess.canModerate || !!rolesAccess.canModerate);
+  const staffTabVisible = $derived<Record<StaffTab, boolean>>({
+    members: !!directoryAccess.canView,
+    roles: !!rolesAccess.canView,
+    organigramme: !!directoryAccess.canView,
+    warnings: canModerate,
+    blacklist: canModerate,
+    polls: canModerate,
+    leadership: canModerate,
+    tutoring: canModerate && canViewFeature('tutoring'),
+    permissions: canManageSettings,
+  });
+
 
   const activeStaffMembers = $derived(staffMembers.filter(sm => !sm.blacklistEntries || sm.blacklistEntries.length === 0));
   const blacklistedStaffMembers = $derived(staffMembers.filter(sm => sm.blacklistEntries && sm.blacklistEntries.length > 0));
@@ -1569,28 +1583,12 @@
       {/each}
     </div>
 
-    <!-- TABS -->
-    <div class="flex flex-wrap items-center gap-3">
-      {#each [
-        { id: 'members', label: m.sm_tab_members(), icon: 'users', visible: !!directoryAccess.canView },
-        { id: 'roles', label: m.sm_tab_roles(), icon: 'shield', visible: !!rolesAccess.canView },
-        { id: 'organigramme', label: m.sm_tab_org(), icon: 'git-branch', visible: !!directoryAccess.canView },
-        { id: 'warnings', label: m.sm_tab_warnings(), icon: 'alert-triangle', visible: canModerate },
-        { id: 'blacklist', label: m.sm_tab_blacklist(), icon: 'slash', visible: canModerate },
-        { id: 'polls', label: m.sm_tab_polls(), icon: 'check-square', visible: canModerate },
-        { id: 'leadership', label: m.sm_tab_leadership(), icon: 'bar-chart', visible: canModerate },
-        { id: 'tutoring', label: m.sm_tab_tutoring(), icon: 'clipboard', visible: canModerate && canViewFeature('tutoring') },
-        { id: 'permissions', label: m.sm_tab_permissions(), icon: 'lock', visible: canManageSettings }
-      ].filter(t => t.visible) as tab}
-        <button
-          onclick={() => switchTab(tab.id as StaffTab)}
-          class="tab-button {activeTab === tab.id ? 'active' : ''}"
-        >
-        <Papicon icon={tab.icon} size={16} class="shrink-0" />
-          {tab.label}
-        </button>
-      {/each}
-    </div>
+    <Tabs
+      label={m.nav_group_staff()}
+      tabs={pageTabItems('/staff-management', (id) => staffTabVisible[id as StaffTab])}
+      active={activeTab}
+      onchange={(id) => switchTab(id as StaffTab)}
+    />
 
     <!-- SECTIONS -->
     <div class="premium-card rounded-xl overflow-hidden">
