@@ -39,6 +39,9 @@ export interface MonsterInput {
   isBoss?: unknown;
   bossRespawnHours?: unknown;
   clanPoints?: unknown;
+  firstKillCoinReward?: unknown;
+  firstKillXpReward?: unknown;
+  firstKillItemName?: unknown;
   enabled?: unknown;
 }
 
@@ -65,6 +68,9 @@ export interface NormalizedMonster {
   isBoss: boolean;
   bossRespawnHours: number | null;
   clanPoints: number;
+  firstKillCoinReward: number;
+  firstKillXpReward: number;
+  firstKillItemName: string | null;
   enabled: boolean;
 }
 
@@ -150,9 +156,34 @@ export function normalizeMonsterInput(input: MonsterInput): NormalizeResult {
       isBoss,
       bossRespawnHours,
       clanPoints: clampInt(input.clanPoints, CLAN_POINTS_RANGE, 0),
+      firstKillCoinReward: clampInt(input.firstKillCoinReward, REWARD_RANGE, 0),
+      firstKillXpReward: clampInt(input.firstKillXpReward, REWARD_RANGE, 0),
+      firstKillItemName: text(input.firstKillItemName) || null,
       enabled: input.enabled !== false,
     },
   };
+}
+
+/** Une créature promet-elle quelque chose à son premier vainqueur ? */
+export function hasFirstKillReward(monster: {
+  firstKillCoinReward: number;
+  firstKillXpReward: number;
+  firstKillItemName: string | null;
+}): boolean {
+  return monster.firstKillCoinReward > 0 || monster.firstKillXpReward > 0 || Boolean(monster.firstKillItemName);
+}
+
+export const FIRST_KILL_ANNOUNCE_MODES = ['NONE', 'BOSSES', 'ALL'] as const;
+export type FirstKillAnnounceMode = (typeof FIRST_KILL_ANNOUNCE_MODES)[number];
+
+export function isFirstKillAnnounceMode(value: unknown): value is FirstKillAnnounceMode {
+  return typeof value === 'string' && (FIRST_KILL_ANNOUNCE_MODES as readonly string[]).includes(value);
+}
+
+/** L'annonce vaut-elle pour cette créature ? */
+export function shouldAnnounceFirstKill(mode: string, isBoss: boolean): boolean {
+  if (mode === 'ALL') return true;
+  return mode === 'BOSSES' && isBoss;
 }
 
 /**

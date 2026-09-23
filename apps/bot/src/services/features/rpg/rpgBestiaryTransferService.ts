@@ -58,6 +58,9 @@ export async function exportGuildBestiary(guildId: string): Promise<BestiaryExpo
       isBoss: monster.isBoss,
       bossRespawnHours: monster.bossRespawnHours,
       clanPoints: monster.clanPoints,
+      firstKillCoinReward: monster.firstKillCoinReward,
+      firstKillXpReward: monster.firstKillXpReward,
+      firstKillItemName: monster.firstKillItemName,
       enabled: monster.enabled,
     })),
   };
@@ -137,9 +140,15 @@ export async function importGuildBestiary(guildId: string, payload: unknown): Pr
   for (const monster of normalized) {
     const drops = monster.drops.filter((drop) => itemNames.has(drop.itemName));
     report.droppedLoot += monster.drops.length - drops.length;
+    // Même règle que pour le butin : une prime d'objet inconnu sur ce serveur est retirée,
+    // plutôt que de faire échouer l'import au milieu du fichier.
+    const firstKillItemName = monster.firstKillItemName && itemNames.has(monster.firstKillItemName)
+      ? monster.firstKillItemName
+      : null;
+    if (monster.firstKillItemName && !firstKillItemName) report.droppedLoot += 1;
 
     const previousId = byName.get(monster.name);
-    await saveGuildMonster(guildId, { ...monster, drops }, previousId);
+    await saveGuildMonster(guildId, { ...monster, drops, firstKillItemName }, previousId);
     if (previousId) report.updated += 1;
     else report.created += 1;
   }

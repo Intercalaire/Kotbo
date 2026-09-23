@@ -13,6 +13,7 @@ import {
   setGuildMonsterEnabled,
 } from '../../../services/features/rpg/rpgBestiaryService.js';
 import { parseMonsterDrops, type MonsterInput } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
+import { listFirstKills } from '../../../services/features/rpg/rpgFirstKillService.js';
 import type { RpgItemPayload } from '@kotbo/contracts';
 import { saveGuildShopItem, ShopItemError } from '../../../services/features/rpg/rpgShopItemService.js';
 import {
@@ -374,10 +375,22 @@ export async function handleEconomyRoutes(
 
         // Le taux de victoire et la dérive ne servent qu'à la page de réglage : ils
         // accompagnent la liste plutôt que de coûter un aller-retour de plus.
-        const [battles, drift] = await Promise.all([
+        const [battles, drift, firstKills] = await Promise.all([
           getBestiaryBattleStats(guildId, BATTLE_STATS_DAYS),
           findDifficultyDrift(monsters, difficulty),
+          listFirstKills(guildId),
         ]);
+        const discordGuild = client.guilds.cache.get(guildId);
+        const firstKillOf = (name: string) => {
+          const record = firstKills.get(name);
+          if (!record) return null;
+          const member = discordGuild?.members.cache.get(record.userId);
+          return {
+            userId: record.userId,
+            displayName: member?.displayName ?? client.users.cache.get(record.userId)?.username ?? null,
+            at: record.createdAt,
+          };
+        };
 
         const samples = {
           boss: summarizeBattles(monsters.filter((monster) => monster.isBoss), battles),
@@ -390,6 +403,7 @@ export async function handleEconomyRoutes(
             drops: parseMonsterDrops(monster.drops),
             battles: battles[monster.name] ?? { battles: 0, wins: 0 },
             offDifficulty: drift[monster.id] ?? null,
+            firstKill: firstKillOf(monster.name),
           })),
           battleStatsDays: BATTLE_STATS_DAYS,
           samples,

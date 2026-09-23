@@ -182,6 +182,7 @@ import { attackRaid, checkRaidAssaultGrant, getRaidPanelState, getRaidState, gra
 import { buildAssaultEmbed, buildRaidEmbed, healthBar } from './rpg/rpgRaidPanel.js';
 import { computeAttack } from './rpg/rpgCombatMath.js';
 import { bossCooldownMs, fightCooldownMs, formatCooldown, remainingCooldownMs } from './rpg/rpgCombatCooldownPolicy.js';
+import { claimFirstKill, formatFirstKillReward, getFirstKill, type FirstKillMonster } from './rpg/rpgFirstKillService.js';
 import {
   buyBlackMarketOffer,
   getBlackMarketState,
@@ -3935,6 +3936,27 @@ async function buildBestiaryEntryView(
       },
     );
 
+  // Le premier vainqueur, ou la prime qui attend encore preneur : c'est elle qui donne
+  // envie d'aller affronter une créature que personne n'a encore battue.
+  const firstKill = await getFirstKill(guildId, monster.name);
+  if (firstKill) {
+    embed.addFields({
+      name: m.rpg_bestiary_field_first_kill({}, { locale }),
+      value: m.rpg_bestiary_first_kill_value({ user: `<@${firstKill.userId}>`, date: `<t:${Math.floor(firstKill.createdAt.getTime() / 1000)}:d>` }, { locale }),
+      inline: false,
+    });
+  } else {
+    const config = await getOrCreateEconomyConfig(guildId);
+    const bounty = formatFirstKillReward({
+      coins: monster.firstKillCoinReward,
+      xp: monster.firstKillXpReward,
+      itemName: monster.firstKillItemName,
+    }, config.currencyEmoji);
+    if (bounty) {
+      embed.addFields({ name: m.rpg_bestiary_field_first_kill_bounty({}, { locale }), value: bounty, inline: false });
+    }
+  }
+
   if (record.lastFoughtAt) {
     embed.addFields({
       name: m.rpg_bestiary_field_last({}, { locale }),
@@ -4038,6 +4060,37 @@ async function trackCombatQuests(
     completedChapters: [...kill.completedChapters, ...loot.completedChapters],
     finished: kill.finished || loot.finished,
   };
+}
+
+/**
+ * Premier vainqueur : le record, la prime et l'annonce.
+ *
+ * Un incident ici ne doit pas priver le joueur du compte rendu d'une victoire déjà versée :
+ * il est journalisé, et le combat se termine comme si de rien n'était.
+ */
+async function firstKillField(
+  client: Client,
+  guildId: string,
+  userId: string,
+  monster: FirstKillMonster,
+  locale: Locale,
+): Promise<{ name: string; value: string; inline: boolean } | null> {
+  try {
+    const claimed = await claimFirstKill(client, guildId, userId, monster);
+    if (!claimed) return null;
+    const config = await getOrCreateEconomyConfig(guildId);
+    const reward = formatFirstKillReward(claimed, config.currencyEmoji);
+    return {
+      name: m.rpg_first_kill_field_title({}, { locale }),
+      value: reward
+        ? m.rpg_first_kill_field_reward_value({ reward }, { locale })
+        : m.rpg_first_kill_field_value({}, { locale }),
+      inline: false,
+    };
+  } catch (err) {
+    logger.error('RpgPanel', `Premier vainqueur non enregistré pour ${monster.name} :`, err);
+    return null;
+  }
 }
 
 async function awardMonsterTeamPoints(
@@ -4472,6 +4525,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
 
         const teamPoints = await awardMonsterTeamPoints(guildId, ownerId, monster, interaction.client);
         const campaign = await trackCombatQuests(interaction.client, guildId, ownerId, monster.isBoss, itemDropped);
+        const firstKill = await firstKillField(interaction.client, guildId, ownerId, monster, locale);
 
         if (itemDropped) victoryEmbed.addFields({ name: m.rpg_fight_field_drop({}, { locale }), value: `${itemDropEmoji || '📦'} **${itemDropped}**`, inline: true });
         if (teamPoints.amount > 0) {
@@ -4482,6 +4536,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
           });
         }
         if (firstWinBonus) victoryEmbed.addFields(firstWinField(locale));
+        if (firstKill) victoryEmbed.addFields(firstKill);
         if (levelUp) victoryEmbed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: levelUp }, { locale }) });
 
         // Le pied de compte rendu annonce l'étape de campagne validée : sans lui, le
@@ -4674,6 +4729,9 @@ async function runBossFight(interaction: StringSelectMenuInteraction, guildId: s
   const campaign = result.won
     ? await trackCombatQuests(interaction.client, guildId, ownerId, boss.isBoss, result.itemDropped)
     : null;
+  const firstKill = result.won
+    ? await firstKillField(interaction.client, guildId, ownerId, boss, locale)
+    : null;
 
   const turnSummary = result.turns.slice(-8).map((t) => {
     const who = t.attacker === 'player' ? m.rpg_boss_you_label({}, { locale }) : `${boss.emoji} ${boss.name}`;
@@ -4702,6 +4760,7 @@ async function runBossFight(interaction: StringSelectMenuInteraction, guildId: s
     });
   }
   if (result.firstWinBonus) embed.addFields(firstWinField(locale));
+  if (firstKill) embed.addFields(firstKill);
   if (result.levelUp) embed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: result.levelUp }, { locale }) });
 
   const campaignNote = campaign ? campaignAdvanceNote(campaign, locale) : '';

@@ -20,6 +20,7 @@ import {
   setGuildMonsterEnabled,
 } from '../../../services/features/rpg/rpgBestiaryService.js';
 import { parseMonsterDrops } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
+import { listFirstKills } from '../../../services/features/rpg/rpgFirstKillService.js';
 import { asDifficulty, DIFFICULTIES } from '../../../services/features/rpg/rpgDifficultyPolicy.js';
 import { applyBestiaryDifficulty, applyShopDifficulty } from '../../../services/features/rpg/rpgDifficultyService.js';
 import {
@@ -145,10 +146,13 @@ export function registerRpgTools(ctx: McpToolContext) {
         _meta: toolMeta,
       },
       guard('READ_ECONOMY', async ({ kind, include_disabled }) => {
-        const monsters = await listGuildMonsters(guildId, {
-          includeDisabled: include_disabled,
-          ...(kind === 'all' ? {} : { isBoss: kind === 'boss' }),
-        });
+        const [monsters, firstKills] = await Promise.all([
+          listGuildMonsters(guildId, {
+            includeDisabled: include_disabled,
+            ...(kind === 'all' ? {} : { isBoss: kind === 'boss' }),
+          }),
+          listFirstKills(guildId),
+        ]);
         return ok(monsters.map((monster) => ({
           id: monster.id,
           name: monster.name,
@@ -164,6 +168,10 @@ export function registerRpgTools(ctx: McpToolContext) {
           coinReward: monster.coinReward,
           clanPoints: monster.clanPoints,
           bossRespawnHours: monster.bossRespawnHours,
+          firstKillCoinReward: monster.firstKillCoinReward,
+          firstKillXpReward: monster.firstKillXpReward,
+          firstKillItemName: monster.firstKillItemName,
+          firstKill: firstKills.get(monster.name) ?? null,
           drops: parseMonsterDrops(monster.drops),
           enabled: monster.enabled,
           scope: monster.scope,
@@ -277,6 +285,9 @@ export function registerRpgTools(ctx: McpToolContext) {
           isBoss: z.boolean().optional().describe('Boss (faux par défaut à la création)'),
           bossRespawnHours: z.number().int().optional().describe('Boss uniquement : délai de réapparition'),
           clanPoints: z.number().int().optional().describe("Points de clan ou XP de guilde gagnés à l'abattre"),
+          firstKillCoinReward: z.number().int().optional().describe('Prime en pièces du premier joueur du serveur à la vaincre'),
+          firstKillXpReward: z.number().int().optional().describe('Prime en XP du premier vainqueur'),
+          firstKillItemName: z.string().nullable().optional().describe("Objet offert au premier vainqueur (nom exact), null pour aucun"),
           drops: z.array(dropSchema).optional(),
           enabled: z.boolean().optional(),
           key_name: z.string().optional(),
@@ -300,6 +311,9 @@ export function registerRpgTools(ctx: McpToolContext) {
             isBoss: existing.isBoss,
             bossRespawnHours: existing.bossRespawnHours,
             clanPoints: existing.clanPoints,
+            firstKillCoinReward: existing.firstKillCoinReward,
+            firstKillXpReward: existing.firstKillXpReward,
+            firstKillItemName: existing.firstKillItemName,
             drops: parseMonsterDrops(existing.drops),
             enabled: existing.enabled,
           } : null;

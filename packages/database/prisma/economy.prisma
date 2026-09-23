@@ -22,6 +22,11 @@ model EconomyConfig {
   fightCooldownSec     Int   @default(120)
   bossCooldownMin      Int   @default(2)
 
+  // Annonce du premier joueur à vaincre une créature : NONE, BOSSES (boss seulement,
+  // pour ne pas inonder le salon des dizaines de monstres ordinaires) ou ALL.
+  firstKillAnnounce    String  @default("NONE")
+  firstKillChannelId   String?
+
   // Garde-fous anti-abus (gambling / transferts)
   maxBetAmount         Int   @default(1000) // Mise maximale autorisée pour dice/roulette/rps
   maxDailyBets         Int   @default(20)   // Nombre maximal de parties de jeux d'argent par jour et par membre
@@ -206,6 +211,7 @@ model RpgProfile {
   // profil et non par la ligne d'inventaire : celle-ci disparaît avec le dernier
   // exemplaire, et la potion rachetée perdrait son étoile.
   favoriteItemIds     String[] @default([])
+  firstKills          RpgMonsterFirstKill[]
 
   // État de voyage
   isTraveling    Boolean   @default(false)
@@ -499,6 +505,12 @@ model RpgMonster {
   /// au classement des clans.
   clanPoints Int @default(0)
 
+  /// Prime versée au premier joueur du serveur qui abat la créature, en plus du butin
+  /// ordinaire. `firstKillItemName` désigne l'objet par son nom, comme les butins.
+  firstKillCoinReward Int     @default(0)
+  firstKillXpReward   Int     @default(0)
+  firstKillItemName   String?
+
   /// Un monstre global désactivé par un serveur est remplacé par une copie locale
   /// portant le même nom avec `enabled = false` : le catalogue global reste intact.
   enabled Boolean @default(true)
@@ -509,6 +521,24 @@ model RpgMonster {
 
   @@unique([guildId, name])
   @@map("rpg_monsters")
+}
+
+/// Premier joueur du serveur à avoir abattu une créature.
+///
+/// La créature est désignée par son nom, pas par son identifiant : personnaliser un monstre
+/// livré de base en crée une copie locale d'un autre identifiant, et le record ne doit pas
+/// repartir de zéro pour autant. L'unicité (serveur, nom) arbitre deux victoires simultanées.
+model RpgMonsterFirstKill {
+  id          String   @id @default(cuid())
+  guildId     String
+  monsterName String
+  userId      String
+  createdAt   DateTime @default(now())
+
+  profile RpgProfile @relation(fields: [guildId, userId], references: [guildId, userId], onDelete: Cascade)
+
+  @@unique([guildId, monsterName])
+  @@map("rpg_monster_first_kills")
 }
 
 /**

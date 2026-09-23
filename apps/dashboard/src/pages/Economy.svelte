@@ -121,6 +121,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     adventureCooldownMin: 30,
     fightCooldownSec: 120,
     bossCooldownMin: 2,
+    firstKillAnnounce: 'NONE',
+    firstKillChannelId: null as string | null,
     maxEnergy: 100,
     energyRecoveryPerHour: 10,
     maxBetAmount: 1000,
@@ -835,6 +837,10 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       toast.error(m.eco_toast_bm_role_required());
       return false;
     }
+    if (config.firstKillAnnounce !== 'NONE' && !config.firstKillChannelId) {
+      toast.error(m.eco_toast_first_kill_channel_required());
+      return false;
+    }
     // Le raid se joue depuis le bouton de son annonce : sans annonce ni salon, la fenetre
     // s'ouvre et se referme sans que personne n'ait pu frapper.
     if (config.raidEnabled && config.raidAnnounce === 'NONE') {
@@ -963,6 +969,9 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       isBoss,
       bossRespawnHours: isBoss ? 2 : null,
       clanPoints: 0,
+      firstKillCoinReward: 0,
+      firstKillXpReward: 0,
+      firstKillItemName: null as string | null,
       enabled: true,
       scope: 'GUILD',
       overridesGlobal: false
@@ -1026,6 +1035,9 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       isBoss: editingMonster.isBoss,
       bossRespawnHours: editingMonster.bossRespawnHours,
       clanPoints: editingMonster.clanPoints ?? 0,
+      firstKillCoinReward: Number(editingMonster.firstKillCoinReward) || 0,
+      firstKillXpReward: Number(editingMonster.firstKillXpReward) || 0,
+      firstKillItemName: editingMonster.firstKillItemName || null,
       enabled: editingMonster.enabled,
       drops: editingMonster.drops
         .filter((drop: any) => drop.itemName)
@@ -1722,6 +1734,35 @@ import EmojiText from '../lib/components/EmojiText.svelte';
               <p class="text-[11px] text-on-surface-variant/40">{m.eco_boss_cd_hint()}</p>
             </div>
           </div>
+
+          <div class="space-y-4 pt-4 border-t border-outline-variant/10">
+            <div>
+              <h4 class="text-sm font-bold">{m.eco_first_kill_announce_title()}</h4>
+              <p class="text-xs text-on-surface-variant/60 mt-0.5">{m.eco_first_kill_announce_desc()}</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div class="space-y-1.5">
+                <label for="firstKillAnnounce" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bm_announce_mode()}</label>
+                <select id="firstKillAnnounce" bind:value={config.firstKillAnnounce} disabled={!canManageSettings || !config.enabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50">
+                  <option value="NONE">{m.eco_first_kill_announce_none()}</option>
+                  <option value="BOSSES">{m.eco_first_kill_announce_bosses()}</option>
+                  <option value="ALL">{m.eco_first_kill_announce_all()}</option>
+                </select>
+              </div>
+              {#if config.firstKillAnnounce !== 'NONE'}
+                <div class="space-y-1.5">
+                  <label for="firstKillChannel" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bm_announce_channel_label()}</label>
+                  <SearchableSelect
+                    id="firstKillChannel"
+                    bind:value={config.firstKillChannelId}
+                    options={availableChannels.map((c: any) => ({ id: c.id, name: channelDisplayName(c) }))}
+                    placeholder={m.eco_bm_select_channel()}
+                    className="w-full"
+                  />
+                </div>
+              {/if}
+            </div>
+          </div>
         </div>
 
         <!-- Reset Economy Section -->
@@ -2187,6 +2228,13 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                           ? m.eco_quest_guild_xp_short({ points: monster.clanPoints })
                           : m.eco_bestiary_clan_points_short({ points: monster.clanPoints })}
                       </span>
+                    {/if}
+                    {#if monster.firstKill}
+                      <span class="flex items-center gap-1" title={m.eco_bestiary_first_kill_hint({ date: new Date(monster.firstKill.at).toLocaleDateString() })}>
+                        <Papicon icon="award" size={11} /> {monster.firstKill.displayName ?? monster.firstKill.userId}
+                      </span>
+                    {:else if monster.firstKillCoinReward > 0 || monster.firstKillXpReward > 0 || monster.firstKillItemName}
+                      <span class="flex items-center gap-1"><Papicon icon="award" size={11} /> {m.eco_bestiary_first_kill_open()}</span>
                     {/if}
                     {#if monster.battles?.battles > 0}
                       <span title={m.eco_bestiary_winrate_hint({ days: battleStatsDays })}>
@@ -3484,6 +3532,42 @@ import EmojiText from '../lib/components/EmojiText.svelte';
             <ToggleSwitch checked={editingMonster.enabled} onToggle={(v: boolean) => editingMonster.enabled = v} />
           </div>
         </div>
+
+        <fieldset class="border border-outline-variant/10 p-4 rounded-lg space-y-3">
+          <legend class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50 px-2">{m.eco_bestiary_first_kill_title()}</legend>
+          <p class="text-[11px] text-on-surface-variant/60 leading-relaxed">{m.eco_bestiary_first_kill_desc()}</p>
+
+          {#if editingMonster.firstKill}
+            <p class="text-xs bg-amber-500/10 text-amber-400 rounded-lg px-3 py-2">
+              {m.eco_bestiary_first_kill_holder({
+                name: editingMonster.firstKill.displayName ?? editingMonster.firstKill.userId,
+                date: new Date(editingMonster.firstKill.at).toLocaleDateString()
+              })}
+            </p>
+          {/if}
+
+          <div class="grid grid-cols-2 gap-3">
+            <div class="space-y-1">
+              <label for="monsterFirstKillCoins" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_coin_reward({ currency: config.currencyName })}</label>
+              <input id="monsterFirstKillCoins" type="number" min="0" bind:value={editingMonster.firstKillCoinReward} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+            </div>
+            <div class="space-y-1">
+              <label for="monsterFirstKillXp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_xp_reward()}</label>
+              <input id="monsterFirstKillXp" type="number" min="0" bind:value={editingMonster.firstKillXpReward} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+            </div>
+            <div class="col-span-2 space-y-1">
+              <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_first_kill_item()}</span>
+              <SearchableSelect
+                value={editingMonster.firstKillItemName || null}
+                options={dropItemOptions}
+                placeholder={m.eco_bestiary_first_kill_item_none()}
+                clearable={true}
+                className="w-full"
+                on:change={(e: any) => editingMonster.firstKillItemName = e.detail?.value ?? null}
+              />
+            </div>
+          </div>
+        </fieldset>
 
         <fieldset class="border border-outline-variant/10 p-4 rounded-lg space-y-3">
           <legend class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50 px-2">{m.eco_bestiary_drops_title()}</legend>
