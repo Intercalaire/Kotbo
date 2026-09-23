@@ -179,6 +179,12 @@ export async function updateChannelsManagementConfig(
       canTransfer: boolean;
       /** Pas une permission : un choix de présentation. Défaut `false`. */
       panelCompactMode: boolean;
+      /** Rôles proposés dans le menu « Réserver le salon ». Vide = tous. */
+      reservableRoleIds: string[];
+      /** Sort des personnes déjà présentes sans le rôle au moment de la réservation. */
+      reservationOverflow: 'ASK' | 'NOTHING' | 'MOVE' | 'DISCONNECT';
+      /** Salon vers lequel déplacer quand la décision est `MOVE`. */
+      reservationFallbackChannelId: string | null;
     };
     honeypotEnabled?: boolean;
     honeypotChannelId?: string | null;

@@ -1483,6 +1483,10 @@ describe('limite de places', () => {
       isModalSubmit: () => true,
       isRoleSelectMenu: () => false,
       isUserSelectMenu: () => false,
+      // Une vraie interaction Discord porte les trois gardes de type, quelle que
+      // soit sa nature. En omettre une ici fait lever le module sur un appel
+      // parfaitement legitime, et l'echec accuse le code au lieu du banc.
+      isStringSelectMenu: () => false,
       isRepliable: () => true,
       fields: { getTextInputValue: () => value },
       deferReply: mock(async () => { interaction.deferred = true; }),
@@ -1856,6 +1860,10 @@ describe('renommage refusé', () => {
       isModalSubmit: () => true,
       isRoleSelectMenu: () => false,
       isUserSelectMenu: () => false,
+      // Une vraie interaction Discord porte les trois gardes de type, quelle que
+      // soit sa nature. En omettre une ici fait lever le module sur un appel
+      // parfaitement legitime, et l'echec accuse le code au lieu du banc.
+      isStringSelectMenu: () => false,
       isRepliable: () => true,
       fields: { getTextInputValue: () => 'Nouveau nom' },
       deferReply: mock(async () => { interaction.deferred = true; }),
@@ -1991,6 +1999,10 @@ describe('renommage', () => {
       isModalSubmit: () => true,
       isRoleSelectMenu: () => false,
       isUserSelectMenu: () => false,
+      // Une vraie interaction Discord porte les trois gardes de type, quelle que
+      // soit sa nature. En omettre une ici fait lever le module sur un appel
+      // parfaitement legitime, et l'echec accuse le code au lieu du banc.
+      isStringSelectMenu: () => false,
       isRepliable: () => true,
       fields: { getTextInputValue: () => 'Nouveau nom' },
       deferReply: mock(async () => { interaction.deferred = true; }),
@@ -2175,6 +2187,9 @@ describe('câblage du panneau refondu', () => {
       isModalSubmit: () => true,
       isRoleSelectMenu: () => false,
       isUserSelectMenu: () => false,
+      // Une vraie interaction Discord porte les trois gardes de type, quelle que
+      // soit sa nature. En omettre une ici fait lever le module sur un appel
+      // parfaitement legitime, et l'echec accuse le code au lieu du banc.
       isStringSelectMenu: () => false,
       isMessageComponent: () => false,
       isRepliable: () => true,
@@ -3142,4 +3157,67 @@ describe('Sous-panneau « Membres » : deux portes', () => {
     expect(options).toHaveLength(2);
     expect(options.map((option) => option.value)).not.toContain('799999999999999999');
   });
+});
+
+describe('Verite des presents : le cache de discord.js ment par omission', () => {
+  test('un membre en vocal mais absent du cache est recupere avant affichage', async () => {
+    // `channel.members` n'est pas la liste des connectes : c'est celle des etats
+    // vocaux DONT le membre est deja en cache. Un absent du cache disparait du
+    // decompte, de la liste et des autorisations - sans erreur, sans trace.
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+    const { channel } = fakeChannel();
+
+    const ABSENT = '760000000000000001';
+    const membresEnCache = new Map<string, unknown>();
+    const recuperes: string[][] = [];
+
+    (channel as { members: Map<string, unknown> }).members = membresEnCache;
+    (channel as { guild: Record<string, unknown> }).guild = {
+      id: GUILD,
+      roles: { everyone: { id: GUILD } },
+      channels: { fetch: mock(async () => null) },
+      // L'etat vocal fait foi : il dit que quelqu'un est la.
+      voiceStates: { cache: new Map([[ABSENT, { id: ABSENT, channelId: CHANNEL }]]) },
+      members: {
+        cache: membresEnCache,
+        fetch: mock(async (options: { user: string[] }) => {
+          recuperes.push(options.user);
+          for (const id of options.user) {
+            membresEnCache.set(id, { ...fakeTarget(id, false), displayName: 'Arrive tard' });
+          }
+          return membresEnCache;
+        }),
+      },
+    };
+
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const { interaction } = fakeButtonInteraction('membres', {
+      channel,
+      guild: fakeGuild(new Map()),
+      member: fakeTarget(OWNER, false),
+    });
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+
+    // Le membre manquant a bien ete reclame a Discord...
+    expect(recuperes.flat()).toContain(ABSENT);
+
+    // ...et il figure dans le menu des presents.
+    const appels = (interaction.reply as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const charge = (appels[0]?.[0] ?? {}) as {
+      components?: Array<{ components: Array<{ data: Record<string, unknown>; options?: unknown[] }> }>;
+    };
+    const menu = (charge.components ?? [])
+      .flatMap((rangee) => rangee.components)
+      .find((composant) => composant.data.custom_id === 'tempvoice:membre_ici');
+    const valeurs = ((menu?.options ?? []) as Array<{ data?: { value?: string }; value?: string }>)
+      .map((option) => option.value ?? option.data?.value);
+
+    expect(valeurs).toContain(ABSENT);
+
+    tempChannels.delete(CHANNEL);
+    guildConfig = null;
+  }, 10_000);
 });

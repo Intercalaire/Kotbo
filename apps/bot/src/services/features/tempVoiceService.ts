@@ -1586,6 +1586,127 @@ export function membresAReduireAuSilence(
     .map((surcharge) => surcharge.userId);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. La réservation : à quels rôles, et que faire de ceux qui sont déjà là
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Ce que l'administration décide du sort des personnes déjà présentes. */
+export const DECISIONS_DEBORDEMENT = ['ASK', 'NOTHING', 'MOVE', 'DISCONNECT'] as const;
+export type DecisionDebordement = (typeof DECISIONS_DEBORDEMENT)[number];
+
+export interface ConfigReservation {
+  /** Vide = n'importe quel rôle du serveur, le comportement livré. */
+  rolesReservables: string[];
+  debordement: DecisionDebordement;
+  salonDeRepli: string | null;
+}
+
+export const CONFIG_RESERVATION_PAR_DEFAUT: ConfigReservation = {
+  rolesReservables: [],
+  debordement: 'ASK',
+  salonDeRepli: null,
+};
+
+/** Le plafond d'un menu Discord : au-delà, le bot ne pourrait pas les afficher. */
+export const MAX_ROLES_RESERVABLES = 25;
+
+/**
+ * Ce que le dashboard écrit n'est validé par personne d'autre. Une valeur de
+ * débordement inconnue retombe sur `ASK` — poser la question — et jamais sur
+ * une valeur qui agit : un réglage corrompu ne doit déconnecter personne.
+ */
+export function normaliserConfigReservation(raw: unknown): ConfigReservation {
+  if (!raw || typeof raw !== 'object') return { ...CONFIG_RESERVATION_PAR_DEFAUT, rolesReservables: [] };
+  const ligne = raw as Record<string, unknown>;
+
+  const roles = Array.isArray(ligne.reservableRoleIds)
+    ? [...new Set(ligne.reservableRoleIds.filter((id): id is string => typeof id === 'string' && id.length > 0))]
+      .slice(0, MAX_ROLES_RESERVABLES)
+    : [];
+
+  const debordement = DECISIONS_DEBORDEMENT.includes(ligne.reservationOverflow as DecisionDebordement)
+    ? (ligne.reservationOverflow as DecisionDebordement)
+    : CONFIG_RESERVATION_PAR_DEFAUT.debordement;
+
+  const salon = typeof ligne.reservationFallbackChannelId === 'string'
+    && ligne.reservationFallbackChannelId.length > 0
+    ? ligne.reservationFallbackChannelId
+    : null;
+
+  return { rolesReservables: roles, debordement, salonDeRepli: salon };
+}
+
+/** Une personne présente, telle que le plan a besoin de la connaître. */
+export interface PresentPourReservation {
+  id: string;
+  estBot: boolean;
+  /** Les rôles qu'elle porte sur le serveur. */
+  roles: ReadonlySet<string>;
+}
+
+/**
+ * Qui, parmi les présents, n'a pas le rôle auquel le salon vient d'être réservé.
+ *
+ * Le propriétaire n'en fait jamais partie, quel que soit son rôle : réserver son
+ * salon ne peut pas l'en éjecter. Les bots non plus — les déplacer ne règle
+ * rien et casse ce qu'ils font.
+ */
+export function membresSansLeRole(
+  presents: readonly PresentPourReservation[],
+  roleId: string,
+  proprietaireId: string,
+): string[] {
+  return presents
+    .filter((membre) => !membre.estBot)
+    .filter((membre) => membre.id !== proprietaireId)
+    .filter((membre) => !membre.roles.has(roleId))
+    .map((membre) => membre.id);
+}
+
+export type ActionDebordement = 'aucune' | 'demander' | 'deplacer' | 'deconnecter';
+
+export interface PlanDebordement {
+  action: ActionDebordement;
+  /** Salon d'accueil, seulement pour « deplacer ». */
+  salon: string | null;
+  membres: string[];
+  /** « Déplacer » demandé sans salon d'accueil : on déconnecte, et on le dit. */
+  repliSurDeconnexion: boolean;
+}
+
+/**
+ * Ce qu'il advient de ceux qui restent.
+ *
+ * Réserver ne déplaçait personne : les gens restaient dans un salon qu'ils
+ * n'auraient plus eu le droit de rejoindre. Le plan est rendu ici, sans rien
+ * exécuter, pour qu'on puisse l'éprouver sans toucher à Discord.
+ *
+ * Aucun concerné, aucune action — et surtout aucune question posée : demander
+ * quoi faire de personne serait du bruit.
+ */
+export function planDebordement(
+  config: ConfigReservation,
+  concernes: readonly string[],
+): PlanDebordement {
+  const membres = [...concernes];
+  if (membres.length === 0) return { action: 'aucune', salon: null, membres: [], repliSurDeconnexion: false };
+
+  switch (config.debordement) {
+    case 'NOTHING':
+      return { action: 'aucune', salon: null, membres, repliSurDeconnexion: false };
+    case 'ASK':
+      return { action: 'demander', salon: config.salonDeRepli, membres, repliSurDeconnexion: false };
+    case 'DISCONNECT':
+      return { action: 'deconnecter', salon: null, membres, repliSurDeconnexion: false };
+    case 'MOVE':
+      // Un salon d'accueil absent ou supprimé ne doit pas annuler la décision en
+      // silence : la personne part quand même, et le message le dit.
+      return config.salonDeRepli
+        ? { action: 'deplacer', salon: config.salonDeRepli, membres, repliSurDeconnexion: false }
+        : { action: 'deconnecter', salon: null, membres, repliSurDeconnexion: true };
+  }
+}
+
 /**
  * Qui porte quelle origine, par salon. Rien n'est persisté ici : un salon
  * temporaire meurt avec ses marques. Si la refonte doit survivre à un

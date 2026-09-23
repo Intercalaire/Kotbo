@@ -64,9 +64,13 @@ const CHANNEL_FEATURE_SELECT = Object.fromEntries(
  */
 type TempVoiceAccessResponders = 'OWNER' | 'OWNER_AND_STAFF';
 type TempVoiceAccessNotifyVia = 'VOICE' | 'DM' | 'CHANNEL';
+type TempVoiceReservationOverflow = 'ASK' | 'NOTHING' | 'MOVE' | 'DISCONNECT';
 
 const TEMP_VOICE_ACCESS_RESPONDERS: readonly TempVoiceAccessResponders[] = ['OWNER', 'OWNER_AND_STAFF'];
 const TEMP_VOICE_ACCESS_NOTIFY_VIA: readonly TempVoiceAccessNotifyVia[] = ['VOICE', 'DM', 'CHANNEL'];
+const TEMP_VOICE_RESERVATION_OVERFLOW: readonly TempVoiceReservationOverflow[] = ['ASK', 'NOTHING', 'MOVE', 'DISCONNECT'];
+/** Plafond d'un menu de sélection de rôle Discord : au-delà, le bot ne pourrait pas les afficher. */
+const MAX_RESERVABLE_ROLES = 25;
 
 interface TempVoiceAccessRequestConfigView {
   enabled: boolean;
@@ -91,6 +95,19 @@ interface TempVoiceModPermissionsConfigView {
    * des sept permissions ci-dessus qui valent `true` par défaut.
    */
   panelCompactMode: boolean;
+  /**
+   * Rôles proposés dans le menu « Réserver le salon ». Vide — n'importe quel
+   * rôle du serveur (comportement livré). Non vide — seuls ces rôles sont
+   * proposés.
+   */
+  reservableRoleIds: string[];
+  /**
+   * Sort des personnes déjà dans le salon qui n'ont pas le rôle au moment où
+   * il est réservé. `ASK` pose la question au propriétaire.
+   */
+  reservationOverflow: TempVoiceReservationOverflow;
+  /** Salon vers lequel déplacer quand la décision est `MOVE`. */
+  reservationFallbackChannelId: string | null;
 }
 
 /** `@default` du modèle Prisma `TempVoiceAccessRequestConfig`. */
@@ -115,6 +132,9 @@ const TEMP_VOICE_MOD_PERMISSIONS_DEFAULTS: TempVoiceModPermissionsConfigView = {
   // Pas une permission : le comportement livré est l'éphémère multiple, donc
   // `false`, contrairement aux sept permissions ci-dessus qui valent `true`.
   panelCompactMode: false,
+  reservableRoleIds: [],
+  reservationOverflow: 'ASK',
+  reservationFallbackChannelId: null,
 };
 
 /**
@@ -149,7 +169,19 @@ function viewTempVoiceAccessRequestConfig(
 }
 
 function viewTempVoiceModPermissionsConfig(
-  row: TempVoiceModPermissionsConfigView | null,
+  row: {
+    canRename: boolean;
+    canChangeLimit: boolean;
+    canLock: boolean;
+    canChangeWriteMode: boolean;
+    canKickOrBan: boolean;
+    canReserve: boolean;
+    canTransfer: boolean;
+    panelCompactMode: boolean;
+    reservableRoleIds: string[];
+    reservationOverflow: string;
+    reservationFallbackChannelId: string | null;
+  } | null,
 ): TempVoiceModPermissionsConfigView {
   if (!row) return { ...TEMP_VOICE_MOD_PERMISSIONS_DEFAULTS };
   return {
@@ -161,6 +193,11 @@ function viewTempVoiceModPermissionsConfig(
     canReserve: row.canReserve,
     canTransfer: row.canTransfer,
     panelCompactMode: row.panelCompactMode,
+    reservableRoleIds: row.reservableRoleIds,
+    reservationOverflow: TEMP_VOICE_RESERVATION_OVERFLOW.includes(row.reservationOverflow as TempVoiceReservationOverflow)
+      ? (row.reservationOverflow as TempVoiceReservationOverflow)
+      : TEMP_VOICE_MOD_PERMISSIONS_DEFAULTS.reservationOverflow,
+    reservationFallbackChannelId: row.reservationFallbackChannelId,
   };
 }
 
@@ -216,7 +253,22 @@ function normalizeTempVoiceAccessRequestInput(
   return { data };
 }
 
-/** Valide le payload entrant pour `tempVoiceModPermissions` : huit booléens, rien d'autre. */
+/**
+ * Identifiant Discord plausible. Même borne que `isSnowflake` (non exportée)
+ * dans `tempVoiceService.ts` : un salon/rôle réel s'y conforme toujours, une
+ * valeur inventée dans le corps de la requête ne passe pas.
+ */
+function isPlausibleSnowflake(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{17,20}$/.test(value);
+}
+
+/**
+ * Valide le payload entrant pour `tempVoiceModPermissions` : les sept
+ * permissions et `panelCompactMode` sont des booléens ; les trois champs de
+ * réservation (`reservableRoleIds`, `reservationOverflow`,
+ * `reservationFallbackChannelId`) sont sanitisés plutôt que de laisser
+ * remonter une valeur venue du navigateur jusqu'à la base ou jusqu'au bot.
+ */
 function normalizeTempVoiceModPermissionsInput(
   raw: unknown,
 ): { data: Partial<TempVoiceModPermissionsConfigView> } | { error: string } {
@@ -225,7 +277,13 @@ function normalizeTempVoiceModPermissionsInput(
   }
   const body = raw as Record<string, unknown>;
   const data: Partial<TempVoiceModPermissionsConfigView> = {};
-  const keys: Array<keyof TempVoiceModPermissionsConfigView> = [
+  // Type resserré aux seules clés booléennes : `keyof TempVoiceModPermissionsConfigView`
+  // couvre aussi `reservableRoleIds`/`reservationOverflow`/`reservationFallbackChannelId`
+  // depuis leur ajout, et écrire via une clé union dont les types de valeur
+  // divergent (boolean vs string[] vs string|null) fait échouer le typecheck.
+  const boolKeys: Array<
+    'canRename' | 'canChangeLimit' | 'canLock' | 'canChangeWriteMode' | 'canKickOrBan' | 'canReserve' | 'canTransfer' | 'panelCompactMode'
+  > = [
     'canRename',
     'canChangeLimit',
     'canLock',
@@ -235,11 +293,37 @@ function normalizeTempVoiceModPermissionsInput(
     'canTransfer',
     'panelCompactMode',
   ];
-  for (const key of keys) {
+  for (const key of boolKeys) {
     if (Object.prototype.hasOwnProperty.call(body, key)) {
       data[key] = body[key] === true;
     }
   }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'reservableRoleIds')) {
+    // Pas d'erreur 400 sur un tableau malformé : comme `normalizeRoleIds`
+    // (tempVoiceService.ts) pour `autoAllowRoleIds`, on sanitise plutôt que
+    // de rejeter tout le PATCH pour un seul champ optionnel.
+    const value = body.reservableRoleIds;
+    const ids = Array.isArray(value) ? value.filter(isPlausibleSnowflake) : [];
+    data.reservableRoleIds = [...new Set(ids)].slice(0, MAX_RESERVABLE_ROLES);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'reservationOverflow')) {
+    // Une valeur inconnue retombe sur `ASK`, jamais sur une valeur qui agit :
+    // une entrée invalide ne doit jamais se traduire par un déplacement ou
+    // une déconnexion que personne n'a choisis.
+    data.reservationOverflow = TEMP_VOICE_RESERVATION_OVERFLOW.includes(
+      body.reservationOverflow as TempVoiceReservationOverflow,
+    )
+      ? (body.reservationOverflow as TempVoiceReservationOverflow)
+      : 'ASK';
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'reservationFallbackChannelId')) {
+    const value = body.reservationFallbackChannelId;
+    data.reservationFallbackChannelId = typeof value === 'string' && value.trim() ? value.trim() : null;
+  }
+
   return { data };
 }
 
