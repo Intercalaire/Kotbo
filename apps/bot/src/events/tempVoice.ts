@@ -323,8 +323,8 @@ function oublierSalon(guildId: string, salonId: string): void {
   registreDemandes.oublierSalon(guildId, salonId);
   originesSurcharge.oublierSalon(guildId, salonId);
   historiquesRenommage.delete(salonId);
-  const fenetre = rafraichissements.get(salonId);
-  if (fenetre) clearTimeout(fenetre.minuteur);
+  const etat = rafraichissements.get(salonId);
+  if (etat?.minuteur) clearTimeout(etat.minuteur);
   rafraichissements.delete(salonId);
 }
 
@@ -436,46 +436,87 @@ async function roleAgissant(
 // Réécriture du panneau, anti-rebond de 2 s par salon
 // ─────────────────────────────────────────────────────────────────────────────
 
-const FENETRE_COALESCENCE_MS = 1_500;
+/**
+ * Espacement minimal entre deux reecritures d'un meme panneau.
+ *
+ * Discord plafonne les editions a cinq par tranche de cinq secondes et par
+ * salon. Une seconde laisse donc quatre fois la marge, tout en restant
+ * imperceptible : le premier changement s'affiche sans delai, et le suivant au
+ * plus tard une seconde apres.
+ */
+const ESPACEMENT_REECRITURE_MS = 1_000;
 
-interface FenetreRafraichissement {
-  minuteur: ReturnType<typeof setTimeout>;
-  /** Un changement est arrivé pendant la fenêtre : il lui faut son passage. */
-  enAttente: boolean;
+interface EtatReecriture {
+  /** Une reecriture est en cours : la suivante attend qu'elle finisse. */
+  enCours: boolean;
+  /** Un changement est arrive depuis : il faudra repasser. */
+  sale: boolean;
+  /** Fin de la derniere reecriture, pour tenir l'espacement. */
+  dernierePassee: number;
+  minuteur?: ReturnType<typeof setTimeout>;
 }
 
-const rafraichissements = new Map<string, FenetreRafraichissement>();
+const rafraichissements = new Map<string, EtatReecriture>();
+
+function etatReecriture(salonId: string): EtatReecriture {
+  const existant = rafraichissements.get(salonId);
+  if (existant) return existant;
+  const neuf: EtatReecriture = { enCours: false, sale: false, dernierePassee: 0 };
+  rafraichissements.set(salonId, neuf);
+  return neuf;
+}
 
 /**
- * Le panneau dit l'état du salon : le laisser mentir une seconde de plus que
- * nécessaire est le seul vrai défaut qu'il puisse avoir.
+ * Le panneau dit l'etat du salon : le laisser mentir une seconde de plus que
+ * necessaire est le seul vrai defaut qu'il puisse avoir.
  *
- * La première action réécrit donc **tout de suite**, et c'est la rafale qui est
- * amortie derrière — l'inverse de ce que faisait l'anti-rebond, qui faisait
- * attendre deux secondes à un simple clic sur « Verrouiller ». Les changements
- * survenus pendant la fenêtre déclenchent un unique passage de rattrapage à sa
- * fermeture : deux écritures par fenêtre au pire, loin du plafond de Discord
- * (cinq éditions par tranche de cinq secondes et par salon).
+ * Pas de fenetre fixe. Le premier changement part **immediatement** ; ceux qui
+ * arrivent pendant une reecriture marquent le panneau « sale » et declenchent un
+ * second passage des que le premier finit, en respectant l'espacement minimal.
+ * Une rafale se replie donc toute seule, sans jamais faire attendre un
+ * changement plus longtemps que cet espacement.
+ *
+ * L'ancienne fenetre de coalescence faisait patienter le DEUXIEME clic jusqu'a
+ * sa fermeture : verrouiller puis deverrouiller laissait « Verrouille » affiche
+ * une seconde et demie apres coup.
  */
 function planifierRafraichissementPanneau(channel: VoiceChannel): void {
-  const fenetre = rafraichissements.get(channel.id);
-  if (fenetre) {
-    fenetre.enAttente = true;
+  const etat = etatReecriture(channel.id);
+
+  if (etat.enCours) {
+    etat.sale = true;
+    return;
+  }
+  if (etat.minuteur) return;
+
+  const attente = Math.max(0, ESPACEMENT_REECRITURE_MS - (Date.now() - etat.dernierePassee));
+  if (attente === 0) {
+    void executerReecriture(channel, etat);
     return;
   }
 
-  void lancerReecriture(channel);
-
   const minuteur = setTimeout(() => {
-    const courante = rafraichissements.get(channel.id);
-    rafraichissements.delete(channel.id);
-    if (courante?.enAttente) void lancerReecriture(channel);
-  }, FENETRE_COALESCENCE_MS);
-
+    etat.minuteur = undefined;
+    void executerReecriture(channel, etat);
+  }, attente);
   // Un minuteur en attente garderait le process en vie : le panneau n'est pas
-  // une raison de ne pas s'arrêter.
+  // une raison de ne pas s'arreter.
   (minuteur as unknown as { unref?: () => void }).unref?.();
-  rafraichissements.set(channel.id, { minuteur, enAttente: false });
+  etat.minuteur = minuteur;
+}
+
+async function executerReecriture(channel: VoiceChannel, etat: EtatReecriture): Promise<void> {
+  etat.enCours = true;
+  etat.sale = false;
+  try {
+    await lancerReecriture(channel);
+  } finally {
+    etat.enCours = false;
+    etat.dernierePassee = Date.now();
+    // Un changement est arrive pendant la reecriture : il a droit a son passage,
+    // au plus tot que l'espacement autorise.
+    if (etat.sale) planifierRafraichissementPanneau(channel);
+  }
 }
 
 function lancerReecriture(channel: VoiceChannel): Promise<void> {

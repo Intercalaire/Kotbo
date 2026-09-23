@@ -3563,3 +3563,197 @@ describe('Ephemeres : jamais de content brut', () => {
     }, 10_000);
   }
 });
+
+describe('Reactivite du panneau : chaque changement, tout de suite, et vrai', () => {
+  /**
+   * Un salon vivant dont le panneau est connu, et dont la relecture forcee
+   * livre enfin ce que Discord a recu.
+   *
+   * `permissionOverwrites.edit` ne met PAS le cache a jour : sans la relecture,
+   * le panneau redessine afficherait l'etat d'avant le clic. C'est exactement le
+   * defaut vu en conditions reelles.
+   */
+  function scene(id: string) {
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+    const { channel, syncFromGateway } = fakeChannel();
+    channel.id = id;
+
+    const panneau = {
+      id: `${id}9`,
+      flags: { has: (drapeau: number) => drapeau === MessageFlags.IsComponentsV2 },
+      edit: mock(async () => undefined),
+      delete: mock(async () => undefined),
+    };
+    (channel as { messages?: unknown }).messages = { fetch: mock(async () => panneau) };
+
+    let relectures = 0;
+    (channel as { guild: Record<string, unknown> }).guild = {
+      id: GUILD,
+      roles: { everyone: { id: GUILD }, cache: new Map() },
+      channels: { fetch: mock(async () => { relectures += 1; syncFromGateway(); return null; }) },
+      members: { me: { id: '600000000000000009', permissions: { has: () => true } }, cache: new Map() },
+      voiceStates: { cache: new Map() },
+    };
+    (channel as { permissionsFor?: unknown }).permissionsFor = () => ({ has: () => true });
+
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(id, { creatorId: OWNER, panneauId: panneau.id });
+
+    return {
+      channel,
+      panneau,
+      listeners,
+      relectures: () => relectures,
+      ranger: () => { tempChannels.delete(id); guildConfig = null; },
+    };
+  }
+
+  /** Ce que Discord recevrait pour le panneau, apres un delai TRES court. */
+  async function panneauApres(
+    sc: ReturnType<typeof scene>,
+    action: string,
+    valeurs?: string[],
+    attenteMs = 250,
+  ) {
+    const { interaction } = valeurs
+      ? fakeSelectInteraction({
+        customId: `tempvoice:${action}`,
+        values: valeurs,
+        channel: sc.channel,
+        member: fakeTarget(OWNER, false),
+        guild: fakeGuild(new Map()),
+      })
+      : fakeButtonInteraction(action, {
+        channel: sc.channel,
+        guild: fakeGuild(new Map()),
+        member: fakeTarget(OWNER, false),
+      });
+
+    await sc.listeners.get(Events.InteractionCreate)?.(interaction);
+    // 250 ms : bien en deca de la fenetre de coalescence. Si la reecriture
+    // l'attendait, rien ne serait encore parti - c'est la definition de « vif ».
+    await new Promise((resolve) => setTimeout(resolve, attenteMs));
+
+    const appels = sc.panneau.edit.mock.calls as unknown as unknown[][];
+    return JSON.stringify(appels.at(-1)?.[0] ?? {});
+  }
+
+  test('verrouiller : le panneau dit « Verrouille » tout de suite', async () => {
+    const sc = scene('950000000000000001');
+    const rendu = await panneauApres(sc, 'bascule_verrou');
+    expect(rendu).toContain('Verrouill');
+    expect(rendu).not.toContain('Ouvert');
+    sc.ranger();
+  }, 10_000);
+
+  test('deverrouiller : il repasse a « Ouvert » dans la seconde', async () => {
+    // Le deuxieme changement consecutif attend l'espacement minimal, pas une
+    // fenetre entiere : c'est la garantie, et elle est tenue.
+    const sc = scene('950000000000000002');
+    await panneauApres(sc, 'bascule_verrou');
+    const rendu = await panneauApres(sc, 'bascule_verrou', undefined, 1_100);
+    expect(rendu).toContain('Ouvert');
+    expect(rendu).not.toContain('Verrouill');
+    sc.ranger();
+  }, 15_000);
+
+  test('mode d ecriture : le champ « Ecriture » suit le choix', async () => {
+    const sc = scene('950000000000000003');
+    const rendu = await panneauApres(sc, 'mode_select', ['ownerOnly']);
+    expect(rendu).toContain('Moi seul');
+    expect(rendu).not.toContain('Tout le monde');
+    sc.ranger();
+  }, 10_000);
+
+  test('« Personne » se lit aussi dans le panneau', async () => {
+    const sc = scene('950000000000000004');
+    const rendu = await panneauApres(sc, 'mode_select', ['nobody']);
+    expect(rendu).toContain('Personne');
+    sc.ranger();
+  }, 10_000);
+
+  test('entree en vocal : le decompte d occupants bouge tout de suite', async () => {
+    const sc = scene('950000000000000005');
+    const membre = fakeTarget('950000000000000099', false);
+    (sc.channel as { members: Map<string, unknown> }).members = new Map([[membre.id, membre]]);
+
+    await sc.listeners.get(Events.VoiceStateUpdate)?.(
+      { channelId: null, channel: null },
+      { channelId: sc.channel.id, channel: sc.channel, member: membre, guild: { id: GUILD } },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 250));
+
+    const appels = sc.panneau.edit.mock.calls as unknown as unknown[][];
+    expect(appels.length).toBeGreaterThan(0);
+    expect(JSON.stringify(appels.at(-1)?.[0] ?? {})).toContain('1 /');
+    sc.ranger();
+  }, 10_000);
+
+  test('une action ne coute qu une relecture, pas une par lecteur', async () => {
+    // « Vif » ne doit pas vouloir dire « bavard » : le panneau public et le
+    // sous-panneau demandent la meme verite au meme instant, et la relecture
+    // est partagee.
+    const sc = scene('950000000000000006');
+    await panneauApres(sc, 'bascule_verrou');
+    expect(sc.relectures()).toBeLessThanOrEqual(2);
+    sc.ranger();
+  }, 10_000);
+
+  test('un changement arrive PENDANT une reecriture n est jamais perdu', async () => {
+    // La garantie centrale : le panneau finit toujours par dire le DERNIER etat.
+    //
+    // Le chevauchement est force par une EDITION lente, pas par une relecture :
+    // les relectures simultanees sont mutualisees, donc les ralentir ferait
+    // simplement attendre le second clic au lieu de le faire tomber pendant la
+    // premiere reecriture. Avec une edition lente, la fenetre de chevauchement
+    // est certaine.
+    const sc = scene('950000000000000008');
+
+    sc.panneau.edit = mock(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+    }) as never;
+
+    const clic = async () => {
+      const { interaction } = fakeButtonInteraction('bascule_verrou', {
+        channel: sc.channel,
+        guild: fakeGuild(new Map()),
+        member: fakeTarget(OWNER, false),
+      });
+      await sc.listeners.get(Events.InteractionCreate)?.(interaction);
+    };
+
+    await clic();                                                   // verrouille
+    await new Promise((resolve) => setTimeout(resolve, 50));        // reecriture en vol
+    await clic();                                                   // deverrouille
+
+    // De quoi laisser finir la premiere edition, l'espacement, et la seconde.
+    await new Promise((resolve) => setTimeout(resolve, 2_500));
+
+    // Deux passages engages : celui du premier clic, et le rattrapage du second.
+    // On mesure le DEPART de l'edition, pas sa fin : la seconde est encore en
+    // vol a cet instant, et attendre sa fin rendrait le test sensible a la
+    // duree simulee plutot qu'a la garantie.
+    //
+    // Sans le drapeau « sale », le second changement disparait et il n'en reste
+    // qu'un seul - le panneau reste fige sur « Verrouille ».
+    const appels = sc.panneau.edit.mock.calls as unknown as unknown[][];
+    expect(appels).toHaveLength(2);
+    expect(JSON.stringify(appels.at(-1)?.[0] ?? {})).toContain('Ouvert');
+    sc.ranger();
+  }, 20_000);
+
+  test('une rafale ne produit qu un rattrapage', async () => {
+    // Discord plafonne les editions a cinq par tranche de cinq secondes et par
+    // salon : le front montant ne doit pas se payer en ecritures.
+    const sc = scene('950000000000000007');
+    for (let i = 0; i < 6; i += 1) await panneauApres(sc, 'bascule_verrou');
+    await new Promise((resolve) => setTimeout(resolve, 1_800));
+
+    // Six clics espaces de 250 ms couvrent une fenetre et demie : au pire deux
+    // ecritures par fenetre, jamais une par clic.
+    const ecritures = (sc.panneau.edit.mock.calls as unknown as unknown[][]).length;
+    expect(ecritures).toBeLessThan(6);
+    sc.ranger();
+  }, 20_000);
+});
