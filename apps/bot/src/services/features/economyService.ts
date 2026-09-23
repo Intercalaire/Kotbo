@@ -1053,7 +1053,14 @@ export async function depositToRpgGuildTreasury(guildId: string, userId: string,
 /**
  * Revend un objet de l'inventaire à la boutique à 50% de son prix d'achat.
  */
-export async function sellShopItem(guildId: string, userId: string, itemId: string) {
+/**
+ * Vend un exemplaire d'un objet possédé.
+ *
+ * `minOwned` refuse la vente si le joueur en possède moins que ce nombre au moment de vendre.
+ * Le bouton de revente du butin s'en sert pour ne vendre que l'exemplaire gagné au combat :
+ * s'il a déjà été vendu, un second clic tomberait sinon sur un exemplaire possédé avant.
+ */
+export async function sellShopItem(guildId: string, userId: string, itemId: string, options: { minOwned?: number } = {}) {
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.shopEnabled) throw new Error('La boutique RPG est désactivée.');
 
@@ -1073,6 +1080,16 @@ export async function sellShopItem(guildId: string, userId: string, itemId: stri
     const current = await tx.rpgProfile.findUniqueOrThrow({ where: { id: profile.id } });
     if (isItemEquipped(current, item.id)) {
       throw new Error("Vous ne pouvez pas vendre un objet équipé. Déséquipez-le d'abord depuis l'onglet Inventaire de `/rpg`.");
+    }
+
+    if (options.minOwned !== undefined) {
+      const stock = await tx.rpgInventoryItem.findUnique({
+        where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: item.id } },
+        select: { quantity: true },
+      });
+      if (!stock || stock.quantity < options.minOwned) {
+        throw new Error('Cet exemplaire a déjà été vendu ou utilisé.');
+      }
     }
 
     // Vendre son dernier exemplaire emporte sa progression : garder l'instance ferait

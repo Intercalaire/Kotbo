@@ -4310,90 +4310,75 @@ async function firstKillField(
 /**
  * Bouton de revente du butin d'un combat, ou `null` s'il n'y a rien à en tirer.
  *
- * Seul le butin ordinaire est proposé : les récompenses uniques (objet, titre ou rôle du
- * premier vainqueur) restent au joueur, puisqu'il ne pourra jamais les regagner. Et un seul
- * exemplaire par objet tombé : vendre tout le stock viderait aussi ce que le joueur avait
- * mis de côté avant ce combat, y compris un exemplaire unique du même objet.
+ * Seul l'objet tombé est proposé : les récompenses uniques (objet, titre ou rôle du premier
+ * vainqueur) restent au joueur, puisqu'il ne pourra jamais les regagner.
+ *
+ * Le bouton porte le nombre d'exemplaires possédés juste après le combat, et la vente exige
+ * de le retrouver. Un clic rejoué - Discord qui annonce un échec alors que la vente est
+ * passée, un message resté affiché après un redémarrage - ne peut donc plus vendre un
+ * exemplaire que le joueur avait avant ce combat.
  */
 async function lootSellRow(
   guildId: string,
   ownerId: string,
-  lootNames: (string | null)[],
+  lootName: string | null,
   locale: Locale,
 ): Promise<ActionRowBuilder<ButtonBuilder> | null> {
-  const names = lootNames.filter((name): name is string => Boolean(name));
-  if (names.length === 0) return null;
+  if (!lootName) return null;
 
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.shopEnabled) return null;
 
-  const owned = await prisma.rpgInventoryItem.findMany({
-    where: { quantity: { gt: 0 }, profile: { guildId, userId: ownerId }, item: { name: { in: names } } },
+  const owned = await prisma.rpgInventoryItem.findFirst({
+    where: { quantity: { gt: 0 }, profile: { guildId, userId: ownerId }, item: { name: lootName, price: { gt: 0 } } },
     include: { item: true },
   });
-
-  const picked = names
-    .map((name) => owned.find((entry) => entry.item.name === name && entry.item.price > 0)?.item)
-    .filter((item): item is NonNullable<typeof item> => Boolean(item));
-  const total = picked.reduce((sum, item) => sum + Math.floor(item.price * SELL_RATIO), 0);
-  if (picked.length === 0 || total <= 0) return null;
+  const price = owned ? Math.floor(owned.item.price * SELL_RATIO) : 0;
+  if (!owned || price <= 0) return null;
 
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`rpg:sellloot:${ownerId}:${picked.map((item) => item.id).join(':')}`)
-      .setLabel(m.rpg_fight_sell_loot_btn({ price: total }, { locale }))
+      .setCustomId(`rpg:sellloot:${ownerId}:${owned.itemId}:${owned.quantity}`)
+      .setLabel(m.rpg_fight_sell_loot_btn({ price }, { locale }))
       .setEmoji(icon('rpgSell'))
       .setStyle(ButtonStyle.Success),
   );
 }
 
-// Messages dont le butin est déjà vendu ou en cours de vente. Sans ce verrou, un double clic
-// lançait deux ventes : la seconde vendait un exemplaire que le joueur possédait avant le
-// combat, jusqu'à son exemplaire unique du même objet.
-const lootSalesDone = new Set<string>();
-const LOOT_SALE_LOCK_MS = 15 * 60 * 1000;
-
-/** Revend le butin du combat, puis retire le bouton pour qu'il ne serve qu'une fois. */
+/**
+ * Revend le butin du combat, puis retire le bouton.
+ *
+ * Le bouton est retiré même quand la vente est refusée : un clic rejoué après une vente déjà
+ * passée doit remettre le message d'aplomb, pas laisser un bouton qui ne fait plus rien.
+ */
 async function handleSellLoot(
   interaction: ButtonInteraction,
   guildId: string,
   ownerId: string,
   locale: Locale,
-  itemIds: string[],
+  rest: string[],
 ): Promise<void> {
-  const messageId = interaction.message.id;
-  if (lootSalesDone.has(messageId)) return;
-  lootSalesDone.add(messageId);
-  // Passé ce délai, le bouton a disparu du message depuis longtemps : le verrou ne sert plus.
-  setTimeout(() => lootSalesDone.delete(messageId), LOOT_SALE_LOCK_MS).unref?.();
+  const [itemId, ownedAfterFight] = rest;
+  const minOwned = Number.parseInt(ownedAfterFight ?? '', 10);
 
-  const sold: string[] = [];
-  let earned = 0;
-  let failed = 0;
-
-  for (const itemId of itemIds) {
-    try {
-      const result = await sellShopItem(guildId, ownerId, itemId);
-      sold.push(result.itemName);
-      earned += result.sellPrice;
-    } catch {
-      // Déjà vendu, équipé ou bu entre-temps : les autres exemplaires se vendent quand même.
-      failed += 1;
-    }
+  let summary: string;
+  let sold = false;
+  try {
+    const config = await getOrCreateEconomyConfig(guildId);
+    const result = await sellShopItem(guildId, ownerId, itemId, Number.isFinite(minOwned) ? { minOwned } : {});
+    summary = m.rpg_fight_sell_loot_done({ items: result.itemName, price: result.sellPrice, emoji: config.currencyEmoji }, { locale });
+    sold = true;
+  } catch {
+    summary = m.rpg_fight_sell_loot_none({}, { locale });
   }
 
-  await interaction.editReply({ components: [backRow(ownerId, locale)] });
-
-  const config = await getOrCreateEconomyConfig(guildId);
-  const summary = sold.length > 0
-    ? m.rpg_fight_sell_loot_done({ items: sold.join(', '), price: earned, emoji: config.currencyEmoji }, { locale })
-      + (failed > 0 ? ` ${m.rpg_fight_sell_loot_partial({ count: failed }, { locale })}` : '')
-    : m.rpg_fight_sell_loot_none({}, { locale });
-
+  await interaction.editReply({ components: [backRow(ownerId, locale)] }).catch(() => null);
   await interaction.followUp({
-    embeds: [sold.length > 0 ? successEmbed(m.rpg_fight_sell_loot_title({}, { locale }), summary) : errorEmbed(m.rpg_fight_sell_loot_title({}, { locale }), summary)],
+    embeds: [sold
+      ? successEmbed(m.rpg_fight_sell_loot_title({}, { locale }), summary)
+      : errorEmbed(m.rpg_fight_sell_loot_title({}, { locale }), summary)],
     flags: [MessageFlags.Ephemeral],
-  });
+  }).catch(() => null);
 }
 
 async function handleTitleSelect(
@@ -4866,7 +4851,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
         const campaign = await trackCombatQuests(interaction.client, guildId, ownerId, monster.isBoss, itemDropped);
         const firstKill = await firstKillField(interaction.client, guildId, ownerId, monster, locale);
         const winTitle = await winTitleField(guildId, ownerId, monster, locale);
-        const sellRow = await lootSellRow(guildId, ownerId, [itemDropped], locale);
+        const sellRow = await lootSellRow(guildId, ownerId, itemDropped, locale);
 
         if (itemDropped) victoryEmbed.addFields({ name: m.rpg_fight_field_drop({}, { locale }), value: `${itemDropEmoji || '📦'} **${itemDropped}**`, inline: true });
         if (teamPoints.amount > 0) {
@@ -5079,7 +5064,7 @@ async function runBossFight(interaction: StringSelectMenuInteraction, guildId: s
     : null;
   const winTitle = result.won ? await winTitleField(guildId, ownerId, boss, locale) : null;
   const sellRow = result.won
-    ? await lootSellRow(guildId, ownerId, [result.itemDropped], locale)
+    ? await lootSellRow(guildId, ownerId, result.itemDropped, locale)
     : null;
 
   const turnSummary = result.turns.slice(-8).map((t) => {
