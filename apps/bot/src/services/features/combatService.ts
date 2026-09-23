@@ -3,6 +3,7 @@ import { logger } from '../../utils/logger.js';
 import { checkLevelUp } from './economyService.js';
 import { getAvailableSkills, type RpgSkill } from './rpg/rpgClasses.js';
 import { loadSkillTreeEffects } from './rpg/rpgSkillTreeService.js';
+import { loadActiveTitleBonuses } from './rpg/rpgTitleService.js';
 import { listGuildMonsters } from './rpg/rpgBestiaryService.js';
 import { computeAttack } from './rpg/rpgCombatMath.js';
 import { applyFirstWinBonus } from './rpg/rpgDailyBonusPolicy.js';
@@ -61,6 +62,8 @@ type EquippableProfile = SlottedProfile & {
   level: number;
   /** Guilde RPG du joueur, dont le village accorde des statistiques à tous ses membres. */
   rpgGuildId: string | null;
+  /** Titre porté, dont les bonus s'ajoutent à ceux de l'arbre et du village. */
+  activeTitleId?: string | null;
   attack: number;
   defense: number;
   speed: number;
@@ -76,20 +79,23 @@ type EquippableProfile = SlottedProfile & {
  * simplement jamais été améliorée ni enchantée : elle vaut ses statistiques nues.
  */
 export async function loadEffectiveStats(profile: EquippableProfile): Promise<EffectiveStats> {
-  const [equipment, tree, guildPerks] = await Promise.all([
+  const [equipment, tree, guildPerks, title] = await Promise.all([
     loadEquipment(profile),
     loadSkillTreeEffects(profile.id),
     profile.rpgGuildId ? loadGuildPerks(profile.rpgGuildId) : Promise.resolve(NO_GUILD_PERKS),
+    loadActiveTitleBonuses(profile.activeTitleId),
   ]);
 
-  // L'arbre et le village nourrissent le même jeu de bonus permanents : les additionner
-  // ici évite d'ouvrir un second paramètre dans `getEffectiveStats`, et garantit qu'ils
-  // partagent bien les mêmes plafonds.
+  // L'arbre, le village et le titre nourrissent le même jeu de bonus permanents : les
+  // additionner ici évite d'ouvrir un second paramètre dans `getEffectiveStats`, et
+  // garantit qu'ils partagent bien les mêmes plafonds.
   const bonuses: PermanentBonuses = {
     ...tree.bonuses,
-    attackFlat: tree.bonuses.attackFlat + guildPerks.attackFlat,
-    defenseFlat: tree.bonuses.defenseFlat + guildPerks.defenseFlat,
-    maxHealthFlat: tree.bonuses.maxHealthFlat + guildPerks.maxHealthFlat,
+    attackFlat: tree.bonuses.attackFlat + guildPerks.attackFlat + title.attackFlat,
+    defenseFlat: tree.bonuses.defenseFlat + guildPerks.defenseFlat + title.defenseFlat,
+    speedFlat: tree.bonuses.speedFlat + title.speedFlat,
+    maxHealthFlat: tree.bonuses.maxHealthFlat + guildPerks.maxHealthFlat + title.maxHealthFlat,
+    critChance: tree.bonuses.critChance + title.critChance,
   };
 
   return getEffectiveStats(profile, equipment, bonuses);

@@ -14,6 +14,7 @@
 
 import type { RpgMonster } from '@prisma/client';
 import prisma from '../../../utils/db.js';
+import { assertGuildTitle } from './rpgTitleService.js';
 import {
   normalizeMonsterInput,
   parseMonsterDrops,
@@ -154,6 +155,11 @@ export async function saveGuildMonster(
   if (data.firstKillItemName) {
     await assertDropsAreKnownItems(guildId, [{ itemName: data.firstKillItemName, emoji: '', chance: 1, coinBonus: 0 }]);
   }
+  for (const titleId of [data.firstKillTitleId, data.winTitleId]) {
+    await assertGuildTitle(guildId, titleId).catch((err: Error) => {
+      throw new BestiaryError(err.message, 400);
+    });
+  }
 
   const payload = {
     name: data.name,
@@ -175,6 +181,8 @@ export async function saveGuildMonster(
     firstKillItemName: data.firstKillItemName,
     firstKillClanPoints: data.firstKillClanPoints,
     firstKillRoleId: data.firstKillRoleId,
+    firstKillTitleId: data.firstKillTitleId,
+    winTitleId: data.winTitleId,
     enabled: data.enabled,
   };
 
@@ -257,6 +265,8 @@ export async function setGuildMonsterEnabled(
       firstKillItemName: existing.firstKillItemName,
       firstKillClanPoints: existing.firstKillClanPoints,
       firstKillRoleId: existing.firstKillRoleId,
+      firstKillTitleId: existing.firstKillTitleId,
+      winTitleId: existing.winTitleId,
       enabled,
     },
     update: { enabled },

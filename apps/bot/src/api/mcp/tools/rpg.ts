@@ -21,6 +21,7 @@ import {
 } from '../../../services/features/rpg/rpgBestiaryService.js';
 import { parseMonsterDrops } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
 import { assertFirstKillRole, listFirstKills } from '../../../services/features/rpg/rpgFirstKillService.js';
+import { deleteGuildTitle, grantTitle, listGuildTitles, revokeTitle, saveGuildTitle } from '../../../services/features/rpg/rpgTitleService.js';
 import { asDifficulty, DIFFICULTIES } from '../../../services/features/rpg/rpgDifficultyPolicy.js';
 import { applyBestiaryDifficulty, applyShopDifficulty } from '../../../services/features/rpg/rpgDifficultyService.js';
 import {
@@ -173,6 +174,8 @@ export function registerRpgTools(ctx: McpToolContext) {
           firstKillItemName: monster.firstKillItemName,
           firstKillClanPoints: monster.firstKillClanPoints,
           firstKillRoleId: monster.firstKillRoleId,
+          firstKillTitleId: monster.firstKillTitleId,
+          winTitleId: monster.winTitleId,
           firstKill: firstKills.get(monster.name) ?? null,
           drops: parseMonsterDrops(monster.drops),
           enabled: monster.enabled,
@@ -180,6 +183,16 @@ export function registerRpgTools(ctx: McpToolContext) {
           overridesGlobal: monster.overridesGlobal,
         })));
       })
+    );
+
+    server.registerTool(
+      'get_rpg_titles',
+      {
+        description: 'Liste les titres du RPG du serveur : bonus accordés au porteur et nombre de joueurs qui les possèdent.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_ECONOMY', async () => ok(await listGuildTitles(guildId)))
     );
 
     server.registerTool(
@@ -292,6 +305,8 @@ export function registerRpgTools(ctx: McpToolContext) {
           firstKillItemName: z.string().nullable().optional().describe("Objet offert au premier vainqueur (nom exact), null pour aucun"),
           firstKillClanPoints: z.number().int().optional().describe('Points de clan ou XP de guilde du premier vainqueur'),
           firstKillRoleId: z.string().nullable().optional().describe('ID du rôle Discord offert au premier vainqueur, null pour aucun'),
+          firstKillTitleId: z.string().nullable().optional().describe('ID du titre offert au premier vainqueur (voir get_rpg_titles), null pour aucun'),
+          winTitleId: z.string().nullable().optional().describe('ID du titre gagné par tout joueur qui abat la créature, null pour aucun'),
           drops: z.array(dropSchema).optional(),
           enabled: z.boolean().optional(),
           key_name: z.string().optional(),
@@ -320,6 +335,8 @@ export function registerRpgTools(ctx: McpToolContext) {
             firstKillItemName: existing.firstKillItemName,
             firstKillClanPoints: existing.firstKillClanPoints,
             firstKillRoleId: existing.firstKillRoleId,
+            firstKillTitleId: existing.firstKillTitleId,
+            winTitleId: existing.winTitleId,
             drops: parseMonsterDrops(existing.drops),
             enabled: existing.enabled,
           } : null;
@@ -330,6 +347,86 @@ export function registerRpgTools(ctx: McpToolContext) {
           await audit(key_name, created ? 'Création monstre RPG MCP' : 'Modification monstre RPG MCP', monster.name,
             `${monster.isBoss ? 'Boss' : 'Monstre'} niv. ${monster.level}${overrode ? ' - version propre au serveur' : ''}`);
           return ok({ ok: true, id: monster.id, created });
+        } catch (e) {
+          return fail(e);
+        }
+      })
+    );
+
+    server.registerTool(
+      'save_rpg_title',
+      {
+        description: "Crée un titre du RPG, ou modifie celui qui porte cet ID. Seul le titre porté par un joueur lui donne ses bonus. Requiert WRITE_MEMBERS.",
+        inputSchema: {
+          id: z.string().optional().describe('ID du titre à modifier (voir get_rpg_titles). Absent : création.'),
+          name: z.string().describe('Nom affiché en haut de la carte du personnage'),
+          description: z.string().optional(),
+          color: z.string().optional().describe('Couleur hexadécimale, ex. #fbbf24'),
+          attackBonus: z.number().int().optional(),
+          defenseBonus: z.number().int().optional(),
+          speedBonus: z.number().int().optional(),
+          healthBonus: z.number().int().optional().describe('PV maximum ajoutés'),
+          critBonus: z.number().int().optional().describe('Chance de critique ajoutée, en points de pourcentage'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ id, key_name, ...input }) => {
+        try {
+          const { title, created } = await saveGuildTitle(guildId, input, id);
+          await audit(key_name, created ? 'Création titre RPG MCP' : 'Modification titre RPG MCP', title.name, title.description);
+          return ok({ ok: true, id: title.id, created });
+        } catch (e) {
+          return fail(e);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_rpg_title',
+      {
+        description: "Supprime un titre du RPG : les joueurs le perdent et les créatures qui l'offraient n'offrent plus rien. Requiert WRITE_MEMBERS.",
+        inputSchema: { id: z.string(), key_name: z.string().optional() },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ id, key_name }) => {
+        try {
+          const title = await deleteGuildTitle(guildId, id);
+          await audit(key_name, 'Suppression titre RPG MCP', title.name, '');
+          return ok({ ok: true });
+        } catch (e) {
+          return fail(e);
+        }
+      })
+    );
+
+    server.registerTool(
+      'set_rpg_player_title',
+      {
+        description: "Donne un titre du RPG à un joueur, ou le lui retire. Requiert WRITE_MEMBERS.",
+        inputSchema: {
+          member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre'),
+          title_id: z.string().describe('ID du titre (voir get_rpg_titles)'),
+          owned: z.boolean().describe('Vrai pour le donner, faux pour le retirer'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, title_id, owned, key_name }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+        try {
+          const title = await prisma.rpgTitle.findUnique({ where: { id: title_id } });
+          if (!title || title.guildId !== guildId) return err('Titre introuvable.');
+          const profile = await prisma.rpgProfile.findUnique({
+            where: { guildId_userId: { guildId, userId: resolved.userId } },
+            select: { id: true },
+          });
+          if (!profile) return err("Ce membre n'a pas encore de personnage RPG.");
+
+          const changed = owned ? Boolean(await grantTitle(profile.id, title_id)) : await revokeTitle(profile.id, title_id);
+          await audit(key_name, owned ? 'Attribution titre RPG MCP' : 'Retrait titre RPG MCP', title.name, resolved.userId);
+          return ok({ ok: true, changed });
         } catch (e) {
           return fail(e);
         }

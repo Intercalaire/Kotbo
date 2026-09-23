@@ -1242,6 +1242,12 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
     }
   }
 
+  // Les titres sont un catalogue du serveur, comme le bestiaire : seule la remise à zéro
+  // complète les efface. Collections et titres portés partent avec eux.
+  if (component === 'all') {
+    await prisma.rpgTitle.deleteMany({ where: { guildId } });
+  }
+
   if (component === 'profiles' || component === 'all') {
     await prisma.rpgInventoryItem.deleteMany({
       where: { profile: { guildId } }

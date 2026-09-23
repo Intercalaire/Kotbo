@@ -14,6 +14,15 @@ import {
 } from '../../../services/features/rpg/rpgBestiaryService.js';
 import { parseMonsterDrops, type MonsterInput } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
 import { assertFirstKillRole, listFirstKills } from '../../../services/features/rpg/rpgFirstKillService.js';
+import {
+  deleteGuildTitle,
+  grantTitle,
+  listGuildTitles,
+  revokeTitle,
+  saveGuildTitle,
+  TitleError,
+} from '../../../services/features/rpg/rpgTitleService.js';
+import type { TitleInput } from '../../../services/features/rpg/rpgTitlePolicy.js';
 import type { RpgItemPayload } from '@kotbo/contracts';
 import { saveGuildShopItem, ShopItemError } from '../../../services/features/rpg/rpgShopItemService.js';
 import {
@@ -701,6 +710,143 @@ export async function handleEconomyRoutes(
         }
         logger.error('EconomyAPI', 'Error deleting quest:', err);
         jsonFailure(res, err, 'Erreur lors de la suppression de la quête.', 'EconomyAPI');
+      }
+      return true;
+    }
+  }
+
+  // Titres du RPG : catalogue du serveur et attribution à la main.
+  if (subAction === 'titles') {
+    const titleFailure = (err: unknown, fallback: string) => {
+      if (err instanceof TitleError) {
+        json(res, err.status, { error: err.message });
+        return;
+      }
+      logger.error('EconomyAPI', fallback, err);
+      jsonFailure(res, err, fallback, 'EconomyAPI');
+    };
+
+    // GET /api/dashboard/guilds/:guildId/economy/titles
+    if (parts.length === 6 && method === 'GET') {
+      try {
+        const [titles, owners] = await Promise.all([
+          listGuildTitles(guildId),
+          prisma.rpgProfileTitle.findMany({
+            where: { title: { guildId } },
+            select: { titleId: true, obtainedAt: true, profile: { select: { userId: true } } },
+          }),
+        ]);
+        const discordGuild = client.guilds.cache.get(guildId);
+        const ownersByTitle = new Map<string, { userId: string; displayName: string; obtainedAt: Date }[]>();
+        for (const owner of owners) {
+          const list = ownersByTitle.get(owner.titleId) ?? [];
+          list.push({
+            userId: owner.profile.userId,
+            displayName: discordGuild?.members.cache.get(owner.profile.userId)?.displayName ?? owner.profile.userId,
+            obtainedAt: owner.obtainedAt,
+          });
+          ownersByTitle.set(owner.titleId, list);
+        }
+        json(res, 200, { titles: titles.map((title) => ({ ...title, owners: ownersByTitle.get(title.id) ?? [] })) });
+      } catch (err) {
+        titleFailure(err, 'Erreur lors de la récupération des titres.');
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/titles
+    if (parts.length === 6 && method === 'POST') {
+      try {
+        const body = await readJsonBody<TitleInput & { id?: string }>(req);
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant.' });
+          return true;
+        }
+        const { title, created } = await saveGuildTitle(guildId, body, body.id);
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: created ? 'Création titre RPG' : 'Modification titre RPG',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: title.name,
+          channelId: null
+        });
+        json(res, 200, { title });
+      } catch (err) {
+        titleFailure(err, 'Erreur lors de la sauvegarde du titre.');
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/economy/titles/:titleId
+    if (parts.length === 7 && method === 'DELETE') {
+      try {
+        const title = await deleteGuildTitle(guildId, parts[6]);
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Suppression titre RPG',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: title.name,
+          channelId: null
+        });
+        json(res, 200, { success: true });
+      } catch (err) {
+        titleFailure(err, 'Erreur lors de la suppression du titre.');
+      }
+      return true;
+    }
+
+    // POST   /api/dashboard/guilds/:guildId/economy/titles/:titleId/owners           { userId }
+    // DELETE /api/dashboard/guilds/:guildId/economy/titles/:titleId/owners/:userId
+    if (parts[7] === 'owners' && (parts.length === 8 || parts.length === 9)) {
+      try {
+        const titleId = parts[6];
+        const title = await prisma.rpgTitle.findUnique({ where: { id: titleId } });
+        if (!title || title.guildId !== guildId) {
+          json(res, 404, { error: 'Titre introuvable.' });
+          return true;
+        }
+
+        const userId = method === 'POST'
+          ? (await readJsonBody<{ userId?: string }>(req))?.userId
+          : parts[8];
+        if (!userId || !/^\d{17,20}$/.test(userId)) {
+          json(res, 400, { error: 'Membre invalide.' });
+          return true;
+        }
+        const profile = await prisma.rpgProfile.findUnique({ where: { guildId_userId: { guildId, userId } }, select: { id: true } });
+        if (!profile) {
+          json(res, 404, { error: "Ce membre n'a pas encore de personnage RPG." });
+          return true;
+        }
+
+        if (method === 'POST' && parts.length === 8) {
+          const granted = await grantTitle(profile.id, titleId);
+          if (!granted) {
+            json(res, 409, { error: 'Ce membre possède déjà ce titre.' });
+            return true;
+          }
+        } else if (method === 'DELETE' && parts.length === 9) {
+          await revokeTitle(profile.id, titleId);
+        } else {
+          return false;
+        }
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: method === 'POST' ? 'Attribution titre RPG' : 'Retrait titre RPG',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: `${title.name} - membre ${userId}`,
+          channelId: null
+        });
+        json(res, 200, { success: true });
+      } catch (err) {
+        titleFailure(err, "Erreur lors de l'attribution du titre.");
       }
       return true;
     }

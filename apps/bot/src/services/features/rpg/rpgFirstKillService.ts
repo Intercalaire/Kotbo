@@ -16,6 +16,7 @@ import { checkLevelUp, getOrCreateEconomyConfig } from '../economyService.js';
 import { hasFirstKillReward, shouldAnnounceFirstKill } from './rpgBestiaryPolicy.js';
 import { awardRpgTeamPoints } from './rpgTeamRewards.js';
 import { asRpgTeamMode } from './rpgTeamResolver.js';
+import { grantTitle } from './rpgTitleService.js';
 
 export type FirstKillMonster = {
   name: string;
@@ -26,6 +27,7 @@ export type FirstKillMonster = {
   firstKillItemName: string | null;
   firstKillClanPoints: number;
   firstKillRoleId: string | null;
+  firstKillTitleId: string | null;
 };
 
 export type FirstKillResult = {
@@ -38,6 +40,8 @@ export type FirstKillResult = {
   toGuild: boolean;
   /** Rôle réellement attribué, `null` s'il n'y en avait pas ou s'il a été refusé. */
   roleId: string | null;
+  /** Titre ajouté à la collection du joueur. */
+  titleName: string | null;
 };
 
 export type FirstKillRecord = { userId: string; createdAt: Date };
@@ -54,7 +58,7 @@ export async function claimFirstKill(
   userId: string,
   monster: FirstKillMonster,
 ): Promise<FirstKillResult | null> {
-  const result: FirstKillResult = { coins: 0, xp: 0, itemName: null, itemEmoji: null, teamPoints: 0, toGuild: false, roleId: null };
+  const result: FirstKillResult = { coins: 0, xp: 0, itemName: null, itemEmoji: null, teamPoints: 0, toGuild: false, roleId: null, titleName: null };
 
   // L'objet du serveur l'emporte sur le livré du même nom, comme pour les butins.
   const items = monster.firstKillItemName
@@ -114,6 +118,12 @@ export async function claimFirstKill(
       });
       result.teamPoints = team.amount;
       result.toGuild = team.toGuild;
+    }
+
+    if (monster.firstKillTitleId) {
+      const profile = await prisma.rpgProfile.findUnique({ where: { guildId_userId: { guildId, userId } }, select: { id: true } });
+      const title = profile ? await grantTitle(profile.id, monster.firstKillTitleId) : null;
+      result.titleName = title?.name ?? null;
     }
 
     if (monster.firstKillRoleId) {
@@ -213,7 +223,16 @@ async function announceFirstKill(
 
 /** Prime lisible, ou chaîne vide s'il n'y en avait pas. */
 export function formatFirstKillReward(
-  reward: { coins: number; xp: number; itemName: string | null; itemEmoji?: string | null; teamPoints: number; toGuild: boolean; roleId: string | null },
+  reward: {
+    coins: number;
+    xp: number;
+    itemName: string | null;
+    itemEmoji?: string | null;
+    teamPoints: number;
+    toGuild: boolean;
+    roleId: string | null;
+    titleName: string | null;
+  },
   currencyEmoji: string,
   locale: BotLocale,
 ): string {
@@ -228,6 +247,7 @@ export function formatFirstKillReward(
       : null,
     // Une mention de rôle dans un embed s'affiche sans notifier personne.
     reward.roleId ? m.rpg_first_kill_role({ role: `<@&${reward.roleId}>` }, { locale }) : null,
+    reward.titleName ? m.rpg_first_kill_title({ title: reward.titleName }, { locale }) : null,
   ].filter((part): part is string => part !== null).join('  ·  ');
 }
 
@@ -241,6 +261,7 @@ export function formatFirstKillBounty(
   monster: FirstKillMonster,
   config: { currencyEmoji: string; raidTeamMode: string },
   locale: BotLocale,
+  titleName: string | null = null,
 ): string {
   return formatFirstKillReward({
     coins: monster.firstKillCoinReward,
@@ -249,6 +270,7 @@ export function formatFirstKillBounty(
     teamPoints: monster.firstKillClanPoints,
     toGuild: asRpgTeamMode(config.raidTeamMode) === 'RPG_GUILD',
     roleId: monster.firstKillRoleId,
+    titleName,
   }, config.currencyEmoji, locale);
 }
 

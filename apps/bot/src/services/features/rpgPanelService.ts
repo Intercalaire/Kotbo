@@ -183,6 +183,8 @@ import { buildAssaultEmbed, buildRaidEmbed, healthBar } from './rpg/rpgRaidPanel
 import { computeAttack } from './rpg/rpgCombatMath.js';
 import { bossCooldownMs, fightCooldownMs, formatCooldown, remainingCooldownMs } from './rpg/rpgCombatCooldownPolicy.js';
 import { claimFirstKill, formatFirstKillBounty, formatFirstKillReward, getFirstKill, type FirstKillMonster } from './rpg/rpgFirstKillService.js';
+import { grantWinTitle, listOwnedTitles, setActiveTitle } from './rpg/rpgTitleService.js';
+import { titleBonusParts } from './rpg/rpgTitlePolicy.js';
 import {
   buyBlackMarketOffer,
   getBlackMarketState,
@@ -557,9 +559,12 @@ async function buildHubContainer(
   const config = await getOrCreateEconomyConfig(guildId);
 
   const equippedIds = equippedItemIds(profile);
-  const equippedItems = equippedIds.length > 0
-    ? await prisma.rpgItem.findMany({ where: { id: { in: equippedIds } } })
-    : [];
+  const [equippedItems, activeTitle] = await Promise.all([
+    equippedIds.length > 0 ? prisma.rpgItem.findMany({ where: { id: { in: equippedIds } } }) : Promise.resolve([]),
+    profile.activeTitleId
+      ? prisma.rpgTitle.findUnique({ where: { id: profile.activeTitleId }, select: { name: true, color: true } })
+      : Promise.resolve(null),
+  ]);
   const itemById = new Map(equippedItems.map((item) => [item.id, item]));
 
   // L'équipement est rechargé avec sa progression : c'est elle qui porte la forge et les
@@ -587,12 +592,14 @@ async function buildHubContainer(
     energy: { current: profile.energy, max: config.maxEnergy },
     slots: cardSlots(profile, itemById, equipment, locale),
     guildName: profile.rpgGuild ? `${profile.rpgGuild.emoji} ${profile.rpgGuild.name}` : null,
+    title: activeTitle,
   });
 
   const container = new ContainerBuilder().setAccentColor(RPG_COLORS.hub);
 
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
     `## ${icon('rpgCharacter')} ${m.rpg_profile_title({ name: target.displayName }, { locale })}\n`
+    + (activeTitle && !card ? `*${activeTitle.name}*\n` : '')
     + (profile.isTraveling
       ? `${icon('rpgTravel')} ${m.rpg_profile_traveling({ dest: profile.travelDestination ?? '' }, { locale })}`
       : `${icon('rpgRest')} ${m.rpg_profile_resting({}, { locale })}`),
@@ -3946,9 +3953,19 @@ async function buildBestiaryEntryView(
       inline: false,
     });
   } else {
-    const bounty = formatFirstKillBounty(monster, await getOrCreateEconomyConfig(guildId), locale);
+    const bountyTitle = monster.firstKillTitleId
+      ? await prisma.rpgTitle.findUnique({ where: { id: monster.firstKillTitleId }, select: { name: true } })
+      : null;
+    const bounty = formatFirstKillBounty(monster, await getOrCreateEconomyConfig(guildId), locale, bountyTitle?.name ?? null);
     if (bounty) {
       embed.addFields({ name: m.rpg_bestiary_field_first_kill_bounty({}, { locale }), value: bounty, inline: false });
+    }
+  }
+
+  if (monster.winTitleId) {
+    const winTitle = await prisma.rpgTitle.findUnique({ where: { id: monster.winTitleId }, select: { name: true } });
+    if (winTitle) {
+      embed.addFields({ name: m.rpg_bestiary_field_win_title({}, { locale }), value: `**${winTitle.name}**`, inline: false });
     }
   }
 
@@ -4084,6 +4101,42 @@ async function firstKillField(
     };
   } catch (err) {
     logger.error('RpgPanel', `Premier vainqueur non enregistré pour ${monster.name} :`, err);
+    return null;
+  }
+}
+
+async function handleTitleSelect(
+  interaction: StringSelectMenuInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+): Promise<void> {
+  const profile = await getOrCreateRpgProfile(guildId, ownerId);
+  const choice = interaction.values[0];
+  const title = await setActiveTitle(profile.id, choice === 'none' ? null : choice);
+  const view = await buildCharacterView(guildId, ownerId, locale);
+  await respond(interaction, withNote(view, title
+    ? m.rpg_character_title_equipped({ title: title.name }, { locale })
+    : m.rpg_character_title_removed({}, { locale })));
+}
+
+/** Titre gagné à la victoire, s'il vient d'entrer dans la collection du joueur. */
+async function winTitleField(
+  guildId: string,
+  userId: string,
+  monster: { name: string; winTitleId: string | null },
+  locale: Locale,
+): Promise<{ name: string; value: string; inline: boolean } | null> {
+  try {
+    const title = await grantWinTitle(guildId, userId, monster.winTitleId);
+    if (!title) return null;
+    return {
+      name: m.rpg_title_obtained_field({}, { locale }),
+      value: m.rpg_title_obtained_value({ title: title.name }, { locale }),
+      inline: false,
+    };
+  } catch (err) {
+    logger.error('RpgPanel', `Titre de victoire non attribué pour ${monster.name} :`, err);
     return null;
   }
 }
@@ -4521,6 +4574,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
         const teamPoints = await awardMonsterTeamPoints(guildId, ownerId, monster, interaction.client);
         const campaign = await trackCombatQuests(interaction.client, guildId, ownerId, monster.isBoss, itemDropped);
         const firstKill = await firstKillField(interaction.client, guildId, ownerId, monster, locale);
+        const winTitle = await winTitleField(guildId, ownerId, monster, locale);
 
         if (itemDropped) victoryEmbed.addFields({ name: m.rpg_fight_field_drop({}, { locale }), value: `${itemDropEmoji || '📦'} **${itemDropped}**`, inline: true });
         if (teamPoints.amount > 0) {
@@ -4532,6 +4586,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
         }
         if (firstWinBonus) victoryEmbed.addFields(firstWinField(locale));
         if (firstKill) victoryEmbed.addFields(firstKill);
+        if (winTitle) victoryEmbed.addFields(winTitle);
         if (levelUp) victoryEmbed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: levelUp }, { locale }) });
 
         // Le pied de compte rendu annonce l'étape de campagne validée : sans lui, le
@@ -4727,6 +4782,7 @@ async function runBossFight(interaction: StringSelectMenuInteraction, guildId: s
   const firstKill = result.won
     ? await firstKillField(interaction.client, guildId, ownerId, boss, locale)
     : null;
+  const winTitle = result.won ? await winTitleField(guildId, ownerId, boss, locale) : null;
 
   const turnSummary = result.turns.slice(-8).map((t) => {
     const who = t.attacker === 'player' ? m.rpg_boss_you_label({}, { locale }) : `${boss.emoji} ${boss.name}`;
@@ -4756,6 +4812,7 @@ async function runBossFight(interaction: StringSelectMenuInteraction, guildId: s
   }
   if (result.firstWinBonus) embed.addFields(firstWinField(locale));
   if (firstKill) embed.addFields(firstKill);
+  if (winTitle) embed.addFields(winTitle);
   if (result.levelUp) embed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: result.levelUp }, { locale }) });
 
   const campaignNote = campaign ? campaignAdvanceNote(campaign, locale) : '';
@@ -5207,12 +5264,31 @@ const STAT_ALLOCATIONS: { stat: AllocatableStat; emoji: string; label: (locale: 
  * à dépenser. Chaque caractéristique porte désormais SON bouton, à sa droite, et les
  * boutons disparaissent quand il n'y a rien à répartir.
  */
+/** Bonus d'un titre : en icônes pour un texte, en mots pour une option de menu. */
+function titleBonusText(
+  title: Parameters<typeof titleBonusParts>[0],
+  locale: Locale,
+  plain = false,
+): string {
+  const labels = {
+    atk: plain ? m.rpg_title_stat_atk({}, { locale }) : icon('rpgAtk'),
+    def: plain ? m.rpg_title_stat_def({}, { locale }) : icon('rpgDef'),
+    spd: plain ? m.rpg_title_stat_spd({}, { locale }) : icon('rpgSpd'),
+    hp: plain ? m.rpg_title_stat_hp({}, { locale }) : icon('rpgHp'),
+    crit: plain ? m.rpg_title_stat_crit({}, { locale }) : icon('rpgCrit'),
+  };
+  return titleBonusParts(title)
+    .map(({ stat, value }) => `${labels[stat]} +${value}${stat === 'crit' ? ' %' : ''}`)
+    .join(plain ? ' · ' : '  ');
+}
+
 async function buildCharacterView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
   const rpgClass = getRpgClass(profile.className);
-  const [skills, stats] = await Promise.all([
+  const [skills, stats, ownedTitles] = await Promise.all([
     loadAvailableSkills(profile),
     loadEffectiveStats(profile),
+    listOwnedTitles(profile.id),
   ]);
 
   const hasPoints = profile.statPoints > 0;
@@ -5298,7 +5374,43 @@ async function buildCharacterView(guildId: string, ownerId: string, locale: Loca
     );
   }
 
+  // Titres : seul celui porté compte, les autres attendent dans la collection. La section
+  // n'apparaît qu'une fois un premier titre obtenu, pour ne pas annoncer un écran vide.
+  if (ownedTitles.length > 0) {
+    const active = ownedTitles.find((title) => title.id === profile.activeTitleId) ?? null;
+    const activeLine = active
+      ? m.rpg_character_title_active({ title: active.name }, { locale })
+        + (titleBonusText(active, locale) ? `\n${titleBonusText(active, locale)}` : '')
+      : `*${m.rpg_character_title_none({}, { locale })}*`;
+
+    container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      `### ${m.rpg_character_field_titles({ count: ownedTitles.length }, { locale })}\n${activeLine}`,
+    ));
+  }
+
   const components: PanelRow[] = [];
+
+  if (ownedTitles.length > 0) {
+    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`rpg:titleselect:${ownerId}`)
+        .setPlaceholder(m.rpg_character_title_placeholder({}, { locale }))
+        .addOptions(
+          {
+            label: m.rpg_character_title_remove({}, { locale }),
+            value: 'none',
+            default: profile.activeTitleId === null,
+          },
+          ...ownedTitles.slice(0, 24).map((title) => ({
+            label: truncate(title.name, 100),
+            description: optionDescription(titleBonusText(title, locale, true) || title.description),
+            value: title.id,
+            default: title.id === profile.activeTitleId,
+          })),
+        ),
+    ));
+  }
 
   if (profile.level >= CLASS_UNLOCK_LEVEL) {
     components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
@@ -5938,7 +6050,7 @@ const DEFERRED_BUTTON_ACTIONS = new Set([
 const DEFERRED_SELECT_ACTIONS = new Set([
   'navsel', 'invcat', 'invtoggleselect', 'shopitem', 'shopcat', 'bmbuy', 'craft', 'bestfilter',
   'enchantpick', 'enchantremove', 'skillbuy', 'classselect', 'villagebuild', 'guildview', 'warscope',
-  'quickdrink',
+  'quickdrink', 'titleselect',
 ]);
 
 export async function handleRpgButton(client: Client, customId: string, interaction: ButtonInteraction): Promise<void> {
@@ -6059,6 +6171,7 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
       case 'warscope': await handleWarScopeSelect(interaction, guildId, ownerId, locale); return;
       case 'invcat': await handleInventoryCategory(interaction, guildId, ownerId, locale); return;
       case 'quickdrink': await handleQuickDrink(interaction, guildId, ownerId, locale, rest); return;
+      case 'titleselect': await handleTitleSelect(interaction, guildId, ownerId, locale); return;
       case 'invtoggleselect': await handleInventoryUnequip(interaction, guildId, ownerId, locale); return;
       case 'bestfilter': await handleBestiaryFilter(interaction, guildId, ownerId, locale); return;
       case 'shopitem': await handleShopItemSelect(interaction, guildId, ownerId, locale, rest); return;

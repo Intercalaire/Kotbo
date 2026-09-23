@@ -44,6 +44,8 @@ export interface MonsterInput {
   firstKillItemName?: unknown;
   firstKillClanPoints?: unknown;
   firstKillRoleId?: unknown;
+  firstKillTitleId?: unknown;
+  winTitleId?: unknown;
   enabled?: unknown;
 }
 
@@ -75,6 +77,8 @@ export interface NormalizedMonster {
   firstKillItemName: string | null;
   firstKillClanPoints: number;
   firstKillRoleId: string | null;
+  firstKillTitleId: string | null;
+  winTitleId: string | null;
   enabled: boolean;
 }
 
@@ -165,6 +169,8 @@ export function normalizeMonsterInput(input: MonsterInput): NormalizeResult {
       firstKillItemName: text(input.firstKillItemName) || null,
       firstKillClanPoints: clampInt(input.firstKillClanPoints, CLAN_POINTS_RANGE, 0),
       firstKillRoleId: /^\d{17,20}$/.test(text(input.firstKillRoleId)) ? text(input.firstKillRoleId) : null,
+      firstKillTitleId: text(input.firstKillTitleId) || null,
+      winTitleId: text(input.winTitleId) || null,
       enabled: input.enabled !== false,
     },
   };
@@ -177,12 +183,14 @@ export function hasFirstKillReward(monster: {
   firstKillItemName: string | null;
   firstKillClanPoints: number;
   firstKillRoleId: string | null;
+  firstKillTitleId: string | null;
 }): boolean {
   return monster.firstKillCoinReward > 0
     || monster.firstKillXpReward > 0
     || monster.firstKillClanPoints > 0
     || Boolean(monster.firstKillItemName)
-    || Boolean(monster.firstKillRoleId);
+    || Boolean(monster.firstKillRoleId)
+    || Boolean(monster.firstKillTitleId);
 }
 
 export const FIRST_KILL_ANNOUNCE_MODES = ['NONE', 'BOSSES', 'ALL'] as const;

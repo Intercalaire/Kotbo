@@ -62,8 +62,11 @@ export async function exportGuildBestiary(guildId: string): Promise<BestiaryExpo
       firstKillXpReward: monster.firstKillXpReward,
       firstKillItemName: monster.firstKillItemName,
       firstKillClanPoints: monster.firstKillClanPoints,
-      // Un rôle n'existe que sur son serveur : exporté, il ne désignerait rien ailleurs.
+      // Un rôle ou un titre n'existe que sur son serveur : exporté, il ne désignerait
+      // rien ailleurs.
       firstKillRoleId: null,
+      firstKillTitleId: null,
+      winTitleId: null,
       enabled: monster.enabled,
     })),
   };
@@ -152,9 +155,15 @@ export async function importGuildBestiary(guildId: string, payload: unknown): Pr
 
     const previous = byName.get(monster.name);
     const previousId = previous?.id;
-    // Le fichier ne porte jamais de rôle : celui déjà réglé sur la fiche est conservé.
-    const firstKillRoleId = previous?.firstKillRoleId ?? null;
-    await saveGuildMonster(guildId, { ...monster, drops, firstKillItemName, firstKillRoleId }, previousId);
+    // Le fichier ne porte ni rôle ni titre : ceux déjà réglés sur la fiche sont conservés.
+    await saveGuildMonster(guildId, {
+      ...monster,
+      drops,
+      firstKillItemName,
+      firstKillRoleId: previous?.firstKillRoleId ?? null,
+      firstKillTitleId: previous?.firstKillTitleId ?? null,
+      winTitleId: previous?.winTitleId ?? null,
+    }, previousId);
     if (previousId) report.updated += 1;
     else report.created += 1;
   }
