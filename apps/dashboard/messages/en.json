@@ -5562,6 +5562,7 @@
   "clan_public_source_rpg_quest": "RPG-quest",
   "clan_public_source_rpg_raid": "RPG-raid",
   "clan_public_source_rpg_item": "RPG-items",
+  "clan_public_source_rpg_first_kill": "First kill",
   "eco_bestiary_title": "Server bestiary",
   "eco_bestiary_desc": "Creatures shipped with the bot are shared by every server. Customising one here creates a copy owned by this server without touching the original: Reset brings it back at any time.",
   "eco_bestiary_filter_all": "All",

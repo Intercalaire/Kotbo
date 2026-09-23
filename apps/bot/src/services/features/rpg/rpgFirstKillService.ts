@@ -120,7 +120,7 @@ export async function claimFirstKill(
         guildId,
         userId,
         amount: monster.firstKillClanPoints,
-        source: monster.isBoss ? 'RPG_BOSS' : 'RPG_MOB',
+        source: 'RPG_FIRST_KILL',
         reason: monster.name,
       }));
       result.teamPoints = team?.amount ?? 0;
