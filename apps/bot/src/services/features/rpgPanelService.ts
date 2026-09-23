@@ -212,8 +212,8 @@ import {
   type BlackMarketOfferView,
 } from './rpg/rpgBlackMarketService.js';
 
-type Locale = BotLocale;
-type PanelInteraction = ButtonInteraction | StringSelectMenuInteraction | UserSelectMenuInteraction | ModalSubmitInteraction;
+export type Locale = BotLocale;
+export type PanelInteraction = ButtonInteraction | StringSelectMenuInteraction | UserSelectMenuInteraction | ModalSubmitInteraction;
 
 // Coûts et verrous de combat, centralisés pour que le contrôle préalable et l'écriture
 // atomique ne puissent plus diverger.
@@ -222,7 +222,7 @@ const FIGHT_MIN_HEALTH = 5;
 const BOSS_ENERGY_COST = 30;
 const BOSS_MIN_HEALTH = 10;
 const COMBAT_TURN_TIMEOUT_MS = 60 * 1000;
-type PanelRow = ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>;
+export type PanelRow = ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>;
 
 /**
  * Un écran du hub.
@@ -233,7 +233,7 @@ type PanelRow = ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>;
  * aux écrans qui ont besoin de composants riches - la boutique et son bouton
  * par article - que jamais un embed ne saura porter.
  */
-type PanelView = {
+export type PanelView = {
   embeds: EmbedBuilder[];
   components: PanelRow[];
   container?: ContainerBuilder;
@@ -314,13 +314,13 @@ export function isInteractionAdmin(interaction: { memberPermissions: import('dis
   return interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) ?? false;
 }
 
-async function ensureOwner(interaction: PanelInteraction, ownerId: string, locale: Locale): Promise<boolean> {
+export async function ensureOwner(interaction: PanelInteraction, ownerId: string, locale: Locale): Promise<boolean> {
   if (interaction.user.id === ownerId) return true;
   await interaction.reply({ content: m.rpg_hub_not_yours({}, { locale }), flags: [MessageFlags.Ephemeral] });
   return false;
 }
 
-async function replyPanelError(interaction: PanelInteraction, err: unknown, locale: Locale): Promise<void> {
+export async function replyPanelError(interaction: PanelInteraction, err: unknown, locale: Locale): Promise<void> {
   const embed = errorEmbed(m.rpg_generic_error_title({}, { locale }), errorMessage(err));
 
   // Les écrans qui défèrent l'interaction (combat, boss) ne peuvent plus utiliser `reply` :
@@ -416,7 +416,7 @@ export function renderPanelView(view: PanelView): PanelPayload {
  * Le retour y devient une dernière ligne en petit, à l'endroit où l'oeil cherche le pied
  * de page d'un embed.
  */
-function withNote(view: PanelView, text: string): PanelView {
+export function withNote(view: PanelView, text: string): PanelView {
   if (!text) return view;
 
   if (view.container) {
@@ -428,7 +428,7 @@ function withNote(view: PanelView, text: string): PanelView {
   return view;
 }
 
-async function respond(interaction: PanelInteraction, view: PanelView): Promise<void> {
+export async function respond(interaction: PanelInteraction, view: PanelView): Promise<void> {
   const payload = renderPanelView(view);
 
   if (interaction.deferred) {
@@ -717,6 +717,7 @@ function hubNavOptions(locale: Locale, isAdmin: boolean): { label: string; value
     { label: m.rpg_war_title({}, { locale }), value: 'clanwar', description: m.rpg_hub_nav_war_desc({}, { locale }), emoji: icon('rpgWar') },
     { label: m.rpg_hub_btn_pay({}, { locale }), value: 'pay', description: m.rpg_hub_nav_pay_desc({}, { locale }), emoji: icon('rpgPay') },
     { label: m.rpg_hub_btn_sell({}, { locale }), value: 'sell', description: m.rpg_hub_nav_sell_desc({}, { locale }), emoji: icon('rpgSell') },
+    { label: m.rpg_hub_btn_market({}, { locale }), value: 'market', description: m.rpg_hub_nav_market_desc({}, { locale }), emoji: icon('rpgShop') },
   ];
 
   if (isAdmin) {
@@ -854,11 +855,11 @@ const SELL_RATIO = 0.5;
 /** Objets par page du sac. Une section par objet : au-delà, le conteneur devient illisible. */
 const BAG_PAGE_SIZE = 6;
 
-type BagCategory = 'all' | 'WEAPON' | 'ARMOR' | 'ACCESSORY' | 'POTION' | 'SCROLL' | 'MATERIAL';
+export type BagCategory = 'all' | 'WEAPON' | 'ARMOR' | 'ACCESSORY' | 'POTION' | 'SCROLL' | 'MATERIAL';
 
-const BAG_CATEGORIES: BagCategory[] = ['all', 'WEAPON', 'ARMOR', 'ACCESSORY', 'POTION', 'SCROLL', 'MATERIAL'];
+export const BAG_CATEGORIES: BagCategory[] = ['all', 'WEAPON', 'ARMOR', 'ACCESSORY', 'POTION', 'SCROLL', 'MATERIAL'];
 
-function bagCategoryLabel(category: BagCategory, locale: Locale): string {
+export function bagCategoryLabel(category: BagCategory, locale: Locale): string {
   if (category === 'all') return m.rpg_inventory_cat_all({}, { locale });
   return shopCategoryLabel(category, locale);
 }
@@ -877,7 +878,7 @@ function bagNavId(ownerId: string, state: BagState): string {
 }
 
 /** Bonus d'un objet, en une ligne. Vide quand l'objet n'en porte aucun. */
-function itemStatLine(item: LocalRpgItem, locale: Locale): string {
+export function itemStatLine(item: LocalRpgItem, locale: Locale): string {
   const parts = [
     item.atkBonus ? `${icon('rpgAtk')} +${item.atkBonus}` : null,
     item.defBonus ? `${icon('rpgDef')} +${item.defBonus}` : null,
@@ -1364,7 +1365,17 @@ async function buildInventoryItemView(
       .setStyle(ButtonStyle.Secondary),
   );
 
-  return { embeds: [embed], components: [row] };
+  // Seconde rangée : la première est pleine, et Discord refuse une sixième case.
+  const marketRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`mkt:sellsetup:${ownerId}:${item.id}:${copy?.id ?? '-'}`)
+      .setLabel(m.rpg_inventory_market_btn({}, { locale }))
+      .setEmoji(icon('rpgShop'))
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(onlyWornCopy),
+  );
+
+  return { embeds: [embed], components: [row, marketRow] };
 }
 
 /**
@@ -1780,13 +1791,13 @@ function addOptionsWithinBudget(select: StringSelectMenuBuilder, entries: Budget
  * ou un emoji qui n'en est pas un suffit : un objet créé au dashboard sans description, ou
  * dont le champ emoji contient du texte, rendait toute la boutique inaccessible.
  */
-function optionDescription(value: string | null | undefined): string | undefined {
+export function optionDescription(value: string | null | undefined): string | undefined {
   const text = value?.trim();
   return text ? truncate(text, 100) : undefined;
 }
 
 /** Emoji unicode, ou emoji personnalisé `<a?:nom:id>`. Tout le reste est écarté. */
-function optionEmoji(value: string | null | undefined): string | undefined {
+export function optionEmoji(value: string | null | undefined): string | undefined {
   const text = value?.trim();
   if (!text) return undefined;
   if (/^<a?:\w{2,32}:\d{17,20}>$/.test(text)) return text;
@@ -1821,7 +1832,7 @@ const SHOP_BUY_QUANTITIES = [1, 5, 10] as const;
 const SHOP_CATEGORIES = ['WEAPON', 'ARMOR', 'ACCESSORY', 'POTION', 'MATERIAL', 'SCROLL', 'QUEST'] as const;
 type ShopCategory = (typeof SHOP_CATEGORIES)[number];
 
-function shopCategoryLabel(type: string, locale: Locale): string {
+export function shopCategoryLabel(type: string, locale: Locale): string {
   switch (type) {
     case 'WEAPON': return m.rpg_shop_type_weapon({}, { locale });
     case 'ARMOR': return m.rpg_shop_type_armor({}, { locale });
@@ -6840,6 +6851,11 @@ async function renderSection(
     case 'craft': return buildCraftView(guildId, ownerId, locale);
     case 'forge': return buildForgeView(guildId, ownerId, locale);
     case 'enchant': return buildEnchantView(guildId, ownerId, locale);
+    // Import tardif : le panneau du marché importe ce module, l'inverse créerait un cycle.
+    case 'market': {
+      const { buildMarketView } = await import('../economy/marketplacePanel.js');
+      return buildMarketView(guildId, ownerId, interaction.guild, locale);
+    }
     case 'admin': {
       if (!isInteractionAdmin(interaction)) {
         await interaction.reply({ content: m.rpg_hub_admin_only({}, { locale }), flags: [MessageFlags.Ephemeral] });
