@@ -1090,18 +1090,19 @@ export async function sellShopItem(guildId: string, userId: string, itemId: stri
 
     // Relu sous verrou : l'objet a pu être équipé depuis une autre fenêtre entre-temps.
     const current = await tx.rpgProfile.findUniqueOrThrow({ where: { id: profile.id } });
-    if (isItemEquipped(current, item.id)) {
+    const stock = await tx.rpgInventoryItem.findUnique({
+      where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: item.id } },
+      select: { quantity: true },
+    });
+
+    // Les exemplaires d'un même objet s'empilent sur une seule ligne, et un seul peut être
+    // porté : on refuse seulement de vendre le dernier, celui qui occupe l'emplacement.
+    if (isItemEquipped(current, item.id) && (stock?.quantity ?? 0) <= 1) {
       throw new Error("Vous ne pouvez pas vendre un objet équipé. Déséquipez-le d'abord depuis l'onglet Inventaire de `/rpg`.");
     }
 
-    if (options.minOwned !== undefined) {
-      const stock = await tx.rpgInventoryItem.findUnique({
-        where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: item.id } },
-        select: { quantity: true },
-      });
-      if (!stock || stock.quantity < options.minOwned) {
-        throw new Error('Cet exemplaire a déjà été vendu ou utilisé.');
-      }
+    if (options.minOwned !== undefined && (!stock || stock.quantity < options.minOwned)) {
+      throw new Error('Cet exemplaire a déjà été vendu ou utilisé.');
     }
 
     // Vendre son dernier exemplaire emporte sa progression : garder l'instance ferait

@@ -377,8 +377,15 @@ export async function salvageItem(guildId: string, userId: string, itemId: strin
 
     // Relu sous verrou : l'objet a pu être équipé depuis une autre fenêtre entre-temps.
     const current = await tx.rpgProfile.findUniqueOrThrow({ where: { id: profile.id } });
+    // Même règle que la revente : seul le dernier exemplaire, celui qui est porté, est protégé.
     if (equippedItemIds(current).includes(itemId)) {
-      throw new Error("Vous ne pouvez pas démanteler un objet équipé. Déséquipez-le d'abord.");
+      const stock = await tx.rpgInventoryItem.findUnique({
+        where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId } },
+        select: { quantity: true },
+      });
+      if ((stock?.quantity ?? 0) <= 1) {
+        throw new Error("Vous ne pouvez pas démanteler un objet équipé. Déséquipez-le d'abord.");
+      }
     }
 
     const taken = await takeInventoryQuantity(tx, profile.id, itemId, 1, { dropInstance: true });

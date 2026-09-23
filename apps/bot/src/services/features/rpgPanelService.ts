@@ -1274,15 +1274,17 @@ async function buildInventoryItemView(
     );
   }
 
-  // Vendre, ici, sur l'objet qu'on regarde. Un objet porté doit d'abord être retiré :
-  // le refus vient de `sellShopItem`, on grise plutôt que de le laisser échouer.
+  // Vendre, ici, sur l'objet qu'on regarde. Le dernier exemplaire d'un objet porté doit
+  // d'abord être retiré : le refus vient de `sellShopItem`, on grise plutôt que de le
+  // laisser échouer. Un exemplaire en plus de celui porté, lui, se vend normalement.
+  const onlyWornCopy = equipped && entry.quantity <= 1;
   row.addComponents(
     new ButtonBuilder()
       .setCustomId(`rpg:invsell:${ownerId}:${item.id}:${back.category}:${back.page}`)
       .setLabel(m.rpg_inventory_sell_btn({ price: sellPrice }, { locale }))
       .setEmoji(icon('rpgSell'))
       .setStyle(ButtonStyle.Danger)
-      .setDisabled(equipped),
+      .setDisabled(onlyWornCopy),
   );
   if (salvage) {
     row.addComponents(
@@ -1291,7 +1293,7 @@ async function buildInventoryItemView(
         .setLabel(m.rpg_inventory_salvage_btn({}, { locale }))
         .setEmoji(icon('rpgCraft'))
         .setStyle(ButtonStyle.Secondary)
-        .setDisabled(equipped),
+        .setDisabled(onlyWornCopy),
     );
   }
   const favorite = profile.favoriteItemIds.includes(item.id);
