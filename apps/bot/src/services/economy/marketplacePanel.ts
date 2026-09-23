@@ -217,29 +217,16 @@ function navRow(ownerId: string, state: MarketState, pageCount: number, locale: 
       .setLabel(m.mkt_btn_refresh({}, { locale }))
       .setEmoji(icon('rpgRefresh'))
       .setStyle(ButtonStyle.Secondary),
-    // Le bouton relève du hub RPG : c'est lui qui le route, le marché n'a rien à en savoir.
-    new ButtonBuilder()
-      .setCustomId(`rpg:nav:${ownerId}:hub`)
-      .setLabel(m.mkt_btn_rpg({}, { locale }))
-      .setEmoji(icon('rpgBack'))
-      .setStyle(ButtonStyle.Secondary),
   );
   return row;
 }
 
-function disabledView(ownerId: string, locale: Locale): PanelView {
+function disabledView(locale: Locale): PanelView {
   const container = new ContainerBuilder().setAccentColor(RPG_COLORS.trade);
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
     `## ${m.mkt_title({}, { locale })}\n${m.mkt_disabled({}, { locale })}`,
   ));
-  const back = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`rpg:nav:${ownerId}:hub`)
-      .setLabel(m.mkt_btn_rpg({}, { locale }))
-      .setEmoji(icon('rpgBack'))
-      .setStyle(ButtonStyle.Secondary),
-  );
-  return { embeds: [], components: [back], container };
+  return { embeds: [], components: [], container };
 }
 
 /**
@@ -254,7 +241,7 @@ export async function buildMarketView(
   locale: Locale,
   state: MarketState = DEFAULT_STATE,
 ): Promise<PanelView> {
-  if (!(await isModuleEnabled(guildId, 'marketplace'))) return disabledView(ownerId, locale);
+  if (!(await isModuleEnabled(guildId, 'marketplace'))) return disabledView(locale);
 
   const [config, profile] = await Promise.all([
     getOrCreateEconomyConfig(guildId),
