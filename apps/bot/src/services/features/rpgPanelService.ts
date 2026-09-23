@@ -101,7 +101,7 @@ import {
   renderCharacterCard,
   type CardSlot,
 } from './rpg/rpgCharacterCard.js';
-import { formatEnchant } from './rpg/rpgEnchantments.js';
+import { formatEnchant, type EnchantStack } from './rpg/rpgEnchantments.js';
 import { listItemInstances, type ItemProgression } from './rpg/rpgItemInstanceService.js';
 import { SKILL_TREE_UNLOCK_LEVEL, getSkillNode } from './rpg/rpgSkillTree.js';
 import { discountedPrice, type GuildPerks } from './rpg/rpgGuildBuildings.js';
@@ -900,6 +900,21 @@ function comparisonLine(lines: StatComparison[], locale: Locale): string {
 }
 
 /**
+ * Enchantements gagnés et perdus en échangeant la pièce portée contre l'exemplaire regardé.
+ * Leurs effets ne s'additionnent pas aux stats brutes (une partie est en pourcentage du
+ * total) : on les nomme plutôt que de les chiffrer.
+ */
+function enchantSwapLine(candidate: EnchantStack[], worn: EnchantStack[], locale: Locale): string {
+  const same = (a: EnchantStack, b: EnchantStack) => a.id === b.id && a.tier === b.tier;
+  const gained = candidate.filter((stack) => !worn.some((other) => same(stack, other)));
+  const lost = worn.filter((stack) => !candidate.some((other) => same(stack, other)));
+  return [
+    gained.length > 0 ? m.rpg_item_compare_enchants_gained({ enchants: gained.map(formatEnchant).join(', ') }, { locale }) : '',
+    lost.length > 0 ? m.rpg_item_compare_enchants_lost({ enchants: lost.map(formatEnchant).join(', ') }, { locale }) : '',
+  ].filter(Boolean).join(' · ');
+}
+
+/**
  * Champ « comparé à ce que vous portez » d'une fiche d'objet, ou `null` quand l'objet ne
  * s'équipe pas ou qu'il est déjà porté.
  *
@@ -910,14 +925,14 @@ function comparisonLine(lines: StatComparison[], locale: Locale): string {
 async function equipmentComparisonField(
   profile: Awaited<ReturnType<typeof getOrCreateRpgProfile>>,
   item: LocalRpgItem,
-  candidateUpgrade: number,
+  progression: { upgrade: number; enchants: EnchantStack[] },
   locale: Locale,
 ): Promise<{ name: string; value: string; inline: boolean } | null> {
   const slot = slotForItemType(item.type);
   if (!slot || equippedItemIds(profile).includes(item.id)) return null;
 
   const equipment = await loadEquipment(profile);
-  const candidate = itemContribution({ ...item, upgrade: candidateUpgrade, enchants: [] });
+  const candidate = itemContribution({ ...item, upgrade: progression.upgrade, enchants: progression.enchants });
   const nameOf = (itemId: string | null) => {
     const owned = profile.inventory.find((entry) => entry.itemId === itemId)?.item;
     return owned ? `${owned.emoji} ${owned.name}` : '?';
@@ -937,7 +952,10 @@ async function equipmentComparisonField(
   if (targets.length === 0) return null;
 
   const value = targets
-    .map((target) => `${target.label} : ${comparisonLine(compareStats(candidate, target.piece ? itemContribution(target.piece) : null), locale)}`)
+    .map((target) => [
+      `${target.label} : ${comparisonLine(compareStats(candidate, target.piece ? itemContribution(target.piece) : null), locale)}`,
+      enchantSwapLine(progression.enchants, target.piece?.enchants ?? [], locale),
+    ].filter(Boolean).join(' · '))
     .join('\n');
   return { name: m.rpg_item_field_compare({}, { locale }), value: truncate(value, 1024), inline: false };
 }
@@ -966,6 +984,8 @@ type BagEntry = {
   copy: ItemProgression | null;
   count: number;
   worn: boolean;
+  /** L'objet a aussi des exemplaires forgés ou enchantés : la ligne doit dire lequel elle montre. */
+  mixed: boolean;
 };
 
 function bagEntries(
@@ -982,14 +1002,24 @@ function bagEntries(
     const wornForged = worn && forged.some((copy) => copy.equipped);
     const plain = entry.quantity - forged.length;
     return [
-      ...(plain > 0 ? [{ entry, copy: null, count: plain, worn: worn && !wornForged }] : []),
-      ...forged.map((copy) => ({ entry, copy, count: 1, worn: worn && copy.equipped })),
+      ...(plain > 0 ? [{ entry, copy: null, count: plain, worn: worn && !wornForged, mixed: forged.length > 0 }] : []),
+      ...forged.map((copy) => ({ entry, copy, count: 1, worn: worn && copy.equipped, mixed: true })),
     ];
   });
 }
 
 function copyLabel(item: { emoji: string; name: string }, copy: ItemProgression | null): string {
   return copy && copy.upgrade > 0 ? `${item.emoji} ${item.name} +${copy.upgrade}` : `${item.emoji} ${item.name}`;
+}
+
+/**
+ * Distingue les exemplaires d'un même objet : sans ce repère, la ligne ordinaire et la
+ * ligne enchantée portent le même nom, et rééquiper la mauvaise fait croire à un
+ * enchantement perdu. La forge se lit déjà dans le « +N » du nom.
+ */
+function copyKindTag(copy: ItemProgression | null, locale: Locale): string {
+  if (!copy) return m.rpg_inventory_plain_tag({}, { locale });
+  return copy.enchants.length > 0 ? m.rpg_inventory_enchanted_tag({}, { locale }) : '';
 }
 
 /** Une ligne de sac : l'objet, sa rareté, son niveau requis et ses bonus. */
@@ -999,6 +1029,7 @@ function bagItemLine(bag: BagEntry, playerLevel: number, favorite: boolean, loca
 
   const upgrade = bag.copy && bag.copy.upgrade > 0 ? ` **+${bag.copy.upgrade}**` : '';
   const header = `${favorite ? '⭐ ' : ''}${item.emoji} **${item.name}**${upgrade} ×${bag.count}`
+    + (bag.mixed ? copyKindTag(bag.copy, locale) : '')
     + (bag.worn ? ` ${m.rpg_inventory_equipped_tag({}, { locale })}` : '');
   const enchants = bag.copy && bag.copy.enchants.length > 0 ? bag.copy.enchants.map(formatEnchant).join(' · ') : '';
 
@@ -1249,7 +1280,7 @@ async function buildInventoryItemView(
   const freePlain = plainCount - (itemWorn && !wornForged ? 1 : 0);
 
   const embed = new EmbedBuilder()
-    .setTitle(truncate(`${copyLabel(item, copy)}`, 256))
+    .setTitle(truncate(`${copyLabel(item, copy)}${copies.length > 0 ? copyKindTag(copy, locale).replace(/\*/g, '') : ''}`, 256))
     .setDescription(`*${item.description}*`)
     .setColor(RPG_COLORS.hub)
     .addFields(
@@ -1271,8 +1302,8 @@ async function buildInventoryItemView(
     embed.addFields({ name: m.rpg_item_field_stats({}, { locale }), value: stats, inline: false });
   }
 
-  // Un exemplaire forgé resté dans le sac se compare avec sa forge.
-  const comparison = equipped ? null : await equipmentComparisonField(profile, item, copy?.upgrade ?? 0, locale);
+  // Un exemplaire forgé ou enchanté resté dans le sac se compare avec sa progression.
+  const comparison = equipped ? null : await equipmentComparisonField(profile, item, copy ?? { upgrade: 0, enchants: [] }, locale);
   if (comparison) embed.addFields(comparison);
 
   // Forge et enchantements appartiennent à cet exemplaire seul.
@@ -2160,7 +2191,7 @@ async function buildShopItemView(
     ]);
 
   // Un exemplaire acheté arrive sans forge : c'est un objet neuf qu'on compare.
-  const comparison = await equipmentComparisonField(profile, item, 0, locale);
+  const comparison = await equipmentComparisonField(profile, item, { upgrade: 0, enchants: [] }, locale);
   if (comparison) embed.addFields(comparison);
 
   if (item.description?.trim()) {
