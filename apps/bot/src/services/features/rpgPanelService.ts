@@ -187,6 +187,7 @@ import { grantWinTitle, listOwnedTitles, setActiveTitle } from './rpg/rpgTitleSe
 import { titleBonusParts } from './rpg/rpgTitlePolicy.js';
 import {
   getItemCatalog,
+  isUnavailableItem,
   isUniqueItem,
   ITEM_SOURCE_FILTERS,
   matchesSourceFilter,
@@ -3905,6 +3906,7 @@ function itemSourceLabel(source: ItemSourceFilter, locale: Locale): string {
     case 'boss': return m.rpg_itembook_source_boss({}, { locale });
     case 'craft': return m.rpg_itembook_source_craft({}, { locale });
     case 'unique': return m.rpg_itembook_source_unique({}, { locale });
+    case 'unavailable': return m.rpg_itembook_source_unavailable({}, { locale });
     default: return m.rpg_itembook_source_all({}, { locale });
   }
 }
@@ -3929,6 +3931,7 @@ function itemProvenanceLine(entry: ItemCatalogEntry, currencyEmoji: string, loca
   // Un objet qu'aucune source régulière ne donne est marqué comme tel, même s'il se gagne
   // une fois par la campagne ou une prime : on ne peut pas aller le chercher à volonté.
   if (isUniqueItem(entry)) parts.unshift(`✨ **${m.rpg_itembook_source_unique({}, { locale })}**`);
+  if (isUnavailableItem(entry)) parts.unshift(`⛔ **${m.rpg_itembook_source_unavailable({}, { locale })}**`);
   return parts.join('  ·  ');
 }
 
@@ -4285,23 +4288,101 @@ async function firstKillField(
   userId: string,
   monster: FirstKillMonster,
   locale: Locale,
-): Promise<{ name: string; value: string; inline: boolean } | null> {
+): Promise<{ field: { name: string; value: string; inline: boolean }; itemName: string | null } | null> {
   try {
     const claimed = await claimFirstKill(client, guildId, userId, monster);
     if (!claimed) return null;
     const config = await getOrCreateEconomyConfig(guildId);
     const reward = formatFirstKillReward(claimed, config.currencyEmoji, locale);
     return {
-      name: m.rpg_first_kill_field_title({}, { locale }),
-      value: reward
-        ? m.rpg_first_kill_field_reward_value({ reward }, { locale })
-        : m.rpg_first_kill_field_value({}, { locale }),
-      inline: false,
+      field: {
+        name: m.rpg_first_kill_field_title({}, { locale }),
+        value: reward
+          ? m.rpg_first_kill_field_reward_value({ reward }, { locale })
+          : m.rpg_first_kill_field_value({}, { locale }),
+        inline: false,
+      },
+      itemName: claimed.itemName,
     };
   } catch (err) {
     logger.error('RpgPanel', `Premier vainqueur non enregistré pour ${monster.name} :`, err);
     return null;
   }
+}
+
+/**
+ * Bouton de revente du butin d'un combat, ou `null` s'il n'y a rien à en tirer.
+ *
+ * Seuls les exemplaires gagnés à ce combat sont proposés, un par objet obtenu : vendre tout
+ * le stock de l'objet viderait aussi ce que le joueur avait mis de côté avant.
+ */
+async function lootSellRow(
+  guildId: string,
+  ownerId: string,
+  lootNames: (string | null)[],
+  locale: Locale,
+): Promise<ActionRowBuilder<ButtonBuilder> | null> {
+  const names = lootNames.filter((name): name is string => Boolean(name));
+  if (names.length === 0) return null;
+
+  const config = await getOrCreateEconomyConfig(guildId);
+  if (!config.shopEnabled) return null;
+
+  const owned = await prisma.rpgInventoryItem.findMany({
+    where: { quantity: { gt: 0 }, profile: { guildId, userId: ownerId }, item: { name: { in: names } } },
+    include: { item: true },
+  });
+
+  const picked = names
+    .map((name) => owned.find((entry) => entry.item.name === name && entry.item.price > 0)?.item)
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const total = picked.reduce((sum, item) => sum + Math.floor(item.price * SELL_RATIO), 0);
+  if (picked.length === 0 || total <= 0) return null;
+
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:sellloot:${ownerId}:${picked.map((item) => item.id).join(':')}`)
+      .setLabel(m.rpg_fight_sell_loot_btn({ price: total }, { locale }))
+      .setEmoji(icon('rpgSell'))
+      .setStyle(ButtonStyle.Success),
+  );
+}
+
+/** Revend le butin du combat, puis retire le bouton pour qu'il ne serve qu'une fois. */
+async function handleSellLoot(
+  interaction: ButtonInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  itemIds: string[],
+): Promise<void> {
+  const sold: string[] = [];
+  let earned = 0;
+  let failed = 0;
+
+  for (const itemId of itemIds) {
+    try {
+      const result = await sellShopItem(guildId, ownerId, itemId);
+      sold.push(result.itemName);
+      earned += result.sellPrice;
+    } catch {
+      // Déjà vendu, équipé ou bu entre-temps : les autres exemplaires se vendent quand même.
+      failed += 1;
+    }
+  }
+
+  await interaction.editReply({ components: [backRow(ownerId, locale)] });
+
+  const config = await getOrCreateEconomyConfig(guildId);
+  const summary = sold.length > 0
+    ? m.rpg_fight_sell_loot_done({ items: sold.join(', '), price: earned, emoji: config.currencyEmoji }, { locale })
+      + (failed > 0 ? ` ${m.rpg_fight_sell_loot_partial({ count: failed }, { locale })}` : '')
+    : m.rpg_fight_sell_loot_none({}, { locale });
+
+  await interaction.followUp({
+    embeds: [sold.length > 0 ? successEmbed(m.rpg_fight_sell_loot_title({}, { locale }), summary) : errorEmbed(m.rpg_fight_sell_loot_title({}, { locale }), summary)],
+    flags: [MessageFlags.Ephemeral],
+  });
 }
 
 async function handleTitleSelect(
@@ -4774,6 +4855,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
         const campaign = await trackCombatQuests(interaction.client, guildId, ownerId, monster.isBoss, itemDropped);
         const firstKill = await firstKillField(interaction.client, guildId, ownerId, monster, locale);
         const winTitle = await winTitleField(guildId, ownerId, monster, locale);
+        const sellRow = await lootSellRow(guildId, ownerId, [itemDropped, firstKill?.itemName ?? null], locale);
 
         if (itemDropped) victoryEmbed.addFields({ name: m.rpg_fight_field_drop({}, { locale }), value: `${itemDropEmoji || '📦'} **${itemDropped}**`, inline: true });
         if (teamPoints.amount > 0) {
@@ -4784,7 +4866,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
           });
         }
         if (firstWinBonus) victoryEmbed.addFields(firstWinField(locale));
-        if (firstKill) victoryEmbed.addFields(firstKill);
+        if (firstKill) victoryEmbed.addFields(firstKill.field);
         if (winTitle) victoryEmbed.addFields(winTitle);
         if (levelUp) victoryEmbed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: levelUp }, { locale }) });
 
@@ -4793,7 +4875,10 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
         const campaignNote = campaignAdvanceNote(campaign, locale);
         if (campaignNote) victoryEmbed.setFooter({ text: campaignNote });
 
-        await interaction.editReply({ embeds: [victoryEmbed], components: finalComponents });
+        await interaction.editReply({
+          embeds: [victoryEmbed],
+          components: sellRow ? [...rows, sellRow, backRow(ownerId, locale)] : finalComponents,
+        });
         return;
       }
 
@@ -4982,6 +5067,9 @@ async function runBossFight(interaction: StringSelectMenuInteraction, guildId: s
     ? await firstKillField(interaction.client, guildId, ownerId, boss, locale)
     : null;
   const winTitle = result.won ? await winTitleField(guildId, ownerId, boss, locale) : null;
+  const sellRow = result.won
+    ? await lootSellRow(guildId, ownerId, [result.itemDropped, firstKill?.itemName ?? null], locale)
+    : null;
 
   const turnSummary = result.turns.slice(-8).map((t) => {
     const who = t.attacker === 'player' ? m.rpg_boss_you_label({}, { locale }) : `${boss.emoji} ${boss.name}`;
@@ -5010,14 +5098,14 @@ async function runBossFight(interaction: StringSelectMenuInteraction, guildId: s
     });
   }
   if (result.firstWinBonus) embed.addFields(firstWinField(locale));
-  if (firstKill) embed.addFields(firstKill);
+  if (firstKill) embed.addFields(firstKill.field);
   if (winTitle) embed.addFields(winTitle);
   if (result.levelUp) embed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: result.levelUp }, { locale }) });
 
   const campaignNote = campaign ? campaignAdvanceNote(campaign, locale) : '';
   if (campaignNote) embed.setFooter({ text: campaignNote });
 
-  await interaction.editReply({ embeds: [embed], components: [backRow(ownerId, locale)] });
+  await interaction.editReply({ embeds: [embed], components: sellRow ? [sellRow, backRow(ownerId, locale)] : [backRow(ownerId, locale)] });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -6243,7 +6331,7 @@ async function renderSection(
  * une fenêtre de saisie ou une réponse privée ne peut plus s'ouvrir après l'acquittement.
  */
 const DEFERRED_BUTTON_ACTIONS = new Set([
-  'nav', 'shopbuy', 'shopopen', 'invopen', 'bestopen', 'invtoggle', 'invuse2', 'invsell', 'invsalvage', 'invfav',
+  'nav', 'shopbuy', 'shopopen', 'invopen', 'bestopen', 'invtoggle', 'invuse2', 'invsell', 'invsalvage', 'invfav', 'sellloot',
   'work', 'upgrade', 'enchantapply', 'dest', 'choice',
 ]);
 
@@ -6285,6 +6373,7 @@ export async function handleRpgButton(client: Client, customId: string, interact
       case 'invsell': await handleInventorySell(interaction, guildId, ownerId, locale, rest); return;
       case 'invsalvage': await handleInventorySalvage(interaction, guildId, ownerId, locale, rest); return;
       case 'invfav': await handleInventoryFavorite(interaction, guildId, ownerId, locale, rest); return;
+      case 'sellloot': await handleSellLoot(interaction, guildId, ownerId, locale, rest); return;
       // Compteur de page : désactivé, il ne devrait jamais arriver ici, mais un client
       // qui rejouerait un vieux message ne doit pas se heurter à un silence.
       case 'noop': return;

@@ -13,6 +13,7 @@ import { isShopItemUnlocked } from '../economyPolicy.js';
 import { listGuildMonsters } from './rpgBestiaryService.js';
 import { parseMonsterDrops } from './rpgBestiaryPolicy.js';
 import { RPG_CAMPAIGN } from './rpgCampaign.js';
+import { listFirstKills } from './rpgFirstKillService.js';
 import { preferGuildRecipes } from './rpgRecipePolicy.js';
 
 export type ItemCatalogEntry = {
@@ -22,21 +23,33 @@ export type ItemCatalogEntry = {
   monsters: string[];
   bosses: string[];
   crafted: boolean;
-  /** Créatures dont le premier vainqueur le reçoit. */
+  /** Créatures dont le premier vainqueur le recevra : celles déjà battues n'offrent plus rien. */
   firstKill: string[];
   campaign: boolean;
 };
 
-export type ItemSourceFilter = 'all' | 'shop' | 'monster' | 'boss' | 'craft' | 'unique';
+export type ItemSourceFilter = 'all' | 'shop' | 'monster' | 'boss' | 'craft' | 'unique' | 'unavailable';
 
-export const ITEM_SOURCE_FILTERS: ItemSourceFilter[] = ['all', 'shop', 'monster', 'boss', 'craft', 'unique'];
+export const ITEM_SOURCE_FILTERS: ItemSourceFilter[] = ['all', 'shop', 'monster', 'boss', 'craft', 'unique', 'unavailable'];
+
+function hasRegularSource(entry: ItemCatalogEntry): boolean {
+  return entry.shop || entry.monsters.length > 0 || entry.bosses.length > 0 || entry.crafted;
+}
 
 /**
- * Objet qu'aucune source régulière ne donne : il ne s'obtient que par une prime de premier
- * vainqueur, la campagne, un drop d'animation ou la main d'un administrateur.
+ * Objet qu'aucune source régulière ne donne, mais qui se gagne une fois : par la prime d'un
+ * premier vainqueur ou par la campagne.
  */
 export function isUniqueItem(entry: ItemCatalogEntry): boolean {
-  return !entry.shop && entry.monsters.length === 0 && entry.bosses.length === 0 && !entry.crafted;
+  return !hasRegularSource(entry) && (entry.firstKill.length > 0 || entry.campaign);
+}
+
+/**
+ * Objet que rien dans le jeu ne donne : ni boutique, ni butin, ni recette, ni prime, ni
+ * campagne. Il n'arrive que par un drop d'animation ou la main d'un administrateur.
+ */
+export function isUnavailableItem(entry: ItemCatalogEntry): boolean {
+  return !hasRegularSource(entry) && entry.firstKill.length === 0 && !entry.campaign;
 }
 
 export function matchesSourceFilter(entry: ItemCatalogEntry, filter: ItemSourceFilter): boolean {
@@ -46,6 +59,7 @@ export function matchesSourceFilter(entry: ItemCatalogEntry, filter: ItemSourceF
     case 'boss': return entry.bosses.length > 0;
     case 'craft': return entry.crafted;
     case 'unique': return isUniqueItem(entry);
+    case 'unavailable': return isUnavailableItem(entry);
     default: return true;
   }
 }
@@ -57,7 +71,7 @@ function push(map: Map<string, string[]>, key: string, value: string): void {
 }
 
 export async function getItemCatalog(guildId: string): Promise<ItemCatalogEntry[]> {
-  const [rows, recipes, monsters, config, modules] = await Promise.all([
+  const [rows, recipes, monsters, config, modules, firstKills] = await Promise.all([
     prisma.rpgItem.findMany({ where: { OR: [{ guildId: null }, { guildId }] } }),
     prisma.rpgRecipe.findMany({
       where: { OR: [{ guildId: null }, { guildId }] },
@@ -66,6 +80,7 @@ export async function getItemCatalog(guildId: string): Promise<ItemCatalogEntry[
     listGuildMonsters(guildId),
     getOrCreateEconomyConfig(guildId),
     getShopModuleState(guildId),
+    listFirstKills(guildId),
   ]);
 
   // Un objet du serveur masque le livré du même nom, comme partout ailleurs : le catalogue
@@ -90,7 +105,9 @@ export async function getItemCatalog(guildId: string): Promise<ItemCatalogEntry[
     for (const drop of parseMonsterDrops(monster.drops)) {
       push(monster.isBoss ? droppedByBoss : droppedBy, drop.itemName, monster.name);
     }
-    if (monster.firstKillItemName) push(firstKillOf, monster.firstKillItemName, monster.name);
+    if (monster.firstKillItemName && !firstKills.has(monster.name)) {
+      push(firstKillOf, monster.firstKillItemName, monster.name);
+    }
   }
 
   const campaignNames = new Set(
