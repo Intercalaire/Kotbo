@@ -207,7 +207,7 @@ export async function dissolveRpgGuild(rpgGuildId: string, guildId = authStore.s
   return dashboardRequest(`/economy/guilds/${rpgGuildId}`, { method: 'DELETE', successMessage: m.api_ok_dissolve_rpg_guild(), guildId, errorContext: 'API Error (Dissolve RPG Guild):' });
 }
 
-export async function resetEconomy(component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary', guildId = authStore.selectedGuildId) {
+export async function resetEconomy(component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary' | 'titles', guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/reset', { method: 'POST', successMessage: m.api_ok_reset_economy(), payload: { component }, guildId, errorContext: 'API Error (Reset Economy):' });
 }
 

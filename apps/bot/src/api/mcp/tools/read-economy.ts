@@ -3,6 +3,7 @@ import prisma from '../../../utils/db.js';
 import { z } from 'zod';
 import { type McpToolContext, err, ok, resolveMember } from '../toolkit.js';
 import { withModuleFlags } from '../../../services/features/rpg/rpgEconomyConfigService.js';
+import { listOwnedTitles } from '../../../services/features/rpg/rpgTitleService.js';
 
 export function registerReadEconomyTools(ctx: McpToolContext) {
   const { server, guildId, shouldRegister, guard, toolMeta } = ctx;
@@ -30,7 +31,7 @@ export function registerReadEconomyTools(ctx: McpToolContext) {
     server.registerTool(
       'get_rpg_profile',
       {
-        description: "Récupère le profil RPG d'un membre (solde, niveau, stats de base, classe, points, équipement complet, inventaire).",
+        description: "Récupère le profil RPG d'un membre (solde, niveau, stats de base, classe, points, équipement complet, inventaire, titres, premiers vainqueurs).",
         inputSchema: {
           member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre'),
         },
@@ -71,6 +72,14 @@ export function registerReadEconomyTools(ctx: McpToolContext) {
           })
           : [];
         const equipOf = new Map(equipItems.map((i) => [i.id, i]));
+        const [titles, firstKills] = await Promise.all([
+          listOwnedTitles(profile.id),
+          prisma.rpgMonsterFirstKill.findMany({
+            where: { guildId, userId: resolved.userId },
+            orderBy: { createdAt: 'asc' },
+            select: { monsterName: true, createdAt: true },
+          }),
+        ]);
         const equipment = Object.fromEntries(
           Object.entries(slots).map(([slot, id]) => [slot, id ? equipOf.get(id) ?? null : null]),
         );
@@ -93,6 +102,21 @@ export function registerReadEconomyTools(ctx: McpToolContext) {
           travelDestination: profile.travelDestination,
           equipment,
           guild: profile.rpgGuild ? { id: profile.rpgGuild.id, name: profile.rpgGuild.name, level: profile.rpgGuild.level } : null,
+          // Seul le titre porté donne ses bonus ; les autres sont dans la collection.
+          activeTitleId: profile.activeTitleId,
+          titles: titles.map((title) => ({
+            id: title.id,
+            name: title.name,
+            worn: title.id === profile.activeTitleId,
+            attackBonus: title.attackBonus,
+            defenseBonus: title.defenseBonus,
+            speedBonus: title.speedBonus,
+            healthBonus: title.healthBonus,
+            critBonus: title.critBonus,
+            obtainedAt: title.obtainedAt,
+          })),
+          firstKills: firstKills.map((kill) => ({ monsterName: kill.monsterName, at: kill.createdAt })),
+          favoriteItemIds: profile.favoriteItemIds,
           inventory: profile.inventory.map((i) => ({
             itemId: i.item.id,
             itemName: i.item.name,

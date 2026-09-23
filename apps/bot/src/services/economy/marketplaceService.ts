@@ -1,6 +1,8 @@
 import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { isModuleEnabled } from '../core/moduleGate.js';
+import { equippedItemIds } from '../features/rpg/rpgEquipment.js';
+import { lockRpgProfile } from '../features/rpg/rpgInventoryWrites.js';
 
 class MarketplacePurchaseError extends Error {}
 
@@ -77,11 +79,28 @@ export async function createListing(guildId: string, sellerId: string, data: {
 
   try {
     const listing = await prisma.$transaction(async (tx) => {
-      const profile = await tx.rpgProfile.findUnique({
+      const found = await tx.rpgProfile.findUnique({
         where: { guildId_userId: { guildId, userId: sellerId } },
         select: { id: true },
       });
-      if (!profile) throw new MarketplacePurchaseError('Profil RPG introuvable.');
+      if (!found) throw new MarketplacePurchaseError('Profil RPG introuvable.');
+
+      // Sous verrou : l'objet a pu être équipé depuis une autre fenêtre entre-temps.
+      await lockRpgProfile(tx, found.id);
+      const profile = await tx.rpgProfile.findUniqueOrThrow({ where: { id: found.id } });
+
+      // Le dernier exemplaire d'un objet porté ne se met pas en vente : les statistiques se
+      // lisent sur l'emplacement, et le vendeur garderait les bonus d'un objet qu'un autre
+      // joueur vient de lui acheter.
+      if (equippedItemIds(profile).includes(data.itemId)) {
+        const stock = await tx.rpgInventoryItem.findUnique({
+          where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: data.itemId } },
+          select: { quantity: true },
+        });
+        if ((stock?.quantity ?? 0) - quantity < 1) {
+          throw new MarketplacePurchaseError("Cet objet est équipé : déséquipez-le d'abord, ou mettez en vente un exemplaire de moins.");
+        }
+      }
 
       // Retrait conditionnel : la ligne lue puis décrémentée sans garde laissait deux
       // mises en vente simultanées retirer deux fois le même exemplaire, et la quantité
