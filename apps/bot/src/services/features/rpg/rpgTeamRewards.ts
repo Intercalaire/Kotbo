@@ -28,7 +28,7 @@ export async function awardRpgTeamPoints(params: {
   guildId: string;
   userId: string;
   amount: number;
-  source: 'RPG_MOB' | 'RPG_BOSS' | 'RPG_QUEST' | 'RPG_FIRST_KILL';
+  source: 'RPG_MOB' | 'RPG_BOSS' | 'RPG_QUEST' | 'RPG_FIRST_KILL' | 'RPG_FISHBOOK';
   reason: string;
 }): Promise<{ amount: number; toGuild: boolean }> {
   const none = { amount: 0, toGuild: false };

@@ -23,6 +23,12 @@ model MarketplaceListing {
   itemId   String // Référence RpgItem
   quantity Int    @default(1)
 
+  /// Progression de l'exemplaire vendu. Un exemplaire forgé ou enchanté se vend seul
+  /// (quantité 1) et l'acheteur le reçoit tel quel ; à zéro, ce sont des exemplaires
+  /// ordinaires, qui rejoignent la pile de l'acheteur.
+  upgrade  Int  @default(0)
+  enchants Json @default("[]")
+
   type     ListingType @default(FIXED_PRICE)
   status   ListingStatus @default(ACTIVE)
 
@@ -55,6 +61,9 @@ model MarketplaceTransaction {
 
   quantity  Int
   price     Int // Prix final payé
+  /// Niveau de forge vendu : le prix moyen proposé à la mise en vente compare les ventes
+  /// d'un même objet au même niveau.
+  upgrade   Int @default(0)
 
   guild   Guild              @relation(fields: [guildId], references: [id], onDelete: Cascade)
   listing MarketplaceListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
@@ -64,5 +73,6 @@ model MarketplaceTransaction {
   @@index([guildId, sellerId])
   @@index([guildId, buyerId])
   @@index([guildId, createdAt])
+  @@index([guildId, itemId, createdAt])
   @@map("marketplace_transactions")
 }

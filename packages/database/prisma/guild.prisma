@@ -649,6 +649,8 @@ model Guild {
   rpgCampaignProgress      RpgCampaignProgress[]
   rpgArenaMatches          RpgArenaMatch[]
   rpgFishCatches           RpgFishCatch[]
+  rpgFish                  RpgFish[]
+  rpgFishBookRewards       RpgFishBookReward[]
   rpgBlackMarketSessions   RpgBlackMarketSession[]
   rpgRaidBosses            RpgRaidBoss[]
   rpgRaids                 RpgRaid[]

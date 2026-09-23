@@ -135,6 +135,31 @@ export async function deleteRpgRecipe(recipeId: string, guildId = authStore.sele
   return dashboardRequest(`/economy/recipes/${recipeId}`, { method: 'DELETE', successMessage: m.api_ok_delete_rpg_recipe(), guildId, errorContext: 'API Error (Delete RPG Recipe):' });
 }
 
+export async function fetchRpgFish(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/fish', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Fish):' });
+}
+
+export async function saveRpgFish(fish: Record<string, unknown>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/fish', { method: 'POST', successMessage: m.api_ok_save_rpg_fish(), payload: fish, guildId, errorContext: 'API Error (Save RPG Fish):' });
+}
+
+// La clé d'une espèce livrée porte son nom, espaces et apostrophes compris.
+export async function setRpgFishEnabled(key: string, enabled: boolean, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/economy/fish/${encodeURIComponent(key)}`, { method: 'PATCH', successMessage: m.api_ok_set_rpg_fish_enabled(), payload: { enabled }, guildId, errorContext: 'API Error (Toggle RPG Fish):' });
+}
+
+export async function deleteRpgFish(key: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/economy/fish/${encodeURIComponent(key)}`, { method: 'DELETE', successMessage: m.api_ok_delete_rpg_fish(), guildId, errorContext: 'API Error (Delete RPG Fish):' });
+}
+
+export async function saveRpgFishBookReward(tier: string, reward: Record<string, unknown>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/economy/fish/rewards/${tier}`, { method: 'PUT', successMessage: m.api_ok_save_rpg_fishbook_reward(), payload: reward, guildId, errorContext: 'API Error (Save RPG Fish Book Reward):' });
+}
+
+export async function resetRpgFishBookReward(tier: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/economy/fish/rewards/${tier}`, { method: 'DELETE', successMessage: m.api_ok_reset_rpg_fishbook_reward(), guildId, errorContext: 'API Error (Reset RPG Fish Book Reward):' });
+}
+
 export async function fetchRpgTitles(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/titles', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Titles):' });
 }
