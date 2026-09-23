@@ -759,7 +759,7 @@ export async function attackRaid(client: Client, guildId: string, userId: string
 
     // Le joueur ressort du raid dans l'état où il en sort : les points de vie perdus se
     // reportent sur le profil, comme après un combat de boss.
-    const remainingHp = Math.max(1, Math.min(profile.maxHealth, profile.health - result.damageTaken));
+    const remainingHp = Math.max(1, Math.min(stats.maxHealth, profile.health - result.damageTaken));
     await prisma.rpgProfile.update({
       where: { guildId_userId: { guildId, userId } },
       data: { health: remainingHp },
