@@ -1353,6 +1353,20 @@ export function peutAgirSurCible(
     return refus('cibleHorsSalon', `${designation(cible)} n'est pas dans le salon.`);
   }
 
+  // « Autoriser » et « Retirer l'acces » ecrivent une surcharge de confiance.
+  // Le proprietaire, lui, tient son acces de SA surcharge de proprietaire :
+  // « Retirer l'acces » ne lui retirait donc rien de visible, mais supprimait
+  // au passage la surcharge qui porte ses droits. Un bouton qui n'a pas d'effet
+  // utile et un effet de bord nuisible n'a pas a etre cliquable.
+  if (action === 'autoriser' && cible.estProprietaire) {
+    return refus(
+      'cibleDejaProprietaire',
+      cible.nom
+        ? `${cible.nom} est propriétaire du salon : son accès ne vient pas d'une autorisation.`
+        : "Cette personne est propriétaire du salon : son accès ne vient pas d'une autorisation.",
+    );
+  }
+
   if (action === 'transferer') {
     if (cible.estSoiMeme) {
       return refus('cibleSoiMeme', 'Tu ne peux pas te transférer le salon à toi-même.');
@@ -1540,6 +1554,157 @@ export function nettoyagePresenceAuDemarrage(
     aRetirer: presence.filter((s) => !ici.has(s.userId)).map((s) => s.userId),
     aMarquerPresence: presence.filter((s) => ici.has(s.userId)).map((s) => s.userId),
   };
+}
+
+/**
+ * Qui doit perdre son droit d'écrire nominatif quand le mode change.
+ *
+ * Couper `@everyone` ne suffit pas : une surcharge nominative prime toujours
+ * sur elle. Or « Autoriser » passe par `categoryTrustPatch`, qui accorde cinq
+ * bits d'un coup — `SendMessages` compris. Sans ce ménage, « Personne » laissait
+ * écrire tous ceux qui avaient été autorisés, et « Moi seul » voulait dire
+ * « moi et mes invités ». Le libellé mentait.
+ *
+ * Les trois modes restrictifs possèdent donc ce bit sur les surcharges de
+ * membres. Seul `inVoice` en épargne un, et seulement tant qu'il est connecté.
+ *
+ * On ne retire que le bit d'écriture : `Connect` et `ViewChannel` restent, donc
+ * la personne reste autorisée à entrer. Et rendre le bit plutôt que le refuser
+ * (`null`, pas `false`) fait qu'un retour à « Tout le monde » le lui redonne
+ * sans qu'on ait rien mémorisé — ce qu'un refus nommé, lui, survivrait.
+ */
+export function membresAReduireAuSilence(
+  mode: ModeEcriture,
+  surcharges: readonly SurchargeMembreLue[],
+  presents: readonly string[],
+): string[] {
+  if (mode === 'everyone') return [];
+  const ici = new Set(presents);
+  return surcharges
+    .filter((surcharge) => surcharge.accordeEcriture)
+    .filter((surcharge) => !(mode === 'inVoice' && ici.has(surcharge.userId)))
+    .map((surcharge) => surcharge.userId);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. La réservation : à quels rôles, et que faire de ceux qui sont déjà là
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Ce que l'administration décide du sort des personnes déjà présentes. */
+export const DECISIONS_DEBORDEMENT = ['ASK', 'NOTHING', 'MOVE', 'DISCONNECT'] as const;
+export type DecisionDebordement = (typeof DECISIONS_DEBORDEMENT)[number];
+
+export interface ConfigReservation {
+  /** Vide = n'importe quel rôle du serveur, le comportement livré. */
+  rolesReservables: string[];
+  debordement: DecisionDebordement;
+  salonDeRepli: string | null;
+}
+
+export const CONFIG_RESERVATION_PAR_DEFAUT: ConfigReservation = {
+  rolesReservables: [],
+  debordement: 'ASK',
+  salonDeRepli: null,
+};
+
+/** Le plafond d'un menu Discord : au-delà, le bot ne pourrait pas les afficher. */
+export const MAX_ROLES_RESERVABLES = 25;
+
+/**
+ * Ce que le dashboard écrit n'est validé par personne d'autre. Une valeur de
+ * débordement inconnue retombe sur `ASK` — poser la question — et jamais sur
+ * une valeur qui agit : un réglage corrompu ne doit déconnecter personne.
+ */
+export function normaliserConfigReservation(raw: unknown): ConfigReservation {
+  if (!raw || typeof raw !== 'object') return { ...CONFIG_RESERVATION_PAR_DEFAUT, rolesReservables: [] };
+  const ligne = raw as Record<string, unknown>;
+
+  const roles = Array.isArray(ligne.reservableRoleIds)
+    ? [...new Set(ligne.reservableRoleIds.filter((id): id is string => typeof id === 'string' && id.length > 0))]
+      .slice(0, MAX_ROLES_RESERVABLES)
+    : [];
+
+  const debordement = DECISIONS_DEBORDEMENT.includes(ligne.reservationOverflow as DecisionDebordement)
+    ? (ligne.reservationOverflow as DecisionDebordement)
+    : CONFIG_RESERVATION_PAR_DEFAUT.debordement;
+
+  const salon = typeof ligne.reservationFallbackChannelId === 'string'
+    && ligne.reservationFallbackChannelId.length > 0
+    ? ligne.reservationFallbackChannelId
+    : null;
+
+  return { rolesReservables: roles, debordement, salonDeRepli: salon };
+}
+
+/** Une personne présente, telle que le plan a besoin de la connaître. */
+export interface PresentPourReservation {
+  id: string;
+  estBot: boolean;
+  /** Les rôles qu'elle porte sur le serveur. */
+  roles: ReadonlySet<string>;
+}
+
+/**
+ * Qui, parmi les présents, n'a pas le rôle auquel le salon vient d'être réservé.
+ *
+ * Le propriétaire n'en fait jamais partie, quel que soit son rôle : réserver son
+ * salon ne peut pas l'en éjecter. Les bots non plus — les déplacer ne règle
+ * rien et casse ce qu'ils font.
+ */
+export function membresSansLeRole(
+  presents: readonly PresentPourReservation[],
+  roleId: string,
+  proprietaireId: string,
+): string[] {
+  return presents
+    .filter((membre) => !membre.estBot)
+    .filter((membre) => membre.id !== proprietaireId)
+    .filter((membre) => !membre.roles.has(roleId))
+    .map((membre) => membre.id);
+}
+
+export type ActionDebordement = 'aucune' | 'demander' | 'deplacer' | 'deconnecter';
+
+export interface PlanDebordement {
+  action: ActionDebordement;
+  /** Salon d'accueil, seulement pour « deplacer ». */
+  salon: string | null;
+  membres: string[];
+  /** « Déplacer » demandé sans salon d'accueil : on déconnecte, et on le dit. */
+  repliSurDeconnexion: boolean;
+}
+
+/**
+ * Ce qu'il advient de ceux qui restent.
+ *
+ * Réserver ne déplaçait personne : les gens restaient dans un salon qu'ils
+ * n'auraient plus eu le droit de rejoindre. Le plan est rendu ici, sans rien
+ * exécuter, pour qu'on puisse l'éprouver sans toucher à Discord.
+ *
+ * Aucun concerné, aucune action — et surtout aucune question posée : demander
+ * quoi faire de personne serait du bruit.
+ */
+export function planDebordement(
+  config: ConfigReservation,
+  concernes: readonly string[],
+): PlanDebordement {
+  const membres = [...concernes];
+  if (membres.length === 0) return { action: 'aucune', salon: null, membres: [], repliSurDeconnexion: false };
+
+  switch (config.debordement) {
+    case 'NOTHING':
+      return { action: 'aucune', salon: null, membres, repliSurDeconnexion: false };
+    case 'ASK':
+      return { action: 'demander', salon: config.salonDeRepli, membres, repliSurDeconnexion: false };
+    case 'DISCONNECT':
+      return { action: 'deconnecter', salon: null, membres, repliSurDeconnexion: false };
+    case 'MOVE':
+      // Un salon d'accueil absent ou supprimé ne doit pas annuler la décision en
+      // silence : la personne part quand même, et le message le dit.
+      return config.salonDeRepli
+        ? { action: 'deplacer', salon: config.salonDeRepli, membres, repliSurDeconnexion: false }
+        : { action: 'deconnecter', salon: null, membres, repliSurDeconnexion: true };
+  }
 }
 
 /**

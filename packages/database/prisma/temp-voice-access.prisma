@@ -70,6 +70,36 @@ model TempVoiceModPermissionsConfig {
   /// Un modérateur peut transférer la propriété du salon.
   canTransfer Boolean @default(true)
 
+  /// Comment se comportent les sous-panneaux éphémères du salon.
+  ///
+  /// `false` — chaque action ouvre un éphémère de plus. C'est le comportement
+  /// livré, et il reste le défaut : personne n'a demandé qu'on le change.
+  /// `true` — un seul éphémère, réécrit sur place, avec un bouton « Retour ».
+  /// Trois messages pour une réservation (le menu, le choix, le verdict)
+  /// deviennent un seul.
+  panelCompactMode Boolean @default(false)
+
+  /// Les rôles proposés dans le menu « Réserver le salon ».
+  ///
+  /// Vide — le menu laisse choisir n'importe quel rôle du serveur, ce qui est
+  /// le comportement livré. Non vide — seuls ces rôles sont proposés, et un
+  /// propriétaire ne peut plus réserver son salon à un rôle que
+  /// l'administration n'a pas prévu.
+  reservableRoleIds String[] @default([])
+
+  /// Ce qu'on fait des personnes déjà dans le salon qui n'ont pas le rôle au
+  /// moment où il est réservé.
+  ///
+  /// Réserver ne déplace personne : les gens restent dans un salon qu'ils
+  /// n'auraient plus le droit de rejoindre. `ASK` pose la question au
+  /// propriétaire, et ne la pose que lorsqu'il y a quelqu'un à qui elle
+  /// s'applique. Les trois autres valeurs tranchent d'avance.
+  reservationOverflow String @default("ASK") // ASK | NOTHING | MOVE | DISCONNECT
+
+  /// Salon vers lequel déplacer, quand la décision est « MOVE ». Absent, le
+  /// déplacement se rabat sur une déconnexion — annoncée comme telle.
+  reservationFallbackChannelId String?
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())

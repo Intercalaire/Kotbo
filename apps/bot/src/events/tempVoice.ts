@@ -79,6 +79,12 @@ import {
   peutRepondreDemande,
   ordreNotification,
   RegistreOriginesSurcharge,
+  membresAReduireAuSilence,
+  membresSansLeRole,
+  planDebordement,
+  normaliserConfigReservation,
+  type ConfigReservation,
+  type PlanDebordement,
   decisionEntreeVocal,
   decisionSortieVocal,
   decisionRetraitAutorisation,
@@ -283,8 +289,8 @@ function oublierSalon(guildId: string, salonId: string): void {
   registreDemandes.oublierSalon(guildId, salonId);
   originesSurcharge.oublierSalon(guildId, salonId);
   historiquesRenommage.delete(salonId);
-  const minuteur = rafraichissements.get(salonId);
-  if (minuteur) clearTimeout(minuteur);
+  const fenetre = rafraichissements.get(salonId);
+  if (fenetre) clearTimeout(fenetre.minuteur);
   rafraichissements.delete(salonId);
 }
 
@@ -301,7 +307,15 @@ function oublierSalon(guildId: string, salonId: string): void {
  * ligne - les lire ici a la place d'une absence fermerait des portes que
  * personne n'a demande a fermer.
  */
-async function lireReglagesAdmin(guildId: string): Promise<ReglagesAdmin> {
+interface ReglagesModule {
+  reglages: ReglagesAdmin;
+  /** Un seul éphémère réécrit sur place, plutôt qu'un de plus par action. */
+  panneauCompact: boolean;
+  /** Rôles proposés à la réservation, et sort de ceux qui restent. */
+  reservation: ConfigReservation;
+}
+
+async function lireReglagesAdmin(guildId: string): Promise<ReglagesModule> {
   // try/catch et non `.catch()` : un modele absent du client fait lever
   // `.findUnique` de maniere SYNCHRONE, avant meme qu'une promesse existe - le
   // `.catch()` ne l'aurait jamais vu.
@@ -315,19 +329,35 @@ async function lireReglagesAdmin(guildId: string): Promise<ReglagesAdmin> {
     // tout permis pendant une coupure de base serait indiscernable d'un serveur
     // qui n'a jamais ouvert l'onglet.
     logger.warn('TempVoice', `Reglages moderateur illisibles pour ${guildId}, repli sur « tout autorise » :`, err);
-    return normaliserReglagesAdmin(undefined);
+    return {
+      reglages: normaliserReglagesAdmin(undefined),
+      panneauCompact: false,
+      reservation: normaliserConfigReservation(undefined),
+    };
   }
-  if (!ligne) return normaliserReglagesAdmin(undefined);
+  if (!ligne) {
+    return {
+      reglages: normaliserReglagesAdmin(undefined),
+      panneauCompact: false,
+      reservation: normaliserConfigReservation(undefined),
+    };
+  }
 
-  return normaliserReglagesAdmin({
-    renommer: ligne.canRename,
-    limite: ligne.canChangeLimit,
-    verrouiller: ligne.canLock,
-    modeEcriture: ligne.canChangeWriteMode,
-    reserver: ligne.canReserve,
-    expulserBannir: ligne.canKickOrBan,
-    transferer: ligne.canTransfer,
-  });
+  return {
+    reglages: normaliserReglagesAdmin({
+      renommer: ligne.canRename,
+      limite: ligne.canChangeLimit,
+      verrouiller: ligne.canLock,
+      modeEcriture: ligne.canChangeWriteMode,
+      reserver: ligne.canReserve,
+      expulserBannir: ligne.canKickOrBan,
+      transferer: ligne.canTransfer,
+    }),
+    // Aucune ligne, ou une lecture qui échoue : le mode empilé, celui qui a été
+    // livré. Personne n'a demandé qu'on lui change sa présentation.
+    panneauCompact: ligne.panelCompactMode === true,
+    reservation: normaliserConfigReservation(ligne),
+  };
 }
 
 /**
@@ -372,29 +402,52 @@ async function roleAgissant(
 // Réécriture du panneau, anti-rebond de 2 s par salon
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ANTI_REBOND_PANNEAU_MS = 2_000;
+const FENETRE_COALESCENCE_MS = 1_500;
 
-const rafraichissements = new Map<string, ReturnType<typeof setTimeout>>();
+interface FenetreRafraichissement {
+  minuteur: ReturnType<typeof setTimeout>;
+  /** Un changement est arrivé pendant la fenêtre : il lui faut son passage. */
+  enAttente: boolean;
+}
+
+const rafraichissements = new Map<string, FenetreRafraichissement>();
 
 /**
- * Le panneau se réécrit après chaque changement — un appel Discord de plus par
- * action. Négligeable, sauf si quelqu'un mitraille les bascules : une seule
- * réécriture par fenêtre de deux secondes et par salon.
+ * Le panneau dit l'état du salon : le laisser mentir une seconde de plus que
+ * nécessaire est le seul vrai défaut qu'il puisse avoir.
+ *
+ * La première action réécrit donc **tout de suite**, et c'est la rafale qui est
+ * amortie derrière — l'inverse de ce que faisait l'anti-rebond, qui faisait
+ * attendre deux secondes à un simple clic sur « Verrouiller ». Les changements
+ * survenus pendant la fenêtre déclenchent un unique passage de rattrapage à sa
+ * fermeture : deux écritures par fenêtre au pire, loin du plafond de Discord
+ * (cinq éditions par tranche de cinq secondes et par salon).
  */
 function planifierRafraichissementPanneau(channel: VoiceChannel): void {
-  if (rafraichissements.has(channel.id)) return;
+  const fenetre = rafraichissements.get(channel.id);
+  if (fenetre) {
+    fenetre.enAttente = true;
+    return;
+  }
+
+  void lancerReecriture(channel);
 
   const minuteur = setTimeout(() => {
+    const courante = rafraichissements.get(channel.id);
     rafraichissements.delete(channel.id);
-    void reecrirePanneau(channel).catch((err: unknown) => {
-      logger.warn('TempVoice', `Impossible de réécrire le panneau de ${channel.id} :`, err);
-    });
-  }, ANTI_REBOND_PANNEAU_MS);
+    if (courante?.enAttente) void lancerReecriture(channel);
+  }, FENETRE_COALESCENCE_MS);
 
   // Un minuteur en attente garderait le process en vie : le panneau n'est pas
   // une raison de ne pas s'arrêter.
   (minuteur as unknown as { unref?: () => void }).unref?.();
-  rafraichissements.set(channel.id, minuteur);
+  rafraichissements.set(channel.id, { minuteur, enAttente: false });
+}
+
+function lancerReecriture(channel: VoiceChannel): Promise<void> {
+  return reecrirePanneau(channel).catch((err: unknown) => {
+    logger.warn('TempVoice', `Impossible de réécrire le panneau de ${channel.id} :`, err);
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -790,6 +843,19 @@ async function retrouverPanneau(channel: VoiceChannel, entree: EntreeSalonTempor
   return null;
 }
 
+/**
+ * Un message posté avant que le dépôt ne passe aux composants V2 porte encore
+ * un `content`. Discord refuse d'éditer un tel message vers du V2 tant que ce
+ * `content` est là (`MESSAGE_CANNOT_USE_LEGACY_FIELDS_WITH_COMPONENTS_V2`), et
+ * la conversion globale de `patchV2` ne sait pas le retirer : elle traite le cas
+ * inverse, un message déjà V2 édité avec des champs anciens.
+ *
+ * Un panneau d'avant la refonte est donc remplacé plutôt que réécrit.
+ */
+function panneauEnV2(message: Message): boolean {
+  return Boolean(message.flags?.has?.(MessageFlags.IsComponentsV2));
+}
+
 async function reecrirePanneau(channel: VoiceChannel): Promise<void> {
   const entree = tempChannels.get(channel.id);
   if (!entree) return;
@@ -797,15 +863,52 @@ async function reecrirePanneau(channel: VoiceChannel): Promise<void> {
   const message = await retrouverPanneau(channel, entree);
   if (!message) return;
 
-  // Une surcharge écrite n'est pas dans le cache : seul `CHANNEL_UPDATE` l'y met.
-  // L'anti-rebond laisse souvent la passerelle rattraper, mais « souvent » ne
-  // suffit pas pour une carte dont tout l'intérêt est de dire l'état réel.
-  await channel.guild?.channels?.fetch(channel.id, { force: true }).catch(() => null);
+  await relireSalon(channel);
 
   const panneau = await construirePanneau(channel, entree);
-  await message.edit(panneau).catch((err: unknown) => {
+
+  if (!panneauEnV2(message)) {
+    await remplacerPanneauAncien(channel, entree, message, panneau);
+    return;
+  }
+
+  // La mention est repassée à chaque réécriture : une édition remplace tous les
+  // composants, et sans elle la ligne « @propriétaire » disparaissait au premier
+  // changement. `patchV2` la replie en `TextDisplay` et neutralise la
+  // notification, donc personne n'est repingé.
+  await message.edit({ content: `<@${entree.creatorId}>`, ...panneau }).catch((err: unknown) => {
     logger.warn('TempVoice', `Le panneau de ${channel.id} n'a pas pu être mis à jour :`, err);
   });
+}
+
+/**
+ * Le remplacement se fait dans cet ordre : supprimer, puis poster. L'inverse
+ * laisserait deux panneaux côte à côte si la suppression échouait, et
+ * `retrouverPanneau` prendrait le premier venu au passage suivant.
+ */
+async function remplacerPanneauAncien(
+  channel: VoiceChannel,
+  entree: EntreeSalonTemporaire,
+  ancien: Message,
+  panneau: PanneauRendu,
+): Promise<void> {
+  const supprime = await ancien.delete().then(() => true).catch((err: unknown) => {
+    logger.warn('TempVoice', `L'ancien panneau de ${channel.id} n'a pas pu être retiré :`, err);
+    return false;
+  });
+  // Échec de la suppression : on garde l'ancien panneau plutôt que d'en poster
+  // un second. Ses boutons répondent — leurs identifiants restent acceptés — et
+  // le passage suivant réessaiera.
+  if (!supprime) return;
+
+  entree.panneauId = undefined;
+  const poste = await channel
+    .send({ content: `<@${entree.creatorId}>`, ...panneau })
+    .catch((err: unknown) => {
+      logger.warn('TempVoice', `Le panneau de ${channel.id} n'a pas pu être reposté :`, err);
+      return null;
+    });
+  if (poste?.id) entree.panneauId = poste.id;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -912,6 +1015,10 @@ async function appliquerModeEcriture(
   const guildId = channel.guild?.id ?? '';
   const ancien = modeDuSalon(channel, entree);
 
+  // Les surcharges nominatives decident de qui doit se taire : les lire perimees
+  // laisserait ecrire quelqu'un qu'on vient tout juste d'autoriser.
+  await relireSalon(channel);
+
   const surcharges = surchargesModeEcriture(
     nouveau,
     categoryOverwriteFor(channel, guildId),
@@ -940,6 +1047,20 @@ async function appliquerModeEcriture(
     if (retiree) originesSurcharge.oublier(guildId, channel.id, membreId);
   }
 
+  // Une surcharge nominative prime sur @everyone : sans ce passage, « Personne »
+  // laissait ecrire tous ceux qui avaient ete autorises. Seul le bit d'ecriture
+  // part - la personne reste autorisee a entrer.
+  for (const membreId of membresAReduireAuSilence(
+    nouveau,
+    surchargesMembresLues(channel, entree.creatorId),
+    presents,
+  )) {
+    const retiree = await poserSurcharge(channel, membreId, { SendMessages: null });
+    // La marque part avec le droit : sans cela, revenir en vocal ne reposerait
+    // aucune surcharge - le registre croirait le droit deja accorde.
+    if (retiree) originesSurcharge.oublier(guildId, channel.id, membreId);
+  }
+
   entree.modeEcriture = nouveau;
 
   // La mémoire du salon meurt avec le process. Sans cette ligne, « ceux qui
@@ -964,6 +1085,11 @@ const ACTIONS_OUVERTES = new Set(['claim', 'demander']);
 interface ContextePanneau {
   role: RoleAgissant;
   reglages: ReglagesAdmin;
+  /** Réglage admin : un seul éphémère réécrit sur place, avec un bouton
+   *  « Retour », plutôt qu'un message de plus à chaque action. */
+  panneauCompact: boolean;
+  /** Rôles proposés à la réservation, et sort de ceux qui restent sans le rôle. */
+  reservation: ConfigReservation;
   /** Ce que le dashboard a réglé pour les demandes d'accès : qui répond, où, et
    *  avec quels délais. Membre du contexte pour qu'aucun appelant ne l'oublie. */
   demandes: ConfigDemandesAcces;
@@ -1052,14 +1178,17 @@ async function panneauSalon(
 
   const menu = new StringSelectMenuBuilder()
     .setCustomId('tempvoice:mode_select')
-    .setPlaceholder(`Qui peut écrire : ${LIBELLES_MODES_ECRITURE[etat.modeEcriture].libelle}`)
+    .setPlaceholder(`Chat du salon · qui peut écrire : ${LIBELLES_MODES_ECRITURE[etat.modeEcriture].libelle}`)
     .setDisabled(!modeEcriture.autorise)
     .addOptions(
       MODES_ECRITURE.map((mode) => {
         const libelle = LIBELLES_MODES_ECRITURE[mode];
         return avecIcone(
           new StringSelectMenuOptionBuilder()
-            .setLabel(libelle.libelle)
+            // Discord affiche le libellé de l'option active à la place du texte
+            // d'invite : sans ce préfixe, le menu replié n'annonce que « Moi
+            // seul » et ne dit nulle part de quoi il parle.
+            .setLabel(`Chat : ${libelle.libelle}`)
             .setDescription(libelle.description)
             .setValue(mode)
             .setDefault(mode === etat.modeEcriture),
@@ -1078,24 +1207,75 @@ async function panneauSalon(
 }
 
 /** 👥 Membres — une porte au lieu de quatre : on choisit d'abord la personne. */
-function panneauMembres(entree: EntreeSalonTemporaire, ctxp: ContextePanneau): PanneauRendu {
+/** Discord n'accepte pas plus de vingt-cinq options dans un menu. */
+const MAX_OPTIONS_MENU = 25;
+
+/**
+ * Le sous-panneau « Membres », avec deux portes plutôt qu'une.
+ *
+ * Chercher dans tout le serveur pour agir sur quelqu'un qui est déjà dans le
+ * salon est le cas le plus fréquent, et c'était le plus laborieux : il fallait
+ * taper un nom qu'on avait sous les yeux. La liste des présents règle celui-là ;
+ * la recherche reste pour tous les autres.
+ *
+ * Au-delà de vingt-cinq personnes, la liste est tronquée plutôt qu'omise — et
+ * elle le dit, sans quoi quelqu'un chercherait longtemps un nom absent.
+ */
+async function panneauMembres(
+  channel: VoiceChannel,
+  entree: EntreeSalonTemporaire,
+  ctxp: ContextePanneau,
+): Promise<PanneauRendu> {
+  // La liste des presents est le coeur de ce sous-panneau : la batir sur un
+  // cache incomplet afficherait moins de monde qu'il n'y en a.
+  await relireSalon(channel);
+  // Les bots occupent des places dans la liste sans qu'aucune action du panneau
+  // ait de sens sur eux.
+  const presents = [...(channel.members?.values() ?? [])].filter((membre) => !membre.user?.bot);
+  const listes = presents.slice(0, MAX_OPTIONS_MENU);
+  const tronquee = presents.length > listes.length;
+
   const invite = new EmbedBuilder()
     .setColor(COULEUR_NEUTRE)
     .setTitle('Qui ?')
-    .setDescription("Choisis un membre du salon, ou cherche n'importe qui du serveur.");
+    .setDescription(presents.length === 0
+      ? "Personne n'est dans le salon pour l'instant : cherche n'importe qui du serveur."
+      : tronquee
+        ? `Choisis quelqu'un du salon — les ${listes.length} premiers sont listés — ou cherche n'importe qui du serveur.`
+        : "Choisis quelqu'un qui est dans le salon, ou cherche n'importe qui du serveur.");
 
-  return {
-    embeds: [...encartRole(entree, ctxp), invite],
-    components: [
+  const rangees: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
+
+  // Un menu sans option fait rejeter le message entier par Discord : la rangée
+  // n'existe que lorsqu'il y a quelqu'un à y mettre.
+  if (listes.length > 0) {
+    rangees.push(
       new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
-        new UserSelectMenuBuilder()
-          .setCustomId('tempvoice:membre_select')
-          .setPlaceholder('Sélectionner un membre…')
-          .setMinValues(1)
-          .setMaxValues(1),
+        new StringSelectMenuBuilder()
+          .setCustomId('tempvoice:membre_ici')
+          .setPlaceholder(`Dans le salon · ${presents.length} personne${presents.length > 1 ? 's' : ''}`)
+          .addOptions(
+            listes.map((membre) => new StringSelectMenuOptionBuilder()
+              // Discord plafonne un libellé à cent caractères, et un pseudo
+              // Discord peut aller au-delà une fois décoré.
+              .setLabel(membre.displayName.slice(0, 100))
+              .setValue(membre.id)),
+          ),
       ),
-    ],
-  };
+    );
+  }
+
+  rangees.push(
+    new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+      new UserSelectMenuBuilder()
+        .setCustomId('tempvoice:membre_select')
+        .setPlaceholder('Chercher n\'importe qui du serveur…')
+        .setMinValues(1)
+        .setMaxValues(1),
+    ),
+  );
+
+  return { embeds: [...encartRole(entree, ctxp), invite], components: rangees };
 }
 
 /** Une autorisation nominative se lit sur la surcharge, pas sur une intention. */
@@ -1118,6 +1298,9 @@ async function ficheMembre(
   acteurId: string,
   ctxp: ContextePanneau,
 ): Promise<PanneauRendu> {
+  // « Accès » et « Présence » se lisent dans les surcharges : les relire avant
+  // de les afficher est ce qui sépare une fiche d'un souvenir.
+  await relireSalon(channel);
   const guildId = channel.guild?.id ?? '';
   const dansLeSalon = estDansLeSalon(channel, cibleMembre);
   const autorise = estAutorise(channel, cibleMembre.id);
@@ -1577,7 +1760,7 @@ export function registerTempVoiceListener(client: Client): void {
     // tout permis.
     const ctxp: ContextePanneau = {
       role: await roleAgissant(guildId, actingMember, cache.creatorId),
-      reglages: await lireReglagesAdmin(guildId),
+      ...(await lireReglagesAdmin(guildId)),
       demandes: await lireConfigDemandes(guildId),
     };
 
@@ -1608,14 +1791,100 @@ export function registerTempVoiceListener(client: Client): void {
  * `showModal` et les réponses à composants font exception, l'API les exigeant
  * sur une interaction non acquittée.
  */
-async function deferIfNeeded(interaction: RepliableInteraction): Promise<void> {
+/**
+ * Le composant cliqué vit-il sur un message éphémère, c'est-à-dire sur un
+ * sous-panneau que personne d'autre ne voit ?
+ *
+ * C'est la seule question qui distingue les deux comportements attendus : un
+ * bouton du panneau public doit ouvrir un éphémère à côté — l'éditer effacerait
+ * le panneau pour tout le serveur — alors qu'un bouton d'un sous-panneau doit
+ * remplacer ce sous-panneau, sinon les réponses s'empilent.
+ */
+function surMessageEphemere(interaction: RepliableInteraction): boolean {
+  if (!interaction.isMessageComponent?.()) return false;
+  const drapeaux = (interaction as { message?: { flags?: { has?: (f: number) => boolean } } }).message?.flags;
+  return Boolean(drapeaux?.has?.(MessageFlags.Ephemeral));
+}
+
+async function deferIfNeeded(interaction: RepliableInteraction, compact = false): Promise<void> {
   if (interaction.deferred || interaction.replied) return;
+
+  // `deferReply` crée un message de plus ; `deferUpdate` reprend celui qui porte
+  // le composant. En mode compact, les trois éphémères d'une réservation — le
+  // menu, le choix, le verdict — n'en font plus qu'un.
+  if (compact && surMessageEphemere(interaction)) {
+    await (interaction as unknown as { deferUpdate: () => Promise<unknown> }).deferUpdate().catch(() => null);
+    return;
+  }
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] }).catch(() => null);
 }
 
-async function respond(interaction: RepliableInteraction, content: string): Promise<void> {
+/** Les trois portes du panneau, vers lesquelles « Retour » sait ramener. */
+const ONGLETS_PANNEAU = ['salon', 'membres', 'propriete'] as const;
+type OngletPanneau = (typeof ONGLETS_PANNEAU)[number];
+
+/**
+ * De quel sous-panneau vient cette action.
+ *
+ * En mode compact, le verdict remplace le menu qui l'a provoqué : sans chemin
+ * de retour, la personne se retrouve devant une phrase et plus aucun bouton.
+ * La table est explicite plutôt que déduite d'un préfixe — un identifiant mal
+ * rangé enverrait vers la mauvaise porte sans rien casser, c'est-à-dire sans
+ * que personne le voie.
+ */
+const ONGLET_DORIGINE: Readonly<Record<string, OngletPanneau>> = {
+  bascule_verrou: 'salon',
+  mode_select: 'salon',
+  reserve: 'salon',
+  reserve_select: 'salon',
+  rename: 'salon',
+  limit: 'salon',
+  lock: 'salon',
+  unlock: 'salon',
+  chat: 'salon',
+  membre_select: 'membres',
+  membre_ici: 'membres',
+  m_kick: 'membres',
+  m_ban: 'membres',
+  m_trust: 'membres',
+  m_untrust: 'membres',
+  kick: 'membres',
+  ban: 'membres',
+  trust: 'membres',
+  m_transfer: 'propriete',
+  transfer: 'propriete',
+  claim: 'propriete',
+};
+
+const LIBELLES_ONGLETS: Readonly<Record<OngletPanneau, string>> = {
+  salon: 'Salon',
+  membres: 'Membres',
+  propriete: 'Propriété',
+};
+
+function rangeeRetour(onglet: OngletPanneau): ActionRowBuilder<MessageActionRowComponentBuilder> {
+  return new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`tempvoice:${onglet}`)
+      .setLabel(`Retour · ${LIBELLES_ONGLETS[onglet]}`)
+      .setEmoji('◀️')
+      .setStyle(ButtonStyle.Secondary),
+  );
+}
+
+async function respond(
+  interaction: RepliableInteraction,
+  content: string,
+  retour?: OngletPanneau | null,
+): Promise<void> {
   if (interaction.deferred || interaction.replied) {
-    await interaction.editReply({ content }).catch(() => null);
+    // En mode compact, le verdict prend la place du menu qui l'a provoqué :
+    // laisser ce menu rendrait cliquable un sélecteur déjà consommé, et le
+    // bouton « Retour » est ce qui évite de rester devant une phrase sans issue.
+    const charge = retour
+      ? { content, components: [rangeeRetour(retour)], embeds: [] }
+      : { content };
+    await interaction.editReply(charge).catch(() => null);
     return;
   }
   await interaction.reply({ content, flags: [MessageFlags.Ephemeral] }).catch(() => null);
@@ -1686,12 +1955,83 @@ async function reponseSupplementaire(interaction: RepliableInteraction, texte: s
 }
 
 /** Réécrit le sous-panneau « Salon » en place, pour que la bascule montre son nouvel état. */
+/** Relectures en vol, par salon. */
+const relectures = new Map<string, Promise<unknown>>();
+
+/**
+ * Relit le salon depuis Discord avant d'en montrer quoi que ce soit.
+ *
+ * `PermissionOverwriteManager.upsert` fait l'appel REST et rend le salon tel
+ * quel : ce qu'on vient d'écrire n'est lisible qu'après un `CHANNEL_UPDATE` ou
+ * une relecture forcée. Sans elle, un panneau redessiné juste après une action
+ * affiche l'état d'avant — le défaut même que cette refonte corrige.
+ *
+ * Les appels simultanés partagent la même relecture : une action déclenche à la
+ * fois la réécriture du panneau public et celle du sous-panneau, et rien ne
+ * justifie deux allers-retours pour la même vérité.
+ */
+function relireSalon(channel: VoiceChannel): Promise<unknown> {
+  const enCours = relectures.get(channel.id);
+  if (enCours) return enCours;
+
+  const relecture = Promise.resolve(
+    channel.guild?.channels?.fetch(channel.id, { force: true }),
+  )
+    .catch(() => null)
+    .then(() => hydraterMembresPresents(channel))
+    .finally(() => relectures.delete(channel.id));
+
+  relectures.set(channel.id, relecture);
+  return relecture;
+}
+
+/**
+ * Met en cache les membres présents qui n'y sont pas encore.
+ *
+ * `channel.members` de discord.js n'est pas la liste des personnes connectées :
+ * c'est la liste des états vocaux **dont le membre est déjà en cache**. Un
+ * membre absent du cache disparaît purement et simplement — du décompte
+ * d'occupants, de la liste du sous-panneau, des autorisations d'écriture en
+ * mode « ceux qui sont en vocal » et du décalage de réservation. Sans erreur,
+ * sans trace, et d'autant plus souvent que le serveur est grand.
+ *
+ * Les états vocaux, eux, sont tenus à jour par l'intention `GuildVoiceStates` :
+ * ils font foi sur qui est là. On part donc d'eux, et on récupère en une seule
+ * fois les membres qui manquent.
+ */
+async function hydraterMembresPresents(channel: VoiceChannel): Promise<void> {
+  const etats = channel.guild?.voiceStates?.cache;
+  const membres = channel.guild?.members;
+  if (!etats || !membres?.cache) return;
+
+  const manquants = [...etats.values()]
+    .filter((etat) => etat.channelId === channel.id && !membres.cache.has(etat.id))
+    .map((etat) => etat.id);
+
+  if (manquants.length === 0) return;
+  await membres.fetch({ user: manquants }).catch((err: unknown) => {
+    logger.warn('TempVoice', `Membres presents non recuperes pour ${channel.id} :`, err);
+    return null;
+  });
+}
+
 async function rafraichirSousPanneauSalon(ctx: ActionContext): Promise<void> {
-  // `PermissionOverwriteManager.upsert` ne met pas le cache à jour : sans cette
-  // relecture, la bascule qu'on vient d'actionner se redessinerait dans son état
-  // d'avant - exactement le défaut que la refonte corrige.
-  await ctx.guild.channels.fetch(ctx.channel.id, { force: true }).catch(() => null);
+  await relireSalon(ctx.channel);
   const rendu = await panneauSalon(ctx.channel, ctx.cache, ctx.ctxp);
+  await ctx.interaction.editReply(rendu).catch(() => null);
+}
+
+/**
+ * La fiche d'un membre, redessinée sur les vraies données après une action.
+ *
+ * Elle ne l'était pas : « Autoriser » écrivait la surcharge, postait son
+ * message, et laissait la fiche annoncer « Non autorisé » — la personne lisait
+ * le contraire de ce qu'elle venait de faire.
+ */
+async function rafraichirFicheMembre(ctx: ActionContext, cible: GuildMember): Promise<void> {
+  // Pas de relecture ici : `ficheMembre` la fait elle-même, et une seconde
+  // n'apprendrait rien de plus.
+  const rendu = await ficheMembre(ctx.channel, ctx.cache, cible, ctx.interaction.user.id, ctx.ctxp);
   await ctx.interaction.editReply(rendu).catch(() => null);
 }
 
@@ -1881,6 +2221,164 @@ async function traiterDemandeAcces(ctx: ActionContext): Promise<void> {
       ],
     })
     .catch(() => null);
+}
+
+/**
+ * Ce qu'il advient de ceux qui sont déjà là sans avoir le rôle.
+ *
+ * Réserver ne déplaçait personne : les gens restaient dans un salon qu'ils
+ * n'auraient plus eu le droit de rejoindre, et le propriétaire n'avait aucun
+ * moyen de le régler depuis le panneau.
+ */
+async function traiterDebordementReservation(ctx: ActionContext, roleId: string): Promise<void> {
+  const { channel, cache, ctxp } = ctx;
+
+  // Deplacer ou deconnecter sur une liste incomplete laisserait sur place
+  // exactement les gens que le cache a oublies.
+  await relireSalon(channel);
+
+  const presents = [...(channel.members?.values() ?? [])].map((membre) => ({
+    id: membre.id,
+    estBot: Boolean(membre.user?.bot),
+    roles: new Set<string>(membre.roles?.cache?.keys?.() ?? []),
+  }));
+
+  const plan = planDebordement(
+    ctxp.reservation,
+    membresSansLeRole(presents, roleId, cache.creatorId),
+  );
+
+  if (plan.action === 'aucune') return;
+  if (plan.action === 'demander') {
+    await proposerDebordement(ctx, plan);
+    return;
+  }
+  await appliquerDebordement(ctx, plan);
+}
+
+/** Les trois issues, posées au propriétaire plutôt que décidées pour lui. */
+async function proposerDebordement(ctx: ActionContext, plan: PlanDebordement): Promise<void> {
+  const noms = plan.membres.map((id) => `<@${id}>`).join(', ');
+  const embed = new EmbedBuilder()
+    .setColor(COULEUR_ACCENT)
+    .setTitle(`${I.warn} ${plan.membres.length} personne${plan.membres.length > 1 ? 's' : ''} sans le rôle`)
+    .setDescription(`${noms} ${plan.membres.length > 1 ? 'sont' : 'est'} dans le salon sans avoir le rôle réservé. Que veux-tu en faire ?`);
+
+  const rangee = new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId('tempvoice:resa_rien')
+      .setLabel('Les laisser')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('tempvoice:resa_deplacer')
+      .setLabel(ctx.ctxp.reservation.salonDeRepli ? 'Les déplacer' : 'Les déconnecter (aucun salon défini)')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId('tempvoice:resa_deconnecter')
+      .setLabel('Les déconnecter')
+      .setStyle(ButtonStyle.Danger),
+  );
+
+  await ctx.interaction
+    .followUp({ embeds: [embed], components: [rangee], allowedMentions: { parse: [] }, flags: [MessageFlags.Ephemeral] })
+    .catch(() => null);
+}
+
+/** Déplacer ou déconnecter, en annonçant l'intention au journal de modération. */
+async function appliquerDebordement(ctx: ActionContext, plan: PlanDebordement): Promise<void> {
+  const { channel, guild, guildId, interaction } = ctx;
+
+  const accueil = plan.action === 'deplacer' && plan.salon
+    ? await guild.channels.fetch(plan.salon).catch(() => null)
+    : null;
+
+  // Un salon d'accueil disparu depuis le réglage ne doit pas laisser les gens
+  // en place sans le dire : on déconnecte, et le message l'annonce.
+  const deplace = Boolean(accueil && accueil.type === ChannelType.GuildVoice);
+  let traites = 0;
+
+  for (const membreId of plan.membres) {
+    const membre = channel.members?.get(membreId)
+      ?? await guild.members.fetch(membreId).catch(() => null);
+    if (!membre || membre.voice?.channelId !== channel.id) continue;
+
+    const oubli = annoncerIntentionVocale(guildId, membreId, deplace ? 'move' : 'disconnect', {
+      libelle: `${interaction.user.tag} (salon réservé à un rôle)`,
+    });
+
+    const fait = deplace
+      ? await membre.voice.setChannel(accueil as never, 'Salon réservé à un rôle').then(() => true).catch(() => { oubli(); return false; })
+      : await membre.voice.disconnect('Salon réservé à un rôle').then(() => true).catch(() => { oubli(); return false; });
+
+    if (fait) traites += 1;
+  }
+
+  if (traites === 0) return;
+
+  const ou = deplace && accueil ? ` vers <#${accueil.id}>` : '';
+  const motif = plan.repliSurDeconnexion ? " — aucun salon d'accueil n'est défini" : '';
+  await reponseSupplementaire(
+    interaction,
+    `${I.voice} ${traites} personne${traites > 1 ? 's' : ''} déplacée${traites > 1 ? 's' : ''}${ou}${motif}.`.replace(
+      'déplacée', deplace ? 'déplacée' : 'déconnectée',
+    ),
+  );
+}
+
+/** Referme la proposition : ses boutons ne doivent pas rester cliquables. */
+async function cloreProposition(interaction: RepliableInteraction, verdict: string): Promise<void> {
+  if (!interaction.isMessageComponent()) return;
+  await interaction.update({ content: verdict, embeds: [], components: [] }).catch(() => null);
+}
+
+/**
+ * La réponse du propriétaire à la proposition.
+ *
+ * Les personnes concernées sont **recalculées** au clic plutôt que mémorisées :
+ * entre la proposition et la réponse, quelqu'un a pu partir, arriver, ou
+ * recevoir le rôle. Agir sur une liste figée déplacerait des gens qui n'ont
+ * plus rien à voir avec la question posée.
+ */
+async function repondreDebordement(ctx: ActionContext, choix: 'deplacer' | 'deconnecter'): Promise<void> {
+  const { channel, cache, ctxp, interaction } = ctx;
+
+  const verdict = peutAgir(ctxp.role, 'reserver', ctxp.reglages);
+  if (!verdict.autorise) {
+    await respond(interaction, `${I.lock} ${verdict.raison}`);
+    return;
+  }
+
+  const roleId = await prisma.tempVoiceChannel
+    .findUnique({ where: { id: channel.id } })
+    .then((ligne) => ligne?.roleId ?? null)
+    .catch(() => null);
+
+  if (!roleId) {
+    await cloreProposition(interaction, `${I.unlock} Le salon n'est plus réservé : il n'y a plus rien à faire.`);
+    return;
+  }
+
+  await relireSalon(channel);
+  const presents = [...(channel.members?.values() ?? [])].map((membre) => ({
+    id: membre.id,
+    estBot: Boolean(membre.user?.bot),
+    roles: new Set<string>(membre.roles?.cache?.keys?.() ?? []),
+  }));
+  const concernes = membresSansLeRole(presents, roleId, cache.creatorId);
+
+  if (concernes.length === 0) {
+    await cloreProposition(interaction, `${I.check} Plus personne n'est concerné.`);
+    return;
+  }
+
+  const salon = choix === 'deplacer' ? ctxp.reservation.salonDeRepli : null;
+  await cloreProposition(interaction, `${I.voice} C'est en cours…`);
+  await appliquerDebordement(ctx, {
+    action: salon ? 'deplacer' : 'deconnecter',
+    salon,
+    membres: concernes,
+    repliSurDeconnexion: choix === 'deplacer' && !salon,
+  });
 }
 
 /** Referme la carte de décision : ses boutons ne doivent pas rester cliquables. */
@@ -2157,6 +2655,11 @@ async function traiterActionMembre(
     }
   }
 
+  // La fiche reste sous les yeux de qui vient d'agir : la redessiner sur les
+  // vraies données est la moitié visible de l'action. Un seul point plutôt que
+  // quatre — expulser, bannir, autoriser et retirer changent tous ce qu'elle
+  // affiche.
+  await rafraichirFicheMembre(ctx, target);
   planifierRafraichissementPanneau(channel);
 }
 
@@ -2165,7 +2668,11 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
   const user = interaction.user;
 
   const ephemeral = { flags: [MessageFlags.Ephemeral] as const };
-  const reply = (content: string) => respond(interaction, content);
+  // En mode compact, la réponse remplace le sous-panneau : elle doit donc
+  // porter de quoi y revenir. En mode empilé elle ouvre un message de plus, et
+  // le sous-panneau est toujours là derrière — aucun bouton à ajouter.
+  const retourVers = ctx.ctxp.panneauCompact ? ONGLET_DORIGINE[action] ?? null : null;
+  const reply = (content: string) => respond(interaction, content, retourVers);
 
   // ─── Menu « Qui peut écrire » ───
   // L'action est comparée avant le type : un `switch` sur le type d'interaction
@@ -2192,6 +2699,23 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
   }
 
   // ─── Fiche d'un membre : choisir la personne, puis voir ce qui est possible ───
+  // Deux portes, une seule fiche : la liste des présents et la recherche dans le
+  // serveur mènent au même endroit.
+  if (action === 'membre_ici' && interaction.isStringSelectMenu()) {
+    await acquitterMiseAJour(interaction);
+
+    const cibleId = interaction.values[0];
+    const target = cibleId ? await guild.members.fetch(cibleId).catch(() => null) : null;
+    if (!target) {
+      await reponseSupplementaire(interaction, '❌ Ce membre a quitté le serveur.');
+      return;
+    }
+
+    const fiche = await ficheMembre(channel, cache, target, user.id, ctx.ctxp);
+    await interaction.editReply(fiche).catch(() => null);
+    return;
+  }
+
   if (action === 'membre_select' && interaction.isUserSelectMenu()) {
     await acquitterMiseAJour(interaction);
 
@@ -2223,7 +2747,7 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
       'm_trust',
       'm_untrust',
     ]);
-    if (ACKNOWLEDGE_FIRST.has(action)) await deferIfNeeded(interaction);
+    if (ACKNOWLEDGE_FIRST.has(action)) await deferIfNeeded(interaction, ctx.ctxp.panneauCompact);
     else if (ACQUITTER_EN_PLACE.has(action)) await acquitterMiseAJour(interaction);
 
     switch (action) {
@@ -2234,7 +2758,7 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
       }
 
       case 'membres': {
-        await interaction.reply({ ...panneauMembres(cache, ctx.ctxp), ...ephemeral });
+        await interaction.reply({ ...(await panneauMembres(channel, cache, ctx.ctxp)), ...ephemeral });
         return;
       }
 
@@ -2294,6 +2818,20 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
         }
         await transferOwnership(ctx, target, 'transfer');
         planifierRafraichissementPanneau(channel);
+        return;
+      }
+
+      // ─── Suite d'une réservation : que faire de ceux qui restent ───
+      case 'resa_rien': {
+        await cloreProposition(interaction, `${I.check} Personne n'a été déplacé.`);
+        return;
+      }
+      case 'resa_deplacer': {
+        await repondreDebordement(ctx, 'deplacer');
+        return;
+      }
+      case 'resa_deconnecter': {
+        await repondreDebordement(ctx, 'deconnecter');
         return;
       }
 
@@ -2481,17 +3019,60 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
           await reply(`${I.lock} ${reservationAutorisee.raison}`);
           return;
         }
+        // La reservation en cours est preselectionnee : on voit ce qui est pose,
+        // et la retirer devient un clic dans le menu plutot qu'un acte de foi.
+        // `setMinValues(0)` est ce qui autorise a tout decocher.
+        const reservationPosee = await prisma.tempVoiceChannel
+          .findUnique({ where: { id: channel.id } })
+          .then((ligne) => ligne?.roleId ?? null)
+          .catch(() => null);
+
+        // Les roles que l'administration a prevus, et qui existent encore. Un
+        // role supprime depuis le reglage ne doit pas occuper une option morte.
+        const rolesPrevus = ctx.ctxp.reservation.rolesReservables
+          .map((id) => guild.roles.cache.get(id))
+          .filter((role): role is NonNullable<typeof role> => Boolean(role))
+          .slice(0, MAX_OPTIONS_MENU);
+
+        const invite = reservationPosee
+          ? 'Décochez pour lever la réservation, ou choisissez un autre rôle'
+          : 'Sélectionnez un rôle pour réserver le salon';
+
+        // Liste imposee des que l'administration en a defini une qui tient
+        // debout. Si tous les roles prevus ont disparu, mieux vaut le menu libre
+        // qu'un menu vide, que Discord refuserait en bloc.
+        const menuRole = rolesPrevus.length > 0
+          ? new StringSelectMenuBuilder()
+            .setCustomId('tempvoice:reserve_select')
+            .setPlaceholder(invite)
+            .setMinValues(0)
+            .setMaxValues(1)
+            .addOptions(rolesPrevus.map((role) => new StringSelectMenuOptionBuilder()
+              .setLabel(role.name.slice(0, 100))
+              .setValue(role.id)
+              .setDefault(role.id === reservationPosee)))
+          : new RoleSelectMenuBuilder()
+            .setCustomId('tempvoice:reserve_select')
+            .setPlaceholder(invite)
+            .setMinValues(0)
+            .setMaxValues(1);
+
+        // Un role supprime depuis la reservation ferait rejeter le message
+        // entier : la preselection ne vaut que si le role existe encore.
+        if (
+          menuRole instanceof RoleSelectMenuBuilder
+          && reservationPosee
+          && guild.roles.cache.has(reservationPosee)
+        ) {
+          menuRole.setDefaultRoles(reservationPosee);
+        }
+
         await interaction.reply({
-          content: '🛡️ **Réserver le salon pour un rôle** :\nSélectionnez le rôle qui sera autorisé à rejoindre votre salon vocal. Ne sélectionnez rien pour réinitialiser.',
-          components: [
-            new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(
-              new RoleSelectMenuBuilder()
-                .setCustomId('tempvoice:reserve_select')
-                .setPlaceholder('Sélectionnez un rôle pour réserver le salon')
-                .setMinValues(0)
-                .setMaxValues(1),
-            ),
-          ],
+          content: reservationPosee
+            ? `🛡️ **Réserver le salon pour un rôle** :\nLe salon est réservé à <@&${reservationPosee}>. Décochez-le pour lever la réservation, ou choisissez un autre rôle.`
+            : '🛡️ **Réserver le salon pour un rôle** :\nSélectionnez le rôle qui sera autorisé à rejoindre votre salon vocal. Ne sélectionnez rien pour réinitialiser.',
+          components: [new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(menuRole)],
+          allowedMentions: { parse: [] },
           ...ephemeral,
         });
         return;
@@ -2502,7 +3083,9 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
     }
   }
 
-  if (interaction.isRoleSelectMenu() && action === 'reserve_select') {
+  // Deux formes de menu pour la meme decision : liste imposee par
+  // l'administration, ou choix libre parmi les roles du serveur.
+  if ((interaction.isRoleSelectMenu() || interaction.isStringSelectMenu()) && action === 'reserve_select') {
     await deferIfNeeded(interaction);
 
     const reservationAutorisee = peutAgir(ctx.ctxp.role, 'reserver', ctx.ctxp.reglages);
@@ -2577,6 +3160,9 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
       await reply(previousCleared && saved
         ? `${I.shield} Le salon est réservé au rôle <@&${selectedRoleId}>. Seuls ses membres, les membres que vous avez ajoutés et vous pouvez le rejoindre.`
         : `${I.shield} Le salon est réservé au rôle <@&${selectedRoleId}>, mais la réservation précédente n'a pas pu être entièrement levée : signalez-le au staff.`);
+      // Réserver ne déplaçait personne : ceux qui étaient déjà là restaient dans
+      // un salon qu'ils n'auraient plus eu le droit de rejoindre.
+      await traiterDebordementReservation(ctx, selectedRoleId);
       planifierRafraichissementPanneau(channel);
       return;
     }

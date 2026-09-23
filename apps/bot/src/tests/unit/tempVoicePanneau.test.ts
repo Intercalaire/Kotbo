@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { PermissionFlagsBits } from 'discord.js';
 import {
+  MAX_ROLES_RESERVABLES,
+  planDebordement,
+  membresSansLeRole,
+  normaliserConfigReservation,
+  type ConfigReservation,
   ACTIONS_PANNEAU,
   boutonDemanderAccesVisible,
   CANAUX_NOTIFICATION,
@@ -1012,5 +1017,146 @@ describe('nettoyagePresenceAuDemarrage', () => {
       const intersection = plan.aRetirer.filter((id) => plan.aMarquerPresence.includes(id));
       expect(intersection).toEqual([]);
     }
+  });
+});
+
+describe("Retirer l'acces au proprietaire", () => {
+  const cibleProprietaire = {
+    nom: 'Toji',
+    estStaff: false,
+    estProprietaire: true,
+    estSoiMeme: false,
+    dansLeSalon: true,
+    autorise: true,
+  };
+
+  test("« Retirer l'acces » est refuse sur le proprietaire du salon", () => {
+    // Signale en conditions reelles : le bouton repondait sans rien changer.
+    // L'acces du proprietaire vient de SA surcharge, pas d'une autorisation -
+    // et « retirer » supprimait cette surcharge, donc ses propres droits.
+    const verdict = peutAgirSurCible('proprietaire', 'autoriser', undefined, cibleProprietaire);
+    expect(verdict.autorise).toBe(false);
+    if (!verdict.autorise) {
+      expect(verdict.motif).toBe('cibleDejaProprietaire');
+      expect(verdict.raison).toContain('propriétaire');
+    }
+  });
+
+  test('un moderateur et un admin se heurtent a la meme garde', () => {
+    // Elle tient a la cible, pas au role de qui clique.
+    for (const role of ['moderateur', 'admin'] as const) {
+      expect(peutAgirSurCible(role, 'autoriser', undefined, cibleProprietaire).autorise).toBe(false);
+    }
+  });
+
+  test("autoriser quelqu'un qui n'est pas proprietaire reste possible", () => {
+    // La garde ne doit pas fermer la porte qu'elle n'a pas a fermer.
+    const verdict = peutAgirSurCible('proprietaire', 'autoriser', undefined, {
+      ...cibleProprietaire,
+      estProprietaire: false,
+    });
+    expect(verdict.autorise).toBe(true);
+  });
+});
+
+describe('Reservation : roles prevus et sort de ceux qui restent', () => {
+  function present(id: string, roles: string[], estBot = false) {
+    return { id, estBot, roles: new Set(roles) };
+  }
+
+  describe('normaliserConfigReservation', () => {
+    test('une ligne absente ou illisible rend les defauts du schema', () => {
+      for (const brut of [null, undefined, 42, 'texte', []]) {
+        const config = normaliserConfigReservation(brut);
+        expect(config.rolesReservables).toEqual([]);
+        expect(config.debordement).toBe('ASK');
+        expect(config.salonDeRepli).toBeNull();
+      }
+    });
+
+    test('une decision inconnue retombe sur ASK, jamais sur une valeur qui agit', () => {
+      // Un reglage corrompu ne doit deconnecter personne.
+      for (const valeur of ['MOVE_ALL', '', 'move', 42, null]) {
+        expect(normaliserConfigReservation({ reservationOverflow: valeur }).debordement).toBe('ASK');
+      }
+    });
+
+    test('les quatre decisions valides sont conservees', () => {
+      for (const valeur of ['ASK', 'NOTHING', 'MOVE', 'DISCONNECT'] as const) {
+        expect(normaliserConfigReservation({ reservationOverflow: valeur }).debordement).toBe(valeur);
+      }
+    });
+
+    test('les roles sont dedoublonnes, nettoyes et bornes au plafond de Discord', () => {
+      const config = normaliserConfigReservation({
+        reservableRoleIds: ['a', 'a', '', 'b', 7, null, ...Array.from({ length: 40 }, (_, i) => `r${i}`)],
+      });
+      expect(config.rolesReservables).not.toContain('');
+      expect(new Set(config.rolesReservables).size).toBe(config.rolesReservables.length);
+      expect(config.rolesReservables.length).toBeLessThanOrEqual(MAX_ROLES_RESERVABLES);
+    });
+
+    test('un salon de repli vide vaut absence', () => {
+      expect(normaliserConfigReservation({ reservationFallbackChannelId: '' }).salonDeRepli).toBeNull();
+      expect(normaliserConfigReservation({ reservationFallbackChannelId: 'x' }).salonDeRepli).toBe('x');
+    });
+  });
+
+  describe('membresSansLeRole', () => {
+    const ROLE = 'role-mod';
+
+    test('ne retient que ceux qui n\'ont pas le role', () => {
+      const concernes = membresSansLeRole(
+        [present('a', [ROLE]), present('b', []), present('c', ['autre'])],
+        ROLE,
+        'proprio',
+      );
+      expect(concernes).toEqual(['b', 'c']);
+    });
+
+    test('le proprietaire n\'en fait jamais partie, meme sans le role', () => {
+      // Reserver son salon ne peut pas l'en ejecter.
+      expect(membresSansLeRole([present('proprio', [])], ROLE, 'proprio')).toEqual([]);
+    });
+
+    test('les bots sont laisses tranquilles', () => {
+      // Les deplacer ne regle rien et casse ce qu'ils font.
+      expect(membresSansLeRole([present('bot', [], true)], ROLE, 'proprio')).toEqual([]);
+    });
+  });
+
+  describe('planDebordement', () => {
+    // Pas d'`as const` : il figerait `rolesReservables` en tableau en lecture
+    // seule, que `ConfigReservation` refuse.
+    const base: ConfigReservation = { rolesReservables: [], debordement: 'ASK', salonDeRepli: null };
+
+    test('personne de concerne : aucune action, et aucune question posee', () => {
+      // Demander quoi faire de personne serait du bruit.
+      expect(planDebordement({ ...base }, []).action).toBe('aucune');
+    });
+
+    test('ASK pose la question, NOTHING ne fait rien', () => {
+      expect(planDebordement({ ...base, debordement: 'ASK' }, ['a']).action).toBe('demander');
+      expect(planDebordement({ ...base, debordement: 'NOTHING' }, ['a']).action).toBe('aucune');
+    });
+
+    test('MOVE avec un salon deplace, sans salon deconnecte en le disant', () => {
+      const avec = planDebordement({ ...base, debordement: 'MOVE', salonDeRepli: 'salon' }, ['a']);
+      expect(avec.action).toBe('deplacer');
+      expect(avec.salon).toBe('salon');
+      expect(avec.repliSurDeconnexion).toBe(false);
+
+      const sans = planDebordement({ ...base, debordement: 'MOVE' }, ['a']);
+      expect(sans.action).toBe('deconnecter');
+      // Le repli doit etre annonce : sinon la personne part sans qu'on sache pourquoi.
+      expect(sans.repliSurDeconnexion).toBe(true);
+    });
+
+    test('DISCONNECT deconnecte, sans se reclamer d\'un repli', () => {
+      const plan = planDebordement({ ...base, debordement: 'DISCONNECT' }, ['a', 'b']);
+      expect(plan.action).toBe('deconnecter');
+      expect(plan.membres).toEqual(['a', 'b']);
+      expect(plan.repliSurDeconnexion).toBe(false);
+    });
   });
 });
