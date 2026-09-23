@@ -568,6 +568,7 @@
         <!-- Liste des mots personnalisés -->
         {#if customWords.length > 0}
           <div class="section-card-flush">
+            <div class="overflow-x-auto">
             <table class="data-table">
               <thead>
                 <tr>
@@ -604,6 +605,7 @@
                 {/each}
               </tbody>
             </table>
+            </div>
           </div>
           <p class="text-xs text-on-surface-variant/40 text-right font-sans">{m.nm_custom_count({ count: customWords.length })}</p>
         {:else}
@@ -622,6 +624,7 @@
               <Papicon icon="lock" size={12} />
               <span>{m.nm_global_readonly()}</span>
             </div>
+            <div class="overflow-x-auto">
             <table class="data-table">
               <thead>
                 <tr>
@@ -650,6 +653,7 @@
                 {/each}
               </tbody>
             </table>
+            </div>
           </div>
           <p class="text-xs text-on-surface-variant/40 text-right font-sans">{m.nm_global_count({ count: globalWords.length })}</p>
         {:else}

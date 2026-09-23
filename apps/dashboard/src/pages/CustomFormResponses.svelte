@@ -304,7 +304,7 @@
             <p class="text-sm font-sans">Aucune réponse correspondante</p>
           </div>
         {:else}
-          <div class="rounded-lg border border-outline-variant/20 overflow-hidden shadow-sm">
+          <div class="rounded-lg border border-outline-variant/20 overflow-x-auto shadow-sm">
             <table class="w-full text-sm">
               <thead>
                 <tr class="bg-surface-container-low/60 border-b border-outline-variant/10">

@@ -160,7 +160,7 @@
   {:else if moduleStatsView === 'activation' && moduleStats}
     <div class="premium-card rounded-[2.25rem] p-8">
       <h3 class="text-lg font-semibold text-on-surface mb-6">Détail des activations par module</h3>
-      <div class="overflow-hidden rounded-lg border border-outline-variant/10">
+      <div class="overflow-x-auto rounded-lg border border-outline-variant/10">
         <table class="w-full text-sm">
           <thead class="bg-surface/40 text-left text-[10px] uppercase tracking-wider text-on-surface-variant/50">
             <tr>
@@ -199,7 +199,7 @@
   {:else if moduleStatsView === 'usage' && moduleStats}
     <div class="premium-card rounded-[2.25rem] p-8">
       <h3 class="text-lg font-semibold text-on-surface mb-6">Statistiques d'utilisation</h3>
-      <div class="overflow-hidden rounded-lg border border-outline-variant/10">
+      <div class="overflow-x-auto rounded-lg border border-outline-variant/10">
         <table class="w-full text-sm">
           <thead class="bg-surface/40 text-left text-[10px] uppercase tracking-wider text-on-surface-variant/50">
             <tr>
@@ -230,7 +230,7 @@
   {:else if moduleStatsView === 'performance' && moduleStats}
     <div class="premium-card rounded-[2.25rem] p-8">
       <h3 class="text-lg font-semibold text-on-surface mb-6">Métriques de performance</h3>
-      <div class="overflow-hidden rounded-lg border border-outline-variant/10">
+      <div class="overflow-x-auto rounded-lg border border-outline-variant/10">
         <table class="w-full text-sm">
           <thead class="bg-surface/40 text-left text-[10px] uppercase tracking-wider text-on-surface-variant/50">
             <tr>

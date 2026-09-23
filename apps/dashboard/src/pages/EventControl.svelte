@@ -294,7 +294,7 @@
       {/if}
 
       {#if activeTab === 'registrations' && isCustom}
-        <div class="bg-surface-container-low/30 rounded-xl border border-outline-variant/10 overflow-hidden">
+        <div class="bg-surface-container-low/30 rounded-xl border border-outline-variant/10 overflow-x-auto">
           {#if registrations.length === 0}
             <div class="py-20 text-center">
               <div class="w-16 h-16 bg-on-surface/5 rounded-full flex items-center justify-center mx-auto mb-6 text-on-surface-variant/20">
@@ -512,7 +512,7 @@
           </div>
         {/if}
       {:else}
-        <div class="bg-surface-container-low/30 rounded-xl border border-outline-variant/10 overflow-hidden">
+        <div class="bg-surface-container-low/30 rounded-xl border border-outline-variant/10 overflow-x-auto">
           <table class="w-full text-left">
             <thead class="bg-surface-container-high/50 border-b border-outline-variant/10">
               <tr>

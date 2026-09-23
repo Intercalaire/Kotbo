@@ -402,7 +402,7 @@
             <p class="text-xs text-on-surface-variant/50">Modifiez les catégories avant validation.</p>
           </div>
 
-          <div class="overflow-hidden rounded-lg border border-outline-variant/10">
+          <div class="overflow-x-auto rounded-lg border border-outline-variant/10">
             <table class="w-full text-sm">
               <thead class="bg-surface/40 text-left text-[10px] uppercase tracking-wider text-on-surface-variant/50">
                 <tr>
@@ -503,7 +503,7 @@
               </button>
             </div>
           {:else}
-            <div class="overflow-hidden rounded-xl border border-outline-variant/10">
+            <div class="overflow-x-auto rounded-xl border border-outline-variant/10">
               <table class="w-full text-sm">
                 <thead class="bg-on-surface/3 text-left text-[13px] text-on-surface-variant/30 border-b border-outline-variant/10">
                   <tr>
