@@ -4288,21 +4288,18 @@ async function firstKillField(
   userId: string,
   monster: FirstKillMonster,
   locale: Locale,
-): Promise<{ field: { name: string; value: string; inline: boolean }; itemName: string | null } | null> {
+): Promise<{ name: string; value: string; inline: boolean } | null> {
   try {
     const claimed = await claimFirstKill(client, guildId, userId, monster);
     if (!claimed) return null;
     const config = await getOrCreateEconomyConfig(guildId);
     const reward = formatFirstKillReward(claimed, config.currencyEmoji, locale);
     return {
-      field: {
-        name: m.rpg_first_kill_field_title({}, { locale }),
-        value: reward
-          ? m.rpg_first_kill_field_reward_value({ reward }, { locale })
-          : m.rpg_first_kill_field_value({}, { locale }),
-        inline: false,
-      },
-      itemName: claimed.itemName,
+      name: m.rpg_first_kill_field_title({}, { locale }),
+      value: reward
+        ? m.rpg_first_kill_field_reward_value({ reward }, { locale })
+        : m.rpg_first_kill_field_value({}, { locale }),
+      inline: false,
     };
   } catch (err) {
     logger.error('RpgPanel', `Premier vainqueur non enregistré pour ${monster.name} :`, err);
@@ -4313,8 +4310,10 @@ async function firstKillField(
 /**
  * Bouton de revente du butin d'un combat, ou `null` s'il n'y a rien à en tirer.
  *
- * Seuls les exemplaires gagnés à ce combat sont proposés, un par objet obtenu : vendre tout
- * le stock de l'objet viderait aussi ce que le joueur avait mis de côté avant.
+ * Seul le butin ordinaire est proposé : les récompenses uniques (objet, titre ou rôle du
+ * premier vainqueur) restent au joueur, puisqu'il ne pourra jamais les regagner. Et un seul
+ * exemplaire par objet tombé : vendre tout le stock viderait aussi ce que le joueur avait
+ * mis de côté avant ce combat, y compris un exemplaire unique du même objet.
  */
 async function lootSellRow(
   guildId: string,
@@ -4348,6 +4347,12 @@ async function lootSellRow(
   );
 }
 
+// Messages dont le butin est déjà vendu ou en cours de vente. Sans ce verrou, un double clic
+// lançait deux ventes : la seconde vendait un exemplaire que le joueur possédait avant le
+// combat, jusqu'à son exemplaire unique du même objet.
+const lootSalesDone = new Set<string>();
+const LOOT_SALE_LOCK_MS = 15 * 60 * 1000;
+
 /** Revend le butin du combat, puis retire le bouton pour qu'il ne serve qu'une fois. */
 async function handleSellLoot(
   interaction: ButtonInteraction,
@@ -4356,6 +4361,12 @@ async function handleSellLoot(
   locale: Locale,
   itemIds: string[],
 ): Promise<void> {
+  const messageId = interaction.message.id;
+  if (lootSalesDone.has(messageId)) return;
+  lootSalesDone.add(messageId);
+  // Passé ce délai, le bouton a disparu du message depuis longtemps : le verrou ne sert plus.
+  setTimeout(() => lootSalesDone.delete(messageId), LOOT_SALE_LOCK_MS).unref?.();
+
   const sold: string[] = [];
   let earned = 0;
   let failed = 0;
@@ -4855,7 +4866,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
         const campaign = await trackCombatQuests(interaction.client, guildId, ownerId, monster.isBoss, itemDropped);
         const firstKill = await firstKillField(interaction.client, guildId, ownerId, monster, locale);
         const winTitle = await winTitleField(guildId, ownerId, monster, locale);
-        const sellRow = await lootSellRow(guildId, ownerId, [itemDropped, firstKill?.itemName ?? null], locale);
+        const sellRow = await lootSellRow(guildId, ownerId, [itemDropped], locale);
 
         if (itemDropped) victoryEmbed.addFields({ name: m.rpg_fight_field_drop({}, { locale }), value: `${itemDropEmoji || '📦'} **${itemDropped}**`, inline: true });
         if (teamPoints.amount > 0) {
@@ -4866,7 +4877,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
           });
         }
         if (firstWinBonus) victoryEmbed.addFields(firstWinField(locale));
-        if (firstKill) victoryEmbed.addFields(firstKill.field);
+        if (firstKill) victoryEmbed.addFields(firstKill);
         if (winTitle) victoryEmbed.addFields(winTitle);
         if (levelUp) victoryEmbed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: levelUp }, { locale }) });
 
@@ -5068,7 +5079,7 @@ async function runBossFight(interaction: StringSelectMenuInteraction, guildId: s
     : null;
   const winTitle = result.won ? await winTitleField(guildId, ownerId, boss, locale) : null;
   const sellRow = result.won
-    ? await lootSellRow(guildId, ownerId, [result.itemDropped, firstKill?.itemName ?? null], locale)
+    ? await lootSellRow(guildId, ownerId, [result.itemDropped], locale)
     : null;
 
   const turnSummary = result.turns.slice(-8).map((t) => {
@@ -5098,7 +5109,7 @@ async function runBossFight(interaction: StringSelectMenuInteraction, guildId: s
     });
   }
   if (result.firstWinBonus) embed.addFields(firstWinField(locale));
-  if (firstKill) embed.addFields(firstKill.field);
+  if (firstKill) embed.addFields(firstKill);
   if (winTitle) embed.addFields(winTitle);
   if (result.levelUp) embed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: result.levelUp }, { locale }) });
 
