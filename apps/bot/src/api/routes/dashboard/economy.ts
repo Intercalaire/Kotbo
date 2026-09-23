@@ -121,7 +121,7 @@ import {
 import type { Prisma } from '@prisma/client';
 
 /** Le type du corps de requête ne vaut qu'à la compilation : la valeur reçue est vérifiée. */
-const RESET_COMPONENTS = new Set(['all', 'profiles', 'items', 'config', 'guilds', 'bestiary']);
+const RESET_COMPONENTS = new Set(['all', 'profiles', 'items', 'config', 'guilds', 'bestiary', 'titles']);
 
 /** Fenêtre d'observation des combats : assez large pour un petit serveur, assez courte pour
  *  qu'un réglage récent ne reste pas jugé sur l'ancien équilibrage. */
@@ -1513,7 +1513,7 @@ export async function handleEconomyRoutes(
     if (parts.length === 6 && method === 'POST') {
       try {
         const body = await readJsonBody<{
-          component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary';
+          component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary' | 'titles';
         }>(req);
 
         if (!body || !body.component) {
@@ -1536,6 +1536,7 @@ export async function handleEconomyRoutes(
           items: 'Objets de la boutique',
           config: 'Configuration',
           guilds: 'Guildes RPG',
+          titles: 'Titres RPG',
           bestiary: 'Bestiaire du serveur'
         };
 

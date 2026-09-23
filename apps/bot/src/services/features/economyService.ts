@@ -1164,7 +1164,7 @@ async function restoreLevelUpCoins(guildId: string): Promise<RestoredLevelUpCoin
 /**
  * Réinitialise certains éléments ou toute l'économie RPG pour une guilde.
  */
-export async function adminResetGuildEconomy(guildId: string, component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary') {
+export async function adminResetGuildEconomy(guildId: string, component: 'all' | 'profiles' | 'items' | 'config' | 'guilds' | 'bestiary' | 'titles') {
   let restored: RestoredLevelUpCoins = { players: 0, coins: 0 };
 
   // Les paliers de difficulté décrivent le bestiaire et la boutique, pas le rythme de
@@ -1274,9 +1274,10 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
     }
   }
 
-  // Les titres sont un catalogue du serveur, comme le bestiaire : seule la remise à zéro
-  // complète les efface. Collections et titres portés partent avec eux.
-  if (component === 'all') {
+  // Les titres sont un catalogue du serveur, comme le bestiaire : ils ne partent qu'avec
+  // leur propre remise à zéro ou la remise à zéro complète. Collections et titres portés
+  // partent avec eux, et les créatures qui les offraient n'offrent plus rien.
+  if (component === 'titles' || component === 'all') {
     await deleteAllGuildTitles(guildId);
   }
 

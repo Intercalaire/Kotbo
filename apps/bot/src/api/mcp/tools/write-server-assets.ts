@@ -744,7 +744,7 @@ export function registerWriteServerAssetsTools(ctx: McpToolContext) {
       {
         description: 'Réinitialise l\'économie du serveur. Requiert une validation staff si déclenché directement.',
         inputSchema: {
-          component: z.enum(['all', 'profiles', 'items', 'config', 'guilds', 'bestiary']).default('all'),
+          component: z.enum(['all', 'profiles', 'items', 'config', 'guilds', 'bestiary', 'titles']).default('all'),
           approved_by_staff: z.boolean().default(false).describe('Indique si un bouton Discord a déjà approuvé cette demande'),
           key_name: z.string().optional(),
         },

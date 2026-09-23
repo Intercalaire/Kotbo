@@ -5979,6 +5979,8 @@
   "eco_reset_items_desc": "Efface les objets créés",
   "eco_reset_guilds_btn": "Guildes",
   "eco_reset_guilds_desc": "Efface les guildes RPG",
+  "eco_reset_titles_btn": "Titres",
+  "eco_reset_titles_desc": "Efface tous les titres, et les retire aux joueurs, créatures et aventures",
   "eco_reset_config_btn": "Configuration",
   "eco_reset_config_desc": "Remet à zéro les multiplicateurs, cooldowns",
   "eco_reset_all_btn": "Reset Global",
