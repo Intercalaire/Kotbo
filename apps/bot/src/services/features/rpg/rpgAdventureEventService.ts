@@ -15,6 +15,7 @@
 
 import type { Prisma, RpgAdventureEvent } from '@prisma/client';
 import prisma from '../../../utils/db.js';
+import { assertGuildTitle } from './rpgTitleService.js';
 import {
   AdventureEventError,
   normalizeAdventureEventInput,
@@ -107,6 +108,11 @@ export async function saveGuildAdventureEvent(
   eventId?: string,
 ): Promise<{ event: ResolvedAdventureEvent; created: boolean }> {
   const data = normalizeAdventureEventInput(input);
+  for (const choice of data.choices) {
+    await assertGuildTitle(guildId, choice.titleId).catch((err: Error) => {
+      throw new AdventureEventError(err.message, 400);
+    });
+  }
 
   const globals = await prisma.rpgAdventureEvent.findMany({ where: { guildId: null }, select: { title: true } });
   const globalTitle = (title: string) => globals.find((global) => sameTitle(global.title, title))?.title ?? null;

@@ -3938,7 +3938,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
         <div class="grid grid-cols-4 gap-3">
           <div class="col-span-3 space-y-1">
             <label for="titleName" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_title_name()}</label>
-            <input id="titleName" type="text" maxlength="40" bind:value={editingTitle.name} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+            <input id="titleName" type="text" maxlength="24" bind:value={editingTitle.name} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+            <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.eco_title_name_hint({ count: editingTitle.name?.length ?? 0 })}</p>
           </div>
           <div class="space-y-1">
             <label for="titleColor" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_title_color()}</label>

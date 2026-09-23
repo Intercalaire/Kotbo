@@ -21,6 +21,7 @@ import {
 import { ensureItemInstance } from './rpg/rpgItemInstanceService.js';
 import { addInventoryQuantity, lockRpgProfile, takeInventoryQuantity } from './rpg/rpgInventoryWrites.js';
 import { listPlayableAdventureEvents } from './rpg/rpgAdventureEventService.js';
+import { deleteAllGuildTitles, grantTitle } from './rpg/rpgTitleService.js';
 import { buildFishBook, type FishBook, type FishSpecies } from './rpg/rpgFishBook.js';
 
 // Cooldown tracker for in-memory message activity (to prevent spam farming)
@@ -574,8 +575,19 @@ export async function chooseAdventureOutcome(guildId: string, userId: string, ev
 
   const levelUp = await checkLevelUp(guildId, userId);
 
+  // Le titre suit le choix réellement résolu : la garde sur `isTraveling` ci-dessus assure
+  // qu'un double clic ne passe jamais jusqu'ici deux fois. Un titre déjà possédé ne revient
+  // pas, et un incident sur le titre ne doit pas faire échouer l'aventure déjà encaissée.
+  const title = choice.titleId
+    ? await grantTitle(profile.id, choice.titleId).catch((err) => {
+      logger.warn('Economy', `Titre d'aventure non attribué à ${userId} :`, err);
+      return null;
+    })
+    : null;
+
   return {
     choiceText: choice.text,
+    titleName: title?.name ?? null,
     hpEffect: finalHpEffect,
     coinEffect: finalCoinEffect,
     xpEffect: finalXpEffect,
@@ -1262,7 +1274,7 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
   // Les titres sont un catalogue du serveur, comme le bestiaire : seule la remise à zéro
   // complète les efface. Collections et titres portés partent avec eux.
   if (component === 'all') {
-    await prisma.rpgTitle.deleteMany({ where: { guildId } });
+    await deleteAllGuildTitles(guildId);
   }
 
   if (component === 'profiles' || component === 'all') {

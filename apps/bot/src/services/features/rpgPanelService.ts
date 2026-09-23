@@ -975,7 +975,8 @@ async function buildInventoryView(
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
   const config = await getOrCreateEconomyConfig(guildId);
   const inventory = profile.inventory as unknown as LocalInventoryEntry[];
-  const equipment = await loadEquipment(profile);
+  const [equipment, ownedTitles] = await Promise.all([loadEquipment(profile), listOwnedTitles(profile.id)]);
+  const activeTitle = ownedTitles.find((title) => title.id === profile.activeTitleId) ?? null;
 
   const itemById = new Map(inventory.map((entry) => [entry.item.id, entry.item]));
 
@@ -1009,6 +1010,15 @@ async function buildInventoryView(
 
   const worn: { itemId: string; label: string; itemName: string; emoji: string }[] = [];
   const equippedLines: string[] = [];
+
+  // Le titre se porte comme une pièce d'équipement : il ouvre la liste, et ses bonus
+  // l'accompagnent pour qu'on voie ce qu'il apporte sans passer par la fiche Personnage.
+  if (ownedTitles.length > 0) {
+    const bonus = activeTitle ? titleBonusText(activeTitle, locale) : '';
+    equippedLines.push(activeTitle
+      ? `🎖️ **${m.rpg_inventory_title_slot({}, { locale })}** — ${activeTitle.name}${bonus ? `\n${bonus}` : ''}`
+      : `🎖️ **${m.rpg_inventory_title_slot({}, { locale })}** — *${m.rpg_character_title_none({}, { locale })}*`);
+  }
 
   for (const slot of ALL_EQUIPMENT_SLOTS) {
     const required = isAccessorySlot(slot) ? ACCESSORY_SLOT_LEVELS[slot] : 1;
@@ -1100,6 +1110,9 @@ async function buildInventoryView(
         }))),
     ));
   }
+
+  const titleRow = titleSelectRow(ownerId, profile.activeTitleId, ownedTitles, 'inventory', locale);
+  if (titleRow) components.push(titleRow);
 
   components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder()
@@ -3593,6 +3606,12 @@ async function handleTravelEventChoice(interaction: ButtonInteraction, guildId: 
     )
     .setColor(resolution.hpEffect < 0 ? COLORS.danger : COLORS.success);
 
+  if (resolution.titleName) {
+    embed.addFields({
+      name: m.rpg_title_obtained_field({}, { locale }),
+      value: m.rpg_title_obtained_value({ title: resolution.titleName }, { locale }),
+    });
+  }
   if (resolution.levelUp) {
     embed.addFields({ name: m.rpg_travel_field_levelup({}, { locale }), value: m.rpg_travel_levelup_value({ level: Number(resolution.levelUp) }, { locale }) });
   }
@@ -4386,11 +4405,14 @@ async function handleTitleSelect(
   guildId: string,
   ownerId: string,
   locale: Locale,
+  origin: string | undefined,
 ): Promise<void> {
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
   const choice = interaction.values[0];
   const title = await setActiveTitle(profile.id, choice === 'none' ? null : choice);
-  const view = await buildCharacterView(guildId, ownerId, locale);
+  const view = origin === 'inventory'
+    ? await buildInventoryView(guildId, ownerId, locale)
+    : await buildCharacterView(guildId, ownerId, locale);
   await respond(interaction, withNote(view, title
     ? m.rpg_character_title_equipped({ title: title.name }, { locale })
     : m.rpg_character_title_removed({}, { locale })));
@@ -5550,6 +5572,46 @@ function titleBonusText(
     .join(plain ? ' · ' : '  ');
 }
 
+/**
+ * Menu du titre porté, partagé par la fiche Personnage et l'inventaire.
+ *
+ * Un seul titre se porte à la fois : ses bonus ne s'additionnent pas à ceux des autres.
+ * `origin` dit quel écran réafficher après le changement.
+ */
+function titleSelectRow(
+  ownerId: string,
+  activeTitleId: string | null,
+  ownedTitles: Awaited<ReturnType<typeof listOwnedTitles>>,
+  origin: 'character' | 'inventory',
+  locale: Locale,
+): ActionRowBuilder<StringSelectMenuBuilder> | null {
+  if (ownedTitles.length === 0) return null;
+
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(`rpg:titleselect:${ownerId}:${origin}`)
+      .setPlaceholder(m.rpg_character_title_placeholder({}, { locale }))
+      .addOptions(
+        {
+          label: m.rpg_character_title_remove({}, { locale }),
+          value: 'none',
+          default: activeTitleId === null,
+        },
+        // Le titre porté passe en tête : au-delà de vingt-quatre titres possédés, Discord
+        // ne montrerait plus l'option cochée et le menu paraîtrait sans titre porté.
+        ...[...ownedTitles]
+          .sort((a, b) => Number(b.id === activeTitleId) - Number(a.id === activeTitleId))
+          .slice(0, 24)
+          .map((title) => ({
+            label: truncate(title.name, 100),
+            description: optionDescription(titleBonusText(title, locale, true) || title.description),
+            value: title.id,
+            default: title.id === activeTitleId,
+          })),
+      ),
+  );
+}
+
 const STAT_ALLOCATIONS: { stat: AllocatableStat; emoji: string; label: (locale: Locale) => string }[] = [
   { stat: 'attack', emoji: '⚔️', label: (locale) => m.rpg_stat_attack({}, { locale }) },
   { stat: 'defense', emoji: '🛡️', label: (locale) => m.rpg_stat_defense({}, { locale }) },
@@ -5674,26 +5736,8 @@ async function buildCharacterView(guildId: string, ownerId: string, locale: Loca
 
   const components: PanelRow[] = [];
 
-  if (ownedTitles.length > 0) {
-    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId(`rpg:titleselect:${ownerId}`)
-        .setPlaceholder(m.rpg_character_title_placeholder({}, { locale }))
-        .addOptions(
-          {
-            label: m.rpg_character_title_remove({}, { locale }),
-            value: 'none',
-            default: profile.activeTitleId === null,
-          },
-          ...ownedTitles.slice(0, 24).map((title) => ({
-            label: truncate(title.name, 100),
-            description: optionDescription(titleBonusText(title, locale, true) || title.description),
-            value: title.id,
-            default: title.id === profile.activeTitleId,
-          })),
-        ),
-    ));
-  }
+  const titleRow = titleSelectRow(ownerId, profile.activeTitleId, ownedTitles, 'character', locale);
+  if (titleRow) components.push(titleRow);
 
   if (profile.level >= CLASS_UNLOCK_LEVEL) {
     components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
@@ -6456,7 +6500,7 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
       case 'warscope': await handleWarScopeSelect(interaction, guildId, ownerId, locale); return;
       case 'invcat': await handleInventoryCategory(interaction, guildId, ownerId, locale); return;
       case 'quickdrink': await handleQuickDrink(interaction, guildId, ownerId, locale, rest); return;
-      case 'titleselect': await handleTitleSelect(interaction, guildId, ownerId, locale); return;
+      case 'titleselect': await handleTitleSelect(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'itembookcat':
       case 'itembooksrc': await handleItemBookFilter(interaction, guildId, ownerId, locale, action, rest); return;
       case 'invtoggleselect': await handleInventoryUnequip(interaction, guildId, ownerId, locale); return;

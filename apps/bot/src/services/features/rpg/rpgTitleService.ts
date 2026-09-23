@@ -2,7 +2,7 @@
  * Titres du RPG : catalogue du serveur, collection des joueurs, titre porté.
  */
 
-import type { RpgTitle } from '@prisma/client';
+import type { Prisma, RpgTitle } from '@prisma/client';
 import prisma from '../../../utils/db.js';
 import { NO_PERMANENT_BONUSES, type PermanentBonuses } from './rpgStats.js';
 import { normalizeTitleInput, type TitleInput } from './rpgTitlePolicy.js';
@@ -60,12 +60,39 @@ export async function saveGuildTitle(
  *
  * Les joueurs le perdent de leur collection, ceux qui le portaient n'en portent plus, et
  * les créatures qui l'offraient n'offrent plus rien : les clés étrangères s'en chargent.
+ * Les choix d'aventure, eux, vivent dans une colonne JSON sans clé étrangère : on les
+ * nettoie à la main, sans quoi l'aventure ne pourrait plus être enregistrée au dashboard.
  */
 export async function deleteGuildTitle(guildId: string, titleId: string): Promise<RpgTitle> {
   const existing = await prisma.rpgTitle.findUnique({ where: { id: titleId } });
   if (!existing || existing.guildId !== guildId) throw new TitleError('Titre introuvable.', 404);
-  await prisma.rpgTitle.delete({ where: { id: titleId } });
+
+  const cleanup = await adventureTitleCleanup(guildId, new Set([titleId]));
+  await prisma.$transaction([...cleanup, prisma.rpgTitle.delete({ where: { id: titleId } })]);
   return existing;
+}
+
+/** Tous les titres du serveur, pour la remise à zéro complète de l'économie. */
+export async function deleteAllGuildTitles(guildId: string): Promise<void> {
+  const titles = await prisma.rpgTitle.findMany({ where: { guildId }, select: { id: true } });
+  if (titles.length === 0) return;
+
+  const cleanup = await adventureTitleCleanup(guildId, new Set(titles.map((title) => title.id)));
+  await prisma.$transaction([...cleanup, prisma.rpgTitle.deleteMany({ where: { guildId } })]);
+}
+
+/** Écritures qui retirent ces titres des choix d'aventure du serveur. */
+async function adventureTitleCleanup(guildId: string, titleIds: Set<string>) {
+  const events = await prisma.rpgAdventureEvent.findMany({ where: { guildId }, select: { id: true, choices: true } });
+  const removed = (choice: Record<string, unknown>) => typeof choice?.titleId === 'string' && titleIds.has(choice.titleId);
+
+  return events.flatMap((event) => {
+    if (!Array.isArray(event.choices)) return [];
+    const choices = event.choices as Record<string, unknown>[];
+    if (!choices.some(removed)) return [];
+    const cleaned = choices.map((choice) => (removed(choice) ? { ...choice, titleId: null } : choice));
+    return [prisma.rpgAdventureEvent.update({ where: { id: event.id }, data: { choices: cleaned as Prisma.InputJsonValue } })];
+  });
 }
 
 /** Le titre appartient-il à ce serveur ? Sert à valider une récompense de créature. */

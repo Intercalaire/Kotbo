@@ -22,7 +22,7 @@ describe('normalizeAdventureEventInput', () => {
     const event = normalizeAdventureEventInput({ ...VALID, title: '  Le Marchand Ambulant  ' });
     expect(event.title).toBe('Le Marchand Ambulant');
     expect(event.choices).toHaveLength(2);
-    expect(event.choices[0]).toEqual({ text: 'Acheter', hpEffect: 0, coinEffect: -30, xpEffect: 10, minLevel: 1 });
+    expect(event.choices[0]).toEqual({ text: 'Acheter', hpEffect: 0, coinEffect: -30, xpEffect: 10, minLevel: 1, titleId: null });
   });
 
   test('prend un emoji par défaut quand il manque', () => {
@@ -54,7 +54,7 @@ describe('normalizeAdventureEventInput', () => {
 
   test('les effets omis valent zéro', () => {
     const event = normalizeAdventureEventInput({ ...VALID, choices: [{ text: 'Attendre' }] });
-    expect(event.choices[0]).toEqual({ text: 'Attendre', hpEffect: 0, coinEffect: 0, xpEffect: 0, minLevel: 0 });
+    expect(event.choices[0]).toEqual({ text: 'Attendre', hpEffect: 0, coinEffect: 0, xpEffect: 0, minLevel: 0, titleId: null });
   });
 });
 

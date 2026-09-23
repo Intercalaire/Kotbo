@@ -5,7 +5,11 @@
  * rendrait son porteur invincible) et doivent rester vérifiables en test.
  */
 
-export const TITLE_NAME_MAX = 40;
+/**
+ * Le titre s'écrit en gras 15 px dans les 260 px au-dessus du portrait : vingt-quatre
+ * caractères y tiennent en entier. Plus long, la carte le couperait d'une ellipse.
+ */
+export const TITLE_NAME_MAX = 24;
 export const TITLE_DESCRIPTION_MAX = 200;
 
 export const TITLE_STAT_RANGE = { min: 0, max: 1_000 } as const;

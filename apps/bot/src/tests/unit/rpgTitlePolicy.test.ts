@@ -6,6 +6,11 @@ describe('normalisation d\'un titre', () => {
     expect(normalizeTitleInput({ name: '   ' }).ok).toBe(false);
   });
 
+  test('refuse un nom trop long pour la carte', () => {
+    expect(normalizeTitleInput({ name: 'Pourfendeur des dragons anciens' }).ok).toBe(false);
+    expect(normalizeTitleInput({ name: 'Pourfendeur de dragons' }).ok).toBe(true);
+  });
+
   test('borne les bonus', () => {
     const result = normalizeTitleInput({ name: 'Tueur de dragons', attackBonus: 99_999, critBonus: 80, healthBonus: -5 });
     expect(result.ok).toBe(true);
