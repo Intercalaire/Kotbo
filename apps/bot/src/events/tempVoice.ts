@@ -80,6 +80,8 @@ import {
   ordreNotification,
   RegistreOriginesSurcharge,
   membresAReduireAuSilence,
+  normaliserEtatDemandes,
+  normaliserHistoriqueRenommage,
   membresSansLeRole,
   planDebordement,
   normaliserConfigReservation,
@@ -283,14 +285,46 @@ function noterRenommage(salonId: string, maintenant = Date.now()): void {
   historiquesRenommage.set(salonId, enregistrerRenommage(historiqueRenommage(salonId), maintenant));
 }
 
+/**
+ * Écrit en base ce que le panneau gardait en mémoire.
+ *
+ * Le quota de renommage et les demandes d'accès mouraient avec le processus :
+ * le bouton réannonçait « 2/2 » alors que Discord comptait toujours, et un
+ * silence de dix minutes après un refus s'évaporait au redémarrage.
+ *
+ * Une base indisponible ne doit jamais faire échouer le geste de l'utilisateur :
+ * l'écriture est tentée, journalisée si elle rate, et on continue.
+ */
+async function persisterEtatSalon(guildId: string, salonId: string): Promise<void> {
+  const maintenant = Date.now();
+  const etat = registreDemandes.exporterSalon(guildId, salonId, maintenant);
+  try {
+    await prisma.tempVoiceChannel.update({
+      where: { id: salonId },
+      data: {
+        renameHistory: historiqueRenommage(salonId),
+        // Recompose en litteral : Prisma exige une valeur JSON, et une interface
+        // nommee ne lui est pas assignable en TypeScript - une limite de typage,
+        // pas une donnee qui ne conviendrait pas.
+        accessRequests: {
+          demandes: etat.demandes.map((d) => ({ ...d })),
+          silences: etat.silences.map((v) => ({ ...v })),
+        },
+      },
+    });
+  } catch (err) {
+    logger.warn('TempVoice', `Etat du panneau non persiste pour ${salonId} :`, err);
+  }
+}
+
 /** Un salon temporaire disparaît : ses demandes, ses marques d'origine et son
  *  historique de renommage aussi, sans laisser de ligne orpheline. */
 function oublierSalon(guildId: string, salonId: string): void {
   registreDemandes.oublierSalon(guildId, salonId);
   originesSurcharge.oublierSalon(guildId, salonId);
   historiquesRenommage.delete(salonId);
-  const fenetre = rafraichissements.get(salonId);
-  if (fenetre) clearTimeout(fenetre.minuteur);
+  const etat = rafraichissements.get(salonId);
+  if (etat?.minuteur) clearTimeout(etat.minuteur);
   rafraichissements.delete(salonId);
 }
 
@@ -402,46 +436,87 @@ async function roleAgissant(
 // Réécriture du panneau, anti-rebond de 2 s par salon
 // ─────────────────────────────────────────────────────────────────────────────
 
-const FENETRE_COALESCENCE_MS = 1_500;
+/**
+ * Espacement minimal entre deux reecritures d'un meme panneau.
+ *
+ * Discord plafonne les editions a cinq par tranche de cinq secondes et par
+ * salon. Une seconde laisse donc quatre fois la marge, tout en restant
+ * imperceptible : le premier changement s'affiche sans delai, et le suivant au
+ * plus tard une seconde apres.
+ */
+const ESPACEMENT_REECRITURE_MS = 1_000;
 
-interface FenetreRafraichissement {
-  minuteur: ReturnType<typeof setTimeout>;
-  /** Un changement est arrivé pendant la fenêtre : il lui faut son passage. */
-  enAttente: boolean;
+interface EtatReecriture {
+  /** Une reecriture est en cours : la suivante attend qu'elle finisse. */
+  enCours: boolean;
+  /** Un changement est arrive depuis : il faudra repasser. */
+  sale: boolean;
+  /** Fin de la derniere reecriture, pour tenir l'espacement. */
+  dernierePassee: number;
+  minuteur?: ReturnType<typeof setTimeout>;
 }
 
-const rafraichissements = new Map<string, FenetreRafraichissement>();
+const rafraichissements = new Map<string, EtatReecriture>();
+
+function etatReecriture(salonId: string): EtatReecriture {
+  const existant = rafraichissements.get(salonId);
+  if (existant) return existant;
+  const neuf: EtatReecriture = { enCours: false, sale: false, dernierePassee: 0 };
+  rafraichissements.set(salonId, neuf);
+  return neuf;
+}
 
 /**
- * Le panneau dit l'état du salon : le laisser mentir une seconde de plus que
- * nécessaire est le seul vrai défaut qu'il puisse avoir.
+ * Le panneau dit l'etat du salon : le laisser mentir une seconde de plus que
+ * necessaire est le seul vrai defaut qu'il puisse avoir.
  *
- * La première action réécrit donc **tout de suite**, et c'est la rafale qui est
- * amortie derrière — l'inverse de ce que faisait l'anti-rebond, qui faisait
- * attendre deux secondes à un simple clic sur « Verrouiller ». Les changements
- * survenus pendant la fenêtre déclenchent un unique passage de rattrapage à sa
- * fermeture : deux écritures par fenêtre au pire, loin du plafond de Discord
- * (cinq éditions par tranche de cinq secondes et par salon).
+ * Pas de fenetre fixe. Le premier changement part **immediatement** ; ceux qui
+ * arrivent pendant une reecriture marquent le panneau « sale » et declenchent un
+ * second passage des que le premier finit, en respectant l'espacement minimal.
+ * Une rafale se replie donc toute seule, sans jamais faire attendre un
+ * changement plus longtemps que cet espacement.
+ *
+ * L'ancienne fenetre de coalescence faisait patienter le DEUXIEME clic jusqu'a
+ * sa fermeture : verrouiller puis deverrouiller laissait « Verrouille » affiche
+ * une seconde et demie apres coup.
  */
 function planifierRafraichissementPanneau(channel: VoiceChannel): void {
-  const fenetre = rafraichissements.get(channel.id);
-  if (fenetre) {
-    fenetre.enAttente = true;
+  const etat = etatReecriture(channel.id);
+
+  if (etat.enCours) {
+    etat.sale = true;
+    return;
+  }
+  if (etat.minuteur) return;
+
+  const attente = Math.max(0, ESPACEMENT_REECRITURE_MS - (Date.now() - etat.dernierePassee));
+  if (attente === 0) {
+    void executerReecriture(channel, etat);
     return;
   }
 
-  void lancerReecriture(channel);
-
   const minuteur = setTimeout(() => {
-    const courante = rafraichissements.get(channel.id);
-    rafraichissements.delete(channel.id);
-    if (courante?.enAttente) void lancerReecriture(channel);
-  }, FENETRE_COALESCENCE_MS);
-
+    etat.minuteur = undefined;
+    void executerReecriture(channel, etat);
+  }, attente);
   // Un minuteur en attente garderait le process en vie : le panneau n'est pas
-  // une raison de ne pas s'arrêter.
+  // une raison de ne pas s'arreter.
   (minuteur as unknown as { unref?: () => void }).unref?.();
-  rafraichissements.set(channel.id, { minuteur, enAttente: false });
+  etat.minuteur = minuteur;
+}
+
+async function executerReecriture(channel: VoiceChannel, etat: EtatReecriture): Promise<void> {
+  etat.enCours = true;
+  etat.sale = false;
+  try {
+    await lancerReecriture(channel);
+  } finally {
+    etat.enCours = false;
+    etat.dernierePassee = Date.now();
+    // Un changement est arrive pendant la reecriture : il a droit a son passage,
+    // au plus tot que l'espacement autorise.
+    if (etat.sale) planifierRafraichissementPanneau(channel);
+  }
 }
 
 function lancerReecriture(channel: VoiceChannel): Promise<void> {
@@ -598,7 +673,14 @@ async function sweepOrphanChannels(client: Client): Promise<void> {
     .findMany({ where: { guildId: { in: guildIds } } })
     .catch((err: unknown) => {
       logger.error('TempVoice', 'Erreur lors de la lecture des salons temporaires :', err);
-      return [] as Array<{ id: string; creatorId: string; guildId: string; writeMode: string | null }>;
+      return [] as Array<{
+        id: string;
+        creatorId: string;
+        guildId: string;
+        writeMode: string | null;
+        renameHistory: unknown;
+        accessRequests: unknown;
+      }>;
     });
 
   let restored = 0;
@@ -645,6 +727,15 @@ async function sweepOrphanChannels(client: Client): Promise<void> {
       ...(estModeEcriture(entry.writeMode) ? { modeEcriture: entry.writeMode } : {}),
     };
     tempChannels.set(entry.id, entree);
+
+    // Le quota de renommage et les demandes d'acces reprennent ou ils en
+    // etaient. Ce qui a expire pendant l'arret n'est pas recharge : le temps a
+    // continue de passer sans le bot.
+    const maintenant = Date.now();
+    const historique = normaliserHistoriqueRenommage(entry.renameHistory, maintenant);
+    if (historique.length > 0) historiquesRenommage.set(entry.id, historique);
+    registreDemandes.importerSalon(entry.guildId, entry.id, entry.accessRequests, maintenant);
+
     await reparerPresencesAuDemarrage(channel, entry.guildId, entree);
     restored += 1;
   }
@@ -743,24 +834,40 @@ function resteEnClair(etat: EtatSalon): string {
   return `${etat.placesLibres} place${etat.placesLibres > 1 ? 's' : ''} libre${etat.placesLibres > 1 ? 's' : ''}`;
 }
 
+/** « 0 banni », « 2 bannis » : l'accord se fait, sinon la carte parle mal. */
+function compte(nombre: number, singulier: string, pluriel = `${singulier}s`): string {
+  return `${nombre} ${nombre > 1 ? pluriel : singulier}`;
+}
+
+/**
+ * La carte d'etat, en trois lignes.
+ *
+ * Elle en faisait quatorze sur telephone : six champs « inline » se replient en
+ * colonne unique des que l'ecran est etroit, et le panneau mangeait tout
+ * l'ecran pour six valeurs courtes. Deux d'entre eux — l'etat et les places —
+ * repetaient mot pour mot ce que le titre disait deja.
+ *
+ * Tout tient donc dans la description : les mentions y restent cliquables (un
+ * titre, lui, les afficherait en brut), rien ne se replie, et la hauteur est la
+ * meme sur ordinateur et sur telephone.
+ */
 function carteEtat(etat: EtatSalon): EmbedBuilder {
   const mode = LIBELLES_MODES_ECRITURE[etat.modeEcriture];
+  const places = `${I.profile} ${etat.occupants} / ${etat.limite > 0 ? etat.limite : '∞'}`;
+  const reserve = etat.reserveRoleId ? `${I.shield} <@&${etat.reserveRoleId}>` : `${I.shield} Non réservé`;
 
   return new EmbedBuilder()
     .setTitle(`${etat.verrouille ? I.lock : I.unlock} ${etat.verrouille ? 'Verrouillé' : 'Ouvert'} · ${resteEnClair(etat)}`)
     // Le ping va ici, jamais dans le titre : Discord n'interprète les mentions
     // ni dans un titre ni dans une ligne d'auteur, elles s'y afficheraient en
     // brut. Seules la description et la valeur d'un champ les rendent cliquables.
-    .setDescription(`${I.voice} Salon de <@${etat.proprietaireId}>`)
+    .setDescription([
+      `${I.voice} Salon de <@${etat.proprietaireId}>`,
+      '',
+      `${places} · ${iconeModeCarte(etat.modeEcriture)} ${mode.libelle}`,
+      `${I.check} ${compte(etat.autorises, 'autorisé')} · ${I.ban} ${compte(etat.bannis, 'banni')} · ${reserve}`,
+    ].join('\n'))
     .setColor(etat.verrouille ? COULEUR_FERME : COULEUR_OUVERT)
-    .addFields(
-      { name: 'État', value: `${etat.verrouille ? I.lock : I.unlock} ${etat.verrouille ? 'Verrouillé' : 'Ouvert'}`, inline: true },
-      { name: 'Places', value: `${I.profile} ${etat.occupants} / ${etat.limite > 0 ? etat.limite : '∞'}`, inline: true },
-      { name: 'Écriture', value: `${iconeModeCarte(etat.modeEcriture)} ${mode.libelle}`, inline: true },
-      { name: 'Autorisés', value: `${I.check} ${etat.autorises}`, inline: true },
-      { name: 'Bannis', value: `${I.ban} ${etat.bannis}`, inline: true },
-      { name: 'Réservé', value: etat.reserveRoleId ? `${I.shield} <@&${etat.reserveRoleId}>` : `${I.shield} Non`, inline: true },
-    )
     .setFooter({ text: 'Kotbo · Salon temporaire' })
     .setTimestamp();
 }
@@ -844,16 +951,24 @@ async function retrouverPanneau(channel: VoiceChannel, entree: EntreeSalonTempor
 }
 
 /**
- * Un message posté avant que le dépôt ne passe aux composants V2 porte encore
- * un `content`. Discord refuse d'éditer un tel message vers du V2 tant que ce
- * `content` est là (`MESSAGE_CANNOT_USE_LEGACY_FIELDS_WITH_COMPONENTS_V2`), et
- * la conversion globale de `patchV2` ne sait pas le retirer : elle traite le cas
- * inverse, un message déjà V2 édité avec des champs anciens.
+ * Le bot garde le droit d'écrire dans le salon, quel que soit le mode.
  *
- * Un panneau d'avant la refonte est donc remplacé plutôt que réécrit.
+ * Il n'a aucune surcharge à lui : son droit d'écrire vient de `@everyone`, que
+ * trois des quatre modes refusent, et que le verrou refuse aussi. Le bot se
+ * muselait donc lui-même, et ne pouvait plus poster ni panneau, ni avis, ni
+ * carte de décision — dans un salon dont il est pourtant le seul à tenir
+ * l'affichage.
  */
-function panneauEnV2(message: Message): boolean {
-  return Boolean(message.flags?.has?.(MessageFlags.IsComponentsV2));
+async function assurerBotPeutEcrire(channel: VoiceChannel): Promise<void> {
+  const moi = channel.guild?.members?.me;
+  if (!moi?.id) return;
+
+  // On n'agit que sur un constat, jamais sur une supposition : sans lecture des
+  // permissions effectives, poser une surcharge reviendrait a ecrire au hasard.
+  const effectives = channel.permissionsFor?.(moi);
+  if (!effectives || effectives.has(PermissionFlagsBits.SendMessages)) return;
+
+  await poserSurcharge(channel, moi.id, { SendMessages: true });
 }
 
 async function reecrirePanneau(channel: VoiceChannel): Promise<void> {
@@ -867,12 +982,13 @@ async function reecrirePanneau(channel: VoiceChannel): Promise<void> {
 
   const panneau = await construirePanneau(channel, entree);
 
-  if (!panneauEnV2(message)) {
-    await remplacerPanneauAncien(channel, entree, message, panneau);
-    return;
-  }
-
-  // La mention est repassée à chaque réécriture : une édition remplace tous les
+  // Le panneau est posté une fois, à la création du salon, et **seulement mis à
+  // jour** ensuite. Il n'est jamais supprimé ni reposté : une suppression suivie
+  // d'un envoi qui échoue laisse le salon sans aucun panneau, et l'envoi échoue
+  // précisément quand le chat est fermé. Éditer son propre message, lui,
+  // n'exige aucune permission d'écriture — c'est le chemin qui tient toujours.
+  //
+  // La mention est repassée à chaque fois : une édition remplace tous les
   // composants, et sans elle la ligne « @propriétaire » disparaissait au premier
   // changement. `patchV2` la replie en `TextDisplay` et neutralise la
   // notification, donc personne n'est repingé.
@@ -881,35 +997,6 @@ async function reecrirePanneau(channel: VoiceChannel): Promise<void> {
   });
 }
 
-/**
- * Le remplacement se fait dans cet ordre : supprimer, puis poster. L'inverse
- * laisserait deux panneaux côte à côte si la suppression échouait, et
- * `retrouverPanneau` prendrait le premier venu au passage suivant.
- */
-async function remplacerPanneauAncien(
-  channel: VoiceChannel,
-  entree: EntreeSalonTemporaire,
-  ancien: Message,
-  panneau: PanneauRendu,
-): Promise<void> {
-  const supprime = await ancien.delete().then(() => true).catch((err: unknown) => {
-    logger.warn('TempVoice', `L'ancien panneau de ${channel.id} n'a pas pu être retiré :`, err);
-    return false;
-  });
-  // Échec de la suppression : on garde l'ancien panneau plutôt que d'en poster
-  // un second. Ses boutons répondent — leurs identifiants restent acceptés — et
-  // le passage suivant réessaiera.
-  if (!supprime) return;
-
-  entree.panneauId = undefined;
-  const poste = await channel
-    .send({ content: `<@${entree.creatorId}>`, ...panneau })
-    .catch((err: unknown) => {
-      logger.warn('TempVoice', `Le panneau de ${channel.id} n'a pas pu être reposté :`, err);
-      return null;
-    });
-  if (poste?.id) entree.panneauId = poste.id;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mode d'écriture : application sur Discord
@@ -1029,6 +1116,10 @@ async function appliquerModeEcriture(
   // refusé entre les deux le laisserait muet chez lui.
   await channel.permissionOverwrites.edit(entree.creatorId, surcharges.proprietaire);
   await channel.permissionOverwrites.edit(guildId, surcharges.everyone);
+
+  // « Moi seul », « Personne » et « ceux qui sont en vocal » refusent
+  // `SendMessages` a @everyone - le bot compris, faute de surcharge a lui.
+  await assurerBotPeutEcrire(channel);
 
   const presents = [...(channel.members?.keys() ?? [])];
   const transition = transitionModeEcriture(
@@ -1588,9 +1679,18 @@ async function createTempChannel(
   // notification, un embed n'en produisant aucune.
   const entree = tempChannels.get(tempChannel.id) ?? { creatorId: member.id };
   const panneau = await construirePanneau(tempChannel, entree);
+
+  // Une categorie qui refuse `SendMessages` a @everyone prive aussi le bot, qui
+  // n'a pas de surcharge a lui : le panneau ne serait jamais poste, et le salon
+  // naitrait sans aucune commande.
+  await assurerBotPeutEcrire(tempChannel);
+
   const poste = await tempChannel
-    .send({ content: `<@${member.id}>`, ...panneau })
-    .catch(() => null);
+    .send({ content: `<@${member.id}>`, ...panneau, allowedMentions: { users: [member.id] } })
+    .catch((err: unknown) => {
+      logger.warn('TempVoice', `Le panneau de ${tempChannel.id} n'a pas pu etre poste :`, err);
+      return null;
+    });
   if (poste?.id) entree.panneauId = poste.id;
 
   logger.info('TempVoice', `Salon créé : ${tempChannel.name} (${tempChannel.id})`);
@@ -1734,7 +1834,7 @@ export function registerTempVoiceListener(client: Client): void {
     const cache = tempChannels.get(channel.id);
     if (!cache) {
       await interaction
-        .reply({ content: "❌ Ce salon n'est plus enregistré comme temporaire.", flags: [MessageFlags.Ephemeral] })
+        .reply({ embeds: [avis("❌ Ce salon n'est plus enregistré comme temporaire.")], flags: [MessageFlags.Ephemeral] })
         .catch(() => null);
       return;
     }
@@ -1750,7 +1850,7 @@ export function registerTempVoiceListener(client: Client): void {
     // dehors. Les deux sont donc ouvertes à autrui.
     if (!ACTIONS_OUVERTES.has(action) && cache.creatorId !== user.id && !(await isStaff(guildId, actingMember))) {
       await interaction
-        .reply({ content: '❌ Seul le propriétaire du salon peut effectuer cette action.', flags: [MessageFlags.Ephemeral] })
+        .reply({ embeds: [avis('❌ Seul le propriétaire du salon peut effectuer cette action.')], flags: [MessageFlags.Ephemeral] })
         .catch(() => null);
       return;
     }
@@ -1764,17 +1864,23 @@ export function registerTempVoiceListener(client: Client): void {
       demandes: await lireConfigDemandes(guildId),
     };
 
-    // Les panneaux déjà postés avant la refonte restent en place dans les salons
-    // vivants. Leurs identifiants de boutons continuent d'être acceptés (voir le
-    // `switch`), et la première interaction redessine le message : personne ne
-    // reste devant onze boutons qui ne disent pas l'état du salon.
-    planifierRafraichissementPanneau(channel);
-
+    // ⚠️ Aucun redessin ici. Il y en avait un, hérité de l'époque où
+    // l'anti-rebond n'avait pas de front montant : la réécriture arrivait deux
+    // secondes plus tard, donc après l'action, et lire l'état avant ne coûtait
+    // rien.
+    //
+    // Avec le front montant, ce même appel consomme la fenêtre sur l'état
+    // d'AVANT le clic — le panneau se redessinait identique, puis attendait la
+    // fermeture de la fenêtre pour dire la vérité. Verrouiller laissait donc
+    // « Ouvert » affiché.
+    //
+    // Chaque action qui change quelque chose appelle `planifierRafraichissement`
+    // une fois son travail fait : c'est là que le redessin a un sens.
     try {
       await handleTempVoiceAction({ interaction, action, channel, cache, guild, guildId, actingMember, ctxp });
     } catch (err) {
       logger.error('TempVoice', `Erreur lors de l'action « ${action} » :`, err);
-      const message = { content: "❌ L'action n'a pas pu être appliquée.", flags: [MessageFlags.Ephemeral] as const };
+      const message = { embeds: [avis("❌ L'action n'a pas pu être appliquée.")], flags: [MessageFlags.Ephemeral] as const };
       await (interaction.isRepliable() && (interaction.replied || interaction.deferred)
         ? interaction.followUp(message).catch(() => null)
         : interaction.reply(message).catch(() => null));
@@ -1872,22 +1978,50 @@ function rangeeRetour(onglet: OngletPanneau): ActionRowBuilder<MessageActionRowC
   );
 }
 
+/**
+ * Un éphémère de ce module, toujours sous la même forme.
+ *
+ * **Règle : jamais de `content` brut.** `patchV2` ne convertit une charge en
+ * composants V2 que si elle porte des embeds. Un message posté en `content` naît
+ * donc *legacy*, et la première édition qui, elle, portera un embed tentera de
+ * le convertir en V2 — ce que Discord refuse tant que le `content` est là
+ * (`MESSAGE_CANNOT_USE_LEGACY_FIELDS_WITH_COMPONENTS_V2`, HTTP 400).
+ *
+ * Tout passer par un embed met chaque message du module dans le même monde dès
+ * sa naissance, et rend toutes les éditions suivantes possibles.
+ */
+function avis(texte: string, couleur = COULEUR_NEUTRE): EmbedBuilder {
+  return new EmbedBuilder().setColor(couleur).setDescription(texte);
+}
+
 async function respond(
   interaction: RepliableInteraction,
   content: string,
   retour?: OngletPanneau | null,
 ): Promise<void> {
   if (interaction.deferred || interaction.replied) {
-    // En mode compact, le verdict prend la place du menu qui l'a provoqué :
-    // laisser ce menu rendrait cliquable un sélecteur déjà consommé, et le
-    // bouton « Retour » est ce qui évite de rester devant une phrase sans issue.
-    const charge = retour
-      ? { content, components: [rangeeRetour(retour)], embeds: [] }
-      : { content };
+    // ⚠️ Le verdict part en EMBED, jamais en `content` brut.
+    //
+    // `editReply` n'est pas converti en composants V2 par `patchV2` : il ne
+    // connait pas le message cible et ne convertit que si la charge porte des
+    // embeds. Or ce message-la EST en V2 des qu'un sous-panneau l'a occupe, et
+    // Discord refuse alors tout `content`
+    // (`MESSAGE_CANNOT_USE_LEGACY_FIELDS_WITH_COMPONENTS_V2`, HTTP 400).
+    //
+    // Passer par un embed remet la charge sur le chemin qui la convertit : le
+    // texte devient un `TextDisplay`, le `content` disparait, et l'edition est
+    // acceptee.
+    const charge = {
+      embeds: [new EmbedBuilder().setColor(COULEUR_NEUTRE).setDescription(content)],
+      // Le menu qui a provoque le verdict est retire : un selecteur deja
+      // consomme ne doit pas rester cliquable.
+      components: retour ? [rangeeRetour(retour)] : [],
+    };
     await interaction.editReply(charge).catch(() => null);
     return;
   }
-  await interaction.reply({ content, flags: [MessageFlags.Ephemeral] }).catch(() => null);
+  // Un embed, pas un `content` : voir la règle sur `avis`.
+  await interaction.reply({ embeds: [avis(content)], flags: [MessageFlags.Ephemeral] }).catch(() => null);
 }
 
 interface ActionContext {
@@ -1946,7 +2080,8 @@ async function acquitterMiseAJour(interaction: RepliableInteraction): Promise<vo
 
 /** Une réponse qui ne remplace pas le sous-panneau ouvert : elle s'ajoute à côté. */
 async function reponseSupplementaire(interaction: RepliableInteraction, texte: string): Promise<void> {
-  const message = { content: texte, flags: [MessageFlags.Ephemeral] as const };
+  // Un embed, pas un `content` : voir la regle sur `avis`.
+  const message = { embeds: [avis(texte)], flags: [MessageFlags.Ephemeral] as const };
   if (interaction.deferred || interaction.replied) {
     await interaction.followUp(message).catch(() => null);
     return;
@@ -2066,6 +2201,10 @@ async function basculerVerrou(ctx: ActionContext): Promise<string> {
     ownerChatPatch(true, categoryOverwriteFor(channel, cache.creatorId)),
   );
   await channel.permissionOverwrites.edit(guildId, CHANNEL_PATCHES.lock);
+  // Le verrou coupe `SendMessages` a @everyone - le bot compris, tant
+  // qu'il n'a pas de surcharge a lui. Sans cela il ne peut plus mettre a
+  // jour le panneau ni poster le moindre avis dans le salon.
+  await assurerBotPeutEcrire(channel);
   return `${I.lock} Le salon est verrouillé : seuls toi, les rôles autorisés d'office et les membres que tu as ajoutés peuvent encore le rejoindre.`;
 }
 
@@ -2103,7 +2242,7 @@ async function transmettreCarteDecision(
 
   for (const canal of ordreNotification(config)) {
     if (canal === 'VOICE') {
-      const poste = await channel.send({ content: mention, ...carte }).catch((err: unknown) => {
+      const poste = await channel.send({ content: mention, ...carte, allowedMentions: { users: [proprietaireId] } }).catch((err: unknown) => {
         logger.warn('TempVoice', `La demande d'accès n'a pas pu être postée dans ${channel.id} :`, err);
         return null;
       });
@@ -2127,7 +2266,7 @@ async function transmettreCarteDecision(
     // quand même coûterait un aller-retour pour un refus certain.
     const moi = guild.members.me;
     if (moi && !dedie.permissionsFor(moi)?.has(PermissionFlagsBits.SendMessages)) continue;
-    const poste = await dedie.send({ content: mention, ...carte }).catch((err: unknown) => {
+    const poste = await dedie.send({ content: mention, ...carte, allowedMentions: { users: [proprietaireId] } }).catch((err: unknown) => {
       logger.warn('TempVoice', `La demande d'accès n'a pas pu être postée dans ${config.canalId} :`, err);
       return null;
     });
@@ -2171,6 +2310,7 @@ async function traiterDemandeAcces(ctx: ActionContext): Promise<void> {
     expirationMs: ctxp.demandes.expirationMs,
     silenceMs: ctxp.demandes.silenceMs,
   });
+  if (resultat.statut === 'enregistree') await persisterEtatSalon(guildId, channel.id);
 
   if (resultat.statut === 'silence') {
     await respond(
@@ -2328,7 +2468,7 @@ async function appliquerDebordement(ctx: ActionContext, plan: PlanDebordement): 
 /** Referme la proposition : ses boutons ne doivent pas rester cliquables. */
 async function cloreProposition(interaction: RepliableInteraction, verdict: string): Promise<void> {
   if (!interaction.isMessageComponent()) return;
-  await interaction.update({ content: verdict, embeds: [], components: [] }).catch(() => null);
+  await interaction.update({ embeds: [avis(verdict)], components: [] }).catch(() => null);
 }
 
 /**
@@ -2385,7 +2525,7 @@ async function repondreDebordement(ctx: ActionContext, choix: 'deplacer' | 'deco
 async function cloreCarteDecision(interaction: RepliableInteraction, verdictAffiche: string): Promise<void> {
   if (!interaction.isMessageComponent()) return;
   await interaction.message
-    .edit({ components: [], content: verdictAffiche })
+    .edit({ components: [], embeds: [avis(verdictAffiche)] })
     .catch(() => null);
 }
 
@@ -2476,6 +2616,9 @@ async function traiterDecisionDemande(ctx: ActionContext, decision: 'ok' | 'non'
     maintenant,
     { silenceMs: ctxp.demandes.silenceMs },
   );
+  // Le silence apres un refus est la moitie utile du garde-fou : le perdre au
+  // redemarrage laissait redemander aussitot.
+  await persisterEtatSalon(guildId, channel.id);
 
   if (decision === 'ok') {
     const patch = categoryTrustPatch(channel, demandeur);
@@ -2674,6 +2817,24 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
   const retourVers = ctx.ctxp.panneauCompact ? ONGLET_DORIGINE[action] ?? null : null;
   const reply = (content: string) => respond(interaction, content, retourVers);
 
+  /**
+   * Ouvre une des trois portes du panneau.
+   *
+   * Depuis le panneau public, un ephemere s'ouvre a cote. Depuis un
+   * sous-panneau - c'est le cas du bouton « Retour » - il faut reprendre le
+   * message existant : sinon le mode compact, dont toute la promesse est de
+   * n'avoir qu'un seul ephemere, en empilait un de plus a chaque retour.
+   */
+  const ouvrirPorte = async (rendu: PanneauRendu): Promise<void> => {
+    if (surMessageEphemere(interaction)) {
+      await (interaction as unknown as { update: (o: unknown) => Promise<unknown> })
+        .update(rendu)
+        .catch(() => null);
+      return;
+    }
+    await interaction.reply({ ...rendu, ...ephemeral });
+  };
+
   // ─── Menu « Qui peut écrire » ───
   // L'action est comparée avant le type : un `switch` sur le type d'interaction
   // coûterait un appel de plus à chaque clic, pour un identifiant qui dit déjà
@@ -2753,17 +2914,17 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
     switch (action) {
       // ─── Les trois portes du panneau, plus la quatrième ───
       case 'salon': {
-        await interaction.reply({ ...(await panneauSalon(channel, cache, ctx.ctxp)), ...ephemeral });
+        await ouvrirPorte(await panneauSalon(channel, cache, ctx.ctxp));
         return;
       }
 
       case 'membres': {
-        await interaction.reply({ ...(await panneauMembres(channel, cache, ctx.ctxp)), ...ephemeral });
+        await ouvrirPorte(await panneauMembres(channel, cache, ctx.ctxp));
         return;
       }
 
       case 'propriete': {
-        await interaction.reply({ ...panneauPropriete(channel, cache, ctx.ctxp), ...ephemeral });
+        await ouvrirPorte(panneauPropriete(channel, cache, ctx.ctxp));
         return;
       }
 
@@ -2864,6 +3025,10 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
           ownerChatPatch(true, categoryOverwriteFor(channel, cache.creatorId)),
         );
         await channel.permissionOverwrites.edit(guildId, CHANNEL_PATCHES.lock);
+        // Le verrou coupe `SendMessages` a @everyone - le bot compris, tant
+        // qu'il n'a pas de surcharge a lui. Sans cela il ne peut plus mettre a
+        // jour le panneau ni poster le moindre avis dans le salon.
+        await assurerBotPeutEcrire(channel);
         await reply(`${I.lock} Le salon a été verrouillé : seuls vous, les rôles autorisés d'office et les membres que vous avez ajoutés peuvent encore le rejoindre.`);
         planifierRafraichissementPanneau(channel);
         return;
@@ -3006,7 +3171,7 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
           return;
         }
         await interaction.reply({
-          content: labels[action] ?? 'Sélectionnez un membre.',
+          embeds: [avis(labels[action] ?? 'Sélectionnez un membre.')],
           components: [userPicker(`tempvoice:${action}_select`, 'Choisissez un membre')],
           ...ephemeral,
         });
@@ -3068,9 +3233,9 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
         }
 
         await interaction.reply({
-          content: reservationPosee
+          embeds: [avis(reservationPosee
             ? `🛡️ **Réserver le salon pour un rôle** :\nLe salon est réservé à <@&${reservationPosee}>. Décochez-le pour lever la réservation, ou choisissez un autre rôle.`
-            : '🛡️ **Réserver le salon pour un rôle** :\nSélectionnez le rôle qui sera autorisé à rejoindre votre salon vocal. Ne sélectionnez rien pour réinitialiser.',
+            : '🛡️ **Réserver le salon pour un rôle** :\nSélectionnez le rôle qui sera autorisé à rejoindre votre salon vocal. Ne sélectionnez rien pour réinitialiser.')],
           components: [new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(menuRole)],
           allowedMentions: { parse: [] },
           ...ephemeral,
@@ -3146,6 +3311,10 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
       if (ownerPatch && owner) await channel.permissionOverwrites.edit(owner, ownerPatch);
       await channel.permissionOverwrites.edit(selectedRoleId, rolePatch);
       await channel.permissionOverwrites.edit(guildId, CHANNEL_PATCHES.lock);
+      // Le verrou coupe `SendMessages` a @everyone - le bot compris, tant
+      // qu'il n'a pas de surcharge a lui. Sans cela il ne peut plus mettre a
+      // jour le panneau ni poster le moindre avis dans le salon.
+      await assurerBotPeutEcrire(channel);
 
       const saved = await prisma.tempVoiceChannel
         .update({ where: { id: channel.id }, data: { roleId: selectedRoleId } })
