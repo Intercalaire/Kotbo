@@ -171,6 +171,7 @@ export function registerRpgTools(ctx: McpToolContext) {
           firstKillCoinReward: monster.firstKillCoinReward,
           firstKillXpReward: monster.firstKillXpReward,
           firstKillItemName: monster.firstKillItemName,
+          firstKillClanPoints: monster.firstKillClanPoints,
           firstKill: firstKills.get(monster.name) ?? null,
           drops: parseMonsterDrops(monster.drops),
           enabled: monster.enabled,
@@ -288,6 +289,7 @@ export function registerRpgTools(ctx: McpToolContext) {
           firstKillCoinReward: z.number().int().optional().describe('Prime en pièces du premier joueur du serveur à la vaincre'),
           firstKillXpReward: z.number().int().optional().describe('Prime en XP du premier vainqueur'),
           firstKillItemName: z.string().nullable().optional().describe("Objet offert au premier vainqueur (nom exact), null pour aucun"),
+          firstKillClanPoints: z.number().int().optional().describe('Points de clan ou XP de guilde du premier vainqueur'),
           drops: z.array(dropSchema).optional(),
           enabled: z.boolean().optional(),
           key_name: z.string().optional(),
@@ -314,6 +316,7 @@ export function registerRpgTools(ctx: McpToolContext) {
             firstKillCoinReward: existing.firstKillCoinReward,
             firstKillXpReward: existing.firstKillXpReward,
             firstKillItemName: existing.firstKillItemName,
+            firstKillClanPoints: existing.firstKillClanPoints,
             drops: parseMonsterDrops(existing.drops),
             enabled: existing.enabled,
           } : null;

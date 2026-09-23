@@ -182,7 +182,7 @@ import { attackRaid, checkRaidAssaultGrant, getRaidPanelState, getRaidState, gra
 import { buildAssaultEmbed, buildRaidEmbed, healthBar } from './rpg/rpgRaidPanel.js';
 import { computeAttack } from './rpg/rpgCombatMath.js';
 import { bossCooldownMs, fightCooldownMs, formatCooldown, remainingCooldownMs } from './rpg/rpgCombatCooldownPolicy.js';
-import { claimFirstKill, formatFirstKillReward, getFirstKill, type FirstKillMonster } from './rpg/rpgFirstKillService.js';
+import { claimFirstKill, formatFirstKillBounty, formatFirstKillReward, getFirstKill, type FirstKillMonster } from './rpg/rpgFirstKillService.js';
 import {
   buyBlackMarketOffer,
   getBlackMarketState,
@@ -3946,12 +3946,7 @@ async function buildBestiaryEntryView(
       inline: false,
     });
   } else {
-    const config = await getOrCreateEconomyConfig(guildId);
-    const bounty = formatFirstKillReward({
-      coins: monster.firstKillCoinReward,
-      xp: monster.firstKillXpReward,
-      itemName: monster.firstKillItemName,
-    }, config.currencyEmoji);
+    const bounty = formatFirstKillBounty(monster, await getOrCreateEconomyConfig(guildId), locale);
     if (bounty) {
       embed.addFields({ name: m.rpg_bestiary_field_first_kill_bounty({}, { locale }), value: bounty, inline: false });
     }
@@ -4079,7 +4074,7 @@ async function firstKillField(
     const claimed = await claimFirstKill(client, guildId, userId, monster);
     if (!claimed) return null;
     const config = await getOrCreateEconomyConfig(guildId);
-    const reward = formatFirstKillReward(claimed, config.currencyEmoji);
+    const reward = formatFirstKillReward(claimed, config.currencyEmoji, locale);
     return {
       name: m.rpg_first_kill_field_title({}, { locale }),
       value: reward

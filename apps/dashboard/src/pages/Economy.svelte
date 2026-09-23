@@ -972,6 +972,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       firstKillCoinReward: 0,
       firstKillXpReward: 0,
       firstKillItemName: null as string | null,
+      firstKillClanPoints: 0,
+      firstKillOn: false,
       enabled: true,
       scope: 'GUILD',
       overridesGlobal: false
@@ -987,6 +989,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
   function openEditMonster(monster: any) {
     editingMonster = {
       ...monster,
+      firstKillOn: monster.firstKillCoinReward > 0 || monster.firstKillXpReward > 0
+        || monster.firstKillClanPoints > 0 || Boolean(monster.firstKillItemName),
       drops: (monster.drops ?? []).map((drop: any) => ({
         itemName: drop.itemName,
         emoji: drop.emoji ?? '📦',
@@ -1035,9 +1039,11 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       isBoss: editingMonster.isBoss,
       bossRespawnHours: editingMonster.bossRespawnHours,
       clanPoints: editingMonster.clanPoints ?? 0,
-      firstKillCoinReward: Number(editingMonster.firstKillCoinReward) || 0,
-      firstKillXpReward: Number(editingMonster.firstKillXpReward) || 0,
-      firstKillItemName: editingMonster.firstKillItemName || null,
+      // Décocher la section retire la prime ; le record du premier vainqueur, lui, reste.
+      firstKillCoinReward: editingMonster.firstKillOn ? Number(editingMonster.firstKillCoinReward) || 0 : 0,
+      firstKillXpReward: editingMonster.firstKillOn ? Number(editingMonster.firstKillXpReward) || 0 : 0,
+      firstKillClanPoints: editingMonster.firstKillOn ? Number(editingMonster.firstKillClanPoints) || 0 : 0,
+      firstKillItemName: editingMonster.firstKillOn ? editingMonster.firstKillItemName || null : null,
       enabled: editingMonster.enabled,
       drops: editingMonster.drops
         .filter((drop: any) => drop.itemName)
@@ -2233,7 +2239,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                       <span class="flex items-center gap-1" title={m.eco_bestiary_first_kill_hint({ date: new Date(monster.firstKill.at).toLocaleDateString() })}>
                         <Papicon icon="award" size={11} /> {monster.firstKill.displayName ?? monster.firstKill.userId}
                       </span>
-                    {:else if monster.firstKillCoinReward > 0 || monster.firstKillXpReward > 0 || monster.firstKillItemName}
+                    {:else if monster.firstKillCoinReward > 0 || monster.firstKillXpReward > 0 || monster.firstKillClanPoints > 0 || monster.firstKillItemName}
                       <span class="flex items-center gap-1"><Papicon icon="award" size={11} /> {m.eco_bestiary_first_kill_open()}</span>
                     {/if}
                     {#if monster.battles?.battles > 0}
@@ -3524,6 +3530,55 @@ import EmojiText from '../lib/components/EmojiText.svelte';
             </div>
           {/if}
 
+          <div class="space-y-3 pt-2 border-t border-outline-variant/5">
+            <div class="flex items-center justify-between">
+              <div>
+                <h4 class="text-sm font-bold">{m.eco_bestiary_first_kill_title()}</h4>
+                <p class="text-xs text-on-surface-variant/60 mt-0.5">{m.eco_bestiary_first_kill_desc()}</p>
+              </div>
+              <ToggleSwitch checked={editingMonster.firstKillOn} onToggle={(v: boolean) => editingMonster.firstKillOn = v} />
+            </div>
+
+            {#if editingMonster.firstKill}
+              <p class="text-xs bg-amber-500/10 text-amber-400 rounded-lg px-3 py-2">
+                {m.eco_bestiary_first_kill_holder({
+                  name: editingMonster.firstKill.displayName ?? editingMonster.firstKill.userId,
+                  date: new Date(editingMonster.firstKill.at).toLocaleDateString()
+                })}
+              </p>
+            {/if}
+
+            {#if editingMonster.firstKillOn}
+              <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                  <label for="monsterFirstKillCoins" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_coin_reward({ currency: config.currencyName })}</label>
+                  <input id="monsterFirstKillCoins" type="number" min="0" bind:value={editingMonster.firstKillCoinReward} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+                </div>
+                <div class="space-y-1">
+                  <label for="monsterFirstKillXp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_xp_reward()}</label>
+                  <input id="monsterFirstKillXp" type="number" min="0" bind:value={editingMonster.firstKillXpReward} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+                </div>
+                {#if raidGuildMode ? config.guildsEnabled : config.clansEnabled}
+                  <div class="col-span-2 space-y-1">
+                    <label for="monsterFirstKillClan" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{raidGuildMode ? m.eco_raid_reward_guild_xp() : m.eco_bestiary_clan_points()}</label>
+                    <input id="monsterFirstKillClan" type="number" min="0" bind:value={editingMonster.firstKillClanPoints} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+                  </div>
+                {/if}
+                <div class="col-span-2 space-y-1">
+                  <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_first_kill_item()}</span>
+                  <SearchableSelect
+                    value={editingMonster.firstKillItemName || null}
+                    options={dropItemOptions}
+                    placeholder={m.eco_bestiary_first_kill_item_none()}
+                    clearable={true}
+                    className="w-full"
+                    on:change={(e: any) => editingMonster.firstKillItemName = e.detail?.value ?? null}
+                  />
+                </div>
+              </div>
+            {/if}
+          </div>
+
           <div class="flex items-center justify-between pt-2 border-t border-outline-variant/5">
             <div>
               <h4 class="text-sm font-bold">{m.eco_bestiary_enabled_title()}</h4>
@@ -3532,42 +3587,6 @@ import EmojiText from '../lib/components/EmojiText.svelte';
             <ToggleSwitch checked={editingMonster.enabled} onToggle={(v: boolean) => editingMonster.enabled = v} />
           </div>
         </div>
-
-        <fieldset class="border border-outline-variant/10 p-4 rounded-lg space-y-3">
-          <legend class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50 px-2">{m.eco_bestiary_first_kill_title()}</legend>
-          <p class="text-[11px] text-on-surface-variant/60 leading-relaxed">{m.eco_bestiary_first_kill_desc()}</p>
-
-          {#if editingMonster.firstKill}
-            <p class="text-xs bg-amber-500/10 text-amber-400 rounded-lg px-3 py-2">
-              {m.eco_bestiary_first_kill_holder({
-                name: editingMonster.firstKill.displayName ?? editingMonster.firstKill.userId,
-                date: new Date(editingMonster.firstKill.at).toLocaleDateString()
-              })}
-            </p>
-          {/if}
-
-          <div class="grid grid-cols-2 gap-3">
-            <div class="space-y-1">
-              <label for="monsterFirstKillCoins" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_coin_reward({ currency: config.currencyName })}</label>
-              <input id="monsterFirstKillCoins" type="number" min="0" bind:value={editingMonster.firstKillCoinReward} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
-            </div>
-            <div class="space-y-1">
-              <label for="monsterFirstKillXp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_xp_reward()}</label>
-              <input id="monsterFirstKillXp" type="number" min="0" bind:value={editingMonster.firstKillXpReward} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
-            </div>
-            <div class="col-span-2 space-y-1">
-              <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_first_kill_item()}</span>
-              <SearchableSelect
-                value={editingMonster.firstKillItemName || null}
-                options={dropItemOptions}
-                placeholder={m.eco_bestiary_first_kill_item_none()}
-                clearable={true}
-                className="w-full"
-                on:change={(e: any) => editingMonster.firstKillItemName = e.detail?.value ?? null}
-              />
-            </div>
-          </div>
-        </fieldset>
 
         <fieldset class="border border-outline-variant/10 p-4 rounded-lg space-y-3">
           <legend class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50 px-2">{m.eco_bestiary_drops_title()}</legend>

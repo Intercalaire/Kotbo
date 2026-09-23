@@ -506,10 +506,12 @@ model RpgMonster {
   clanPoints Int @default(0)
 
   /// Prime versée au premier joueur du serveur qui abat la créature, en plus du butin
-  /// ordinaire. `firstKillItemName` désigne l'objet par son nom, comme les butins.
+  /// ordinaire. `firstKillItemName` désigne l'objet par son nom, comme les butins ;
+  /// `firstKillClanPoints` va au clan, ou à la guilde du jeu, comme `clanPoints`.
   firstKillCoinReward Int     @default(0)
   firstKillXpReward   Int     @default(0)
   firstKillItemName   String?
+  firstKillClanPoints Int     @default(0)
 
   /// Un monstre global désactivé par un serveur est remplacé par une copie locale
   /// portant le même nom avec `enabled = false` : le catalogue global reste intact.

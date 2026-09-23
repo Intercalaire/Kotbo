@@ -13,6 +13,8 @@ import { resolveGuildLocale, type BotLocale } from '../../../utils/i18n.js';
 import * as m from '../../../lib/paraglide/messages.js';
 import { checkLevelUp, getOrCreateEconomyConfig } from '../economyService.js';
 import { hasFirstKillReward, shouldAnnounceFirstKill } from './rpgBestiaryPolicy.js';
+import { awardRpgTeamPoints } from './rpgTeamRewards.js';
+import { asRpgTeamMode } from './rpgTeamResolver.js';
 
 export type FirstKillMonster = {
   name: string;
@@ -21,6 +23,7 @@ export type FirstKillMonster = {
   firstKillCoinReward: number;
   firstKillXpReward: number;
   firstKillItemName: string | null;
+  firstKillClanPoints: number;
 };
 
 export type FirstKillResult = {
@@ -28,6 +31,9 @@ export type FirstKillResult = {
   xp: number;
   itemName: string | null;
   itemEmoji: string | null;
+  /** Points réellement versés : zéro si le joueur n'a ni clan ni guilde. */
+  teamPoints: number;
+  toGuild: boolean;
 };
 
 export type FirstKillRecord = { userId: string; createdAt: Date };
@@ -44,46 +50,67 @@ export async function claimFirstKill(
   userId: string,
   monster: FirstKillMonster,
 ): Promise<FirstKillResult | null> {
+  const result: FirstKillResult = { coins: 0, xp: 0, itemName: null, itemEmoji: null, teamPoints: 0, toGuild: false };
+
+  // L'objet du serveur l'emporte sur le livré du même nom, comme pour les butins.
+  const items = monster.firstKillItemName
+    ? await prisma.rpgItem.findMany({
+      where: { name: monster.firstKillItemName, OR: [{ guildId: null }, { guildId }] },
+      select: { id: true, emoji: true, guildId: true },
+    })
+    : [];
+  const item = items.find((candidate) => candidate.guildId !== null) ?? items[0] ?? null;
+
+  // Le record et la prime s'écrivent ensemble : un record inscrit sans sa prime la ferait
+  // perdre pour de bon, puisque plus personne ne pourrait la réclamer.
   try {
-    await prisma.rpgMonsterFirstKill.create({ data: { guildId, monsterName: monster.name, userId } });
+    await prisma.$transaction(async (tx) => {
+      await tx.rpgMonsterFirstKill.create({ data: { guildId, monsterName: monster.name, userId } });
+      if (!hasFirstKillReward(monster)) return;
+
+      const profile = await tx.rpgProfile.update({
+        where: { guildId_userId: { guildId, userId } },
+        data: {
+          balance: { increment: monster.firstKillCoinReward },
+          xp: { increment: monster.firstKillXpReward },
+        },
+        select: { id: true },
+      });
+      if (item) {
+        await tx.rpgInventoryItem.upsert({
+          where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: item.id } },
+          update: { quantity: { increment: 1 } },
+          create: { rpgProfileId: profile.id, itemId: item.id, quantity: 1 },
+        });
+      }
+    });
   } catch (err) {
     if ((err as { code?: string }).code === 'P2002') return null;
     throw err;
   }
 
-  const result: FirstKillResult = { coins: 0, xp: 0, itemName: null, itemEmoji: null };
-
   if (hasFirstKillReward(monster)) {
-    const profile = await prisma.rpgProfile.update({
-      where: { guildId_userId: { guildId, userId } },
-      data: {
-        balance: { increment: monster.firstKillCoinReward },
-        xp: { increment: monster.firstKillXpReward },
-      },
-      select: { id: true },
-    });
     result.coins = monster.firstKillCoinReward;
     result.xp = monster.firstKillXpReward;
-
-    if (monster.firstKillItemName) {
-      // L'objet du serveur l'emporte sur le livré du même nom, comme pour les butins.
-      const items = await prisma.rpgItem.findMany({
-        where: { name: monster.firstKillItemName, OR: [{ guildId: null }, { guildId }] },
-        select: { id: true, emoji: true, guildId: true },
-      });
-      const item = items.find((candidate) => candidate.guildId !== null) ?? items[0];
-      if (item) {
-        await prisma.rpgInventoryItem.upsert({
-          where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: item.id } },
-          update: { quantity: { increment: 1 } },
-          create: { rpgProfileId: profile.id, itemId: item.id, quantity: 1 },
-        });
-        result.itemName = monster.firstKillItemName;
-        result.itemEmoji = item.emoji;
-      }
+    if (item) {
+      result.itemName = monster.firstKillItemName;
+      result.itemEmoji = item.emoji;
     }
 
     if (result.xp > 0) await checkLevelUp(guildId, userId);
+
+    if (monster.firstKillClanPoints > 0) {
+      const team = await awardRpgTeamPoints({
+        client,
+        guildId,
+        userId,
+        amount: monster.firstKillClanPoints,
+        source: monster.isBoss ? 'RPG_BOSS' : 'RPG_MOB',
+        reason: monster.name,
+      });
+      result.teamPoints = team.amount;
+      result.toGuild = team.toGuild;
+    }
   }
 
   await announceFirstKill(client, guildId, userId, monster, result).catch((err) => {
@@ -115,7 +142,7 @@ async function announceFirstKill(
     .setDescription(m.rpg_first_kill_announce_desc({ user: `<@${userId}>`, monster: `${monster.emoji} ${monster.name}` }, { locale }))
     .setColor(COLORS.warning);
 
-  const reward = formatFirstKillReward(result, config.currencyEmoji);
+  const reward = formatFirstKillReward(result, config.currencyEmoji, locale);
   if (reward) embed.addFields({ name: m.rpg_first_kill_field_reward({}, { locale }), value: reward });
 
   // Le vainqueur est nommé, pas notifié : une annonce ne doit sonner chez personne.
@@ -124,14 +151,40 @@ async function announceFirstKill(
 
 /** Prime lisible, ou chaîne vide s'il n'y en avait pas. */
 export function formatFirstKillReward(
-  reward: { coins: number; xp: number; itemName: string | null; itemEmoji?: string | null },
+  reward: { coins: number; xp: number; itemName: string | null; itemEmoji?: string | null; teamPoints: number; toGuild: boolean },
   currencyEmoji: string,
+  locale: BotLocale,
 ): string {
   return [
     reward.coins > 0 ? `${currencyEmoji} +${reward.coins}` : null,
     reward.xp > 0 ? `+${reward.xp} XP` : null,
     reward.itemName ? `${reward.itemEmoji || '📦'} ${reward.itemName}` : null,
+    reward.teamPoints > 0
+      ? (reward.toGuild
+        ? m.rpg_first_kill_guild_xp({ points: reward.teamPoints }, { locale })
+        : m.rpg_first_kill_clan_points({ points: reward.teamPoints }, { locale }))
+      : null,
   ].filter((part): part is string => part !== null).join('  ·  ');
+}
+
+/**
+ * Prime promise par une créature que personne n'a encore battue.
+ *
+ * Les points d'équipe vont à la guilde du jeu ou au clan selon le mode du serveur : c'est
+ * ce mode qui décide du libellé, faute de vainqueur dont on connaîtrait l'équipe.
+ */
+export function formatFirstKillBounty(
+  monster: FirstKillMonster,
+  config: { currencyEmoji: string; raidTeamMode: string },
+  locale: BotLocale,
+): string {
+  return formatFirstKillReward({
+    coins: monster.firstKillCoinReward,
+    xp: monster.firstKillXpReward,
+    itemName: monster.firstKillItemName,
+    teamPoints: monster.firstKillClanPoints,
+    toGuild: asRpgTeamMode(config.raidTeamMode) === 'RPG_GUILD',
+  }, config.currencyEmoji, locale);
 }
 
 export async function getFirstKill(guildId: string, monsterName: string): Promise<FirstKillRecord | null> {

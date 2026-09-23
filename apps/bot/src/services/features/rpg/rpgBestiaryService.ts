@@ -173,6 +173,7 @@ export async function saveGuildMonster(
     firstKillCoinReward: data.firstKillCoinReward,
     firstKillXpReward: data.firstKillXpReward,
     firstKillItemName: data.firstKillItemName,
+    firstKillClanPoints: data.firstKillClanPoints,
     enabled: data.enabled,
   };
 
@@ -253,6 +254,7 @@ export async function setGuildMonsterEnabled(
       firstKillCoinReward: existing.firstKillCoinReward,
       firstKillXpReward: existing.firstKillXpReward,
       firstKillItemName: existing.firstKillItemName,
+      firstKillClanPoints: existing.firstKillClanPoints,
       enabled,
     },
     update: { enabled },

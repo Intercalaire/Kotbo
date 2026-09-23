@@ -61,6 +61,7 @@ export async function exportGuildBestiary(guildId: string): Promise<BestiaryExpo
       firstKillCoinReward: monster.firstKillCoinReward,
       firstKillXpReward: monster.firstKillXpReward,
       firstKillItemName: monster.firstKillItemName,
+      firstKillClanPoints: monster.firstKillClanPoints,
       enabled: monster.enabled,
     })),
   };
