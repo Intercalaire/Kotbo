@@ -349,7 +349,7 @@
       <!-- Close button -->
       <button
         onclick={() => showModal = false}
-        class="absolute top-6 right-6 p-2 rounded-full bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer z-10"
+        class="absolute top-6 right-6 p-2 rounded-full bg-surface-container-high/40 hover:bg-error/15 hover:text-error text-on-surface-variant transition-colors cursor-pointer z-10"
         title={m.reaction_roles_close()}
       >
         <Papicon icon="Cross" size={20} />

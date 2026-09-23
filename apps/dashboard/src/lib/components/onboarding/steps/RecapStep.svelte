@@ -176,7 +176,7 @@
           </span>
           <span class="text-body-sm font-medium text-on-surface flex-1 min-w-0 truncate">{line.label}</span>
           <span class="text-xs text-on-surface-variant/55 shrink-0">{line.value}</span>
-          <Papicon icon="check" size={13} class="shrink-0 text-emerald-500" />
+          <Papicon icon="check" size={13} class="shrink-0 text-success" />
         </div>
       {/each}
     </div>

@@ -290,7 +290,7 @@
     <div class="h-64 rounded-2xl bg-surface-container-high/40 animate-pulse"></div>
   </div>
 {:else if error}
-  <div class="p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 flex items-center gap-3">
+  <div class="p-6 rounded-2xl bg-error/10 border border-error/20 text-red-300 flex items-center gap-3">
     <Papicon icon="Warning" size={20} />
     <span>{error}</span>
   </div>
@@ -323,7 +323,7 @@
           </button>
           <button
             onclick={openPrune}
-            class="px-4 py-2.5 rounded-xl text-xs font-semibold bg-red-500/15 text-red-300 border border-red-500/25 hover:bg-red-500/25 transition-all flex items-center gap-2"
+            class="px-4 py-2.5 rounded-xl text-xs font-semibold bg-error/15 text-red-300 border border-error/25 hover:bg-error/25 transition-all flex items-center gap-2"
           >
             <Papicon icon="Trash" size={14} />
             {m.ghost_prune_open()}
@@ -416,7 +416,7 @@
               id="ghost-protected-roles"
               bind:values={form.protectedRoleIds}
               options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
-              accentClass="bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+              accentClass="bg-success/20 text-emerald-300 border-success/40"
             />
             <p class="text-2xs text-on-surface-variant/50">{m.ghost_protected_roles_help()}</p>
           </div>
@@ -533,7 +533,7 @@
                   <td class="px-4 py-3">
                     <div class="flex flex-wrap gap-1">
                       {#each member.protections as protection}
-                        <span class="px-1.5 py-0.5 rounded text-2xs font-medium bg-emerald-500/15 text-emerald-300 whitespace-nowrap">
+                        <span class="px-1.5 py-0.5 rounded text-2xs font-medium bg-success/15 text-emerald-300 whitespace-nowrap">
                           {PROTECTION_LABELS[protection]()}
                         </span>
                       {/each}
@@ -578,10 +578,10 @@
               <div class="flex items-center gap-2 min-w-0">
                 <span
                   class="px-2 py-0.5 rounded font-semibold whitespace-nowrap {run.status === 'COMPLETED'
-                    ? 'bg-emerald-500/15 text-emerald-300'
+                    ? 'bg-success/15 text-emerald-300'
                     : run.status === 'PARTIAL'
-                      ? 'bg-amber-500/15 text-amber-300'
-                      : 'bg-red-500/15 text-red-300'}"
+                      ? 'bg-warning/15 text-amber-300'
+                      : 'bg-error/15 text-red-300'}"
                 >{run.status}</span>
                 <span class="text-on-surface truncate">{m.ghost_history_entry({ n: run.successCount, t: run.totalTargeted })}</span>
               </div>
@@ -599,7 +599,7 @@
       <div class="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl bg-surface-container border border-outline-variant/20 shadow-2xl">
         <div class="p-5 border-b border-outline-variant/10 flex items-center justify-between">
           <h3 class="text-base font-bold text-on-surface flex items-center gap-2">
-            <Papicon icon="Trash" size={18} class="text-red-400" />
+            <Papicon icon="Trash" size={18} class="text-error" />
             {m.ghost_prune_title()}
           </h3>
           <button onclick={() => (pruneOpen = false)} class="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant/60">
@@ -643,7 +643,7 @@
               </div>
 
               {#if preview.candidates.length === 0}
-                <p class="px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs">
+                <p class="px-4 py-3 rounded-xl bg-success/10 border border-success/20 text-emerald-300 text-xs">
                   {m.ghost_prune_empty()}
                 </p>
               {:else}
@@ -668,11 +668,11 @@
                     inputmode="numeric"
                     bind:value={confirmInput}
                     class="w-full px-3 py-2 rounded-xl bg-surface-container-highest border text-sm text-on-surface focus:outline-none {confirmInput && !confirmMatches
-                      ? 'border-red-500/50'
+                      ? 'border-error/50'
                       : 'border-outline-variant/20 focus:border-primary/50'}"
                   />
                   {#if confirmInput && !confirmMatches}
-                    <p class="text-2xs text-red-400">{m.ghost_prune_confirm_mismatch()}</p>
+                    <p class="text-2xs text-error">{m.ghost_prune_confirm_mismatch()}</p>
                   {/if}
                 </div>
               {/if}

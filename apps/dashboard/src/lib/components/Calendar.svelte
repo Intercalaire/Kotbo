@@ -155,9 +155,9 @@
 
   function getEventBg(type: string) {
     switch (type) {
-      case 'meeting': return 'bg-emerald-500/10 hover:bg-emerald-500/20';
-      case 'call': return 'bg-green-500/10 hover:bg-green-500/20';
-      case 'absence': return 'bg-amber-500/10 hover:bg-amber-500/20';
+      case 'meeting': return 'bg-success/10 hover:bg-success/20';
+      case 'call': return 'bg-success/10 hover:bg-success/20';
+      case 'absence': return 'bg-warning/10 hover:bg-warning/20';
       case 'task': return 'bg-purple-500/10 hover:bg-purple-500/20';
       default: return 'bg-surface-container-high/50 hover:bg-surface-container-high';
     }
@@ -630,7 +630,7 @@
             {/each}
 
             <!-- Global red line for current time -->
-            <div class="absolute right-0 h-[2px] bg-red-500/60 z-20 pointer-events-none" style="top: {getGlobalTimeTop()}%; left: 56px;"></div>
+            <div class="absolute right-0 h-[2px] bg-error/60 z-20 pointer-events-none" style="top: {getGlobalTimeTop()}%; left: 56px;"></div>
           </div>
         </div>
       </div>

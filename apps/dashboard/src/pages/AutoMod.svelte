@@ -469,7 +469,7 @@
             <section class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-xl space-y-4">
               <div class="flex items-center justify-between border-b border-outline-variant/15 pb-3">
                 <h3 class="text-sm font-semibold flex items-center gap-2">
-                  <Papicon icon="Emoji" size={18} class="text-amber-400" />
+                  <Papicon icon="Emoji" size={18} class="text-warning" />
                   {m.am_emojis_title()}
                 </h3>
                 <ToggleSwitch 
@@ -534,7 +534,7 @@
             <section class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-xl space-y-4">
               <div class="flex items-center justify-between border-b border-outline-variant/15 pb-3">
                 <h3 class="text-sm font-semibold flex items-center gap-2">
-                  <Papicon icon="Ghost" size={18} class="text-rose-400" />
+                  <Papicon icon="Ghost" size={18} class="text-error" />
                   {m.am_ghostping_title()}
                 </h3>
                 <ToggleSwitch 
@@ -546,7 +546,7 @@
 
               <p class="text-2xs text-on-surface-variant/70 leading-relaxed">
                 {m.am_ghostping_desc()}
-                <span class="text-amber-500/90 font-medium block mt-1">{m.am_ghostping_cache_warning()}</span>
+                <span class="text-warning/90 font-medium block mt-1">{m.am_ghostping_cache_warning()}</span>
               </p>
 
               {#if config.ghostPingEnabled}
@@ -569,7 +569,7 @@
             <section class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-xl space-y-4">
               <div class="flex items-center justify-between border-b border-outline-variant/15 pb-3">
                 <h3 class="text-sm font-semibold flex items-center gap-2">
-                  <Papicon icon="ShieldAlert" size={18} class="text-red-400" />
+                  <Papicon icon="ShieldAlert" size={18} class="text-error" />
                   {m.am_everyone_title()}
                 </h3>
                 <ToggleSwitch 
@@ -698,7 +698,7 @@
           <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
             <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
               <h3 class="text-lg font-semibold flex items-center gap-3">
-                <Papicon icon="ShieldX" size={20} class="text-red-400" />
+                <Papicon icon="ShieldX" size={20} class="text-error" />
                 {m.am_profanity_title()}
               </h3>
               <ToggleSwitch
@@ -863,8 +863,8 @@
           </div>
 
           {#if !isOwner}
-            <div class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-              <p class="text-xs text-red-400/90 font-medium">
+            <div class="p-3 bg-error/10 border border-error/20 rounded-lg">
+              <p class="text-xs text-error/90 font-medium">
                 {m.am_antibot_owner_only()}
               </p>
             </div>
@@ -927,8 +927,8 @@
                 </div>
               </div>
 
-              <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                <p class="text-xs text-amber-400/90 font-medium">
+              <div class="p-3 bg-warning/10 border border-warning/20 rounded-lg">
+                <p class="text-xs text-warning/90 font-medium">
                   {m.am_antibot_notice()}
                 </p>
               </div>
@@ -940,7 +940,7 @@
         <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
             <h3 class="text-lg font-semibold flex items-center gap-3">
-              <Papicon icon="lock" size={20} class="text-rose-400" />
+              <Papicon icon="lock" size={20} class="text-error" />
               {m.am_admin_lock()}
             </h3>
             <ToggleSwitch
@@ -951,8 +951,8 @@
           </div>
 
           {#if !isOwner}
-            <div class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-              <p class="text-xs text-red-400/90 font-medium">
+            <div class="p-3 bg-error/10 border border-error/20 rounded-lg">
+              <p class="text-xs text-error/90 font-medium">
                 {m.am_adminlock_owner_only()}
               </p>
             </div>
@@ -1069,8 +1069,8 @@
                 {/if}
               </div>
 
-              <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                <p class="text-xs text-amber-400/90 font-medium">
+              <div class="p-3 bg-warning/10 border border-warning/20 rounded-lg">
+                <p class="text-xs text-warning/90 font-medium">
                   {m.am_adminlock_notice()}
                 </p>
               </div>
@@ -1106,7 +1106,7 @@
         <!-- Exempt rules (Bypass) -->
         <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <h3 class="text-xl font-semibold flex items-center gap-3 border-b border-outline-variant/15 pb-4">
-            <Papicon icon="Unlock" size={20} class="text-emerald-400" />
+            <Papicon icon="Unlock" size={20} class="text-success" />
             {m.am_exceptions_title()}
           </h3>
 

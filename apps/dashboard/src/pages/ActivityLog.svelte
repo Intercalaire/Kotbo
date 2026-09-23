@@ -128,7 +128,7 @@
 
   const stats = $derived([
     { label: m.act_stat_actions(), val: dashboardLogs.length, sub: m.act_stat_config(), subClass: 'text-primary' },
-    { label: m.act_stat_modules(), val: new Set(dashboardLogs.map(l => l.module)).size, sub: m.act_stat_sources(), subClass: 'text-green-600' },
+    { label: m.act_stat_modules(), val: new Set(dashboardLogs.map(l => l.module)).size, sub: m.act_stat_sources(), subClass: 'text-success' },
     { label: m.act_stat_users(), val: new Set(dashboardLogs.map(l => l.user)).size, sub: m.act_stat_unique(), subClass: 'text-purple-600' }
   ]);
 
@@ -298,7 +298,7 @@
             </td>
             <td class="px-6 py-6 text-center">
               <span class="inline-flex items-center justify-center w-24 px-3 py-1 rounded-full text-2xs font-bold 
- {entry.eventType === 'Automatique' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}">
+ {entry.eventType === 'Automatique' ? 'bg-blue-100 text-blue-700' : 'bg-warning/10 text-warning'}">
                 {entry.eventType === 'Automatique' ? m.lg_type_auto() : entry.eventType}
               </span>
             </td>

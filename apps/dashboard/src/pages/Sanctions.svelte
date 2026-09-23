@@ -1160,7 +1160,7 @@
           </label>
         </div>
         {#if deletionMessage}
-          <div class="px-6 pt-4 text-sm font-semibold {deletionMessageIsError ? 'text-red-600' : 'text-emerald-600'}">{deletionMessage}</div>
+          <div class="px-6 pt-4 text-sm font-semibold {deletionMessageIsError ? 'text-error' : 'text-success'}">{deletionMessage}</div>
         {/if}
         {#if selectedCount > 0}
           <div class="px-6 pb-4 flex flex-wrap items-center gap-2">
@@ -1277,11 +1277,11 @@
               <td class="px-4 py-4 text-xs font-bold text-primary">
                 {typeLabel(entry.type)}
                 {#if entry.archivedAt}
-                  <span class="ml-1 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-2xs font-bold text-emerald-700"
+                  <span class="ml-1 inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-2xs font-bold text-success"
                     title={entry.archiveReason || ''}>{m.sc_badge_archived()}</span>
                 {/if}
                 {#if entry.appealable === false}
-                  <span class="ml-1 inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-2xs font-bold text-rose-700"
+                  <span class="ml-1 inline-flex items-center rounded-full bg-error/10 px-2 py-0.5 text-2xs font-bold text-error"
                     title={entry.appealLockReason || ''}>{m.sc_badge_locked()}</span>
                 {/if}
               </td>
@@ -1305,7 +1305,7 @@
               </td>
               <td class="px-4 py-4 text-xs">{durationLabel(entry.durationSeconds)}</td>
               <td class="px-4 py-4 text-xs">
-                <span class="inline-flex items-center rounded-full px-3 py-1 text-2xs font-bold {entry.status === 'ACTIVE' ? 'bg-amber-100 text-amber-700' : entry.status === 'RESOLVED' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}">
+                <span class="inline-flex items-center rounded-full px-3 py-1 text-2xs font-bold {entry.status === 'ACTIVE' ? 'bg-warning/10 text-warning' : entry.status === 'RESOLVED' ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}">
                   {statusLabel(entry.status)}
                 </span>
               </td>
@@ -1440,10 +1440,10 @@
 
           <!-- Save button removed since global bottom bar handles saving -->
           {#if saveAction.state.message}
-            <p class="text-xs font-bold text-emerald-600 text-center">{saveAction.state.message}</p>
+            <p class="text-xs font-bold text-success text-center">{saveAction.state.message}</p>
           {/if}
           {#if saveAction.state.error}
-            <p class="text-xs font-bold text-red-600 text-center">{saveAction.state.error}</p>
+            <p class="text-xs font-bold text-error text-center">{saveAction.state.error}</p>
           {/if}
         </div>
       </section>
@@ -1508,7 +1508,7 @@
                         tabindex="0"
                         onclick={(e) => { e.stopPropagation(); deleteSanctionTable(i); }}
                         onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); deleteSanctionTable(i); } }}
-                        class="text-on-surface-variant/40 hover:text-red-500 transition-colors cursor-pointer"
+                        class="text-on-surface-variant/40 hover:text-error transition-colors cursor-pointer"
                       >
                         <Papicon icon="trash" size={14} />
                       </span>
@@ -1550,14 +1550,14 @@
                       </button>
                       <button 
                         onclick={() => exportTableToXlsx(currentTable)}
-                        class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-emerald-500/10 hover:text-emerald-500 transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
+                        class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-success/10 hover:text-success transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
                         title={m.sc_export_xlsx_title()}
                       >
                         <Papicon icon="file-spreadsheet" size={16} />
                       </button>
                       <button 
                         onclick={() => exportTableToCsv(currentTable)}
-                        class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-amber-500/10 hover:text-amber-500 transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
+                        class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-warning/10 hover:text-warning transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
                         title={m.sc_export_csv_title()}
                       >
                         <Papicon icon="file-text" size={16} />
@@ -1598,11 +1598,11 @@
                                 <select 
                                   bind:value={tier.action}
                                   class="w-full bg-transparent font-bold py-1.5 px-2 rounded-lg cursor-pointer outline-hidden focus:bg-surface-container-high/40 border border-transparent focus:border-primary/20 transition-all
- {tier.action === 'WARN' ? 'text-amber-500 dark:text-amber-400' : ''}
+ {tier.action === 'WARN' ? 'text-warning' : ''}
                                     {tier.action === 'TIMEOUT' ? 'text-blue-500 dark:text-blue-400' : ''}
-                                    {tier.action === 'KICK' ? 'text-rose-500 dark:text-rose-400' : ''}
-                                    {tier.action === 'TEMP_BAN' ? 'text-red-500 dark:text-red-400 font-semibold' : ''}
-                                    {tier.action === 'BAN' ? 'text-red-600 dark:text-red-500 font-semibold' : ''}
+                                    {tier.action === 'KICK' ? 'text-error' : ''}
+                                    {tier.action === 'TEMP_BAN' ? 'text-error font-semibold' : ''}
+                                    {tier.action === 'BAN' ? 'text-error font-semibold' : ''}
                                     {tier.action === 'SOFTBAN' ? 'text-purple-500 dark:text-purple-400' : ''}"
                                 >
                                   <option value="WARN" class="text-on-surface bg-surface-container-lowest">{m.sc_action_warn()}</option>
@@ -1659,7 +1659,7 @@
                                 {#if currentTable.tiers.length > 1}
                                   <button 
                                     onclick={() => removeTier(selectedTableIndex, tierIdx)}
-                                    class="text-on-surface-variant/40 hover:text-red-500 active:scale-95 transition-all p-1.5 rounded-lg hover:bg-red-500/10 opacity-0 group-hover:opacity-100 cursor-pointer flex items-center justify-center mx-auto"
+                                    class="text-on-surface-variant/40 hover:text-error active:scale-95 transition-all p-1.5 rounded-lg hover:bg-error/10 opacity-0 group-hover:opacity-100 cursor-pointer flex items-center justify-center mx-auto"
                                     title={m.sc_delete_tier()}
                                   >
                                     <Papicon icon="trash" size={13} />
@@ -1816,9 +1816,9 @@
           <!-- Create / Edit Form -->
           <div class="space-y-8 animate-in fade-in duration-300">
             {#if !canCreateSelectedReport && !isEditing}
-              <div class="rounded-lg bg-amber-500/10 border border-amber-500/20 p-4 flex items-center gap-4">
-                <Papicon icon="lock" class="text-amber-500" />
-                <p class="text-xs font-bold text-amber-700">{m.sc_report_reserved_hint()}</p>
+              <div class="rounded-lg bg-warning/10 border border-warning/20 p-4 flex items-center gap-4">
+                <Papicon icon="lock" class="text-warning" />
+                <p class="text-xs font-bold text-warning">{m.sc_report_reserved_hint()}</p>
               </div>
             {/if}
 
@@ -1866,7 +1866,7 @@
             </div>
 
             {#if reportMessage}
-              <div class="rounded-xl p-4 text-body-sm font-medium {reportMessageIsError ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
+              <div class="rounded-xl p-4 text-body-sm font-medium {reportMessageIsError ? 'bg-error/10 text-error' : 'bg-success/10 text-success'}">
                 {reportMessage}
               </div>
             {/if}
@@ -1923,7 +1923,7 @@
       tabindex="-1"
     >
       <div>
-        <p class="text-xs font-semibold text-red-500">{m.sc_sensitive_action()}</p>
+        <p class="text-xs font-semibold text-error">{m.sc_sensitive_action()}</p>
         <h3 id="delete-sanction-title" class="mt-1 text-xl font-semibold text-on-surface">{m.sc_confirm_deletion()}</h3>
         <p class="mt-2 text-sm text-on-surface-variant">
           {m.sc_delete_confirm_pre()} <span class="font-bold text-on-surface">{typeLabel(pendingDeletion.type)}</span>
@@ -1938,7 +1938,7 @@
           type="text"
           bind:value={deleteConfirmationText}
           autocomplete="off"
-          className="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-red-400/40 focus:border-red-400 dark:focus:border-red-500 transition-all"
+          className="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-error/40 focus:border-error transition-all"
           placeholder={m.sc_delete_keyword()}
         />
       </div>

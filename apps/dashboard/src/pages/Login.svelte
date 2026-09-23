@@ -227,17 +227,17 @@
             </p>
 
             {#if errorMessage}
-              <div role="alert" class="sketch-alert mb-5 px-3.5 py-3 text-left bg-red-50 dark:bg-red-500/10">
+              <div role="alert" class="sketch-alert mb-5 px-3.5 py-3 text-left bg-error/10">
                 <div class="flex items-start gap-2.5">
-                  <Papicon icon="warning" size={15} class="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                  <Papicon icon="warning" size={15} class="text-error shrink-0 mt-0.5" />
                   <div class="min-w-0">
-                    <p class="text-xs font-semibold text-red-700 dark:text-red-300">{m.login_error_heading()}</p>
-                    <p class="mt-1 text-xs text-red-700/90 dark:text-red-400 wrap-break-word">{errorMessage}</p>
+                    <p class="text-xs font-semibold text-error">{m.login_error_heading()}</p>
+                    <p class="mt-1 text-xs text-error/90 wrap-break-word">{errorMessage}</p>
                     <button
                       type="button"
                       onclick={retryConfig}
                       disabled={isRetrying}
-                      class="mt-2 text-xs font-semibold text-red-700 dark:text-red-300 underline underline-offset-2 hover:no-underline disabled:opacity-60"
+                      class="mt-2 text-xs font-semibold text-error underline underline-offset-2 hover:no-underline disabled:opacity-60"
                     >
                       {m.login_retry()}
                     </button>

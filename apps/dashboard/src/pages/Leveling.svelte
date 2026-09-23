@@ -1386,7 +1386,7 @@
                 {@const channel = availableChannels.find(c => c.id === channelId)}
                 {@const missing = isMissingReference(channelId, availableChannels)}
                 <span
-                  class="flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-xl border shadow-sm {missing ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-surface-container-low text-on-surface-variant border-outline-variant/10'}"
+                  class="flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-xl border shadow-sm {missing ? 'bg-warning/10 text-warning border-warning/30' : 'bg-surface-container-low text-on-surface-variant border-outline-variant/10'}"
                   title={missing ? m.lv_missing_ref_hint() : undefined}
                 >
                   #{channel ? channel.name : channelId}
@@ -1419,7 +1419,7 @@
                 {@const role = availableRoles.find(r => r.id === roleId)}
                 {@const missing = isMissingReference(roleId, availableRoles)}
                 <span
-                  class="flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-xl border shadow-sm {missing ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-surface-container-low text-on-surface-variant border-outline-variant/10'}"
+                  class="flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-xl border shadow-sm {missing ? 'bg-warning/10 text-warning border-warning/30' : 'bg-surface-container-low text-on-surface-variant border-outline-variant/10'}"
                   title={missing ? m.lv_missing_ref_hint() : undefined}
                 >
                   @{role ? role.name : roleId}
@@ -1503,13 +1503,13 @@
                     {@const winningClansList = clans.filter(c => winnerIds.includes(c.id))}
                     {#each winningClansList as winningClan}
                       {#if winningClan.roleId}
-                        <tr class="bg-amber-500/10 border-l-4 border-amber-500 transition-all font-semibold">
+                        <tr class="bg-warning/10 border-l-4 border-warning transition-all font-semibold">
                           <td class="px-6 py-3.5 text-sm font-semibold flex items-center gap-2">
-                            <Papicon icon="Trophy" size={15} class="shrink-0 text-amber-500" />
+                            <Papicon icon="Trophy" size={15} class="shrink-0 text-warning" />
                             <span>{getRoleName(winningClan.roleId)}</span>
-                            <span class="text-xs bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded font-semibold">{m.lv_winning_clan_badge()}</span>
+                            <span class="text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded font-semibold">{m.lv_winning_clan_badge()}</span>
                           </td>
-                          <td class="px-6 py-3.5 text-sm font-semibold text-amber-500">{clanRewardXpBoostRate}x</td>
+                          <td class="px-6 py-3.5 text-sm font-semibold text-warning">{clanRewardXpBoostRate}x</td>
                           {#if canManageSettings}
                             <td class="px-6 py-3.5 text-right text-xs text-on-surface-variant/60 font-medium italic">
                               {m.lv_auto_managed()}
@@ -1524,7 +1524,7 @@
                     {@const missing = isMissingReference(roleId, availableRoles)}
                     <tr class="hover:bg-surface-hover/20 transition-all font-semibold">
                       <td
-                        class="px-6 py-3.5 text-sm font-semibold {missing ? 'text-amber-600 dark:text-amber-400' : ''}"
+                        class="px-6 py-3.5 text-sm font-semibold {missing ? 'text-warning' : ''}"
                         title={missing ? m.lv_missing_ref_hint() : undefined}
                       >{getRoleName(roleId)}</td>
                       <td class="px-6 py-3.5 text-sm font-semibold text-primary">{mult}x</td>
@@ -1779,7 +1779,7 @@
               {/each}
             </div>
 
-            <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-2xs text-amber-600 dark:text-amber-400 leading-relaxed flex items-start gap-2">
+            <div class="p-3 bg-warning/10 border border-warning/20 rounded-lg text-2xs text-warning leading-relaxed flex items-start gap-2">
               <Papicon icon="AlertTriangle" size={13} class="shrink-0 mt-0.5" />
               <div class="min-w-0 flex-1">
               {#if curveDirty && curveStats}
@@ -1793,7 +1793,7 @@
                     <li class="flex justify-between gap-3">
                       <span>{getRoleName(row.roleId)}</span>
                       <span class="font-semibold tabular-nums flex gap-2">
-                        {#if row.gained > 0}<span class="text-green-500">+{row.gained.toLocaleString()}</span>{/if}
+                        {#if row.gained > 0}<span class="text-success">+{row.gained.toLocaleString()}</span>{/if}
                         {#if row.lost > 0}<span class="text-error">−{row.lost.toLocaleString()}</span>{/if}
                       </span>
                     </li>
@@ -1841,7 +1841,7 @@
         <!-- Boost de Saison de Clan -->
         <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <h3 class="text-xl font-semibold flex items-center gap-3">
-            <Papicon icon="Award" size={20} class="text-amber-500" />
+            <Papicon icon="Award" size={20} class="text-warning" />
             {m.lv_clan_boost_title()}
           </h3>
 
@@ -1979,13 +1979,13 @@
                     Lvl {reward.level}
                     {#if unreachableRewardIds.has(reward.id)}
                       <span
-                        class="ml-2 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-2xs font-bold align-middle"
+                        class="ml-2 px-2 py-0.5 rounded-full bg-warning/15 text-warning text-2xs font-bold align-middle"
                         title={m.lv_reward_unreachable_hint({ level: levelCurve.maxLevel })}
                       >{m.lv_reward_unreachable()}</span>
                     {/if}
                   </td>
                   <td
-                    class="px-5 py-4 text-xs font-semibold {missingRole ? 'text-amber-600 dark:text-amber-400' : ''}"
+                    class="px-5 py-4 text-xs font-semibold {missingRole ? 'text-warning' : ''}"
                     title={missingRole ? m.lv_missing_ref_hint() : undefined}
                   >{getRoleName(reward.roleId)}</td>
                   {#if canManageSettings}
@@ -2036,7 +2036,7 @@
               disabled={!canManageSettings}
             />
             {#if levelUpChannelState === 'missing'}
-              <p class="text-2xs text-amber-500 mt-1.5">{m.lv_missing_ref_hint()}</p>
+              <p class="text-2xs text-warning mt-1.5">{m.lv_missing_ref_hint()}</p>
             {/if}
             {#if canManageSettings && canCreateLevelUpChannel}
               <div class="flex items-center gap-3 pt-1">
@@ -2099,7 +2099,7 @@
           </a>
           <button
             onclick={copyPublicUrl}
-            class="flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-xs font-semibold transition-all hover:scale-103 w-full sm:w-auto {copySuccess ? 'bg-green-500/15 text-green-400 border border-green-500/20' : 'bg-surface-container-high/40 text-on-surface-variant border border-outline-variant/10 hover:bg-surface-container-high/60'}"
+            class="flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-xs font-semibold transition-all hover:scale-103 w-full sm:w-auto {copySuccess ? 'bg-success/15 text-success border border-success/20' : 'bg-surface-container-high/40 text-on-surface-variant border border-outline-variant/10 hover:bg-surface-container-high/60'}"
           >
             {#if copySuccess}
               <Papicon icon="Check" size={14} />
@@ -2127,8 +2127,8 @@
             <p class="text-2xl font-semibold text-tertiary transition-transform duration-300">{avgLevel}</p>
             <p class="text-xs font-semibold text-on-surface-variant/60">{m.lv_stat_avglevel()}</p>
           </div>
-          <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-amber-500/20 transition-all duration-300 group">
-            <p class="text-2xl font-semibold text-amber-500 transition-transform duration-300">{(totalXp / 1000).toFixed(1)}k</p>
+          <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-warning/20 transition-all duration-300 group">
+            <p class="text-2xl font-semibold text-warning transition-transform duration-300">{(totalXp / 1000).toFixed(1)}k</p>
             <p class="text-xs font-semibold text-on-surface-variant/60">{m.lv_stat_totalxp()}</p>
           </div>
         </div>
@@ -2306,9 +2306,9 @@
             <div class="flex items-center gap-4 p-4 rounded-lg bg-surface-container-high/15 border border-outline-variant/5 hover:bg-surface-container-high/30 hover:border-outline-variant/15 transition-all duration-350 group">
               <!-- Rang -->
               <div class="w-10 h-10 rounded-xl flex items-center justify-center font-semibold text-sm shrink-0 font-mono
- {index === 0 ? 'bg-amber-400/15 text-amber-500 border border-amber-400/25 shadow-sm shadow-amber-400/5' : 
+ {index === 0 ? 'bg-warning/15 text-warning border border-warning/25 shadow-sm shadow-amber-400/5' : 
                  index === 1 ? 'bg-slate-400/15 text-slate-500 border border-slate-400/25 shadow-sm shadow-slate-400/5' : 
-                 index === 2 ? 'bg-amber-700/15 text-amber-600 border border-amber-700/25 shadow-sm shadow-amber-700/5' : 
+                 index === 2 ? 'bg-amber-700/15 text-warning border border-amber-700/25 shadow-sm shadow-amber-700/5' : 
                  'bg-surface-container text-on-surface-variant/50 border border-outline-variant/5'}">
                 {index + 1}
               </div>
@@ -2348,9 +2348,9 @@
               <!-- Niveau Badge -->
               <div class="text-right shrink-0">
                 <span class="text-body-sm font-medium px-3.5 py-2 rounded-xl border whitespace-nowrap shadow-xs
- {index === 0 ? 'bg-amber-400/10 text-amber-500 border-amber-400/20' : 
+ {index === 0 ? 'bg-warning/10 text-warning border-warning/20' : 
                    index === 1 ? 'bg-slate-400/10 text-slate-500 border-slate-400/20' : 
-                   index === 2 ? 'bg-amber-700/10 text-amber-600 border-amber-700/20' : 
+                   index === 2 ? 'bg-amber-700/10 text-warning border-amber-700/20' : 
                    'bg-primary/10 text-primary border-primary/15'}">
                   Lvl {lvl}
                 </span>
@@ -2379,7 +2379,7 @@
         </div>
 
         {#if searchLimited}
-          <p class="text-2xs text-amber-600 dark:text-amber-400 font-medium">{m.lv_search_limited()}</p>
+          <p class="text-2xs text-warning font-medium">{m.lv_search_limited()}</p>
         {/if}
 
         {#if leaderboardPageCount > 1}
@@ -2591,7 +2591,7 @@
 
               <div class="grid grid-cols-2 gap-4">
                 <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-4 text-center">
-                  <p class="text-2xl font-semibold text-green-400">{importResults.importedCount}</p>
+                  <p class="text-2xl font-semibold text-success">{importResults.importedCount}</p>
                   <p class="text-xs font-semibold text-on-surface-variant/60">
                     {importResults.dryRun ? m.lv_import_matched() : m.lv_success()}
                   </p>
@@ -2614,13 +2614,13 @@
                   </div>
                   <div class="flex justify-between gap-4">
                     <dt>{m.lv_import_stat_xp_lowered()}</dt>
-                    <dd class="font-semibold {importResults.xpLoweredCount ? 'text-amber-500' : 'text-on-surface'}">{importResults.xpLoweredCount?.toLocaleString()}</dd>
+                    <dd class="font-semibold {importResults.xpLoweredCount ? 'text-warning' : 'text-on-surface'}">{importResults.xpLoweredCount?.toLocaleString()}</dd>
                   </div>
                 </dl>
               {/if}
 
               {#if importResults.dryRun}
-                <p class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-2xs text-amber-600 dark:text-amber-400 leading-relaxed">
+                <p class="p-3 bg-warning/10 border border-warning/20 rounded-lg text-2xs text-warning leading-relaxed">
                   {m.lv_import_dry_run_notice()}
                 </p>
               {/if}

@@ -33,10 +33,10 @@
 
   function getStatusClass(status: string): string {
     const map: Record<string, string> = {
-      ACTIVE: 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/15',
+      ACTIVE: 'bg-success/10 text-success border border-success/15',
       SOLD: 'bg-primary/10 text-primary border border-primary/15',
       CANCELLED: 'bg-surface-container-high/40 text-on-surface-variant border border-outline-variant/10',
-      EXPIRED: 'bg-amber-500/10 text-amber-500 border border-amber-500/15',
+      EXPIRED: 'bg-warning/10 text-warning border border-warning/15',
     };
     return map[status] ?? '';
   }
@@ -83,7 +83,7 @@
   <!-- ======================== STATS ROW ======================== -->
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
     <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-4 flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-500/10 text-emerald-500">
+      <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-success/10 text-success">
         <Papicon icon="shopping-bag" size={20} />
       </div>
       <div class="flex flex-col">
@@ -101,7 +101,7 @@
       </div>
     </div>
     <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-4 flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-amber-500/10 text-amber-500">
+      <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-warning/10 text-warning">
         <Papicon icon="dollar-sign" size={20} />
       </div>
       <div class="flex flex-col">
@@ -142,7 +142,7 @@
 
             <!-- Price row -->
             <div class="flex justify-between items-center">
-              <span class="flex items-center gap-1.5 text-base font-bold text-amber-500">
+              <span class="flex items-center gap-1.5 text-base font-bold text-warning">
                 <Papicon icon="dollar-sign" size={14} />
                 {m.mar_price_coins({ price: listing.price.toLocaleString() })}
               </span>
@@ -213,7 +213,7 @@
 
             <!-- Price + date -->
             <div class="flex flex-col items-end gap-0.5 shrink-0">
-              <span class="flex items-center gap-1 text-sm font-semibold text-amber-500">
+              <span class="flex items-center gap-1 text-sm font-semibold text-warning">
                 <Papicon icon="dollar-sign" size={13} />
                 {m.mar_price_coins({ price: tx.price.toLocaleString() })}
               </span>

@@ -83,7 +83,7 @@
       <p class="text-body-sm text-on-surface-variant text-center">Chargement…</p>
     {:else if error && !data}
       <div class="rounded-2xl border border-outline-variant/20 bg-surface-container px-5 py-8 text-center">
-        <Papicon icon="alert-triangle" size={28} class="mx-auto mb-3 text-amber-500" />
+        <Papicon icon="alert-triangle" size={28} class="mx-auto mb-3 text-warning" />
         <p class="text-sm text-on-surface">{error}</p>
         <p class="text-xs text-on-surface-variant mt-2">
           Demandez un nouveau lien à l'équipe qui vous a contacté.
@@ -162,7 +162,7 @@
               modification ultérieure vous sera reproposée.
             </p>
           {:else if data.agreement.acceptedByPartner || signed}
-            <p class="text-xs text-emerald-500 flex items-center gap-1.5">
+            <p class="text-xs text-success flex items-center gap-1.5">
               <Papicon icon="check" size={13} />
               Accord accepté.
             </p>

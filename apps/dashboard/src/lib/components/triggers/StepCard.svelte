@@ -113,7 +113,7 @@
 </script>
 
 <article
-  class="rounded-2xl bg-surface-container-high/60 border border-outline-variant/15 border-l-[3px] {ACCENT[step.kind]} {problems.length > 0 ? 'ring-1 ring-amber-500/30' : ''}"
+  class="rounded-2xl bg-surface-container-high/60 border border-outline-variant/15 border-l-[3px] {ACCENT[step.kind]} {problems.length > 0 ? 'ring-1 ring-warning/30' : ''}"
 >
   <div class="flex items-start gap-2 p-3">
     <div class="flex-1 min-w-0 space-y-2">
@@ -170,7 +170,7 @@
       {:else if step.kind === 'condition'}
         <div class="space-y-2">
           <div class="flex flex-wrap items-center gap-2">
-            <Papicon icon="GitBranch" size={14} class="text-amber-700 dark:text-amber-300 shrink-0" />
+            <Papicon icon="GitBranch" size={14} class="text-warning shrink-0" />
             <span class="text-sm font-semibold text-on-surface">{m.wf_if()}</span>
             {#if (step as ConditionStep).tests.length > 1}
               <select
@@ -217,14 +217,14 @@
                   type="button"
                   onclick={() => updateTest(test.id, { negate: !test.negate })}
                   class="px-2 py-0.5 rounded-lg text-2xs font-medium border transition-colors {test.negate
-                    ? 'bg-red-500/15 border-red-500/30 text-red-700 dark:text-red-300'
+                    ? 'bg-error/15 border-error/30 text-error'
                     : 'bg-surface-container-highest border-outline-variant/20 text-on-surface-variant/70 hover:text-on-surface'}"
                   title={m.wf_invert_title()}
                 >{m.wf_invert()}</button>
                 <button
                   type="button"
                   onclick={() => removeTest(test.id)}
-                  class="p-1 rounded-lg text-on-surface-variant/70 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+                  class="p-1 rounded-lg text-on-surface-variant/70 hover:text-error transition-colors"
                   aria-label={m.wf_remove_test()}
                 ><Papicon icon="Trash" size={12} /></button>
               </div>
@@ -234,7 +234,7 @@
       {/if}
 
       {#each problems as problem}
-        <p class="flex items-center gap-1.5 text-2xs text-amber-700/90 dark:text-amber-300/90">
+        <p class="flex items-center gap-1.5 text-2xs text-warning/90">
           <Papicon icon="Warning" size={11} />
           {problem}
         </p>
@@ -259,7 +259,7 @@
       <button
         type="button"
         onclick={() => onRemove(step.id)}
-        class="p-1.5 rounded-lg text-on-surface-variant/70 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-500/10 transition-colors"
+        class="p-1.5 rounded-lg text-on-surface-variant/70 hover:text-error hover:bg-error/10 transition-colors"
         aria-label={m.wf_remove_step()}
       ><Papicon icon="Trash" size={13} /></button>
     </div>

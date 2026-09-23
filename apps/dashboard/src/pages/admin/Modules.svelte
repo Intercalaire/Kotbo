@@ -138,7 +138,7 @@
           {#each moduleStats.activationRate?.slice(0, 5) || [] as module}
             <div class="flex items-center justify-between p-4 bg-surface/30 rounded-xl">
               <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 font-bold">
+                <div class="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center text-success font-bold">
                   {module.name.charAt(0)}
                 </div>
                 <div>
@@ -147,7 +147,7 @@
                 </div>
               </div>
               <div class="text-right">
-                <p class="text-sm font-semibold text-emerald-400">{module.rate}%</p>
+                <p class="text-sm font-semibold text-success">{module.rate}%</p>
               </div>
             </div>
           {/each}
@@ -175,10 +175,10 @@
               <tr class="bg-surface/10">
                 <td class="px-4 py-3 font-bold text-on-surface">{module.name}</td>
                 <td class="px-4 py-3">{module.activeGuilds}</td>
-                <td class="px-4 py-3 text-emerald-400 font-semibold">{module.rate}%</td>
+                <td class="px-4 py-3 text-success font-semibold">{module.rate}%</td>
                 <td class="px-4 py-3">
                   {#if module.trend === 'up'}
-                    <span class="inline-flex items-center gap-1 text-emerald-400"><Papicon icon="trendup" size={13} />+{module.change}%</span>
+                    <span class="inline-flex items-center gap-1 text-success"><Papicon icon="trendup" size={13} />+{module.change}%</span>
                   {:else if module.trend === 'down'}
                     <span class="inline-flex items-center gap-1 text-error"><Papicon icon="trenddown" size={13} />{module.change}%</span>
                   {:else}
@@ -245,7 +245,7 @@
               <tr class="bg-surface/10">
                 <td class="px-4 py-3 font-bold text-on-surface">{module.name}</td>
                 <td class="px-4 py-3">{module.avgResponseTime}ms</td>
-                <td class="px-4 py-3 {module.errorRate > 5 ? 'text-error' : 'text-emerald-400'}">{module.errorRate}%</td>
+                <td class="px-4 py-3 {module.errorRate > 5 ? 'text-error' : 'text-success'}">{module.errorRate}%</td>
                 <td class="px-4 py-3">
                   <div class="flex items-center gap-2">
                     <div class="flex-1 h-2 bg-surface/40 rounded-full overflow-hidden">

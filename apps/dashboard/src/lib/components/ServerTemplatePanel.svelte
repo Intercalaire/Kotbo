@@ -711,7 +711,7 @@
          salons a venir. -->
     {#if !alreadyApplied && maturity}
       <div class="flex flex-col sm:flex-row sm:items-start gap-4 bg-surface-container-low/60 border border-outline-variant/30 rounded-xl px-6 py-5">
-        <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 {isTakeover ? 'bg-amber-500/10 text-amber-500' : 'bg-primary/10 text-primary'}">
+        <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 {isTakeover ? 'bg-warning/10 text-warning' : 'bg-primary/10 text-primary'}">
           <Papicon icon={isTakeover ? 'Users' : 'sparkles'} size={20} />
         </div>
         <div class="space-y-1 min-w-0 flex-1">
@@ -931,7 +931,7 @@
                 {:else}
                   <!-- Sans rôle Membre le service ne ferme rien : il n'y a plus
                        d'accès à donner, donc plus de choix à faire. -->
-                  <p class="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                  <p class="flex items-start gap-1.5 text-xs text-warning">
                     <Papicon icon="AlertTriangle" size={12} class="shrink-0 mt-0.5" />
                     {m.st_verification_no_role({ role: `@${memberRole?.name ?? '-'}` })}
                   </p>
@@ -1013,7 +1013,7 @@
                         <span class="block text-xs text-primary/80">{m.st_module_linked({ channel: `#${linkName}` })}</span>
                       {/if}
                       {#if isModuleMuted(mod)}
-                        <span class="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                        <span class="flex items-start gap-1.5 text-xs text-warning">
                           <Papicon icon="AlertTriangle" size={12} class="shrink-0 mt-0.5" />
                           {m.st_module_muted()}
                         </span>

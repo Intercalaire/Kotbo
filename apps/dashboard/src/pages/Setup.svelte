@@ -148,8 +148,8 @@
   }
 
   function textColor(value: number): string {
-    if (value >= 85) return 'text-emerald-500';
-    if (value >= 50) return 'text-amber-500';
+    if (value >= 85) return 'text-success';
+    if (value >= 50) return 'text-warning';
     return 'text-primary';
   }
 
@@ -277,7 +277,7 @@
 
           <div class="min-w-0 flex-1 text-center sm:text-left">
             {#if remaining.length === 0}
-              <p class="text-sm font-semibold text-emerald-500">Tout est configuré.</p>
+              <p class="text-sm font-semibold text-success">Tout est configuré.</p>
               <p class="text-body-sm text-on-surface-variant mt-1 leading-relaxed">
                 Les points essentiels sont couverts. Le reste se règle module par module,
                 au fil de ce dont le serveur a besoin.
@@ -341,7 +341,7 @@
           <SectionCard title={group.title} description={group.description} icon={group.icon}>
             {#snippet actions()}
               <span class="text-2xs px-2 py-0.5 rounded-full font-semibold
-                {groupDone === groupSteps.length ? 'bg-emerald-500/10 text-emerald-500' : 'bg-surface-container text-on-surface-variant'}">
+                {groupDone === groupSteps.length ? 'bg-success/10 text-success' : 'bg-surface-container text-on-surface-variant'}">
                 {groupDone}/{groupSteps.length}
               </span>
             {/snippet}
@@ -357,7 +357,7 @@
                       : 'border-primary/25 bg-primary/[0.04] hover:border-primary/45'}"
                   >
                     <div class="w-6 h-6 shrink-0 rounded-full flex items-center justify-center mt-0.5
-                      {step.done ? 'bg-emerald-500/15 text-emerald-500' : 'bg-primary/15 text-primary'}">
+                      {step.done ? 'bg-success/15 text-success' : 'bg-primary/15 text-primary'}">
                       <Papicon icon={step.done ? 'check' : 'arrow-right'} size={13} />
                     </div>
 

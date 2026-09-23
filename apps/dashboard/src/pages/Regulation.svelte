@@ -887,16 +887,16 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
 {#if showVerificationWarningModal}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <div class="modal-backdrop bg-amber-500/10" role="dialog" aria-modal="true" aria-labelledby="verification-warning-title" tabindex="-1" onclick={cancelVerificationToggle}>
+  <div class="modal-backdrop bg-warning/10" role="dialog" aria-modal="true" aria-labelledby="verification-warning-title" tabindex="-1" onclick={cancelVerificationToggle}>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="modal-panel max-w-lg rounded-xl! border border-amber-500/20 shadow-sm bg-surface! space-y-6 p-8" onclick={(e) => e.stopPropagation()}>
+    <div class="modal-panel max-w-lg rounded-xl! border border-warning/20 shadow-sm bg-surface! space-y-6 p-8" onclick={(e) => e.stopPropagation()}>
       <div class="flex flex-col items-center text-center space-y-4">
-        <div class="bg-amber-500/10 p-5 rounded-full text-amber-500">
+        <div class="bg-warning/10 p-5 rounded-full text-warning">
           <Papicon icon="Warning" size={40} />
         </div>
         <div>
-          <p class="text-xs font-semibold text-amber-500/60">{m.regulation_warning_modal_badge()}</p>
+          <p class="text-xs font-semibold text-warning/60">{m.regulation_warning_modal_badge()}</p>
           <h3 id="verification-warning-title" class="text-2xl font-semibold text-on-surface tracking-tight">{m.regulation_warning_modal_title()}</h3>
         </div>
         <p class="text-sm font-bold text-on-surface-variant leading-relaxed">

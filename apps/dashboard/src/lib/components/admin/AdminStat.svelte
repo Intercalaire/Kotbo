@@ -36,9 +36,9 @@
 
   const tones: Record<string, { chip: string; accent: string }> = {
     primary: { chip: 'bg-primary/12 text-primary', accent: 'var(--primary-color)' },
-    success: { chip: 'bg-emerald-500/12 text-emerald-500', accent: '#10b981' },
-    warning: { chip: 'bg-amber-500/12 text-amber-500', accent: '#f59e0b' },
-    danger: { chip: 'bg-red-500/12 text-red-500', accent: '#ef4444' },
+    success: { chip: 'bg-success/12 text-success', accent: '#10b981' },
+    warning: { chip: 'bg-warning/12 text-warning', accent: '#f59e0b' },
+    danger: { chip: 'bg-error/12 text-error', accent: '#ef4444' },
     info: { chip: 'bg-sky-500/12 text-sky-500', accent: '#0ea5e9' },
     neutral: { chip: 'bg-on-surface/8 text-on-surface-variant', accent: '#71717a' },
   };
@@ -76,8 +76,8 @@
             {deltaNeutral
               ? 'bg-on-surface/8 text-on-surface-variant'
               : deltaPositive
-                ? 'bg-emerald-500/12 text-emerald-500'
-                : 'bg-red-500/12 text-red-500'}"
+                ? 'bg-success/12 text-success'
+                : 'bg-error/12 text-error'}"
         >
           {#if !deltaNeutral}
             <Papicon icon={deltaPositive ? 'ArrowUp' : 'ArrowDown'} size={10} />

@@ -1567,7 +1567,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
           onclick={copyPublicRpgUrl}
           title={m.eco_public_page_copy()}
           aria-label={m.eco_public_page_copy()}
-          class="flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-bold transition-all {publicUrlCopied ? 'bg-green-500/15 text-green-400 border border-green-500/20' : 'bg-surface-container-high/40 text-on-surface-variant border border-outline-variant/10 hover:bg-surface-container-high/60'}"
+          class="flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-bold transition-all {publicUrlCopied ? 'bg-success/15 text-success border border-success/20' : 'bg-surface-container-high/40 text-on-surface-variant border border-outline-variant/10 hover:bg-surface-container-high/60'}"
         >
           <Papicon icon={publicUrlCopied ? 'Check' : 'Link'} size={15} />
         </button>
@@ -1588,7 +1588,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
   <InlineFeedback state={actionState} />
 
   {#if loadFailed}
-    <p class="text-xs text-amber-400/90 bg-amber-500/5 border border-amber-500/20 rounded-lg px-4 py-3 leading-relaxed">
+    <p class="text-xs text-warning/90 bg-warning/5 border border-warning/20 rounded-lg px-4 py-3 leading-relaxed">
       {m.eco_config_load_failed()}
     </p>
   {/if}
@@ -1653,7 +1653,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                 disabled={!canManageSettings || !config.rpgEnabled}
               />
               {#if rpgChannelsDiverged}
-                <p class="text-2xs text-amber-500/90 leading-relaxed">{m.eco_rpg_channels_diverged()}</p>
+                <p class="text-2xs text-warning/90 leading-relaxed">{m.eco_rpg_channels_diverged()}</p>
               {/if}
             </div>
           </div>
@@ -2037,22 +2037,22 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                   
                   <!-- Stat bonuses summary -->
                   <div class="flex flex-wrap gap-1.5 text-2xs font-bold">
-                    {#if item.atkBonus} <span class="bg-red-500/10 text-red-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="zap" size={10} /> ATK +{item.atkBonus}</span> {/if}
+                    {#if item.atkBonus} <span class="bg-error/10 text-error px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="zap" size={10} /> ATK +{item.atkBonus}</span> {/if}
                     {#if item.defBonus} <span class="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="shield" size={10} /> DEF +{item.defBonus}</span> {/if}
-                    {#if item.spdBonus} <span class="bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="activity" size={10} /> SPD +{item.spdBonus}</span> {/if}
-                    {#if item.hpBonus} <span class="bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="heart" size={10} /> {m.eco_item_hp_bonus_badge({ hp: item.hpBonus })}</span> {/if}
+                    {#if item.spdBonus} <span class="bg-warning/10 text-warning px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="activity" size={10} /> SPD +{item.spdBonus}</span> {/if}
+                    {#if item.hpBonus} <span class="bg-error/10 text-error px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="heart" size={10} /> {m.eco_item_hp_bonus_badge({ hp: item.hpBonus })}</span> {/if}
                     {#if item.levelRequired > 0} <span class="bg-outline-variant/15 text-on-surface-variant/80 px-2 py-0.5 rounded-lg">{m.eco_item_level_badge({ level: item.levelRequired })}</span> {/if}
                     {#if item.rarity && item.rarity !== 'COMMON'} <span class="bg-violet-500/10 text-violet-400 px-2 py-0.5 rounded-lg">{rarityLabels[item.rarity] ?? item.rarity}</span> {/if}
                     {#if item.purchasable === false} <span class="bg-outline-variant/15 text-on-surface-variant/70 px-2 py-0.5 rounded-lg">{m.eco_item_not_sold_badge()}</span> {/if}
-                    {#if item.hpRestore} <span class="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="heart" size={10} /> HP +{item.hpRestore}</span> {/if}
+                    {#if item.hpRestore} <span class="bg-success/10 text-success px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="heart" size={10} /> HP +{item.hpRestore}</span> {/if}
                     {#if item.energyRestore} <span class="bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="zap" size={10} /> ÉNERGIE +{item.energyRestore}</span> {/if}
                     {#if item.levelXpReward} <span class="bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="star" size={10} /> XP +{item.levelXpReward}</span> {/if}
                     {#if item.clanPointsReward} <span class="bg-fuchsia-500/10 text-fuchsia-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="flag" size={10} /> {m.eco_item_clan_points_badge({ points: item.clanPointsReward })}</span> {/if}
-                    {#if item.raidAssaultBonus} <span class="bg-red-500/10 text-red-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="Crown" size={10} /> {m.eco_item_raid_assaults_badge({ assaults: item.raidAssaultBonus })}</span> {/if}
+                    {#if item.raidAssaultBonus} <span class="bg-error/10 text-error px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="Crown" size={10} /> {m.eco_item_raid_assaults_badge({ assaults: item.raidAssaultBonus })}</span> {/if}
                   </div>
 
                   {#if (item.levelXpReward && !config.levelingEnabled) || (item.clanPointsReward && !(config.clansEnabled && config.clanPointsFromRpg)) || (item.raidAssaultBonus && !config.raidEnabled)}
-                    <p class="text-2xs text-amber-500/90 leading-relaxed">{m.eco_item_module_locked_warning()}</p>
+                    <p class="text-2xs text-warning/90 leading-relaxed">{m.eco_item_module_locked_warning()}</p>
                   {/if}
                 </div>
 
@@ -2081,7 +2081,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                         type="button" 
                         onclick={() => handleDeleteItem(item.id)}
                         disabled={!config.enabled}
-                        class="p-2 bg-red-500/10 hover:bg-red-500/25 rounded-lg text-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                        class="p-2 bg-error/10 hover:bg-error/25 rounded-lg text-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                         title={m.fb_delete()}
                       >
                         <Papicon icon="trash" size={14} />
@@ -2233,7 +2233,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                     <p class="text-2xs text-on-surface-variant/60 mt-2 leading-relaxed">{DIFFICULTY_DESCRIPTIONS[level]()}</p>
                     {#if isDifficultyNeutral(level, ['health', 'attack', 'defense', 'xpReward', 'dropChance', 'bossRespawnHours'])}
                       <p class="mt-3 text-2xs font-bold text-on-surface-variant/50 flex items-center gap-1.5">
-                        <Papicon icon="Check" size={11} class="text-emerald-500/80" />
+                        <Papicon icon="Check" size={11} class="text-success/80" />
                         {m.eco_difficulty_untouched_stats()}
                       </p>
                     {:else}
@@ -2287,17 +2287,17 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                       <div class="flex flex-wrap gap-1 mt-1.5">
                         <span class="text-xs font-semibold text-on-surface-variant/60 bg-outline-variant/10 px-2 py-0.5 rounded-full">{m.eco_rpg_level()} {monster.level}</span>
                         {#if monster.isBoss}
-                          <span class="text-xs font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_boss()}</span>
+                          <span class="text-xs font-semibold text-warning bg-warning/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_boss()}</span>
                         {/if}
                         {#if monster.scope === 'GLOBAL'}
                           <span class="text-xs font-semibold text-on-surface-variant/50 bg-outline-variant/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_default()}</span>
                         {:else if monster.overridesGlobal}
                           <span class="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_custom()}</span>
                         {:else}
-                          <span class="text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_local()}</span>
+                          <span class="text-xs font-semibold text-success bg-success/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_local()}</span>
                         {/if}
                         {#if !monster.enabled}
-                          <span class="text-xs font-semibold text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_disabled()}</span>
+                          <span class="text-xs font-semibold text-error bg-error/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_disabled()}</span>
                         {/if}
                         <!-- Une fiche qui ne correspond plus au palier annonce a ete reglee a la
                              main : le prochain clic passera dessus comme sur les autres. -->
@@ -2311,10 +2311,10 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                   <p class="text-xs text-on-surface-variant/60 leading-relaxed">{monster.description}</p>
 
                   <div class="flex flex-wrap gap-1.5 text-2xs font-bold">
-                    <span class="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="heart" size={10} /> {monster.health}</span>
-                    <span class="bg-red-500/10 text-red-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="zap" size={10} /> {monster.attack}</span>
+                    <span class="bg-success/10 text-success px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="heart" size={10} /> {monster.health}</span>
+                    <span class="bg-error/10 text-error px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="zap" size={10} /> {monster.attack}</span>
                     <span class="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="shield" size={10} /> {monster.defense}</span>
-                    <span class="bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="activity" size={10} /> {monster.speed}</span>
+                    <span class="bg-warning/10 text-warning px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="activity" size={10} /> {monster.speed}</span>
                   </div>
 
                   <div class="text-2xs text-on-surface-variant/70 flex flex-wrap gap-3">
@@ -2385,7 +2385,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                         type="button"
                         onclick={() => handleDeleteMonster(monster)}
                         disabled={!config.enabled}
-                        class="p-2 bg-red-500/10 hover:bg-red-500/25 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                        class="p-2 bg-error/10 hover:bg-error/25 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                         title={monster.overridesGlobal ? m.eco_bestiary_btn_reset() : m.fb_delete()}
                       >
                         <Papicon icon={monster.overridesGlobal ? 'rotate-ccw' : 'trash'} size={14} />
@@ -2458,7 +2458,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                     <button
                       type="button"
                       onclick={() => handleDeleteRecipe(recipe.id)}
-                      class="px-3 py-1.5 rounded-lg border border-red-500/30 text-red-500 text-2xs font-medium hover:bg-red-500/10"
+                      class="px-3 py-1.5 rounded-lg border border-error/30 text-error text-2xs font-medium hover:bg-error/10"
                     >
                       {m.eco_btn_delete()}
                     </button>
@@ -2520,7 +2520,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                         <span class="text-2xs bg-outline-variant/10 rounded-lg pl-2 pr-1 py-0.5 flex items-center gap-1">
                           {owner.displayName}
                           {#if canManageSettings}
-                            <button type="button" onclick={() => handleRevokeTitle(title, owner)} class="p-0.5 rounded hover:bg-red-500/20 text-red-400" title={m.eco_title_revoke()}>
+                            <button type="button" onclick={() => handleRevokeTitle(title, owner)} class="p-0.5 rounded hover:bg-error/20 text-error" title={m.eco_title_revoke()}>
                               <Papicon icon="x" size={10} />
                             </button>
                           {/if}
@@ -2552,7 +2552,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                       <Papicon icon="edit" size={12} />
                       {m.eco_bestiary_btn_customize()}
                     </button>
-                    <button type="button" onclick={() => handleDeleteTitle(title)} disabled={!config.enabled} class="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-2xs font-bold disabled:opacity-50">
+                    <button type="button" onclick={() => handleDeleteTitle(title)} disabled={!config.enabled} class="px-3 py-2 bg-error/10 hover:bg-error/20 text-error rounded-lg text-2xs font-bold disabled:opacity-50">
                       <Papicon icon="trash" size={12} />
                     </button>
                   </div>
@@ -2580,7 +2580,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
         </div>
 
         {#if !config.clansEnabled}
-          <p class="text-2xs text-amber-400/80 bg-amber-500/5 border border-amber-500/20 rounded-lg px-4 py-3 leading-relaxed">
+          <p class="text-2xs text-warning/80 bg-warning/5 border border-warning/20 rounded-lg px-4 py-3 leading-relaxed">
             {m.eco_quests_clans_off()}
           </p>
         {/if}
@@ -2611,7 +2611,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                           <span class="text-xs font-semibold text-tertiary bg-tertiary/10 px-2 py-0.5 rounded-full">{m.eco_quest_badge_repeatable()}</span>
                         {/if}
                         {#if !quest.enabled}
-                          <span class="text-xs font-semibold text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_disabled()}</span>
+                          <span class="text-xs font-semibold text-error bg-error/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_disabled()}</span>
                         {/if}
                       </div>
                     </div>
@@ -2649,7 +2649,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                       <Papicon icon="edit" size={12} />
                       {m.eco_bestiary_btn_customize()}
                     </button>
-                    <button type="button" onclick={() => handleDeleteQuest(quest)} disabled={!config.enabled} class="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-2xs font-bold disabled:opacity-50">
+                    <button type="button" onclick={() => handleDeleteQuest(quest)} disabled={!config.enabled} class="px-3 py-2 bg-error/10 hover:bg-error/20 text-error rounded-lg text-2xs font-bold disabled:opacity-50">
                       <Papicon icon="trash" size={12} />
                     </button>
                   </div>
@@ -2706,7 +2706,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                 </div>
                 <p class="text-2xs text-on-surface-variant/60 mt-2 leading-relaxed">{mode.desc}</p>
                 {#if !available}
-                  <p class="text-2xs text-amber-400/80 mt-2 leading-relaxed">{mode.off}</p>
+                  <p class="text-2xs text-warning/80 mt-2 leading-relaxed">{mode.off}</p>
                 {/if}
               </button>
             {/each}
@@ -2957,7 +2957,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                 <div class="flex items-center justify-between gap-3 text-xs">
                   <span class="font-semibold truncate flex items-center gap-1.5">
                     {#if team.defeatedAt}
-                      <Papicon icon="Trophy" size={12} class="text-emerald-500 shrink-0" />
+                      <Papicon icon="Trophy" size={12} class="text-success shrink-0" />
                     {:else}
                       <Papicon icon="Shield" size={12} class="text-on-surface-variant/40 shrink-0" />
                     {/if}
@@ -3026,7 +3026,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                         <div class="flex flex-wrap gap-1 mt-1.5">
                           <span class="text-xs font-semibold text-on-surface-variant/60 bg-outline-variant/10 px-2 py-0.5 rounded-full">{m.eco_rpg_level()} {boss.level}</span>
                           {#if !boss.enabled}
-                            <span class="text-xs font-semibold text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_disabled()}</span>
+                            <span class="text-xs font-semibold text-error bg-error/10 px-2 py-0.5 rounded-full">{m.eco_bestiary_badge_disabled()}</span>
                           {/if}
                         </div>
                       </div>
@@ -3035,9 +3035,9 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                     <p class="text-xs text-on-surface-variant/60 leading-relaxed">{boss.description}</p>
 
                     <div class="flex flex-wrap gap-1.5 text-2xs font-bold">
-                      <span class="bg-red-500/10 text-red-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="zap" size={10} /> {boss.attack}</span>
+                      <span class="bg-error/10 text-error px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="zap" size={10} /> {boss.attack}</span>
                       <span class="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="shield" size={10} /> {boss.defense}</span>
-                      <span class="bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="activity" size={10} /> {boss.speed}</span>
+                      <span class="bg-warning/10 text-warning px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="activity" size={10} /> {boss.speed}</span>
                     </div>
 
                     <div class="border-t border-outline-variant/5 pt-3 space-y-1">
@@ -3059,7 +3059,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                         <Papicon icon="edit" size={12} />
                         {m.eco_bestiary_btn_customize()}
                       </button>
-                      <button type="button" onclick={() => handleDeleteRaidBoss(boss)} disabled={!config.enabled} class="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-2xs font-bold disabled:opacity-50">
+                      <button type="button" onclick={() => handleDeleteRaidBoss(boss)} disabled={!config.enabled} class="px-3 py-2 bg-error/10 hover:bg-error/20 text-error rounded-lg text-2xs font-bold disabled:opacity-50">
                         <Papicon icon="trash" size={12} />
                       </button>
                     </div>
@@ -3253,9 +3253,9 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                         <div class="text-2xs text-on-surface-variant/40 font-mono mt-0.5">{player.userId}</div>
                         <!-- Bento mini-stats -->
                         <div class="flex items-center gap-2 mt-1 text-2xs font-bold text-on-surface-variant/50">
-                          <span class="bg-red-500/5 text-red-400 px-1.5 py-0.5 rounded">⚔️ {player.attack} ATK</span>
+                          <span class="bg-error/5 text-error px-1.5 py-0.5 rounded">⚔️ {player.attack} ATK</span>
                           <span class="bg-blue-500/5 text-blue-400 px-1.5 py-0.5 rounded">🛡️ {player.defense} DEF</span>
-                          <span class="bg-amber-500/5 text-amber-400 px-1.5 py-0.5 rounded">⚡ {player.speed} SPD</span>
+                          <span class="bg-warning/5 text-warning px-1.5 py-0.5 rounded">⚡ {player.speed} SPD</span>
                         </div>
                       </div>
                     </td>
@@ -3283,7 +3283,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                         {/if}
 
                         {#if player.armor}
-                          <div class="flex items-center gap-1.5 text-2xs bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-lg w-fit font-bold">
+                          <div class="flex items-center gap-1.5 text-2xs bg-success/10 text-success px-2 py-0.5 rounded-lg w-fit font-bold">
                             <EmojiText value={player.armor.emoji || '🛡️'} />
                             <span class="truncate max-w-[120px]">{player.armor.name} (+{player.armor.defBonus} DEF)</span>
                           </div>
@@ -3323,7 +3323,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                           <span class="text-primary font-bold">{player.travelDestination}</span>
                         {:else}
                           <span>{m.eco_location_at()}</span>
-                          <span class="text-emerald-400 font-bold">{player.travelDestination || m.eco_wild_lands()}</span>
+                          <span class="text-success font-bold">{player.travelDestination || m.eco_wild_lands()}</span>
                         {/if}
                       </div>
                       <!-- Guild -->
@@ -3742,7 +3742,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
             </div>
 
             {#if editingMonster.firstKill}
-              <p class="text-xs bg-amber-500/10 text-amber-400 rounded-lg px-3 py-2">
+              <p class="text-xs bg-warning/10 text-warning rounded-lg px-3 py-2">
                 {m.eco_bestiary_first_kill_holder({
                   name: editingMonster.firstKill.displayName ?? editingMonster.firstKill.userId,
                   date: new Date(editingMonster.firstKill.at).toLocaleDateString()
@@ -3841,7 +3841,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
               <button
                 type="button"
                 onclick={() => removeDrop(index)}
-                class="col-span-1 p-2 bg-red-500/10 hover:bg-red-500/25 rounded-lg flex items-center justify-center"
+                class="col-span-1 p-2 bg-error/10 hover:bg-error/25 rounded-lg flex items-center justify-center"
                 title={m.fb_delete()}
               >
                 <Papicon icon="trash" size={14} />
@@ -3994,7 +3994,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
               type="button"
               onclick={() => removeRecipeIngredient(index)}
               disabled={editingRecipe.ingredients.length <= 1}
-              class="px-2.5 py-2 rounded-lg border border-outline-variant/20 text-on-surface-variant/60 hover:text-red-500 disabled:opacity-30"
+              class="px-2.5 py-2 rounded-lg border border-outline-variant/20 text-on-surface-variant/60 hover:text-error disabled:opacity-30"
             >
               <Papicon icon="Trash" size={12} />
             </button>
@@ -4225,7 +4225,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                   <Papicon icon={spell.icon} size={14} class={chosen ? 'text-primary' : 'text-on-surface-variant/70'} />
                   <span class="text-xs font-semibold">{spell.name}</span>
                   {#if spell.triggerBelowHealth !== undefined && spell.triggerBelowHealth !== null}
-                    <span class="ml-auto text-xs font-semibold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                    <span class="ml-auto text-xs font-semibold text-warning bg-warning/10 px-1.5 py-0.5 rounded">
                       {m.eco_raid_spell_phase({ percent: Math.round(spell.triggerBelowHealth * 100) })}
                     </span>
                   {/if}

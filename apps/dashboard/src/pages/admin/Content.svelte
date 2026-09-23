@@ -379,7 +379,7 @@
         <div class="flex flex-wrap gap-3">
           <button onclick={handleAnalyzeGlobalImport} class="px-5 py-3 rounded-lg bg-primary text-white font-bold text-sm hover:bg-primary/90 transition-colors">Analyser</button>
           <button onclick={resetGlobalImport} class="px-5 py-3 rounded-lg border border-outline-variant/20 text-sm font-bold text-on-surface-variant hover:bg-on-surface/5 transition-colors">Réinitialiser</button>
-          <button onclick={handleSaveGlobalImport} disabled={globalImportLoading || globalImportDrafts.length === 0} class="px-5 py-3 rounded-lg bg-emerald-500 text-white font-bold text-sm hover:bg-emerald-500/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+          <button onclick={handleSaveGlobalImport} disabled={globalImportLoading || globalImportDrafts.length === 0} class="px-5 py-3 rounded-lg bg-emerald-500 text-white font-bold text-sm hover:bg-success/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
             {globalImportLoading ? 'Enregistrement...' : 'Enregistrer les mots'}
           </button>
         </div>
@@ -389,7 +389,7 @@
         {/if}
 
         {#if globalImportError}
-          <div class="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-600">
+          <div class="rounded-lg border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-warning">
             {globalImportError}
           </div>
         {/if}
@@ -537,7 +537,7 @@
                         </select>
                       </td>
                       <td class="px-4 py-3 text-center">
-                        <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-bold {entry.enabled ? 'text-emerald-500' : 'text-on-surface-variant/40'}">
+                        <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-bold {entry.enabled ? 'text-success' : 'text-on-surface-variant/40'}">
                           <input
                             type="checkbox"
                             checked={entry.enabled}

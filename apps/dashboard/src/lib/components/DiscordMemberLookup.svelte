@@ -186,7 +186,7 @@
   {/if}
 
   {#if error}
-    <p class="text-xs text-red-400 mt-2 px-1">{error}</p>
+    <p class="text-xs text-error mt-2 px-1">{error}</p>
   {/if}
 
   {#if suggestions.length > 0}

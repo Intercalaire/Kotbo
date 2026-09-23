@@ -34,8 +34,8 @@
 
   const variantConfig = $derived(() => {
     switch (variant) {
-      case 'danger':  return { icon: 'AlertTriangle', iconBg: 'bg-red-500/10 border-red-500/20', iconColor: 'text-red-400', btnClass: 'bg-red-500 hover:bg-red-600 shadow-red-500/20' };
-      case 'warning': return { icon: 'AlertTriangle', iconBg: 'bg-amber-500/10 border-amber-500/20', iconColor: 'text-amber-400', btnClass: 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20' };
+      case 'danger':  return { icon: 'AlertTriangle', iconBg: 'bg-error/10 border-error/20', iconColor: 'text-error', btnClass: 'bg-red-500 hover:bg-red-600 shadow-red-500/20' };
+      case 'warning': return { icon: 'AlertTriangle', iconBg: 'bg-warning/10 border-warning/20', iconColor: 'text-warning', btnClass: 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20' };
       default:        return { icon: 'Info', iconBg: 'bg-primary/10 border-primary/20', iconColor: 'text-primary', btnClass: 'bg-primary hover:bg-primary/90 shadow-primary/20' };
     }
   });
@@ -114,7 +114,7 @@
             bind:value={inputValue}
             placeholder={requireInput}
             autocomplete="off"
-            class="w-full bg-on-surface/5 border border-outline-variant/15 rounded-xl px-4 py-2.5 text-sm text-on-surface placeholder-on-surface-variant/30 focus:outline-none focus:border-red-500/40 font-mono transition-all"
+            class="w-full bg-on-surface/5 border border-outline-variant/15 rounded-xl px-4 py-2.5 text-sm text-on-surface placeholder-on-surface-variant/30 focus:outline-none focus:border-error/40 font-mono transition-all"
           />
         </div>
       {/if}

@@ -331,9 +331,9 @@
     </div>
 
     
-    <div class="bg-red-50 dark:bg-red-900/10 p-8 rounded-xl border border-red-100 dark:border-red-900/20">
-      <h4 class="text-xs font-semibold text-red-600 dark:text-red-400 mb-4">Zone Critique</h4>
-      <p class="text-xs text-red-600/70 dark:text-red-400/70 mb-6 leading-relaxed font-medium">Réinitialiser les paramètres globaux désactivera tous les modules actifs et supprimera les flux.</p>
+    <div class="bg-error/10 p-8 rounded-xl border border-red-100">
+      <h4 class="text-xs font-semibold text-error mb-4">Zone Critique</h4>
+      <p class="text-xs text-error/70 mb-6 leading-relaxed font-medium">Réinitialiser les paramètres globaux désactivera tous les modules actifs et supprimera les flux.</p>
       <button onclick={resetAndSaveFactory} class="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold transition-all shadow-sm active:scale-[0.98]">
         Réinitialisation d'usine (UI)
       </button>

@@ -383,7 +383,7 @@
           <ul class="space-y-2">
             {#each plan.manualSteps as step (step.feature)}
               <li class="flex items-start gap-2.5">
-                <Papicon icon="alert-triangle" size={14} class="text-amber-500 mt-0.5 shrink-0" />
+                <Papicon icon="alert-triangle" size={14} class="text-warning mt-0.5 shrink-0" />
                 <div>
                   <p class="text-body-sm font-medium text-on-surface">{step.label}</p>
                   <p class="text-xs text-on-surface-variant leading-relaxed">{step.why}</p>

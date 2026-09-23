@@ -94,7 +94,7 @@
         {#if isSent}
           <button
             disabled
-            class="w-full sm:w-auto px-5 py-2.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium text-sm rounded-lg cursor-default flex items-center justify-center gap-2"
+            class="w-full sm:w-auto px-5 py-2.5 bg-success/10 text-success font-medium text-sm rounded-lg cursor-default flex items-center justify-center gap-2"
           >
             <Papicon icon="check-circle" size={18} />
             {m.d6_error_reported()}

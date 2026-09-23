@@ -141,7 +141,7 @@
       <ul class="mt-2 space-y-1.5">
         {#each existing as rule (rule.id)}
           <li class="flex items-start gap-2 text-body-sm text-on-surface-variant/55">
-            <Papicon icon="check" size={12} class="mt-1 shrink-0 text-emerald-500/60" />
+            <Papicon icon="check" size={12} class="mt-1 shrink-0 text-success/60" />
             <span class="min-w-0">
               {#if rule.emoji}<span class="mr-1">{rule.emoji}</span>{/if}{rule.title}
             </span>

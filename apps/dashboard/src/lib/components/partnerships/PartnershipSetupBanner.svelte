@@ -96,7 +96,7 @@
               <Papicon
                 icon={item.optional ? 'circle' : 'alert-triangle'}
                 size={12}
-                class={item.optional ? 'text-on-surface-variant' : 'text-amber-500'}
+                class={item.optional ? 'text-on-surface-variant' : 'text-warning'}
               />
               {item.label}
               {#if item.optional}<span class="text-2xs text-on-surface-variant">facultatif</span>{/if}

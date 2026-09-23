@@ -447,7 +447,7 @@
                       <span class="text-xs font-medium px-1 py-0.5 rounded bg-primary/10 text-primary">Actuel</span>
                     {/if}
                   </p>
-                  <p class="text-2xs {server.activated ? 'text-on-surface-variant/60' : 'text-amber-500'}">
+                  <p class="text-2xs {server.activated ? 'text-on-surface-variant/60' : 'text-warning'}">
                     {server.activated ? (server.owner ? 'Propriétaire' : 'Administrateur') : "En attente d'activation"}
                   </p>
                 </div>

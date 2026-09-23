@@ -1473,7 +1473,7 @@
                             {#if threadConfig.menuStyle === 'buttons'}
                               <div class="flex flex-wrap gap-2 mt-4">
                                 {#each (threadPages.length > 0 ? threadPages : [{ localId: 'x', label: m.announcements_thread_example(), emoji: '', actionType: 'EMBED' }]) as page}
-                                  <span class="text-2xs font-semibold px-3 py-2 rounded-lg border {page.actionType === 'ROLE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : page.actionType === 'LINK' ? 'bg-sky-500/10 border-sky-500/20 text-sky-500' : 'bg-surface-container-high border-outline-variant/15 text-on-surface-variant/80'}">
+                                  <span class="text-2xs font-semibold px-3 py-2 rounded-lg border {page.actionType === 'ROLE' ? 'bg-success/10 border-success/20 text-success' : page.actionType === 'LINK' ? 'bg-sky-500/10 border-sky-500/20 text-sky-500' : 'bg-surface-container-high border-outline-variant/15 text-on-surface-variant/80'}">
                                     {#if page.emoji}{page.emoji} {/if}{page.label || m.announcements_thread_nameless_page()}{#if page.actionType === 'ROLE'}<Papicon icon="user" size={11} class="inline-block ml-1 align-[-1px]" />{:else if page.actionType === 'LINK'}<Papicon icon="link" size={11} class="inline-block ml-1 align-[-1px]" />{/if}
                                   </span>
                                 {/each}
@@ -1777,9 +1777,9 @@
                           </div>
                           {#if page.roleAction === 'EXCLUSIVE'}
                             {@const groupMembers = exclusiveGroupMembers(page)}
-                            <div class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
+                            <div class="rounded-lg border border-warning/20 bg-warning/5 p-4 space-y-3">
                               <div class="space-y-1">
-                                <label for="page-role-group-{index}" class="text-xs font-semibold text-amber-600 dark:text-amber-400 ml-1">{m.announcements_role_exclusive_group_label()}</label>
+                                <label for="page-role-group-{index}" class="text-xs font-semibold text-warning ml-1">{m.announcements_role_exclusive_group_label()}</label>
                                 <input
                                   id="page-role-group-{index}"
                                   type="text"
@@ -1787,7 +1787,7 @@
                                   list="exclusive-role-groups-{index}"
                                   maxlength="64"
                                   placeholder={m.announcements_role_exclusive_group_ph()}
-                                  class="w-full bg-surface-container-high/50 border border-amber-500/20 rounded-lg px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/25"
+                                  class="w-full bg-surface-container-high/50 border border-warning/20 rounded-lg px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-warning/25"
                                   disabled={!canManageSettings}
                                 />
                                 <datalist id="exclusive-role-groups-{index}">
@@ -1800,7 +1800,7 @@
                                 <span class="text-2xs font-semibold text-on-surface-variant/60">{m.announcements_role_linked_choices()}</span>
                                 {#if groupMembers.length > 0}
                                   {#each groupMembers as memberPage}
-                                    <span class="rounded-md border border-amber-500/15 bg-amber-500/10 px-2 py-1 text-2xs font-semibold text-amber-700 dark:text-amber-300">
+                                    <span class="rounded-md border border-warning/15 bg-warning/10 px-2 py-1 text-2xs font-semibold text-warning">
                                       {memberPage.label || m.announcements_thread_nameless_page()}
                                     </span>
                                   {/each}
@@ -1809,7 +1809,7 @@
                                 {/if}
                               </div>
                               {#if normalizeRoleGroupName(page.roleGroup) && groupMembers.length < 2}
-                                <p class="text-2xs text-amber-700 dark:text-amber-300">{m.announcements_role_exclusive_warning()}</p>
+                                <p class="text-2xs text-warning">{m.announcements_role_exclusive_warning()}</p>
                               {:else if groupMembers.length >= 2}
                                 <p class="text-2xs text-on-surface-variant/60">{m.announcements_role_exclusive_info()}</p>
                               {/if}

@@ -488,7 +488,7 @@
 
   const stats = $derived([
     { label: m.lg_discord_events(), val: discordLogs.length, sub: m.lg_total(), subClass: 'text-blue-500' },
-    { label: m.nav_modules(), val: new Set(discordLogs.map(l => l.module)).size, sub: m.lg_sources(), subClass: 'text-green-600' },
+    { label: m.nav_modules(), val: new Set(discordLogs.map(l => l.module)).size, sub: m.lg_sources(), subClass: 'text-success' },
     { label: m.lg_users(), val: new Set(discordLogs.map(l => l.user)).size, sub: m.lg_unique(), subClass: 'text-purple-600' }
   ]);
 </script>
@@ -565,7 +565,7 @@
         id="log-ignored-channels"
         bind:values={ignoredChannelIds}
         options={ignorableChannels.map((c: any) => ({ id: c.id, name: channelDisplayName(c) }))}
-        accentClass="bg-rose-500/20 text-rose-300 border-rose-500/40"
+        accentClass="bg-error/20 text-rose-300 border-error/40"
       />
     </div>
 
@@ -589,7 +589,7 @@
     </div>
 
     {#if saveAction.state.message}
-      <div class="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold rounded-lg animate-pulse">
+      <div class="p-4 bg-success/10 border border-success/20 text-success text-xs font-bold rounded-lg animate-pulse">
         {saveAction.state.message}
       </div>
     {/if}
@@ -815,7 +815,7 @@
               </td>
               <td class="px-6 py-5 text-center">
                 <span class="inline-flex items-center justify-center w-24 px-3 py-1 rounded-full text-2xs font-semibold uppercase tracking-wider
- {entry.eventType === 'Automatique' ? 'bg-blue-500/10 text-blue-500' : 'bg-amber-500/10 text-amber-500'}">
+ {entry.eventType === 'Automatique' ? 'bg-blue-500/10 text-blue-500' : 'bg-warning/10 text-warning'}">
                   {entry.eventType === 'Automatique' ? m.lg_type_auto() : entry.eventType}
                 </span>
               </td>

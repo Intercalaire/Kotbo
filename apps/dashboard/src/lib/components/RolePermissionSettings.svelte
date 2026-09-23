@@ -108,7 +108,7 @@
 
           <button 
             onclick={() => removeRole(i)}
-            class="p-2.5 text-on-surface-variant/40 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
+            class="p-2.5 text-on-surface-variant/40 hover:text-error hover:bg-error/10 rounded-xl transition-all"
             title={m.rp_delete_rule_title()}
           >
             <Papicon icon="x" size={18} />
@@ -128,6 +128,6 @@
   </div>
 
   {#if saveAction.state.message}
-    <p class="text-xs font-bold text-emerald-600 text-right">{saveAction.state.message}</p>
+    <p class="text-xs font-bold text-success text-right">{saveAction.state.message}</p>
   {/if}
 </div>

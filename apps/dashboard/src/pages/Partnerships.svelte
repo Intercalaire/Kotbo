@@ -119,14 +119,14 @@
   const toneClass: Record<string, string> = {
     neutral: 'bg-surface-container text-on-surface-variant',
     info: 'bg-primary/10 text-primary',
-    success: 'bg-emerald-500/10 text-emerald-500',
-    warning: 'bg-amber-500/10 text-amber-500',
+    success: 'bg-success/10 text-success',
+    warning: 'bg-warning/10 text-warning',
     danger: 'bg-error/10 text-error',
   };
 
   function healthClass(score: number): string {
-    if (score >= 60) return 'text-emerald-500';
-    if (score >= 40) return 'text-amber-500';
+    if (score >= 60) return 'text-success';
+    if (score >= 40) return 'text-warning';
     return 'text-error';
   }
 
@@ -418,9 +418,9 @@
               {#if flags.length > 0}
                 <!-- Points de vigilance : affichés, jamais bloquants. Le réseau
                      informe, il ne décide pas. -->
-                <div class="rounded-lg bg-amber-500/10 px-3 py-2 space-y-1">
+                <div class="rounded-lg bg-warning/10 px-3 py-2 space-y-1">
                   {#each flags as flag (flag)}
-                    <p class="text-2xs text-amber-500 flex items-start gap-1.5">
+                    <p class="text-2xs text-warning flex items-start gap-1.5">
                       <Papicon icon="alert-triangle" size={12} class="mt-0.5 shrink-0" />
                       <span>{flag}</span>
                     </p>

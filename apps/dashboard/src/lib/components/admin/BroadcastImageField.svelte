@@ -145,7 +145,7 @@
       class="flex-1 min-w-0 h-10 px-3 rounded-xl bg-surface-container-low/70 border text-sm text-on-surface
         placeholder:text-on-surface-variant focus:outline-none focus:ring-2 focus:ring-primary/15 transition
         {diagnosis?.level === 'error'
-          ? 'border-red-500/50 focus:border-red-500'
+          ? 'border-error/50 focus:border-error'
           : 'border-outline-variant/25 focus:border-primary/60'}"
     />
     <button
@@ -168,7 +168,7 @@
         type="button"
         onclick={() => (value = '')}
         aria-label="Retirer l'image"
-        class="shrink-0 w-10 h-10 rounded-xl bg-on-surface/6 text-on-surface-variant hover:bg-red-500/12 hover:text-red-500 transition flex items-center justify-center"
+        class="shrink-0 w-10 h-10 rounded-xl bg-on-surface/6 text-on-surface-variant hover:bg-error/12 hover:text-error transition flex items-center justify-center"
       >
         <Papicon icon="Trash" size={14} />
       </button>
@@ -209,15 +209,15 @@
         <Papicon
           icon={previewFailed || diagnosis?.level === 'error' ? 'AlertTriangle' : 'Image'}
           size={20}
-          class={previewFailed || diagnosis?.level === 'error' ? 'text-red-500' : 'text-on-surface-variant'}
+          class={previewFailed || diagnosis?.level === 'error' ? 'text-error' : 'text-on-surface-variant'}
         />
         {#if previewFailed}
-          <p class="text-body-sm font-semibold text-red-500">Image non chargeable</p>
+          <p class="text-body-sm font-semibold text-error">Image non chargeable</p>
           <p class="text-xs text-on-surface-variant max-w-xs">
             Ce lien ne renvoie pas d’image accessible. Discord affichera « Échec du chargement de l’image ».
           </p>
         {:else if diagnosis?.level === 'error'}
-          <p class="text-body-sm font-semibold text-red-500">Lien incompatible</p>
+          <p class="text-body-sm font-semibold text-error">Lien incompatible</p>
         {:else}
           <p class="text-body-sm font-semibold text-on-surface">Déposez une image ou cliquez</p>
           <p class="text-xs text-on-surface-variant">
@@ -231,7 +231,7 @@
   {#if diagnosis}
     <p
       class="text-xs leading-snug flex items-start gap-1.5
-        {diagnosis.level === 'ok' ? 'text-on-surface-variant' : diagnosis.level === 'warning' ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}"
+        {diagnosis.level === 'ok' ? 'text-on-surface-variant' : diagnosis.level === 'warning' ? 'text-warning' : 'text-error'}"
     >
       <Papicon
         icon={diagnosis.level === 'ok' ? 'CheckCircle' : 'AlertTriangle'}

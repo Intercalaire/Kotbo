@@ -301,10 +301,10 @@
                     </button>
                     <button
                       onclick={() => confirmDelete(link.id)}
-                      class="p-2 rounded-lg hover:bg-red-500/10 transition-colors"
+                      class="p-2 rounded-lg hover:bg-error/10 transition-colors"
                       title={m.common_delete()}
                     >
-                      <Papicon icon="trash-2" size={16} class="text-red-400" />
+                      <Papicon icon="trash-2" size={16} class="text-error" />
                     </button>
                   </div>
                 </div>
@@ -349,9 +349,9 @@
                           </div>
                           <button
                             onclick={() => handleDeleteMapping(link.id, mapping.id)}
-                            class="p-1.5 rounded-md hover:bg-red-500/10 transition-colors"
+                            class="p-1.5 rounded-md hover:bg-error/10 transition-colors"
                           >
-                            <Papicon icon="x" size={14} class="text-red-400" />
+                            <Papicon icon="x" size={14} class="text-error" />
                           </button>
                         </div>
                       {/each}

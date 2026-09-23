@@ -100,7 +100,7 @@
 
     <div class="premium-card p-6 rounded-xl space-y-3">
       <div class="flex items-center justify-between">
-        <Papicon icon="CheckCircle" size={20} class="text-emerald-500" />
+        <Papicon icon="CheckCircle" size={20} class="text-success" />
         <span class="text-2xs font-bold text-on-surface-variant/40 uppercase">{m.d7_algo_completed()}</span>
       </div>
       <p class="text-2xl font-semibold text-on-surface">{data.metrics.completedSubmissions}</p>
@@ -116,12 +116,12 @@
       <p class="text-2xs font-bold text-on-surface-variant/60">{m.d7_algo_per_challenge()}</p>
     </div>
 
-    <div class="premium-card p-6 rounded-xl space-y-3 bg-emerald-500/5 border-emerald-500/20">
+    <div class="premium-card p-6 rounded-xl space-y-3 bg-success/5 border-success/20">
       <div class="flex items-center justify-between">
-        <Papicon icon="Target" size={20} class="text-emerald-500" />
+        <Papicon icon="Target" size={20} class="text-success" />
         <span class="text-2xs font-bold text-on-surface-variant/40 uppercase">{m.d7_algo_rate()}</span>
       </div>
-      <p class="text-2xl font-semibold text-emerald-500">{data.metrics.completionRate}%</p>
+      <p class="text-2xl font-semibold text-success">{data.metrics.completionRate}%</p>
       <p class="text-2xs font-bold text-on-surface-variant/60">{m.d7_algo_completed_lc()}</p>
     </div>
   </div>
@@ -194,7 +194,7 @@
               <td class="px-4 py-3 font-bold text-on-surface-variant/60">{idx + 1}</td>
               <td class="px-4 py-3 font-bold text-on-surface">{performer.name}</td>
               <td class="px-4 py-3 text-center text-on-surface">{performer.submissions}</td>
-              <td class="px-4 py-3 text-center font-bold text-emerald-500">{performer.validated}</td>
+              <td class="px-4 py-3 text-center font-bold text-success">{performer.validated}</td>
               <td class="px-4 py-3 text-center font-semibold text-on-surface">{performer.avgScore.toFixed(2)}</td>
             </tr>
           {/each}

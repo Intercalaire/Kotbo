@@ -6,10 +6,10 @@
   const { data = [], onOpenMember = (_id: string, _name: string) => {} } = $props();
 
   const metrics = [
-    { key: 'sanctionsCount', label: m.sp_metric_sanctions(), icon: 'Gavel', color: 'text-amber-500' },
-    { key: 'reportsCount', label: m.sp_metric_reports(), icon: 'Megaphone', color: 'text-rose-500' },
+    { key: 'sanctionsCount', label: m.sp_metric_sanctions(), icon: 'Gavel', color: 'text-warning' },
+    { key: 'reportsCount', label: m.sp_metric_reports(), icon: 'Megaphone', color: 'text-error' },
     { key: 'warns', label: m.sp_metric_warns(), icon: 'Warning', color: 'text-orange-400' },
-    { key: 'bans', label: m.sp_metric_bans(), icon: 'Banning', color: 'text-red-500' },
+    { key: 'bans', label: m.sp_metric_bans(), icon: 'Banning', color: 'text-error' },
   ];
 </script>
 

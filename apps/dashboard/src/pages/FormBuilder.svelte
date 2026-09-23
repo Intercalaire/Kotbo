@@ -374,7 +374,7 @@
           {#if field.type !== 'section_header'}
             <div class="bg-surface border border-outline-variant/20 rounded-lg p-5 shadow">
               <span class="block font-semibold text-on-surface mb-1">
-                {field.label}{#if field.required}<span class="text-rose-500 ml-1">*</span>{/if}
+                {field.label}{#if field.required}<span class="text-error ml-1">*</span>{/if}
               </span>
               {#if field.description}<p class="text-xs text-on-surface-variant/60 mb-3">{field.description}</p>{/if}
 
@@ -678,7 +678,7 @@
                 </button>
                 {#if sections.length > 1}
                   <button onclick={() => removeSection(sIdx)}
-                    class="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-rose-500/20 text-rose-500 transition-all">
+                    class="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-error/20 text-error transition-all">
                     <Papicon icon="close" size={14} />
                   </button>
                 {/if}
@@ -768,7 +768,7 @@
                     <Papicon icon="content_copy" size={14} />
                   </button>
                   <button onclick={(e) => { e.stopPropagation(); removeField(field.id); }}
-                    class="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-500 transition-colors" title={m.fb_delete()} aria-label={m.fb_delete()}>
+                    class="p-1.5 rounded-lg hover:bg-error/10 text-error transition-colors" title={m.fb_delete()} aria-label={m.fb_delete()}>
                     <Papicon icon="delete" size={14} />
                   </button>
                 </div>
@@ -824,7 +824,7 @@
                             class="flex-1 bg-transparent border-b border-outline-variant/20 focus:border-primary/50 outline-none text-sm pb-0.5"
                             placeholder={m.fb_option_default({ number: optIdx + 1 })} />
                           <button onclick={() => removeOption(field.id, optIdx)}
-                            class="p-0.5 rounded hover:bg-rose-500/10 text-rose-400 transition-colors">
+                            class="p-0.5 rounded hover:bg-error/10 text-error transition-colors">
                             <Papicon icon="close" size={12} />
                           </button>
                         </div>
@@ -912,7 +912,7 @@
                                 {/each}
                               </select>
                               <button onclick={() => { const logic=[...(field.logic||[])]; logic.splice(rIdx,1); updateField(field.id,'logic',logic); }}
-                                class="text-rose-400 hover:text-rose-500 transition-colors">
+                                class="text-error hover:text-error transition-colors">
                                 <Papicon icon="close" size={12} />
                               </button>
                             </div>

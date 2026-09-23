@@ -146,7 +146,7 @@
 <section class="bg-surface-container-low/40 border border-outline-variant/30 p-8 rounded-xl space-y-6 mt-8">
   <div class="flex items-center justify-between gap-4 pb-3 border-b border-outline-variant/15">
     <div class="flex items-center gap-3 min-w-0">
-      <div class="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
+      <div class="w-10 h-10 rounded-xl bg-error/10 text-error flex items-center justify-center shrink-0">
         <Papicon icon="Puzzle" size={20} />
       </div>
       <div class="min-w-0">
@@ -187,7 +187,7 @@
             maxlength={100}
             placeholder={m.fun_riddles_emojis_placeholder()}
             disabled={busy}
-            class="flex-1 min-w-0 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-rose-500/30 transition-all disabled:opacity-50"
+            class="flex-1 min-w-0 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-error/30 transition-all disabled:opacity-50"
           />
           <EmojiPicker bind:value={picked} disabled={busy} />
         </div>
@@ -201,7 +201,7 @@
           rows={3}
           placeholder={m.fun_riddles_answers_placeholder()}
           disabled={busy}
-          class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm resize-y focus:ring-2 focus:ring-rose-500/30 transition-all disabled:opacity-50"
+          class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm resize-y focus:ring-2 focus:ring-error/30 transition-all disabled:opacity-50"
         ></textarea>
         <p class="text-2xs text-on-surface-variant/50 ml-2">{m.fun_riddles_answers_hint()}</p>
       </div>
@@ -221,7 +221,7 @@
 
   {#if loading}
     <div class="flex justify-center py-6">
-      <div class="animate-spin w-5 h-5 border-2 border-rose-500 border-t-transparent rounded-full"></div>
+      <div class="animate-spin w-5 h-5 border-2 border-error border-t-transparent rounded-full"></div>
     </div>
   {:else if riddles.length === 0}
     <EmptyState icon="Puzzle" title={m.fun_riddles_empty_title()} description={m.fun_riddles_empty_desc()} />
@@ -248,7 +248,7 @@
               </button>
               <button
                 type="button"
-                class="p-2 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-40"
+                class="p-2 rounded-lg text-error hover:bg-error/10 transition-colors disabled:opacity-40"
                 onclick={() => remove(riddle)}
                 disabled={busy}
                 aria-label={m.fun_riddles_delete_aria({ emojis: riddle.emojis })}

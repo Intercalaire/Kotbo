@@ -185,7 +185,7 @@
   >
     <button
       onclick={onclose}
-      class="absolute top-6 right-6 p-2 rounded-full bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+      class="absolute top-6 right-6 p-2 rounded-full bg-surface-container-high/40 hover:bg-error/15 hover:text-error text-on-surface-variant transition-colors cursor-pointer"
     >
       <Papicon icon="Cross" size={18} />
     </button>
@@ -216,7 +216,7 @@
           {/each}
         </div>
         {#if mode === 'most_active'}
-          <p class="text-2xs font-semibold text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 flex items-start gap-2">
+          <p class="text-2xs font-semibold text-warning bg-warning/10 border border-warning/20 rounded-lg px-3 py-2 flex items-start gap-2">
             <Papicon icon="AlertTriangle" size={13} /> <span>{m.clan_rebalance_mode_most_warning()}</span>
           </p>
         {/if}
@@ -295,7 +295,7 @@
     </section>
 
     {#if error}
-      <p class="text-xs font-semibold text-rose-500 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">{error}</p>
+      <p class="text-xs font-semibold text-error bg-error/10 border border-error/20 rounded-lg px-3 py-2">{error}</p>
     {/if}
 
     <!-- 2. Aperçu -->
@@ -331,7 +331,7 @@
                     {/if}
                   </td>
                   <td class="py-1.5 text-right tabular-nums">{clan.before}</td>
-                  <td class="py-1.5 text-right tabular-nums font-semibold {clan.after > clan.before ? 'text-secondary' : clan.after < clan.before ? 'text-amber-600' : ''}">{clan.after}</td>
+                  <td class="py-1.5 text-right tabular-nums font-semibold {clan.after > clan.before ? 'text-secondary' : clan.after < clan.before ? 'text-warning' : ''}">{clan.after}</td>
                 </tr>
               {/each}
             </tbody>
@@ -380,7 +380,7 @@
                     type="button"
                     onclick={() => setExcluded(move.key, true)}
                     disabled={loadingPreview}
-                    class="px-2 py-1 text-2xs font-semibold border border-outline-variant/30 hover:bg-rose-500/10 hover:text-rose-500 rounded-md transition-colors cursor-pointer disabled:opacity-40 shrink-0"
+                    class="px-2 py-1 text-2xs font-semibold border border-outline-variant/30 hover:bg-error/10 hover:text-error rounded-md transition-colors cursor-pointer disabled:opacity-40 shrink-0"
                     title={m.clan_rebalance_exclude_title()}
                   >
                     {m.clan_rebalance_exclude_btn()}

@@ -309,7 +309,7 @@
           <span class="w-2 h-2 rounded-full bg-on-surface-variant/30"></span>{m.mc_count_inactive({ count: inactiveCount })}
         </span>
         {#if blockedCount > 0}
-          <span class="flex items-center gap-2 text-amber-500">
+          <span class="flex items-center gap-2 text-warning">
             <span class="w-2 h-2 rounded-full bg-amber-500"></span>{m.mc_count_blocked({ count: blockedCount })}
           </span>
         {/if}
@@ -429,7 +429,7 @@
                           <Papicon icon="Lock" size={9} /> {planLabel(mod.requiredPlan)}
                         </span>
                       {:else if blocked}
-                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-500/15 text-amber-600">
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-warning/15 text-warning">
                           {m.mc_badge_blocked()}
                         </span>
                       {/if}
@@ -604,7 +604,7 @@
                   {nameOf(key)}
                 </button>
                 {#if dep?.status !== 'active'}
-                  <span class="text-2xs text-amber-600">{m.mc_dep_inactive()}</span>
+                  <span class="text-2xs text-warning">{m.mc_dep_inactive()}</span>
                 {/if}
               </li>
             {/each}

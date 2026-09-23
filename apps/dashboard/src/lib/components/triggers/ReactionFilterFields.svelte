@@ -34,7 +34,7 @@
       class="w-full px-2 py-1 rounded-lg bg-surface-container-highest border border-outline-variant/20 text-2xs text-on-surface"
     />
     {#if messageUnreadable}
-      <span class="block text-2xs text-amber-700 dark:text-amber-300">{m.wf_message_filter_unreadable()}</span>
+      <span class="block text-2xs text-warning">{m.wf_message_filter_unreadable()}</span>
     {/if}
   </label>
 

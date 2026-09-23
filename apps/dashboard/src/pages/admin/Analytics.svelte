@@ -251,11 +251,11 @@
   }
 
   function getRetentionBg(rate: number): string {
-    if (rate >= 85) return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+    if (rate >= 85) return 'bg-success/20 text-success border-success/30';
     if (rate >= 70) return 'bg-teal-500/20 text-teal-400 border-teal-500/30';
-    if (rate >= 50) return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+    if (rate >= 50) return 'bg-warning/20 text-warning border-warning/30';
     if (rate >= 30) return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
-    return 'bg-rose-500/20 text-rose-400 border-rose-500/30';
+    return 'bg-error/20 text-error border-error/30';
   }
 </script>
 
@@ -463,7 +463,7 @@
                   </div>
                   {#if idx > 0}
                     <div class="w-20 text-right">
-                      <span class="text-xs font-bold {(step.conversionFromPrev ?? step.conversionPrevious ?? 0) >= 50 ? 'text-emerald-400' : 'text-amber-400'}">
+                      <span class="text-xs font-bold {(step.conversionFromPrev ?? step.conversionPrevious ?? 0) >= 50 ? 'text-success' : 'text-warning'}">
                         {formatPercent(step.conversionFromPrev ?? step.conversionPrevious)}
                       </span>
                       <span class="text-2xs text-on-surface-variant block">étape préc.</span>
@@ -506,7 +506,7 @@
                 <span class="font-semibold text-on-surface capitalize">{src}</span>
                 <span class="text-right font-mono text-on-surface-variant">{val.visits}</span>
                 <span class="text-right font-mono text-on-surface-variant">{val.joins}</span>
-                <span class="text-right font-mono font-bold text-amber-400">{val.paid}</span>
+                <span class="text-right font-mono font-bold text-warning">{val.paid}</span>
               </div>
             {/each}
           </div>
@@ -526,7 +526,7 @@
                 <span class="font-mono text-xs text-on-surface truncate">{cnt}</span>
                 <span class="text-right font-mono text-on-surface-variant">{val.clicks}</span>
                 <span class="text-right font-mono text-on-surface-variant">{val.joins}</span>
-                <span class="text-right font-mono font-bold text-amber-400">{val.paid}</span>
+                <span class="text-right font-mono font-bold text-warning">{val.paid}</span>
               </div>
             {/each}
           </div>
@@ -543,7 +543,7 @@
             </div>
             <div class="p-3 rounded-xl bg-surface-container-high">
               <span class="text-xs text-on-surface-variant">Complétés</span>
-              <p class="text-xl font-black text-emerald-400">{onboardingData.totalCompleted}</p>
+              <p class="text-xl font-black text-success">{onboardingData.totalCompleted}</p>
             </div>
             <div class="p-3 rounded-xl bg-surface-container-high">
               <span class="text-xs text-on-surface-variant">Durée médiane</span>
@@ -558,7 +558,7 @@
                 <span class="font-mono text-xs text-on-surface">{drop.step}</span>
                 <div class="flex items-center gap-3">
                   <span class="font-mono text-xs text-on-surface-variant">{drop.count} abandons</span>
-                  <span class="px-2 py-0.5 rounded text-xs font-bold {drop.dropOffRate > 20 ? 'bg-rose-500/20 text-rose-400' : 'bg-surface-container-highest text-on-surface-variant'}">
+                  <span class="px-2 py-0.5 rounded text-xs font-bold {drop.dropOffRate > 20 ? 'bg-error/20 text-error' : 'bg-surface-container-highest text-on-surface-variant'}">
                     {formatPercent(drop.dropOffRate)}
                   </span>
                 </div>
@@ -612,9 +612,9 @@
             <span class="text-xs font-semibold text-on-surface-variant block mb-1">MRR Début</span>
             <span class="text-base font-black text-on-surface">{formatEuros(revenueData.waterfall.mrrStartCents)}</span>
           </div>
-          <div class="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-center">
-            <span class="text-xs font-semibold text-emerald-400 block mb-1">+ Nouveau</span>
-            <span class="text-base font-black text-emerald-400">+{formatEuros(revenueData.waterfall.newCents)}</span>
+          <div class="p-3 rounded-2xl bg-success/10 border border-success/30 text-center">
+            <span class="text-xs font-semibold text-success block mb-1">+ Nouveau</span>
+            <span class="text-base font-black text-success">+{formatEuros(revenueData.waterfall.newCents)}</span>
           </div>
           <div class="p-3 rounded-2xl bg-teal-500/10 border border-teal-500/30 text-center">
             <span class="text-xs font-semibold text-teal-400 block mb-1">+ Expansion</span>
@@ -624,9 +624,9 @@
             <span class="text-xs font-semibold text-orange-400 block mb-1">- Contraction</span>
             <span class="text-base font-black text-orange-400">-{formatEuros(revenueData.waterfall.contractionCents)}</span>
           </div>
-          <div class="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-center">
-            <span class="text-xs font-semibold text-rose-400 block mb-1">- Churn</span>
-            <span class="text-base font-black text-rose-400">-{formatEuros(revenueData.waterfall.churnCents)}</span>
+          <div class="p-3 rounded-2xl bg-error/10 border border-error/30 text-center">
+            <span class="text-xs font-semibold text-error block mb-1">- Churn</span>
+            <span class="text-base font-black text-error">-{formatEuros(revenueData.waterfall.churnCents)}</span>
           </div>
           <div class="p-3 rounded-2xl bg-primary/15 border border-primary/40 text-center">
             <span class="text-xs font-semibold text-primary block mb-1">MRR Fin</span>
@@ -671,8 +671,8 @@
             </div>
             <div class="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/15 text-center">
               <span class="text-xs font-semibold text-on-surface-variant block mb-1">Annuel (-17%)</span>
-              <p class="text-xl font-black text-emerald-400">{revenueData.byInterval.year.count}</p>
-              <span class="text-xs text-emerald-400 font-mono font-bold block mt-1">
+              <p class="text-xl font-black text-success">{revenueData.byInterval.year.count}</p>
+              <span class="text-xs text-success font-mono font-bold block mt-1">
                 {formatEuros(revenueData.byInterval.year.mrrCents)} / m
               </span>
             </div>
@@ -709,7 +709,7 @@
                     {formatEuros(inv.amountPaidCents)}
                   </td>
                   <td class="py-2.5 px-3 text-center">
-                    <span class="px-2 py-0.5 rounded text-2xs font-bold uppercase bg-emerald-500/20 text-emerald-400">
+                    <span class="px-2 py-0.5 rounded text-2xs font-bold uppercase bg-success/20 text-success">
                       {inv.status}
                     </span>
                   </td>
@@ -767,8 +767,8 @@
                 <tr class="hover:bg-surface-container-highest/30 transition">
                   <td class="py-3 px-3 font-semibold text-on-surface">{row.bucket || '(Non renseigné)'}</td>
                   <td class="py-3 px-3 text-right font-mono text-on-surface-variant">{row.totalGuilds}</td>
-                  <td class="py-3 px-3 text-right font-mono font-bold text-emerald-400">{row.payingGuilds}</td>
-                  <td class="py-3 px-3 text-right font-mono text-amber-400">{row.trialGuilds}</td>
+                  <td class="py-3 px-3 text-right font-mono font-bold text-success">{row.payingGuilds}</td>
+                  <td class="py-3 px-3 text-right font-mono text-warning">{row.trialGuilds}</td>
                   <td class="py-3 px-3 text-right font-mono font-bold text-on-surface">{formatPercent(row.conversionRate)}</td>
                   <td class="py-3 px-3 text-right font-mono font-bold text-primary">{formatEuros(row.mrrCents)}</td>
                   <td class="py-3 px-3 text-right font-mono text-on-surface-variant">{formatEuros(row.avgLtvCents)}</td>
@@ -799,7 +799,7 @@
       >
         {#if (segmentsData.outOfTierMatrix ?? []).length === 0}
           <div class="py-8 text-center text-on-surface-variant">
-            <Papicon icon="CheckCircle" size={24} class="mx-auto mb-2 text-emerald-400" />
+            <Papicon icon="CheckCircle" size={24} class="mx-auto mb-2 text-success" />
             <p class="text-sm font-semibold">Tous les serveurs sont actuellement sur une offre adaptée à leur taille.</p>
           </div>
         {:else}
@@ -819,7 +819,7 @@
                 {#each (segmentsData.outOfTierMatrix ?? []) as oot}
                   <tr class="hover:bg-surface-container-highest/30 transition">
                     <td class="py-3 px-3 font-semibold text-on-surface">{oot.guildName}</td>
-                    <td class="py-3 px-3 text-right font-mono font-bold text-amber-400">
+                    <td class="py-3 px-3 text-right font-mono font-bold text-warning">
                       {oot.memberCount.toLocaleString('fr-FR')}
                     </td>
                     <td class="py-3 px-3">
@@ -949,7 +949,7 @@
                 <div class="grid grid-cols-3 py-2.5 items-center">
                   <span class="font-semibold text-on-surface">{mod.module}</span>
                   <span class="text-right font-mono text-on-surface-variant">{formatPercent(mod.freeAdoptionRate)}</span>
-                  <span class="text-right font-mono font-bold text-emerald-400">{formatPercent(mod.paidAdoptionRate)}</span>
+                  <span class="text-right font-mono font-bold text-success">{formatPercent(mod.paidAdoptionRate)}</span>
                 </div>
               {/each}
             </div>
@@ -964,7 +964,7 @@
               {#each (modulesData.churnDropOffModules ?? []) as cdo}
                 <div class="grid grid-cols-2 py-2.5 items-center">
                   <span class="font-semibold text-on-surface">{cdo.module}</span>
-                  <span class="text-right font-mono font-bold text-rose-400">{cdo.dropOffCount}</span>
+                  <span class="text-right font-mono font-bold text-error">{cdo.dropOffCount}</span>
                 </div>
               {/each}
             </div>
@@ -1119,7 +1119,7 @@
               </div>
 
               <div class="text-right">
-                <span class="px-2 py-0.5 rounded text-xs font-bold uppercase {g.plan !== 'FREE' ? 'bg-amber-500/20 text-amber-400' : 'bg-surface-container-highest text-on-surface-variant'}">
+                <span class="px-2 py-0.5 rounded text-xs font-bold uppercase {g.plan !== 'FREE' ? 'bg-warning/20 text-warning' : 'bg-surface-container-highest text-on-surface-variant'}">
                   {g.plan}
                 </span>
                 <span class="text-xs font-bold font-mono text-on-surface block mt-1">

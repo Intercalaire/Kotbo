@@ -259,7 +259,7 @@
       </div>
     </div>
     <div class="bg-surface-container-high/30 rounded-xl p-4 flex items-center gap-3">
-      <div class="h-9 w-9 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
+      <div class="h-9 w-9 rounded-lg bg-success/10 flex items-center justify-center text-success shrink-0">
         <Papicon icon="Check" size={20} />
       </div>
       <div class="flex flex-col">
@@ -268,7 +268,7 @@
       </div>
     </div>
     <div class="bg-surface-container-high/30 rounded-xl p-4 flex items-center gap-3">
-      <div class="h-9 w-9 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
+      <div class="h-9 w-9 rounded-lg bg-warning/10 flex items-center justify-center text-warning shrink-0">
         <Papicon icon="Star" size={20} />
       </div>
       <div class="flex flex-col">
@@ -346,14 +346,14 @@
               </button>
             {:else}
               <button
-                class="px-4 py-2 bg-emerald-500/10 text-emerald-500 rounded-xl text-xs font-bold hover:bg-emerald-500/20 transition-all flex items-center gap-2"
+                class="px-4 py-2 bg-success/10 text-success rounded-xl text-xs font-bold hover:bg-success/20 transition-all flex items-center gap-2"
                 onclick={() => handleToggle(quest)}
               >
                 {m.que_btn_enable()}
               </button>
             {/if}
             <button
-              class="px-4 py-2 bg-rose-500/10 text-rose-500 rounded-xl text-xs font-bold hover:bg-rose-500/20 transition-all flex items-center gap-2"
+              class="px-4 py-2 bg-error/10 text-error rounded-xl text-xs font-bold hover:bg-error/20 transition-all flex items-center gap-2"
               onclick={() => handleDelete(quest.id)}
             >
               {m.que_btn_delete()}

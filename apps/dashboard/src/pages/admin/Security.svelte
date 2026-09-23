@@ -105,11 +105,11 @@
       <!-- Stats summary -->
       {#if !loading && !error}
         <div class="flex items-center gap-2 flex-wrap">
-          <div class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+          <div class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-success/10 border border-success/20 text-success text-xs font-semibold">
             <Papicon icon="ShieldCheck" size={13} />
             {globalAdmins.length} admin{globalAdmins.length > 1 ? 's' : ''}
           </div>
-          <div class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold">
+          <div class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-error/10 border border-error/20 text-error text-xs font-semibold">
             <Papicon icon="UserX" size={13} />
             {globalBlacklist.length} blacklisté{globalBlacklist.length > 1 ? 's' : ''}
           </div>
@@ -135,7 +135,7 @@
         <Papicon icon="UserX" size={13} />
         Blacklist
         {#if globalBlacklist.length > 0}
-          <span class="px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 text-2xs font-semibold">{globalBlacklist.length}</span>
+          <span class="px-1.5 py-0.5 rounded-full bg-error/20 text-error text-2xs font-semibold">{globalBlacklist.length}</span>
         {/if}
       </button>
     </div>
@@ -202,11 +202,11 @@
                   </div>
                 </div>
                 {#if admin.userId === OWNER_ID}
-                  <span class="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">Créateur</span>
+                  <span class="text-xs font-semibold text-success bg-success/10 border border-success/20 px-2.5 py-1 rounded-full">Créateur</span>
                 {:else}
                   <button
                     onclick={() => handleRemoveAdmin(admin.userId, admin.username)}
-                    class="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant/30 hover:bg-red-500/10 hover:text-red-400 transition-all opacity-0 group-hover:opacity-100"
+                    class="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant/30 hover:bg-error/10 hover:text-error transition-all opacity-0 group-hover:opacity-100"
                     title="Révoquer l'accès"
                   >
                     <Papicon icon="Trash" size={14} />
@@ -229,7 +229,7 @@
               type="text"
               bind:value={newBlacklistId}
               placeholder="ID Discord à bloquer"
-              class="w-full bg-on-surface/4 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm text-on-surface placeholder-on-surface-variant/30 focus:outline-none focus:border-red-500/30 transition-all"
+              class="w-full bg-on-surface/4 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm text-on-surface placeholder-on-surface-variant/30 focus:outline-none focus:border-error/30 transition-all"
               required
             />
             <div class="flex gap-2">
@@ -237,7 +237,7 @@
                 type="text"
                 bind:value={newBlacklistReason}
                 placeholder="Raison (optionnel)"
-                class="flex-1 bg-on-surface/4 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm text-on-surface placeholder-on-surface-variant/30 focus:outline-none focus:border-red-500/30 transition-all"
+                class="flex-1 bg-on-surface/4 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm text-on-surface placeholder-on-surface-variant/30 focus:outline-none focus:border-error/30 transition-all"
               />
               <button
                 type="submit"
@@ -253,19 +253,19 @@
         <div class="space-y-2">
           {#if globalBlacklist.length === 0}
             <div class="flex flex-col items-center py-8 gap-2 text-center">
-              <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/15 flex items-center justify-center text-emerald-400">
+              <div class="w-10 h-10 rounded-xl bg-success/10 border border-success/15 flex items-center justify-center text-success">
                 <Papicon icon="ShieldCheck" size={18} />
               </div>
               <p class="text-sm text-on-surface-variant/40 font-medium">Aucun utilisateur dans la blacklist.</p>
             </div>
           {:else}
             {#each globalBlacklist as user}
-              <div class="flex items-start justify-between px-4 py-3 bg-red-500/5 hover:bg-red-500/8 rounded-xl border border-red-500/10 transition-colors group">
+              <div class="flex items-start justify-between px-4 py-3 bg-error/5 hover:bg-error/8 rounded-xl border border-error/10 transition-colors group">
                 <div class="flex items-center gap-3">
                   {#if user.avatarUrl}
-                    <img src={user.avatarUrl} alt={user.username} class="w-9 h-9 rounded-full border border-red-500/20 shadow-sm" />
+                    <img src={user.avatarUrl} alt={user.username} class="w-9 h-9 rounded-full border border-error/20 shadow-sm" />
                   {:else}
-                    <div class="w-9 h-9 rounded-full bg-red-500/15 border border-red-500/20 flex items-center justify-center text-red-400 font-semibold text-sm">
+                    <div class="w-9 h-9 rounded-full bg-error/15 border border-error/20 flex items-center justify-center text-error font-semibold text-sm">
                       {user.username.charAt(0).toUpperCase()}
                     </div>
                   {/if}
@@ -273,13 +273,13 @@
                     <p class="font-bold text-sm text-on-surface">{user.username}</p>
                     <p class="text-2xs text-on-surface-variant/30 font-mono">{user.userId}</p>
                     {#if user.reason}
-                      <p class="text-2xs text-red-400/70 mt-0.5 italic">{user.reason}</p>
+                      <p class="text-2xs text-error/70 mt-0.5 italic">{user.reason}</p>
                     {/if}
                   </div>
                 </div>
                 <button
                   onclick={() => handleRemoveBlacklist(user.userId)}
-                  class="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant/30 hover:bg-emerald-500/10 hover:text-emerald-400 transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                  class="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant/30 hover:bg-success/10 hover:text-success transition-all opacity-0 group-hover:opacity-100 shrink-0"
                   title="Pardonner"
                 >
                   <Papicon icon="Unlock" size={14} />

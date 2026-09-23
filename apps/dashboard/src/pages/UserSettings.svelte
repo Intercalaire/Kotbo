@@ -231,7 +231,7 @@
     <!-- Save feedback badge -->
     {#if activeTab === 'preferences'}
       <div class="relative shrink-0">
-        <div class="flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-sm transition-all duration-500 {savedFeedback ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400' : 'bg-surface-container-high/30 border border-outline-variant/20 text-on-surface-variant/50'}">
+        <div class="flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-sm transition-all duration-500 {savedFeedback ? 'bg-success/20 border border-success/40 text-success' : 'bg-surface-container-high/30 border border-outline-variant/20 text-on-surface-variant/50'}">
           {#if savedFeedback}
             <Papicon icon="check" size={16} />
             {m.us_saved_auto()}
@@ -582,8 +582,8 @@
     <!-- ─── Notifications & Confidentialité ──────────────────── -->
     <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-8">
       <h2 class="text-xl font-semibold flex items-center gap-3">
-        <div class="w-8 h-8 rounded-xl bg-rose-500/10 flex items-center justify-center">
-          <Papicon icon="Bell" size={16} class="text-rose-500" />
+        <div class="w-8 h-8 rounded-xl bg-error/10 flex items-center justify-center">
+          <Papicon icon="Bell" size={16} class="text-error" />
         </div>
         {m.us_notif_privacy()}
       </h2>
@@ -625,8 +625,8 @@
   </div>
 
   <!-- ─── Danger Zone ───────────────────────────────────────────── -->
-  <section class="bg-rose-500/5 border border-rose-500/20 p-8 rounded-xl space-y-4">
-    <h2 class="text-xl font-semibold text-rose-500 flex items-center gap-3">
+  <section class="bg-error/5 border border-error/20 p-8 rounded-xl space-y-4">
+    <h2 class="text-xl font-semibold text-error flex items-center gap-3">
       <Papicon icon="AlertTriangle" size={20} />
       {m.us_reset_zone()}
     </h2>
@@ -635,7 +635,7 @@
     </p>
     <button
       onclick={() => { userPrefs.reset(); themeStore.themeId = userPrefs.prefs.theme; showSavedFeedback(); toast.success(m.us_reset_done()); }}
-      class="px-6 py-2.5 rounded-xl border-2 border-rose-500/40 text-rose-500 font-bold text-sm hover:bg-rose-500/10 transition-all duration-200 hover:border-rose-500/60"
+      class="px-6 py-2.5 rounded-xl border-2 border-error/40 text-error font-bold text-sm hover:bg-error/10 transition-all duration-200 hover:border-error/60"
     >
       {m.us_reset_button()}
     </button>

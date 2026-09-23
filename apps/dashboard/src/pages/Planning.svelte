@@ -304,14 +304,14 @@
   function getStatusColor(status: string) {
     switch (status) {
       case 'SCHEDULED': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
-      case 'IN_PROGRESS': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 animate-pulse';
-      case 'COMPLETED': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
-      case 'CANCELLED': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+      case 'IN_PROGRESS': return 'bg-warning/10 text-warning animate-pulse';
+      case 'COMPLETED': return 'bg-success/10 text-success';
+      case 'CANCELLED': return 'bg-error/10 text-error';
       // Presence statuses
-      case 'PRESENT': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
+      case 'PRESENT': return 'bg-success/10 text-success';
       case 'EXCUSED': 
-      case 'ABSENT_CHECKED': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300';
-      case 'ABSENT': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+      case 'ABSENT_CHECKED': return 'bg-warning/10 text-warning';
+      case 'ABSENT': return 'bg-error/10 text-error';
       default: return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400';
     }
   }
@@ -1054,9 +1054,9 @@
                   class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition-all text-left group {visibleTypes.includes(key) ? 'hover:bg-surface-hover' : 'opacity-40 hover:opacity-60'}"
                 >
                   <div class="w-3.5 h-3.5 rounded flex items-center justify-center border transition-colors
- {color === 'emerald' ? (visibleTypes.includes(key) ? 'bg-emerald-500 border-emerald-600' : 'border-emerald-500/40') : ''}
-                    {color === 'green' ? (visibleTypes.includes(key) ? 'bg-green-500 border-green-600' : 'border-green-500/40') : ''}
-                    {color === 'amber' ? (visibleTypes.includes(key) ? 'bg-amber-500 border-amber-600' : 'border-amber-500/40') : ''}
+ {color === 'emerald' ? (visibleTypes.includes(key) ? 'bg-emerald-500 border-success' : 'border-success/40') : ''}
+                    {color === 'green' ? (visibleTypes.includes(key) ? 'bg-green-500 border-success' : 'border-success/40') : ''}
+                    {color === 'amber' ? (visibleTypes.includes(key) ? 'bg-amber-500 border-warning' : 'border-warning/40') : ''}
                     {color === 'purple' ? (visibleTypes.includes(key) ? 'bg-purple-500 border-purple-600' : 'border-purple-500/40') : ''}"
                   >
                     {#if visibleTypes.includes(key)}
@@ -1188,7 +1188,7 @@
                         {/if}
                         <div class="flex items-center gap-2 mt-1.5">
                           {#if task.priority === 'HIGH'}
-                            <span class="text-xs font-semibold text-red-400 flex items-center gap-0.5">
+                            <span class="text-xs font-semibold text-error flex items-center gap-0.5">
                               <Papicon icon="alert-triangle" size={9} /> {m.planning_task_important()}
                             </span>
                           {/if}
@@ -1487,7 +1487,7 @@
           {/if}
 
           {#if formError}
-            <div class="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-2xs font-semibold">
+            <div class="flex items-center gap-2 p-3 bg-error/10 border border-error/20 rounded-lg text-error text-2xs font-semibold">
               <Papicon icon="alert-circle" size={14} />
               {formError}
             </div>
@@ -1531,7 +1531,7 @@
           <div class="flex justify-between items-start mb-4">
             <div class="flex-1 min-w-0">
               <span class="text-2xs font-bold uppercase tracking-wider
- {typeColor === 'emerald' ? 'text-emerald-400' : typeColor === 'green' ? 'text-green-400' : typeColor === 'amber' ? 'text-amber-400' : 'text-purple-400'}">
+ {typeColor === 'emerald' ? 'text-success' : typeColor === 'green' ? 'text-success' : typeColor === 'amber' ? 'text-warning' : 'text-purple-400'}">
                 {getTypeLabel(currentItemDetail.type)}
               </span>
               <h3 class="text-base font-bold mt-0.5 leading-tight">{currentItemDetail.title}</h3>
@@ -1591,7 +1591,7 @@
                     {:else if raw.status === 'IN_PROGRESS'}
                       <button 
                         onclick={() => updateMeetingStatus(currentItemDetail.id, 'COMPLETED')} 
-                        class="text-2xs font-bold text-emerald-500 bg-emerald-500/10 px-2.5 py-1 hover:bg-emerald-500/20 rounded-md transition-colors flex items-center gap-1"
+                        class="text-2xs font-bold text-success bg-success/10 px-2.5 py-1 hover:bg-success/20 rounded-md transition-colors flex items-center gap-1"
                       >
                         <Papicon icon="check" size={10} />
                         {m.meetings_finish_btn()}
@@ -1605,15 +1605,15 @@
               <div class="grid grid-cols-3 gap-2 p-3 bg-surface-container-low rounded-lg text-center">
                 <div>
                   <p class="text-xs font-semibold text-on-surface-variant">{m.meetings_stat_present()}</p>
-                  <p class="text-base font-bold text-emerald-500">{stats.present}</p>
+                  <p class="text-base font-bold text-success">{stats.present}</p>
                 </div>
                 <div class="border-x border-outline-variant/30">
                   <p class="text-xs font-semibold text-on-surface-variant">{m.meetings_stat_excused()}</p>
-                  <p class="text-base font-bold text-amber-500">{stats.excused}</p>
+                  <p class="text-base font-bold text-warning">{stats.excused}</p>
                 </div>
                 <div>
                   <p class="text-xs font-semibold text-on-surface-variant">{m.meetings_stat_absent()}</p>
-                  <p class="text-base font-bold text-red-500">{stats.absent}</p>
+                  <p class="text-base font-bold text-error">{stats.absent}</p>
                 </div>
               </div>
 
@@ -1694,7 +1694,7 @@
             <div class="flex items-center gap-4 text-xs mb-4">
               <div class="flex items-center gap-1.5">
                 <Papicon icon="flag" size={12} class="text-on-surface-variant" />
-                <span class="font-semibold {raw.priority === 'HIGH' ? 'text-red-400' : raw.priority === 'MEDIUM' ? 'text-amber-400' : 'text-blue-400'}">{raw.priority}</span>
+                <span class="font-semibold {raw.priority === 'HIGH' ? 'text-error' : raw.priority === 'MEDIUM' ? 'text-warning' : 'text-blue-400'}">{raw.priority}</span>
               </div>
               <div class="flex items-center gap-1.5">
                 <Papicon icon="activity" size={12} class="text-on-surface-variant" />
@@ -1725,11 +1725,11 @@
             <div class="flex items-center gap-4 text-xs mb-4">
               <div class="flex items-center gap-1.5">
                 <Papicon icon="tag" size={12} class="text-on-surface-variant" />
-                <span class="font-semibold text-amber-400">{raw.type || m.planning_absence_type_default()}</span>
+                <span class="font-semibold text-warning">{raw.type || m.planning_absence_type_default()}</span>
               </div>
               <div class="flex items-center gap-1.5">
                 <Papicon icon="info" size={12} class="text-on-surface-variant" />
-                <span class="font-semibold {raw.status === 'APPROVED' ? 'text-emerald-400' : 'text-amber-400'}">
+                <span class="font-semibold {raw.status === 'APPROVED' ? 'text-success' : 'text-warning'}">
                   {raw.status === 'APPROVED' ? m.planning_absence_approved() : raw.status === 'PENDING' ? m.planning_absence_pending() : raw.status}
                 </span>
               </div>
@@ -1739,7 +1739,7 @@
           {#if currentItemDetail.type !== 'absence'}
             <div class="mt-4 border-t border-outline-variant/15 pt-4 text-left">
               <h4 class="text-xs font-bold text-on-surface mb-2 flex items-center gap-1.5">
-                <Papicon icon="bell" size={12} class="text-amber-400" />
+                <Papicon icon="bell" size={12} class="text-warning" />
                 {m.planning_reminders_title({ count: raw.reminders?.length || 0 })}
               </h4>
 
@@ -1752,15 +1752,15 @@
                         <div class="text-2xs text-on-surface-variant">
                           {m.planning_reminder_at({ date: new Date(reminder.targetTime).toLocaleString(dateLocale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) })}
                           {#if reminder.fired}
-                            <span class="text-emerald-400 ml-1">{m.planning_reminder_sent()}</span>
+                            <span class="text-success ml-1">{m.planning_reminder_sent()}</span>
                           {:else}
-                            <span class="text-amber-400 ml-1">{m.planning_reminder_scheduled()}</span>
+                            <span class="text-warning ml-1">{m.planning_reminder_scheduled()}</span>
                           {/if}
                         </div>
                       </div>
                       <button
                         onclick={() => handleDeleteReminder(reminder.id)}
-                        class="p-1 rounded hover:bg-red-500/10 text-red-400 border-none bg-transparent transition-colors cursor-pointer shrink-0"
+                        class="p-1 rounded hover:bg-error/10 text-error border-none bg-transparent transition-colors cursor-pointer shrink-0"
                         title={m.planning_reminder_delete_tooltip()}
                       >
                         <Papicon icon="trash-2" size={10} />
@@ -1824,7 +1824,7 @@
         <!-- Footer actions -->
         <div class="px-5 py-3 border-t border-outline-variant/15 bg-surface-container-low/50 flex justify-between items-center shrink-0">
           <div class="flex gap-2">
-            <button onclick={handleDeleteDetail} class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-2xs font-semibold text-red-400 hover:bg-red-500/10 transition-colors">
+            <button onclick={handleDeleteDetail} class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-2xs font-semibold text-error hover:bg-error/10 transition-colors">
               <Papicon icon="trash-2" size={12} />
               {m.planning_detail_delete()}
             </button>
@@ -1951,7 +1951,7 @@
           {/if}
 
           {#if permError}
-            <div class="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-2xs font-semibold">
+            <div class="flex items-center gap-2 p-3 bg-error/10 border border-error/20 rounded-lg text-error text-2xs font-semibold">
               <Papicon icon="alert-circle" size={14} />
               {permError}
             </div>
@@ -2006,7 +2006,7 @@
       ></div>
       
       <div class="relative w-full max-w-md bg-surface-container-lowest rounded-xl shadow-2xl overflow-hidden border border-outline-variant/30 font-inter text-on-surface">
-        <div class="p-8 border-b border-outline-variant/30 bg-red-500/5 flex items-center justify-between">
+        <div class="p-8 border-b border-outline-variant/30 bg-error/5 flex items-center justify-between">
           <div>
             <h3 class="text-xl font-semibold text-on-surface">{m.meetings_delete_modal_title()}</h3>
             <p class="text-on-surface-variant text-sm">{m.meetings_delete_modal_subtitle()}</p>
@@ -2138,8 +2138,8 @@
           </div>
 
           {#if editMeetingError}
-            <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mt-3">
-              <p class="text-sm text-red-700">{editMeetingError}</p>
+            <div class="bg-error/10 border border-error/30 rounded-lg p-3 mt-3">
+              <p class="text-sm text-error">{editMeetingError}</p>
             </div>
           {/if}
 

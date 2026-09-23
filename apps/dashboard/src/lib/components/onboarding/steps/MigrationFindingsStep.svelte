@@ -149,7 +149,7 @@
       <ul class="mt-3 space-y-2">
         {#each manualSteps as step (step.feature + step.label)}
           <li class="flex items-start gap-2.5 rounded-xl border border-outline-variant/25 bg-surface-container-lowest/25 px-3.5 py-2.5">
-            <Papicon icon="alert-triangle" size={13} class="mt-0.5 shrink-0 text-amber-500/70" />
+            <Papicon icon="alert-triangle" size={13} class="mt-0.5 shrink-0 text-warning/70" />
             <div class="min-w-0">
               <p class="text-body-sm font-medium text-on-surface-variant/80">{step.label}</p>
               <p class="mt-0.5 text-xs text-on-surface-variant/50 leading-relaxed">{step.why}</p>

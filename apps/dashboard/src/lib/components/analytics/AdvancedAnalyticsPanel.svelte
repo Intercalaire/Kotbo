@@ -108,14 +108,14 @@
   }
 
   function pctColor(pct: number): string {
-    if (pct >= 70) return 'text-emerald-500';
-    if (pct >= 40) return 'text-amber-500';
-    return 'text-red-400';
+    if (pct >= 70) return 'text-success';
+    if (pct >= 40) return 'text-warning';
+    return 'text-error';
   }
 
   function trendBadge(pct: number): { cls: string; label: string } {
-    if (pct > 0) return { cls: 'text-emerald-500 bg-emerald-500/10', label: `+${pct}%` };
-    if (pct < 0) return { cls: 'text-red-400 bg-red-400/10', label: `${pct}%` };
+    if (pct > 0) return { cls: 'text-success bg-success/10', label: `+${pct}%` };
+    if (pct < 0) return { cls: 'text-error bg-error/10', label: `${pct}%` };
     return { cls: 'text-on-surface-variant/60 bg-surface-container', label: '0%' };
   }
 
@@ -384,7 +384,7 @@
               </div>
               <div class="flex items-center gap-4 text-xs shrink-0">
                 <span class="text-on-surface-variant">{m.an_adv_active_days({ days: member.activeDays30 })}</span>
-                <span class="text-amber-500 font-medium">{m.an_adv_inactive_since({ date: member.lastActive })}</span>
+                <span class="text-warning font-medium">{m.an_adv_inactive_since({ date: member.lastActive })}</span>
               </div>
             </button>
           {/each}
@@ -620,7 +620,7 @@
   <div class="space-y-4">
     <div class="grid gap-4 grid-cols-1 md:grid-cols-3">
       <SectionCard title={m.an_adv_recidivism_title()} icon="Gavel">
-        <p class="text-3xl font-bold {data.recidivism.rate != null ? (data.recidivism.rate > 50 ? 'text-red-400' : data.recidivism.rate > 25 ? 'text-amber-500' : 'text-emerald-500') : 'text-on-surface'}">
+        <p class="text-3xl font-bold {data.recidivism.rate != null ? (data.recidivism.rate > 50 ? 'text-error' : data.recidivism.rate > 25 ? 'text-warning' : 'text-success') : 'text-on-surface'}">
           {data.recidivism.rate != null ? `${data.recidivism.rate}%` : '-'}
         </p>
         <p class="text-xs text-on-surface-variant mt-1">
@@ -717,7 +717,7 @@
                   <span class="font-mono text-xs text-on-surface">{t.inviteCode}</span>
                   <div class="flex items-center gap-3 text-xs">
                     <span class="text-on-surface-variant">{m.an_adv_toxic_ratio({ sanctioned: t.sanctioned, invited: t.invited })}</span>
-                    <span class="font-semibold {t.ratePct > 30 ? 'text-red-400' : t.ratePct > 10 ? 'text-amber-500' : 'text-on-surface-variant'}">{t.ratePct}%</span>
+                    <span class="font-semibold {t.ratePct > 30 ? 'text-error' : t.ratePct > 10 ? 'text-warning' : 'text-on-surface-variant'}">{t.ratePct}%</span>
                   </div>
                 </button>
               {:else}

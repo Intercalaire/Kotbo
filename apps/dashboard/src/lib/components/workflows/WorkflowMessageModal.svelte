@@ -98,7 +98,7 @@
             <button
               type="button"
               onclick={() => insertVariable('{serveur}')}
-              class="px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all flex items-center gap-1"
+              class="px-2.5 py-1 rounded-lg text-xs font-medium bg-success/15 text-success border border-success/30 hover:bg-success/25 transition-all flex items-center gap-1"
             >
               <span>Nom du serveur</span>
               <span class="text-2xs opacity-60">{"{serveur}"}</span>

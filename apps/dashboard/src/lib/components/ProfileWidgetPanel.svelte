@@ -151,7 +151,7 @@
   <!-- ======================== STATS ROW ======================== -->
   <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
     <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-4 flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl flex items-center justify-center {isActive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-surface-container-high/30 text-on-surface-variant/50'}">
+      <div class="w-10 h-10 rounded-xl flex items-center justify-center {isActive ? 'bg-success/10 text-success' : 'bg-surface-container-high/30 text-on-surface-variant/50'}">
         <Papicon icon={isActive ? 'check-circle' : 'x-circle'} size={20} />
       </div>
       <div class="flex flex-col">
@@ -242,11 +242,11 @@
     </div>
 
     {#if isActive}
-      <section class="lg:col-span-2 relative overflow-hidden rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-6">
-        <div class="absolute -right-12 -top-16 h-44 w-44 rounded-full bg-amber-400/10 blur-3xl pointer-events-none"></div>
+      <section class="lg:col-span-2 relative overflow-hidden rounded-xl border border-warning/20 bg-amber-400/[0.04] p-6">
+        <div class="absolute -right-12 -top-16 h-44 w-44 rounded-full bg-warning/10 blur-3xl pointer-events-none"></div>
         <div class="relative grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
           <div class="space-y-3">
-            <div class="flex items-center gap-2 text-amber-400">
+            <div class="flex items-center gap-2 text-warning">
               <Papicon icon="terminal" size={18} />
               <span class="text-xs font-semibold">Installation locale · Discord/Vencord</span>
             </div>
@@ -256,10 +256,10 @@
               conserve tes widgets actuels et n’extrait aucun token.
             </p>
             <ol class="grid gap-2 text-xs text-on-surface-variant sm:grid-cols-2 lg:grid-cols-4">
-              <li><span class="mr-1.5 font-mono text-amber-400">01</span> Ouvre Discord/Vencord</li>
-              <li><span class="mr-1.5 font-mono text-amber-400">02</span> DevTools avec Ctrl+Shift+I</li>
-              <li><span class="mr-1.5 font-mono text-amber-400">03</span> Si demandé, tape « allow pasting »</li>
-              <li><span class="mr-1.5 font-mono text-amber-400">04</span> Colle le script dans Console</li>
+              <li><span class="mr-1.5 font-mono text-warning">01</span> Ouvre Discord/Vencord</li>
+              <li><span class="mr-1.5 font-mono text-warning">02</span> DevTools avec Ctrl+Shift+I</li>
+              <li><span class="mr-1.5 font-mono text-warning">03</span> Si demandé, tape « allow pasting »</li>
+              <li><span class="mr-1.5 font-mono text-warning">04</span> Colle le script dans Console</li>
             </ol>
           </div>
           <div class="flex min-w-56 flex-col gap-2">
@@ -444,7 +444,7 @@
             <div class="flex items-center gap-4 py-3">
               <span class="flex-1 font-mono text-sm text-on-surface">{sub.userId}</span>
               <span class="text-xs text-on-surface-variant/60">{new Date(sub.createdAt).toLocaleDateString('fr-FR')}</span>
-              <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/15">Actif</span>
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-success/10 text-success border border-success/15">Actif</span>
             </div>
           {/each}
         </div>

@@ -582,7 +582,7 @@
     <div class="flex flex-wrap items-center gap-2">
       <button
         onclick={() => (showTemplateModal = true)}
-        class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-all flex items-center gap-2 shadow-sm"
+        class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-warning/15 text-warning border border-warning/30 hover:bg-warning/25 transition-all flex items-center gap-2 shadow-sm"
       >
         <Papicon icon="Sparkles" size={14} />
         <span>{m.wf_templates_button()}</span>
@@ -748,7 +748,7 @@
             <h3 class="text-xs font-semibold text-on-surface-variant/70">{m.wf_edge_selected()}</h3>
             <button
               onclick={deleteSelectedEdge}
-              class="px-2 py-1 rounded-lg text-xs font-semibold text-red-700 dark:text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-colors flex items-center gap-1"
+              class="px-2 py-1 rounded-lg text-xs font-semibold text-error bg-error/10 hover:bg-error/20 transition-colors flex items-center gap-1"
               title={m.wf_edge_delete_title()}
             >
               <Papicon icon="Trash" size={12} />
@@ -769,7 +769,7 @@
             <h3 class="text-xs font-semibold text-on-surface-variant/70">{m.wf_node_config()}</h3>
             <button
               onclick={deleteSelected}
-              class="p-1 rounded text-red-700 dark:text-red-400 hover:bg-red-500/10 transition-colors"
+              class="p-1 rounded text-error hover:bg-error/10 transition-colors"
               title={m.wf_delete_node()}
             >
               <Papicon icon="Trash" size={13} />
@@ -793,7 +793,7 @@
                         oninput={(e) => updateCase(index, e.currentTarget.value)}
                         class="flex-1 px-2 py-1 rounded-lg bg-surface-container-highest border border-outline-variant/20 text-2xs text-on-surface"
                       />
-                      <button onclick={() => removeCase(index)} class="px-1.5 rounded text-red-700 dark:text-red-400 hover:bg-red-500/10">
+                      <button onclick={() => removeCase(index)} class="px-1.5 rounded text-error hover:bg-error/10">
                         <Papicon icon="Cross" size={11} />
                       </button>
                     </div>
@@ -894,7 +894,7 @@
       <div>
         <h3 class="text-xs font-semibold text-on-surface-variant/70 mb-2">{m.wf_issues()}</h3>
         {#if issues.length === 0}
-          <p class="text-2xs text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+          <p class="text-2xs text-success flex items-center gap-1.5">
             <Papicon icon="Check" size={12} /> {m.wf_no_issues()}
           </p>
         {:else}
@@ -902,8 +902,8 @@
             {#each issues as issue}
               <li
                 class="px-2 py-1.5 rounded-lg text-2xs leading-snug {issue.severity === 'error'
-                  ? 'bg-red-500/10 text-red-700 dark:text-red-300'
-                  : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'}"
+                  ? 'bg-error/10 text-error'
+                  : 'bg-warning/10 text-warning'}"
               >{issue.message}</li>
             {/each}
           </ul>
@@ -921,7 +921,7 @@
       <!-- Header -->
       <div class="px-5 py-4 border-b border-outline-variant/15 flex items-center justify-between bg-surface-container-highest/40">
         <div class="flex items-center gap-2">
-          <div class="p-2 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-300">
+          <div class="p-2 rounded-xl bg-warning/15 text-warning">
             <Papicon icon="Sparkles" size={18} />
           </div>
           <div>
@@ -943,21 +943,21 @@
           <button
             type="button"
             onclick={() => applyTemplate(template)}
-            class="p-4 rounded-xl bg-surface-container-highest/50 border border-outline-variant/15 hover:border-amber-500/40 text-left space-y-2 transition-all hover:scale-[1.01] group"
+            class="p-4 rounded-xl bg-surface-container-highest/50 border border-outline-variant/15 hover:border-warning/40 text-left space-y-2 transition-all hover:scale-[1.01] group"
           >
             <div class="flex items-center justify-between gap-2">
               <div class="flex items-center gap-2">
-                <span class="p-2 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300 group-hover:bg-amber-500/25 transition-colors">
+                <span class="p-2 rounded-lg bg-warning/15 text-warning group-hover:bg-warning/25 transition-colors">
                   <Papicon icon={template.icon} size={16} />
                 </span>
-                <h4 class="text-xs font-bold text-on-surface group-hover:text-amber-700 dark:group-hover:text-amber-300 transition-colors">{template.name}</h4>
+                <h4 class="text-xs font-bold text-on-surface group-hover:text-warning transition-colors">{template.name}</h4>
               </div>
               <span class="px-2 py-0.5 rounded text-xs font-semibold bg-surface-container-highest text-on-surface-variant/70">
                 {template.category}
               </span>
             </div>
             <p class="text-2xs text-on-surface-variant/70 leading-relaxed">{template.description}</p>
-            <div class="pt-1 flex items-center text-2xs font-semibold text-amber-700 dark:text-amber-300 group-hover:underline">
+            <div class="pt-1 flex items-center text-2xs font-semibold text-warning group-hover:underline">
               <span>{m.wf_templates_apply()} →</span>
             </div>
           </button>

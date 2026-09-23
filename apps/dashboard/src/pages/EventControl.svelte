@@ -208,7 +208,7 @@
       {/if}
       <button
         onclick={finishEvent}
-        class="px-5 py-2.5 bg-red-500/10 text-red-500 rounded-xl font-medium text-body-sm border border-red-500/20 hover:bg-red-500/20 transition-colors"
+        class="px-5 py-2.5 bg-error/10 text-error rounded-xl font-medium text-body-sm border border-error/20 hover:bg-error/20 transition-colors"
       >
         {m.evc_btn_finish()}
       </button>
@@ -242,7 +242,7 @@
             {:else if event.type === 'CTF'}
               <div class="hidden md:block">
                 <span class="text-xs font-medium text-on-surface-variant/40">{m.evc_col_type()}</span>
-                <p class="text-2xl font-semibold text-emerald-500 mt-1">Capture The Flag</p>
+                <p class="text-2xl font-semibold text-success mt-1">Capture The Flag</p>
               </div>
               <div class="h-12 w-px bg-outline-variant/20 hidden md:block"></div>
               <div class="hidden md:block">
@@ -345,7 +345,7 @@
                     <td class="px-8 py-5 text-right">
                       <button
                         onclick={() => removeRegistration(reg.userId)}
-                        class="px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 text-xs font-medium hover:bg-red-500/20 transition-colors"
+                        class="px-3 py-1.5 rounded-lg bg-error/10 text-error text-xs font-medium hover:bg-error/20 transition-colors"
                       >
                         {m.evc_btn_remove_reg()}
                       </button>
@@ -363,7 +363,7 @@
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {#each stats.challenges as challenge}
                   <div class="bg-surface-container-low/30 rounded-xl border border-outline-variant/10 p-8 space-y-6 relative overflow-hidden group">
-                    <div class="absolute top-0 left-0 w-2 h-full bg-emerald-500/30"></div>
+                    <div class="absolute top-0 left-0 w-2 h-full bg-success/30"></div>
                     
                     <div class="flex items-center justify-between">
                       <div>
@@ -376,7 +376,7 @@
                         </p>
                       </div>
                       <div class="text-right">
-                        <span class="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-lg text-xs font-medium">
+                        <span class="px-3 py-1 bg-success/10 text-success rounded-lg text-xs font-medium">
                           {m.evc_solves_count({ count: challenge.solveCount })}
                         </span>
                       </div>
@@ -487,7 +487,7 @@
                               <Papicon icon="Check" size={10} class="text-white" />
                             </div>
                           {/if}
-                          <span class={isCorrect ? 'text-emerald-500' : 'text-on-surface'}>{optionText}</span>
+                          <span class={isCorrect ? 'text-success' : 'text-on-surface'}>{optionText}</span>
                         </div>
                         <span class="text-on-surface-variant/60">{value} ({percentage}%)</span>
                       </div>
@@ -551,7 +551,7 @@
                     {:else}
                       {#if lastResp}
                         {@const respText = lastResp.optionLabel || (currentQuestion?.options as string[])?.[lastResp.optionIndex] || `Option ${lastResp.optionIndex + 1}`}
-                        <span class="px-3 py-1 rounded-lg text-2xs font-semibold uppercase tracking-widest {lastResp.isCorrect ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600'}">
+                        <span class="px-3 py-1 rounded-lg text-2xs font-semibold uppercase tracking-widest {lastResp.isCorrect ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}">
                           {respText}
                         </span>
                       {:else}

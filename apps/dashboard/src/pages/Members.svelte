@@ -354,7 +354,7 @@
 
         <button
           onclick={resetSearch}
-          class="inline-flex h-11.5 w-11.5 items-center justify-center rounded-lg border border-outline-variant/10 bg-surface-container-low/70 text-on-surface-variant transition-colors hover:bg-surface-container hover:text-rose-500"
+          class="inline-flex h-11.5 w-11.5 items-center justify-center rounded-lg border border-outline-variant/10 bg-surface-container-low/70 text-on-surface-variant transition-colors hover:bg-surface-container hover:text-error"
           title={m.mb_reset_filters()}
         >
           <Papicon icon="rotate-ccw" size={18} />
@@ -397,7 +397,7 @@
   </section>
 
   {#if searchError}
-    <div class="rounded-lg border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-sm font-medium text-rose-600 flex items-center gap-3">
+    <div class="rounded-lg border border-error/20 bg-error/5 px-4 py-3 text-sm font-medium text-error flex items-center gap-3">
       <Papicon icon="alert-circle" size={18} />
       {searchError}
     </div>
@@ -441,7 +441,7 @@
         {#each members as member (member.id)}
           <button
             onclick={() => openMemberCase(member)}
-            class={`group flex flex-col rounded-xl border ${member.isOnServer ? 'border-outline-variant/10 bg-surface-container-low/40' : 'border-rose-500/10 bg-rose-500/5'} p-4 text-left transition-all duration-300 hover:border-primary/20 hover:bg-surface-container-low hover:shadow-xl hover:shadow-primary/5`}
+            class={`group flex flex-col rounded-xl border ${member.isOnServer ? 'border-outline-variant/10 bg-surface-container-low/40' : 'border-error/10 bg-error/5'} p-4 text-left transition-all duration-300 hover:border-primary/20 hover:bg-surface-container-low hover:shadow-xl hover:shadow-primary/5`}
           >
             <div class="flex items-start gap-4">
               <div class="relative">

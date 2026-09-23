@@ -190,7 +190,7 @@
               <EmojiText value={event.emoji} size="1.125rem" class="text-lg" />
               <div class="min-w-0">
                 <h4 class="font-semibold text-sm truncate">{event.title}</h4>
-                <span class="text-2xs font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full inline-block mt-1 {event.scope === 'GLOBAL' ? 'bg-outline-variant/15 text-on-surface-variant/70' : event.overridesGlobal ? 'bg-amber-500/10 text-amber-400' : 'bg-primary/10 text-primary'}">
+                <span class="text-2xs font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full inline-block mt-1 {event.scope === 'GLOBAL' ? 'bg-outline-variant/15 text-on-surface-variant/70' : event.overridesGlobal ? 'bg-warning/10 text-warning' : 'bg-primary/10 text-primary'}">
                   {event.scope === 'GLOBAL' ? m.eco_events_scope_global() : event.overridesGlobal ? (event.enabled ? m.eco_events_scope_override() : m.eco_events_scope_disabled()) : m.eco_events_scope_guild()}
                 </span>
               </div>
@@ -212,8 +212,8 @@
               {#each event.choices as choice}
                 <li class="text-2xs bg-surface-container-high/40 rounded-lg px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span class="font-semibold text-on-surface">{choice.text}</span>
-                  {#if choice.hpEffect}<span class="{choice.hpEffect < 0 ? 'text-red-400' : 'text-emerald-400'} font-bold">{effectLabel(choice.hpEffect, m.eco_events_unit_hp())}</span>{/if}
-                  {#if choice.coinEffect}<span class="{choice.coinEffect < 0 ? 'text-red-400' : 'text-amber-400'} font-bold">{effectLabel(choice.coinEffect, m.eco_events_unit_coins())}</span>{/if}
+                  {#if choice.hpEffect}<span class="{choice.hpEffect < 0 ? 'text-error' : 'text-success'} font-bold">{effectLabel(choice.hpEffect, m.eco_events_unit_hp())}</span>{/if}
+                  {#if choice.coinEffect}<span class="{choice.coinEffect < 0 ? 'text-error' : 'text-warning'} font-bold">{effectLabel(choice.coinEffect, m.eco_events_unit_coins())}</span>{/if}
                   {#if choice.xpEffect}<span class="text-sky-400 font-bold">{effectLabel(choice.xpEffect, 'XP')}</span>{/if}
                   {#if choice.minLevel > 1}<span class="text-on-surface-variant/50">{m.eco_events_min_level({ level: choice.minLevel })}</span>{/if}
                   {#if titleOf(choice.titleId)}
@@ -223,7 +223,7 @@
               {/each}
             </ul>
           {:else}
-            <p class="text-2xs text-amber-400/90 italic">{m.eco_events_disabled_hint()}</p>
+            <p class="text-2xs text-warning/90 italic">{m.eco_events_disabled_hint()}</p>
           {/if}
 
           {#if canManage}

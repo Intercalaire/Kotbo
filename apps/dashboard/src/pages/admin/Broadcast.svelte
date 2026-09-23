@@ -482,7 +482,7 @@
         {tab.label}
         {#if tab.badge}
           <span class="px-1.5 py-0.5 rounded text-2xs font-bold tabular-nums
-            {tab.id === 'channels' && tab.badge > 0 ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400' : 'bg-on-surface/10 text-on-surface-variant'}">
+            {tab.id === 'channels' && tab.badge > 0 ? 'bg-warning/15 text-warning' : 'bg-on-surface/10 text-on-surface-variant'}">
             {tab.badge}
           </span>
         {/if}
@@ -499,14 +499,14 @@
             <div>
               <div class="flex items-center justify-between mb-1.5">
                 <label for="bc-title" class="text-xs font-semibold text-on-surface-variant">Titre</label>
-                <span class="text-2xs tabular-nums {titleOver ? 'text-red-500 font-semibold' : 'text-on-surface-variant'}">{title.length}/256</span>
+                <span class="text-2xs tabular-nums {titleOver ? 'text-error font-semibold' : 'text-on-surface-variant'}">{title.length}/256</span>
               </div>
               <div class="flex gap-2">
                 <input
                   id="bc-title"
                   bind:value={title}
                   class="flex-1 h-10 px-3 rounded-xl bg-surface-container-low/70 border text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/15 transition
-                    {titleOver ? 'border-red-500/50' : 'border-outline-variant/25 focus:border-primary/60'}"
+                    {titleOver ? 'border-error/50' : 'border-outline-variant/25 focus:border-primary/60'}"
                 />
                 <button
                   type="button"
@@ -525,7 +525,7 @@
             <div>
               <div class="flex items-center justify-between mb-1.5">
                 <label for="bc-message" class="text-xs font-semibold text-on-surface-variant">Message</label>
-                <span class="text-2xs tabular-nums {messageOver ? 'text-red-500 font-semibold' : 'text-on-surface-variant'}">{message.length}/4000</span>
+                <span class="text-2xs tabular-nums {messageOver ? 'text-error font-semibold' : 'text-on-surface-variant'}">{message.length}/4000</span>
               </div>
               <textarea
                 id="bc-message"
@@ -534,7 +534,7 @@
                 placeholder="Rédigez l’annonce. Markdown Discord et raccourcis :emoji: acceptés."
                 class="w-full px-3 py-2.5 rounded-xl bg-surface-container-low/70 border text-sm text-on-surface leading-relaxed resize-y
                   placeholder:text-on-surface-variant focus:outline-none focus:ring-2 focus:ring-primary/15 transition
-                  {messageOver ? 'border-red-500/50' : 'border-outline-variant/25 focus:border-primary/60'}"
+                  {messageOver ? 'border-error/50' : 'border-outline-variant/25 focus:border-primary/60'}"
               ></textarea>
               <button
                 type="button"
@@ -577,13 +577,13 @@
             <div>
               <div class="flex items-center justify-between mb-1.5">
                 <label for="bc-footer" class="text-xs font-semibold text-on-surface-variant">Pied de page</label>
-                <span class="text-2xs tabular-nums {footerOver ? 'text-red-500 font-semibold' : 'text-on-surface-variant'}">{footerText.length}/2048</span>
+                <span class="text-2xs tabular-nums {footerOver ? 'text-error font-semibold' : 'text-on-surface-variant'}">{footerText.length}/2048</span>
               </div>
               <input
                 id="bc-footer"
                 bind:value={footerText}
                 class="w-full h-10 px-3 rounded-xl bg-surface-container-low/70 border text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/15 transition
-                  {footerOver ? 'border-red-500/50' : 'border-outline-variant/25 focus:border-primary/60'}"
+                  {footerOver ? 'border-error/50' : 'border-outline-variant/25 focus:border-primary/60'}"
               />
             </div>
 
@@ -705,10 +705,10 @@
                   type="datetime-local"
                   bind:value={scheduledAt}
                   class="w-full h-10 px-3 rounded-xl bg-surface-container-lowest border text-sm text-on-surface focus:outline-none focus:border-primary/60
-                    {scheduleInvalid ? 'border-red-500/50' : 'border-outline-variant/25'}"
+                    {scheduleInvalid ? 'border-error/50' : 'border-outline-variant/25'}"
                 />
                 {#if scheduleInvalid}
-                  <p class="text-xs text-red-500">Choisis une date future.</p>
+                  <p class="text-xs text-error">Choisis une date future.</p>
                 {:else}
                   <p class="text-2xs text-on-surface-variant">
                     L’annonce partira automatiquement, même si personne n’est connecté au dashboard.
@@ -745,15 +745,15 @@
             </div>
 
             {#if targetedUnconfigured.length > 0}
-              <div class="rounded-xl border border-amber-500/25 bg-amber-500/8 p-3">
-                <p class="text-xs text-amber-700 dark:text-amber-300 leading-snug">
+              <div class="rounded-xl border border-warning/25 bg-warning/8 p-3">
+                <p class="text-xs text-warning leading-snug">
                   <strong>{targetedUnconfigured.length} serveur(s)</strong> n’ont pas de salon de diffusion.
                   Kotbo tentera un repli automatique, sans garantie.
                 </p>
                 <button
                   type="button"
                   onclick={() => (activeTab = 'channels')}
-                  class="mt-2 text-xs font-semibold text-amber-700 dark:text-amber-300 underline underline-offset-2"
+                  class="mt-2 text-xs font-semibold text-warning underline underline-offset-2"
                 >
                   Configurer les salons
                 </button>
@@ -873,7 +873,7 @@
                     type="button"
                     onclick={() => removeMedia(media)}
                     aria-label="Supprimer"
-                    class="w-8 h-8 rounded-lg bg-on-surface/6 text-on-surface-variant hover:bg-red-500/12 hover:text-red-500 transition flex items-center justify-center"
+                    class="w-8 h-8 rounded-lg bg-on-surface/6 text-on-surface-variant hover:bg-error/12 hover:text-error transition flex items-center justify-center"
                   >
                     <Papicon icon="Trash" size={12} />
                   </button>
@@ -921,7 +921,7 @@
                   type="button"
                   onclick={() => removeTemplate(template.id)}
                   aria-label="Supprimer le modèle"
-                  class="w-8 h-8 rounded-lg bg-on-surface/6 text-on-surface-variant hover:bg-red-500/12 hover:text-red-500 transition flex items-center justify-center"
+                  class="w-8 h-8 rounded-lg bg-on-surface/6 text-on-surface-variant hover:bg-error/12 hover:text-error transition flex items-center justify-center"
                 >
                   <Papicon icon="Trash" size={12} />
                 </button>
@@ -1016,9 +1016,9 @@
             {/if}
           </td>
           <td class="px-4 py-3 text-right">
-            <span class="text-body-sm font-semibold text-emerald-500 tabular-nums">{log.successCount}</span>
+            <span class="text-body-sm font-semibold text-success tabular-nums">{log.successCount}</span>
             <span class="text-on-surface-variant">/</span>
-            <span class="text-body-sm tabular-nums {log.failCount > 0 ? 'text-red-500 font-semibold' : 'text-on-surface-variant'}">{log.failCount}</span>
+            <span class="text-body-sm tabular-nums {log.failCount > 0 ? 'text-error font-semibold' : 'text-on-surface-variant'}">{log.failCount}</span>
             <p class="text-2xs text-on-surface-variant tabular-nums">sur {log.totalTargeted}</p>
           </td>
           <td class="px-4 py-3 text-right hidden md:table-cell">
@@ -1035,7 +1035,7 @@
                   onclick={() => handleCancel(log)}
                   aria-label="Annuler"
                   title="Annuler l’envoi programmé"
-                  class="w-8 h-8 rounded-lg bg-on-surface/6 text-on-surface-variant hover:bg-amber-500/12 hover:text-amber-500 transition flex items-center justify-center"
+                  class="w-8 h-8 rounded-lg bg-on-surface/6 text-on-surface-variant hover:bg-warning/12 hover:text-warning transition flex items-center justify-center"
                 >
                   <Papicon icon="Ban" size={13} />
                 </button>
@@ -1063,7 +1063,7 @@
                 type="button"
                 onclick={() => handleDeleteLog(log.id)}
                 aria-label="Supprimer"
-                class="w-8 h-8 rounded-lg bg-on-surface/6 text-on-surface-variant hover:bg-red-500/12 hover:text-red-500 transition flex items-center justify-center"
+                class="w-8 h-8 rounded-lg bg-on-surface/6 text-on-surface-variant hover:bg-error/12 hover:text-error transition flex items-center justify-center"
               >
                 <Papicon icon="Trash" size={13} />
               </button>

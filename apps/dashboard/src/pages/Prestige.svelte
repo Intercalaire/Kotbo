@@ -1054,9 +1054,9 @@
   }
 
   function statusClass(status: string): string {
-    if (status === 'RUNNING') return 'bg-emerald-500/10 text-emerald-500';
+    if (status === 'RUNNING') return 'bg-success/10 text-success';
     if (status === 'SCHEDULED') return 'bg-primary/10 text-primary';
-    if (status === 'CANCELLED') return 'bg-rose-500/10 text-rose-500';
+    if (status === 'CANCELLED') return 'bg-error/10 text-error';
     return 'bg-surface-container-high/40 text-on-surface-variant';
   }
 
@@ -1233,8 +1233,8 @@
       <div class="space-y-8 animate-in fade-in duration-300">
         <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <MetricCard label={m.prg_stat_ranked()} value={stats?.rankedMembers ?? 0} icon="users" />
-          <MetricCard label={m.prg_stat_streaks()} value={stats?.activeStreaks ?? 0} icon="activity" toneClass="bg-amber-500/10 text-amber-500" />
-          <MetricCard label={m.prg_stat_total_rp()} value={(stats?.totalRp ?? 0).toLocaleString()} icon="chart" toneClass="bg-emerald-500/10 text-emerald-500" />
+          <MetricCard label={m.prg_stat_streaks()} value={stats?.activeStreaks ?? 0} icon="activity" toneClass="bg-warning/10 text-warning" />
+          <MetricCard label={m.prg_stat_total_rp()} value={(stats?.totalRp ?? 0).toLocaleString()} icon="chart" toneClass="bg-success/10 text-success" />
           <MetricCard label={m.prg_stat_best_streak()} value={stats?.bestStreak ?? 0} icon="crown" toneClass="bg-pink-500/10 text-pink-500" />
         </div>
 
@@ -1323,7 +1323,7 @@
           <div class="flex items-start justify-between gap-4">
             <div>
               <h3 class="text-xl font-semibold flex items-center gap-3">
-                <Papicon icon="activity" size={20} class="text-amber-500" />
+                <Papicon icon="activity" size={20} class="text-warning" />
                 {m.prg_section_streaks()}
               </h3>
               <p class="text-xs text-on-surface-variant/70 mt-1">{m.prg_section_streaks_hint()}</p>
@@ -1426,7 +1426,7 @@
               <div class="flex items-end gap-[3px] h-20 px-2 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
                 {#each streakCurve as point (point.day)}
                   <div
-                    class="flex-1 rounded-t-sm min-h-[2px] bg-amber-500/60"
+                    class="flex-1 rounded-t-sm min-h-[2px] bg-warning/60"
                     style="height: {Math.max(2, ((point.multiplier - 1) / Math.max(0.01, streakCurveMax - 1)) * 100)}%"
                     title={m.prg_streak_preview_bar({ day: point.day, percent: Math.round((point.multiplier - 1) * 100) })}
                   ></div>
@@ -1651,7 +1651,7 @@
             </div>
 
             {#if ladderDirty}
-              <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-2xs text-amber-600 dark:text-amber-400 leading-relaxed flex items-start gap-2">
+              <div class="p-3 bg-warning/10 border border-warning/20 rounded-lg text-2xs text-warning leading-relaxed flex items-start gap-2">
                 <Papicon icon="AlertTriangle" size={13} class="shrink-0 mt-0.5" />
                 <div class="min-w-0 flex-1">
                   {#if impact && impact.changed > 0}
@@ -1760,7 +1760,7 @@
               {#each activeLadder as tier (tier.key)}
                 {@const linkedRoleId = roleFor(tier.key)}
                 {@const missingRole = !!linkedRoleId && isMissingReference(linkedRoleId, roles)}
-                <div class="flex items-center gap-3 rounded-lg border px-3 py-2 {missingRole ? 'border-amber-500/30 bg-amber-500/5' : 'border-outline-variant/20 bg-surface-container-low/30'}">
+                <div class="flex items-center gap-3 rounded-lg border px-3 py-2 {missingRole ? 'border-warning/30 bg-warning/5' : 'border-outline-variant/20 bg-surface-container-low/30'}">
                   <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:{tier.color}"></span>
                   <div class="min-w-0 flex-1">
                     <p class="text-body-sm font-semibold text-on-surface truncate">{tier.name}</p>
@@ -1770,7 +1770,7 @@
                         <!-- Le role a ete supprime sur Discord : la ligne
                              existe toujours en base et n'attribuait plus rien,
                              sans que rien ne le dise. -->
-                        <span class="text-amber-600 dark:text-amber-400 font-semibold" title={m.prg_role_missing_hint()}>
+                        <span class="text-warning font-semibold" title={m.prg_role_missing_hint()}>
                           · {m.prg_role_missing()}
                         </span>
                       {/if}
@@ -1795,8 +1795,8 @@
               <!-- Paliers disparus d'une echelle raccourcie : leurs roles
                    existent encore sur Discord et restent portes par des membres,
                    mais plus rien ne les attribue ni ne les retire. -->
-              <div class="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg space-y-3">
-                <div class="flex items-start gap-2 text-2xs text-amber-600 dark:text-amber-400 leading-relaxed">
+              <div class="p-4 bg-warning/10 border border-warning/20 rounded-lg space-y-3">
+                <div class="flex items-start gap-2 text-2xs text-warning leading-relaxed">
                   <Papicon icon="AlertTriangle" size={13} class="shrink-0 mt-0.5" />
                   <p>{m.prg_roles_orphan_desc({ count: orphanTierRoles.length })}</p>
                 </div>
@@ -1829,7 +1829,7 @@
           <div class="flex items-start justify-between gap-4">
             <div>
               <h3 class="text-xl font-semibold flex items-center gap-3">
-                <Papicon icon="arrow-down" size={20} class="text-rose-500" />
+                <Papicon icon="arrow-down" size={20} class="text-error" />
                 {m.prg_section_decay()}
               </h3>
               <p class="text-xs text-on-surface-variant/70 mt-1">{m.prg_section_decay_hint()}</p>
@@ -1920,7 +1920,7 @@
             <div class="space-y-2 pt-4 border-t border-outline-variant/10">
               <div class="flex items-baseline justify-between gap-3">
                 <h4 class="text-sm font-bold text-on-surface-variant">{m.prg_decay_preview_title()}</h4>
-                <span class="text-2xs font-semibold text-rose-500">
+                <span class="text-2xs font-semibold text-error">
                   {decayDaysToDemotion === null
                     ? m.prg_decay_preview_safe()
                     : m.prg_decay_preview_demotion({ days: decayDaysToDemotion })}
@@ -1929,7 +1929,7 @@
               <div class="flex items-end gap-[3px] h-20 px-2 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
                 {#each decayCurve as rp, days}
                   <div
-                    class="flex-1 rounded-t-sm min-h-[2px] bg-rose-500/50"
+                    class="flex-1 rounded-t-sm min-h-[2px] bg-error/50"
                     style="height: {Math.max(2, (rp / Math.max(1, decayReferenceRp)) * 100)}%"
                     title={m.prg_decay_preview_bar({ days, rp: rp.toLocaleString() })}
                   ></div>
@@ -1946,7 +1946,7 @@
                 {m.prg_btn_preview_decay()}
               </button>
               {#if canManageSettings}
-                <button class="px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-500 text-xs font-bold" onclick={handleRunDecay}>
+                <button class="px-3 py-1.5 rounded-lg bg-error/10 text-error text-xs font-bold" onclick={handleRunDecay}>
                   {m.prg_btn_run_decay()}
                 </button>
               {/if}
@@ -2165,7 +2165,7 @@
                     {m.prg_event_result({ participants: event.participants, bonus: event.bonusRpGranted })}
                   </span>
                   {#if event.status === 'SCHEDULED' || event.status === 'RUNNING'}
-                    <button class="text-2xs font-bold text-rose-500" onclick={() => handleCancelEvent(event.id)}>
+                    <button class="text-2xs font-bold text-error" onclick={() => handleCancelEvent(event.id)}>
                       {m.prg_btn_cancel_event()}
                     </button>
                   {/if}
@@ -2410,7 +2410,7 @@
                   <div class="space-y-1">
                     {#each memberHistory.slice(-8).reverse() as entry (entry.createdAt + entry.delta)}
                       <div class="flex items-center gap-3 text-2xs px-2 py-1 rounded-lg hover:bg-surface-container-high/10">
-                        <span class="w-16 font-mono tabular-nums {entry.delta >= 0 ? 'text-emerald-500' : 'text-rose-500'}">
+                        <span class="w-16 font-mono tabular-nums {entry.delta >= 0 ? 'text-success' : 'text-error'}">
                           {entry.delta >= 0 ? '+' : ''}{entry.delta.toLocaleString()}
                         </span>
                         <span class="flex-1 text-on-surface-variant/70">{(RP_SOURCE_LABELS[entry.source] ?? (() => entry.source))()}</span>
@@ -2440,7 +2440,7 @@
                         type="button"
                         onclick={() => handleAdjust(1)}
                         disabled={!adjustDelta || adjustAction.state.loading}
-                        class="px-4 py-2.5 rounded-lg bg-emerald-500/10 text-emerald-500 text-xs font-bold disabled:opacity-40"
+                        class="px-4 py-2.5 rounded-lg bg-success/10 text-success text-xs font-bold disabled:opacity-40"
                       >
                         {m.prg_member_adjust_add()}
                       </button>
@@ -2448,7 +2448,7 @@
                         type="button"
                         onclick={() => handleAdjust(-1)}
                         disabled={!adjustDelta || adjustAction.state.loading}
-                        class="px-4 py-2.5 rounded-lg bg-rose-500/10 text-rose-500 text-xs font-bold disabled:opacity-40"
+                        class="px-4 py-2.5 rounded-lg bg-error/10 text-error text-xs font-bold disabled:opacity-40"
                       >
                         {m.prg_member_adjust_remove()}
                       </button>

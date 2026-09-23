@@ -201,7 +201,7 @@
     {/each}
   </div>
 {:else if error}
-  <div class="p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 flex items-center gap-3">
+  <div class="p-6 rounded-2xl bg-error/10 border border-error/20 text-red-300 flex items-center gap-3">
     <Papicon icon="Warning" size={20} />
     <span>{error}</span>
   </div>
@@ -228,7 +228,7 @@
     </div>
 
     {#if config && !config.enabled}
-      <div class="px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2">
+      <div class="px-4 py-3 rounded-xl bg-warning/10 border border-warning/20 text-amber-300 text-xs flex items-center gap-2">
         <Papicon icon="Warning" size={14} />
         {m.audit_disabled_notice()}
       </div>
@@ -293,7 +293,7 @@
               id="audit-ignored-roles"
               bind:values={form.ignoredUserIds}
               options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
-              accentClass="bg-rose-500/20 text-rose-300 border-rose-500/40"
+              accentClass="bg-error/20 text-rose-300 border-error/40"
             />
             <p class="text-2xs text-on-surface-variant/50">{m.audit_ignored_help()}</p>
           </div>
@@ -439,8 +439,8 @@
                       {@const stats = diffStats(lines)}
                       {@const rows = toSideBySide(lines)}
                       <p class="text-2xs text-on-surface-variant/50">
-                        <span class="text-emerald-400">+{stats.added}</span>
-                        <span class="text-red-400 ml-2">−{stats.removed}</span>
+                        <span class="text-success">+{stats.added}</span>
+                        <span class="text-error ml-2">−{stats.removed}</span>
                       </p>
                       <div class="rounded-xl border border-outline-variant/10 overflow-x-auto">
                         <table class="w-full font-mono text-xs border-collapse">
@@ -453,10 +453,10 @@
                           <tbody>
                             {#each rows as row}
                               <tr>
-                                <td class="px-3 py-1 align-top whitespace-pre-wrap wrap-break-word {row.before?.type === 'removed' ? 'bg-red-500/10 text-red-300' : 'text-on-surface-variant/70'}">
+                                <td class="px-3 py-1 align-top whitespace-pre-wrap wrap-break-word {row.before?.type === 'removed' ? 'bg-error/10 text-red-300' : 'text-on-surface-variant/70'}">
                                   {#if row.before}<span class="select-none text-on-surface-variant/30 mr-2">{row.before.beforeLine ?? ''}</span>{row.before.content}{/if}
                                 </td>
-                                <td class="px-3 py-1 align-top whitespace-pre-wrap wrap-break-word border-l border-outline-variant/10 {row.after?.type === 'added' ? 'bg-emerald-500/10 text-emerald-300' : 'text-on-surface-variant/70'}">
+                                <td class="px-3 py-1 align-top whitespace-pre-wrap wrap-break-word border-l border-outline-variant/10 {row.after?.type === 'added' ? 'bg-success/10 text-emerald-300' : 'text-on-surface-variant/70'}">
                                   {#if row.after}<span class="select-none text-on-surface-variant/30 mr-2">{row.after.afterLine ?? ''}</span>{row.after.content}{/if}
                                 </td>
                               </tr>
@@ -468,12 +468,12 @@
                       <!-- Listes : rôles gagnés/perdus, permissions accordées/refusées -->
                       <div class="flex flex-wrap gap-1.5">
                         {#each change.added ?? [] as item}
-                          <span class="px-2 py-1 rounded-md text-2xs font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
+                          <span class="px-2 py-1 rounded-md text-2xs font-mono bg-success/15 text-emerald-300 border border-success/25">
                             + {item}
                           </span>
                         {/each}
                         {#each change.removed ?? [] as item}
-                          <span class="px-2 py-1 rounded-md text-2xs font-mono bg-red-500/15 text-red-300 border border-red-500/25">
+                          <span class="px-2 py-1 rounded-md text-2xs font-mono bg-error/15 text-red-300 border border-error/25">
                             − {item}
                           </span>
                         {/each}
@@ -486,11 +486,11 @@
                     {:else}
                       <!-- Champ scalaire : ancienne valeur barrée, nouvelle en vert -->
                       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div class="px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-300 wrap-break-word">
+                        <div class="px-3 py-2 rounded-xl bg-error/10 border border-error/20 text-xs text-red-300 wrap-break-word">
                           <span class="block text-xs opacity-60 mb-0.5">{m.audit_before()}</span>
                           {displayValue(change.before)}
                         </div>
-                        <div class="px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 wrap-break-word">
+                        <div class="px-3 py-2 rounded-xl bg-success/10 border border-success/20 text-xs text-emerald-300 wrap-break-word">
                           <span class="block text-xs opacity-60 mb-0.5">{m.audit_after()}</span>
                           {displayValue(change.after)}
                         </div>

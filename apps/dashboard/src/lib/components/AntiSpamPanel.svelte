@@ -310,7 +310,7 @@
 
         <div
           class="flex items-center justify-between gap-4 rounded-xl border px-4 py-3 transition-colors
-          {config.shadowMode ? 'border-sky-500/40 bg-sky-500/5' : 'border-amber-500/40 bg-amber-500/5'}"
+          {config.shadowMode ? 'border-sky-500/40 bg-sky-500/5' : 'border-warning/40 bg-warning/5'}"
         >
           <div class="min-w-0">
             <p class="text-sm font-medium text-on-surface flex items-center gap-2">
@@ -322,7 +322,7 @@
                 Actif : rien n'est supprimé ni sanctionné. Laisse tourner deux à trois semaines,
                 puis calez les seuils sur la répartition observée ci-dessous avant de désactiver.
               {:else}
-                <span class="text-amber-500 font-medium">Désactivé</span> : les sanctions sont
+                <span class="text-warning font-medium">Désactivé</span> : les sanctions sont
                 réellement appliquées. Vérifie que tu as tranché assez de détections pour que
                 les seuils soient justifiés.
               {/if}
@@ -391,8 +391,8 @@
                 <div class="text-[15px] font-semibold text-sky-500 tabular-nums">{projection.logged}</div>
                 <div class="text-2xs text-on-surface-variant">journalisés</div>
               </div>
-              <div class="rounded-lg bg-amber-500/10 px-2 py-2">
-                <div class="text-[15px] font-semibold text-amber-500 tabular-nums">{projection.deleted}</div>
+              <div class="rounded-lg bg-warning/10 px-2 py-2">
+                <div class="text-[15px] font-semibold text-warning tabular-nums">{projection.deleted}</div>
                 <div class="text-2xs text-on-surface-variant">supprimés</div>
               </div>
               <div class="rounded-lg bg-orange-500/10 px-2 py-2">
@@ -614,7 +614,7 @@
                       {sample.score >= config.timeoutThreshold
                         ? 'bg-error/15 text-error'
                         : sample.score >= config.deleteThreshold
-                          ? 'bg-amber-500/15 text-amber-500'
+                          ? 'bg-warning/15 text-warning'
                           : 'bg-sky-500/15 text-sky-500'}"
                     >
                       {sample.score}/100
@@ -629,7 +629,7 @@
                       <span
                         class="text-2xs px-1.5 py-0.5 rounded {sample.label === 'TRUE_POSITIVE'
                           ? 'bg-error/10 text-error'
-                          : 'bg-emerald-500/10 text-emerald-500'}"
+                          : 'bg-success/10 text-success'}"
                       >
                         {sample.label === 'TRUE_POSITIVE' ? 'vrai positif' : 'faux positif'}
                       </span>
@@ -664,7 +664,7 @@
                     </button>
                     <button
                       type="button"
-                      class="px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 hover:bg-emerald-500/25 disabled:opacity-50 transition-colors"
+                      class="px-2.5 py-1 rounded-lg text-xs font-medium bg-success/15 text-success border border-success/30 hover:bg-success/25 disabled:opacity-50 transition-colors"
                       disabled={decidingId !== null}
                       onclick={() => decide(sample, false)}
                     >

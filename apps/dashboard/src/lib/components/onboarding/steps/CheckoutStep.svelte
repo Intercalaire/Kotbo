@@ -175,7 +175,7 @@
         {offer.description}
       </p>
       {#if trialDays > 0}
-        <p class="mt-3 flex items-start gap-2 text-body-sm font-medium text-emerald-500">
+        <p class="mt-3 flex items-start gap-2 text-body-sm font-medium text-success">
           <Papicon icon="gift" size={14} class="mt-0.5 shrink-0" />
           <span>
             {trialDays} jours d'essai gratuit - tu ne seras débité qu'après, et tu peux

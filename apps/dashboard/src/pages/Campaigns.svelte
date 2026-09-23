@@ -70,7 +70,7 @@
   const STATUS_META: Record<string, { label: string; text: string; bg: string }> = {
     DRAFT: { label: 'Brouillon', text: 'text-on-surface-variant', bg: 'bg-surface-container' },
     SCHEDULED: { label: 'Planifiée', text: 'text-sky-500', bg: 'bg-sky-500/10' },
-    RUNNING: { label: 'En cours', text: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+    RUNNING: { label: 'En cours', text: 'text-success', bg: 'bg-success/10' },
     COMPLETED: { label: 'Terminée', text: 'text-on-surface-variant', bg: 'bg-surface-container' },
     CANCELLED: { label: 'Annulée', text: 'text-error', bg: 'bg-error/10' },
   };
@@ -332,7 +332,7 @@
                   <Papicon icon={step.delivery === 'DM' ? 'mail' : 'hash'} size={13} class="text-on-surface-variant/60 shrink-0" />
                   <p class="text-xs text-on-surface truncate flex-1 min-w-0">{step.content}</p>
                   {#if step.status === 'SENT'}
-                    <span class="flex items-center gap-1 text-2xs text-emerald-500 shrink-0">
+                    <span class="flex items-center gap-1 text-2xs text-success shrink-0">
                       {step.deliveredCount}
                       <Papicon icon="check" size={11} />
                       {#if step.failedCount}

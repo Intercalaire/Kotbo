@@ -1366,7 +1366,7 @@
 
                 <div class="min-w-0 flex-1">
                   <p class="text-sm font-semibold text-on-surface truncate">{template.name}</p>
-                  <p class="text-xs truncate {awaitsPrize(template) ? 'text-amber-600' : 'text-on-surface-variant/70'}">
+                  <p class="text-xs truncate {awaitsPrize(template) ? 'text-warning' : 'text-on-surface-variant/70'}">
                     {template.prize}
                   </p>
 
@@ -1377,7 +1377,7 @@
                     {#if template.channelId}
                       <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{getChannelName(template.channelId)}</span>
                     {:else}
-                      <span class="px-2 py-1 rounded-lg bg-amber-500/10 text-amber-600">{m.giv_tpl_badge_no_channel()}</span>
+                      <span class="px-2 py-1 rounded-lg bg-warning/10 text-warning">{m.giv_tpl_badge_no_channel()}</span>
                     {/if}
                     {#if template.ignoreBonuses}
                       <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_tpl_badge_no_bonus()}</span>
@@ -1403,7 +1403,7 @@
                   </button>
                   <button
                     onclick={() => handleDeleteTemplate(template.id)}
-                    class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+                    class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-error/15 hover:text-error text-on-surface-variant transition-colors cursor-pointer"
                     title={m.giv_tpl_delete_title()}
                   >
                     <Papicon icon="Trash" size={14} />
@@ -1478,7 +1478,7 @@
               id="giveaway-required-roles"
               bind:values={config.requiredRoleIds}
               options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
-              accentClass="bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+              accentClass="bg-success/20 text-emerald-300 border-success/40"
             />
             <p class="text-2xs text-on-surface-variant/50">{m.giv_cfg_required_help()}</p>
           </div>
@@ -1489,7 +1489,7 @@
               id="giveaway-blocked-roles"
               bind:values={config.blockedRoleIds}
               options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
-              accentClass="bg-rose-500/20 text-rose-300 border-rose-500/40"
+              accentClass="bg-error/20 text-rose-300 border-error/40"
             />
             <p class="text-2xs text-on-surface-variant/50">{m.giv_cfg_blocked_help()}</p>
           </div>
@@ -1572,7 +1572,7 @@
               </label>
               <button
                 onclick={() => removeBonusEntry(index)}
-                class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+                class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-error/15 hover:text-error text-on-surface-variant transition-colors cursor-pointer"
                 title={m.giv_cfg_bonus_remove()}
               >
                 <Papicon icon="Trash" size={14} />
@@ -1735,7 +1735,7 @@
                 <button
                   type="button"
                   onclick={() => { config.joinButtonEmoji = ''; }}
-                  class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+                  class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-error/15 hover:text-error text-on-surface-variant transition-colors cursor-pointer"
                   title={m.giv_cfg_button_emoji_clear()}
                 >
                   <Papicon icon="Cross" size={14} />
@@ -1914,7 +1914,7 @@
                       </button>
                       <button
                         onclick={() => { renamingPresetId = null; }}
-                        class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+                        class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-error/15 hover:text-error text-on-surface-variant transition-colors cursor-pointer"
                         title={m.giv_cfg_preset_rename_cancel()}
                       >
                         <Papicon icon="Cross" size={14} />
@@ -1937,7 +1937,7 @@
                       </button>
                       <button
                         onclick={() => handleDeletePreset(preset.id)}
-                        class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+                        class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-error/15 hover:text-error text-on-surface-variant transition-colors cursor-pointer"
                         title={m.giv_cfg_preset_delete()}
                       >
                         <Papicon icon="Trash" size={14} />
@@ -1998,7 +1998,7 @@
           </a>
           <button
             onclick={copyPublicGiveawaysUrl}
-            class="flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-xs font-semibold transition-all hover:scale-103 w-full sm:w-auto {copySuccess ? 'bg-green-500/15 text-green-400 border border-green-500/20' : 'bg-surface-container-high/40 text-on-surface-variant border border-outline-variant/10 hover:bg-surface-container-high/60'}"
+            class="flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-xs font-semibold transition-all hover:scale-103 w-full sm:w-auto {copySuccess ? 'bg-success/15 text-success border border-success/20' : 'bg-surface-container-high/40 text-on-surface-variant border border-outline-variant/10 hover:bg-surface-container-high/60'}"
           >
             {#if copySuccess}
               <Papicon icon="Check" size={14} />
@@ -2064,15 +2064,15 @@
                 <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/10">
                   <Papicon icon="Users" size={10} />{m.giv_participants_count({ count: giveaway.participants.length })}
                 </span>
-                <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/10">
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-warning/10 text-warning border border-warning/10">
                   <Papicon icon="Crown" size={10} />{m.giv_winners_count({ count: giveaway.winnerCount })}
                 </span>
               </div>
 
               <!-- Winners or Clock -->
               {#if giveaway.ended}
-                <div class="bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-3 space-y-2">
-                  <span class="text-xs font-medium text-emerald-400 flex items-center gap-1">
+                <div class="bg-success/5 border border-success/10 rounded-lg p-3 space-y-2">
+                  <span class="text-xs font-medium text-success flex items-center gap-1">
                     <Papicon icon="Crown" size={10} />
                     {giveaway.validationStatus === 'PENDING' ? m.giv_winners_header_pending() : m.giv_winners_header()}
                   </span>
@@ -2084,12 +2084,12 @@
                           disabled={!canOpenMemberCase}
                           onclick={() => openMemberCase(winner.userId, winner.displayName)}
                           title={canOpenMemberCase ? m.giv_winner_open_case({ name: winner.displayName }) : undefined}
-                          class="flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/15 transition-colors max-w-full {canOpenMemberCase ? 'hover:bg-emerald-500/20 hover:border-emerald-500/30 cursor-pointer' : 'cursor-default'}"
+                          class="flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full bg-success/10 border border-success/15 transition-colors max-w-full {canOpenMemberCase ? 'hover:bg-success/20 hover:border-success/30 cursor-pointer' : 'cursor-default'}"
                         >
                           {#if winner.avatarUrl}
                             <img src={winner.avatarUrl} alt="" class="w-5 h-5 rounded-full object-cover shrink-0" />
                           {:else}
-                            <span class="w-5 h-5 rounded-full bg-emerald-500/20 text-[9px] font-bold text-emerald-300 flex items-center justify-center shrink-0">
+                            <span class="w-5 h-5 rounded-full bg-success/20 text-[9px] font-bold text-emerald-300 flex items-center justify-center shrink-0">
                               {winner.displayName.slice(0, 2).toUpperCase()}
                             </span>
                           {/if}
@@ -2185,7 +2185,7 @@
       <!-- Close button -->
       <button
         onclick={() => showModal = false}
-        class="absolute top-6 right-6 p-2 rounded-full bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+        class="absolute top-6 right-6 p-2 rounded-full bg-surface-container-high/40 hover:bg-error/15 hover:text-error text-on-surface-variant transition-colors cursor-pointer"
         title={m.giv_modal_close_title()}
       >
         <Papicon icon="Cross" size={20} />
@@ -2320,7 +2320,7 @@
               {#if durationIsValid}
                 <p class="field-hint">{m.giv_field_end_at_help()}</p>
               {:else}
-                <p class="field-hint text-rose-500">{m.giv_field_end_at_invalid()}</p>
+                <p class="field-hint text-error">{m.giv_field_end_at_invalid()}</p>
               {/if}
             {:else}
               <div class="flex gap-2">
@@ -2550,7 +2550,7 @@
                         <button
                           type="button"
                           onclick={() => { formStyle.joinButtonEmoji = ''; }}
-                          class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+                          class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-error/15 hover:text-error text-on-surface-variant transition-colors cursor-pointer"
                           title={m.giv_cfg_button_emoji_clear()}
                         >
                           <Papicon icon="Cross" size={14} />
@@ -2607,7 +2607,7 @@
     <div class="bg-surface-container-low/95 border border-outline-variant/20 max-w-lg w-full rounded-xl p-8 space-y-6 shadow-sm relative" transition:scale={{ start: 0.97, duration: 150 }}>
       <button
         onclick={() => showConfigSaveModal = false}
-        class="absolute top-6 right-6 p-2 rounded-full bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+        class="absolute top-6 right-6 p-2 rounded-full bg-surface-container-high/40 hover:bg-error/15 hover:text-error text-on-surface-variant transition-colors cursor-pointer"
         title={m.giv_modal_close_title()}
       >
         <Papicon icon="Cross" size={20} />

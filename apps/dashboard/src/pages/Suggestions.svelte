@@ -185,9 +185,9 @@
   });
 
   const statusColors: Record<string, string> = {
-    'PENDING': 'bg-amber-400/20 text-amber-400 border-amber-400/20',
-    'APPROVED': 'bg-emerald-400/20 text-emerald-400 border-emerald-400/20',
-    'REJECTED': 'bg-rose-400/20 text-rose-400 border-rose-400/20',
+    'PENDING': 'bg-warning/20 text-warning border-warning/20',
+    'APPROVED': 'bg-success/20 text-success border-success/20',
+    'REJECTED': 'bg-error/20 text-error border-error/20',
     'IMPLEMENTED': 'bg-sky-400/20 text-sky-400 border-sky-400/20'
   };
 
@@ -244,10 +244,10 @@
 
             <div class="flex items-center gap-3">
               <!-- Upvote Downvote pills -->
-              <div class="flex items-center gap-1.5 px-3 py-1 bg-emerald-400/10 border border-emerald-400/20 text-emerald-400 rounded-full text-xs font-semibold">
+              <div class="flex items-center gap-1.5 px-3 py-1 bg-success/10 border border-success/20 text-success rounded-full text-xs font-semibold">
                 <Papicon icon="ThumbsUp" size={12} /> {suggestion.upvoters.length}
               </div>
-              <div class="flex items-center gap-1.5 px-3 py-1 bg-rose-400/10 border border-rose-400/20 text-rose-400 rounded-full text-xs font-semibold">
+              <div class="flex items-center gap-1.5 px-3 py-1 bg-error/10 border border-error/20 text-error rounded-full text-xs font-semibold">
                 <Papicon icon="Minus" size={12} /> {suggestion.downvoters.length}
               </div>
               <!-- Status badge -->

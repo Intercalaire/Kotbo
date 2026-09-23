@@ -149,10 +149,10 @@
     </div>
 
     {#if !analyticsActive}
-      <div class="flex gap-3 p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
-        <Papicon icon="Shield" size={18} class="text-emerald-500 shrink-0 mt-0.5" />
+      <div class="flex gap-3 p-4 rounded-lg bg-success/5 border border-success/20">
+        <Papicon icon="Shield" size={18} class="text-success shrink-0 mt-0.5" />
         <div class="space-y-1">
-          <p class="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{m.mcr_analytics_off_title()}</p>
+          <p class="text-sm font-semibold text-success">{m.mcr_analytics_off_title()}</p>
           <p class="text-2xs text-on-surface-variant/60 leading-relaxed">{m.mcr_analytics_off_desc()}</p>
           <a href="/modules" class="inline-flex items-center gap-1 text-2xs font-semibold text-primary hover:underline">
             {m.mcr_go_to_activation()} <Papicon icon="ArrowRight" size={11} />
@@ -253,7 +253,7 @@
                         </SettingsRow>
 
                         {#if feature.featureKey === 'absences'}
-                          <p class="px-4 py-3 text-2xs leading-relaxed text-amber-300/80 bg-amber-500/5">
+                          <p class="px-4 py-3 text-2xs leading-relaxed text-amber-300/80 bg-warning/5">
                             {m.mn_absences_note()}
                           </p>
                         {/if}

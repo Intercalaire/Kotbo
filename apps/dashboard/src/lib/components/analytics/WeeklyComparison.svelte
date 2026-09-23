@@ -55,8 +55,8 @@
   }
 
   const getChangeColor = (change: number) => {
-    if (change > 0) return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-    if (change < 0) return 'text-red-400 bg-red-500/10 border-red-500/20';
+    if (change > 0) return 'text-success bg-success/10 border-success/20';
+    if (change < 0) return 'text-error bg-error/10 border-error/20';
     return 'text-on-surface-variant/40 bg-surface-container-high border-outline-variant/10';
   };
 
@@ -212,7 +212,7 @@
           <!-- Delta absolute -->
           <div class="relative pt-4 border-t border-outline-variant/10 flex items-center justify-between">
             <span class="text-xs font-semibold text-on-surface-variant/30">{m.an_wk_absolute_change()}</span>
-            <span class="text-xs font-semibold {pct >= 0 ? 'text-emerald-400' : 'text-red-400'}">
+            <span class="text-xs font-semibold {pct >= 0 ? 'text-success' : 'text-error'}">
               {thisVal - lastVal >= 0 ? '+' : ''}{(thisVal - lastVal).toLocaleString(dateLocale())}
               {#if metric.suffix}<span class="opacity-60 ml-0.5">{metric.suffix}</span>{/if}
             </span>

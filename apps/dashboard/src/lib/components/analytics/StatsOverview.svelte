@@ -150,7 +150,7 @@
     <!-- Live Snapshots -->
     <div class="premium-card p-8 rounded-xl space-y-8 flex flex-col">
       <div class="flex items-center gap-3">
-        <div class="p-2 rounded-lg bg-amber-500/10 text-amber-500">
+        <div class="p-2 rounded-lg bg-warning/10 text-warning">
           <Papicon icon="Lightning" size={20} />
         </div>
         <h3 class="text-lg font-semibold text-on-surface">{m.d1_so_live()}</h3>
@@ -175,7 +175,7 @@
                 return max ? max.dateKey : m.d1_so_today();
               })()}
             </span>
-            <span class="text-2xs font-semibold {data?.summary?.messagesTrend >= 0 ? 'text-emerald-500 bg-emerald-500/10' : 'text-rose-500 bg-rose-500/10'} px-2 py-1 rounded-lg">
+            <span class="text-2xs font-semibold {data?.summary?.messagesTrend >= 0 ? 'text-success bg-success/10' : 'text-error bg-error/10'} px-2 py-1 rounded-lg">
               {data?.summary?.messagesTrend >= 0 ? '+' : ''}{data?.summary?.messagesTrend ?? 0}%
             </span>
           </div>

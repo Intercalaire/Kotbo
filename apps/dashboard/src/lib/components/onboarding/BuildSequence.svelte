@@ -123,7 +123,7 @@
                est nouveau. La coche verte de la creation mentirait. -->
           <span class="shrink-0 text-2xs font-medium text-on-surface-variant/45">relié</span>
         {:else}
-          <Papicon icon="check" size={12} class="shrink-0 text-emerald-500" />
+          <Papicon icon="check" size={12} class="shrink-0 text-success" />
         {/if}
       </div>
     {/each}

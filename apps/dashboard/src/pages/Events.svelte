@@ -34,10 +34,10 @@
       icon: 'Flag',
       description: m.ev_ctf_desc(),
       color: 'from-emerald-500/20 to-teal-500/20',
-      border: 'border-emerald-500/30 hover:border-emerald-400/60',
-      iconBg: 'bg-emerald-500/10 text-emerald-400',
+      border: 'border-success/30 hover:border-success/60',
+      iconBg: 'bg-success/10 text-success',
       tag: m.ev_ctf_tag(),
-      tagColor: 'bg-emerald-500/15 text-emerald-400',
+      tagColor: 'bg-success/15 text-success',
     },
     {
       type: 'CUSTOM',
@@ -93,9 +93,9 @@
     switch (status) {
       case 'DRAFT': return 'bg-on-surface/5 text-on-surface-variant/60';
       case 'PUBLISHED': return 'bg-blue-500/10 text-blue-500';
-      case 'ONGOING': return 'bg-emerald-500/10 text-emerald-500';
+      case 'ONGOING': return 'bg-success/10 text-success';
       case 'COMPLETED': return 'bg-purple-500/10 text-purple-500';
-      case 'CANCELLED': return 'bg-red-500/10 text-red-500';
+      case 'CANCELLED': return 'bg-error/10 text-error';
       default: return 'bg-on-surface/5 text-on-surface-variant/60';
     }
   }
@@ -267,7 +267,7 @@
       </div>
       <div class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10">
         <p class="text-xs font-medium text-on-surface-variant/40">{m.ev_ongoing_events()}</p>
-        <p class="text-lg font-semibold text-emerald-500 mt-2">{events.filter(e => e.status === 'ONGOING').length}</p>
+        <p class="text-lg font-semibold text-success mt-2">{events.filter(e => e.status === 'ONGOING').length}</p>
       </div>
       <div class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10">
         <p class="text-xs font-medium text-on-surface-variant/40">{m.ev_participations_registrations()}</p>
@@ -286,7 +286,7 @@
                  pousse les boutons hors de la carte. -->
             <div class="flex items-center gap-6 min-w-0 flex-1">
               <div class="w-16 h-16 shrink-0 rounded-xl flex items-center justify-center
- {event.type === 'CTF' ? 'bg-emerald-500/10 text-emerald-400' : event.type === 'CUSTOM' ? 'bg-purple-500/10 text-purple-400' : 'bg-blue-500/10 text-blue-400'}">
+ {event.type === 'CTF' ? 'bg-success/10 text-success' : event.type === 'CUSTOM' ? 'bg-purple-500/10 text-purple-400' : 'bg-blue-500/10 text-blue-400'}">
                 <Papicon icon={event.type === 'CTF' ? 'Flag' : event.type === 'CUSTOM' ? 'Calendar' : 'HelpCircle'} size={24} />
               </div>
               <div class="min-w-0 flex-1">
@@ -296,7 +296,7 @@
                     {getStatusLabel(event.status)}
                   </span>
                   <span class="shrink-0 px-2.5 py-0.5 rounded-lg text-2xs font-semibold uppercase tracking-widest
- {event.type === 'CTF' ? 'bg-emerald-500/15 text-emerald-400' : event.type === 'CUSTOM' ? 'bg-purple-500/15 text-purple-400' : 'bg-blue-500/15 text-blue-400'}">
+ {event.type === 'CTF' ? 'bg-success/15 text-success' : event.type === 'CUSTOM' ? 'bg-purple-500/15 text-purple-400' : 'bg-blue-500/15 text-blue-400'}">
                     {event.type === 'CTF' ? 'CTF' : event.type === 'CUSTOM' ? 'Custom' : 'Quiz'}
                   </span>
                 </div>
@@ -358,7 +358,7 @@
               {#if canManageEvents}
                 <button 
                   onclick={() => deleteEvent(event.id, event.title)}
-                  class="px-6 py-3 bg-red-500/10 text-red-500 rounded-lg text-xs font-medium border border-red-500/20 hover:bg-red-500/20 transition-colors flex items-center gap-2 whitespace-nowrap"
+                  class="px-6 py-3 bg-error/10 text-error rounded-lg text-xs font-medium border border-error/20 hover:bg-error/20 transition-colors flex items-center gap-2 whitespace-nowrap"
                 >
                   <Papicon icon="Trash" size={12} /> {m.ev_btn_delete()}
                 </button>

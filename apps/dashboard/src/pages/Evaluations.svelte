@@ -48,8 +48,8 @@
   }
 
   function getTrendClass(trend: string): string {
-    if (trend === 'UP') return 'text-emerald-500';
-    if (trend === 'DOWN') return 'text-rose-500';
+    if (trend === 'UP') return 'text-success';
+    if (trend === 'DOWN') return 'text-error';
     return 'text-on-surface-variant';
   }
 

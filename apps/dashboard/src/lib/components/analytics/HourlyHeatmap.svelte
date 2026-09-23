@@ -190,7 +190,7 @@
             <button
               onclick={() => metric = mk}
               class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-semibold text-2xs uppercase tracking-widest transition-all duration-200 border {metric === mk
- ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
+ ? 'bg-emerald-600 text-white border-success shadow-sm'
                 : 'bg-surface-container-high/40 text-on-surface-variant/60 border-outline-variant/10 hover:bg-surface-container-high hover:text-on-surface'}"
             >
               <Papicon icon={metricConfig[mk].icon} size={12} />
@@ -217,7 +217,7 @@
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
       <div class="bg-surface-container-high/30 rounded-lg p-4 border border-outline-variant/5">
         <p class="text-xs font-semibold text-on-surface-variant/40 mb-1">{m.d4_hm_period_total()}</p>
-        <p class="text-lg font-semibold text-on-surface {metric === 'net' && totalValue < 0 ? 'text-rose-400' : metric === 'net' && totalValue > 0 ? 'text-emerald-400' : ''}">
+        <p class="text-lg font-semibold text-on-surface {metric === 'net' && totalValue < 0 ? 'text-error' : metric === 'net' && totalValue > 0 ? 'text-success' : ''}">
           {metric === 'net' && totalValue > 0 ? '+' : ''}{totalValue.toLocaleString(dateLocale())}
           <span class="text-xs font-bold text-on-surface-variant/40">{cfg.unit}</span>
         </p>
@@ -232,7 +232,7 @@
       <div class="bg-surface-container-high/30 rounded-lg p-4 border border-outline-variant/5 md:col-span-2">
         <p class="text-xs font-semibold text-on-surface-variant/40 mb-1">{m.d4_hm_peak_hour()}</p>
         <p class="text-base font-semibold text-on-surface flex items-center gap-2">
-          <Papicon icon="Lightning" size={14} class="text-amber-400" />
+          <Papicon icon="Lightning" size={14} class="text-warning" />
           {bestSlot}
         </p>
         <!-- Sans cette mention, « pic a 14h » ne dit pas sur quelle horloge. -->
@@ -290,7 +290,7 @@
               <div
                 class="flex-1 aspect-square rounded-lg border transition-all duration-150 flex items-center justify-center cursor-default relative group/cell
  {(isHovDow || isHovHour) ? 'scale-[1.12] z-10 shadow-lg' : ''}
-                  {isPeak ? 'ring-1 ring-amber-400/60' : ''}"
+                  {isPeak ? 'ring-1 ring-warning/60' : ''}"
                 style="{getCellStyle(val, maxValue)}"
                 onmouseenter={() => { hoveredDow = dow; hoveredHour = hour; }}
                 onmouseleave={() => { hoveredDow = null; hoveredHour = null; }}
@@ -304,7 +304,7 @@
                     {formatVal(val)}
                   </span>
                 {:else if isPeak && !showValues}
-                  <div class="w-1 h-1 rounded-full bg-amber-400/60"></div>
+                  <div class="w-1 h-1 rounded-full bg-warning/60"></div>
                 {/if}
 
                 <!-- Tooltip -->
@@ -361,18 +361,18 @@
         <span>{m.d4_hm_high()}</span>
       </div>
       {#if peakCell.val !== 0}
-        <div class="flex items-center gap-1.5 text-2xs font-bold text-amber-400/70 border border-amber-400/20 px-2 py-1 rounded-lg">
-          <div class="w-2 h-2 rounded-full border border-amber-400/60"></div>
+        <div class="flex items-center gap-1.5 text-2xs font-bold text-warning/70 border border-warning/20 px-2 py-1 rounded-lg">
+          <div class="w-2 h-2 rounded-full border border-warning/60"></div>
           {metric === 'net' ? m.d4_hm_flux_peak() : m.d4_hm_activity_peak()}
         </div>
       {/if}
       {#if metric === 'net'}
-        <div class="flex items-center gap-1.5 text-2xs font-bold text-emerald-400/70 border border-emerald-400/20 px-2 py-1 rounded-lg">
+        <div class="flex items-center gap-1.5 text-2xs font-bold text-success/70 border border-success/20 px-2 py-1 rounded-lg">
           <div class="w-2 h-2 rounded" style="background: {metricConfig.net.color2}"></div>
           {m.d4_hm_net_gain()}
         </div>
-        <div class="flex items-center gap-1.5 text-2xs font-bold text-rose-400/70 border border-rose-400/20 px-2 py-1 rounded-lg">
-          <div class="w-2 h-2 rounded bg-rose-500/80"></div>
+        <div class="flex items-center gap-1.5 text-2xs font-bold text-error/70 border border-error/20 px-2 py-1 rounded-lg">
+          <div class="w-2 h-2 rounded bg-error/80"></div>
           {m.d4_hm_net_loss()}
         </div>
       {/if}

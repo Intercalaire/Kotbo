@@ -319,8 +319,8 @@
                 >
                   <div
                     class="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center
-                      {visual.tone === 'danger' ? 'bg-red-500/12 text-red-500'
-                        : visual.tone === 'warning' ? 'bg-amber-500/12 text-amber-500'
+                      {visual.tone === 'danger' ? 'bg-error/12 text-error'
+                        : visual.tone === 'warning' ? 'bg-warning/12 text-warning'
                           : visual.tone === 'info' ? 'bg-sky-500/12 text-sky-500'
                             : visual.tone === 'primary' ? 'bg-primary/12 text-primary'
                               : 'bg-on-surface/8 text-on-surface-variant'}"

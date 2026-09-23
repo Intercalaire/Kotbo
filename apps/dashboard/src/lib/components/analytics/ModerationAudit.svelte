@@ -107,7 +107,7 @@
     <!-- Distribution Chart -->
     <div class="premium-card p-6 rounded-xl flex flex-col items-center justify-center min-h-[220px]">
       <div class="flex items-center gap-3 mb-6 w-full">
-        <div class="p-2 rounded-xl bg-amber-500/10 text-amber-500">
+        <div class="p-2 rounded-xl bg-warning/10 text-warning">
           <Papicon icon="ChartPieSlice" size={18} />
         </div>
         <h4 class="text-sm font-semibold text-on-surface">{m.d4_distribution()}</h4>
@@ -124,7 +124,7 @@
     <!-- Trend Chart -->
     <div class="premium-card p-6 rounded-xl flex flex-col min-h-[220px] space-y-4">
       <div class="flex items-center gap-3">
-        <div class="p-2 rounded-xl bg-rose-500/10 text-rose-500">
+        <div class="p-2 rounded-xl bg-error/10 text-error">
           <Papicon icon="ChartLineUp" size={18} />
         </div>
         <h4 class="text-sm font-semibold text-on-surface">{m.d4_trend()}</h4>
@@ -178,7 +178,7 @@
     <div class="premium-card p-8 rounded-xl space-y-6 flex flex-col">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <div class="p-2 rounded-xl bg-rose-500/10 text-rose-500">
+          <div class="p-2 rounded-xl bg-error/10 text-error">
             <Papicon icon="UserFocus" size={20} />
           </div>
           <h3 class="text-lg font-semibold text-on-surface">{m.d4_sanctioned_members()}</h3>
@@ -203,7 +203,7 @@
                 <p class="text-xs font-semibold text-on-surface-variant/40">{m.d4_recidivism()}</p>
               </div>
             </div>
-            <span class="text-sm font-semibold text-rose-500">{m.d4_count_sanctions({ count: member.count })}</span>
+            <span class="text-sm font-semibold text-error">{m.d4_count_sanctions({ count: member.count })}</span>
           </button>
         {/each}
         {#if topSanctionedMembers.length === 0}
@@ -217,7 +217,7 @@
   <div class="premium-card p-8 rounded-xl space-y-8">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-4">
-        <div class="bg-rose-500/10 p-3 rounded-lg text-rose-500">
+        <div class="bg-error/10 p-3 rounded-lg text-error">
           <Papicon icon="Gavel" size={24} />
         </div>
         <div>
@@ -294,8 +294,8 @@
   title={m.d4_sanctioned_members()}
   subtitle={m.d4_mod_ranking_by_recidivism()}
   icon="UserFocus"
-  iconBgClass="bg-rose-500/10"
-  iconColorClass="text-rose-500"
+  iconBgClass="bg-error/10"
+  iconColorClass="text-error"
   type="sanctioned"
   data={topSanctionedMembers}
   {onOpenMember}
@@ -307,8 +307,8 @@
   title={m.d4_recent_history()}
   subtitle={m.d4_latest_moderation_actions()}
   icon="Gavel"
-  iconBgClass="bg-rose-500/10"
-  iconColorClass="text-rose-500"
+  iconBgClass="bg-error/10"
+  iconColorClass="text-error"
   type="recent_sanctions"
   data={recentSanctions}
   {onOpenMember}

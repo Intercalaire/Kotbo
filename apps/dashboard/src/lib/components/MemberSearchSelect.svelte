@@ -118,7 +118,7 @@
   {#if query && !disabled}
     <button
       type="button"
-      class="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center text-on-surface-variant hover:text-rose-500 transition-colors"
+      class="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center text-on-surface-variant hover:text-error transition-colors"
       onmousedown={(e) => { e.preventDefault(); clear(); }}
       aria-label={m.member_search_clear()}
     ><Papicon icon="x" size={14} /></button>

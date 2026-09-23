@@ -177,7 +177,7 @@
                 </div>
                 <div class="flex items-center gap-6">
                   <div class="text-right">
-                    <p class="text-2xs font-semibold {type === 'messages' ? 'text-primary' : 'text-emerald-500'} uppercase tracking-widest">{type === 'messages' ? m.d7_dam_messages() : m.d7_dam_minutes()}</p>
+                    <p class="text-2xs font-semibold {type === 'messages' ? 'text-primary' : 'text-success'} uppercase tracking-widest">{type === 'messages' ? m.d7_dam_messages() : m.d7_dam_minutes()}</p>
                     <p class="text-base font-semibold text-on-surface">{(type === 'messages' ? item.messageCount : Math.round(item.voiceTimeSeconds / 60)).toLocaleString(dateLocale())}</p>
                   </div>
                   <Papicon icon="ArrowRight" size={16} class="opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -235,7 +235,7 @@
                   <p class="text-base font-semibold text-on-surface">@{item.targetTag}</p>
                 </div>
                 <div class="text-right">
-                  <p class="text-xs font-semibold text-rose-500">{m.d7_dam_sanctions()}</p>
+                  <p class="text-xs font-semibold text-error">{m.d7_dam_sanctions()}</p>
                   <p class="text-base font-semibold text-on-surface">{item.count}</p>
                 </div>
               </button>
@@ -246,7 +246,7 @@
                 onclick={() => onOpenMember?.(item.userId, item.name)}
                 class="w-full flex items-center gap-4 p-4 rounded-lg bg-surface-container-high/20 hover:bg-surface-container-high/50 border border-outline-variant/5 transition-all text-left group"
               >
-                <div class="flex items-center justify-center w-8 h-8 rounded-full font-semibold text-xs {globalIndex <= 3 ? 'bg-amber-500/10 text-amber-500' : 'bg-on-surface/5 text-on-surface-variant/30 shrink-0'}">
+                <div class="flex items-center justify-center w-8 h-8 rounded-full font-semibold text-xs {globalIndex <= 3 ? 'bg-warning/10 text-warning' : 'bg-on-surface/5 text-on-surface-variant/30 shrink-0'}">
                   {globalIndex}
                 </div>
                 <div class="relative shrink-0">

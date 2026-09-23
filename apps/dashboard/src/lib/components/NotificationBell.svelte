@@ -63,9 +63,9 @@
 
   const getColorForType = (type: string) => {
     switch (type) {
-      case 'SUCCESS': return 'text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-500/10';
-      case 'WARNING': return 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-500/10';
-      case 'ERROR': return 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-500/10';
+      case 'SUCCESS': return 'text-success bg-success/10';
+      case 'WARNING': return 'text-warning bg-warning/10';
+      case 'ERROR': return 'text-error bg-error/10';
       default: return 'text-primary bg-primary/10';
     }
   };

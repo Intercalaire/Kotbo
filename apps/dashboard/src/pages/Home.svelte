@@ -948,9 +948,9 @@
     healthStatus >= 50 ? m.home_health_degraded() : m.home_health_critical()
   );
   const healthColor = $derived(
-    healthStatus >= 90 ? 'text-emerald-400' :
+    healthStatus >= 90 ? 'text-success' :
     healthStatus >= 70 ? 'text-blue-400' :
-    healthStatus >= 50 ? 'text-amber-400' : 'text-red-400'
+    healthStatus >= 50 ? 'text-warning' : 'text-error'
   );
 
   const handleMarkAsRead = async (id: string) => {
@@ -1004,9 +1004,9 @@
 
   <!-- API unreachable banner -->
   {#if dashboardStore.state.error === 'api_unreachable'}
-    <div class="bg-amber-500/10 border border-amber-500/20 px-4 py-3 rounded-lg text-amber-400 flex items-center justify-between gap-4">
+    <div class="bg-warning/10 border border-warning/20 px-4 py-3 rounded-lg text-warning flex items-center justify-between gap-4">
       <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-md bg-amber-500/20 flex items-center justify-center shrink-0">
+        <div class="w-8 h-8 rounded-md bg-warning/20 flex items-center justify-center shrink-0">
           <svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -1019,7 +1019,7 @@
       </div>
       <button
         onclick={() => dashboardStore.refresh()}
-        class="px-3 py-1.5 text-xs font-medium bg-amber-500/20 hover:bg-amber-500/30 rounded-md transition-colors cursor-pointer shrink-0"
+        class="px-3 py-1.5 text-xs font-medium bg-warning/20 hover:bg-warning/30 rounded-md transition-colors cursor-pointer shrink-0"
       >
         {m.home_retry()}
       </button>
@@ -1028,9 +1028,9 @@
 
   <!-- Error modules alert -->
   {#if errorModulesCount > 0}
-    <div class="bg-red-500/10 border border-red-500/20 px-4 py-3 rounded-lg text-red-400 flex items-center justify-between gap-4">
+    <div class="bg-error/10 border border-error/20 px-4 py-3 rounded-lg text-error flex items-center justify-between gap-4">
       <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-md bg-red-500/20 flex items-center justify-center">
+        <div class="w-8 h-8 rounded-md bg-error/20 flex items-center justify-center">
           <Papicon icon="alert-octagon" size={16} />
         </div>
         <div>
@@ -1040,7 +1040,7 @@
       </div>
       <button
         onclick={() => router.goto('/modules')}
-        class="px-3 py-1.5 text-xs font-medium bg-red-500/20 hover:bg-red-500/30 rounded-md transition-colors"
+        class="px-3 py-1.5 text-xs font-medium bg-error/20 hover:bg-error/30 rounded-md transition-colors"
       >
         {m.home_repair()}
       </button>
@@ -1130,7 +1130,7 @@
               onclick={() => hideModule(item.id)}
               title={m.home_hide_module()}
               aria-label={m.home_hide_module()}
-              class="p-1 rounded text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+              class="p-1 rounded text-error hover:bg-error/10 transition-colors cursor-pointer"
             >
               <Papicon icon="trash" size={12} />
             </button>
@@ -1177,7 +1177,7 @@
               value={liveStats ? formatNumber(liveStats.onlineMembers + liveStats.idleMembers + liveStats.dndMembers) : '-'}
               note={liveStats ? m.home_actives_note({ n: liveStats.onlineMembers }) : ''}
               icon="wifi"
-              toneClass="bg-emerald-500/10 text-emerald-400"
+              toneClass="bg-success/10 text-success"
               loading={analyticsLoading}
             />
             <MetricCard
@@ -1193,7 +1193,7 @@
               value={totals ? `${totals.netGrowth >= 0 ? '+' : ''}${totals.netGrowth}` : '-'}
               note={totals ? m.home_joins_leaves_note({ joins: totals.joins, leaves: totals.leaves }) : ''}
               icon="trending-up"
-              toneClass={totals && totals.netGrowth >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}
+              toneClass={totals && totals.netGrowth >= 0 ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}
               loading={analyticsLoading}
             />
           </div>
@@ -1228,7 +1228,7 @@
                     <div class="h-7 w-16 animate-pulse bg-surface-container-high rounded"></div>
                   {:else}
                     <span class="text-xl font-semibold text-on-surface">{formatNumber(statTotal)}{statConfig.unit}</span>
-                    <p class="text-2xs text-emerald-400">{m.home_last_7_days()}</p>
+                    <p class="text-2xs text-success">{m.home_last_7_days()}</p>
                   {/if}
                 </div>
               </div>
@@ -1313,9 +1313,9 @@
 
                 {#if botLanguageRerender}
                   {#if botLanguageRerender.failed > 0}
-                    <p class="text-2xs text-amber-400">{m.home_botlanguage_panels_failed({ n: botLanguageRerender.failed })}</p>
+                    <p class="text-2xs text-warning">{m.home_botlanguage_panels_failed({ n: botLanguageRerender.failed })}</p>
                   {:else if botLanguageRerender.updated > 0}
-                    <p class="text-2xs text-emerald-400">{m.home_botlanguage_panels_updated({ n: botLanguageRerender.updated })}</p>
+                    <p class="text-2xs text-success">{m.home_botlanguage_panels_updated({ n: botLanguageRerender.updated })}</p>
                   {:else}
                     <p class="text-2xs text-on-surface-variant/70">{m.home_botlanguage_panels_none()}</p>
                   {/if}
@@ -1393,7 +1393,7 @@
                   <p class="text-sm font-medium {healthColor}">{healthLabel}</p>
                   <p class="text-xs text-on-surface-variant mt-0.5">{m.home_modules_active({ active: activeModulesCount, total: totalModulesCount })}</p>
                   {#if errorModulesCount > 0}
-                    <p class="text-xs text-red-400 mt-0.5">{m.home_n_errors({ n: errorModulesCount })}</p>
+                    <p class="text-xs text-error mt-0.5">{m.home_n_errors({ n: errorModulesCount })}</p>
                   {/if}
                 </div>
               </div>
@@ -1404,13 +1404,13 @@
                   {#each dashboardStore.state.modules.filter(m => m.status === 'active').slice(0, displayRowSpan(item) >= 2 ? 8 : 5) as mod}
                     <div class="flex items-center justify-between text-xs">
                       <span class="text-on-surface truncate">{mod.name}</span>
-                      <span class="text-2xs text-emerald-400 shrink-0">{m.home_active_lower()}</span>
+                      <span class="text-2xs text-success shrink-0">{m.home_active_lower()}</span>
                     </div>
                   {/each}
                   {#each dashboardStore.state.modules.filter(m => m.status === 'error') as mod}
                     <div class="flex items-center justify-between text-xs">
                       <span class="text-on-surface truncate">{mod.name}</span>
-                      <span class="text-2xs text-red-400 shrink-0">{m.home_error_lower()}</span>
+                      <span class="text-2xs text-error shrink-0">{m.home_error_lower()}</span>
                     </div>
                   {/each}
                 </div>
@@ -1470,7 +1470,7 @@
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
-                <div class="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
+                <div class="w-7 h-7 rounded-lg bg-warning/10 flex items-center justify-center text-warning">
                   <Papicon icon="shield" size={14} />
                 </div>
                 <h3 class="text-sm font-medium text-on-surface">{m.home_mod_moderation_title()}</h3>
@@ -1484,7 +1484,7 @@
                 {/each}
               {:else if moderation}
                 <div class="grid {displayColSpan(item) >= 2 ? 'grid-cols-4' : 'grid-cols-2'} gap-2">
-                  <div class="px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
+                  <div class="px-3 py-2 rounded-lg bg-warning/5 border border-warning/10">
                     <p class="text-lg font-semibold text-on-surface">{moderation.totals.warns}</p>
                     <p class="text-2xs text-on-surface-variant">Warns</p>
                   </div>
@@ -1492,17 +1492,17 @@
                     <p class="text-lg font-semibold text-on-surface">{moderation.totals.timeouts}</p>
                     <p class="text-2xs text-on-surface-variant">Timeouts</p>
                   </div>
-                  <div class="px-3 py-2 rounded-lg bg-red-500/5 border border-red-500/10">
+                  <div class="px-3 py-2 rounded-lg bg-error/5 border border-error/10">
                     <p class="text-lg font-semibold text-on-surface">{moderation.totals.kicks}</p>
                     <p class="text-2xs text-on-surface-variant">Kicks</p>
                   </div>
-                  <div class="px-3 py-2 rounded-lg bg-red-500/5 border border-red-500/10">
+                  <div class="px-3 py-2 rounded-lg bg-error/5 border border-error/10">
                     <p class="text-lg font-semibold text-on-surface">{moderation.totals.bans}</p>
                     <p class="text-2xs text-on-surface-variant">Bans</p>
                   </div>
                 </div>
                 {#if moderation.activeSanctions > 0}
-                  <p class="text-2xs text-amber-400 mt-1">{m.home_active_sanctions({ n: moderation.activeSanctions })}</p>
+                  <p class="text-2xs text-warning mt-1">{m.home_active_sanctions({ n: moderation.activeSanctions })}</p>
                 {/if}
                 {#if displayRowSpan(item) >= 2 && moderation.recentSanctions?.length > 0}
                   <div class="border-t border-outline-variant pt-2 mt-1 space-y-1.5">
@@ -1541,7 +1541,7 @@
               {:else if topMembers.length > 0}
                 {#each (analyticsData?.topMessageMembers || []).slice(0, memberCount) as member, i}
                   <div class="flex items-center gap-2.5">
-                    <span class="text-2xs font-medium {i === 0 ? 'text-amber-400' : i === 1 ? 'text-gray-400' : i === 2 ? 'text-orange-400' : 'text-on-surface-variant'} w-4 text-right shrink-0">{i + 1}</span>
+                    <span class="text-2xs font-medium {i === 0 ? 'text-warning' : i === 1 ? 'text-gray-400' : i === 2 ? 'text-orange-400' : 'text-on-surface-variant'} w-4 text-right shrink-0">{i + 1}</span>
                     {#if member.avatarUrl}
                       <img src={member.avatarUrl} alt="" class="w-6 h-6 rounded-full shrink-0" />
                     {:else}
@@ -1591,7 +1591,7 @@
                     </div>
                     <button
                       onclick={() => handleMarkAsRead(notif.id)}
-                      class="w-5 h-5 rounded bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors flex items-center justify-center shrink-0 cursor-pointer"
+                      class="w-5 h-5 rounded bg-success/10 text-success hover:bg-success/20 transition-colors flex items-center justify-center shrink-0 cursor-pointer"
                     >
                       <Papicon icon="check" size={10} />
                     </button>
@@ -1599,7 +1599,7 @@
                 {/each}
               {:else}
                 <div class="flex flex-col items-center justify-center py-6 text-center text-on-surface-variant/40 {notifCols > 1 ? 'col-span-2' : ''}">
-                  <Papicon icon="check-circle" size={18} class="mb-1 text-emerald-500/50" />
+                  <Papicon icon="check-circle" size={18} class="mb-1 text-success/50" />
                   <p class="text-2xs">{m.home_all_up_to_date()}</p>
                 </div>
               {/if}
@@ -1617,7 +1617,7 @@
                 <h3 class="text-sm font-medium text-on-surface">Staff</h3>
               </div>
               <div class="flex gap-1.5">
-                <span class="px-1.5 py-0.5 text-2xs rounded bg-amber-500/10 text-amber-400">{pendingAbsences.length} abs.</span>
+                <span class="px-1.5 py-0.5 text-2xs rounded bg-warning/10 text-warning">{pendingAbsences.length} abs.</span>
                 <span class="px-1.5 py-0.5 text-2xs rounded bg-surface-container text-on-surface-variant">{m.home_meetings_badge({ n: staffStore.upcomingMeetings.length })}</span>
               </div>
             </div>
@@ -1708,10 +1708,10 @@
                 <Papicon icon="plus-circle" size={12} class="text-tertiary" /> Module
               </button>
               <button onclick={() => router.goto('/analytics')} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-container border border-outline-variant rounded-md text-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer">
-                <Papicon icon="bar-chart-2" size={12} class="text-amber-400" /> Analytics
+                <Papicon icon="bar-chart-2" size={12} class="text-warning" /> Analytics
               </button>
               <button onclick={() => router.goto('/staff-management')} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-container border border-outline-variant rounded-md text-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer">
-                <Papicon icon="users" size={12} class="text-emerald-400" /> Staff
+                <Papicon icon="users" size={12} class="text-success" /> Staff
               </button>
             </div>
           </div>
@@ -1773,13 +1773,13 @@
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
-                <div class="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                <div class="w-7 h-7 rounded-lg bg-success/10 flex items-center justify-center text-success">
                   <Papicon icon="cpu" size={14} />
                 </div>
                 <h3 class="text-sm font-medium text-on-surface">{m.home_mod_bothosting_title()}</h3>
               </div>
               {#if hosting}
-                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-2xs bg-emerald-500/20 text-emerald-400 font-medium">
+                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-2xs bg-success/20 text-success font-medium">
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> {m.home_online_label()}
                 </span>
               {/if}
@@ -1805,7 +1805,7 @@
               </div>
               <div class="flex justify-between text-xs pt-1">
                 <span class="text-on-surface-variant">{m.home_api_latency()}</span>
-                <span class="font-medium {!hosting ? 'text-on-surface' : hosting.latencyMs < 200 ? 'text-emerald-400' : hosting.latencyMs < 500 ? 'text-amber-400' : 'text-red-400'}">
+                <span class="font-medium {!hosting ? 'text-on-surface' : hosting.latencyMs < 200 ? 'text-success' : hosting.latencyMs < 500 ? 'text-warning' : 'text-error'}">
                   {hosting ? `${hosting.latencyMs} ms` : '-'}
                 </span>
               </div>
@@ -1837,8 +1837,8 @@
                 </div>
               {:else}
                 {#each changelogCommits.slice(0, maxNewsItems) as commit}
-                  {@const typeColors: Record<string, string> = { feat: 'text-emerald-400', fix: 'text-amber-400', refactor: 'text-blue-400', perf: 'text-cyan-400', test: 'text-violet-400' }}
-                  {@const typeBgColors: Record<string, string> = { feat: 'bg-emerald-500/15', fix: 'bg-amber-500/15', refactor: 'bg-blue-500/15', perf: 'bg-cyan-500/15', test: 'bg-violet-500/15' }}
+                  {@const typeColors: Record<string, string> = { feat: 'text-success', fix: 'text-warning', refactor: 'text-blue-400', perf: 'text-cyan-400', test: 'text-violet-400' }}
+                  {@const typeBgColors: Record<string, string> = { feat: 'bg-success/15', fix: 'bg-warning/15', refactor: 'bg-blue-500/15', perf: 'bg-cyan-500/15', test: 'bg-violet-500/15' }}
                   {@const typeLabels: Record<string, string> = { feat: m.home_type_feat(), fix: m.home_type_fix(), refactor: m.home_type_refactor(), perf: 'Perf', test: 'Test' }}
                   {@const typeColor = typeColors[commit.type] || 'text-purple-400'}
                   {@const typeBg = typeBgColors[commit.type] || 'bg-purple-500/15'}
@@ -1870,7 +1870,7 @@
           ]}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center gap-2.5 mb-3 shrink-0">
-              <div class="w-7 h-7 rounded-lg bg-yellow-500/10 flex items-center justify-center text-yellow-500">
+              <div class="w-7 h-7 rounded-lg bg-warning/10 flex items-center justify-center text-warning">
                 <Papicon icon="info" size={14} />
               </div>
               <h3 class="text-sm font-medium text-on-surface">{m.home_quick_guide()}</h3>
@@ -1910,7 +1910,7 @@
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
-                <div class="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
+                <div class="w-7 h-7 rounded-lg bg-warning/10 flex items-center justify-center text-warning">
                   <Papicon icon="dollar-sign" size={14} />
                 </div>
                 <h3 class="text-sm font-medium text-on-surface">{m.home_mod_economy_title()}</h3>
@@ -1919,11 +1919,11 @@
             </div>
             <div class="space-y-2.5 grow flex flex-col justify-center">
               <div class="grid grid-cols-2 gap-2">
-                <div class="px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
+                <div class="px-3 py-2 rounded-lg bg-warning/5 border border-warning/10">
                   <p class="text-lg font-semibold text-on-surface">{economy ? formatNumber(economy.totalBalance) : '-'}</p>
                   <p class="text-2xs text-on-surface-variant">{m.home_in_circulation()}</p>
                 </div>
-                <div class="px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                <div class="px-3 py-2 rounded-lg bg-success/5 border border-success/10">
                   <p class="text-lg font-semibold text-on-surface">{economy ? formatNumber(economy.activePlayers) : '-'}</p>
                   <p class="text-2xs text-on-surface-variant">{m.home_active_7d()}</p>
                 </div>
@@ -1991,11 +1991,11 @@
                   <p class="text-lg font-semibold text-on-surface">{tickets ? formatNumber(tickets.open) : '-'}</p>
                   <p class="text-2xs text-on-surface-variant">{m.home_open_tickets()}</p>
                 </div>
-                <div class="px-2 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10 text-center">
+                <div class="px-2 py-2 rounded-lg bg-warning/5 border border-warning/10 text-center">
                   <p class="text-lg font-semibold text-on-surface">{tickets ? formatNumber(tickets.claimed) : '-'}</p>
                   <p class="text-2xs text-on-surface-variant">{m.home_in_progress()}</p>
                 </div>
-                <div class="px-2 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10 text-center">
+                <div class="px-2 py-2 rounded-lg bg-success/5 border border-success/10 text-center">
                   <p class="text-lg font-semibold text-on-surface">{tickets ? formatNumber(tickets.closedRecently) : '-'}</p>
                   <p class="text-2xs text-on-surface-variant">{m.home_closed_7d()}</p>
                 </div>
@@ -2020,7 +2020,7 @@
                   <p class="text-lg font-semibold text-on-surface">{invites ? formatNumber(invites.activeCodes) : '-'}</p>
                   <p class="text-2xs text-on-surface-variant">{m.home_active_invites()}</p>
                 </div>
-                <div class="px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                <div class="px-3 py-2 rounded-lg bg-success/5 border border-success/10">
                   <p class="text-lg font-semibold text-on-surface">{invites?.retentionPercent == null ? '-' : `${invites.retentionPercent}%`}</p>
                   <p class="text-2xs text-on-surface-variant">{m.home_retention()}</p>
                 </div>
@@ -2040,7 +2040,7 @@
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
-                <div class="w-7 h-7 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-400">
+                <div class="w-7 h-7 rounded-lg bg-error/10 flex items-center justify-center text-error">
                   <Papicon icon="calendar" size={14} />
                 </div>
                 <h3 class="text-sm font-medium text-on-surface">{m.home_mod_events_title()}</h3>
@@ -2050,7 +2050,7 @@
             <div class="space-y-2 grow flex flex-col {upcomingEvents.length > 0 ? '' : 'justify-center'}">
               {#if upcomingEvents.length === 0}
                 <div class="flex flex-col items-center justify-center py-4 text-center text-on-surface-variant/40">
-                  <Papicon icon="calendar" size={18} class="mb-1 text-rose-500/50" />
+                  <Papicon icon="calendar" size={18} class="mb-1 text-error/50" />
                   <p class="text-2xs">{m.home_no_upcoming_events()}</p>
                   <p class="text-2xs mt-0.5">{m.home_create_event_hint()}</p>
                 </div>
@@ -2058,7 +2058,7 @@
                 {#each upcomingEvents.slice(0, maxEvents) as evt (evt.id)}
                   <button
                     onclick={() => router.goto('/events')}
-                    class="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-rose-500/5 border border-rose-500/10 hover:border-rose-500/30 transition-colors text-left cursor-pointer"
+                    class="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-error/5 border border-error/10 hover:border-error/30 transition-colors text-left cursor-pointer"
                   >
                     <div class="min-w-0">
                       <p class="text-xs font-medium text-on-surface truncate">{evt.title}</p>
@@ -2066,7 +2066,7 @@
                         {evt.startsAt ? formatEventDate(evt.startsAt) : evt.type}
                       </p>
                     </div>
-                    <span class="text-2xs font-medium uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0 {evt.status === 'ONGOING' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}">
+                    <span class="text-2xs font-medium uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0 {evt.status === 'ONGOING' ? 'bg-success/10 text-success' : 'bg-blue-500/10 text-blue-400'}">
                       {evt.status === 'ONGOING' ? m.ev_status_ongoing() : m.ev_status_published()}
                     </span>
                   </button>
@@ -2132,7 +2132,7 @@
                     <p class="text-xs font-semibold text-on-surface">{SYNC_MODE_LABELS[link.syncMode] ?? link.syncMode}</p>
                     <p class="text-2xs text-on-surface-variant">{m.home_sync_mode()}</p>
                   </div>
-                  <div class="px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                  <div class="px-3 py-2 rounded-lg bg-success/5 border border-success/10">
                     <p class="text-lg font-semibold text-on-surface">{link.roleMappings?.length ?? 0}</p>
                     <p class="text-2xs text-on-surface-variant">{m.home_mapped_roles()}</p>
                   </div>
@@ -2173,7 +2173,7 @@
       <!-- Reset -->
       <button
         onclick={() => showResetConfirm = true}
-        class="w-11 h-11 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 flex items-center justify-center shadow-lg hover:bg-red-500 hover:text-white transition-all active:scale-[0.98] group relative cursor-pointer"
+        class="w-11 h-11 rounded-full bg-error/10 border border-error/30 text-error flex items-center justify-center shadow-lg hover:bg-red-500 hover:text-white transition-all active:scale-[0.98] group relative cursor-pointer"
         title={m.common_reset()}
       >
         <Papicon icon="rotate-ccw" size={18} />
@@ -2256,7 +2256,7 @@
               
               <div class="flex justify-end pt-1">
                 {#if isVisible}
-                  <span class="inline-flex items-center gap-1 text-2xs text-emerald-400 font-medium bg-emerald-500/10 px-2 py-1 rounded">
+                  <span class="inline-flex items-center gap-1 text-2xs text-success font-medium bg-success/10 px-2 py-1 rounded">
                     <Papicon icon="check" size={10} /> {m.home_already_visible()}
                   </span>
                 {:else}
@@ -2279,8 +2279,8 @@
   {#if showResetConfirm}
     <div class="modal-backdrop" onclick={() => showResetConfirm = false} role="button" tabindex="-1" onkeydown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) showResetConfirm = false; }}>
       <div class="modal-panel max-w-sm" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
-        <div class="flex items-center gap-3 text-amber-400 mb-3">
-          <div class="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+        <div class="flex items-center gap-3 text-warning mb-3">
+          <div class="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center shrink-0">
             <Papicon icon="warning" size={20} />
           </div>
           <h3 class="font-semibold text-sm text-on-surface">{m.home_reset_layout_q()}</h3>
@@ -2415,7 +2415,7 @@
                   <button
                     onclick={() => removePreset(preset.id)}
                     title={m.common_delete()}
-                    class="p-1.5 rounded-md text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                    class="p-1.5 rounded-md text-error hover:bg-error/10 transition-colors cursor-pointer"
                   >
                     <Papicon icon="trash" size={12} />
                   </button>

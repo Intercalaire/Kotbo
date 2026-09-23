@@ -294,7 +294,7 @@
 
     {#if trigger && !changingTrigger}
       <p class="flex items-center gap-2 text-sm font-semibold text-on-surface">
-        <Papicon icon={trigger.icon} size={15} class="text-emerald-700 dark:text-emerald-300" />
+        <Papicon icon={trigger.icon} size={15} class="text-success" />
         {trigger.sentence}
       </p>
       {#if recipe.trigger.type === 'OnSchedule'}

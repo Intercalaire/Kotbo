@@ -56,14 +56,14 @@
   /**
    * Un seul anneau à la fois.
    *
-   * Empiler `ring-2 ring-red-500` et `ring-2 ring-amber-400` laissait l'ordre
+   * Empiler `ring-2 ring-error` et `ring-2 ring-warning` laissait l'ordre
    * de la feuille de style décider, pas celui des classes : un pas en erreur
    * finissait cerclé d'ambre, ce qui cachait justement l'erreur. L'échec passe
    * donc devant le rejeu, qui passe devant la sélection.
    */
   const ring = $derived(
-    data.replayStatus === 'ERROR' ? 'ring-2 ring-red-500'
-      : data.replayOrder != null ? 'ring-2 ring-amber-400'
+    data.replayStatus === 'ERROR' ? 'ring-2 ring-error'
+      : data.replayOrder != null ? 'ring-2 ring-warning'
         : selected ? 'ring-2 ring-primary/30'
           : '',
   );
@@ -107,7 +107,7 @@
      raison, la surface repeinte étant proportionnelle au rayon. -->
 <div
   class="rounded-xl border-2 bg-surface-container-high shadow-lg min-w-64 overflow-visible transition-colors relative
-    {data.hasError && !selected ? 'border-red-500' : selected ? 'border-primary' : 'border-outline-variant/30'}
+    {data.hasError && !selected ? 'border-error' : selected ? 'border-primary' : 'border-outline-variant/30'}
     {ring}"
   style="--accent: {accent}"
 >

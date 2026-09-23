@@ -336,9 +336,9 @@
               <span class="truncate text-on-surface-variant/85">{adopted ?? line.name}</span>
               <span class="shrink-0 text-2xs text-on-surface-variant/40">relié</span>
             {:else}
-              <Papicon icon="plus" size={11} class="shrink-0 text-emerald-500" />
+              <Papicon icon="plus" size={11} class="shrink-0 text-success" />
               <span class="truncate text-on-surface-variant/85">{line.name}</span>
-              <span class="shrink-0 text-2xs text-emerald-600/70">nouveau</span>
+              <span class="shrink-0 text-2xs text-success/70">nouveau</span>
             {/if}
           </p>
         {/each}

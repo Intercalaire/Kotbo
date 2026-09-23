@@ -60,8 +60,8 @@
   function getStatusBadge(status: string) {
     const map: Record<string, { label: string; cls: string }> = {
       UPCOMING: { label: m.sea_status_upcoming(), cls: 'bg-primary/10 text-primary' },
-      ACTIVE: { label: m.sea_status_active(), cls: 'bg-emerald-500/10 text-emerald-500' },
-      ENDED: { label: m.sea_status_ended(), cls: 'bg-amber-500/10 text-amber-500' },
+      ACTIVE: { label: m.sea_status_active(), cls: 'bg-success/10 text-success' },
+      ENDED: { label: m.sea_status_ended(), cls: 'bg-warning/10 text-warning' },
       ARCHIVED: { label: m.sea_status_archived(), cls: 'bg-surface-container-high/40 text-on-surface-variant' },
     };
     return map[status] ?? { label: status, cls: 'bg-surface-container-high/40 text-on-surface-variant' };
@@ -163,7 +163,7 @@
         <div>
           <div class="flex items-center gap-3 mb-1">
             <h2 class="text-xl font-bold text-on-surface">{data.activeSeason.name}</h2>
-            <span class="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-500 text-xs font-medium rounded-full">{m.sea_status_active()}</span>
+            <span class="px-2.5 py-0.5 bg-success/10 text-success text-xs font-medium rounded-full">{m.sea_status_active()}</span>
           </div>
           <p class="flex items-center gap-1.5 text-xs text-on-surface-variant/60">
             <Papicon icon="calendar" size={14} />
@@ -223,7 +223,7 @@
         <!-- End season button -->
         <div class="pt-2">
           <button
-            class="px-4 py-2 bg-rose-500/10 text-rose-500 rounded-xl text-xs font-bold hover:bg-rose-500/20 transition-all flex items-center gap-2"
+            class="px-4 py-2 bg-error/10 text-error rounded-xl text-xs font-bold hover:bg-error/20 transition-all flex items-center gap-2"
             onclick={() => handleEnd(data.activeSeason.id)}
           >
             <Papicon icon="x" size={14} />

@@ -197,15 +197,15 @@
   }
 
   function trendClass(trend: string): string {
-    if (trend === 'UP') return 'text-emerald-500';
-    if (trend === 'DOWN') return 'text-rose-500';
+    if (trend === 'UP') return 'text-success';
+    if (trend === 'DOWN') return 'text-error';
     return 'text-on-surface-variant';
   }
 
   function severityClasses(severity: string): string {
-    if (severity === 'danger') return 'bg-rose-500/10 text-rose-500 border border-rose-500/15';
-    if (severity === 'warning') return 'bg-amber-500/10 text-amber-500 border border-amber-500/15';
-    if (severity === 'success') return 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/15';
+    if (severity === 'danger') return 'bg-error/10 text-error border border-error/15';
+    if (severity === 'warning') return 'bg-warning/10 text-warning border border-warning/15';
+    if (severity === 'success') return 'bg-success/10 text-success border border-success/15';
     return 'bg-primary/10 text-primary border border-primary/15';
   }
 
@@ -367,7 +367,7 @@
             <div class="w-full pt-3 mt-1 border-t border-outline-variant/10 flex flex-col items-center gap-0.5">
               <span class="text-2xs text-on-surface-variant/60">{m.pulse_today_partial()}</span>
               <span class="text-xl font-bold" style="color: {scoreColor(today.score)}">{today.score}<span class="text-xs text-on-surface-variant/50">/100</span></span>
-              <span class="text-2xs text-amber-500 text-center leading-tight">{m.pulse_partial_hint()}</span>
+              <span class="text-2xs text-warning text-center leading-tight">{m.pulse_partial_hint()}</span>
             </div>
           {/if}
         </div>
@@ -414,7 +414,7 @@
               <div class="text-xs font-medium text-on-surface-variant/60 mt-1">{m.pulse_metric_active()}</div>
             </div>
             <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
-              <div class="text-2xl font-bold {displayedMetrics.membersJoined > displayedMetrics.membersLeft ? 'text-emerald-500' : ''}">
+              <div class="text-2xl font-bold {displayedMetrics.membersJoined > displayedMetrics.membersLeft ? 'text-success' : ''}">
                 +{displayedMetrics.membersJoined} / -{displayedMetrics.membersLeft}
               </div>
               <div class="text-xs font-medium text-on-surface-variant/60 mt-1">{m.pulse_metric_flow()}</div>
@@ -517,7 +517,7 @@
             <span class="text-on-surface-variant/60"> · {m.pulse_observed_days({ days: predData.observedDays })}</span>
           </p>
           {#if predData.growthForecast.confidence < 50}
-            <p class="text-xs text-amber-500 flex items-center gap-1.5">
+            <p class="text-xs text-warning flex items-center gap-1.5">
               <Papicon icon="alert-triangle" size={13} />
               {m.pulse_confidence_low()}
             </p>
@@ -562,7 +562,7 @@
           </div>
 
           {#if predData.seasonality.lowConfidence}
-            <p class="text-xs text-amber-500 flex items-center gap-1.5">
+            <p class="text-xs text-warning flex items-center gap-1.5">
               <Papicon icon="alert-triangle" size={13} />
               {m.pulse_seasonality_low()}
             </p>

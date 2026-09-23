@@ -166,7 +166,7 @@
                   {discoverCompleted}/{discoverTotal}
                 </span>
               {:else}
-                <CheckCircle class="w-3 h-3 text-emerald-500" />
+                <CheckCircle class="w-3 h-3 text-success" />
               {/if}
             </button>
             <button
@@ -186,7 +186,7 @@
                   {setupCompletedCount}/{setupTotal}
                 </span>
               {:else}
-                <CheckCircle class="w-3 h-3 text-emerald-500" />
+                <CheckCircle class="w-3 h-3 text-success" />
               {/if}
             </button>
           </div>
@@ -199,8 +199,8 @@
           {#if activeTab === 'discover'}
             {#if discoverDone}
               <div class="p-5 text-center" in:fly={{ y: 10, duration: 300, easing: cubicOut }}>
-                <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
-                  <PartyPopper class="w-7 h-7 text-emerald-500" />
+                <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-success/10 flex items-center justify-center">
+                  <PartyPopper class="w-7 h-7 text-success" />
                 </div>
                 <p class="text-sm font-semibold text-on-surface mb-1">{m.d4_tc_discover_done_title()}</p>
                 <p class="text-xs text-on-surface-variant mb-4">{m.d4_tc_discover_done_desc()}</p>
@@ -254,8 +254,8 @@
           {:else}
             {#if setupDone}
               <div class="p-5 text-center" in:fly={{ y: 10, duration: 300, easing: cubicOut }}>
-                <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
-                  <PartyPopper class="w-7 h-7 text-emerald-500" />
+                <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-success/10 flex items-center justify-center">
+                  <PartyPopper class="w-7 h-7 text-success" />
                 </div>
                 <p class="text-sm font-semibold text-on-surface mb-1">{m.d4_tc_setup_done_title()}</p>
                 <p class="text-xs text-on-surface-variant mb-4">{m.d4_tc_setup_done_desc()}</p>
@@ -268,14 +268,14 @@
                 <!-- Essential section -->
                 <div class="px-2.5 pt-2 pb-1">
                   <div class="flex items-center gap-2">
-                    <span class="text-xs font-medium text-amber-600 dark:text-amber-400">
+                    <span class="text-xs font-medium text-warning">
                       {m.d4_tc_essential()}
                     </span>
                     <span class="text-2xs text-on-surface-variant">
                       {essentialCompleted} / {essentialTotal}
                     </span>
                     {#if essentialsDone}
-                      <CheckCircle class="w-3 h-3 text-emerald-500" />
+                      <CheckCircle class="w-3 h-3 text-success" />
                     {/if}
                   </div>
                   <div class="mt-1 h-1 bg-surface-container-high rounded-full overflow-hidden">
@@ -305,7 +305,7 @@
                           <CheckCircle class="w-3.5 h-3.5 text-white" />
                         </div>
                       {:else}
-                        <div class="w-5 h-5 rounded-full border-2 border-amber-400 group-hover:border-amber-500 transition-colors"></div>
+                        <div class="w-5 h-5 rounded-full border-2 border-warning group-hover:border-warning transition-colors"></div>
                       {/if}
                     </div>
                     <div class="flex-1 min-w-0">
@@ -313,8 +313,8 @@
                       <p class="text-2xs text-on-surface-variant/70 mt-0.5 leading-relaxed">{task.description}</p>
                     </div>
                     <div class="shrink-0 mt-0.5">
-                      <div class="w-7 h-7 rounded-lg {completed ? 'bg-surface-container' : 'bg-amber-500/10 group-hover:bg-amber-500/15'} flex items-center justify-center transition-colors">
-                        <Icon class="w-3.5 h-3.5 {completed ? 'text-on-surface-variant/50' : 'text-amber-600 dark:text-amber-400'}" />
+                      <div class="w-7 h-7 rounded-lg {completed ? 'bg-surface-container' : 'bg-warning/10 group-hover:bg-warning/15'} flex items-center justify-center transition-colors">
+                        <Icon class="w-3.5 h-3.5 {completed ? 'text-on-surface-variant/50' : 'text-warning'}" />
                       </div>
                     </div>
                   </button>

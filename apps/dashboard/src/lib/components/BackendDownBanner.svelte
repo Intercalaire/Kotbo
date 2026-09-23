@@ -38,9 +38,9 @@
   <div
     role="alert"
     aria-live="assertive"
-    class="sticky top-0 z-[9000] flex flex-wrap items-center gap-3 border-b border-red-500/30 bg-red-950/90 px-4 py-3 text-sm backdrop-blur"
+    class="sticky top-0 z-[9000] flex flex-wrap items-center gap-3 border-b border-error/30 bg-red-950/90 px-4 py-3 text-sm backdrop-blur"
   >
-    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-500/15 text-red-300">
+    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-error/15 text-red-300">
       <Papicon icon="CloudOff" size={18} />
     </span>
 
@@ -52,7 +52,7 @@
     <button
       type="button"
       onclick={retry}
-      class="shrink-0 rounded-lg border border-red-400/30 bg-red-500/15 px-3 py-1.5 font-semibold text-red-100 transition-colors hover:bg-red-500/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-300"
+      class="shrink-0 rounded-lg border border-error/30 bg-error/15 px-3 py-1.5 font-semibold text-red-100 transition-colors hover:bg-error/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-300"
     >
       {m.backend_down_retry()}
     </button>

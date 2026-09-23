@@ -319,7 +319,7 @@
             bind:values={ignoredDraft}
             options={guildChannels.map((c) => ({ id: c.id, name: `#${c.name}` }))}
             disabled={savingConfig}
-            accentClass="bg-rose-500/20 text-rose-300 border-rose-500/40"
+            accentClass="bg-error/20 text-rose-300 border-error/40"
           />
           <p class="text-2xs text-on-surface-variant/50">{m.ms_ignored_channels_help()}</p>
         </div>

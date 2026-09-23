@@ -254,11 +254,11 @@
 
   function getStatusColor(status: string) {
     switch (status) {
-      case 'PENDING': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+      case 'PENDING': return 'bg-warning/10 text-warning border-warning/20';
       case 'ORAL': return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
-      case 'APPROVED': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
-      case 'REJECTED': return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
-      case 'AUTO_REJECTED': return 'bg-rose-900/20 text-rose-400 border-rose-900/30';
+      case 'APPROVED': return 'bg-success/10 text-success border-success/20';
+      case 'REJECTED': return 'bg-error/10 text-error border-error/20';
+      case 'AUTO_REJECTED': return 'bg-rose-900/20 text-error border-rose-900/30';
       default: return 'bg-outline-variant/10 text-on-surface-variant border-outline-variant/20';
     }
   }
@@ -505,7 +505,7 @@
     {#if activeTab === 'candidatures'}
       <div class="flex flex-wrap gap-4 mb-8">
       <div class="px-6 py-4 rounded-xl bg-surface-container-low/50 border border-outline-variant/10 flex items-center gap-4 hover:shadow-sm hover:shadow-primary/5 transition-all">
-        <div class="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center">
+        <div class="w-10 h-10 rounded-lg bg-warning/10 text-warning flex items-center justify-center">
             <Papicon icon="pending_actions" size={18} />
         </div>
         <div class="text-xs">
@@ -522,11 +522,11 @@
             <p class="text-xs text-on-surface-variant/70 font-semibold mt-1">{m.recruit_stat_oral()}</p>
         </div>
       </div>
-      <div class="px-6 py-4 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-4 hover:shadow-sm hover:shadow-rose-500/20 transition-all">
-        <div class="w-10 h-10 rounded-lg bg-background text-rose-500 flex items-center justify-center shadow-sm">
+      <div class="px-6 py-4 rounded-xl bg-error/10 border border-error/20 flex items-center gap-4 hover:shadow-sm hover:shadow-rose-500/20 transition-all">
+        <div class="w-10 h-10 rounded-lg bg-background text-error flex items-center justify-center shadow-sm">
             <Papicon icon="block" size={18} />
         </div>
-        <div class="text-xs text-rose-500">
+        <div class="text-xs text-error">
             <p class="text-2xl font-semibold leading-none">{stats.autoRejected}</p>
             <p class="text-xs font-semibold mt-1 opacity-70">{m.recruit_stat_auto_rejected()}</p>
         </div>
@@ -560,9 +560,9 @@
       {/each}
     </div>
   {:else if error}
-    <div class="rounded-xl border border-rose-500/20 bg-rose-500/10 px-8 py-10 text-center flex flex-col items-center">
-      <Papicon icon="error" size={48} class="text-rose-500 mb-4" />
-      <p class="text-xl font-bold text-rose-700">{error}</p>
+    <div class="rounded-xl border border-error/20 bg-error/10 px-8 py-10 text-center flex flex-col items-center">
+      <Papicon icon="error" size={48} class="text-error mb-4" />
+      <p class="text-xl font-bold text-error">{error}</p>
     </div>
   {:else if candidatures.length === 0}
     <div class="flex flex-col items-center justify-center py-32 text-on-surface-variant/30 border-2 border-dashed border-outline-variant/10 rounded-[4rem] bg-surface-container-low/20">
@@ -615,7 +615,7 @@
                               {#if canModerate}
                                 <button 
                                     onclick={() => deleteCandidature(candidature.id)}
-                                    class="w-10 h-10 rounded-full bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
+                                    class="w-10 h-10 rounded-full bg-error/10 text-error hover:bg-rose-500 hover:text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
                                     title={m.recruit_delete_tooltip()}
                                 >
                                     <Papicon icon="delete" size={14} />
@@ -624,7 +624,7 @@
                       </div>
                       
                       {#if candidature.autoRejected && candidature.autoRejectReason}
-                          <div class="bg-rose-500/10 border border-rose-500/20 rounded-lg p-4 flex gap-4 text-rose-400">
+                          <div class="bg-error/10 border border-error/20 rounded-lg p-4 flex gap-4 text-error">
                              <Papicon icon="robot_2" size={20} class="shrink-0" />
                              <p class="text-sm font-medium">{candidature.autoRejectReason}</p>
                           </div>
@@ -672,7 +672,7 @@
                                 </button>
                                 <button 
                                    onclick={() => openRejectModal(candidature)}
-                                   class="col-span-2 py-3 rounded-lg bg-surface-container hover:bg-rose-500/10 hover:text-rose-500 text-on-surface-variant text-body-sm font-medium transition-all">
+                                   class="col-span-2 py-3 rounded-lg bg-surface-container hover:bg-error/10 hover:text-error text-on-surface-variant text-body-sm font-medium transition-all">
                                     {m.recruit_action_reject()}
                                 </button>
                              {/if}
@@ -724,9 +724,9 @@
           {/each}
         </div>
       {:else if formsError}
-        <div class="rounded-xl border border-rose-500/20 bg-rose-500/10 px-8 py-10 text-center flex flex-col items-center">
-          <Papicon icon="error" size={48} class="text-rose-500 mb-4" />
-          <p class="text-xl font-bold text-rose-700">{formsError}</p>
+        <div class="rounded-xl border border-error/20 bg-error/10 px-8 py-10 text-center flex flex-col items-center">
+          <Papicon icon="error" size={48} class="text-error mb-4" />
+          <p class="text-xl font-bold text-error">{formsError}</p>
         </div>
       {:else if forms.length === 0}
         <div class="flex flex-col items-center justify-center py-32 text-on-surface-variant/30 border-2 border-dashed border-outline-variant/10 rounded-[4rem] bg-surface-container-low/20 animate-in fade-in duration-300">
@@ -752,7 +752,7 @@
                       <p class="text-xs text-on-surface-variant/70 mt-1 line-clamp-2 leading-relaxed">{form.description}</p>
                     {/if}
                   </div>
-                  <span class="px-2.5 py-1 rounded-full text-2xs font-semibold uppercase tracking-wider border {form.isActive ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'}">
+                  <span class="px-2.5 py-1 rounded-full text-2xs font-semibold uppercase tracking-wider border {form.isActive ? 'bg-success/10 text-success border-success/20' : 'bg-error/10 text-error border-error/20'}">
                     {form.isActive ? m.recruit_form_active() : m.recruit_form_inactive()}
                   </span>
                 </div>
@@ -808,7 +808,7 @@
                   {/if}
                   <button
                     onclick={() => deleteForm(form.id)}
-                    class="px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500 hover:text-white text-rose-500 text-xs font-semibold uppercase transition-all"
+                    class="px-3 py-2 rounded-xl bg-error/10 hover:bg-rose-500 hover:text-white text-error text-xs font-semibold uppercase transition-all"
                     title={m.recruit_delete_form_tooltip()}
                   >
                     <Papicon icon="delete" size={14} />
@@ -924,7 +924,7 @@
 {#if rejectModalTarget}
   <div class="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-black/60">
     <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-lg shadow-sm p-10 animate-in zoom-in-95 duration-300">
-        <div class="flex items-center gap-4 mb-2 text-rose-500">
+        <div class="flex items-center gap-4 mb-2 text-error">
            <Papicon icon="cancel" size={36} />
            <h3 class="text-2xl font-semibold">{m.recruit_reject_modal_title()}</h3>
         </div>
@@ -951,7 +951,7 @@
 {#if oralPassModalTarget}
   <div class="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-black/60">
     <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-lg shadow-sm p-10 animate-in zoom-in-95 duration-300">
-        <div class="flex items-center gap-4 mb-2 text-emerald-500">
+        <div class="flex items-center gap-4 mb-2 text-success">
            <Papicon icon="how_to_reg" size={36} />
            <h3 class="text-2xl font-semibold">{m.recruit_oral_pass_title()}</h3>
         </div>
@@ -967,7 +967,7 @@
                     {/each}
                 </select>
                 {#if tutors.length === 0}
-                   <p class="text-rose-400 text-xs mt-1">{m.recruit_no_tutor_found()}</p>
+                   <p class="text-error text-xs mt-1">{m.recruit_no_tutor_found()}</p>
                 {/if}
              </div>
 
@@ -1024,7 +1024,7 @@
 {#if oralFailModalTarget}
   <div class="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-black/60">
     <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-lg shadow-sm p-10 animate-in zoom-in-95 duration-300">
-        <div class="flex items-center gap-4 mb-2 text-rose-500">
+        <div class="flex items-center gap-4 mb-2 text-error">
            <Papicon icon="thumb_down" size={36} />
            <h3 class="text-2xl font-semibold">{m.recruit_oral_fail_title()}</h3>
         </div>
@@ -1110,11 +1110,11 @@
       </div>
       
       <div class="p-8 space-y-6">
-        <div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 flex gap-4 text-amber-400">
+        <div class="bg-warning/10 border border-warning/20 rounded-lg p-4 flex gap-4 text-warning">
           <Papicon icon="info" size={20} class="shrink-0" />
           <div class="text-sm">
             <p class="font-bold mb-1">{m.recruit_script_install_title()}</p>
-            <ol class="list-decimal list-inside space-y-1 text-amber-400/80">
+            <ol class="list-decimal list-inside space-y-1 text-warning/80">
               <li>{m.recruit_script_step1()}</li>
               <li>{m.recruit_script_step2()}</li>
               <li>{m.recruit_script_step3()}</li>
@@ -1150,9 +1150,9 @@
 {#if showKeyModal}
   <div class="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-black/60">
     <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-xl shadow-sm overflow-hidden animate-in zoom-in-95 duration-300 font-inter">
-      <div class="p-8 border-b border-outline-variant/20 flex items-center justify-between bg-emerald-500/5">
+      <div class="p-8 border-b border-outline-variant/20 flex items-center justify-between bg-success/5">
         <div>
-          <h3 class="text-2xl font-semibold text-emerald-500 flex items-center gap-2">
+          <h3 class="text-2xl font-semibold text-success flex items-center gap-2">
             <Papicon icon="check_circle" size={24} />
             {m.recruit_key_modal_title()}
           </h3>
@@ -1164,7 +1164,7 @@
       </div>
       
       <div class="p-8 space-y-6">
-        <div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 flex gap-4 text-amber-400">
+        <div class="bg-warning/10 border border-warning/20 rounded-lg p-4 flex gap-4 text-warning">
           <Papicon icon="warning" size={20} class="shrink-0" />
           <div class="text-sm leading-relaxed font-medium">
             <p class="font-bold mb-1">{m.recruit_key_warning_title()}</p>

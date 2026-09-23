@@ -55,8 +55,8 @@
     threat:     { label: m.nm_cat_threat(),     color: 'text-orange-400',   bg: 'bg-orange-400/10 border-orange-400/20' },
     sexual:     { label: m.nm_cat_sexual(),     color: 'text-pink-400',     bg: 'bg-pink-400/10 border-pink-400/20' },
     lgbtphobia: { label: m.nm_cat_lgbtphobia(), color: 'text-purple-400',   bg: 'bg-purple-400/10 border-purple-400/20' },
-    hate:       { label: m.nm_cat_hate(),       color: 'text-red-600',      bg: 'bg-red-600/10 border-red-600/20' },
-    insult:     { label: m.nm_cat_insult(),     color: 'text-yellow-400',   bg: 'bg-yellow-400/10 border-yellow-400/20' },
+    hate:       { label: m.nm_cat_hate(),       color: 'text-error',      bg: 'bg-error/10 border-error/20' },
+    insult:     { label: m.nm_cat_insult(),     color: 'text-warning',   bg: 'bg-warning/10 border-warning/20' },
   });
 
   // ---------------------------------------------------------------------------

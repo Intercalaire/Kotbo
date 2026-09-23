@@ -41,10 +41,10 @@
   // par interpolation n'existerait pas dans la feuille finale.
   const healthTone = $derived(
     healthScore >= 80
-      ? { icon: 'bg-emerald-500/10 text-emerald-500', value: 'text-emerald-500' }
+      ? { icon: 'bg-success/10 text-success', value: 'text-success' }
       : healthScore >= 50
-        ? { icon: 'bg-amber-500/10 text-amber-500', value: 'text-amber-500' }
-        : { icon: 'bg-red-500/10 text-red-500', value: 'text-red-500' }
+        ? { icon: 'bg-warning/10 text-warning', value: 'text-warning' }
+        : { icon: 'bg-error/10 text-error', value: 'text-error' }
   );
 
   const groupedFeatures = $derived(groupByCategory(features));
@@ -74,12 +74,12 @@
   {#if missingChannels.length > 0}
     <button
       type="button"
-      class="w-full flex items-start gap-4 p-5 rounded-xl bg-amber-500/5 border border-amber-500/20 text-left hover:bg-amber-500/10 transition-colors"
+      class="w-full flex items-start gap-4 p-5 rounded-xl bg-warning/5 border border-warning/20 text-left hover:bg-warning/10 transition-colors"
       onclick={() => onNavigate('salons')}
     >
-      <span class="bg-amber-500/10 p-2 rounded-lg text-amber-500 shrink-0"><Papicon icon="Warning" size={18} /></span>
+      <span class="bg-warning/10 p-2 rounded-lg text-warning shrink-0"><Papicon icon="Warning" size={18} /></span>
       <span>
-        <span class="block text-xs font-semibold text-amber-500">{m.mgmt_incomplete_config()}</span>
+        <span class="block text-xs font-semibold text-warning">{m.mgmt_incomplete_config()}</span>
         <span class="block text-xs text-on-surface-variant/60 mt-1">
           {m.mgmt_missing_channels({ list: missingChannels.map((c) => c.label).join(', ') })}
           <b>{m.mgmt_tab_channels_roles()}</b> {m.mgmt_to_configure()}

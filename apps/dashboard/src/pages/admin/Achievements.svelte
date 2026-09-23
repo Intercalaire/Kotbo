@@ -161,7 +161,7 @@
     </div>
 
     {#if loadError}
-      <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+      <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-error/10 border border-error/20 text-error text-sm">
         <Papicon icon="AlertTriangle" size={16} />
         {loadError}
       </div>
@@ -217,7 +217,7 @@
                     disabled={revoking === `${achievement.id}:${holder.userId}`}
                     title="Retirer le succès"
                     aria-label="Retirer le succès"
-                    class="p-2 rounded-lg text-on-surface-variant/50 hover:text-red-400 hover:bg-red-500/10 disabled:opacity-40 transition-colors"
+                    class="p-2 rounded-lg text-on-surface-variant/50 hover:text-error hover:bg-error/10 disabled:opacity-40 transition-colors"
                   >
                     <Papicon icon="Trash2" size={15} />
                   </button>

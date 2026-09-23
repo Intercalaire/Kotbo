@@ -225,9 +225,9 @@
         {/each}
       </div>
     {:else if error}
-      <div class="rounded-xl border border-rose-500/20 bg-rose-500/10 px-8 py-10 text-center">
-        <Papicon icon="error" size={48} class="text-rose-500 mb-4" />
-        <p class="text-xl font-bold text-rose-700">{error}</p>
+      <div class="rounded-xl border border-error/20 bg-error/10 px-8 py-10 text-center">
+        <Papicon icon="error" size={48} class="text-error mb-4" />
+        <p class="text-xl font-bold text-error">{error}</p>
       </div>
     {:else if forms.length === 0}
       <div class="flex flex-col items-center justify-center py-32 text-on-surface-variant/30 border-2 border-dashed border-outline-variant/10 rounded-[4rem] bg-surface-container-low/20">
@@ -364,7 +364,7 @@
               </button>
               <button
                 onclick={() => deleteForm(form.id)}
-                class="px-3 py-2.5 rounded-xl bg-rose-500/10 text-rose-500 text-body-sm font-medium hover:bg-rose-500/20 transition-all"
+                class="px-3 py-2.5 rounded-xl bg-error/10 text-error text-body-sm font-medium hover:bg-error/20 transition-all"
                 title={m.cf_btn_delete()}
               >
                 <Papicon icon="delete" size={14} />

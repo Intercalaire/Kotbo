@@ -394,9 +394,9 @@
   {/snippet}
 
   {#if error}
-    <div class="rounded-2xl border border-red-500/30 bg-red-500/8 p-4 flex items-start gap-3">
-      <Papicon icon="AlertTriangle" size={18} class="text-red-500 mt-0.5 shrink-0" />
-      <p class="text-body-sm text-red-600 dark:text-red-400">{error}</p>
+    <div class="rounded-2xl border border-error/30 bg-error/8 p-4 flex items-start gap-3">
+      <Papicon icon="AlertTriangle" size={18} class="text-error mt-0.5 shrink-0" />
+      <p class="text-body-sm text-error">{error}</p>
     </div>
   {/if}
 
@@ -589,7 +589,7 @@
               <p class="text-2xs text-on-surface-variant tabular-nums">{job.detail}</p>
             {/if}
             {#if job.error}
-              <p class="text-2xs text-red-500 leading-snug">{job.error}</p>
+              <p class="text-2xs text-error leading-snug">{job.error}</p>
             {/if}
           </div>
         {/each}
@@ -664,7 +664,7 @@
             type="button"
             onclick={() => handleDeactivate(guild)}
             disabled={busy}
-            class="w-full h-10 rounded-xl bg-amber-500/12 text-amber-600 dark:text-amber-400 border border-amber-500/25 hover:bg-amber-500/18 text-body-sm font-semibold transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
+            class="w-full h-10 rounded-xl bg-warning/12 text-warning border border-warning/25 hover:bg-warning/18 text-body-sm font-semibold transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
           >
             <Papicon icon="Ban" size={14} />
             Désactiver le serveur
@@ -674,7 +674,7 @@
             type="button"
             onclick={() => handleActivate(guild)}
             disabled={busy}
-            class="w-full h-10 rounded-xl bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/18 text-body-sm font-semibold transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
+            class="w-full h-10 rounded-xl bg-success/12 text-success border border-success/25 hover:bg-success/18 text-body-sm font-semibold transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
           >
             <Papicon icon="Key" size={14} />
             Activer automatiquement
@@ -685,7 +685,7 @@
           type="button"
           onclick={() => handleLeave(guild)}
           disabled={busy}
-          class="w-full h-10 rounded-xl bg-red-500/12 text-red-600 dark:text-red-400 border border-red-500/25 hover:bg-red-500/18 text-body-sm font-semibold transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
+          class="w-full h-10 rounded-xl bg-error/12 text-error border border-error/25 hover:bg-error/18 text-body-sm font-semibold transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
         >
           <Papicon icon="LogOut" size={14} />
           Faire quitter le bot

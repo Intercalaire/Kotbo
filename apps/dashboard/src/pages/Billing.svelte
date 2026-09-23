@@ -193,10 +193,10 @@
             {#if statusInfo}
               <span
                 class="px-2 py-0.5 rounded-md text-2xs font-medium border {statusInfo.tone === 'ok'
-                  ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                  ? 'bg-success/10 text-success border-success/20'
                   : statusInfo.tone === 'warn'
-                    ? 'bg-amber-500/10 text-amber-500 border-amber-500/20'
-                    : 'bg-red-500/10 text-red-500 border-red-500/20'}"
+                    ? 'bg-warning/10 text-warning border-warning/20'
+                    : 'bg-error/10 text-error border-error/20'}"
               >
                 {statusInfo.label}
               </span>
@@ -227,7 +227,7 @@
       </div>
 
       {#if status.status === 'past_due'}
-        <div class="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3 text-body-sm text-amber-600 dark:text-amber-400 leading-relaxed">
+        <div class="rounded-lg bg-warning/10 border border-warning/20 p-3 text-body-sm text-warning leading-relaxed">
           Le dernier prélèvement a échoué. Ton serveur garde son accès pendant que Stripe
           réessaie, mais mets à jour ton moyen de paiement pour éviter une coupure.
         </div>
@@ -272,7 +272,7 @@
         >
           Annuel
           {#if yearlySavingPercent > 0}
-            <span class="text-2xs px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-500 font-semibold">
+            <span class="text-2xs px-1.5 py-0.5 rounded bg-success/20 text-success font-semibold">
               −{yearlySavingPercent}%
             </span>
           {/if}

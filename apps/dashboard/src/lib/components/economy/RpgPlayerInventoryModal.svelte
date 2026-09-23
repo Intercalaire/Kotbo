@@ -145,8 +145,8 @@
                 </div>
                 <div class="flex flex-wrap items-center gap-2 mt-0.5 text-2xs">
                   <span class="text-primary bg-primary/10 px-2 py-0.5 rounded-full">{entry.item.type}</span>
-                  {#if entry.equipped}<span class="text-emerald-400 font-bold">{m.eco_inventory_equipped()}</span>{/if}
-                  {#if entry.upgrade > 0}<span class="text-amber-400 font-bold">+{entry.upgrade}</span>{/if}
+                  {#if entry.equipped}<span class="text-success font-bold">{m.eco_inventory_equipped()}</span>{/if}
+                  {#if entry.upgrade > 0}<span class="text-warning font-bold">+{entry.upgrade}</span>{/if}
                 </div>
               </div>
             </div>

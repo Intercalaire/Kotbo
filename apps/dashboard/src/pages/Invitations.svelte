@@ -266,9 +266,9 @@
 
   function getStatusClass(status: InviteStatus) {
     switch (status) {
-      case 'active': return 'bg-emerald-500/10 text-emerald-500';
-      case 'suspended': return 'bg-amber-500/10 text-amber-500';
-      case 'deleted': return 'bg-red-500/10 text-red-500';
+      case 'active': return 'bg-success/10 text-success';
+      case 'suspended': return 'bg-warning/10 text-warning';
+      case 'deleted': return 'bg-error/10 text-error';
       case 'expired': return 'bg-slate-500/10 text-on-surface-variant/60';
     }
   }
@@ -511,7 +511,7 @@
 
   <div class="space-y-6">
     {#if error}
-      <div class="p-4 rounded-lg bg-red-500/10 text-red-500 text-sm font-bold">{error}</div>
+      <div class="p-4 rounded-lg bg-error/10 text-error text-sm font-bold">{error}</div>
     {/if}
 
     <!-- Stats compactes -->
@@ -538,7 +538,7 @@
         </div>
         <div class="premium-card p-4 rounded-lg">
           <p class="text-xs font-semibold text-on-surface-variant/50">{m.iv_total_joins()}</p>
-          <p class="text-2xl font-semibold text-emerald-500">{totalJoins}</p>
+          <p class="text-2xl font-semibold text-success">{totalJoins}</p>
         </div>
         <div class="premium-card p-4 rounded-lg">
           <p class="text-xs font-semibold text-on-surface-variant/50">{m.iv_retention()}</p>
@@ -654,7 +654,7 @@
                               if (event.key === 'Escape') cancelSourceEdit();
                             }}
                           />
-                          <button type="button" title={m.iv_save()} disabled={savingSource} class="source-icon-button text-emerald-500" onclick={() => saveSource(invite)}>
+                          <button type="button" title={m.iv_save()} disabled={savingSource} class="source-icon-button text-success" onclick={() => saveSource(invite)}>
                             <Papicon icon="Check" size={14} />
                           </button>
                           <button type="button" title={m.iv_cancel()} class="source-icon-button text-on-surface-variant" onclick={cancelSourceEdit}>
@@ -686,7 +686,7 @@
                           {getStatusLabel(status)}
                         </span>
                         {#if invite.inviterSuspended}
-                          <span class="px-2 py-0.5 rounded-full text-2xs font-semibold bg-red-500/10 text-red-500">{m.iv_inviter_suspended_badge()}</span>
+                          <span class="px-2 py-0.5 rounded-full text-2xs font-semibold bg-error/10 text-error">{m.iv_inviter_suspended_badge()}</span>
                         {/if}
                         {#if isDormant(invite)}
                           <span class="px-2 py-0.5 rounded-full text-2xs font-semibold bg-slate-500/10 text-on-surface-variant/60">{m.iv_dormant()}</span>
@@ -694,13 +694,13 @@
                       </div>
                     </td>
                     <td class="py-3 pr-4 text-right">
-                      <span class="font-semibold text-emerald-500">{invite.joinedCount}</span>
+                      <span class="font-semibold text-success">{invite.joinedCount}</span>
                     </td>
                     <td class="py-3 pr-4 text-right">
                       <span class="font-semibold text-orange-500">{invite.uses ?? 0}</span>
                     </td>
                     <td class="py-3 pr-4 text-right">
-                      <span class="font-semibold {invite.retention >= 70 ? 'text-emerald-500' : invite.retention >= 40 ? 'text-amber-500' : 'text-red-500'}">{invite.retention}%</span>
+                      <span class="font-semibold {invite.retention >= 70 ? 'text-success' : invite.retention >= 40 ? 'text-warning' : 'text-error'}">{invite.retention}%</span>
                     </td>
                     <td class="py-3 pr-4 text-right text-2xs text-on-surface-variant/60">
                       {formatRelative(invite.lastJoinedAt)}
@@ -749,14 +749,14 @@
                                 {invite.isSuspended ? m.iv_restore() : m.iv_status_suspended()}
                               </button>
                               <button
-                                class="w-full px-3 py-2 text-left text-xs font-bold text-red-500 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
+                                class="w-full px-3 py-2 text-left text-xs font-bold text-error hover:bg-error/10 flex items-center gap-2 transition-colors"
                                 onclick={() => purgeInvite(invite)}
                               >
                                 <Papicon icon="Trash" size={14} />
                                 {m.iv_purge()}
                               </button>
                               <button
-                                class="w-full px-3 py-2 text-left text-xs font-bold text-red-500 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
+                                class="w-full px-3 py-2 text-left text-xs font-bold text-error hover:bg-error/10 flex items-center gap-2 transition-colors"
                                 onclick={() => deleteInvite(invite)}
                               >
                                 <Papicon icon="X" size={14} />
@@ -796,7 +796,7 @@
             {#if leadingSource}
               <span class="text-xs text-on-surface-variant/50">{m.iv_best_source()}</span>
               <strong class="text-lg text-on-surface mt-1">{leadingSource.name}</strong>
-              <span class="text-xs text-emerald-500 mt-1">{leadingSource.joinedCount > 1 ? m.iv_join_other({ count: leadingSource.joinedCount }) : m.iv_join_one({ count: leadingSource.joinedCount })}</span>
+              <span class="text-xs text-success mt-1">{leadingSource.joinedCount > 1 ? m.iv_join_other({ count: leadingSource.joinedCount }) : m.iv_join_one({ count: leadingSource.joinedCount })}</span>
             {:else}
               <span class="text-sm text-on-surface-variant/60">{m.iv_name_first_link()}</span>
             {/if}
@@ -869,10 +869,10 @@
                           {/each}
                         </div>
                       </td>
-                      <td class="px-4 py-4 text-right font-semibold text-emerald-500">{source.joinedCount}</td>
+                      <td class="px-4 py-4 text-right font-semibold text-success">{source.joinedCount}</td>
                       <td class="px-4 py-4 text-right font-semibold text-on-surface">{source.stayedCount}</td>
                       <td class="px-5 py-4 text-right">
-                        <span class="font-semibold {source.retention >= 70 ? 'text-emerald-500' : source.retention >= 40 ? 'text-amber-500' : 'text-red-500'}">{source.retention}%</span>
+                        <span class="font-semibold {source.retention >= 70 ? 'text-success' : source.retention >= 40 ? 'text-warning' : 'text-error'}">{source.retention}%</span>
                       </td>
                     </tr>
                   {/each}
@@ -910,7 +910,7 @@
     {:else if activeTab === 'top'}
       <div class="premium-card p-6 rounded-xl space-y-4">
         <div class="flex items-center gap-3">
-          <div class="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
+          <div class="p-2 rounded-xl bg-success/10 text-success">
             <Papicon icon="Crown" size={18} />
           </div>
           <div>
@@ -955,7 +955,7 @@
                     <p class="text-2xs text-on-surface-variant/50">{m.iv_last_join_short()} {formatRelative(inviter.lastJoinedAt)}</p>
                   </div>
                 </div>
-                <span class="text-lg font-semibold text-emerald-500">{inviter.joinedCount}</span>
+                <span class="text-lg font-semibold text-success">{inviter.joinedCount}</span>
               </div>
             {/each}
             {#if topInviters.length === 0}
@@ -969,7 +969,7 @@
         <!-- Formulaire de suspension -->
         <div class="premium-card p-6 rounded-xl space-y-4">
           <div class="flex items-center gap-3">
-            <div class="p-2 rounded-xl bg-amber-500/10 text-amber-500">
+            <div class="p-2 rounded-xl bg-warning/10 text-warning">
               <Papicon icon="UserMinus" size={18} />
             </div>
             <div>
@@ -1021,7 +1021,7 @@
         <!-- Liste des créateurs suspendus -->
         <div class="premium-card p-6 rounded-xl space-y-4">
           <div class="flex items-center gap-3">
-            <div class="p-2 rounded-xl bg-red-500/10 text-red-500">
+            <div class="p-2 rounded-xl bg-error/10 text-error">
               <Papicon icon="UserX" size={18} />
             </div>
             <div>

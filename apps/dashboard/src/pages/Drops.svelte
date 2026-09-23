@@ -517,7 +517,7 @@
                     </span>
                   </td>
                   <td class="py-2.5 pr-4">
-                    <span class="text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full {configs[type].enabled && globalSettings.dropsEnabled ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-surface-container-high/60 text-on-surface-variant/60'}">
+                    <span class="text-2xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full {configs[type].enabled && globalSettings.dropsEnabled ? 'bg-success/10 text-success border border-success/20' : 'bg-surface-container-high/60 text-on-surface-variant/60'}">
                       {configs[type].enabled && globalSettings.dropsEnabled ? m.drop_state_on() : m.drop_state_off()}
                     </span>
                   </td>
@@ -588,19 +588,19 @@
         <p class="text-xs text-on-surface-variant/70">{m.drop_type_enable_desc()}</p>
 
         {#if !globalSettings.dropsEnabled}
-          <p class="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3">
+          <p class="text-xs text-warning bg-warning/10 border border-warning/20 rounded-lg px-4 py-3">
             {m.drop_enable_desc()}
           </p>
         {/if}
 
         {#if !configs[type].channelId && !globalSettings.dropChannelId}
-          <p class="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3">
+          <p class="text-xs text-warning bg-warning/10 border border-warning/20 rounded-lg px-4 py-3">
             {m.drop_no_channel_warning()}
           </p>
         {/if}
 
         {#if !isModuleActive(TYPE_MODULES[type])}
-          <p class="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3">
+          <p class="text-xs text-warning bg-warning/10 border border-warning/20 rounded-lg px-4 py-3">
             {type === 'CLAN_POINTS'
               ? m.drop_clans_disabled_warning()
               : m.drop_module_disabled_warning({ module: moduleName(TYPE_MODULES[type]) })}
@@ -618,7 +618,7 @@
             </div>
 
             {#if !rpgEnabled}
-              <p class="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3">
+              <p class="text-xs text-warning bg-warning/10 border border-warning/20 rounded-lg px-4 py-3">
                 {m.drop_item_pool_rpg_off()}
               </p>
             {/if}
@@ -662,7 +662,7 @@
                 {/each}
 
                 <div class="flex items-center justify-between gap-3 pt-1">
-                  <p class="text-2xs font-semibold {dropItemsBalanced ? 'text-emerald-500' : 'text-amber-500'}">
+                  <p class="text-2xs font-semibold {dropItemsBalanced ? 'text-success' : 'text-warning'}">
                     {m.drop_item_total({ total: dropItemsTotal })}
                   </p>
                   <button
@@ -724,7 +724,7 @@
         </div>
 
         {#if enabledDropModes(configs[type]).length === 0}
-          <p class="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3">
+          <p class="text-xs text-warning bg-warning/10 border border-warning/20 rounded-lg px-4 py-3">
             {m.drop_no_mode_warning()}
           </p>
         {/if}

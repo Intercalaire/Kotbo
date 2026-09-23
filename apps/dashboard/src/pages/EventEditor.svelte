@@ -472,12 +472,12 @@
           <div class="space-y-8">
             {#each event.ctfChallenges || [] as challenge, cIdx}
               <div class="bg-surface-container-low/30 rounded-xl border border-outline-variant/10 p-10 space-y-8 relative overflow-hidden group">
-                <div class="absolute top-0 left-0 w-2 h-full bg-emerald-500/20"></div>
+                <div class="absolute top-0 left-0 w-2 h-full bg-success/20"></div>
                 
                 <div class="flex flex-col gap-6">
                   <div class="flex items-center justify-between">
-                    <span class="text-xs font-medium text-emerald-500">{m.eve_challenge_label({ number: cIdx + 1 })}</span>
-                    <button onclick={() => removeCtfChallenge(cIdx)} class="text-rose-500 hover:text-rose-600 transition-colors">
+                    <span class="text-xs font-medium text-success">{m.eve_challenge_label({ number: cIdx + 1 })}</span>
+                    <button onclick={() => removeCtfChallenge(cIdx)} class="text-error hover:text-error transition-colors">
                       <Papicon icon="Trash2" size={16} />
                     </button>
                   </div>
@@ -602,7 +602,7 @@
                   <div class="flex-1 space-y-6">
                     <div class="flex items-center justify-between">
                       <span class="text-xs font-medium text-primary">{m.eve_question_label({ number: qIdx + 1 })}</span>
-                      <button onclick={() => removeQuestion(qIdx)} class="text-rose-500 hover:text-rose-600 transition-colors">
+                      <button onclick={() => removeQuestion(qIdx)} class="text-error hover:text-error transition-colors">
                         <Papicon icon="Trash2" size={16} />
                       </button>
                     </div>
@@ -640,7 +640,7 @@
                         <div class="flex items-center gap-3">
                           <button 
                             onclick={() => question.correctOptionIndex = oIdx}
-                            class="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all {question.correctOptionIndex === oIdx ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-outline-variant/20 text-transparent'}"
+                            class="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all {question.correctOptionIndex === oIdx ? 'bg-emerald-500 border-success text-white' : 'border-outline-variant/20 text-transparent'}"
                           >
                             <Papicon icon="Check" size={12} />
                           </button>
@@ -649,7 +649,7 @@
                             bind:value={question.options[oIdx]} 
                             class="flex-1 bg-surface-container-high/50 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm font-bold text-on-surface focus:outline-none focus:border-primary/50 transition-colors"
                           />
-                          <button onclick={() => removeOption(qIdx, oIdx)} class="text-on-surface-variant/20 hover:text-rose-500 transition-colors">
+                          <button onclick={() => removeOption(qIdx, oIdx)} class="text-on-surface-variant/20 hover:text-error transition-colors">
                             <Papicon icon="X" size={14} />
                           </button>
                         </div>

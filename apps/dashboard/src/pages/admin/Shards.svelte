@@ -62,10 +62,10 @@
   }
 
   function shardStatusTone(status: ShardSnapshot['status']) {
-    if (status === 'online') return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-    if (status === 'starting') return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+    if (status === 'online') return 'bg-success/10 text-success border-success/20';
+    if (status === 'starting') return 'bg-warning/10 text-warning border-warning/20';
     if (status === 'restarting') return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
-    return 'bg-red-500/10 text-red-400 border-red-500/20';
+    return 'bg-error/10 text-error border-error/20';
   }
 
   async function refreshShards() {
@@ -165,7 +165,7 @@
           <p class="text-xs font-medium text-on-surface-variant/40 mt-1">Shards total</p>
         </div>
         <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-xl p-4">
-          <p class="text-2xl font-semibold font-mono text-emerald-400">{shardState?.onlineShardCount ?? 0}</p>
+          <p class="text-2xl font-semibold font-mono text-success">{shardState?.onlineShardCount ?? 0}</p>
           <p class="text-xs font-medium text-on-surface-variant/40 mt-1">En ligne</p>
         </div>
         <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-xl p-4">
@@ -194,7 +194,7 @@
             </div>
             <div class="bg-on-surface/4 rounded-xl p-3 space-y-0.5">
               <p class="text-xs font-semibold text-on-surface-variant/30">En ligne</p>
-              <p class="text-sm font-semibold text-emerald-400">{shardState?.onlineShardCount ?? 0}/{shardConfiguredCount}</p>
+              <p class="text-sm font-semibold text-success">{shardState?.onlineShardCount ?? 0}/{shardConfiguredCount}</p>
             </div>
           </div>
 
@@ -234,7 +234,7 @@
               type="button"
               onclick={handleRestartAllShards}
               disabled={shardActionLoading === 'restart-all'}
-              class="w-full py-2.5 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/20 font-semibold text-xs transition-all hover:bg-amber-500/25 disabled:opacity-40"
+              class="w-full py-2.5 rounded-xl bg-warning/15 text-warning border border-warning/20 font-semibold text-xs transition-all hover:bg-warning/25 disabled:opacity-40"
             >
               {shardActionLoading === 'restart-all' ? 'Redémarrage...' : 'Redémarrer tout'}
             </button>
@@ -296,7 +296,7 @@
                       <td class="px-5 py-3.5 font-bold text-sm text-on-surface">{shard.guildCount}</td>
                       <td class="px-5 py-3.5 font-bold text-sm text-on-surface">{shard.memberCount.toLocaleString()}</td>
                       <td class="px-5 py-3.5">
-                        <span class="font-semibold font-mono text-sm {shard.ping > 200 ? 'text-amber-400' : shard.ping > 100 ? 'text-yellow-400' : 'text-emerald-400'}">{shard.ping} ms</span>
+                        <span class="font-semibold font-mono text-sm {shard.ping > 200 ? 'text-warning' : shard.ping > 100 ? 'text-warning' : 'text-success'}">{shard.ping} ms</span>
                       </td>
                       <td class="px-5 py-3.5 font-medium text-sm text-on-surface-variant/60">{formatShardUptime(shard.uptime)}</td>
                       <td class="px-5 py-3.5 text-right">
@@ -304,7 +304,7 @@
                           type="button"
                           onclick={() => handleRestartShard(shard.shardId)}
                           disabled={shardActionLoading === `restart:${shard.shardId}`}
-                          class="px-3 py-1.5 rounded-lg text-xs font-medium bg-on-surface/5 hover:bg-amber-500/15 text-on-surface-variant hover:text-amber-400 border border-outline-variant/10 hover:border-amber-500/20 transition-all disabled:opacity-40"
+                          class="px-3 py-1.5 rounded-lg text-xs font-medium bg-on-surface/5 hover:bg-warning/15 text-on-surface-variant hover:text-warning border border-outline-variant/10 hover:border-warning/20 transition-all disabled:opacity-40"
                         >
                           {shardActionLoading === `restart:${shard.shardId}` ? '...' : 'Restart'}
                         </button>

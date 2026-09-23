@@ -84,9 +84,9 @@
           <button
             type="button"
             onclick={() => onPick({ kind: 'condition' })}
-            class="flex items-center gap-2.5 p-3 rounded-2xl text-left bg-surface-container-high/60 border border-outline-variant/15 hover:border-amber-400/40 transition-all"
+            class="flex items-center gap-2.5 p-3 rounded-2xl text-left bg-surface-container-high/60 border border-outline-variant/15 hover:border-warning/40 transition-all"
           >
-            <span class="p-2 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-300 shrink-0"><Papicon icon="GitBranch" size={14} /></span>
+            <span class="p-2 rounded-xl bg-warning/10 text-warning shrink-0"><Papicon icon="GitBranch" size={14} /></span>
             <span class="min-w-0">
               <span class="block text-xs font-medium text-on-surface">{m.wf_add_condition()}</span>
               <span class="block text-2xs text-on-surface-variant/70">{m.wf_add_condition_desc()}</span>

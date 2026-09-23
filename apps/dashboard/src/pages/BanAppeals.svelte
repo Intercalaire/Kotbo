@@ -115,19 +115,19 @@
   });
 
   const OUTCOME_META: Record<Outcome, { label: string; classes: string; icon: string }> = $derived({
-    PENDING: { label: m.ba_outcome_pending(), classes: 'bg-amber-500/10 text-amber-500 border-amber-500/30', icon: 'clock' },
+    PENDING: { label: m.ba_outcome_pending(), classes: 'bg-warning/10 text-warning border-warning/30', icon: 'clock' },
     UPHELD: { label: m.ba_outcome_upheld(), classes: 'bg-surface-container text-on-surface-variant border-outline-variant/30', icon: 'gavel' },
-    ARCHIVED: { label: m.ba_outcome_archived(), classes: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30', icon: 'inbox' },
-    DELETED: { label: m.ba_outcome_deleted(), classes: 'bg-rose-500/10 text-rose-500 border-rose-500/30', icon: 'trash' },
-    LOCKED: { label: m.ba_outcome_locked(), classes: 'bg-rose-900/20 text-rose-400 border-rose-900/40', icon: 'lock' },
+    ARCHIVED: { label: m.ba_outcome_archived(), classes: 'bg-success/10 text-success border-success/30', icon: 'inbox' },
+    DELETED: { label: m.ba_outcome_deleted(), classes: 'bg-error/10 text-error border-error/30', icon: 'trash' },
+    LOCKED: { label: m.ba_outcome_locked(), classes: 'bg-rose-900/20 text-error border-rose-900/40', icon: 'lock' },
   });
 
   const STATUS_META: Record<string, { label: string; classes: string }> = $derived({
-    PENDING: { label: m.ba_status_pending(), classes: 'bg-amber-500/10 text-amber-500 border-amber-500/30' },
+    PENDING: { label: m.ba_status_pending(), classes: 'bg-warning/10 text-warning border-warning/30' },
     NEEDS_INFO: { label: m.ba_status_needs_info(), classes: 'bg-blue-500/10 text-blue-500 border-blue-500/30' },
-    ACCEPTED: { label: m.ba_status_accepted(), classes: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' },
-    DENIED: { label: m.ba_status_denied(), classes: 'bg-rose-500/10 text-rose-500 border-rose-500/30' },
-    DENIED_PERMANENT: { label: m.ba_status_denied_permanent(), classes: 'bg-rose-900/20 text-rose-400 border-rose-900/40' },
+    ACCEPTED: { label: m.ba_status_accepted(), classes: 'bg-success/10 text-success border-success/30' },
+    DENIED: { label: m.ba_status_denied(), classes: 'bg-error/10 text-error border-error/30' },
+    DENIED_PERMANENT: { label: m.ba_status_denied_permanent(), classes: 'bg-rose-900/20 text-error border-rose-900/40' },
   });
 
   // ── API ────────────────────────────────────────────────────────────────────
@@ -484,7 +484,7 @@
                                 </p>
                                 <p class="text-xs text-on-surface-variant/80 mt-0.5 break-words">{item.sanctionReason}</p>
                                 {#if !item.sanctionId}
-                                  <p class="text-2xs text-rose-400 mt-1">{m.ba_item_sanction_gone()}</p>
+                                  <p class="text-2xs text-error mt-1">{m.ba_item_sanction_gone()}</p>
                                 {/if}
                               </div>
                               <span class="px-2 py-0.5 rounded-full text-2xs font-bold border shrink-0 {ometa.classes}">{ometa.label}</span>
@@ -592,8 +592,8 @@
                             <div class="rounded-lg bg-surface border border-outline-variant/15 px-3 py-2 text-xs {s.archivedAt ? 'opacity-60' : ''}">
                               <span class="font-bold">{TYPE_LABELS[s.type] ?? s.type}</span>
                               <span class="text-on-surface-variant/50"> · {formatDate(s.createdAt)}{s.moderatorTag ? ` · ${s.moderatorTag}` : ''}</span>
-                              {#if s.archivedAt}<span class="ml-1 text-emerald-500 font-semibold">· {m.ba_badge_archived()}</span>{/if}
-                              {#if !s.appealable}<span class="ml-1 text-rose-400 font-semibold">· {m.ba_badge_locked()}</span>{/if}
+                              {#if s.archivedAt}<span class="ml-1 text-success font-semibold">· {m.ba_badge_archived()}</span>{/if}
+                              {#if !s.appealable}<span class="ml-1 text-error font-semibold">· {m.ba_badge_locked()}</span>{/if}
                               <p class="text-on-surface-variant/80 mt-0.5 truncate">{s.reason}</p>
                             </div>
                           {/each}
@@ -658,7 +658,7 @@
                       {#if detail.appeal.decisionReason}
                         <p class="text-on-surface-variant/80 mt-1">{detail.appeal.decisionReason}</p>
                       {/if}
-                      <p class="text-2xs mt-2 flex items-center gap-1.5 {detail.appeal.dmDelivered ? 'text-emerald-500' : 'text-amber-500'}">
+                      <p class="text-2xs mt-2 flex items-center gap-1.5 {detail.appeal.dmDelivered ? 'text-success' : 'text-warning'}">
                         {#if detail.appeal.dmDelivered}
                           <Papicon icon="check" size={12} />
                           <span>{m.ba_dm_delivered()}</span>
@@ -963,7 +963,7 @@
               </p>
             </div>
             <button onclick={() => removeFromBlacklist(entry.userId)}
-              class="px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-500 text-xs font-bold hover:bg-rose-500/20 transition-colors shrink-0">
+              class="px-3 py-1.5 rounded-lg bg-error/10 text-error text-xs font-bold hover:bg-error/20 transition-colors shrink-0">
               {m.ba_remove()}
             </button>
           </div>

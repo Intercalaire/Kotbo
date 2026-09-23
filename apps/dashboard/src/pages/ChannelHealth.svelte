@@ -361,7 +361,7 @@ onMount(async () => {
                   <td class="px-3 py-2.5 text-sm">{ch.uniqueUsersAvg.toFixed(0)}</td>
                   <td class="px-3 py-2.5 text-sm">{ch.totalMessages.toLocaleString()}</td>
                   <td class="px-3 py-2.5 text-sm">
-                    {#if ch.trend === 'UP'}<Papicon icon="trendup" size={16} class="text-emerald-500" />
+                    {#if ch.trend === 'UP'}<Papicon icon="trendup" size={16} class="text-success" />
                     {:else if ch.trend === 'DOWN'}<Papicon icon="trenddown" size={16} class="text-error" />
                     {:else}<Papicon icon="arrow-right" size={16} class="text-on-surface-variant/60" />
                     {/if}
@@ -369,7 +369,7 @@ onMount(async () => {
                   <td class="px-3 py-2.5 text-sm">{ch.confidence}%</td>
                   <td class="px-3 py-2.5 text-sm whitespace-nowrap">
                     {#if ch.status === 'OVERLOADED'}
-                      <button class="px-3 py-1.5 bg-amber-500/10 text-amber-500 rounded-lg text-xs font-bold hover:bg-amber-500/20 transition-all" onclick={() => handleSplit(ch.channelId)}>{m.channel_health_action_split()}</button>
+                      <button class="px-3 py-1.5 bg-warning/10 text-warning rounded-lg text-xs font-bold hover:bg-warning/20 transition-all" onclick={() => handleSplit(ch.channelId)}>{m.channel_health_action_split()}</button>
                     {:else if ch.status === 'DEAD'}
                       <button class="px-3 py-1.5 bg-surface-container-high/40 text-on-surface-variant rounded-lg text-xs font-bold hover:bg-surface-container-high/60 transition-all" onclick={() => handleArchive(ch.channelId)}>{m.channel_health_action_archive()}</button>
                     {/if}
@@ -408,7 +408,7 @@ onMount(async () => {
           {#each data.pendingAlerts as alert}
             <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 space-y-3 border-l-[3px]" style="border-left-color: #fee75c">
               <div class="flex justify-between items-center">
-                <span class="text-xs font-medium text-amber-400">{alertTypeLabels[alert.type]?.() ?? alert.type}</span>
+                <span class="text-xs font-medium text-warning">{alertTypeLabels[alert.type]?.() ?? alert.type}</span>
                 <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/15 text-primary">{alert.confidence}%</span>
               </div>
               <h4 class="text-sm font-semibold text-on-surface">
@@ -533,7 +533,7 @@ onMount(async () => {
             id="excluded-channels"
             bind:values={configDraft.excludedChannelIds}
             options={availableChannels.map((c) => ({ id: c.id, name: `#${c.name}` }))}
-            accentClass="bg-rose-500/20 text-rose-300 border-rose-500/40"
+            accentClass="bg-error/20 text-rose-300 border-error/40"
           />
           <p class="text-2xs text-on-surface-variant/50">{m.channel_health_field_excluded_channels_help()}</p>
         </div>

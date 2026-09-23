@@ -312,8 +312,8 @@
   const toneOf: Record<string, string> = {
     neutral: 'bg-surface-container text-on-surface-variant',
     info: 'bg-primary/10 text-primary',
-    success: 'bg-emerald-500/10 text-emerald-500',
-    warning: 'bg-amber-500/10 text-amber-500',
+    success: 'bg-success/10 text-success',
+    warning: 'bg-warning/10 text-warning',
     danger: 'bg-error/10 text-error',
   };
 
@@ -470,8 +470,8 @@
       </div>
 
       {#if blockers.length > 0}
-        <div class="rounded-lg bg-amber-500/10 px-3 py-2">
-          <p class="text-2xs text-amber-500">
+        <div class="rounded-lg bg-warning/10 px-3 py-2">
+          <p class="text-2xs text-warning">
             Avant d'activer : {blockers.join(' · ')}
           </p>
         </div>
@@ -569,7 +569,7 @@
         >
           <span class="min-w-0 text-left">
             <span class="text-xs text-on-surface block">{title}</span>
-            <span class="text-2xs {alert ? 'text-amber-500' : 'text-on-surface-variant'} block truncate">
+            <span class="text-2xs {alert ? 'text-warning' : 'text-on-surface-variant'} block truncate">
               {summary}
             </span>
           </span>
@@ -602,7 +602,7 @@
                 </span>
                 <span class="flex items-center gap-1.5 shrink-0">
                   <button
-                    class="text-2xs {commitment.state === 'BREACHED' ? 'text-error' : 'text-emerald-500'} hover:underline"
+                    class="text-2xs {commitment.state === 'BREACHED' ? 'text-error' : 'text-success'} hover:underline"
                     onclick={() =>
                       run(
                         () =>
@@ -867,7 +867,7 @@
                     </span>
                     {#if payment.status !== 'RECEIVED'}
                       <button
-                        class="text-2xs text-emerald-500 hover:underline"
+                        class="text-2xs text-success hover:underline"
                         onclick={() =>
                           run(
                             () => settlePartnershipPayment(partnershipId as string, payment.id, {}),
@@ -937,7 +937,7 @@
             </div>
 
             {#each data.notes ?? [] as note (note.id)}
-              <div class="rounded-lg bg-amber-500/5 px-2.5 py-1.5">
+              <div class="rounded-lg bg-warning/5 px-2.5 py-1.5">
                 <p class="text-2xs text-on-surface whitespace-pre-wrap">{note.body}</p>
               </div>
             {/each}

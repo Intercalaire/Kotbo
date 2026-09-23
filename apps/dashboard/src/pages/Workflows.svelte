@@ -390,9 +390,9 @@
   };
 
   const STATUS_META: Record<string, { label: () => string; color: string }> = {
-    COMPLETED: { label: () => m.wf_exec_status_completed(), color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
-    FAILED: { label: () => m.wf_exec_status_failed(), color: 'bg-red-500/15 text-red-700 dark:text-red-300' },
-    WAITING: { label: () => m.wf_exec_status_waiting(), color: 'bg-amber-500/15 text-amber-700 dark:text-amber-300' },
+    COMPLETED: { label: () => m.wf_exec_status_completed(), color: 'bg-success/15 text-success' },
+    FAILED: { label: () => m.wf_exec_status_failed(), color: 'bg-error/15 text-error' },
+    WAITING: { label: () => m.wf_exec_status_waiting(), color: 'bg-warning/15 text-warning' },
     RUNNING: { label: () => m.wf_exec_status_running(), color: 'bg-sky-500/15 text-sky-700 dark:text-sky-300' },
     CANCELLED: { label: () => m.wf_exec_status_cancelled(), color: 'bg-surface-container-highest text-on-surface-variant/70' },
   };
@@ -448,7 +448,7 @@
     </div>
 
   {:else if error}
-    <div class="p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-300 flex items-center gap-3">
+    <div class="p-6 rounded-2xl bg-error/10 border border-error/20 text-error flex items-center gap-3">
       <Papicon icon="Warning" size={20} />
       <span>{error}</span>
     </div>
@@ -532,7 +532,7 @@
         />
 
         {#if replay.error}
-          <span class="px-2.5 py-1 rounded-lg text-2xs font-semibold bg-red-500/10 text-red-700 dark:text-red-300 max-w-72 truncate" title={replay.error}>
+          <span class="px-2.5 py-1 rounded-lg text-2xs font-semibold bg-error/10 text-error max-w-72 truncate" title={replay.error}>
             {replay.error}
           </span>
         {/if}
@@ -563,15 +563,15 @@
                 <span class="text-sm font-bold text-on-surface truncate">{replayNodeLabel}</span>
                 <span
                   class="px-2 py-0.5 rounded-full text-2xs font-bold shrink-0 {stepStatus === 'ERROR'
-                    ? 'bg-red-500/15 text-red-700 dark:text-red-300'
+                    ? 'bg-error/15 text-error'
                     : stepStatus === 'SKIPPED'
                       ? 'bg-surface-container-highest text-on-surface-variant'
-                      : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'}"
+                      : 'bg-success/15 text-success'}"
                 >{stepStatus}</span>
               </div>
               <p class="text-2xs text-on-surface-variant/70">{m.wf_replay_duration({ n: replayStep.durationMs })}</p>
               {#if replayStep.error}
-                <p class="px-2.5 py-1.5 rounded-lg bg-red-500/10 text-2xs text-red-700 dark:text-red-300 border border-red-500/20">{replayStep.error}</p>
+                <p class="px-2.5 py-1.5 rounded-lg bg-error/10 text-2xs text-error border border-error/20">{replayStep.error}</p>
               {/if}
             </div>
 
@@ -638,7 +638,7 @@
       </div>
 
       {#if advancedOnly}
-        <p class="flex items-start gap-2 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-2xs text-amber-800 dark:text-amber-200">
+        <p class="flex items-start gap-2 px-4 py-3 rounded-xl bg-warning/10 border border-warning/20 text-2xs text-amber-800">
           <Papicon icon="Warning" size={13} class="mt-0.5 shrink-0" />
           <span>
             {m.wf_advanced_notice()}
@@ -647,7 +647,7 @@
       {/if}
 
       {#if blocking.length > 0}
-        <p class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-2xs text-amber-800 dark:text-amber-200">
+        <p class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-warning/10 border border-warning/20 text-2xs text-amber-800">
           <Papicon icon="Warning" size={13} />
           {m.wf_incomplete({ n: blocking.length })}
         </p>
@@ -726,7 +726,7 @@
                 <div class="min-w-0 space-y-1">
                   <h3 class="text-sm font-bold text-on-surface truncate">{workflow.name}</h3>
                   <p class="flex items-center gap-1.5 text-xs text-on-surface-variant/70">
-                    <Papicon icon={trigger?.icon ?? 'Warning'} size={11} class="{trigger ? 'text-primary' : 'text-amber-700 dark:text-amber-300'} shrink-0" />
+                    <Papicon icon={trigger?.icon ?? 'Warning'} size={11} class="{trigger ? 'text-primary' : 'text-warning'} shrink-0" />
                     {trigger?.sentence ?? m.wf_trigger_unknown({ type: workflow.triggerType })}
                   </p>
                   {#if workflow.description}
@@ -735,14 +735,14 @@
                 </div>
                 <span
                   class="px-2.5 py-1 rounded-full text-2xs font-bold shrink-0 {workflow.enabled
-                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+                    ? 'bg-success/15 text-success border border-success/30'
                     : 'bg-surface-container-highest text-on-surface-variant/70'}"
                 >{workflow.enabled ? m.wf_status_active() : m.wf_status_paused()}</span>
               </div>
 
               {#if isSilent(workflow)}
                 <p
-                  class="flex items-start gap-2 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-2xs text-amber-800 dark:text-amber-200"
+                  class="flex items-start gap-2 px-2.5 py-1.5 rounded-lg bg-warning/10 border border-warning/20 text-2xs text-amber-800"
                 >
                   <Papicon icon="Warning" size={11} class="mt-0.5 shrink-0" />
                   <span><strong>{m.wf_never_started()}</strong> {m.wf_never_started_hint()}</span>
@@ -752,18 +752,18 @@
               <div class="flex flex-wrap items-center gap-3 text-2xs text-on-surface-variant/70 pt-1 border-t border-outline-variant/10">
                 <span>{m.wf_runs({ n: workflow.runCount })}</span>
                 {#if workflow.runCount > 0}
-                  <span class="text-emerald-700 dark:text-emerald-400 font-medium">{m.wf_success_rate({ n: successRate(workflow) })}</span>
+                  <span class="text-success font-medium">{m.wf_success_rate({ n: successRate(workflow) })}</span>
                 {/if}
                 <span class="ml-auto">{workflow.lastRunAt ? m.wf_last_run({ date: formatDate(workflow.lastRunAt) }) : m.wf_never_run()}</span>
               </div>
 
               {#if workflow.lastError}
-                <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20">
-                  <p class="flex-1 min-w-0 text-2xs text-red-700 dark:text-red-300 truncate">{workflow.lastError}</p>
+                <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-error/10 border border-error/20">
+                  <p class="flex-1 min-w-0 text-2xs text-error truncate">{workflow.lastError}</p>
                   <button
                     type="button"
                     onclick={() => showFailures(workflow.id)}
-                    class="shrink-0 text-2xs font-semibold text-red-700 dark:text-red-300 hover:underline"
+                    class="shrink-0 text-2xs font-semibold text-error hover:underline"
                   >{m.wf_show_failures()}</button>
                 </div>
               {/if}
@@ -790,7 +790,7 @@
                   {#if canDelete}
                     <button
                       onclick={() => remove(workflow.id)}
-                      class="p-1.5 rounded-xl text-red-700/70 dark:text-red-300/70 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-500/10 transition-all ml-auto"
+                      class="p-1.5 rounded-xl text-error/70 hover:text-error hover:bg-error/10 transition-all ml-auto"
                       aria-label={m.wf_delete()}
                     ><Papicon icon="Trash" size={13} /></button>
                   {/if}
@@ -855,12 +855,12 @@
                     {workflows.find((w) => w.id === execution.workflowId)?.name ?? execution.workflowId}
                   </span>
                   {#if execution.resumeAt && execution.status === 'WAITING'}
-                    <span class="text-amber-700 dark:text-amber-300">{m.wf_exec_resume_at({ date: formatDate(execution.resumeAt) })}</span>
+                    <span class="text-warning">{m.wf_exec_resume_at({ date: formatDate(execution.resumeAt) })}</span>
                   {/if}
                   <span class="text-on-surface-variant/70 ml-auto">{formatDate(execution.startedAt)}</span>
                   <Papicon icon="ChevronRight" size={12} class="text-on-surface-variant/70 shrink-0" />
                   {#if execution.error}
-                    <span class="basis-full text-2xs leading-snug text-red-700 dark:text-red-300 line-clamp-2">
+                    <span class="basis-full text-2xs leading-snug text-error line-clamp-2">
                       {#if failedAt}<strong>{m.wf_exec_failed_step({ step: failedAt })}</strong> {/if}{execution.error}
                     </span>
                   {/if}

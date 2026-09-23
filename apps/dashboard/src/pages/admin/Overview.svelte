@@ -279,10 +279,10 @@
   {/snippet}
 
   {#if error}
-    <div class="rounded-2xl border border-red-500/30 bg-red-500/8 p-4 flex items-start gap-3">
-      <Papicon icon="AlertTriangle" size={18} class="text-red-500 mt-0.5 shrink-0" />
+    <div class="rounded-2xl border border-error/30 bg-error/8 p-4 flex items-start gap-3">
+      <Papicon icon="AlertTriangle" size={18} class="text-error mt-0.5 shrink-0" />
       <div>
-        <p class="text-sm font-semibold text-red-600 dark:text-red-400">Impossible de joindre l’API du bot</p>
+        <p class="text-sm font-semibold text-error">Impossible de joindre l’API du bot</p>
         <p class="text-body-sm text-on-surface-variant mt-0.5">{error}</p>
       </div>
     </div>
@@ -339,8 +339,8 @@
           <li class="flex items-start gap-3 p-3 rounded-xl bg-surface-container-low/50 border border-outline-variant/20">
             <div
               class="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center
-                {alert.tone === 'danger' ? 'bg-red-500/12 text-red-500'
-                  : alert.tone === 'warning' ? 'bg-amber-500/12 text-amber-500'
+                {alert.tone === 'danger' ? 'bg-error/12 text-error'
+                  : alert.tone === 'warning' ? 'bg-warning/12 text-warning'
                     : 'bg-sky-500/12 text-sky-500'}"
             >
               <Papicon icon={alert.icon} size={15} />
@@ -363,9 +363,9 @@
       </ul>
     </AdminCard>
   {:else if !loading && stats}
-    <div class="rounded-2xl border border-emerald-500/25 bg-emerald-500/8 p-4 flex items-center gap-3">
-      <Papicon icon="CheckCircle" size={18} class="text-emerald-500 shrink-0" />
-      <p class="text-body-sm text-emerald-700 dark:text-emerald-300">
+    <div class="rounded-2xl border border-success/25 bg-success/8 p-4 flex items-center gap-3">
+      <Papicon icon="CheckCircle" size={18} class="text-success shrink-0" />
+      <p class="text-body-sm text-success">
         Aucun point d’attention : shards complets, mémoire et latence dans les clous.
       </p>
     </div>
@@ -427,7 +427,7 @@
           </div>
           <div>
             <p class="text-xs font-semibold text-on-surface-variant">Tendance heap</p>
-            <p class="text-[15px] font-semibold tabular-nums mt-0.5 {series.heapTrendPerHour > 0 ? 'text-amber-500' : 'text-emerald-500'}">
+            <p class="text-[15px] font-semibold tabular-nums mt-0.5 {series.heapTrendPerHour > 0 ? 'text-warning' : 'text-success'}">
               {series.heapTrendPerHour >= 0 ? '+' : ''}{formatBytes(Math.abs(series.heapTrendPerHour))}/h
             </p>
           </div>
@@ -531,9 +531,9 @@
             </div>
             <div class="text-right shrink-0">
               <p class="text-body-sm font-semibold text-on-surface tabular-nums">
-                <span class="text-emerald-500">{log.successCount}</span>
+                <span class="text-success">{log.successCount}</span>
                 {#if log.failCount > 0}
-                  <span class="text-on-surface-variant">/</span><span class="text-red-500">{log.failCount}</span>
+                  <span class="text-on-surface-variant">/</span><span class="text-error">{log.failCount}</span>
                 {/if}
               </p>
               <p class="text-2xs text-on-surface-variant tabular-nums">sur {log.totalTargeted}</p>

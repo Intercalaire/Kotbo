@@ -114,7 +114,7 @@
     <div class="space-y-5">
       <div class="rounded-2xl border border-primary/30 bg-primary/[0.04] p-4">
         <p class="flex items-center gap-2 text-body-sm font-semibold text-on-surface">
-          <Papicon icon="check-circle" size={15} class="text-emerald-500" />
+          <Papicon icon="check-circle" size={15} class="text-success" />
           {m.onb_mcp_key_ready()}
         </p>
 
@@ -133,7 +133,7 @@
           </button>
         </div>
 
-        <p class="mt-2.5 text-xs text-amber-500/90 leading-relaxed">
+        <p class="mt-2.5 text-xs text-warning/90 leading-relaxed">
           {m.onb_mcp_key_warning()}
         </p>
       </div>

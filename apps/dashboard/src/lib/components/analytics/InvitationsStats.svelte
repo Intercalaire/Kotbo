@@ -80,7 +80,7 @@
       </div>
       <div class="bg-surface-container-high/30 p-6 rounded-lg border border-outline-variant/5">
         <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.an_inv_total_uses()}</p>
-        <p class="text-lg font-semibold text-emerald-500">{totalUses}</p>
+        <p class="text-lg font-semibold text-success">{totalUses}</p>
       </div>
       <div class="bg-surface-container-high/30 p-6 rounded-lg border border-outline-variant/5">
         <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.an_inv_avg_per_code()}</p>
@@ -93,7 +93,7 @@
   <div class="premium-card p-8 rounded-xl space-y-6">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-4">
-        <div class="bg-emerald-500/10 p-3 rounded-lg text-emerald-500">
+        <div class="bg-success/10 p-3 rounded-lg text-success">
           <Papicon icon="Fire" size={24} />
         </div>
         <div>
@@ -135,7 +135,7 @@
                     {invite.code}
                   </span>
                   {#if invite.uses > 0}
-                    <span class="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-2xs font-semibold">
+                    <span class="px-2 py-1 rounded-full bg-success/10 text-success text-2xs font-semibold">
                       {m.an_inv_uses_badge({ count: invite.uses })}
                     </span>
                   {/if}
@@ -152,7 +152,7 @@
                   <Chart data={chartForInvite(invite).data} options={chartForInvite(invite).options} height={60} />
                 </div>
                 <div class="text-right">
-                  <p class="text-2xl font-semibold text-emerald-500">{invite.uses || 0}</p>
+                  <p class="text-2xl font-semibold text-success">{invite.uses || 0}</p>
                   <p class="text-xs font-semibold text-on-surface-variant/40">{m.an_inv_uses_label()}</p>
                 </div>
               </div>

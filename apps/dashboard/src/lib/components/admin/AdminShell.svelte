@@ -155,9 +155,9 @@
   );
 
   const toneText: Record<string, string> = {
-    ok: 'text-emerald-500',
-    warning: 'text-amber-500',
-    danger: 'text-red-500',
+    ok: 'text-success',
+    warning: 'text-warning',
+    danger: 'text-error',
   };
   const toneBar: Record<string, string> = {
     ok: 'bg-emerald-500',
@@ -230,10 +230,10 @@
         <div
           class="hidden sm:flex items-center gap-2 h-8 px-3 rounded-full border text-xs font-medium
             {healthError
-              ? 'bg-red-500/10 border-red-500/25 text-red-500'
+              ? 'bg-error/10 border-error/25 text-error'
               : shardsHealthy
-                ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400'
-                : 'bg-amber-500/10 border-amber-500/25 text-amber-600 dark:text-amber-400'}"
+                ? 'bg-success/10 border-success/25 text-success'
+                : 'bg-warning/10 border-warning/25 text-warning'}"
           title={health ? `${health.onlineShardCount}/${health.shardCount} shards · ${health.averageShardPing} ms` : ''}
         >
           <span class="w-1.5 h-1.5 rounded-full {healthError ? 'bg-red-500' : shardsHealthy ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse"></span>

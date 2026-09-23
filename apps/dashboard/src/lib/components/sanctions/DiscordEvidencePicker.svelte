@@ -247,7 +247,7 @@
       {/if}
 
       {#if messagesError}
-        <div class="rounded-lg border border-rose-500/20 bg-rose-500/10 p-4 text-xs font-semibold text-rose-500" role="alert">
+        <div class="rounded-lg border border-error/20 bg-error/10 p-4 text-xs font-semibold text-error" role="alert">
           {messagesError}
         </div>
       {/if}
@@ -398,7 +398,7 @@
         </div>
 
         {#if failedChannelCount > 0 || truncatedChannelCount > 0}
-          <div class="border-t border-amber-500/15 bg-amber-500/5 px-5 py-2.5 text-2xs font-medium text-amber-700">
+          <div class="border-t border-warning/15 bg-warning/5 px-5 py-2.5 text-2xs font-medium text-warning">
             {#if failedChannelCount > 0}{failedChannelCount > 1 ? m.sev_failed_channels_other({ count: failedChannelCount }) : m.sev_failed_channels_one({ count: failedChannelCount })}{/if}
             {#if failedChannelCount > 0 && truncatedChannelCount > 0} · {/if}
             {#if truncatedChannelCount > 0}{truncatedChannelCount > 1 ? m.sev_truncated_other({ count: truncatedChannelCount }) : m.sev_truncated_one({ count: truncatedChannelCount })}{/if}
@@ -439,12 +439,12 @@
   {:else if step === 'done'}
     <div class="flex flex-col gap-4 p-6 sm:p-8">
       {#if generateSummary}
-        <div class="rounded-xl bg-emerald-500/10 p-4 text-xs font-semibold text-emerald-600">
+        <div class="rounded-xl bg-success/10 p-4 text-xs font-semibold text-success">
           {generateSummary}
         </div>
       {/if}
       {#each generateErrors as error}
-        <div class="rounded-xl bg-rose-500/10 p-4 text-xs font-semibold text-rose-500">
+        <div class="rounded-xl bg-error/10 p-4 text-xs font-semibold text-error">
           {error.error}
         </div>
       {/each}

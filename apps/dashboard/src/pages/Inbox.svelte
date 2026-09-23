@@ -39,8 +39,8 @@
   });
 
   const TYPE_META: Record<string, { icon: string; text: string; bg: string }> = {
-    SUCCESS: { icon: 'check-circle', text: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-    WARNING: { icon: 'alert-triangle', text: 'text-amber-500', bg: 'bg-amber-500/10' },
+    SUCCESS: { icon: 'check-circle', text: 'text-success', bg: 'bg-success/10' },
+    WARNING: { icon: 'alert-triangle', text: 'text-warning', bg: 'bg-warning/10' },
     ERROR: { icon: 'alert-circle', text: 'text-error', bg: 'bg-error/10' },
     INFO: { icon: 'info', text: 'text-primary', bg: 'bg-primary/10' },
   };

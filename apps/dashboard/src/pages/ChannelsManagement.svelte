@@ -1147,7 +1147,7 @@
                       type="button"
                       onclick={() => handleDeleteSticky(index)}
                       disabled={stickyBusy === sticky.channelId}
-                      class="px-3.5 py-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-xs font-bold hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-2 disabled:opacity-50"
+                      class="px-3.5 py-2 bg-error/10 text-error border border-error/20 rounded-lg text-xs font-bold hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-2 disabled:opacity-50"
                     >
                       <Papicon icon="trash-2" size={13} />
                       {m.common_delete()}
@@ -2074,7 +2074,7 @@
                             type="button"
                             onclick={() => handleDeleteChannel(chan.id)}
                             disabled={actionInProgress}
-                            class="px-2.5 py-1.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-xs font-semibold hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-1"
+                            class="px-2.5 py-1.5 bg-error/10 text-error border border-error/20 rounded-lg text-xs font-semibold hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-1"
                           >
                             <Papicon icon="trash-2" size={12} />
                             {m.common_close()}
@@ -2150,7 +2150,7 @@
                         type="button"
                         onclick={() => handleDeleteChannel(chan.id)}
                         disabled={actionInProgress}
-                        class="px-2.5 py-1.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-xs font-semibold hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-1"
+                        class="px-2.5 py-1.5 bg-error/10 text-error border border-error/20 rounded-lg text-xs font-semibold hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-1"
                       >
                         <Papicon icon="trash-2" size={12} />
                         {m.cm_close_channel_full()}

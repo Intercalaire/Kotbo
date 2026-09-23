@@ -162,8 +162,8 @@
     </div>
   {:else}
     {#if missingChannel}
-      <div class="flex items-start gap-3 px-5 py-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
-        <div class="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+      <div class="flex items-start gap-3 px-5 py-4 rounded-xl bg-warning/5 border border-warning/20">
+        <div class="w-9 h-9 rounded-lg bg-warning/10 text-warning flex items-center justify-center shrink-0">
           <Papicon icon="warning" size={18} />
         </div>
         <p class="text-body-sm text-on-surface-variant/80 leading-relaxed self-center">
@@ -225,7 +225,7 @@
           <EmojiListInput
             id="starboard-upvotes"
             bind:values={config.upvoteEmojis}
-            accentClass="bg-emerald-500/10 border-emerald-500/25 hover:bg-emerald-500/20"
+            accentClass="bg-success/10 border-success/25 hover:bg-success/20"
             placeholder={m.starboard_emoji_placeholder()}
             disabled={!canConfigure}
           />
@@ -237,7 +237,7 @@
           <EmojiListInput
             id="starboard-downvotes"
             bind:values={config.downvoteEmojis}
-            accentClass="bg-rose-500/10 border-rose-500/25 hover:bg-rose-500/20"
+            accentClass="bg-error/10 border-error/25 hover:bg-error/20"
             placeholder={m.starboard_emoji_placeholder()}
             disabled={!canConfigure}
           />
@@ -312,7 +312,7 @@
             id="starboard-ignored"
             bind:values={config.ignoredChannels}
             options={availableChannels}
-            accentClass="bg-rose-500/20 text-rose-300 border-rose-500/40"
+            accentClass="bg-error/20 text-rose-300 border-error/40"
             disabled={!canConfigure}
           />
           <p class="field-hint">{m.starboard_ignored_hint()}</p>

@@ -1599,11 +1599,11 @@
   function getStatusColor(status: string) {
     switch (status) {
       case 'PENDING': return 'bg-sky-500/10 text-sky-400 border-sky-500/20';
-      case 'OPEN': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
-      case 'CLAIMED': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
-      case 'CLOSED': return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
+      case 'OPEN': return 'bg-success/10 text-success border-success/20';
+      case 'CLAIMED': return 'bg-warning/10 text-warning border-warning/20';
+      case 'CLOSED': return 'bg-error/10 text-error border-error/20';
       case 'ARCHIVED': return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
-      case 'REJECTED': return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+      case 'REJECTED': return 'bg-error/10 text-error border-error/20';
       // Orange et non rouge : ce n'est pas une decision du staff, c'est un accident.
       case 'ORPHANED': return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
       default: return 'bg-outline-variant/10 text-on-surface-variant border-outline-variant/20';
@@ -1931,8 +1931,8 @@
                 <p class="text-2xs text-on-surface-variant">{m.e1_tickets_pending_notice()}</p>
               </div>
             {:else if selectedTicketDetail?.status === 'REJECTED'}
-              <div class="mt-3 flex items-start gap-2 p-3 rounded-xl bg-rose-500/5 border border-rose-500/20">
-                <Papicon icon="x-circle" size={14} class="text-rose-400 shrink-0 mt-0.5" />
+              <div class="mt-3 flex items-start gap-2 p-3 rounded-xl bg-error/5 border border-error/20">
+                <Papicon icon="x-circle" size={14} class="text-error shrink-0 mt-0.5" />
                 <p class="text-2xs text-on-surface-variant">
                   {m.e1_tickets_rejected_notice({ name: selectedTicketDetail.reviewedByName || '-' })}
                   {#if selectedTicketDetail.rejectionReason}<br />{m.e1_tickets_rejected_reason({ reason: selectedTicketDetail.rejectionReason })}{/if}
@@ -1952,13 +1952,13 @@
               {#if selectedTicketDetail?.status === 'OPEN'}
                 {#if selectedTicketDetail.claimedBy !== authStore.user?.id}
                   <button onclick={claimTicket}
-                    class="px-3 py-1.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-xs font-semibold hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                    class="px-3 py-1.5 bg-warning/10 text-warning border border-warning/20 rounded-lg text-xs font-semibold hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                   >
                     <Papicon icon="user-check" size={12} /> {m.e1_tickets_btn_claim()}
                   </button>
                 {/if}
                 <button onclick={() => showCloseModal = true}
-                  class="px-3 py-1.5 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-lg text-xs font-semibold hover:bg-rose-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                  class="px-3 py-1.5 bg-error/10 text-error border border-error/20 rounded-lg text-xs font-semibold hover:bg-rose-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                 >
                   <Papicon icon="x-circle" size={12} /> {m.e1_tickets_btn_close()}
                 </button>
@@ -1966,7 +1966,7 @@
 
               {#if selectedTicketDetail?.status === 'CLAIMED' && selectedTicketDetail.claimedById !== authStore.user?.id && (config.ticketAllowOverclaim ?? true) && config.ticketOverclaimPermission !== 'NONE'}
                 <button onclick={claimTicket}
-                  class="px-3 py-1.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-xs font-semibold hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                  class="px-3 py-1.5 bg-warning/10 text-warning border border-warning/20 rounded-lg text-xs font-semibold hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                 >
                   <Papicon icon="user-check" size={12} /> {m.e1_tickets_btn_overclaim()}
                 </button>
@@ -1975,7 +1975,7 @@
               {#if selectedTicketDetail?.status === 'CLOSED' || selectedTicketDetail?.status === 'ARCHIVED'}
                 {#if selectedTicketDetail.channelId}
                   <button onclick={reopenTicket}
-                    class="px-3 py-1.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg text-xs font-semibold hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                    class="px-3 py-1.5 bg-success/10 text-success border border-success/20 rounded-lg text-xs font-semibold hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                   >
                     <Papicon icon="refresh" size={12} /> {m.e1_tickets_btn_reopen()}
                   </button>
@@ -1999,7 +1999,7 @@
 
                   {#if deletionLock}
                     <button onclick={unlockTicket}
-                      class="px-3 py-1.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-xs font-semibold hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                      class="px-3 py-1.5 bg-warning/10 text-warning border border-warning/20 rounded-lg text-xs font-semibold hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                     >
                       <Papicon icon="unlock" size={12} /> {m.e1_tickets_btn_unlock()}
                     </button>
@@ -2044,9 +2044,9 @@
             </div>
 
             {#if deletionLock}
-              <div class="mt-3 flex items-start gap-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
-                <Papicon icon="lock" size={14} class="text-amber-500 mt-0.5 shrink-0" />
-                <div class="text-2xs text-amber-400/90 leading-relaxed">
+              <div class="mt-3 flex items-start gap-2 p-3 rounded-lg bg-warning/5 border border-warning/20">
+                <Papicon icon="lock" size={14} class="text-warning mt-0.5 shrink-0" />
+                <div class="text-2xs text-warning/90 leading-relaxed">
                   <p class="font-semibold">
                     {m.e1_tickets_lock_banner()}
                     · {deletionLock.until ? m.e1_tickets_lock_until({ date: new Date(deletionLock.until).toLocaleDateString() }) : m.e1_tickets_lock_permanent()}
@@ -2239,7 +2239,7 @@
               </button>
             </div>
           {:else}
-            <div class="p-3 lg:p-4 border-t border-outline-variant/10 bg-rose-500/10 text-rose-500 flex items-center justify-center text-xs font-medium gap-2">
+            <div class="p-3 lg:p-4 border-t border-outline-variant/10 bg-error/10 text-error flex items-center justify-center text-xs font-medium gap-2">
               <Papicon icon="lock" size={14} /> {m.e1_tickets_closed_banner()}
             </div>
           {/if}
@@ -2288,9 +2288,9 @@
            ticket, séparés de la trentaine d'options d'affinage qui suivent.
            Ils étaient noyés dans le premier accordéon, replié par défaut. -->
       {#if configBlockers.length > 0}
-        <div class="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3.5">
+        <div class="rounded-xl border border-warning/30 bg-warning/5 px-4 py-3.5">
           <div class="flex items-start gap-3">
-            <Papicon icon="alert-triangle" size={16} class="text-amber-500 mt-0.5 shrink-0" />
+            <Papicon icon="alert-triangle" size={16} class="text-warning mt-0.5 shrink-0" />
             <div class="min-w-0">
               <p class="text-body-sm font-semibold text-on-surface">
                 Les tickets ne sont pas encore opérationnels
@@ -2303,7 +2303,7 @@
               <button
                 type="button"
                 class="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-                bg-amber-500/15 text-amber-500 border border-amber-500/30 hover:bg-amber-500/25 transition-colors"
+                bg-warning/15 text-warning border border-warning/30 hover:bg-warning/25 transition-colors"
                 onclick={() => (expandedConfigSection = 'channels')}
               >
                 <Papicon icon="arrow-right" size={13} />
@@ -2313,8 +2313,8 @@
           </div>
         </div>
       {:else}
-        <div class="rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 flex items-center gap-3">
-          <Papicon icon="check-circle" size={16} class="text-emerald-500 shrink-0" />
+        <div class="rounded-xl border border-success/25 bg-success/5 px-4 py-3 flex items-center gap-3">
+          <Papicon icon="check-circle" size={16} class="text-success shrink-0" />
           <p class="text-xs text-on-surface">
             Les tickets sont opérationnels. Le reste de cette page en affine le comportement.
           </p>
@@ -2325,7 +2325,7 @@
       <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
         <button onclick={() => toggleConfigSection('channels')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
           <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+            <div class="w-9 h-9 rounded-lg bg-success/10 text-success flex items-center justify-center shrink-0">
               <Papicon icon="hash" size={18} />
             </div>
             <div>
@@ -2342,35 +2342,35 @@
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_category()}</span>
                 <SearchableSelect bind:value={ticketCategoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
                 {#if isMissingReference(ticketCategoryId, discordCategories)}
-                  <p class="text-2xs text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                  <p class="text-2xs text-warning mt-1.5">{m.e1_tickets_missing_ref()}</p>
                 {/if}
               </label>
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_panel_channel()}</span>
                 <SearchableSelect bind:value={ticketChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
                 {#if isMissingReference(ticketChannelId, discordChannels)}
-                  <p class="text-2xs text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                  <p class="text-2xs text-warning mt-1.5">{m.e1_tickets_missing_ref()}</p>
                 {/if}
               </label>
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_log_channel()}</span>
                 <SearchableSelect bind:value={ticketLogChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
                 {#if isMissingReference(ticketLogChannelId, discordChannels)}
-                  <p class="text-2xs text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                  <p class="text-2xs text-warning mt-1.5">{m.e1_tickets_missing_ref()}</p>
                 {/if}
               </label>
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_staff_role()}</span>
                 <SearchableSelect bind:value={ticketStaffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
                 {#if isMissingReference(ticketStaffRoleId, discordRoles)}
-                  <p class="text-2xs text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                  <p class="text-2xs text-warning mt-1.5">{m.e1_tickets_missing_ref()}</p>
                 {/if}
               </label>
               <label class="block col-span-1 md:col-span-2">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_dm_relay()}</span>
                 <SearchableSelect bind:value={ticketDmRelayChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_select_channel_ph()} className="w-full" />
                 {#if isMissingReference(ticketDmRelayChannelId, discordChannels)}
-                  <p class="text-2xs text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                  <p class="text-2xs text-warning mt-1.5">{m.e1_tickets_missing_ref()}</p>
                 {/if}
               </label>
             </div>
@@ -2557,7 +2557,7 @@
           </div>
           <div class="flex items-center gap-2 shrink-0">
             {#if ticketLockUntilClaim || ticketApprovalEnabled}
-              <span class="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">{m.e1_tickets_active_badge()}</span>
+              <span class="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase bg-success/10 text-success border border-success/20">{m.e1_tickets_active_badge()}</span>
             {/if}
             <Papicon icon={expandedConfigSection === 'gatekeeping' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40" />
           </div>
@@ -2585,7 +2585,7 @@
                   <span class="text-xs font-bold text-on-surface-variant/80 mb-2 block">{m.e1_tickets_approval_channel()}</span>
                   <SearchableSelect bind:value={ticketApprovalChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_approval_channel_ph()} className="w-full" />
                   {#if isMissingReference(ticketApprovalChannelId, discordChannels)}
-                    <p class="text-2xs text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                    <p class="text-2xs text-warning mt-1.5">{m.e1_tickets_missing_ref()}</p>
                   {/if}
                   <p class="text-2xs text-on-surface-variant/50 mt-1.5">{m.e1_tickets_approval_channel_hint()}</p>
                 </label>
@@ -2611,7 +2611,7 @@
           </div>
           <div class="flex items-center gap-2 shrink-0">
             {#if ticketArchiveCategoryId || ticketHistoryPanelEnabled}
-              <span class="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">{m.e1_tickets_active_badge()}</span>
+              <span class="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase bg-success/10 text-success border border-success/20">{m.e1_tickets_active_badge()}</span>
             {/if}
             <Papicon icon={expandedConfigSection === 'archive' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40" />
           </div>
@@ -2622,7 +2622,7 @@
               <span class="text-xs font-bold text-on-surface-variant/80 mb-2 block">{m.e1_tickets_cfg_archive_category()}</span>
               <SearchableSelect bind:value={ticketArchiveCategoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
               {#if isMissingReference(ticketArchiveCategoryId, discordCategories)}
-                <p class="text-2xs text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                <p class="text-2xs text-warning mt-1.5">{m.e1_tickets_missing_ref()}</p>
               {/if}
               <p class="text-2xs text-on-surface-variant/50 mt-1.5">{m.e1_tickets_cfg_archive_category_hint()}</p>
             </label>
@@ -2676,7 +2676,7 @@
       <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
         <button onclick={() => toggleConfigSection('inactivity')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
           <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0">
+            <div class="w-9 h-9 rounded-lg bg-warning/10 text-warning flex items-center justify-center shrink-0">
               <Papicon icon="clock" size={18} />
             </div>
             <div>
@@ -2686,7 +2686,7 @@
           </div>
           <div class="flex items-center gap-2 shrink-0">
             {#if ticketInactivityEnabled}
-              <span class="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">{m.e1_tickets_active_badge()}</span>
+              <span class="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase bg-success/10 text-success border border-success/20">{m.e1_tickets_active_badge()}</span>
             {/if}
             <Papicon icon={expandedConfigSection === 'inactivity' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40" />
           </div>
@@ -2730,7 +2730,7 @@
           </div>
           <div class="flex items-center gap-2 shrink-0">
             {#if activeQuotaCount > 0}
-              <span class="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+              <span class="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase bg-success/10 text-success border border-success/20">
                 {activeQuotaCount} actif{activeQuotaCount > 1 ? 's' : ''}
               </span>
             {/if}
@@ -2866,7 +2866,7 @@
       <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
         <button onclick={() => toggleConfigSection('satisfaction')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
           <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+            <div class="w-9 h-9 rounded-lg bg-success/10 text-success flex items-center justify-center shrink-0">
               <Papicon icon="smile" size={18} />
             </div>
             <div>
@@ -2876,7 +2876,7 @@
           </div>
           <div class="flex items-center gap-2 shrink-0">
             {#if ticketSatisfactionCommentEnabled || ticketSatisfactionLogChannelId}
-              <span class="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">{m.e1_tickets_active_badge()}</span>
+              <span class="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase bg-success/10 text-success border border-success/20">{m.e1_tickets_active_badge()}</span>
             {/if}
             <Papicon icon={expandedConfigSection === 'satisfaction' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40" />
           </div>
@@ -2909,7 +2909,7 @@
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_sat_log_label()}</span>
                 <SearchableSelect bind:value={ticketSatisfactionLogChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
                 {#if isMissingReference(ticketSatisfactionLogChannelId, discordChannels)}
-                  <p class="text-2xs text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                  <p class="text-2xs text-warning mt-1.5">{m.e1_tickets_missing_ref()}</p>
                 {/if}
                 <p class="text-2xs text-on-surface-variant/50 ml-1 mt-1.5">{m.e1_tickets_sat_log_desc()}</p>
               </label>
@@ -2931,7 +2931,7 @@
       <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
         <button onclick={() => toggleConfigSection('types')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
           <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center shrink-0">
+            <div class="w-9 h-9 rounded-lg bg-error/10 text-error flex items-center justify-center shrink-0">
               <Papicon icon="layers" size={18} />
             </div>
             <div>
@@ -2974,7 +2974,7 @@
                           {:else if ticketType.mode === 'DM'}
                             <span class="px-1.5 py-0.5 rounded text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/15">{m.e1_tickets_badge_dm()}</span>
                           {:else if ticketType.mode === 'THREAD'}
-                            <span class="px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/15">{m.e1_tickets_badge_thread()}</span>
+                            <span class="px-1.5 py-0.5 rounded text-xs font-semibold bg-warning/10 text-warning border border-warning/15">{m.e1_tickets_badge_thread()}</span>
                           {:else}
                             <span class="px-1.5 py-0.5 rounded text-xs font-semibold bg-surface-container-high text-on-surface-variant/60 border border-outline-variant/10">{m.e1_tickets_badge_global_mode()}</span>
                           {/if}
@@ -2982,7 +2982,7 @@
                           <!-- Staff Role Badge -->
                           {#if ticketType.staffRoleId}
                             {@const role = discordRoles.find(r => r.id === ticketType.staffRoleId)}
-                            <span class="px-1.5 py-0.5 rounded text-2xs font-semibold tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/15">Staff: @{role?.name || m.e1_tickets_unknown_role()}</span>
+                            <span class="px-1.5 py-0.5 rounded text-2xs font-semibold tracking-wider bg-success/10 text-success border border-success/15">Staff: @{role?.name || m.e1_tickets_unknown_role()}</span>
                           {:else}
                             <span class="px-1.5 py-0.5 rounded text-2xs font-semibold tracking-wider bg-surface-container-high text-on-surface-variant/40 border border-outline-variant/10">{m.e1_tickets_badge_inherited_staff()}</span>
                           {/if}
@@ -3030,7 +3030,7 @@
                       <!-- Delete button -->
                       <button
                         onclick={() => removeTicketType(index)}
-                        class="p-1.5 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-500/15 transition-all"
+                        class="p-1.5 rounded-lg bg-error/10 text-error hover:bg-rose-500 hover:text-white border border-error/15 transition-all"
                         title={m.e1_tickets_type_delete()}
                       >
                         <Papicon icon="trash-2" size={13} />
@@ -3088,14 +3088,14 @@
                           <span class="text-2xs font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_category()}</span>
                           <SearchableSelect bind:value={ticketType.categoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder={m.e1_tickets_inherited_ph()} className="w-full" />
                           {#if isMissingReference(ticketType.categoryId, discordCategories)}
-                            <p class="text-2xs text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                            <p class="text-2xs text-warning mt-1.5">{m.e1_tickets_missing_ref()}</p>
                           {/if}
                         </label>
                         <label class="block">
                           <span class="text-2xs font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_staff_role()}</span>
                           <SearchableSelect bind:value={ticketType.staffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder={m.e1_tickets_inherited_ph()} className="w-full" />
                           {#if isMissingReference(ticketType.staffRoleId, discordRoles)}
-                            <p class="text-2xs text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                            <p class="text-2xs text-warning mt-1.5">{m.e1_tickets_missing_ref()}</p>
                           {/if}
                         </label>
                       </div>
@@ -3155,7 +3155,7 @@
                               <span class="text-2xs font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_staff_server_category()}</span>
                               <SearchableSelect bind:value={ticketType.staffServerCategoryId} options={staffServerInfo.categories.map((c: any) => ({ id: c.id, name: c.name }))} placeholder={m.e1_tickets_select_category_ph()} className="w-full" />
                               {#if isMissingReference(ticketType.staffServerCategoryId, staffServerInfo.categories)}
-                                <p class="text-2xs text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                                <p class="text-2xs text-warning mt-1.5">{m.e1_tickets_missing_ref()}</p>
                               {/if}
                             </label>
                           {/if}
@@ -3198,7 +3198,7 @@
                                       <span class="text-2xs font-bold text-primary">{m.e1_tickets_question_number({ index: fieldIndex + 1 })}</span>
                                       <button
                                         onclick={() => removeCustomField(index, field.id)}
-                                        class="text-rose-500 hover:text-rose-400 p-1 rounded-lg hover:bg-rose-500/10 transition-colors"
+                                        class="text-error hover:text-error p-1 rounded-lg hover:bg-error/10 transition-colors"
                                       >
                                         <Papicon icon="trash-2" size={13} />
                                       </button>
@@ -3310,7 +3310,7 @@
                     {#if t.channelName.startsWith('ticket-') || t.channelName.startsWith('fermer-')}
                       <span class="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase bg-blue-500/10 text-blue-400 border border-blue-500/20">{m.e1_tickets_badge_ticket()}</span>
                     {:else}
-                      <span class="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">/transcript</span>
+                      <span class="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase bg-success/10 text-success border border-success/20">/transcript</span>
                     {/if}
                   </td>
                   <td class="py-3 px-4 text-xs text-on-surface-variant">
@@ -3346,7 +3346,7 @@
                 {#if t.channelName.startsWith('ticket-') || t.channelName.startsWith('fermer-')}
                   <span class="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase bg-blue-500/10 text-blue-400 border border-blue-500/20 shrink-0">{m.e1_tickets_badge_ticket()}</span>
                 {:else}
-                  <span class="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">/transcript</span>
+                  <span class="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase bg-success/10 text-success border border-success/20 shrink-0">/transcript</span>
                 {/if}
               </div>
               <p class="text-2xs text-on-surface-variant/60 mb-2">
@@ -3676,7 +3676,7 @@
                 </div>
                 <button
                   onclick={() => removeFromBlacklist(entry)}
-                  class="p-2 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-500/15 transition-all shrink-0"
+                  class="p-2 rounded-lg bg-error/10 text-error hover:bg-rose-500 hover:text-white border border-error/15 transition-all shrink-0"
                   title={m.e1_tickets_bl_remove_confirm()}
                 >
                   <Papicon icon="trash-2" size={14} />
@@ -3903,7 +3903,7 @@
 {#if showCloseModal}
   <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60">
     <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-lg shadow-sm p-10 animate-in zoom-in-95 duration-300">
-      <div class="flex items-center gap-4 mb-2 text-rose-500">
+      <div class="flex items-center gap-4 mb-2 text-error">
         <Papicon icon="x-circle" size={36} />
         <h3 class="text-2xl font-semibold">{m.e1_tickets_close_modal_title()}</h3>
       </div>
@@ -3931,7 +3931,7 @@
 {#if showDeleteConfirmModal}
   <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60">
     <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-md shadow-sm p-10 animate-in zoom-in-95 duration-300">
-      <div class="flex items-center gap-4 mb-2 text-rose-500">
+      <div class="flex items-center gap-4 mb-2 text-error">
         <Papicon icon="delete" size={36} />
         <h3 class="text-2xl font-semibold">{m.e1_tickets_delete_modal_title()}</h3>
       </div>
@@ -3954,7 +3954,7 @@
 {#if showLockModal}
   <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60">
     <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-md shadow-sm p-10 animate-in zoom-in-95 duration-300">
-      <div class="flex items-center gap-4 mb-2 text-amber-500">
+      <div class="flex items-center gap-4 mb-2 text-warning">
         <Papicon icon="lock" size={36} />
         <h3 class="text-2xl font-semibold">{m.e1_tickets_lock_modal_title()}</h3>
       </div>
@@ -3968,7 +3968,7 @@
           <button
             type="button"
             onclick={() => lockDuration = value as typeof lockDuration}
-            class="py-2.5 rounded-lg text-xs font-semibold transition-all border {lockDuration === value ? 'bg-amber-500 text-white border-amber-500' : 'bg-surface-container border-outline-variant/20 text-on-surface-variant hover:bg-surface-container-high'}"
+            class="py-2.5 rounded-lg text-xs font-semibold transition-all border {lockDuration === value ? 'bg-amber-500 text-white border-warning' : 'bg-surface-container border-outline-variant/20 text-on-surface-variant hover:bg-surface-container-high'}"
           >
             {label}
           </button>
@@ -4020,9 +4020,9 @@
         </div>
       </div>
 
-      <div class="flex items-start gap-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/15 mb-6">
-        <Papicon icon="alert-triangle" size={14} class="text-amber-500 mt-0.5 shrink-0" />
-        <p class="text-2xs text-amber-500/80 leading-relaxed">{m.e1_tickets_restore_warning()}</p>
+      <div class="flex items-start gap-2 p-3 rounded-lg bg-warning/5 border border-warning/15 mb-6">
+        <Papicon icon="alert-triangle" size={14} class="text-warning mt-0.5 shrink-0" />
+        <p class="text-2xs text-warning/80 leading-relaxed">{m.e1_tickets_restore_warning()}</p>
       </div>
 
       <div class="flex gap-4 mt-8 pt-6 border-t border-outline-variant/20">

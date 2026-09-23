@@ -62,7 +62,7 @@
       </div>
     </div>
     <div class="bg-surface-container-high/30 rounded-xl p-4 flex items-center gap-3">
-      <div class="h-9 w-9 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
+      <div class="h-9 w-9 rounded-lg bg-success/10 flex items-center justify-center text-success shrink-0">
         <Papicon icon="Users" size={20} />
       </div>
       <div class="flex flex-col">
@@ -71,7 +71,7 @@
       </div>
     </div>
     <div class="bg-surface-container-high/30 rounded-xl p-4 flex items-center gap-3">
-      <div class="h-9 w-9 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
+      <div class="h-9 w-9 rounded-lg bg-warning/10 flex items-center justify-center text-warning shrink-0">
         <Papicon icon="Star" size={20} />
       </div>
       <div class="flex flex-col">
@@ -109,7 +109,7 @@
                   style="width: {Math.min(100, (entry.totalRep / Math.max(data.leaderboard.entries[0]?.totalRep ?? 1, 1)) * 100)}%"
                 ></div>
               </div>
-              <span class="font-bold text-emerald-500 text-right text-xs">+{entry.totalRep}</span>
+              <span class="font-bold text-success text-right text-xs">+{entry.totalRep}</span>
             </div>
           {/each}
         </div>

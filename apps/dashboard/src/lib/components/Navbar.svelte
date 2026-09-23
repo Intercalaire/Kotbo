@@ -233,7 +233,7 @@
       id="theme-toggle"
     >
       {#if themeStore.dark}
-        <Papicon icon="sun" size={16} class="text-amber-500" />
+        <Papicon icon="sun" size={16} class="text-warning" />
       {:else}
         <Papicon icon="moon" size={16} class="text-on-surface-variant" />
       {/if}
@@ -371,7 +371,7 @@
             <button
               type="button"
               onclick={logout}
-              class="flex items-center gap-2.5 px-3 py-2 w-full text-left text-sm font-medium text-red-600 dark:text-red-400 transition-colors hover:bg-red-50 dark:hover:bg-red-500/8"
+              class="flex items-center gap-2.5 px-3 py-2 w-full text-left text-sm font-medium text-error transition-colors hover:bg-error/10"
             >
               <Papicon icon="log-out" size={16} />
               {m.navbar_logout()}

@@ -33,9 +33,9 @@
   const toneClasses: Record<AdminTone, string> = {
     neutral: 'bg-on-surface/6 text-on-surface-variant',
     primary: 'bg-primary/12 text-primary',
-    success: 'bg-emerald-500/12 text-emerald-500',
-    warning: 'bg-amber-500/12 text-amber-500',
-    danger: 'bg-red-500/12 text-red-500',
+    success: 'bg-success/12 text-success',
+    warning: 'bg-warning/12 text-warning',
+    danger: 'bg-error/12 text-error',
     info: 'bg-sky-500/12 text-sky-500',
   };
 </script>

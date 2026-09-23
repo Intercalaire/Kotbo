@@ -305,7 +305,7 @@
       UNKNOWN: m.d7_inv_ghost_unknown,
     };
     const colors: Record<string, string> = {
-      ACTIVE: 'text-emerald-500',
+      ACTIVE: 'text-success',
       SPECTATOR: 'text-cyan-500',
       INACTIVE: 'text-orange-500',
       NEW: 'text-purple-500',
@@ -451,7 +451,7 @@
             <span class="text-sm font-bold">{m.d7_inv_loading_details()}</span>
           </div>
         {:else if error}
-          <div class="p-4 rounded-lg bg-red-500/10 text-red-500 text-sm font-bold">{error}</div>
+          <div class="p-4 rounded-lg bg-error/10 text-error text-sm font-bold">{error}</div>
         {:else if details}
 
           <!-- ══════════════ RÉSUMÉ ══════════════ -->
@@ -482,7 +482,7 @@
                 <div class="grid grid-cols-1 gap-4">
                   <div>
                     <p class="text-xs font-medium text-on-surface-variant/50">{m.d7_inv_joins()}</p>
-                    <p class="text-lg font-semibold text-emerald-500">{details.trend?.totalJoined ?? 0}</p>
+                    <p class="text-lg font-semibold text-success">{details.trend?.totalJoined ?? 0}</p>
                   </div>
                   <div>
                     <p class="text-xs font-medium text-on-surface-variant/50">{m.d7_inv_departures()}</p>
@@ -534,22 +534,22 @@
                   </div>
                   <div class="flex justify-between text-xs">
                     <span class="text-on-surface-variant/60">{m.d7_inv_temporary()}</span>
-                    <span class="font-bold {details.invite?.isTemporary ? 'text-amber-500' : 'text-on-surface-variant/70'}">{details.invite?.isTemporary ? m.d7_yes() : m.d7_no()}</span>
+                    <span class="font-bold {details.invite?.isTemporary ? 'text-warning' : 'text-on-surface-variant/70'}">{details.invite?.isTemporary ? m.d7_yes() : m.d7_no()}</span>
                   </div>
                   <div class="flex justify-between text-xs">
                     <span class="text-on-surface-variant/60">{m.d7_inv_suspended_label()}</span>
-                    <span class="font-bold {details.invite?.isSuspended ? 'text-amber-500' : 'text-on-surface-variant/70'}">{details.invite?.isSuspended ? m.d7_yes() : m.d7_no()}</span>
+                    <span class="font-bold {details.invite?.isSuspended ? 'text-warning' : 'text-on-surface-variant/70'}">{details.invite?.isSuspended ? m.d7_yes() : m.d7_no()}</span>
                   </div>
                   <div class="flex justify-between text-xs">
                     <span class="text-on-surface-variant/60">{m.d7_inv_deleted_label()}</span>
-                    <span class="font-bold {details.invite?.isDeleted ? 'text-red-500' : 'text-on-surface-variant/70'}">{details.invite?.isDeleted ? m.d7_yes() : m.d7_no()}</span>
+                    <span class="font-bold {details.invite?.isDeleted ? 'text-error' : 'text-on-surface-variant/70'}">{details.invite?.isDeleted ? m.d7_yes() : m.d7_no()}</span>
                   </div>
                 </div>
               </div>
 
               <div class="premium-card p-5 rounded-xl space-y-4">
                 <div class="flex items-center gap-3">
-                  <div class="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
+                  <div class="p-2 rounded-xl bg-success/10 text-success">
                     <Papicon icon="User" size={18} />
                   </div>
                   <h4 class="text-sm font-semibold">{m.d7_inv_creator()}</h4>
@@ -603,14 +603,14 @@
               <div class="premium-card p-5 rounded-xl space-y-4">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-3">
-                    <div class="p-2 rounded-xl bg-amber-500/10 text-amber-500"><Papicon icon="Trophy" size={18} /></div>
+                    <div class="p-2 rounded-xl bg-warning/10 text-warning"><Papicon icon="Trophy" size={18} /></div>
                     <div>
                       <h4 class="text-sm font-semibold">{m.d7_inv_ranking_title()}</h4>
                       <p class="text-xs text-on-surface-variant/40">{m.d7_inv_ranking_subtitle()}</p>
                     </div>
                   </div>
                   <div class="text-right">
-                    <p class="text-2xl font-semibold text-amber-500">
+                    <p class="text-2xl font-semibold text-warning">
                       {details.ranking.rank ? `#${details.ranking.rank}` : '-'}
                       <span class="text-xs text-on-surface-variant/40">/ {details.ranking.totalCodes}</span>
                     </p>
@@ -645,7 +645,7 @@
               <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div class="premium-card p-5 rounded-xl">
                   <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_retention_rate()}</p>
-                  <p class="text-2xl font-semibold text-emerald-500">{formatPct(details.retention.retentionPct)}</p>
+                  <p class="text-2xl font-semibold text-success">{formatPct(details.retention.retentionPct)}</p>
                   <p class="text-2xs font-bold text-on-surface-variant/50">{m.d7_inv_retention_ratio({ stayed: details.retention.stayed, total: details.retention.total })}</p>
                 </div>
                 <div class="premium-card p-5 rounded-xl">
@@ -660,14 +660,14 @@
                 </div>
                 <div class="premium-card p-5 rounded-xl">
                   <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_departures()}</p>
-                  <p class="text-2xl font-semibold text-red-500">{details.retention.left}</p>
+                  <p class="text-2xl font-semibold text-error">{details.retention.left}</p>
                   <p class="text-2xs font-bold text-on-surface-variant/50">{m.d7_inv_total_joins({ count: details.retention.total })}</p>
                 </div>
               </div>
 
               <div class="premium-card p-5 rounded-xl space-y-5">
                 <div class="flex items-center gap-3">
-                  <div class="p-2 rounded-xl bg-emerald-500/10 text-emerald-500"><Papicon icon="Activity" size={18} /></div>
+                  <div class="p-2 rounded-xl bg-success/10 text-success"><Papicon icon="Activity" size={18} /></div>
                   <div>
                     <h4 class="text-sm font-semibold">{m.d7_inv_survival_title()}</h4>
                     <p class="text-xs text-on-surface-variant/40">{m.d7_inv_survival_subtitle()}</p>
@@ -704,7 +704,7 @@
               {@const lvlDelta = deltaVsGuild(q.avgLevel, q.guildAvgLevel)}
 
               {#if q.sampled}
-                <div class="p-3 rounded-lg bg-amber-500/10 text-amber-600 text-2xs font-bold">
+                <div class="p-3 rounded-lg bg-warning/10 text-warning text-2xs font-bold">
                   {m.d7_inv_quality_sampled({ count: q.analyzed })}
                 </div>
               {/if}
@@ -713,14 +713,14 @@
                 <div class="premium-card p-5 rounded-xl">
                   <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_avg_messages()}</p>
                   <p class="text-2xl font-semibold text-primary">{q.avgMessages ?? '-'}</p>
-                  <p class="text-2xs font-bold {msgDelta === null ? 'text-on-surface-variant/50' : msgDelta >= 0 ? 'text-emerald-500' : 'text-red-500'}">
+                  <p class="text-2xs font-bold {msgDelta === null ? 'text-on-surface-variant/50' : msgDelta >= 0 ? 'text-success' : 'text-error'}">
                     {msgDelta === null ? m.d7_inv_no_comparison() : m.d7_inv_vs_guild({ delta: `${msgDelta > 0 ? '+' : ''}${msgDelta}` })}
                   </p>
                 </div>
                 <div class="premium-card p-5 rounded-xl">
                   <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_avg_level()}</p>
                   <p class="text-2xl font-semibold text-purple-500">{q.avgLevel ?? '-'}</p>
-                  <p class="text-2xs font-bold {lvlDelta === null ? 'text-on-surface-variant/50' : lvlDelta >= 0 ? 'text-emerald-500' : 'text-red-500'}">
+                  <p class="text-2xs font-bold {lvlDelta === null ? 'text-on-surface-variant/50' : lvlDelta >= 0 ? 'text-success' : 'text-error'}">
                     {lvlDelta === null ? m.d7_inv_no_comparison() : m.d7_inv_vs_guild({ delta: `${lvlDelta > 0 ? '+' : ''}${lvlDelta}` })}
                   </p>
                 </div>
@@ -731,7 +731,7 @@
                 </div>
                 <div class="premium-card p-5 rounded-xl">
                   <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_sanctioned()}</p>
-                  <p class="text-2xl font-semibold text-red-500">{q.sanctionedMembers}</p>
+                  <p class="text-2xl font-semibold text-error">{q.sanctionedMembers}</p>
                   <p class="text-2xs font-bold text-on-surface-variant/50">{m.d7_inv_sanctions_total({ count: q.sanctionsCount })}</p>
                 </div>
               </div>
@@ -764,13 +764,13 @@
                     <p class="text-xs text-on-surface-variant/50 py-6 text-center">{m.d7_inv_no_data_available()}</p>
                   {/if}
                   {#if q.bots > 0}
-                    <p class="pt-2 border-t border-outline-variant/10 text-2xs font-bold text-amber-500">{m.d7_inv_bots_detected({ count: q.bots })}</p>
+                    <p class="pt-2 border-t border-outline-variant/10 text-2xs font-bold text-warning">{m.d7_inv_bots_detected({ count: q.bots })}</p>
                   {/if}
                 </div>
 
                 <div class="premium-card p-5 rounded-xl space-y-4">
                   <div class="flex items-center gap-3">
-                    <div class="p-2 rounded-xl bg-red-500/10 text-red-500"><Papicon icon="Gavel" size={18} /></div>
+                    <div class="p-2 rounded-xl bg-error/10 text-error"><Papicon icon="Gavel" size={18} /></div>
                     <h4 class="text-sm font-semibold">{m.d7_inv_top_sanctioned()}</h4>
                   </div>
                   {#if q.topSanctioned.length > 0}
@@ -782,7 +782,7 @@
                           onclick={() => openMember(row.userId)}
                         >
                           <span class="text-xs font-semibold truncate">{row.userTag}</span>
-                          <span class="text-xs font-bold text-red-500 shrink-0">{row.count}</span>
+                          <span class="text-xs font-bold text-error shrink-0">{row.count}</span>
                         </button>
                       {/each}
                     </div>
@@ -962,7 +962,7 @@
                       </div>
                       <div class="text-right">
                         <p class="text-xs font-medium text-on-surface-variant/40">{m.d7_inv_status()}</p>
-                        <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-2xs font-semibold {join.leftAt ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}">
+                        <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-2xs font-semibold {join.leftAt ? 'bg-error/10 text-error' : 'bg-success/10 text-success'}">
                           {join.leftAt ? m.d7_inv_left() : m.d7_inv_present()}
                         </span>
                       </div>

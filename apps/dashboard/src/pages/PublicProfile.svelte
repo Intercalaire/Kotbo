@@ -108,7 +108,7 @@
     {:else if error}
       <!-- Error Panel -->
       <div class="flex flex-col items-center justify-center py-24 text-center max-w-xl mx-auto">
-        <div class="w-20 h-20 rounded-xl bg-rose-500/10 text-rose-500 border border-rose-500/20 flex items-center justify-center mb-6 shadow-sm">
+        <div class="w-20 h-20 rounded-xl bg-error/10 text-error border border-error/20 flex items-center justify-center mb-6 shadow-sm">
           <Papicon icon="AlertTriangle" size={36} />
         </div>
         <h3 class="text-lg font-semibold tracking-tight text-on-surface font-headline">Profil Introuvable</h3>
@@ -165,7 +165,7 @@
                 <div class="flex flex-wrap items-center justify-center md:justify-start gap-2.5">
                   <p class="text-base text-on-surface-variant/70 font-bold">@{profile.username}</p>
                   {#if profile.isPrivate}
-                    <span class="inline-flex items-center gap-1.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20 px-2.5 py-1 text-xs font-semibold text-yellow-500">
+                    <span class="inline-flex items-center gap-1.5 rounded-lg bg-warning/10 border border-warning/20 px-2.5 py-1 text-xs font-semibold text-warning">
                       <Papicon icon="Lock" size={10} /> Privé
                     </span>
                   {/if}
@@ -189,7 +189,7 @@
       {#if profile.isPrivate}
         <!-- Private Profile View -->
         <div class="bg-surface-container-low/40 rounded-xl border border-outline-variant/10 p-10 text-center shadow-lg">
-          <div class="w-16 h-16 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center mx-auto mb-6 text-yellow-500">
+          <div class="w-16 h-16 rounded-lg bg-warning/10 border border-warning/20 flex items-center justify-center mx-auto mb-6 text-warning">
             <Papicon icon="Lock" size={28} />
           </div>
           <h3 class="text-xl font-semibold text-on-surface font-headline">Ce profil est privé</h3>
@@ -214,14 +214,14 @@
             value={`${Math.round((profile.voiceTimeSeconds || 0) / 60)} min`} 
             note="Temps passé" 
             icon="Mic" 
-            toneClass="bg-emerald-500/10 text-emerald-500 border-emerald-500/20" 
+            toneClass="bg-success/10 text-success border-success/20" 
           />
           <MetricCard 
             label="Événements" 
             value={`${profile.eventParticipations?.length || 0}`} 
             note="Participations" 
             icon="Zap" 
-            toneClass="bg-amber-500/10 text-amber-500 border-amber-500/20" 
+            toneClass="bg-warning/10 text-warning border-warning/20" 
           />
           <MetricCard 
             label="Ancienneté" 

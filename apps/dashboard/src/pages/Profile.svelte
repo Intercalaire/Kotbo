@@ -242,11 +242,11 @@
 
   const gradeBorderColor = (grade: string) => {
     const g = grade?.toLowerCase() || '';
-    if (g.includes('fondateur') || g.includes('direction')) return 'border-amber-500/20';
-    if (g.includes('admin')) return 'border-rose-500/20';
+    if (g.includes('fondateur') || g.includes('direction')) return 'border-warning/20';
+    if (g.includes('admin')) return 'border-error/20';
     if (g.includes('manager') || g.includes('responsable')) return 'border-purple-500/20';
     if (g.includes('mod')) return 'border-blue-500/20';
-    if (g.includes('dev')) return 'border-emerald-500/20';
+    if (g.includes('dev')) return 'border-success/20';
     return 'border-primary/20';
   };
 
@@ -469,12 +469,12 @@
       </div>
     </div>
   {:else if error}
-    <div class="rounded-xl border-2 border-dashed border-rose-500/20 bg-rose-500/5 px-8 py-12 text-center max-w-2xl mx-auto">
-      <div class="w-20 h-20 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto mb-6">
+    <div class="rounded-xl border-2 border-dashed border-error/20 bg-error/5 px-8 py-12 text-center max-w-2xl mx-auto">
+      <div class="w-20 h-20 rounded-xl bg-error/10 text-error flex items-center justify-center mx-auto mb-6">
         <Papicon icon="AlertTriangle" size={40} />
       </div>
-      <h3 class="text-2xl font-semibold text-rose-700 font-headline">{m.pf_error_label()}</h3>
-      <p class="mt-2 text-rose-600/70 font-bold">{error}</p>
+      <h3 class="text-2xl font-semibold text-error font-headline">{m.pf_error_label()}</h3>
+      <p class="mt-2 text-error/70 font-bold">{error}</p>
     </div>
   {:else}
 
@@ -555,8 +555,8 @@
             <MetricCard label="Messages" value={`${stats?.totalMessages ?? 0}`} note={m.pf_total_sent()} icon="MessageSquare" toneClass="bg-primary/10 text-primary" />
             <MetricCard label={m.home_opt_voice()} value={`${Math.round((stats?.totalVoiceMinutes ?? 0))}m`} note={m.pf_time_spent()} icon="Mic" toneClass="bg-secondary/10 text-secondary" />
             {#if visibility.discipline}
-              <MetricCard label="Sanctions" value={`${stats?.sanctionsIssued ?? 0}`} note="Warns + blacklist" icon="Hammer" toneClass="bg-rose-500/10 text-rose-500" />
-              <MetricCard label={m.pf_warnings_label()} value={`${stats?.activeWarnings ?? 0}`} note={m.pf_active_received()} icon="ShieldAlert" toneClass="bg-amber-500/10 text-amber-500" />
+              <MetricCard label="Sanctions" value={`${stats?.sanctionsIssued ?? 0}`} note="Warns + blacklist" icon="Hammer" toneClass="bg-error/10 text-error" />
+              <MetricCard label={m.pf_warnings_label()} value={`${stats?.activeWarnings ?? 0}`} note={m.pf_active_received()} icon="ShieldAlert" toneClass="bg-warning/10 text-warning" />
             {/if}
           </div>
 
@@ -590,7 +590,7 @@
                 </div>
                 <div class="space-y-1">
                   <p class="text-xs font-medium text-on-surface-variant/40">{m.pf_tutor_status()}</p>
-                  <span class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-body-sm font-medium {staffMember.isTutor ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-on-surface/5 text-on-surface-variant/40 border border-outline-variant/10'}">
+                  <span class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-body-sm font-medium {staffMember.isTutor ? 'bg-success/10 text-success border border-success/20' : 'bg-on-surface/5 text-on-surface-variant/40 border border-outline-variant/10'}">
                     {staffMember.isTutor ? m.pf_active_tutor() : m.pf_not_tutor()}
                   </span>
                 </div>
@@ -627,17 +627,17 @@
 
           <!-- Disciplinary & Restrictive Panels -->
           {#if isBlacklisted}
-            <div class="rounded-xl border-2 border-rose-500/20 bg-rose-500/5 p-8 flex items-start gap-6">
-              <div class="w-14 h-14 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
+            <div class="rounded-xl border-2 border-error/20 bg-error/5 p-8 flex items-start gap-6">
+              <div class="w-14 h-14 rounded-xl bg-error/10 text-error flex items-center justify-center shrink-0">
                 <Papicon icon="AlertTriangle" size={28} />
               </div>
               <div class="space-y-1">
-                <h4 class="text-lg font-semibold text-rose-700">{m.pf_restricted_account()}</h4>
-                <p class="text-sm text-rose-600/80 font-bold leading-relaxed">{blacklistReason}</p>
+                <h4 class="text-lg font-semibold text-error">{m.pf_restricted_account()}</h4>
+                <p class="text-sm text-error/80 font-bold leading-relaxed">{blacklistReason}</p>
                 {#if blacklistEndDate}
-                  <p class="text-xs font-medium text-rose-500 mt-2">{m.pf_restriction_end({ date: formatDate(blacklistEndDate) })}</p>
+                  <p class="text-xs font-medium text-error mt-2">{m.pf_restriction_end({ date: formatDate(blacklistEndDate) })}</p>
                 {:else}
-                  <p class="text-xs font-medium text-rose-500 mt-2">{m.pf_permanent_restriction()}</p>
+                  <p class="text-xs font-medium text-error mt-2">{m.pf_permanent_restriction()}</p>
                 {/if}
               </div>
             </div>
@@ -653,9 +653,9 @@
               {#if warnings.length > 0}
                 <div class="space-y-4">
                   {#each warnings as warn}
-                    <div class="p-4 rounded-lg bg-surface-container-high/40 border border-outline-variant/5 {warn.isActive ? 'border-amber-500/10 bg-amber-500/5' : ''}">
+                    <div class="p-4 rounded-lg bg-surface-container-high/40 border border-outline-variant/5 {warn.isActive ? 'border-warning/10 bg-warning/5' : ''}">
                       <div class="flex items-center justify-between mb-2">
-                        <span class="text-body-sm font-medium {warn.isActive ? 'text-amber-500' : 'text-on-surface-variant/40'}">
+                        <span class="text-body-sm font-medium {warn.isActive ? 'text-warning' : 'text-on-surface-variant/40'}">
                           {warn.isActive ? m.pf_active() : m.pf_expired()}
                         </span>
                         <span class="text-2xs font-bold text-on-surface-variant/40">{formatDate(warn.createdAt)}</span>
@@ -683,7 +683,7 @@
                     <div class="p-4 rounded-lg bg-surface-container-high/40 border border-outline-variant/5">
                       <div class="flex items-center justify-between mb-2">
                         <span class="text-body-sm font-medium text-primary">{abs.type}</span>
-                        <span class="inline-flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider {abs.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-500' : (abs.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500' : 'bg-on-surface/5 text-on-surface-variant/40')}">
+                        <span class="inline-flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider {abs.status === 'APPROVED' ? 'bg-success/10 text-success' : (abs.status === 'PENDING' ? 'bg-warning/10 text-warning' : 'bg-on-surface/5 text-on-surface-variant/40')}">
                           {abs.status}
                         </span>
                       </div>
@@ -715,7 +715,7 @@
                         <h5 class="text-base font-semibold text-on-surface">{period.targetGrade || m.pf_staff_grade()}</h5>
                       </div>
                       <div class="text-right">
-                        <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-2xs font-semibold uppercase tracking-wider {period.status === 'PASSED' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : (period.status === 'ONGOING' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-rose-500/10 text-rose-500 border border-rose-500/20')}">
+                        <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-2xs font-semibold uppercase tracking-wider {period.status === 'PASSED' ? 'bg-success/10 text-success border border-success/20' : (period.status === 'ONGOING' ? 'bg-warning/10 text-warning border border-warning/20' : 'bg-error/10 text-error border border-error/20')}">
                           {period.status === 'PASSED' ? m.pf_passed() : (period.status === 'ONGOING' ? m.home_in_progress() : m.pf_failed())}
                         </span>
                         <p class="text-2xs font-bold text-on-surface-variant/40 mt-1">{m.pf_start_date({ date: formatDate(period.startDate) })}</p>
@@ -732,7 +732,7 @@
                         {#each period.reports as rep}
                           <div class="p-3.5 rounded-xl bg-surface-container-low border border-outline-variant/5">
                             <div class="flex items-center justify-between mb-1.5">
-                              <span class="text-2xs font-semibold uppercase tracking-wider {rep.type === 'POSITIVE' ? 'text-emerald-500' : (rep.type === 'NEGATIVE' ? 'text-rose-500' : 'text-on-surface-variant/40')}">
+                              <span class="text-2xs font-semibold uppercase tracking-wider {rep.type === 'POSITIVE' ? 'text-success' : (rep.type === 'NEGATIVE' ? 'text-error' : 'text-on-surface-variant/40')}">
                                 {rep.type}
                               </span>
                               <span class="text-2xs font-bold text-on-surface-variant/30">{formatDate(rep.createdAt)}</span>
@@ -768,7 +768,7 @@
                         {m.pf_posted_on({ date: formatDate(note.createdAt), author: note.author?.username || m.pf_a_manager() })}
                       </p>
                     </div>
-                    <button onclick={() => removeNote(note.id)} class="p-2 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all">
+                    <button onclick={() => removeNote(note.id)} class="p-2 rounded-lg bg-error/10 text-error hover:bg-rose-500 hover:text-white transition-all">
                       <Papicon icon="Trash" size={14} />
                     </button>
                   </div>
@@ -795,23 +795,23 @@
 
           <!-- ── Resignation Panel (Own profile only, staff members only) ──────── -->
           {#if isOwnProfile && staffMember}
-            <div class="rounded-xl border-2 {pendingResignation ? 'border-amber-500/20 bg-amber-500/5' : 'border-rose-500/10 bg-surface-container-low/30'} p-8 shadow-sm">
+            <div class="rounded-xl border-2 {pendingResignation ? 'border-warning/20 bg-warning/5' : 'border-error/10 bg-surface-container-low/30'} p-8 shadow-sm">
               <div class="flex items-center gap-4 mb-6">
-                <div class="w-12 h-12 rounded-lg {pendingResignation ? 'bg-amber-500/10 text-amber-500' : 'bg-rose-500/10 text-rose-500'} flex items-center justify-center">
+                <div class="w-12 h-12 rounded-lg {pendingResignation ? 'bg-warning/10 text-warning' : 'bg-error/10 text-error'} flex items-center justify-center">
                   <Papicon icon="LogOut" size={24} />
                 </div>
                 <div>
-                  <p class="text-2xs font-semibold uppercase tracking-wider {pendingResignation ? 'text-amber-500' : 'text-rose-500'}">Zone Sensible</p>
+                  <p class="text-2xs font-semibold uppercase tracking-wider {pendingResignation ? 'text-warning' : 'text-error'}">Zone Sensible</p>
                   <h4 class="text-xl font-semibold text-on-surface">{m.pf_resignation()}</h4>
                 </div>
               </div>
 
               {#if pendingResignation}
                 <!-- Demande en attente -->
-                <div class="p-5 rounded-lg bg-amber-500/10 border border-amber-500/20 mb-4">
+                <div class="p-5 rounded-lg bg-warning/10 border border-warning/20 mb-4">
                   <div class="flex items-center gap-2 mb-2">
-                    <Papicon icon="Clock" size={16} class="text-amber-500" />
-                    <span class="text-xs font-semibold text-amber-500">Demande en attente d'approbation</span>
+                    <Papicon icon="Clock" size={16} class="text-warning" />
+                    <span class="text-xs font-semibold text-warning">Demande en attente d'approbation</span>
                   </div>
                   <p class="text-sm font-bold text-on-surface mb-1">Motif soumis :</p>
                   <p class="text-sm text-on-surface-variant leading-relaxed italic">« {pendingResignation.reason} »</p>
@@ -835,7 +835,7 @@
                       placeholder={m.pf_resignation_ph()}
                       maxlength={500}
                       rows={4}
-                      class="w-full bg-surface-container-high/60 border border-outline-variant/20 rounded-lg px-4 py-3 text-sm font-medium text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-rose-500/40 resize-none transition-colors"
+                      class="w-full bg-surface-container-high/60 border border-outline-variant/20 rounded-lg px-4 py-3 text-sm font-medium text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-error/40 resize-none transition-colors"
                     ></textarea>
                     <p class="text-2xs font-bold text-on-surface-variant/30 text-right mt-1">{resignationReason.length}/500</p>
                   </div>
@@ -865,7 +865,7 @@
                   <button
                     id="btn-open-resignation"
                     onclick={() => showResignationForm = true}
-                    class="w-full md:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-lg bg-rose-500/10 text-rose-500 border border-rose-500/20 text-xs font-medium hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-lg hover:shadow-rose-500/25 transition-all duration-300"
+                    class="w-full md:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-lg bg-error/10 text-error border border-error/20 text-xs font-medium hover:bg-rose-500 hover:text-white hover:border-error hover:shadow-lg hover:shadow-rose-500/25 transition-all duration-300"
                   >
                     <Papicon icon="LogOut" size={14} />
                     {m.pf_request_resignation()}
@@ -883,11 +883,11 @@
           <div class="mb-6 space-y-6">
             <!-- Burnout warning alert -->
             {#if scorecard.burnoutRisk}
-              <div class="rounded-xl border border-rose-500/20 bg-rose-500/10 p-5 flex items-start gap-3">
-                <Papicon icon="ShieldAlert" size={24} class="text-rose-500 shrink-0 mt-0.5" />
+              <div class="rounded-xl border border-error/20 bg-error/10 p-5 flex items-start gap-3">
+                <Papicon icon="ShieldAlert" size={24} class="text-error shrink-0 mt-0.5" />
                 <div>
-                  <h5 class="text-sm font-bold text-rose-500">{m.pf_burnout_risk()}</h5>
-                  <p class="text-xs text-rose-500/80 leading-relaxed mt-1">
+                  <h5 class="text-sm font-bold text-error">{m.pf_burnout_risk()}</h5>
+                  <p class="text-xs text-error/80 leading-relaxed mt-1">
                     {m.pf_burnout_pre()} <strong>{scorecard.activityDropPercent}%</strong> {m.pf_burnout_post()}
                   </p>
                 </div>
@@ -929,7 +929,7 @@
                 <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4">
                   <div class="flex items-center justify-between mb-1">
                     <span class="text-xs font-semibold text-on-surface-variant">{m.home_opt_voice()}</span>
-                    <span class="text-xs font-bold text-emerald-500">{scorecard.scores.voice}%</span>
+                    <span class="text-xs font-bold text-success">{scorecard.scores.voice}%</span>
                   </div>
                   <div class="h-1.5 w-full bg-on-surface/5 rounded-full overflow-hidden mb-2">
                     <div class="h-full bg-emerald-500" style="width: {scorecard.scores.voice}%"></div>
@@ -941,7 +941,7 @@
                 <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4">
                   <div class="flex items-center justify-between mb-1">
                     <span class="text-xs font-semibold text-on-surface-variant">{m.home_mod_moderation_title()}</span>
-                    <span class="text-xs font-bold text-amber-500">{scorecard.scores.moderation}%</span>
+                    <span class="text-xs font-bold text-warning">{scorecard.scores.moderation}%</span>
                   </div>
                   <div class="h-1.5 w-full bg-on-surface/5 rounded-full overflow-hidden mb-2">
                     <div class="h-full bg-amber-500" style="width: {scorecard.scores.moderation}%"></div>
@@ -1013,8 +1013,8 @@
         <div class="space-y-8">
           <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
             <MetricCard label="Messages" value={publicProfile.messageCount?.toLocaleString() || '0'} note={m.pf_total_sent_pl()} icon="MessageSquare" toneClass="bg-blue-500/10 text-blue-500" />
-            <MetricCard label={m.home_opt_voice()} value={`${Math.round((publicProfile.voiceTimeSeconds || 0) / 60)} min`} note={m.pf_time_spent()} icon="Mic" toneClass="bg-emerald-500/10 text-emerald-500" />
-            <MetricCard label={m.home_mod_events_title()} value={`${publicProfile.eventParticipations?.length || 0}`} note="Participations" icon="Zap" toneClass="bg-amber-500/10 text-amber-500" />
+            <MetricCard label={m.home_opt_voice()} value={`${Math.round((publicProfile.voiceTimeSeconds || 0) / 60)} min`} note={m.pf_time_spent()} icon="Mic" toneClass="bg-success/10 text-success" />
+            <MetricCard label={m.home_mod_events_title()} value={`${publicProfile.eventParticipations?.length || 0}`} note="Participations" icon="Zap" toneClass="bg-warning/10 text-warning" />
             <MetricCard label={m.pf_seniority()} value={getDurationSince(publicProfile.guildJoinedAt)} note={m.pf_since_arrival()} icon="Calendar" toneClass="bg-purple-500/10 text-purple-500" />
           </div>
 
@@ -1120,7 +1120,7 @@
               </div>
               <button 
                 onclick={() => { showNewKeyForm = !showNewKeyForm; newKeyCreatedValue = ''; }}
-                class="inline-flex items-center gap-2 rounded-lg px-6 py-3.5 text-xs font-medium transition-all {showNewKeyForm ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20' : 'bg-primary text-on-primary hover:'}"
+                class="inline-flex items-center gap-2 rounded-lg px-6 py-3.5 text-xs font-medium transition-all {showNewKeyForm ? 'bg-error/10 text-error border border-error/20' : 'bg-primary text-on-primary hover:'}"
               >
                 <Papicon icon={showNewKeyForm ? 'Cross' : 'Plus'} size={14} />
                 {showNewKeyForm ? m.common_cancel() : m.pf_create_key()}
@@ -1128,8 +1128,8 @@
             </div>
 
             {#if newKeyCreatedValue}
-              <div class="mb-8 p-6 rounded-xl bg-emerald-500/5 border border-emerald-500/20 animate-in zoom-in-95 duration-500">
-                <h5 class="text-sm font-semibold text-emerald-500 mb-2">{m.pf_key_generated()}</h5>
+              <div class="mb-8 p-6 rounded-xl bg-success/5 border border-success/20 animate-in zoom-in-95 duration-500">
+                <h5 class="text-sm font-semibold text-success mb-2">{m.pf_key_generated()}</h5>
                 <div class="flex items-center gap-3 bg-surface-container-high/60 px-4 py-3 rounded-lg mb-4 border border-outline-variant/10">
                   <code class="text-xs font-mono font-bold text-on-surface break-all">{newKeyCreatedValue}</code>
                   <button 
@@ -1139,7 +1139,7 @@
                     <Papicon icon="Paper" size={16} />
                   </button>
                 </div>
-                <p class="text-2xs font-bold text-rose-500">
+                <p class="text-2xs font-bold text-error">
                   {m.pf_copy_key_warning()}
                 </p>
               </div>
@@ -1218,7 +1218,7 @@
                     </div>
                     <button 
                       onclick={() => deleteKey(key.id)}
-                      class="opacity-0 group-hover:opacity-100 p-3 rounded-xl bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all duration-300"
+                      class="opacity-0 group-hover:opacity-100 p-3 rounded-xl bg-error/10 text-error hover:bg-rose-500 hover:text-white transition-all duration-300"
                     >
                       <Papicon icon="Trash" size={18} />
                     </button>
@@ -1239,18 +1239,18 @@
           <div class="space-y-6">
             <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm">
                <div class="flex items-center gap-3 mb-6">
-                  <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
+                  <div class="w-10 h-10 rounded-xl bg-warning/10 text-warning flex items-center justify-center">
                     <Papicon icon="ShieldAlert" size={20} />
                   </div>
                   <h5 class="text-sm font-semibold text-on-surface">{m.pf_api_key_security()}</h5>
                </div>
                <ul class="space-y-4">
                  <li class="flex gap-3 text-xs font-bold text-on-surface-variant/60 leading-relaxed">
-                   <span class="text-amber-500">•</span>
+                   <span class="text-warning">•</span>
                    {m.pf_revoke_hint()}
                  </li>
                  <li class="flex gap-3 text-xs font-bold text-on-surface-variant/60 leading-relaxed">
-                   <span class="text-amber-500">•</span>
+                   <span class="text-warning">•</span>
                    {m.pf_no_share_keys()}
                  </li>
                </ul>

@@ -65,7 +65,7 @@
           onclick={() => onOpenMember(s.userId, s.name)}
           class="w-full flex items-center gap-4 p-4 rounded-lg bg-surface-container-high/20 hover:bg-surface-container-high/50 border border-outline-variant/5 transition-all text-left group"
         >
-          <div class="flex items-center justify-center w-8 h-8 rounded-full font-semibold text-xs {i < 3 ? 'bg-amber-500/10 text-amber-500' : 'bg-on-surface/5 text-on-surface-variant/30'}">
+          <div class="flex items-center justify-center w-8 h-8 rounded-full font-semibold text-xs {i < 3 ? 'bg-warning/10 text-warning' : 'bg-on-surface/5 text-on-surface-variant/30'}">
             {i + 1}
           </div>
           <div class="relative">

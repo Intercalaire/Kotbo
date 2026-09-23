@@ -341,7 +341,7 @@
       <div class="max-h-[420px] overflow-y-auto p-3 space-y-1">
         {#each toCreate as name, index (index)}
           <p class="flex items-center gap-2 text-body-sm text-on-surface-variant/80">
-            <Papicon icon="plus" size={11} class="shrink-0 text-emerald-500" />
+            <Papicon icon="plus" size={11} class="shrink-0 text-success" />
             <span class="truncate">{name}</span>
           </p>
         {/each}

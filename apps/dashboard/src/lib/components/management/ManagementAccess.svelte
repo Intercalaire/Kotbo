@@ -178,7 +178,7 @@
     {/snippet}
 
     {#if roleEntries.length === 0}
-      <p class="text-body-sm text-amber-400/90 leading-relaxed">{m.ma_roles_empty()}</p>
+      <p class="text-body-sm text-warning/90 leading-relaxed">{m.ma_roles_empty()}</p>
     {:else}
       <div class="space-y-4">
         <div class="flex items-center justify-between gap-4 flex-wrap">
@@ -295,7 +295,7 @@
                                           aria-label="{role.name} - {perm.label}"
                                           aria-pressed={!!rule[perm.key]}
                                           onclick={() => togglePermission(idx, role.id, perm.key)}
-                                          class="w-7 h-7 rounded-lg inline-flex items-center justify-center transition-all {rule[perm.key] ? 'bg-emerald-500/20 text-emerald-500 hover:bg-emerald-500/30' : 'bg-surface-container-high/40 text-on-surface-variant/30 hover:bg-surface-container-high/70'}"
+                                          class="w-7 h-7 rounded-lg inline-flex items-center justify-center transition-all {rule[perm.key] ? 'bg-success/20 text-success hover:bg-success/30' : 'bg-surface-container-high/40 text-on-surface-variant/30 hover:bg-surface-container-high/70'}"
                                         >
                                           <Papicon icon={rule[perm.key] ? 'Check' : 'X'} size={12} />
                                         </button>
@@ -400,7 +400,7 @@
                                         aria-label="{moduleName(feature.featureKey, feature.featureName)} - {perm.label}"
                                         aria-pressed={!!rule[perm.key]}
                                         onclick={() => togglePermission(idx, role.id, perm.key)}
-                                        class="w-7 h-7 rounded-lg inline-flex items-center justify-center transition-all {rule[perm.key] ? 'bg-emerald-500/20 text-emerald-500 hover:bg-emerald-500/30' : 'bg-surface-container-high/40 text-on-surface-variant/30 hover:bg-surface-container-high/70'}"
+                                        class="w-7 h-7 rounded-lg inline-flex items-center justify-center transition-all {rule[perm.key] ? 'bg-success/20 text-success hover:bg-success/30' : 'bg-surface-container-high/40 text-on-surface-variant/30 hover:bg-surface-container-high/70'}"
                                       >
                                         <Papicon icon={rule[perm.key] ? 'Check' : 'X'} size={12} />
                                       </button>

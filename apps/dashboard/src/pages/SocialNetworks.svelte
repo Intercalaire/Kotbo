@@ -259,7 +259,7 @@
     </div>
     <div class="flex items-center gap-4 bg-surface-container-high/40 px-5 py-3 rounded-lg border border-outline-variant/10">
       <span class="text-xs font-medium text-primary">{m.social_banner_active_label()}</span>
-      <span class="px-2.5 py-1 bg-emerald-500/10 text-emerald-500 rounded-lg text-2xs font-semibold uppercase">{m.social_banner_online_badge()}</span>
+      <span class="px-2.5 py-1 bg-success/10 text-success rounded-lg text-2xs font-semibold uppercase">{m.social_banner_online_badge()}</span>
     </div>
   </div>
 
@@ -285,7 +285,7 @@
       <div class="lg:col-span-1">
         {#if activeTab === 'youtube'}
           <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 sticky top-8 shadow-sm">
-            <h3 class="text-lg font-semibold flex items-center gap-2.5 text-red-500">
+            <h3 class="text-lg font-semibold flex items-center gap-2.5 text-error">
               <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path d="M23.498 6.163a3.003 3.003 0 0 0-2.11-2.11C19.518 3.545 12 3.545 12 3.545s-7.518 0-9.388.508a3.003 3.003 0 0 0-2.11 2.11C0 8.033 0 12 0 12s0 3.967.502 5.837a3.003 3.003 0 0 0 2.11 2.11c1.87.508 9.388.508 9.388.508s7.518 0 9.388-.508a3.002 3.002 0 0 0 2.11-2.11C24 15.967 24 12 24 12s0-3.967-.502-5.837zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
               </svg>
@@ -300,13 +300,13 @@
                   type="text"
                   placeholder={m.social_yt_query_ph()}
                   bind:value={ytForm.query}
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-error/30 transition-all text-on-surface"
                 />
               </div>
 
               <div class="space-y-1.5">
                 <label for="yt-chan" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.social_channel_alerts_label()}</label>
-                <SearchableSelect id="yt-chan" bind:value={ytForm.discordChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder={m.social_default_channel_ph()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-red-600/30 transition-all" />
+                <SearchableSelect id="yt-chan" bind:value={ytForm.discordChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder={m.social_default_channel_ph()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-error/30 transition-all" />
               </div>
 
               <div class="space-y-1.5">
@@ -316,7 +316,7 @@
                   bind:value={ytForm.mention}
                   options={mentionOptions}
                   placeholder={m.social_mention_ph()}
-                  className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-red-600/30 transition-all"
+                  className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-error/30 transition-all"
                 />
               </div>
 
@@ -331,7 +331,7 @@
                       type="text"
                       placeholder={m.social_yt_live_msg_ph()}
                       bind:value={ytForm.liveMessage}
-                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-error/30 transition-all text-on-surface"
                     />
                     <p class="text-2xs text-on-surface-variant/40 ml-2">{m.social_msg_vars_hint()}</p>
                   </div>
@@ -343,7 +343,7 @@
                       type="text"
                       placeholder={m.social_yt_video_msg_ph()}
                       bind:value={ytForm.videoMessage}
-                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-error/30 transition-all text-on-surface"
                     />
                   </div>
 
@@ -354,7 +354,7 @@
                       type="text"
                       placeholder={m.social_yt_short_msg_ph()}
                       bind:value={ytForm.shortMessage}
-                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-error/30 transition-all text-on-surface"
                     />
                   </div>
                 </div>
@@ -476,7 +476,7 @@
                           onclick={() => handleDeleteYoutube(follow.id)}
                           disabled={!canManage}
                           title={m.social_unfollow_tooltip()}
-                          class="p-3 bg-red-600/10 hover:bg-red-600/20 text-red-600 rounded-xl transition-all"
+                          class="p-3 bg-error/10 hover:bg-error/20 text-error rounded-xl transition-all"
                         >
                           <Papicon icon="Trash" size={16} />
                         </button>
@@ -496,7 +496,7 @@
                           bind:value={follow.mentionKey}
                           options={mentionOptions}
                           placeholder={m.social_mention_ph()}
-                          className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-red-600/30 transition-all"
+                          className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-error/30 transition-all"
                         />
                       </div>
                     </div>
@@ -511,7 +511,7 @@
                             type="text"
                             bind:value={follow.liveMessage}
                             placeholder={m.social_default_msg_ph()}
-                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-error/30 transition-all text-on-surface"
                           />
                         </div>
                         <div class="space-y-1">
@@ -521,7 +521,7 @@
                             type="text"
                             bind:value={follow.videoMessage}
                             placeholder={m.social_default_msg_ph()}
-                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-error/30 transition-all text-on-surface"
                           />
                         </div>
                         <div class="space-y-1">
@@ -531,7 +531,7 @@
                             type="text"
                             bind:value={follow.shortMessage}
                             placeholder={m.social_default_msg_ph()}
-                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-error/30 transition-all text-on-surface"
                           />
                         </div>
                       </div>
@@ -592,7 +592,7 @@
                           onclick={() => handleDeleteTwitch(follow.id)}
                           disabled={!canManage}
                           title={m.social_unfollow_tooltip()}
-                          class="p-3 bg-red-600/10 hover:bg-red-600/20 text-red-600 rounded-xl transition-all"
+                          class="p-3 bg-error/10 hover:bg-error/20 text-error rounded-xl transition-all"
                         >
                           <Papicon icon="Trash" size={16} />
                         </button>

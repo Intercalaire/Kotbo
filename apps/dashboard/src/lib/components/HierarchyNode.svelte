@@ -88,7 +88,7 @@
                 <h4 class="text-xs font-bold text-on-surface flex items-center gap-1.5 tracking-tight">
                   {role.name}
                   {#if role.isResponsable}
-                    <span class="px-1.5 py-0.5 rounded-sm bg-amber-500/10 text-amber-500 border border-amber-500/20 text-xs font-semibold">{m.staff_orgchart_chef_badge()}</span>
+                    <span class="px-1.5 py-0.5 rounded-sm bg-warning/10 text-warning border border-warning/20 text-xs font-semibold">{m.staff_orgchart_chef_badge()}</span>
                   {/if}
                 </h4>
                 <span class="text-2xs font-bold text-on-surface-variant bg-surface-container-high/60 px-1.5 py-0.5 rounded-sm">

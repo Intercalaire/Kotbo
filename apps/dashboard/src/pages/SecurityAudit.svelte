@@ -85,9 +85,9 @@
 
   const SEVERITY_META: Record<Severity, { label: string; icon: string; text: string; bg: string; ring: string }> = {
     CRITICAL: { label: 'Critique', icon: 'AlertOctagon', text: 'text-error', bg: 'bg-error/10', ring: 'ring-error/30' },
-    WARNING: { label: 'Avertissement', icon: 'AlertTriangle', text: 'text-amber-500', bg: 'bg-amber-500/10', ring: 'ring-amber-500/30' },
+    WARNING: { label: 'Avertissement', icon: 'AlertTriangle', text: 'text-warning', bg: 'bg-warning/10', ring: 'ring-warning/30' },
     INFO: { label: 'Information', icon: 'Info', text: 'text-sky-500', bg: 'bg-sky-500/10', ring: 'ring-sky-500/30' },
-    OK: { label: 'Conforme', icon: 'ShieldCheck', text: 'text-emerald-500', bg: 'bg-emerald-500/10', ring: 'ring-emerald-500/30' },
+    OK: { label: 'Conforme', icon: 'ShieldCheck', text: 'text-success', bg: 'bg-success/10', ring: 'ring-success/30' },
   };
 
   /**
@@ -155,8 +155,8 @@
   const busy = $derived(fixingId !== null || bulkRunning);
 
   function scoreColor(value: number): string {
-    if (value >= 85) return 'text-emerald-500';
-    if (value >= 65) return 'text-amber-500';
+    if (value >= 85) return 'text-success';
+    if (value >= 65) return 'text-warning';
     if (value >= 45) return 'text-orange-500';
     return 'text-error';
   }
@@ -327,16 +327,16 @@
               <div class="text-lg font-semibold text-error">{counts.critical}</div>
               <div class="text-2xs text-on-surface-variant">Critiques</div>
             </div>
-            <div class="rounded-lg bg-amber-500/10 px-3 py-2">
-              <div class="text-lg font-semibold text-amber-500">{counts.warning}</div>
+            <div class="rounded-lg bg-warning/10 px-3 py-2">
+              <div class="text-lg font-semibold text-warning">{counts.warning}</div>
               <div class="text-2xs text-on-surface-variant">Avertissements</div>
             </div>
             <div class="rounded-lg bg-sky-500/10 px-3 py-2">
               <div class="text-lg font-semibold text-sky-500">{counts.info}</div>
               <div class="text-2xs text-on-surface-variant">Informations</div>
             </div>
-            <div class="rounded-lg bg-emerald-500/10 px-3 py-2">
-              <div class="text-lg font-semibold text-emerald-500">{counts.ok}</div>
+            <div class="rounded-lg bg-success/10 px-3 py-2">
+              <div class="text-lg font-semibold text-success">{counts.ok}</div>
               <div class="text-2xs text-on-surface-variant">Conformes</div>
             </div>
           </div>
@@ -433,9 +433,9 @@
 
     <!-- ── Controles non executes ─────────────────────────────────────── -->
     {#if report.degraded.length > 0}
-      <div class="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+      <div class="rounded-xl border border-warning/30 bg-warning/5 px-4 py-3">
         <div class="flex items-start gap-3">
-          <Papicon icon="AlertTriangle" size={16} class="text-amber-500 mt-0.5 shrink-0" />
+          <Papicon icon="AlertTriangle" size={16} class="text-warning mt-0.5 shrink-0" />
           <div class="min-w-0">
             <p class="text-body-sm font-medium text-on-surface">Certains contrôles n'ont pas pu être exécutés</p>
             <ul class="mt-1 space-y-0.5">
@@ -589,7 +589,7 @@
                         <Papicon icon="Wrench" size={13} />
                         {finding.fix.label}
                         {#if finding.fix.risky}
-                          <span class="text-2xs text-amber-500 ml-0.5">· confirmation</span>
+                          <span class="text-2xs text-warning ml-0.5">· confirmation</span>
                         {/if}
                       {/if}
                     </button>
@@ -631,13 +631,13 @@
     <div class="space-y-4">
       {#if bulkResult.applied.length > 0}
         <div>
-          <p class="text-body-sm font-medium text-emerald-500 mb-1.5">
+          <p class="text-body-sm font-medium text-success mb-1.5">
             {bulkResult.applied.length} correctif(s) appliqué(s)
           </p>
           <ul class="space-y-1">
             {#each bulkResult.applied as item}
               <li class="text-xs text-on-surface-variant flex items-start gap-2">
-                <Papicon icon="CheckCircle" size={13} class="text-emerald-500 mt-0.5 shrink-0" />
+                <Papicon icon="CheckCircle" size={13} class="text-success mt-0.5 shrink-0" />
                 {item.title}
               </li>
             {/each}

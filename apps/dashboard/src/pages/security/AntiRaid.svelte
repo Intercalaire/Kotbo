@@ -536,7 +536,7 @@
           </div>
 
           {#if (config.accountAgeMinUnit === 'MONTHS' ? config.accountAgeMinValue * 30 : config.accountAgeMinValue) >= 365}
-            <p class="text-2xs text-amber-500 leading-relaxed">
+            <p class="text-2xs text-warning leading-relaxed">
               Seuil d'un an ou plus : une grande partie des arrivées légitimes sera concernée. Vérifie l'unité.
             </p>
           {/if}
@@ -617,7 +617,7 @@
           </div>
 
           {#if config.rolePersistMode === 'LIST' && (config.rolePersistRoleIds ?? []).length === 0}
-            <p class="text-2xs text-amber-500 leading-relaxed">
+            <p class="text-2xs text-warning leading-relaxed">
               Aucun rôle sélectionné : personne ne retrouvera de rôle à son retour.
             </p>
           {/if}
@@ -902,7 +902,7 @@
                 <div class="flex flex-col gap-1.5 shrink-0">
                   <button
                     type="button"
-                    class="px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 hover:bg-emerald-500/25 disabled:opacity-50 transition-colors"
+                    class="px-2.5 py-1 rounded-lg text-xs font-medium bg-success/15 text-success border border-success/30 hover:bg-success/25 disabled:opacity-50 transition-colors"
                     disabled={busyAction !== null}
                     onclick={() => decideInvite(request, true)}
                   >
@@ -972,9 +972,9 @@
             </div>
 
             {#if lineage.trust.penalty > 0}
-              <div class="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5">
+              <div class="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2.5">
                 <p class="text-xs text-on-surface-variant leading-relaxed">
-                  Pénalité de confiance héritée : <span class="font-semibold text-amber-500">−{lineage.trust.penalty}</span>.
+                  Pénalité de confiance héritée : <span class="font-semibold text-warning">−{lineage.trust.penalty}</span>.
                   Parrain problématique au degré {lineage.trust.depth} :
                   <code class="text-2xs">{lineage.trust.taintedBy}</code>.
                 </p>

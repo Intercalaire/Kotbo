@@ -691,7 +691,7 @@
                                             </span>
                                           {/if}
                                           {#if art.published}
-                                            <span class="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400">
+                                            <span class="rounded-full bg-success/10 px-2.5 py-1 text-xs font-semibold text-emerald-800">
                                               {m.news_badge_published()}
                                             </span>
                                           {:else}
@@ -786,7 +786,7 @@
                         </td>
                         <td class="px-6 py-5">
                           {#if art.published}
-                            <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400">
+                            <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-success/10 text-emerald-800">
                               {m.news_badge_published()}
                             </span>
                           {:else}
@@ -807,7 +807,7 @@
                               </button>
                               <button 
                                 onclick={() => handleDelete(art.id)} 
-                                class="p-2 text-on-surface-variant hover:text-red-500 hover:bg-red-500/5 rounded-xl transition-all"
+                                class="p-2 text-on-surface-variant hover:text-error hover:bg-error/5 rounded-xl transition-all"
                                 title={m.reaction_roles_delete_tooltip()}
                               >
                                 <Papicon icon="trash" size={16} />
@@ -993,7 +993,7 @@
                           {#if canEdit}
                             <button
                               onclick={() => handleDeleteConfig(config.id)}
-                              class="inline-flex items-center gap-2 rounded-full border border-outline-variant/10 bg-transparent px-3 py-1.5 text-xs font-semibold text-on-surface-variant hover:border-red-500/20 hover:text-red-500 transition-all"
+                              class="inline-flex items-center gap-2 rounded-full border border-outline-variant/10 bg-transparent px-3 py-1.5 text-xs font-semibold text-on-surface-variant hover:border-error/20 hover:text-error transition-all"
                               title={m.reaction_roles_delete_tooltip()}
                             >
                               <Papicon icon="trash" size={14} />

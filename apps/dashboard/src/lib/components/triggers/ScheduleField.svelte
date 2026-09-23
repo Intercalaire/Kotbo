@@ -72,7 +72,7 @@
       {value}
       oninput={(event) => onChange(event.currentTarget.value)}
       placeholder="0 9 * * *"
-      class="{control} w-44 font-mono {value.trim() && !isValidCron(value) ? 'border-amber-500/60' : ''}"
+      class="{control} w-44 font-mono {value.trim() && !isValidCron(value) ? 'border-warning/60' : ''}"
     />
     <span class="text-2xs text-on-surface-variant/70">
       {value.trim() && !isValidCron(value) ? m.wf_schedule_invalid() : m.wf_schedule_raw_hint()}

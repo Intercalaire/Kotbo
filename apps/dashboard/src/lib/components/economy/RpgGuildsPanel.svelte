@@ -199,7 +199,7 @@
                   {#each rpgGuild.members as member (member.userId)}
                     <li class="flex items-center justify-between gap-3 text-xs bg-surface-container-high/40 rounded-lg px-3 py-2">
                       <span class="flex items-center gap-2 min-w-0">
-                        {#if member.userId === rpgGuild.ownerId}<Papicon icon="Crown" size={12} class="text-amber-400" />{/if}
+                        {#if member.userId === rpgGuild.ownerId}<Papicon icon="Crown" size={12} class="text-warning" />{/if}
                         <span class="truncate font-semibold">{member.displayName}</span>
                         <span class="text-on-surface-variant/50">{m.eco_player_level_xp({ level: member.level, xp: member.xp })}</span>
                       </span>

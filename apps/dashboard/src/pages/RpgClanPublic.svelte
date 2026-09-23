@@ -176,10 +176,10 @@
         {#if raid?.status === 'OPEN'}
           <div class="flex flex-wrap items-baseline justify-between gap-2">
             <h2 class="text-lg font-semibold flex items-center gap-2">
-              <Papicon icon="Crown" size={18} class="text-red-400" />
+              <Papicon icon="Crown" size={18} class="text-error" />
               {raid.bossName}
             </h2>
-            <span class="text-body-sm font-semibold text-red-400">{m.rpg_public_raid_closes({ time: countdown(raid.closesAt) })}</span>
+            <span class="text-body-sm font-semibold text-error">{m.rpg_public_raid_closes({ time: countdown(raid.closesAt) })}</span>
           </div>
           <p class="text-xs text-on-surface-variant/60">
             {raidIsClanWide ? m.rpg_public_raid_open({ level: raid.bossLevel }) : m.rpg_public_raid_guild_mode({ level: raid.bossLevel })}
@@ -359,7 +359,7 @@
                     </span>
                     <span class="text-on-surface-variant/60">
                       {progress.current.toLocaleString()} / {progress.target.toLocaleString()}
-                      {#if progress.completed}<span class="text-emerald-400 ml-1">{m.rpg_public_quest_done()}</span>{/if}
+                      {#if progress.completed}<span class="text-success ml-1">{m.rpg_public_quest_done()}</span>{/if}
                     </span>
                   </div>
                   <div class="h-2 rounded-full bg-outline-variant/15 overflow-hidden">

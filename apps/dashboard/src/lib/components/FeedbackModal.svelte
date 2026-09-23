@@ -137,7 +137,7 @@
   {#if successResult}
     <!-- Success screen -->
     <div class="p-6 space-y-6 text-center max-w-md mx-auto relative z-10">
-      <div class="w-16 h-16 bg-emerald-500/10 text-emerald-500 dark:bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-2 border border-emerald-500/20">
+      <div class="w-16 h-16 bg-success/10 text-success rounded-full flex items-center justify-center mx-auto mb-2 border border-success/20">
         <Papicon icon="check_circle" size={32} />
       </div>
       
@@ -153,8 +153,8 @@
           </p>
         {/if}
       {:else}
-        <div class="p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl space-y-2 text-left">
-          <p class="text-sm font-semibold text-amber-500 flex items-center gap-1.5">
+        <div class="p-4 bg-warning/5 border border-warning/20 rounded-xl space-y-2 text-left">
+          <p class="text-sm font-semibold text-warning flex items-center gap-1.5">
             {m.d1_fb_action_required()}
           </p>
           <p class="text-xs text-on-surface-variant leading-relaxed">
