@@ -1095,13 +1095,15 @@ export async function sellShopItem(guildId: string, userId: string, itemId: stri
       select: { quantity: true },
     });
 
+    if (!stock || stock.quantity <= 0) throw new Error('Vous ne possédez plus cet objet dans votre inventaire.');
+
     // Les exemplaires d'un même objet s'empilent sur une seule ligne, et un seul peut être
     // porté : on refuse seulement de vendre le dernier, celui qui occupe l'emplacement.
-    if (isItemEquipped(current, item.id) && (stock?.quantity ?? 0) <= 1) {
+    if (isItemEquipped(current, item.id) && stock.quantity <= 1) {
       throw new Error("Vous ne pouvez pas vendre un objet équipé. Déséquipez-le d'abord depuis l'onglet Inventaire de `/rpg`.");
     }
 
-    if (options.minOwned !== undefined && (!stock || stock.quantity < options.minOwned)) {
+    if (options.minOwned !== undefined && stock.quantity < options.minOwned) {
       throw new Error('Cet exemplaire a déjà été vendu ou utilisé.');
     }
 

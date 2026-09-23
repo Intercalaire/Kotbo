@@ -262,6 +262,22 @@ export async function craftRecipe(guildId: string, userId: string, recipeId: str
   await prisma.$transaction(async (tx) => {
     await lockRpgProfile(tx, profile.id);
 
+    // Un ingrédient peut être une pièce d'équipement : l'exemplaire porté ne se consomme
+    // pas, sinon l'emplacement désignerait un objet que le joueur ne possède plus et en
+    // garderait pourtant les statistiques.
+    const current = await tx.rpgProfile.findUniqueOrThrow({ where: { id: profile.id } });
+    const worn = new Set(equippedItemIds(current));
+    for (const consumption of consumptions) {
+      if (!worn.has(consumption.itemId)) continue;
+      const stock = await tx.rpgInventoryItem.findUnique({
+        where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: consumption.itemId } },
+        select: { quantity: true },
+      });
+      if ((stock?.quantity ?? 0) - consumption.quantity < 1) {
+        throw new Error(`« ${consumption.itemName} » est équipé : déséquipez-le ou procurez-vous un exemplaire de plus.`);
+      }
+    }
+
     for (const consumption of consumptions) {
       const taken = await takeInventoryQuantity(tx, profile.id, consumption.itemId, consumption.quantity);
       if (!taken) throw new Error(`Matériau manquant : ${consumption.itemName}.`);
