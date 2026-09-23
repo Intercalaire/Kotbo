@@ -5,6 +5,8 @@
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
@@ -528,29 +530,13 @@
       </section>
     </div>
   {:else}
-    <!-- Tab Switcher -->
-    <div class="flex border-b border-outline-variant/20 mb-8 shrink-0">
-      <button 
-        onclick={() => gotoTab('/news', 'articles', 'articles')}
-        class="tab-button {activeTab === 'articles' ? 'active' : ''}"
-      >
-        {m.news_tab_articles()}
-        {#if activeTab === 'articles'}
-          <div class="absolute bottom-0 left-8 right-8 h-0.5 bg-primary rounded-t-full"></div>
-        {/if}
-      </button>
-      {#if !isPublicView}
-        <button 
-          onclick={() => gotoTab('/news', 'configs', 'articles')}
-          class="tab-button {activeTab === 'configs' ? 'active' : ''}"
-        >
-          {m.news_tab_configs()}
-          {#if activeTab === 'configs'}
-            <div class="absolute bottom-0 left-8 right-8 h-0.5 bg-primary rounded-t-full"></div>
-          {/if}
-        </button>
-      {/if}
-    </div>
+    <Tabs
+      label={m.news_page_title()}
+      class="mb-8"
+      tabs={pageTabItems('/news', (id) => id !== 'configs' || !isPublicView)}
+      active={activeTab}
+      onchange={(id) => gotoTab('/news', id, 'articles')}
+    />
 
     {#if activeTab === 'articles'}
       <!-- LIST VIEW -->

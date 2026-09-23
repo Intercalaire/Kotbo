@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import { fetchMarketplaceData } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
@@ -110,22 +112,15 @@
   </div>
 
   <!-- ======================== TABS ======================== -->
-  <div class="tab-group w-fit">
-    <button
-      class="px-5 py-2.5 rounded-xl text-body-sm font-medium transition-all flex items-center gap-1.5 {tab === 'listings' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
-      onclick={() => gotoTab('/marketplace', 'listings', 'listings')}
-    >
-      <Papicon icon="grid" size={14} />
-      {m.mar_tab_listings({ count: data.activeListings.length })}
-    </button>
-    <button
-      class="px-5 py-2.5 rounded-xl text-body-sm font-medium transition-all flex items-center gap-1.5 {tab === 'history' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
-      onclick={() => gotoTab('/marketplace', 'history', 'listings')}
-    >
-      <Papicon icon="clock" size={14} />
-      {m.mar_tab_history({ count: data.recentTransactions.length })}
-    </button>
-  </div>
+  <Tabs
+    label={m.mar_page_title()}
+    tabs={pageTabItems('/marketplace').map((item) => ({
+      ...item,
+      badge: item.id === 'listings' ? data.activeListings.length : data.recentTransactions.length,
+    }))}
+    active={tab}
+    onchange={(id) => gotoTab('/marketplace', id, 'listings')}
+  />
 
   <!-- ======================== TAB: LISTINGS ======================== -->
   {#if tab === 'listings'}

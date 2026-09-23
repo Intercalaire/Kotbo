@@ -97,8 +97,8 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
   ],
 
   '/security/filters/nicknames': [
-    { id: 'custom', label: () => m.nm_tab_custom(), icon: 'user' },
-    { id: 'global', label: () => m.nm_tab_global(), icon: 'globe' },
+    { id: 'custom', label: () => m.nm_tab_custom_label(), icon: 'user' },
+    { id: 'global', label: () => m.nm_tab_global_label(), icon: 'globe' },
   ],
 
   '/security/accounts': [
@@ -149,8 +149,8 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
   ],
 
   '/marketplace': [
-    { id: 'listings', label: () => m.mar_tab_listings(), icon: 'grid' },
-    { id: 'history', label: () => m.mar_tab_history(), icon: 'clock' },
+    { id: 'listings', label: () => m.mar_tab_listings_label(), icon: 'grid' },
+    { id: 'history', label: () => m.mar_tab_history_label(), icon: 'clock' },
   ],
 
   // ── Communauté ────────────────────────────────────────────────────────────

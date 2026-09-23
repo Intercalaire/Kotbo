@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import { fetchPulseData, refreshPulse, fetchPredictions } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
   import { m } from '../lib/i18n';
@@ -119,12 +121,6 @@
     const _path = $router.path;
     activeTab = resolveTabFromUrl('/pulse', pulseTabs, 'apercu') as TabId;
   });
-
-  const tabs: { id: TabId; label: () => string; icon: string }[] = [
-    { id: 'apercu', label: () => m.pulse_tab_overview(), icon: 'layout' },
-    { id: 'sante', label: () => m.pulse_tab_health(), icon: 'heart' },
-    { id: 'predictions', label: () => m.pulse_tab_predictions(), icon: 'trending-up' },
-  ];
 
   /**
    * Le diagnostic porte toujours sur la dernière journée **complète** : score,
@@ -328,17 +324,13 @@
   {/snippet}
 
   <!-- ======================== TABS ======================== -->
-  <div class="tab-group w-fit mb-6">
-    {#each tabs as tab (tab.id)}
-      <button
-        class="tab-button {activeTab === tab.id ? 'active' : ''}"
-        onclick={() => gotoTab('/pulse', tab.id, 'apercu')}
-      >
-        <Papicon icon={tab.icon} size={15} />
-        {tab.label()}
-      </button>
-    {/each}
-  </div>
+  <Tabs
+    label={m.pulse_title()}
+    class="mb-6"
+    tabs={pageTabItems('/pulse')}
+    active={activeTab}
+    onchange={(id) => gotoTab('/pulse', id, 'apercu')}
+  />
 
   {#if loading}
     <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">

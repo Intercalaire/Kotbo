@@ -3,6 +3,8 @@ import { m } from '../lib/i18n';
 import { onMount } from 'svelte';
 import { router } from 'tinro';
 import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+import { pageTabItems } from '../lib/config/pageTabs';
+import { Tabs } from '../lib/components/ui';
 import Papicon from '../lib/components/Papicon.svelte';
 import {
   fetchChannelHealth,
@@ -223,35 +225,13 @@ onMount(async () => {
   {/snippet}
 
 <!-- ======================== TABS ======================== -->
-<div class="tab-group w-fit mb-6">
-  <button
-    class="tab-button {activeTab === 'accueil' ? 'active' : ''}"
-    onclick={() => gotoTab('/channel-health', 'accueil', DEFAULT_TAB)}
-  >
-    <Papicon icon="sliders-horizontal" size={15} /> {m.channel_health_tab_presets()}
-  </button>
-  <button
-    class="tab-button {activeTab === 'overview' ? 'active' : ''}"
-    onclick={() => gotoTab('/channel-health', 'overview', DEFAULT_TAB)}
-  >
-    <Papicon icon="pie-chart" size={15} /> {m.channel_health_tab_overview()}
-  </button>
-  <button
-    class="tab-button {activeTab === 'alerts' ? 'active' : ''}"
-    onclick={() => gotoTab('/channel-health', 'alerts', DEFAULT_TAB)}
-  >
-    <Papicon icon="bell" size={15} /> {m.channel_health_tab_alerts()}
-    {#if data?.pendingAlerts?.length > 0}
-      <span class="px-1.5 py-0.5 bg-red-500 text-white text-2xs font-bold rounded-full leading-none">{data.pendingAlerts.length}</span>
-    {/if}
-  </button>
-  <button
-    class="tab-button {activeTab === 'config' ? 'active' : ''}"
-    onclick={() => gotoTab('/channel-health', 'config', DEFAULT_TAB)}
-  >
-    <Papicon icon="settings" size={15} /> {m.channel_health_tab_config()}
-  </button>
-</div>
+<Tabs
+  label={m.channel_health_page_title()}
+  class="mb-6"
+  tabs={pageTabItems('/channel-health').map((item) => item.id === 'alerts' && data?.pendingAlerts?.length ? { ...item, badge: data.pendingAlerts.length } : item)}
+  active={activeTab}
+  onchange={(id) => gotoTab('/channel-health', id, DEFAULT_TAB)}
+/>
 
 <!-- ======================== CONTENT ======================== -->
 {#if loading}

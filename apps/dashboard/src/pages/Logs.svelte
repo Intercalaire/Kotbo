@@ -3,6 +3,8 @@
   import { channelDisplayName } from '../lib/channelUtils';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { canViewFeature } from '../lib/permissions.svelte';
   import { hideUserIds, parseDetailsMetadata, parseDetailsStructure } from '../lib/logDetails';
@@ -500,32 +502,6 @@
 >
   {#snippet actions()}
     <div class="flex items-center gap-3">
-      <!-- Tabs Selector -->
-      <div class="inline-flex bg-surface-container-high/60 border border-outline-variant/10 rounded-lg p-1 gap-1">
-        <button
-          type="button"
-          onclick={() => gotoTab('/logs', 'logs', 'logs')}
-          class="tab-button {activeTab === 'logs' ? 'active' : ''}"
-        >
-          {m.lg_tab_journal()}
-        </button>
-        <button
-          type="button"
-          onclick={() => gotoTab('/logs', 'audit', 'logs')}
-          class="tab-button {activeTab === 'audit' ? 'active' : ''}"
-        >
-          {m.audit_tab()}
-        </button>
-        {#if canManageSettings}
-          <button
-            type="button"
-            onclick={() => gotoTab('/logs', 'config', 'logs')}
-            class="tab-button {activeTab === 'config' ? 'active' : ''}"
-          >
-            {m.lg_tab_config()}
-          </button>
-        {/if}
-      </div>
 
       <RefreshButton
         onClick={() => dashboardStore.refresh()}
@@ -536,6 +512,13 @@
       />
     </div>
   {/snippet}
+
+  <Tabs
+    label={m.lg_page_title()}
+    tabs={pageTabItems('/logs', (id) => id !== 'config' || canManageSettings)}
+    active={activeTab}
+    onchange={(id) => gotoTab('/logs', id, 'logs')}
+  />
 
 {#if activeTab === 'audit'}
 <!-- Audit structurel : autonome, charge ses propres données -->

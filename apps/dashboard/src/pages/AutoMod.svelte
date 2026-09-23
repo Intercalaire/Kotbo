@@ -2,6 +2,10 @@
   import { channelDisplayName } from '../lib/channelUtils';
   import { m } from '../lib/i18n';
   import { onMount, onDestroy, untrack } from 'svelte';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
@@ -20,7 +24,15 @@
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
-  let activeTab = $state('bot-filters');
+  const FILTER_TABS = ['bot', 'discord', 'security', 'behavioral', 'exceptions'] as const;
+  let activeTab = $state<string>('bot');
+
+  // L'onglet vit dans l'URL, comme ailleurs : la palette de commandes propose
+  // /security/filters/discord, qui ouvrait jusqu'ici toujours le premier onglet.
+  $effect(() => {
+    const _path = $router.path;
+    activeTab = resolveTabFromUrl('/security/filters', FILTER_TABS, 'bot');
+  });
 
   const canManageSettings = $derived(
     !!dashboardStore.state.featureAccess?.automod?.canConfigure
@@ -292,51 +304,14 @@
       <LoadingHint context="config" />
     </div>
   {:else}
-    <!-- Navigation Tabs -->
-    <div class="tab-group w-fit">
-      <button
-        type="button"
-        onclick={() => activeTab = 'bot-filters'}
-        class="tab-button {activeTab === 'bot-filters' ? 'active' : ''}"
-      >
-        <Papicon icon="Shield" size={14} />
-        {m.am_tab_bot_filters()}
-      </button>
-      <button
-        type="button"
-        onclick={() => activeTab = 'discord-filters'}
-        class="tab-button {activeTab === 'discord-filters' ? 'active' : ''}"
-      >
-        <Papicon icon="MessageSquare" size={14} />
-        {m.am_tab_discord_filters()}
-      </button>
-      <button
-        type="button"
-        onclick={() => activeTab = 'security'}
-        class="tab-button {activeTab === 'security' ? 'active' : ''}"
-      >
-        <Papicon icon="Lock" size={14} />
-        {m.am_tab_security()}
-      </button>
-      <button
-        type="button"
-        onclick={() => activeTab = 'behavioral'}
-        class="tab-button {activeTab === 'behavioral' ? 'active' : ''}"
-      >
-        <Papicon icon="Radar" size={14} />
-        {m.am_tab_behavioral()}
-      </button>
-      <button
-        type="button"
-        onclick={() => activeTab = 'exceptions'}
-        class="tab-button {activeTab === 'exceptions' ? 'active' : ''}"
-      >
-        <Papicon icon="Unlock" size={14} />
-        {m.am_tab_exceptions()}
-      </button>
-    </div>
+    <Tabs
+      label={m.am_page_title()}
+      tabs={pageTabItems('/security/filters')}
+      active={activeTab}
+      onchange={(id) => gotoTab('/security/filters', id, 'bot')}
+    />
 
-    {#if activeTab === 'bot-filters'}
+    {#if activeTab === 'bot'}
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in duration-300">
         <!-- Left Column: Primary Chat Filters -->
         <div class="space-y-8">
@@ -628,7 +603,7 @@
         </div>
       </div>
 
-    {:else if activeTab === 'discord-filters'}
+    {:else if activeTab === 'discord'}
       <div class="space-y-6 animate-in fade-in duration-300">
         <!-- Native Discord AutoMod Header -->
         <div class="bg-surface-container-low/40 p-6 rounded-xl border border-outline-variant/20 flex flex-col md:flex-row md:items-center gap-4">

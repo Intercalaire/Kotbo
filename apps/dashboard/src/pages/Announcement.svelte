@@ -4,6 +4,8 @@
   import { onMount, onDestroy, untrack } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -605,44 +607,12 @@
       <LoadingHint context="config" />
     </div>
   {:else}
-    <!-- Tabs Header -->
-    <div class="tab-group w-fit">
-      <button
-        onclick={() => gotoTab(ANNOUNCE_BASE, 'welcome', 'welcome')}
-        class="tab-button {activeTab === 'welcome' ? 'active' : ''}"
-      >
-        <Papicon icon="DoorOpen" size={14} />
-        {m.announcements_tab_welcome()}
-      </button>
-      <button
-        onclick={() => gotoTab(ANNOUNCE_BASE, 'leave', 'welcome')}
-        class="tab-button {activeTab === 'leave' ? 'active' : ''}"
-      >
-        <Papicon icon="Logout" size={14} />
-        {m.announcements_tab_leave()}
-      </button>
-      <button
-        onclick={() => gotoTab(ANNOUNCE_BASE, 'boost', 'welcome')}
-        class="tab-button {activeTab === 'boost' ? 'active' : ''}"
-      >
-        <Papicon icon="Zap" size={14} />
-        {m.announcements_tab_boost()}
-      </button>
-      <button
-        onclick={() => gotoTab(ANNOUNCE_BASE, 'autoroles', 'welcome')}
-        class="tab-button {activeTab === 'autoroles' ? 'active' : ''}"
-      >
-        <Papicon icon="Shield" size={14} />
-        {m.announcements_tab_autoroles()}
-      </button>
-      <button
-        onclick={() => gotoTab(ANNOUNCE_BASE, 'thread', 'welcome')}
-        class="tab-button {activeTab === 'thread' ? 'active' : ''}"
-      >
-        <Papicon icon="chat" size={14} />
-        {m.announcements_tab_thread()}
-      </button>
-    </div>
+    <Tabs
+      label={m.announcements_page_title()}
+      tabs={pageTabItems('/announcement')}
+      active={activeTab}
+      onchange={(id) => gotoTab(ANNOUNCE_BASE, id, 'welcome')}
+    />
 
     <!-- Guides Box (Contextual) -->
     <section class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-xl space-y-2">

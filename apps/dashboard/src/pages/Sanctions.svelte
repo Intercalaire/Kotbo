@@ -3,6 +3,8 @@
   import { onMount, onDestroy, untrack } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { canModerateFeature, canViewFeature } from '../lib/permissions.svelte';
@@ -1123,22 +1125,12 @@
   {/snippet}
 
   <div class="space-y-8">
-    <div class="tab-group w-fit">
-      <button
-        onclick={() => gotoTab('/security/sanctions', 'sanctions', 'sanctions')}
-        class="tab-button {activeTab === 'sanctions' ? 'active' : ''}"
-      >
-        {m.sc_tab_history()}
-      </button>
-      {#if canManageSettings}
-        <button
-          onclick={() => gotoTab('/security/sanctions', 'settings', 'sanctions')}
-          class="tab-button {activeTab === 'settings' ? 'active' : ''}"
-        >
-          {m.sc_tab_configuration()}
-        </button>
-      {/if}
-    </div>
+    <Tabs
+      label={m.sc_page_title()}
+      tabs={pageTabItems('/security/sanctions', (id) => id !== 'settings' || canManageSettings)}
+      active={activeTab}
+      onchange={(id) => gotoTab('/security/sanctions', id, 'sanctions')}
+    />
 
     {#if activeTab === 'sanctions'}
       <section class="section-card-flush font-inter">

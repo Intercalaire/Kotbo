@@ -11,6 +11,8 @@
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import SectionCard from '../lib/components/SectionCard.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -1305,22 +1307,12 @@
   <InlineFeedback state={actionState} />
 
   {#if canManageSettings}
-    <nav class="tab-group w-fit">
-      <button onclick={() => gotoTab('/giveaways', 'concours', DEFAULT_TAB)} class="tab-button {activeTab === 'concours' ? 'active' : ''}">
-        <Papicon icon="Sparkles" size={16} />
-        {m.giv_tab_giveaways()}
-      </button>
-      <button onclick={() => gotoTab('/giveaways', 'modeles', DEFAULT_TAB)} class="tab-button {activeTab === 'modeles' ? 'active' : ''}">
-        <Papicon icon="Copy" size={16} />
-        {m.giv_tab_templates()}
-      </button>
-      {#if canEditConfig}
-        <button onclick={() => gotoTab('/giveaways', 'configuration', DEFAULT_TAB)} class="tab-button {activeTab === 'configuration' ? 'active' : ''}">
-          <Papicon icon="Settings" size={16} />
-          {m.giv_tab_config()}
-        </button>
-      {/if}
-    </nav>
+    <Tabs
+      label={m.giv_page_title()}
+      tabs={pageTabItems('/giveaways', (id) => id !== 'configuration' || canEditConfig)}
+      active={activeTab}
+      onchange={(id) => gotoTab('/giveaways', id, DEFAULT_TAB)}
+    />
   {/if}
 
   {#if loading}
