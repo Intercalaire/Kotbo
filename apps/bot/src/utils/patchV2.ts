@@ -391,6 +391,10 @@ const patches: PatchItem[] = [
   { target: discord.DMChannel as unknown as { prototype: Record<string, unknown> }, methods: ['send'] },
   { target: discord.ThreadChannel as unknown as { prototype: Record<string, unknown> }, methods: ['send'] },
   { target: discord.NewsChannel as unknown as { prototype: Record<string, unknown> }, methods: ['send'] },
+  // Le chat des salons vocaux aussi : un message envoye en legacy puis edite
+  // passerait en V2 a l'edition, et Discord refuse alors son `content` d'origine.
+  { target: discord.VoiceChannel as unknown as { prototype: Record<string, unknown> }, methods: ['send'] },
+  { target: discord.StageChannel as unknown as { prototype: Record<string, unknown> }, methods: ['send'] },
   { target: discord.User as unknown as { prototype: Record<string, unknown> }, methods: ['send'] },
   { target: discord.WebhookClient as unknown as { prototype: Record<string, unknown> }, methods: ['send'] },
   { target: discord.Message as unknown as { prototype: Record<string, unknown> }, methods: ['reply', 'edit'] },
