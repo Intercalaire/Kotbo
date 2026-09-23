@@ -85,6 +85,12 @@ interface TempVoiceModPermissionsConfigView {
   canKickOrBan: boolean;
   canReserve: boolean;
   canTransfer: boolean;
+  /**
+   * Pas une permission modérateur : un choix de présentation des
+   * sous-panneaux éphémères. Défaut `false` (comportement livré), à l'inverse
+   * des sept permissions ci-dessus qui valent `true` par défaut.
+   */
+  panelCompactMode: boolean;
 }
 
 /** `@default` du modèle Prisma `TempVoiceAccessRequestConfig`. */
@@ -106,6 +112,9 @@ const TEMP_VOICE_MOD_PERMISSIONS_DEFAULTS: TempVoiceModPermissionsConfigView = {
   canKickOrBan: true,
   canReserve: true,
   canTransfer: true,
+  // Pas une permission : le comportement livré est l'éphémère multiple, donc
+  // `false`, contrairement aux sept permissions ci-dessus qui valent `true`.
+  panelCompactMode: false,
 };
 
 /**
@@ -151,6 +160,7 @@ function viewTempVoiceModPermissionsConfig(
     canKickOrBan: row.canKickOrBan,
     canReserve: row.canReserve,
     canTransfer: row.canTransfer,
+    panelCompactMode: row.panelCompactMode,
   };
 }
 
@@ -206,7 +216,7 @@ function normalizeTempVoiceAccessRequestInput(
   return { data };
 }
 
-/** Valide le payload entrant pour `tempVoiceModPermissions` : sept booléens, rien d'autre. */
+/** Valide le payload entrant pour `tempVoiceModPermissions` : huit booléens, rien d'autre. */
 function normalizeTempVoiceModPermissionsInput(
   raw: unknown,
 ): { data: Partial<TempVoiceModPermissionsConfigView> } | { error: string } {
@@ -223,6 +233,7 @@ function normalizeTempVoiceModPermissionsInput(
     'canKickOrBan',
     'canReserve',
     'canTransfer',
+    'panelCompactMode',
   ];
   for (const key of keys) {
     if (Object.prototype.hasOwnProperty.call(body, key)) {

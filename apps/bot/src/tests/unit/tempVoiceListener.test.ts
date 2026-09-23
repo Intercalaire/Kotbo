@@ -237,9 +237,13 @@ function fakeSelectInteraction(options: {
     replied: false,
     isButton: () => false,
     isModalSubmit: () => false,
+    // Trois familles de menus, et le module les distingue par leur type avant
+    // meme de lire l'identifiant : un banc qui rend `false` partout laisse
+    // l'interaction tomber dans le vide, sans erreur et sans effet.
     isRoleSelectMenu: () => options.customId.includes('reserve'),
-    isUserSelectMenu: () => !options.customId.includes('reserve'),
-    isStringSelectMenu: () => false,
+    isStringSelectMenu: () => options.customId.includes('mode_select'),
+    isUserSelectMenu: () => !options.customId.includes('reserve')
+      && !options.customId.includes('mode_select'),
     isMessageComponent: () => true,
     isRepliable: () => true,
     message: { edit: mock(async () => undefined) },
@@ -2716,8 +2720,9 @@ describe('Réécriture du panneau : anciens messages et composants V2', () => {
       await listeners.get(Events.InteractionCreate)?.(interaction);
     }
 
-    // L'anti-rebond est de 2 s : c'est le vrai chemin, minuteur compris.
-    await new Promise((resolve) => setTimeout(resolve, 2_200));
+    // La réécriture part sur le front montant : il suffit de laisser la boucle
+    // d'événements terminer les envois, plus d'attendre une fenêtre entière.
+    await new Promise((resolve) => setTimeout(resolve, 400));
 
     // 1. L'ancien panneau part et un neuf le remplace.
     expect(ancien.delete).toHaveBeenCalled();
@@ -2789,4 +2794,253 @@ describe('Fraîcheur des sous-panneaux', () => {
     tempChannels.delete(CHANNEL);
     guildConfig = null;
   }, 10_000);
+});
+
+describe('Mode compact des sous-panneaux', () => {
+  /** Un clic sur un bouton qui vit dans un sous-panneau éphémère. */
+  function clicDansSousPanneau(channel: unknown, guild: unknown) {
+    const scene = fakeButtonInteraction('lock', { channel, guild, member: fakeTarget(OWNER, false) });
+    (scene.interaction as { message: Record<string, unknown> }).message = {
+      flags: { has: (drapeau: number) => drapeau === MessageFlags.Ephemeral },
+      edit: mock(async () => undefined),
+    };
+    return scene;
+  }
+
+  async function jouer(compact: boolean) {
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+    // Les sept permissions restent ouvertes : seul le mode d'affichage varie.
+    permissionsModerateur = {
+      canRename: true,
+      canChangeLimit: true,
+      canLock: true,
+      canChangeWriteMode: true,
+      canKickOrBan: true,
+      canReserve: true,
+      canTransfer: true,
+      panelCompactMode: compact,
+    };
+
+    const { channel } = fakeChannel();
+    const guild = fakeGuild(new Map());
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const scene = clicDansSousPanneau(channel, guild);
+    await listeners.get(Events.InteractionCreate)?.(scene.interaction);
+
+    tempChannels.delete(CHANNEL);
+    permissionsModerateur = null;
+    guildConfig = null;
+    return scene;
+  }
+
+  test('le mode compact reprend le sous-panneau au lieu d\'empiler un message', async () => {
+    // `deferReply` crée un message de plus - trois éphémères pour une seule
+    // réservation. `deferUpdate` reprend celui qui porte le bouton.
+    const scene = await jouer(true);
+    expect(scene.calls).toContain('deferUpdate');
+    expect(scene.calls).not.toContain('defer');
+  }, 10_000);
+
+  test('sans le mode compact, rien ne change : un message de plus, comme avant', async () => {
+    // Le défaut ne doit rien changer pour les serveurs qui n'ont rien demandé.
+    const scene = await jouer(false);
+    expect(scene.calls).toContain('defer');
+    expect(scene.calls).not.toContain('deferUpdate');
+  }, 10_000);
+
+  test('en mode compact, la réponse porte un bouton de retour', async () => {
+    // Le verdict remplace le menu qui l'a provoqué : sans chemin de retour, la
+    // personne reste devant une phrase et plus aucun bouton.
+    const scene = await jouer(true);
+    const charges = (scene.interaction.editReply as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const composants = charges.flatMap((appel) => {
+      const charge = appel[0] as { components?: unknown[] } | undefined;
+      return charge?.components ?? [];
+    });
+    expect(composants.length).toBeGreaterThan(0);
+  }, 10_000);
+
+  test('sans le mode compact, la réponse ne pose aucun bouton de retour', async () => {
+    // Le sous-panneau est toujours là derrière : un « Retour » y renverrait
+    // depuis un message qui ne l'a jamais remplacé.
+    const scene = await jouer(false);
+    const charges = (scene.interaction.editReply as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const composants = charges.flatMap((appel) => {
+      const charge = appel[0] as { components?: unknown[] } | undefined;
+      return charge?.components ?? [];
+    });
+    expect(composants).toHaveLength(0);
+  }, 10_000);
+});
+
+describe('Vitesse de réécriture du panneau', () => {
+  function panneauDeSalon(id: string) {
+    const message = {
+      id: '778000000000000001',
+      flags: { has: (drapeau: number) => drapeau === MessageFlags.IsComponentsV2 },
+      edit: mock(async () => undefined),
+      delete: mock(async () => undefined),
+    };
+    const { channel } = fakeChannel();
+    channel.id = id;
+    (channel as { guild: Record<string, unknown> }).guild = {
+      id: GUILD,
+      roles: { everyone: { id: GUILD } },
+      channels: { fetch: mock(async () => null) },
+    };
+    (channel as { messages?: unknown }).messages = { fetch: mock(async () => message) };
+    tempChannels.set(id, { creatorId: OWNER, panneauId: message.id });
+    return { channel, message };
+  }
+
+  test('le panneau se réécrit sans attendre la fin de la fenêtre', async () => {
+    // L'anti-rebond n'avait pas de front montant : un clic sur « Verrouiller »
+    // laissait le panneau annoncer « Ouvert » pendant deux secondes pleines.
+    const { channel, message } = panneauDeSalon('930000000000000001');
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+
+    const { interaction } = fakeButtonInteraction('salon', {
+      channel,
+      guild: fakeGuild(new Map()),
+      member: fakeTarget(OWNER, false),
+    });
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+
+    // Bien en deçà de la fenêtre de coalescence : si la réécriture l'attendait,
+    // rien ne serait encore parti.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(message.edit).toHaveBeenCalled();
+
+    tempChannels.delete('930000000000000001');
+  }, 10_000);
+
+  test('la mention du propriétaire survit à la réécriture', async () => {
+    // Une édition remplace tous les composants : sans repasser la mention, la
+    // ligne « @propriétaire » disparaissait au premier changement d'état.
+    const { channel, message } = panneauDeSalon('930000000000000002');
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+
+    const { interaction } = fakeButtonInteraction('salon', {
+      channel,
+      guild: fakeGuild(new Map()),
+      member: fakeTarget(OWNER, false),
+    });
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    const appels = message.edit.mock.calls as unknown as unknown[][];
+    const charge = appels[0]?.[0] as { content?: string } | undefined;
+    expect(charge?.content).toBe(`<@${OWNER}>`);
+
+    tempChannels.delete('930000000000000002');
+  }, 10_000);
+
+  test('une rafale de clics ne produit qu\'un seul rattrapage', async () => {
+    // Le front montant ne doit pas se payer en écritures : Discord plafonne les
+    // éditions à cinq par tranche de cinq secondes et par salon.
+    const { channel, message } = panneauDeSalon('930000000000000003');
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    const guild = fakeGuild(new Map());
+
+    for (let i = 0; i < 6; i += 1) {
+      const { interaction } = fakeButtonInteraction('salon', {
+        channel,
+        guild,
+        member: fakeTarget(OWNER, false),
+      });
+      await listeners.get(Events.InteractionCreate)?.(interaction);
+    }
+
+    // Une fois la fenêtre refermée : un passage immédiat, un seul rattrapage.
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    expect(message.edit).toHaveBeenCalledTimes(2);
+
+    tempChannels.delete('930000000000000003');
+  }, 10_000);
+});
+
+describe('Modes d\'écriture : ce que le libellé promet', () => {
+  /**
+   * Un salon où quelqu'un a été « Autorisé ».
+   *
+   * `categoryTrustPatch` accorde cinq bits d'un coup, `SendMessages` compris :
+   * la personne peut donc écrire par une surcharge nominative, et non par
+   * @everyone. C'est ce qui rend le défaut invisible tant qu'on ne regarde que
+   * le patch pose sur @everyone.
+   */
+  async function basculerVers(mode: string) {
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+    const { channel, edits, seedOverwrite, syncFromGateway } = fakeChannel();
+    seedOverwrite(OTHER, fakeOverwrite(
+      PermissionFlagsBits.SendMessages | PermissionFlagsBits.Connect | PermissionFlagsBits.ViewChannel,
+      0n,
+    ));
+    (channel as { guild: Record<string, unknown> }).guild = {
+      id: GUILD,
+      roles: { everyone: { id: GUILD } },
+      channels: { fetch: mock(async () => { syncFromGateway(); return null; }) },
+    };
+
+    const guild = fakeGuild(new Map([[OTHER, fakeTarget(OTHER, false)]]));
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const { interaction } = fakeSelectInteraction({
+      customId: 'tempvoice:mode_select',
+      values: [mode],
+      channel,
+      member: fakeTarget(OWNER, false),
+      guild,
+    });
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+
+    tempChannels.delete(CHANNEL);
+    guildConfig = null;
+    return edits;
+  }
+
+  /** Le dernier patch écrit pour cette cible, ou `undefined`. */
+  function dernierPatch(edits: Array<{ id: string; patch: Record<string, unknown> }>, id: string) {
+    return [...edits].reverse().find((e) => e.id === id)?.patch;
+  }
+
+  test('« Personne » fait taire aussi ceux qui ont été autorisés', async () => {
+    // « Personne — y compris moi. Le salon devient un mur d'affichage. » Couper
+    // @everyone ne suffit pas : une autorisation accorde `SendMessages`
+    // nominativement, et une surcharge nominative prime sur @everyone.
+    const edits = await basculerVers('nobody');
+    // Exiger une ECRITURE : sans elle, le test passerait aussi bien quand le
+    // mode ne touche a rien - c'est-a-dire precisement quand le defaut est la.
+    const patch = dernierPatch(edits, OTHER);
+    expect(patch).toBeDefined();
+    expect(patch?.SendMessages).not.toBe(true);
+  });
+
+  test('« Moi seul » fait taire aussi ceux qui ont été autorisés', async () => {
+    // « Moi seul — personne d'autre ne peut écrire. »
+    const edits = await basculerVers('ownerOnly');
+    // Exiger une ECRITURE : sans elle, le test passerait aussi bien quand le
+    // mode ne touche a rien - c'est-a-dire precisement quand le defaut est la.
+    const patch = dernierPatch(edits, OTHER);
+    expect(patch).toBeDefined();
+    expect(patch?.SendMessages).not.toBe(true);
+  });
+
+  test('« Ceux qui sont en vocal » fait taire un autorisé qui n\'est pas connecté', async () => {
+    // Le mode suit la présence : une autorisation ne doit pas valoir laissez-
+    // passer permanent pour le chat, sans quoi le libellé ment aussi.
+    const edits = await basculerVers('inVoice');
+    // Exiger une ECRITURE : sans elle, le test passerait aussi bien quand le
+    // mode ne touche a rien - c'est-a-dire precisement quand le defaut est la.
+    const patch = dernierPatch(edits, OTHER);
+    expect(patch).toBeDefined();
+    expect(patch?.SendMessages).not.toBe(true);
+  });
 });

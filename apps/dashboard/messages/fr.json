@@ -2007,6 +2007,8 @@
   "cm_ar_admin_transfer": "Transférer",
   "cm_ar_admin_opt_staff": "Autorisé",
   "cm_ar_admin_opt_admin_only": "Admins seulement",
+  "cm_ar_admin_panel_compact_title": "Panneau compact",
+  "cm_ar_admin_panel_compact_desc": "Les sous-panneaux se réécrivent dans un seul message, avec un bouton Retour, au lieu d'en ouvrir un nouveau à chaque action.",
   "cm_embed_bullet_chat": "Chat",
   "cm_embed_bullet_chat_desc": "(ouvrir ou fermer le chat textuel du salon)",
   "cm_active_temp_channels_title": "Salons Temporaires Actifs",

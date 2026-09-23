@@ -177,6 +177,8 @@ export async function updateChannelsManagementConfig(
       canKickOrBan: boolean;
       canReserve: boolean;
       canTransfer: boolean;
+      /** Pas une permission : un choix de présentation. Défaut `false`. */
+      panelCompactMode: boolean;
     };
     honeypotEnabled?: boolean;
     honeypotChannelId?: string | null;

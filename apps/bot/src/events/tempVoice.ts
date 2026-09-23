@@ -79,6 +79,7 @@ import {
   peutRepondreDemande,
   ordreNotification,
   RegistreOriginesSurcharge,
+  membresAReduireAuSilence,
   decisionEntreeVocal,
   decisionSortieVocal,
   decisionRetraitAutorisation,
@@ -301,7 +302,13 @@ function oublierSalon(guildId: string, salonId: string): void {
  * ligne - les lire ici a la place d'une absence fermerait des portes que
  * personne n'a demande a fermer.
  */
-async function lireReglagesAdmin(guildId: string): Promise<ReglagesAdmin> {
+interface ReglagesModule {
+  reglages: ReglagesAdmin;
+  /** Un seul éphémère réécrit sur place, plutôt qu'un de plus par action. */
+  panneauCompact: boolean;
+}
+
+async function lireReglagesAdmin(guildId: string): Promise<ReglagesModule> {
   // try/catch et non `.catch()` : un modele absent du client fait lever
   // `.findUnique` de maniere SYNCHRONE, avant meme qu'une promesse existe - le
   // `.catch()` ne l'aurait jamais vu.
@@ -315,19 +322,24 @@ async function lireReglagesAdmin(guildId: string): Promise<ReglagesAdmin> {
     // tout permis pendant une coupure de base serait indiscernable d'un serveur
     // qui n'a jamais ouvert l'onglet.
     logger.warn('TempVoice', `Reglages moderateur illisibles pour ${guildId}, repli sur « tout autorise » :`, err);
-    return normaliserReglagesAdmin(undefined);
+    return { reglages: normaliserReglagesAdmin(undefined), panneauCompact: false };
   }
-  if (!ligne) return normaliserReglagesAdmin(undefined);
+  if (!ligne) return { reglages: normaliserReglagesAdmin(undefined), panneauCompact: false };
 
-  return normaliserReglagesAdmin({
-    renommer: ligne.canRename,
-    limite: ligne.canChangeLimit,
-    verrouiller: ligne.canLock,
-    modeEcriture: ligne.canChangeWriteMode,
-    reserver: ligne.canReserve,
-    expulserBannir: ligne.canKickOrBan,
-    transferer: ligne.canTransfer,
-  });
+  return {
+    reglages: normaliserReglagesAdmin({
+      renommer: ligne.canRename,
+      limite: ligne.canChangeLimit,
+      verrouiller: ligne.canLock,
+      modeEcriture: ligne.canChangeWriteMode,
+      reserver: ligne.canReserve,
+      expulserBannir: ligne.canKickOrBan,
+      transferer: ligne.canTransfer,
+    }),
+    // Aucune ligne, ou une lecture qui échoue : le mode empilé, celui qui a été
+    // livré. Personne n'a demandé qu'on lui change sa présentation.
+    panneauCompact: ligne.panelCompactMode === true,
+  };
 }
 
 /**
@@ -985,6 +997,10 @@ async function appliquerModeEcriture(
   const guildId = channel.guild?.id ?? '';
   const ancien = modeDuSalon(channel, entree);
 
+  // Les surcharges nominatives decident de qui doit se taire : les lire perimees
+  // laisserait ecrire quelqu'un qu'on vient tout juste d'autoriser.
+  await relireSalon(channel);
+
   const surcharges = surchargesModeEcriture(
     nouveau,
     categoryOverwriteFor(channel, guildId),
@@ -1013,6 +1029,20 @@ async function appliquerModeEcriture(
     if (retiree) originesSurcharge.oublier(guildId, channel.id, membreId);
   }
 
+  // Une surcharge nominative prime sur @everyone : sans ce passage, « Personne »
+  // laissait ecrire tous ceux qui avaient ete autorises. Seul le bit d'ecriture
+  // part - la personne reste autorisee a entrer.
+  for (const membreId of membresAReduireAuSilence(
+    nouveau,
+    surchargesMembresLues(channel, entree.creatorId),
+    presents,
+  )) {
+    const retiree = await poserSurcharge(channel, membreId, { SendMessages: null });
+    // La marque part avec le droit : sans cela, revenir en vocal ne reposerait
+    // aucune surcharge - le registre croirait le droit deja accorde.
+    if (retiree) originesSurcharge.oublier(guildId, channel.id, membreId);
+  }
+
   entree.modeEcriture = nouveau;
 
   // La mémoire du salon meurt avec le process. Sans cette ligne, « ceux qui
@@ -1037,6 +1067,9 @@ const ACTIONS_OUVERTES = new Set(['claim', 'demander']);
 interface ContextePanneau {
   role: RoleAgissant;
   reglages: ReglagesAdmin;
+  /** Réglage admin : un seul éphémère réécrit sur place, avec un bouton
+   *  « Retour », plutôt qu'un message de plus à chaque action. */
+  panneauCompact: boolean;
   /** Ce que le dashboard a réglé pour les demandes d'accès : qui répond, où, et
    *  avec quels délais. Membre du contexte pour qu'aucun appelant ne l'oublie. */
   demandes: ConfigDemandesAcces;
@@ -1656,7 +1689,7 @@ export function registerTempVoiceListener(client: Client): void {
     // tout permis.
     const ctxp: ContextePanneau = {
       role: await roleAgissant(guildId, actingMember, cache.creatorId),
-      reglages: await lireReglagesAdmin(guildId),
+      ...(await lireReglagesAdmin(guildId)),
       demandes: await lireConfigDemandes(guildId),
     };
 
@@ -1702,25 +1735,84 @@ function surMessageEphemere(interaction: RepliableInteraction): boolean {
   return Boolean(drapeaux?.has?.(MessageFlags.Ephemeral));
 }
 
-async function deferIfNeeded(interaction: RepliableInteraction): Promise<void> {
+async function deferIfNeeded(interaction: RepliableInteraction, compact = false): Promise<void> {
   if (interaction.deferred || interaction.replied) return;
 
   // `deferReply` crée un message de plus ; `deferUpdate` reprend celui qui porte
-  // le composant. Trois éphémères empilés pour une réservation — le menu, le
-  // choix, le verdict — deviennent un seul qui se réécrit.
-  if (surMessageEphemere(interaction)) {
+  // le composant. En mode compact, les trois éphémères d'une réservation — le
+  // menu, le choix, le verdict — n'en font plus qu'un.
+  if (compact && surMessageEphemere(interaction)) {
     await (interaction as unknown as { deferUpdate: () => Promise<unknown> }).deferUpdate().catch(() => null);
     return;
   }
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] }).catch(() => null);
 }
 
-async function respond(interaction: RepliableInteraction, content: string): Promise<void> {
+/** Les trois portes du panneau, vers lesquelles « Retour » sait ramener. */
+const ONGLETS_PANNEAU = ['salon', 'membres', 'propriete'] as const;
+type OngletPanneau = (typeof ONGLETS_PANNEAU)[number];
+
+/**
+ * De quel sous-panneau vient cette action.
+ *
+ * En mode compact, le verdict remplace le menu qui l'a provoqué : sans chemin
+ * de retour, la personne se retrouve devant une phrase et plus aucun bouton.
+ * La table est explicite plutôt que déduite d'un préfixe — un identifiant mal
+ * rangé enverrait vers la mauvaise porte sans rien casser, c'est-à-dire sans
+ * que personne le voie.
+ */
+const ONGLET_DORIGINE: Readonly<Record<string, OngletPanneau>> = {
+  bascule_verrou: 'salon',
+  mode_select: 'salon',
+  reserve: 'salon',
+  reserve_select: 'salon',
+  rename: 'salon',
+  limit: 'salon',
+  lock: 'salon',
+  unlock: 'salon',
+  chat: 'salon',
+  membre_select: 'membres',
+  m_kick: 'membres',
+  m_ban: 'membres',
+  m_trust: 'membres',
+  m_untrust: 'membres',
+  kick: 'membres',
+  ban: 'membres',
+  trust: 'membres',
+  m_transfer: 'propriete',
+  transfer: 'propriete',
+  claim: 'propriete',
+};
+
+const LIBELLES_ONGLETS: Readonly<Record<OngletPanneau, string>> = {
+  salon: 'Salon',
+  membres: 'Membres',
+  propriete: 'Propriété',
+};
+
+function rangeeRetour(onglet: OngletPanneau): ActionRowBuilder<MessageActionRowComponentBuilder> {
+  return new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`tempvoice:${onglet}`)
+      .setLabel(`Retour · ${LIBELLES_ONGLETS[onglet]}`)
+      .setEmoji('◀️')
+      .setStyle(ButtonStyle.Secondary),
+  );
+}
+
+async function respond(
+  interaction: RepliableInteraction,
+  content: string,
+  retour?: OngletPanneau | null,
+): Promise<void> {
   if (interaction.deferred || interaction.replied) {
-    // Les composants sont vidés : le verdict prend la place du menu qui l'a
-    // provoqué. Les laisser rendrait un sélecteur déjà consommé cliquable, et
-    // l'état, lui, se lit sur le panneau — qui vient d'être réécrit.
-    await interaction.editReply({ content, components: [], embeds: [] }).catch(() => null);
+    // En mode compact, le verdict prend la place du menu qui l'a provoqué :
+    // laisser ce menu rendrait cliquable un sélecteur déjà consommé, et le
+    // bouton « Retour » est ce qui évite de rester devant une phrase sans issue.
+    const charge = retour
+      ? { content, components: [rangeeRetour(retour)], embeds: [] }
+      : { content };
+    await interaction.editReply(charge).catch(() => null);
     return;
   }
   await interaction.reply({ content, flags: [MessageFlags.Ephemeral] }).catch(() => null);
@@ -2315,7 +2407,11 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
   const user = interaction.user;
 
   const ephemeral = { flags: [MessageFlags.Ephemeral] as const };
-  const reply = (content: string) => respond(interaction, content);
+  // En mode compact, la réponse remplace le sous-panneau : elle doit donc
+  // porter de quoi y revenir. En mode empilé elle ouvre un message de plus, et
+  // le sous-panneau est toujours là derrière — aucun bouton à ajouter.
+  const retourVers = ctx.ctxp.panneauCompact ? ONGLET_DORIGINE[action] ?? null : null;
+  const reply = (content: string) => respond(interaction, content, retourVers);
 
   // ─── Menu « Qui peut écrire » ───
   // L'action est comparée avant le type : un `switch` sur le type d'interaction
@@ -2373,7 +2469,7 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
       'm_trust',
       'm_untrust',
     ]);
-    if (ACKNOWLEDGE_FIRST.has(action)) await deferIfNeeded(interaction);
+    if (ACKNOWLEDGE_FIRST.has(action)) await deferIfNeeded(interaction, ctx.ctxp.panneauCompact);
     else if (ACQUITTER_EN_PLACE.has(action)) await acquitterMiseAJour(interaction);
 
     switch (action) {

@@ -79,6 +79,8 @@
     canKickOrBan: boolean;
     canReserve: boolean;
     canTransfer: boolean;
+    /** Pas une permission modérateur : un choix de présentation. Défaut `false`. */
+    panelCompactMode: boolean;
   }
 
   /** `@default` du modèle Prisma `TempVoiceAccessRequestConfig`. */
@@ -103,6 +105,10 @@
       canKickOrBan: true,
       canReserve: true,
       canTransfer: true,
+      // Pas une permission : le comportement livré est l'éphémère multiple,
+      // donc `false` - une ligne absente en base doit afficher l'interrupteur
+      // éteint, pas aligné sur les sept permissions ci-dessus.
+      panelCompactMode: false,
     };
   }
 
@@ -2367,6 +2373,26 @@
           </div>
 
           <p class="text-[10px] text-on-surface-variant/40">{m.cm_ar_admin_footer()}</p>
+
+          <!-- Panneau compact : pas une permission modérateur mais un choix de
+               présentation des sous-panneaux éphémères. Séparé des sept lignes
+               ci-dessus par ce séparateur, pas mélangé dans ADMIN_PERMISSION_ROWS. -->
+          <div class="border-t border-outline-variant/10 pt-6 mt-2 max-w-xl">
+            <div class="flex items-center justify-between gap-4 p-4 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl">
+              <div class="space-y-0.5">
+                <label for="panel-compact-mode-toggle" class="text-xs font-bold text-on-surface/80 block">{m.cm_ar_admin_panel_compact_title()}</label>
+                <p class="text-[10px] text-on-surface-variant/60">{m.cm_ar_admin_panel_compact_desc()}</p>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <input
+                  id="panel-compact-mode-toggle"
+                  type="checkbox"
+                  bind:checked={config.tempVoiceModPermissions.panelCompactMode}
+                  class="w-10 h-6 bg-surface-container-high rounded-full relative appearance-none cursor-pointer transition-all border border-outline-variant/20 checked:bg-primary before:content-[''] before:absolute before:h-4 before:w-4 before:rounded-full before:bg-white before:top-0.5 before:left-0.5 checked:before:translate-x-4 before:transition-all"
+                />
+              </div>
+            </div>
+          </div>
         </section>
 
       {:else if activeTab === 'honeypot'}

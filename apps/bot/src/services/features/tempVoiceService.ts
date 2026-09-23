@@ -1543,6 +1543,36 @@ export function nettoyagePresenceAuDemarrage(
 }
 
 /**
+ * Qui doit perdre son droit d'écrire nominatif quand le mode change.
+ *
+ * Couper `@everyone` ne suffit pas : une surcharge nominative prime toujours
+ * sur elle. Or « Autoriser » passe par `categoryTrustPatch`, qui accorde cinq
+ * bits d'un coup — `SendMessages` compris. Sans ce ménage, « Personne » laissait
+ * écrire tous ceux qui avaient été autorisés, et « Moi seul » voulait dire
+ * « moi et mes invités ». Le libellé mentait.
+ *
+ * Les trois modes restrictifs possèdent donc ce bit sur les surcharges de
+ * membres. Seul `inVoice` en épargne un, et seulement tant qu'il est connecté.
+ *
+ * On ne retire que le bit d'écriture : `Connect` et `ViewChannel` restent, donc
+ * la personne reste autorisée à entrer. Et rendre le bit plutôt que le refuser
+ * (`null`, pas `false`) fait qu'un retour à « Tout le monde » le lui redonne
+ * sans qu'on ait rien mémorisé — ce qu'un refus nommé, lui, survivrait.
+ */
+export function membresAReduireAuSilence(
+  mode: ModeEcriture,
+  surcharges: readonly SurchargeMembreLue[],
+  presents: readonly string[],
+): string[] {
+  if (mode === 'everyone') return [];
+  const ici = new Set(presents);
+  return surcharges
+    .filter((surcharge) => surcharge.accordeEcriture)
+    .filter((surcharge) => !(mode === 'inVoice' && ici.has(surcharge.userId)))
+    .map((surcharge) => surcharge.userId);
+}
+
+/**
  * Qui porte quelle origine, par salon. Rien n'est persisté ici : un salon
  * temporaire meurt avec ses marques. Si la refonte doit survivre à un
  * redémarrage du bot, c'est une table côté `packages/database` — et non un

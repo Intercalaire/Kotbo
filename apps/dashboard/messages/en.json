@@ -2007,6 +2007,8 @@
   "cm_ar_admin_transfer": "Transfer",
   "cm_ar_admin_opt_staff": "Allowed",
   "cm_ar_admin_opt_admin_only": "Admins only",
+  "cm_ar_admin_panel_compact_title": "Compact panel",
+  "cm_ar_admin_panel_compact_desc": "Sub-panels are rewritten in a single message, with a Back button, instead of opening a new one for every action.",
   "cm_embed_bullet_chat": "Chat",
   "cm_embed_bullet_chat_desc": "(open or close the channel text chat)",
   "cm_active_temp_channels_title": "Active temporary channels",
