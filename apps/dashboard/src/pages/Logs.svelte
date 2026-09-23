@@ -660,7 +660,7 @@
       <div class="space-y-2 w-full lg:max-w-2xl">
         <label class="text-xs font-semibold text-on-surface-variant ml-1" for="search">{m.lg_quick_search()}</label>
         <div class="relative top-1.5">
-          <Papicon icon="search" size={18} class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Papicon icon="search" size={18} class="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
           <FormInput
             id="search"
             type="text"

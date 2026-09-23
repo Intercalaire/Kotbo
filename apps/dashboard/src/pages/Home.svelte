@@ -1541,7 +1541,7 @@
               {:else if topMembers.length > 0}
                 {#each (analyticsData?.topMessageMembers || []).slice(0, memberCount) as member, i}
                   <div class="flex items-center gap-2.5">
-                    <span class="text-2xs font-medium {i === 0 ? 'text-warning' : i === 1 ? 'text-gray-400' : i === 2 ? 'text-orange-400' : 'text-on-surface-variant'} w-4 text-right shrink-0">{i + 1}</span>
+                    <span class="text-2xs font-medium {i === 0 ? 'text-warning' : i === 1 ? 'text-on-surface-variant' : i === 2 ? 'text-orange-400' : 'text-on-surface-variant'} w-4 text-right shrink-0">{i + 1}</span>
                     {#if member.avatarUrl}
                       <img src={member.avatarUrl} alt="" class="w-6 h-6 rounded-full shrink-0" />
                     {:else}

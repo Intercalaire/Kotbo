@@ -163,13 +163,13 @@
     <div class="space-y-2 w-full md:max-w-2xl">
       <label class="text-xs font-semibold text-on-surface-variant ml-1" for="search">{m.act_search_label()}</label>
       <div class="relative top-1.5">
-        <Papicon icon="search" size={18} class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <Papicon icon="search" size={18} class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
         <FormInput
           id="search"
           type="text"
           bind:value={searchQuery}
           placeholder={m.ctv_action_details_module_user()}
-          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all"
+          className="w-full pl-10 pr-4 py-2.5 bg-surface-container-low border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all"
         />
       </div>
     </div>
@@ -194,7 +194,7 @@
   <div class="overflow-x-auto">
     <table class="w-full text-left border-collapse">
       <thead>
-        <tr class="bg-slate-50 dark:bg-white/5">
+        <tr class="bg-surface-container-low dark:bg-white/5">
           <th class="px-6 py-5">
             <ColumnSortFilter
               label={m.act_col_timestamp()}
@@ -252,22 +252,22 @@
       <tbody class="divide-y divide-slate-50 dark:divide-slate-800">
         {#each filteredLogs as entry}
           {@const parsed = parseDetailsStructure(entry.details, logLabels)}
-          <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
+          <tr class="hover:bg-surface-container-low dark:hover:bg-white/5 transition-colors group">
             <td class="px-6 py-6">
               <div class="text-xs">
-                <p class="font-bold text-slate-800 dark:text-slate-200">{new Date(entry.dateIso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
-                <p class="text-2xs text-slate-400 font-medium">{new Date(entry.dateIso).toLocaleDateString()}</p>
+                <p class="font-bold text-on-surface">{new Date(entry.dateIso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
+                <p class="text-2xs text-on-surface-variant font-medium">{new Date(entry.dateIso).toLocaleDateString()}</p>
               </div>
             </td>
             <td class="px-6 py-6">
-              <span class="inline-flex max-w-40 truncate rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-2xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+              <span class="inline-flex max-w-40 truncate rounded-full border border-outline-variant bg-surface-container px-3 py-1 text-2xs font-bold text-on-surface">
                 {entry.user}
               </span>
             </td>
             <td class="px-6 py-6 font-bold text-sm text-primary">
               {entry.module}
             </td>
-            <td class="px-6 py-6 font-medium text-sm text-slate-600 dark:text-slate-200">
+            <td class="px-6 py-6 font-medium text-sm text-on-surface-variant">
               {entry.action}
             </td>
             <td class="px-6 py-6 max-w-md">

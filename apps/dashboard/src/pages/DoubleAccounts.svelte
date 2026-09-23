@@ -868,7 +868,7 @@
                       {d.evidence.totalScore}/100
                     </span>
                   {/if}
-                  <span class="px-1.5 py-0.5 rounded text-2xs font-bold uppercase {d.isOnServer ? 'bg-success/10 text-success' : 'bg-zinc-500/10 text-zinc-400'}">
+                  <span class="px-1.5 py-0.5 rounded text-2xs font-bold uppercase {d.isOnServer ? 'bg-success/10 text-success' : 'bg-zinc-500/10 text-on-surface-variant'}">
                     {d.isOnServer ? m.da_member_present() : m.da_member_left()}
                   </span>
                 </div>

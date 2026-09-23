@@ -1413,7 +1413,7 @@
       value: polls.filter(p => p.status !== 'CLOSED' && (!p.closesAt || new Date(p.closesAt) > new Date())).length.toString(),
       note: m.sm_stat_polls_note(),
       icon: "bar-chart-2",
-      color: "bg-slate-500/10 text-slate-600",
+      color: "bg-slate-500/10 text-on-surface-variant",
       loading: loadingStates.polls
     },
   ]);

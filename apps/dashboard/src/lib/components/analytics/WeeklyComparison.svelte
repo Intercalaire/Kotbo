@@ -134,7 +134,7 @@
 
   <!-- Period Legend -->
   <div class="flex flex-wrap items-center gap-3">
-    <div class="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-400/10 border border-slate-400/15 text-2xs font-semibold uppercase text-slate-400">
+    <div class="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-400/10 border border-slate-400/15 text-2xs font-semibold uppercase text-on-surface-variant">
       <div class="w-2 h-2 rounded-full bg-slate-400/50"></div>
       {previousPeriodLabel}
     </div>

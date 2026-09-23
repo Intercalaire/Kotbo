@@ -312,7 +312,7 @@
       case 'EXCUSED': 
       case 'ABSENT_CHECKED': return 'bg-warning/10 text-warning';
       case 'ABSENT': return 'bg-error/10 text-error';
-      default: return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400';
+      default: return 'bg-surface-container text-on-surface';
     }
   }
 

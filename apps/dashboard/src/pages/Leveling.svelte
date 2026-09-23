@@ -2307,7 +2307,7 @@
               <!-- Rang -->
               <div class="w-10 h-10 rounded-xl flex items-center justify-center font-semibold text-sm shrink-0 font-mono
  {index === 0 ? 'bg-warning/15 text-warning border border-warning/25 shadow-sm shadow-amber-400/5' : 
-                 index === 1 ? 'bg-slate-400/15 text-slate-500 border border-slate-400/25 shadow-sm shadow-slate-400/5' : 
+                 index === 1 ? 'bg-slate-400/15 text-on-surface-variant border border-slate-400/25 shadow-sm shadow-slate-400/5' : 
                  index === 2 ? 'bg-amber-700/15 text-warning border border-amber-700/25 shadow-sm shadow-amber-700/5' : 
                  'bg-surface-container text-on-surface-variant/50 border border-outline-variant/5'}">
                 {index + 1}
@@ -2349,7 +2349,7 @@
               <div class="text-right shrink-0">
                 <span class="text-body-sm font-medium px-3.5 py-2 rounded-xl border whitespace-nowrap shadow-xs
  {index === 0 ? 'bg-warning/10 text-warning border-warning/20' : 
-                   index === 1 ? 'bg-slate-400/10 text-slate-500 border-slate-400/20' : 
+                   index === 1 ? 'bg-slate-400/10 text-on-surface-variant border-slate-400/20' : 
                    index === 2 ? 'bg-amber-700/10 text-warning border-amber-700/20' : 
                    'bg-primary/10 text-primary border-primary/15'}">
                   Lvl {lvl}

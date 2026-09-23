@@ -1602,7 +1602,7 @@
       case 'OPEN': return 'bg-success/10 text-success border-success/20';
       case 'CLAIMED': return 'bg-warning/10 text-warning border-warning/20';
       case 'CLOSED': return 'bg-error/10 text-error border-error/20';
-      case 'ARCHIVED': return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+      case 'ARCHIVED': return 'bg-slate-500/10 text-on-surface-variant border-slate-500/20';
       case 'REJECTED': return 'bg-error/10 text-error border-error/20';
       // Orange et non rouge : ce n'est pas une decision du staff, c'est un accident.
       case 'ORPHANED': return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
@@ -1991,7 +1991,7 @@
                     </button>
                   {:else}
                     <button onclick={() => archiveTicket(false)}
-                      class="px-3 py-1.5 bg-slate-500/10 text-slate-400 border border-slate-500/20 rounded-lg text-xs font-semibold hover:bg-slate-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                      class="px-3 py-1.5 bg-slate-500/10 text-on-surface-variant border border-slate-500/20 rounded-lg text-xs font-semibold hover:bg-slate-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                     >
                       <Papicon icon="archive" size={12} /> {m.e1_tickets_btn_archive()}
                     </button>
@@ -2601,7 +2601,7 @@
       <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
         <button onclick={() => toggleConfigSection('archive')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
           <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-lg bg-slate-500/10 text-slate-400 flex items-center justify-center shrink-0">
+            <div class="w-9 h-9 rounded-lg bg-slate-500/10 text-on-surface-variant flex items-center justify-center shrink-0">
               <Papicon icon="archive" size={18} />
             </div>
             <div>

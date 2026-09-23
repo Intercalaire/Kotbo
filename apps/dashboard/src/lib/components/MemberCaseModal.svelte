@@ -596,8 +596,8 @@
       case 'KICK': return { icon: 'log-out', tile: 'bg-orange-500/10 text-orange-500', dot: 'bg-orange-500' };
       case 'TEMP_BAN': return { icon: 'ban', tile: 'bg-error/10 text-error', dot: 'bg-rose-500' };
       case 'BAN': return { icon: 'gavel', tile: 'bg-error/10 text-error', dot: 'bg-rose-600' };
-      case 'SOFTBAN': return { icon: 'eraser', tile: 'bg-slate-500/10 text-slate-500', dot: 'bg-slate-500' };
-      default: return { icon: 'shield', tile: 'bg-slate-500/10 text-slate-500', dot: 'bg-slate-500' };
+      case 'SOFTBAN': return { icon: 'eraser', tile: 'bg-slate-500/10 text-on-surface-variant', dot: 'bg-slate-500' };
+      default: return { icon: 'shield', tile: 'bg-slate-500/10 text-on-surface-variant', dot: 'bg-slate-500' };
     }
   }
 

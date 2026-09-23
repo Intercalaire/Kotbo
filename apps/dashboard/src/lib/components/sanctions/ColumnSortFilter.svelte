@@ -95,7 +95,7 @@
       <button
         type="button"
         onclick={() => onToggleSort?.()}
-        class="inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-transparent text-2xs font-semibold transition hover:border-slate-300 hover:bg-slate-100 dark:hover:border-slate-600 dark:hover:bg-slate-800 {sortDirection ? 'text-primary' : 'text-on-surface-variant'}"
+        class="inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-transparent text-2xs font-semibold transition hover:border-outline-variant hover:bg-surface-container {sortDirection ? 'text-primary' : 'text-on-surface-variant'}"
         title={sortDirection ? `Tri ${sortDirection === 'asc' ? 'croissant' : 'decroissant'}` : m.csf_enable_sort()}
         disabled={disabled}
       >
@@ -113,7 +113,7 @@
       <button
         type="button"
         onclick={toggleFilterPanel}
-        class="inline-flex h-6 min-w-6 items-center justify-center rounded-md border text-2xs font-semibold transition {selectedCount > 0 ? 'border-primary/35 bg-primary/10 text-primary' : 'border-slate-200 text-on-surface-variant hover:border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800'}"
+        class="inline-flex h-6 min-w-6 items-center justify-center rounded-md border text-2xs font-semibold transition {selectedCount > 0 ? 'border-primary/35 bg-primary/10 text-primary' : 'border-outline-variant text-on-surface-variant hover:border-outline-variant hover:bg-surface-container'}"
         title={selectedCount > 0 ? `${selectedCount} filtre(s) actif(s)` : m.csf_filter_column()}
         disabled={disabled}
       >
@@ -123,7 +123,7 @@
   </div>
 
   {#if canFilter && filterOpen}
-    <div class="absolute left-0 top-8 z-20 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <div class="absolute left-0 top-8 z-20 w-64 rounded-xl border border-outline-variant bg-white p-3 shadow-sm">
       <div class="mb-2 flex items-center justify-between gap-2">
         <p class="text-xs font-semibold text-on-surface-variant">{m.csf_filter_label({ label: label.toLowerCase() })}</p>
         {#if selectedCount > 0}
@@ -142,7 +142,7 @@
           type="text"
           bind:value={searchTerm}
           placeholder={m.csf_search_ph()}
-          class="mb-2 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-on-surface outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-800"
+          class="mb-2 w-full rounded-lg border border-outline-variant bg-white px-2.5 py-1.5 text-xs text-on-surface outline-none transition focus:border-primary"
         />
       {/if}
 
@@ -151,12 +151,12 @@
           <p class="py-2 text-xs text-on-surface-variant">{m.csf_no_result()}</p>
         {:else}
           {#each filteredOptions as entry (entry.value)}
-            <label class="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-slate-50 dark:hover:bg-slate-800/70">
+            <label class="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-surface-container-low">
               <input
                 type="checkbox"
                 checked={selectedValues.includes(entry.value)}
                 onchange={() => onToggleValue?.(entry.value)}
-                class="rounded border-slate-300"
+                class="rounded border-outline-variant"
               />
               <span class="truncate">{entry.label}</span>
             </label>

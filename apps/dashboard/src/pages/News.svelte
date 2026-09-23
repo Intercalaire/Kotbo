@@ -695,7 +695,7 @@
                                               {m.news_badge_published()}
                                             </span>
                                           {:else}
-                                            <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
+                                            <span class="rounded-full bg-surface-container px-2.5 py-1 text-xs font-semibold text-on-surface">
                                               {m.news_badge_draft()}
                                             </span>
                                           {/if}
@@ -790,7 +790,7 @@
                               {m.news_badge_published()}
                             </span>
                           {:else}
-                            <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
+                            <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-surface-container text-on-surface">
                               {m.news_badge_draft()}
                             </span>
                           {/if}

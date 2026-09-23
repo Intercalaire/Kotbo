@@ -1134,7 +1134,7 @@
 
     {#if activeTab === 'sanctions'}
       <section class="section-card-flush font-inter">
-        <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <div class="px-6 py-5 border-b border-outline-variant flex items-center justify-between">
           <h3 class="text-lg font-semibold">{m.sc_sanctions_list()}</h3>
           <div class="flex items-center gap-3">
             <span class="text-xs font-bold text-on-surface-variant">{m.sc_entries_count({ a: filteredAndSortedSanctions.length, b: sanctions.length })}</span>
@@ -1150,12 +1150,12 @@
         </div>
         <div class="px-6 pb-4">
           <label class="relative block w-full top-1.5 md:max-w-xl">
-            <Papicon icon="search" size={18} class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Papicon icon="search" size={18} class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
             <FormInput
               type="search"
               bind:value={searchQuery}
               placeholder={m.sc_search_ph()}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-2.5 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:border-slate-700 dark:bg-slate-800"
+              className="w-full rounded-xl border border-outline-variant bg-surface-container-low pl-10 pr-4 py-2.5 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
             />
           </label>
         </div>
@@ -1180,7 +1180,7 @@
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
-        <tr class="bg-slate-50 dark:bg-white/5">
+        <tr class="bg-surface-container-low dark:bg-white/5">
           <th class="px-4 py-4 w-10">
             <input type="checkbox" checked={allVisibleSelected} onchange={toggleSelectAllVisible}
               aria-label={m.sc_bulk_select_all()} class="accent-primary w-4 h-4" />
@@ -1254,21 +1254,21 @@
         {#if showSanctionsSkeleton}
           {#each Array(6) as _, index (index)}
             <tr class="animate-pulse">
-              <td class="px-4 py-4"><div class="h-3.5 w-4 rounded bg-slate-200 dark:bg-slate-700"></div></td>
-              <td class="px-4 py-4"><div class="h-3.5 w-32 rounded-full bg-slate-200 dark:bg-slate-700"></div></td>
-              <td class="px-4 py-4"><div class="h-3.5 w-28 rounded-full bg-slate-200 dark:bg-slate-700"></div></td>
-              <td class="px-4 py-4"><div class="h-3.5 w-24 rounded-full bg-slate-200 dark:bg-slate-700"></div></td>
-              <td class="px-4 py-4"><div class="h-3.5 w-24 rounded-full bg-slate-200 dark:bg-slate-700"></div></td>
-              <td class="px-4 py-4"><div class="h-3.5 w-16 rounded-full bg-slate-200 dark:bg-slate-700"></div></td>
-              <td class="px-4 py-4"><div class="h-5 w-20 rounded-full bg-slate-200 dark:bg-slate-700"></div></td>
-              <td class="px-4 py-4"><div class="h-8 w-36 rounded-full bg-slate-200 dark:bg-slate-700"></div></td>
+              <td class="px-4 py-4"><div class="h-3.5 w-4 rounded bg-surface-container-high"></div></td>
+              <td class="px-4 py-4"><div class="h-3.5 w-32 rounded-full bg-surface-container-high"></div></td>
+              <td class="px-4 py-4"><div class="h-3.5 w-28 rounded-full bg-surface-container-high"></div></td>
+              <td class="px-4 py-4"><div class="h-3.5 w-24 rounded-full bg-surface-container-high"></div></td>
+              <td class="px-4 py-4"><div class="h-3.5 w-24 rounded-full bg-surface-container-high"></div></td>
+              <td class="px-4 py-4"><div class="h-3.5 w-16 rounded-full bg-surface-container-high"></div></td>
+              <td class="px-4 py-4"><div class="h-5 w-20 rounded-full bg-surface-container-high"></div></td>
+              <td class="px-4 py-4"><div class="h-8 w-36 rounded-full bg-surface-container-high"></div></td>
             </tr>
           {/each}
         {:else}
           {#each filteredAndSortedSanctions as entry}
             {@const linkedReport = sanctionReports.find((report) => report.sanctionId === entry.id)}
             {@const reportAction = getReportActionState(entry, linkedReport)}
-            <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors {entry.archivedAt ? 'opacity-60' : ''}">
+            <tr class="hover:bg-surface-container-low dark:hover:bg-white/5 transition-colors {entry.archivedAt ? 'opacity-60' : ''}">
               <td class="px-4 py-4">
                 <input type="checkbox" checked={selectedIds.includes(entry.id)} onchange={() => toggleSelection(entry.id)}
                   aria-label={m.sc_bulk_select_row()} class="accent-primary w-4 h-4" />
@@ -1450,7 +1450,7 @@
 
       <!-- Échelles de Sanctions Progressives -->
       <section class="section-card-flush font-inter mt-8">
-        <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
+        <div class="px-6 py-5 border-b border-outline-variant">
           <h3 class="text-lg font-semibold">{m.sc_scales_title()}</h3>
           <p class="text-xs text-on-surface-variant/70 mt-1">{m.sc_scales_desc()}</p>
         </div>
@@ -1938,7 +1938,7 @@
           type="text"
           bind:value={deleteConfirmationText}
           autocomplete="off"
-          className="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-error/40 focus:border-error transition-all"
+          className="mt-1 w-full rounded-xl px-3 py-2.5 bg-surface-container-low border border-outline-variant text-sm focus:ring-2 focus:ring-error/40 focus:border-error transition-all"
           placeholder={m.sc_delete_keyword()}
         />
       </div>
