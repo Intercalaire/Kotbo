@@ -1004,18 +1004,19 @@
               path="/tickets/*"
               load={() => import("./pages/Tickets.svelte")}
             />
-            <LazyRoute
-              path="/transcripts-list"
-              load={() => import("./pages/Transcripts.svelte")}
-            />
+            <!-- Fondue dans l'onglet Transcriptions des Tickets. -->
+            <Route path="/transcripts-list">
+              <div use:navigate={"/tickets/transcripts"}></div>
+            </Route>
             <LazyRoute
               path="/message-search"
               load={() => import("./pages/MessageSearch.svelte")}
             />
-            <LazyRoute
-              path="/meetings"
-              load={() => import("./pages/Meetings.svelte")}
-            />
+            <!-- Fondue dans l'onglet Reunions du Planning, qui fait la meme chose
+                 avec le calendrier en plus. -->
+            <Route path="/meetings">
+              <div use:navigate={"/planning/meeting"}></div>
+            </Route>
             <Route path="/absences">
               <div use:navigate={"/planning"}></div>
             </Route>

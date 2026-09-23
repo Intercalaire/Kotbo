@@ -8640,6 +8640,8 @@
   "e1_tickets_period_all": "Toutes",
   "e1_tickets_period_range": "Du {from} au {to}",
   "e1_tickets_view_btn": "Consulter",
+  "e1_tickets_transcript_delete_title": "Supprimer la transcription #{channel} ?",
+  "e1_tickets_transcript_delete_desc": "Elle disparaît du dashboard et son lien ne fonctionnera plus.",
   "e1_tickets_sat_responses": "{count} réponses",
   "e1_tickets_sat_by_staff": "Satisfaction par Staff",
   "e1_tickets_sat_no_staff_data": "Aucune donnée par staff.",

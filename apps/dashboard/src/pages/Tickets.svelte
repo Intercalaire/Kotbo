@@ -22,7 +22,8 @@
     runMemberCaseAction,
     fetchSatisfactionData,
     fetchStaffSatisfactionReviews,
-    fetchStaffServerChannels, dashboardFetch } from '../lib/api';
+    fetchStaffServerChannels, dashboardFetch, deleteTranscript } from '../lib/api';
+  import Button from '../lib/components/ui/Button.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -1056,6 +1057,22 @@
     selectedTicketDetail = null;
     messages = [];
     void loadTicketsAndConfig(true);
+  }
+
+  // La page « Transcriptions » autonome a ete fondue dans cet onglet : il
+  // reprend sa suppression, reservee a qui gere les reglages.
+  const canDeleteTranscripts = $derived(dashboardStore.state.access?.canManageSettings === true);
+
+  async function removeTranscript(transcript: { id: string; channelName: string }) {
+    const confirmed = await confirmDialog.danger(
+      m.e1_tickets_transcript_delete_title({ channel: transcript.channelName }),
+      m.e1_tickets_transcript_delete_desc(),
+      m.common_delete(),
+    );
+    if (!confirmed) return;
+    if (await deleteTranscript(transcript.id)) {
+      transcripts = transcripts.filter((t) => t.id !== transcript.id);
+    }
   }
 
   // Fetch transcripts for this guild
@@ -3306,12 +3323,13 @@
                   <td class="py-3 px-4 text-xs text-on-surface-variant">
                     {new Date(t.createdAt).toLocaleDateString(dateLocale())}
                   </td>
-                  <td class="py-3 px-4 text-right">
-                    <a href="/transcripts/{t.id}" target="_blank"
-                      class="px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg text-2xs font-semibold uppercase tracking-wider hover:bg-primary hover:text-white transition-all inline-flex items-center gap-1"
-                    >
-                      <Papicon icon="external-link" size={11} /> Voir
-                    </a>
+                  <td class="py-3 px-4">
+                    <div class="flex items-center justify-end gap-2">
+                      <Button href="/transcripts/{t.id}" target="_blank" size="sm" icon="external-link">{m.e1_tickets_view_btn()}</Button>
+                      {#if canDeleteTranscripts}
+                        <Button variant="danger" size="sm" icon="trash" aria-label={m.common_delete()} onclick={() => removeTranscript(t)} />
+                      {/if}
+                    </div>
                   </td>
                 </tr>
               {/each}
@@ -3337,11 +3355,12 @@
                   - Du {new Date(t.startTime).toLocaleDateString(dateLocale())} au {new Date(t.endTime).toLocaleDateString(dateLocale())}
                 {/if}
               </p>
-              <a href="/transcripts/{t.id}" target="_blank"
-                class="px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg text-2xs font-semibold uppercase tracking-wider hover:bg-primary hover:text-white transition-all inline-flex items-center gap-1"
-              >
-                <Papicon icon="external-link" size={11} /> {m.e1_tickets_view_btn()}
-              </a>
+              <div class="flex items-center gap-2">
+                <Button href="/transcripts/{t.id}" target="_blank" size="sm" icon="external-link">{m.e1_tickets_view_btn()}</Button>
+                {#if canDeleteTranscripts}
+                  <Button variant="danger" size="sm" icon="trash" aria-label={m.common_delete()} onclick={() => removeTranscript(t)} />
+                {/if}
+              </div>
             </div>
           {/each}
         </div>

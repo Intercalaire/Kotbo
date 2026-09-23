@@ -8639,6 +8639,8 @@
   "e1_tickets_badge_ticket": "Ticket",
   "e1_tickets_period_all": "All",
   "e1_tickets_period_range": "From {from} to {to}",
+  "e1_tickets_transcript_delete_title": "Delete transcript #{channel}?",
+  "e1_tickets_transcript_delete_desc": "It disappears from the dashboard and its link will stop working.",
   "e1_tickets_view_btn": "View",
   "e1_tickets_sat_responses": "{count} responses",
   "e1_tickets_sat_by_staff": "Satisfaction per staff",

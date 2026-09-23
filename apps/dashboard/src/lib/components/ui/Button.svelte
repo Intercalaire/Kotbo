@@ -21,6 +21,7 @@
     loading = false,
     fullWidth = false,
     href = undefined,
+    target = undefined,
     type = 'button',
     disabled = false,
     class: className = '',
@@ -36,6 +37,8 @@
     loading?: boolean;
     fullWidth?: boolean;
     href?: string;
+    /** Avec `href` : `_blank` ouvre un nouvel onglet (rel=noopener pose d'office). */
+    target?: string;
     type?: 'button' | 'submit' | 'reset';
     disabled?: boolean;
     class?: string;
@@ -76,7 +79,13 @@
 {/snippet}
 
 {#if href && !disabled}
-  <a {href} class={classes} {...rest as Record<string, unknown>}>
+  <a
+    {href}
+    {target}
+    rel={target === '_blank' ? 'noopener noreferrer' : undefined}
+    class={classes}
+    {...rest as Record<string, unknown>}
+  >
     {@render content()}
   </a>
 {:else}
