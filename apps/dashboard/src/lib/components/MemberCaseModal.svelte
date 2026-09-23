@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Tabs } from './ui';
   import type { MemberCaseResponse } from '@kotbo/contracts';
   import FormInput from './FormInput.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte';
@@ -945,26 +946,16 @@
 
     <!-- ── Tab Navigation ────────────────────────────────────── -->
     <div class="sticky top-0 z-30 flex items-center gap-3 border-b border-outline-variant/10 bg-surface-container-lowest/95 px-6 pt-4 pb-2 backdrop-blur-sm">
-      <div class="tab-group min-w-0 flex-1 overflow-x-auto">
-        {#each tabs as tab}
-          <button
-            type="button"
-            onclick={() => activeTab = tab.id}
-              class="tab-button {activeTab === tab.id ? 'active' : ''}"
-            >
-              <Papicon icon={tab.icon} size={16} />
-              <span>{tab.label}</span>
-              {#if tab.count && caseData}
-                {@const c = tab.count()}
-                {#if c > 0}
-                  <span class="flex h-5 min-w-5 items-center justify-center rounded-full text-2xs font-semibold {activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}">
-                    {c}
-                  </span>
-                {/if}
-              {/if}
-            </button>
-          {/each}
-        </div>
+      <Tabs
+        label={m.nav_members()}
+        class="min-w-0 flex-1 max-w-full"
+        tabs={tabs.map((tab) => {
+          const count = tab.count && caseData ? tab.count() : 0;
+          return { id: tab.id, label: tab.label, icon: tab.icon, badge: count > 0 ? count : undefined };
+        })}
+        active={activeTab}
+        onchange={(id) => (activeTab = id as typeof activeTab)}
+      />
 
         <button
           type="button"

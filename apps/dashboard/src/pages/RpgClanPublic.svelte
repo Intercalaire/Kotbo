@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { FilterPills } from '../lib/components/ui';
   /**
    * Page publique du RPG de clan.
    *
@@ -199,14 +200,15 @@
       </section>
 
       {#if clansEnabled}
-        <div class="tab-group w-fit">
-          <button onclick={() => mode = 'clans'} class="tab-button {effectiveMode === 'clans' ? 'active' : ''}">
-            {m.rpg_public_mode_clans()}
-          </button>
-          <button onclick={() => mode = 'solo'} class="tab-button {effectiveMode === 'solo' ? 'active' : ''}">
-            {m.rpg_public_mode_solo()}
-          </button>
-        </div>
+        <FilterPills
+          label={m.rpg_public_mode_clans()}
+          options={[
+            { value: 'clans', label: m.rpg_public_mode_clans() },
+            { value: 'solo', label: m.rpg_public_mode_solo() },
+          ]}
+          value={effectiveMode}
+          onchange={(value) => (mode = value)}
+        />
       {/if}
 
       {#if effectiveMode === 'solo'}

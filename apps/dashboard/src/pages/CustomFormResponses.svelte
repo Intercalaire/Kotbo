@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Tabs } from '../lib/components/ui';
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -254,26 +255,16 @@
 
     <!-- Tabs Switch -->
     {#if form && responses.length > 0}
-      <div class="flex border-b border-outline-variant/10 mb-4 gap-1">
-        <button 
-          onclick={() => activeTab = 'list'} 
-          class="tab-button {activeTab === 'list' ? 'active' : ''}"
-        >
-          <span class="flex items-center gap-2">
-            <Papicon icon="assignment" size={16} />
-            Individuel ({filtered.length})
-          </span>
-        </button>
-        <button 
-          onclick={() => activeTab = 'analytics'} 
-          class="tab-button {activeTab === 'analytics' ? 'active' : ''}"
-        >
-          <span class="flex items-center gap-2">
-            <Papicon icon="pie_chart" size={16} />
-            Statistiques
-          </span>
-        </button>
-      </div>
+      <Tabs
+        label={form.name}
+        class="mb-4"
+        tabs={[
+          { id: 'list', label: 'Individuel', icon: 'assignment', badge: filtered.length },
+          { id: 'analytics', label: 'Statistiques', icon: 'pie_chart' },
+        ]}
+        active={activeTab}
+        onchange={(id) => (activeTab = id as typeof activeTab)}
+      />
     {/if}
 
     {#if loading}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Tabs } from '../lib/components/ui';
   import { m, dateLocale } from '../lib/i18n';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -466,23 +467,15 @@
 >
   {#snippet actions()}
     <div class="flex flex-wrap items-center gap-3">
-      <!-- Tabs Selector -->
-      <div class="flex items-center gap-2 p-1 bg-surface-container-high/50 rounded-lg border border-outline-variant/20 relative">
-        <button 
-          onclick={() => activeTab = 'candidatures'}
-          class="tab-button {activeTab === 'candidatures' ? 'active' : ''}"
-        >
-          <Papicon icon="people" size={16} />
-          <span class="text-xs font-bold">{m.recruit_tab_applications()}</span>
-        </button>
-        <button 
-          onclick={() => activeTab = 'google-forms'}
-          class="tab-button {activeTab === 'google-forms' ? 'active' : ''}"
-        >
-          <Papicon icon="description" size={16} />
-          <span class="text-xs font-bold">{m.recruit_tab_google_forms()}</span>
-        </button>
-      </div>
+      <Tabs
+        label={m.nav_recruitment()}
+        tabs={[
+          { id: 'candidatures', label: m.recruit_tab_applications(), icon: 'people' },
+          { id: 'google-forms', label: m.recruit_tab_google_forms(), icon: 'description' },
+        ]}
+        active={activeTab}
+        onchange={(id) => (activeTab = id as typeof activeTab)}
+      />
 
       <RefreshButton onClick={activeTab === 'candidatures' ? fetchInitialData : fetchForms} loading={activeTab === 'candidatures' ? loading : formsLoading} label={m.recruit_refresh()} />
 

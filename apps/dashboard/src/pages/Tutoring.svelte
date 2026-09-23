@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Tabs } from '../lib/components/ui';
   import { m, dateLocale } from '../lib/i18n';
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -395,31 +396,16 @@
 >
   {#snippet actions()}
     <div class="flex items-center gap-4">
-      <div class="flex items-center gap-2 p-1 bg-surface-container-high/50 rounded-lg border border-outline-variant/20 relative">
-        <button 
-          onclick={() => activeTab = 'dashboard'}
-          class="tab-button {activeTab === 'dashboard' ? 'active' : ''}"
-        >
-          <Papicon icon="grid" size={18} />
-          <span class="text-sm font-bold">{m.tutoring_tab_dashboard()}</span>
-        </button>
-        <button 
-          onclick={() => activeTab = 'progress'}
-          class="tab-button {activeTab === 'progress' ? 'active' : ''}"
-        >
-          <Papicon icon="trending-up" size={18} />
-          <span class="text-sm font-bold">{m.tutoring_tab_progress()}</span>
-        </button>
-        {#if authStore.isAdmin || tutorApprentices.length > 0}
-          <button 
-            onclick={() => activeTab = 'config'}
-            class="tab-button {activeTab === 'config' ? 'active' : ''}"
-          >
-            <Papicon icon="settings" size={18} />
-            <span class="text-sm font-bold">{m.tutoring_tab_config()}</span>
-          </button>
-        {/if}
-      </div>
+      <Tabs
+        label={m.nav_tutoring()}
+        tabs={[
+          { id: 'dashboard', label: m.tutoring_tab_dashboard(), icon: 'grid' },
+          { id: 'progress', label: m.tutoring_tab_progress(), icon: 'trending-up' },
+          ...(authStore.isAdmin || tutorApprentices.length > 0 ? [{ id: 'config', label: m.tutoring_tab_config(), icon: 'settings' }] : []),
+        ]}
+        active={activeTab}
+        onchange={(id) => (activeTab = id)}
+      />
 
       {#if authStore.isAdmin}
         <button 

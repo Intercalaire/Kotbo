@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Tabs } from '../lib/components/ui';
   import { onMount } from 'svelte';
   import { API_BASE_URL, dashboardFetch } from '../lib/api';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -379,21 +380,17 @@
     </button>
   {/snippet}
 
-  <!-- Tabs -->
-  <div class="tab-group w-fit" role="tablist">
-    {#each [
+  <Tabs
+    label={m.nav_ban_appeals()}
+    tabs={[
       { id: 'queue', label: m.ba_tab_queue({ count: queue.length }) },
       { id: 'history', label: m.ba_tab_history() },
       { id: 'config', label: m.ba_tab_config() },
       { id: 'blacklist', label: m.ba_tab_blacklist({ count: blacklist.length }) },
-    ] as t}
-      <button onclick={() => { tab = t.id as typeof tab; detail = null; }}
-        role="tab" aria-selected={tab === t.id}
-        class="tab-button {tab === t.id ? 'active' : ''}">
-        {t.label}
-      </button>
-    {/each}
-  </div>
+    ]}
+    active={tab}
+    onchange={(id) => { tab = id as typeof tab; detail = null; }}
+  />
 
   {#if loading}
     <div class="flex justify-center py-16">

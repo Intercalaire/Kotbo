@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { FilterPills } from '../lib/components/ui';
   import { m } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy, untrack } from 'svelte';
@@ -207,17 +208,15 @@
   featureKey="suggestions"
 >
   {#snippet actions()}
-    <div class="tab-group" role="tablist">
-      {#each ['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'IMPLEMENTED'] as filter}
-        <button
-          onclick={() => currentFilter = filter as any}
-          role="tab" aria-selected={currentFilter === filter}
-          class="tab-button {currentFilter === filter ? 'active' : ''}"
-        >
-          {filter === 'ALL' ? m.suggestions_filter_all() : statusLabels[filter]}
-        </button>
-      {/each}
-    </div>
+    <FilterPills
+      label={m.suggestions_filter_all()}
+      options={(['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'IMPLEMENTED'] as const).map((filter) => ({
+        value: filter,
+        label: filter === 'ALL' ? m.suggestions_filter_all() : statusLabels[filter],
+      }))}
+      value={currentFilter}
+      onchange={(value) => (currentFilter = value as typeof currentFilter)}
+    />
   {/snippet}
 
   <InlineFeedback state={actionState} />

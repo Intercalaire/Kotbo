@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Tabs } from '../lib/components/ui';
   import { onMount } from 'svelte';
   import { m } from '../lib/i18n';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -101,19 +102,15 @@
   featureKey="automod"
 >
 
-  <!-- Tabs -->
-  <div class="tab-group w-fit" role="tablist">
-    {#each [
+  <Tabs
+    label={m.e7_alr_tab_history()}
+    tabs={[
       { id: 'queue', label: m.e7_alr_tab_queue({ count: queue.length }) },
       { id: 'history', label: m.e7_alr_tab_history() },
-    ] as t}
-      <button onclick={() => { tab = t.id as typeof tab; openId = null; }}
-        role="tab" aria-selected={tab === t.id}
-        class="tab-button {tab === t.id ? 'active' : ''}">
-        {t.label}
-      </button>
-    {/each}
-  </div>
+    ]}
+    active={tab}
+    onchange={(id) => { tab = id as typeof tab; openId = null; }}
+  />
 
   {#if loading}
     <div class="flex justify-center py-16">
