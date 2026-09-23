@@ -6,6 +6,7 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
+  import { useUnsavedChanges } from '../lib/useUnsavedChanges.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import { m, dateLocale } from '../lib/i18n';
@@ -72,7 +73,22 @@
   let actionReason = $state('');
   let actionInProgress = $state(false);
   let config = $state<AppealConfig | null>(null);
+  /** Derniere configuration connue du serveur : la barre d'enregistrement compare a elle. */
+  let savedConfig = $state<AppealConfig | null>(null);
   let configSaving = $state(false);
+
+  function snapshot(value: AppealConfig | null): AppealConfig | null {
+    return value ? structuredClone($state.snapshot(value)) as AppealConfig : null;
+  }
+
+  useUnsavedChanges({
+    id: 'ban-appeals',
+    label: m.nav_ban_appeals(),
+    getConfig: () => config,
+    getSaved: () => savedConfig,
+    onSave: () => saveConfig(),
+    onReset: () => { config = snapshot(savedConfig); },
+  });
   let forms = $state<{ id: string; name: string }[]>([]);
   let blacklist = $state<BlacklistEntry[]>([]);
   let staffServerChannels = $state<{ id: string; name: string }[]>([]);
@@ -155,6 +171,7 @@
           cooldownByType: null, formIdByType: null, notifyOnSanctionDM: false,
           excludeIssuingModerator: true, notifyIssuingModerator: true,
         };
+        savedConfig = snapshot(config);
       }
       if (formsRes.ok) forms = ((await formsRes.json()).forms ?? []).map((f: { id: string; name: string }) => ({ id: f.id, name: f.name }));
       if (staffServerRes.ok) {
@@ -300,8 +317,9 @@
     actionInProgress = false;
   }
 
-  async function saveConfig(extra: Record<string, unknown> = {}) {
-    if (!config) return;
+  async function saveConfig(extra: Record<string, unknown> = {}): Promise<boolean> {
+    if (!config) return false;
+    let saved = false;
     configSaving = true;
     try {
       const res = await dashboardFetch(`/appeals/config`, {
@@ -333,6 +351,8 @@
       });
       if (res.ok) {
         config = (await res.json()).config;
+        savedConfig = snapshot(config);
+        saved = true;
         toast.success(m.ba_config_saved());
         if (extra.createDefaultForm) await loadConfig();
       } else {
@@ -340,6 +360,7 @@
       }
     } catch { toast.error(m.ba_error_network()); }
     configSaving = false;
+    return saved;
   }
 
   async function removeFromBlacklist(userId: string) {
@@ -920,12 +941,6 @@
           </p>
         </div>
 
-        <div class="flex justify-end">
-          <button onclick={() => saveConfig()} disabled={configSaving}
-            class="px-6 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60">
-            {configSaving ? m.ba_saving() : m.common_save()}
-          </button>
-        </div>
       </div>
     {/if}
 

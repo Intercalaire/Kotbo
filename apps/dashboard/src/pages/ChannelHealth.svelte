@@ -1,6 +1,7 @@
 <script lang="ts">
 import { m } from '../lib/i18n';
-import { onMount } from 'svelte';
+import { onMount, onDestroy, untrack } from 'svelte';
+import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
 import { router } from 'tinro';
 import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
 import { pageTabItems } from '../lib/config/pageTabs';
@@ -88,6 +89,33 @@ function applyPreset(preset: ChannelHealthPreset) {
   }
   Object.assign(configDraft, preset.values);
 }
+
+// Les reglages passent par la barre d'enregistrement commune, comme sur les
+// autres pages : l'onglet detaille avait son propre bouton, et l'on quittait la
+// page sans savoir qu'une modification restait en attente.
+const SAVE_OWNER = 'channel-health';
+
+$effect(() => {
+  if (configDirty) {
+    untrack(() => unsavedChanges.register({
+      id: SAVE_OWNER,
+      label: m.channel_health_page_title(),
+      onSave: async () => {
+        await saveConfig();
+        return !configDirty;
+      },
+      onReset: () => {
+        configDraft = savedConfig
+          ? { ...savedConfig, excludedChannelIds: [...(savedConfig.excludedChannelIds ?? [])] }
+          : null;
+      },
+    }));
+  } else {
+    untrack(() => unsavedChanges.release(SAVE_OWNER));
+  }
+});
+
+onDestroy(() => unsavedChanges.release(SAVE_OWNER));
 
 function openPresetDetail() {
   gotoTab('/channel-health', 'config', DEFAULT_TAB);
@@ -578,11 +606,6 @@ onMount(async () => {
         </div>
       </div>
 
-      <div class="flex justify-end pt-2">
-        <button class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2" onclick={saveConfig} disabled={savingConfig}>
-          {savingConfig ? m.channel_health_saving() : m.common_save()}
-        </button>
-      </div>
     </div>
   {:else if activeTab === 'config' && !configDraft}
     <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-4">

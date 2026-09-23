@@ -2,6 +2,7 @@
   import { Tabs } from '../lib/components/ui';
   import { m, dateLocale } from '../lib/i18n';
   import { onMount } from 'svelte';
+  import { useUnsavedChanges } from '../lib/useUnsavedChanges.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -104,6 +105,22 @@
   
   let activeTab = $state('dashboard'); // dashboard, progress, config
   let config = $state<any>(null);
+  /** Derniere configuration enregistree : la barre d'enregistrement compare a elle. */
+  let savedConfig = $state<any>(null);
+  const snapshotConfig = (value: any) => (value ? structuredClone($state.snapshot(value)) : null);
+  const configDirty = $derived(JSON.stringify(config) !== JSON.stringify(savedConfig));
+
+  useUnsavedChanges({
+    id: 'tutoring',
+    label: m.tutoring_page_title(),
+    getConfig: () => config,
+    getSaved: () => savedConfig,
+    onSave: async () => {
+      await saveConfig();
+      return !configDirty;
+    },
+    onReset: () => { config = snapshotConfig(savedConfig); },
+  });
   let tutoringItems = $state<any[]>([]);
   let tutorApprentices = $state<any[]>([]);
   let apprenticeProgress = $state<any>(null);
@@ -211,7 +228,11 @@
         fetchApprenticeProgress().catch(() => ({ progress: null }))
       ]);
 
-      config = configData?.config;
+      // Ce rechargement suit aussi chaque action sur le catalogue : il ne doit
+      // pas emporter des reglages modifies et pas encore enregistres.
+      const freshConfig = configData?.config;
+      if (!configDirty) config = freshConfig;
+      savedConfig = snapshotConfig(freshConfig);
       tutoringItems = itemsData?.items || [];
       tutorApprentices = tutorData?.apprentices || [];
       apprenticeProgress = apprenticeData?.progress;
@@ -264,6 +285,7 @@
         });
       }
 
+      savedConfig = snapshotConfig(config);
       await dashboardStore.refresh();
       return true;
     }, { successMessage: m.tutoring_config_saved() });
@@ -919,13 +941,6 @@
               </button>
             </div>
 
-          <button 
-            class="w-full py-4 mt-4 bg-primary text-white rounded-lg font-semibold shadow-sm shadow-primary/20 active:scale-[0.98] transition-all disabled:opacity-50"
-            onclick={saveConfig}
-            disabled={saveAction.state.loading}
-          >
-            {saveAction.state.loading ? m.tutoring_saving() : m.tutoring_save_btn()}
-          </button>
           {/if}
 
           {#if featureConfig}
