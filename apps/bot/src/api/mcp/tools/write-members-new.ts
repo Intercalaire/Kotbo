@@ -15,6 +15,7 @@ import { RPG_ITEM_RARITIES, RPG_ITEM_TYPES, type RpgItemPayload } from '@kotbo/c
 import { saveGuildShopItem } from '../../../services/features/rpg/rpgShopItemService.js';
 import { ANNOUNCE_MODE_VALUES, updateEconomySettings } from '../../../services/features/rpg/rpgEconomyConfigService.js';
 import { RAID_TEAM_MODES } from '../../../services/features/rpg/rpgRaidPolicy.js';
+import { FIRST_KILL_ANNOUNCE_MODES } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
 
 const nonNegative = z.number().int().min(0);
 const announceMode = z.enum(ANNOUNCE_MODE_VALUES);
@@ -34,6 +35,8 @@ const economySettingsSchema = z.object({
   adventureCooldownMin: nonNegative,
   fightCooldownSec: nonNegative.describe('Délai entre deux combats de monstres, en secondes (0 = aucun)'),
   bossCooldownMin: nonNegative.describe('Délai entre deux boss, même différents, en minutes (0 = enchaînement libre)'),
+  firstKillAnnounce: z.enum(FIRST_KILL_ANNOUNCE_MODES).describe('Annonce du premier vainqueur : NONE, BOSSES (boss seulement) ou ALL'),
+  firstKillChannelId: z.string().nullable().describe("Salon d'annonce du premier vainqueur"),
   maxEnergy: z.number().int().min(1),
   energyRecoveryPerHour: nonNegative,
   maxBetAmount: nonNegative,

@@ -22,6 +22,11 @@ model EconomyConfig {
   fightCooldownSec     Int   @default(120)
   bossCooldownMin      Int   @default(2)
 
+  // Annonce du premier joueur à vaincre une créature : NONE, BOSSES (boss seulement,
+  // pour ne pas inonder le salon des dizaines de monstres ordinaires) ou ALL.
+  firstKillAnnounce    String  @default("NONE")
+  firstKillChannelId   String?
+
   // Garde-fous anti-abus (gambling / transferts)
   maxBetAmount         Int   @default(1000) // Mise maximale autorisée pour dice/roulette/rps
   maxDailyBets         Int   @default(20)   // Nombre maximal de parties de jeux d'argent par jour et par membre
@@ -206,6 +211,14 @@ model RpgProfile {
   // profil et non par la ligne d'inventaire : celle-ci disparaît avec le dernier
   // exemplaire, et la potion rachetée perdrait son étoile.
   favoriteItemIds     String[] @default([])
+  firstKills          RpgMonsterFirstKill[]
+
+  // Titre porté : affiché en haut de la carte, et seul titre dont les bonus comptent.
+  // En posséder plusieurs ne les cumule pas, sans quoi collectionner les titres
+  // deviendrait le moyen le plus sûr de monter ses statistiques.
+  activeTitleId       String?
+  activeTitle         RpgTitle? @relation("ActiveTitle", fields: [activeTitleId], references: [id], onDelete: SetNull)
+  titles              RpgProfileTitle[]
 
   // État de voyage
   isTraveling    Boolean   @default(false)
@@ -499,6 +512,24 @@ model RpgMonster {
   /// au classement des clans.
   clanPoints Int @default(0)
 
+  /// Prime versée au premier joueur du serveur qui abat la créature, en plus du butin
+  /// ordinaire. `firstKillItemName` désigne l'objet par son nom, comme les butins ;
+  /// `firstKillClanPoints` va au clan, ou à la guilde du jeu, comme `clanPoints`.
+  firstKillCoinReward Int     @default(0)
+  firstKillXpReward   Int     @default(0)
+  firstKillItemName   String?
+  firstKillClanPoints Int     @default(0)
+  /// Rôle Discord offert au premier vainqueur. Propre au serveur : il ne voyage pas dans
+  /// l'export du bestiaire.
+  firstKillRoleId     String?
+  /// Titre offert au premier vainqueur, et titre gagné par tout joueur qui abat la
+  /// créature. Titres du serveur uniquement : un monstre livré de base en reçoit un
+  /// via sa copie locale, comme pour toute autre personnalisation.
+  firstKillTitleId    String?
+  firstKillTitle      RpgTitle? @relation("FirstKillTitle", fields: [firstKillTitleId], references: [id], onDelete: SetNull)
+  winTitleId          String?
+  winTitle            RpgTitle? @relation("WinTitle", fields: [winTitleId], references: [id], onDelete: SetNull)
+
   /// Un monstre global désactivé par un serveur est remplacé par une copie locale
   /// portant le même nom avec `enabled = false` : le catalogue global reste intact.
   enabled Boolean @default(true)
@@ -509,6 +540,71 @@ model RpgMonster {
 
   @@unique([guildId, name])
   @@map("rpg_monsters")
+}
+
+/// Titre du RPG, propre à un serveur.
+///
+/// Un titre s'affiche en haut de la carte du personnage et peut accorder des statistiques.
+/// Seul le titre porté compte (`RpgProfile.activeTitleId`) : les autres restent dans la
+/// collection du joueur, prêts à être portés.
+model RpgTitle {
+  id          String   @id @default(cuid())
+  guildId     String
+  name        String
+  description String   @default("")
+  /// Couleur d'affichage sur la carte, en hexadécimal.
+  color       String   @default("#fbbf24")
+
+  attackBonus  Int @default(0)
+  defenseBonus Int @default(0)
+  speedBonus   Int @default(0)
+  healthBonus  Int @default(0)
+  /// Chance de coup critique ajoutée, en points de pourcentage.
+  critBonus    Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild             Guild             @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  owners            RpgProfileTitle[]
+  wearers           RpgProfile[]      @relation("ActiveTitle")
+  firstKillMonsters RpgMonster[]      @relation("FirstKillTitle")
+  winMonsters       RpgMonster[]      @relation("WinTitle")
+
+  @@unique([guildId, name])
+  @@map("rpg_titles")
+}
+
+/// Titre possédé par un joueur.
+model RpgProfileTitle {
+  id         String   @id @default(cuid())
+  profileId  String
+  titleId    String
+  obtainedAt DateTime @default(now())
+
+  profile RpgProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  title   RpgTitle   @relation(fields: [titleId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, titleId])
+  @@map("rpg_profile_titles")
+}
+
+/// Premier joueur du serveur à avoir abattu une créature.
+///
+/// La créature est désignée par son nom, pas par son identifiant : personnaliser un monstre
+/// livré de base en crée une copie locale d'un autre identifiant, et le record ne doit pas
+/// repartir de zéro pour autant. L'unicité (serveur, nom) arbitre deux victoires simultanées.
+model RpgMonsterFirstKill {
+  id          String   @id @default(cuid())
+  guildId     String
+  monsterName String
+  userId      String
+  createdAt   DateTime @default(now())
+
+  profile RpgProfile @relation(fields: [guildId, userId], references: [guildId, userId], onDelete: Cascade)
+
+  @@unique([guildId, monsterName])
+  @@map("rpg_monster_first_kills")
 }
 
 /**

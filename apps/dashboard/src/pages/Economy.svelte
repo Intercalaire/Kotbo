@@ -66,6 +66,11 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     deleteRpgMonster,
     fetchRpgPlayers,
     updateRpgPlayer,
+    fetchRpgTitles,
+    saveRpgTitle,
+    deleteRpgTitle,
+    grantRpgTitle,
+    revokeRpgTitle,
     resetEconomy
   } from '../lib/api';
   import { m } from '../lib/i18n';
@@ -93,7 +98,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     publicUrlCopied = true;
     setTimeout(() => { publicUrlCopied = false; }, 2000);
   }
-  const economyTabs = ['config', 'items', 'recettes', 'bestiaire', 'raid', 'quetes', 'aventures', 'blackmarket', 'guildes', 'players'] as const;
+  const economyTabs = ['config', 'items', 'recettes', 'bestiaire', 'raid', 'quetes', 'titres', 'aventures', 'blackmarket', 'guildes', 'players'] as const;
   const DEFAULT_TAB = 'config';
   let activeTab = $state(DEFAULT_TAB);
 
@@ -121,6 +126,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     adventureCooldownMin: 30,
     fightCooldownSec: 120,
     bossCooldownMin: 2,
+    firstKillAnnounce: 'NONE',
+    firstKillChannelId: null as string | null,
     maxEnergy: 100,
     energyRecoveryPerHour: 10,
     maxBetAmount: 1000,
@@ -220,6 +227,13 @@ import EmojiText from '../lib/components/EmojiText.svelte';
   let battleSamples = $state<Record<BestiaryScope, BattleSample>>({ boss: EMPTY_SAMPLE, monster: EMPTY_SAMPLE });
   let difficultyAdvice = $state<Record<BestiaryScope, BestiaryDifficulty | null>>({ boss: null, monster: null });
   let bestiaryFileInput = $state<HTMLInputElement | null>(null);
+
+  // Titres RPG
+  let titles = $state<any[]>([]);
+  let titlesLoading = $state(false);
+  let editingTitle = $state<any>(null);
+  // Membre choisi dans le selecteur d'attribution, par titre.
+  let titleGrantPick = $state<Record<string, string | null>>({});
 
   // Quetes RPG
   let quests = $state<any[]>([]);
@@ -378,6 +392,12 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       // créature ne pourrait proposer aucun drop.
       void loadItems();
       void loadMonsters();
+      // Les titres alimentent les deux recompenses de titre de la fiche.
+      void loadTitles();
+    } else if (activeTab === 'titres') {
+      void loadTitles();
+      // La liste des joueurs sert au selecteur d'attribution.
+      void loadPlayers();
     } else if (activeTab === 'raid') {
       void loadRaid();
     } else if (activeTab === 'recettes') {
@@ -531,6 +551,114 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       await loadRecipes();
       return true;
     }, { successMessage: m.eco_recipe_deleted() });
+  }
+
+  async function loadTitles() {
+    titlesLoading = true;
+    try {
+      const res = await fetchRpgTitles();
+      if (res) titles = res.titles ?? [];
+    } catch (err) {
+      console.error(err);
+    } finally {
+      titlesLoading = false;
+    }
+  }
+
+  const titleOptions = $derived(titles.map((title: any) => ({ id: title.id, name: title.name })));
+
+  function titleName(titleId: string | null | undefined): string | null {
+    if (!titleId) return null;
+    return titles.find((title: any) => title.id === titleId)?.name ?? null;
+  }
+
+  function titleBonusBadges(title: any): { label: string; value: string }[] {
+    return [
+      { label: m.eco_atk(), value: title.attackBonus },
+      { label: m.eco_def(), value: title.defenseBonus },
+      { label: m.eco_spd(), value: title.speedBonus },
+      { label: m.eco_bestiary_health(), value: title.healthBonus },
+      { label: m.eco_title_crit(), value: title.critBonus ? `${title.critBonus} %` : 0 },
+    ]
+      .filter((entry) => entry.value)
+      .map((entry) => ({ label: entry.label, value: `+${entry.value}` }));
+  }
+
+  function openNewTitle() {
+    editingTitle = {
+      name: '',
+      description: '',
+      color: '#fbbf24',
+      attackBonus: 0,
+      defenseBonus: 0,
+      speedBonus: 0,
+      healthBonus: 0,
+      critBonus: 0,
+    };
+  }
+
+  function openEditTitle(title: any) {
+    editingTitle = { ...title };
+  }
+
+  async function handleSaveTitle() {
+    if (!editingTitle.name?.trim()) {
+      toast.error(m.eco_toast_missing_fields());
+      return;
+    }
+
+    await actionState.run(async () => {
+      const res = await saveRpgTitle({
+        id: editingTitle.id,
+        name: editingTitle.name,
+        description: editingTitle.description,
+        color: editingTitle.color,
+        attackBonus: Number(editingTitle.attackBonus) || 0,
+        defenseBonus: Number(editingTitle.defenseBonus) || 0,
+        speedBonus: Number(editingTitle.speedBonus) || 0,
+        healthBonus: Number(editingTitle.healthBonus) || 0,
+        critBonus: Number(editingTitle.critBonus) || 0,
+      });
+      if (res && res.title) {
+        await loadTitles();
+        editingTitle = null;
+      }
+      return true;
+    });
+  }
+
+  async function handleDeleteTitle(title: any) {
+    if (!(await confirmDialog.danger(m.eco_title_delete_confirm({ name: title.name })))) return;
+
+    await actionState.run(async () => {
+      await deleteRpgTitle(title.id);
+      await loadTitles();
+      return true;
+    });
+  }
+
+  async function handleGrantTitle(title: any) {
+    const userId = titleGrantPick[title.id];
+    if (!userId) return;
+
+    await actionState.run(async () => {
+      const res = await grantRpgTitle(title.id, userId);
+      if (res) {
+        titleGrantPick[title.id] = null;
+        await loadTitles();
+      }
+      return true;
+    });
+  }
+
+  async function handleRevokeTitle(title: any, owner: any) {
+    if (!(await confirmDialog.danger(m.eco_title_revoke_confirm({ name: title.name, player: owner.displayName })))) return;
+
+    await actionState.run(async () => {
+      await revokeRpgTitle(title.id, owner.userId);
+      await loadTitles();
+      return true;
+    });
   }
 
   async function loadQuests() {
@@ -835,6 +963,10 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       toast.error(m.eco_toast_bm_role_required());
       return false;
     }
+    if (config.firstKillAnnounce !== 'NONE' && !config.firstKillChannelId) {
+      toast.error(m.eco_toast_first_kill_channel_required());
+      return false;
+    }
     // Le raid se joue depuis le bouton de son annonce : sans annonce ni salon, la fenetre
     // s'ouvre et se referme sans que personne n'ait pu frapper.
     if (config.raidEnabled && config.raidAnnounce === 'NONE') {
@@ -963,6 +1095,14 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       isBoss,
       bossRespawnHours: isBoss ? 2 : null,
       clanPoints: 0,
+      firstKillCoinReward: 0,
+      firstKillXpReward: 0,
+      firstKillItemName: null as string | null,
+      firstKillClanPoints: 0,
+      firstKillRoleId: null as string | null,
+      firstKillTitleId: null as string | null,
+      winTitleId: null as string | null,
+      firstKillOn: false,
       enabled: true,
       scope: 'GUILD',
       overridesGlobal: false
@@ -978,6 +1118,9 @@ import EmojiText from '../lib/components/EmojiText.svelte';
   function openEditMonster(monster: any) {
     editingMonster = {
       ...monster,
+      firstKillOn: monster.firstKillCoinReward > 0 || monster.firstKillXpReward > 0
+        || monster.firstKillClanPoints > 0 || Boolean(monster.firstKillItemName) || Boolean(monster.firstKillRoleId)
+        || Boolean(monster.firstKillTitleId),
       drops: (monster.drops ?? []).map((drop: any) => ({
         itemName: drop.itemName,
         emoji: drop.emoji ?? '📦',
@@ -1026,6 +1169,14 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       isBoss: editingMonster.isBoss,
       bossRespawnHours: editingMonster.bossRespawnHours,
       clanPoints: editingMonster.clanPoints ?? 0,
+      // Décocher la section retire la prime ; le record du premier vainqueur, lui, reste.
+      firstKillCoinReward: editingMonster.firstKillOn ? Number(editingMonster.firstKillCoinReward) || 0 : 0,
+      firstKillXpReward: editingMonster.firstKillOn ? Number(editingMonster.firstKillXpReward) || 0 : 0,
+      firstKillClanPoints: editingMonster.firstKillOn ? Number(editingMonster.firstKillClanPoints) || 0 : 0,
+      firstKillItemName: editingMonster.firstKillOn ? editingMonster.firstKillItemName || null : null,
+      firstKillRoleId: editingMonster.firstKillOn ? editingMonster.firstKillRoleId || null : null,
+      firstKillTitleId: editingMonster.firstKillOn ? editingMonster.firstKillTitleId || null : null,
+      winTitleId: editingMonster.winTitleId || null,
       enabled: editingMonster.enabled,
       drops: editingMonster.drops
         .filter((drop: any) => drop.itemName)
@@ -1463,6 +1614,13 @@ import EmojiText from '../lib/components/EmojiText.svelte';
       {m.eco_tab_quests()}
     </button>
     <button
+      onclick={() => gotoTab('/economy', 'titres', DEFAULT_TAB)}
+      class="tab-button {activeTab === 'titres' ? 'active' : ''}"
+    >
+      <Papicon icon="award" size={14} />
+      {m.eco_tab_titles()}
+    </button>
+    <button
       onclick={() => gotoTab('/economy', 'aventures', DEFAULT_TAB)}
       class="tab-button {activeTab === 'aventures' ? 'active' : ''}"
     >
@@ -1720,6 +1878,35 @@ import EmojiText from '../lib/components/EmojiText.svelte';
               <label for="bossCd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_boss_cd()}</label>
               <input id="bossCd" type="number" min="0" max="1440" bind:value={config.bossCooldownMin} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
               <p class="text-[11px] text-on-surface-variant/40">{m.eco_boss_cd_hint()}</p>
+            </div>
+          </div>
+
+          <div class="space-y-4 pt-4 border-t border-outline-variant/10">
+            <div>
+              <h4 class="text-sm font-bold">{m.eco_first_kill_announce_title()}</h4>
+              <p class="text-xs text-on-surface-variant/60 mt-0.5">{m.eco_first_kill_announce_desc()}</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div class="space-y-1.5">
+                <label for="firstKillAnnounce" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bm_announce_mode()}</label>
+                <select id="firstKillAnnounce" bind:value={config.firstKillAnnounce} disabled={!canManageSettings || !config.enabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50">
+                  <option value="NONE">{m.eco_first_kill_announce_none()}</option>
+                  <option value="BOSSES">{m.eco_first_kill_announce_bosses()}</option>
+                  <option value="ALL">{m.eco_first_kill_announce_all()}</option>
+                </select>
+              </div>
+              {#if config.firstKillAnnounce !== 'NONE'}
+                <div class="space-y-1.5">
+                  <label for="firstKillChannel" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bm_announce_channel_label()}</label>
+                  <SearchableSelect
+                    id="firstKillChannel"
+                    bind:value={config.firstKillChannelId}
+                    options={availableChannels.map((c: any) => ({ id: c.id, name: channelDisplayName(c) }))}
+                    placeholder={m.eco_bm_select_channel()}
+                    className="w-full"
+                  />
+                </div>
+              {/if}
             </div>
           </div>
         </div>
@@ -2188,6 +2375,16 @@ import EmojiText from '../lib/components/EmojiText.svelte';
                           : m.eco_bestiary_clan_points_short({ points: monster.clanPoints })}
                       </span>
                     {/if}
+                    {#if titleName(monster.winTitleId)}
+                      <span class="flex items-center gap-1"><Papicon icon="crown" size={11} /> {titleName(monster.winTitleId)}</span>
+                    {/if}
+                    {#if monster.firstKill}
+                      <span class="flex items-center gap-1" title={m.eco_bestiary_first_kill_hint({ date: new Date(monster.firstKill.at).toLocaleDateString() })}>
+                        <Papicon icon="award" size={11} /> {monster.firstKill.displayName ?? monster.firstKill.userId}
+                      </span>
+                    {:else if monster.firstKillCoinReward > 0 || monster.firstKillXpReward > 0 || monster.firstKillClanPoints > 0 || monster.firstKillItemName || monster.firstKillRoleId || monster.firstKillTitleId}
+                      <span class="flex items-center gap-1"><Papicon icon="award" size={11} /> {m.eco_bestiary_first_kill_open()}</span>
+                    {/if}
                     {#if monster.battles?.battles > 0}
                       <span title={m.eco_bestiary_winrate_hint({ days: battleStatsDays })}>
                         {m.eco_bestiary_winrate({ rate: winRate(monster.battles) ?? 0, battles: monster.battles.battles })}
@@ -2318,6 +2515,97 @@ import EmojiText from '../lib/components/EmojiText.svelte';
         {/if}
 
         <p class="text-[11px] text-on-surface-variant/50 leading-relaxed">{m.eco_recipe_shipped_hint()}</p>
+      </div>
+    {/if}
+
+    {#if activeTab === 'titres'}
+      <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
+        <div class="flex flex-wrap items-start justify-between gap-4 border-b border-outline-variant/15 pb-4">
+          <div class="max-w-2xl">
+            <h3 class="text-lg font-semibold">{m.eco_titles_title()}</h3>
+            <p class="text-xs text-on-surface-variant/60 mt-1 leading-relaxed">{m.eco_titles_desc()}</p>
+          </div>
+          {#if canManageSettings}
+            <button type="button" onclick={openNewTitle} disabled={!config.enabled} class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5">
+              <Papicon icon="plus" size={14} />
+              {m.eco_title_create()}
+            </button>
+          {/if}
+        </div>
+
+        {#if titlesLoading}
+          <div class="flex items-center justify-center py-12">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        {:else if titles.length === 0}
+          <p class="text-xs text-on-surface-variant/50 italic text-center py-8">{m.eco_titles_empty()}</p>
+        {:else}
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {#each titles as title (title.id)}
+              {@const ownerIds = new Set(title.owners.map((owner: any) => owner.userId))}
+              <div class="bg-surface-container-high/30 border border-outline-variant/10 p-6 rounded-xl flex flex-col justify-between">
+                <div class="space-y-3">
+                  <h4 class="font-semibold text-base leading-tight break-words" style="color: {title.color}">{title.name}</h4>
+                  {#if title.description}
+                    <p class="text-xs text-on-surface-variant/60 leading-relaxed">{title.description}</p>
+                  {/if}
+
+                  <div class="flex flex-wrap gap-1.5 text-[10px] font-bold">
+                    {#each titleBonusBadges(title) as badge}
+                      <span class="bg-primary/10 text-primary px-2 py-0.5 rounded-lg">{badge.label} {badge.value}</span>
+                    {:else}
+                      <span class="text-on-surface-variant/50 italic font-normal">{m.eco_title_no_bonus()}</span>
+                    {/each}
+                  </div>
+
+                  <div class="border-t border-outline-variant/5 pt-3 space-y-2">
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">{m.eco_title_owners({ count: title.owners.length })}</span>
+                    <div class="flex flex-wrap gap-1.5">
+                      {#each title.owners as owner (owner.userId)}
+                        <span class="text-[11px] bg-outline-variant/10 rounded-lg pl-2 pr-1 py-0.5 flex items-center gap-1">
+                          {owner.displayName}
+                          {#if canManageSettings}
+                            <button type="button" onclick={() => handleRevokeTitle(title, owner)} class="p-0.5 rounded hover:bg-red-500/20 text-red-400" title={m.eco_title_revoke()}>
+                              <Papicon icon="x" size={10} />
+                            </button>
+                          {/if}
+                        </span>
+                      {/each}
+                    </div>
+
+                    {#if canManageSettings}
+                      <div class="flex items-center gap-2">
+                        <SearchableSelect
+                          value={titleGrantPick[title.id] ?? null}
+                          options={players.filter((player: any) => !ownerIds.has(player.userId)).map((player: any) => ({ id: player.userId, name: player.displayName }))}
+                          placeholder={m.eco_title_grant_placeholder()}
+                          clearable={true}
+                          className="flex-1 min-w-0"
+                          on:change={(e: any) => titleGrantPick[title.id] = e.detail?.value ?? null}
+                        />
+                        <button type="button" onclick={() => handleGrantTitle(title)} disabled={!titleGrantPick[title.id]} class="px-3 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-[11px] font-bold disabled:opacity-50 shrink-0">
+                          {m.eco_title_grant()}
+                        </button>
+                      </div>
+                    {/if}
+                  </div>
+                </div>
+
+                {#if canManageSettings}
+                  <div class="mt-6 border-t border-outline-variant/5 pt-4 flex items-center gap-2">
+                    <button type="button" onclick={() => openEditTitle(title)} disabled={!config.enabled} class="flex-1 px-3 py-2 bg-outline-variant/10 hover:bg-outline-variant/20 rounded-lg text-[11px] font-bold disabled:opacity-50 flex items-center justify-center gap-1.5">
+                      <Papicon icon="edit" size={12} />
+                      {m.eco_bestiary_btn_customize()}
+                    </button>
+                    <button type="button" onclick={() => handleDeleteTitle(title)} disabled={!config.enabled} class="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-[11px] font-bold disabled:opacity-50">
+                      <Papicon icon="trash" size={12} />
+                    </button>
+                  </div>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        {/if}
       </div>
     {/if}
 
@@ -3375,8 +3663,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 <!-- MONSTER / BOSS MODAL EDITOR -->
 {#if editingMonster}
   {@const nameLocked = editingMonster.scope === 'GLOBAL' || editingMonster.overridesGlobal}
-  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-2xl space-y-6 animate-in zoom-in-95 duration-200 my-8">
+  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-2xl space-y-6 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
       <h3 class="text-xl font-semibold">
         {editingMonster.id ? m.eco_bestiary_modal_edit({ name: editingMonster.name }) : m.eco_bestiary_modal_create()}
       </h3>
@@ -3476,6 +3764,91 @@ import EmojiText from '../lib/components/EmojiText.svelte';
             </div>
           {/if}
 
+          <div class="space-y-1 pt-2 border-t border-outline-variant/5">
+            <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_win_title()}</span>
+            <SearchableSelect
+              value={editingMonster.winTitleId || null}
+              options={titleOptions}
+              placeholder={titles.length > 0 ? m.eco_bestiary_title_none() : m.eco_bestiary_title_empty()}
+              clearable={true}
+              className="w-full"
+              on:change={(e: any) => editingMonster.winTitleId = e.detail?.value ?? null}
+            />
+            <p class="text-[10px] text-on-surface-variant/50 leading-relaxed mt-1">{m.eco_bestiary_win_title_hint()}</p>
+          </div>
+
+          <div class="space-y-3 pt-2 border-t border-outline-variant/5">
+            <div class="flex items-center justify-between">
+              <div>
+                <h4 class="text-sm font-bold">{m.eco_bestiary_first_kill_title()}</h4>
+                <p class="text-xs text-on-surface-variant/60 mt-0.5">{m.eco_bestiary_first_kill_desc()}</p>
+              </div>
+              <ToggleSwitch checked={editingMonster.firstKillOn} onToggle={(v: boolean) => editingMonster.firstKillOn = v} />
+            </div>
+
+            {#if editingMonster.firstKill}
+              <p class="text-xs bg-amber-500/10 text-amber-400 rounded-lg px-3 py-2">
+                {m.eco_bestiary_first_kill_holder({
+                  name: editingMonster.firstKill.displayName ?? editingMonster.firstKill.userId,
+                  date: new Date(editingMonster.firstKill.at).toLocaleDateString()
+                })}
+              </p>
+            {/if}
+
+            {#if editingMonster.firstKillOn}
+              <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                  <label for="monsterFirstKillCoins" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_coin_reward({ currency: config.currencyName })}</label>
+                  <input id="monsterFirstKillCoins" type="number" min="0" bind:value={editingMonster.firstKillCoinReward} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+                </div>
+                <div class="space-y-1">
+                  <label for="monsterFirstKillXp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_xp_reward()}</label>
+                  <input id="monsterFirstKillXp" type="number" min="0" bind:value={editingMonster.firstKillXpReward} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+                </div>
+                {#if raidGuildMode ? config.guildsEnabled : config.clansEnabled}
+                  <div class="col-span-2 space-y-1">
+                    <label for="monsterFirstKillClan" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{raidGuildMode ? m.eco_raid_reward_guild_xp() : m.eco_bestiary_clan_points()}</label>
+                    <input id="monsterFirstKillClan" type="number" min="0" bind:value={editingMonster.firstKillClanPoints} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+                  </div>
+                {/if}
+                <div class="col-span-2 space-y-1">
+                  <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_first_kill_item()}</span>
+                  <SearchableSelect
+                    value={editingMonster.firstKillItemName || null}
+                    options={dropItemOptions}
+                    placeholder={m.eco_bestiary_first_kill_item_none()}
+                    clearable={true}
+                    className="w-full"
+                    on:change={(e: any) => editingMonster.firstKillItemName = e.detail?.value ?? null}
+                  />
+                </div>
+                <div class="col-span-2 space-y-1">
+                  <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_first_kill_role()}</span>
+                  <SearchableSelect
+                    value={editingMonster.firstKillRoleId || null}
+                    options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
+                    placeholder={m.eco_bestiary_first_kill_role_none()}
+                    clearable={true}
+                    className="w-full"
+                    on:change={(e: any) => editingMonster.firstKillRoleId = e.detail?.value ?? null}
+                  />
+                  <p class="text-[10px] text-on-surface-variant/50 leading-relaxed mt-1">{m.eco_bestiary_first_kill_role_hint()}</p>
+                </div>
+                <div class="col-span-2 space-y-1">
+                  <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_first_kill_title_reward()}</span>
+                  <SearchableSelect
+                    value={editingMonster.firstKillTitleId || null}
+                    options={titleOptions}
+                    placeholder={titles.length > 0 ? m.eco_bestiary_title_none() : m.eco_bestiary_title_empty()}
+                    clearable={true}
+                    className="w-full"
+                    on:change={(e: any) => editingMonster.firstKillTitleId = e.detail?.value ?? null}
+                  />
+                </div>
+              </div>
+            {/if}
+          </div>
+
           <div class="flex items-center justify-between pt-2 border-t border-outline-variant/5">
             <div>
               <h4 class="text-sm font-bold">{m.eco_bestiary_enabled_title()}</h4>
@@ -3555,11 +3928,76 @@ import EmojiText from '../lib/components/EmojiText.svelte';
   </div>
 {/if}
 
+<!-- FICHE D'UN TITRE -->
+{#if editingTitle}
+  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-lg space-y-6 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+      <h3 class="text-xl font-semibold">{editingTitle.id ? m.eco_title_modal_edit() : m.eco_title_modal_create()}</h3>
+
+      <div class="space-y-4">
+        <div class="grid grid-cols-4 gap-3">
+          <div class="col-span-3 space-y-1">
+            <label for="titleName" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_title_name()}</label>
+            <input id="titleName" type="text" maxlength="40" bind:value={editingTitle.name} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label for="titleColor" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_title_color()}</label>
+            <input id="titleColor" type="color" bind:value={editingTitle.color} class="w-full h-[38px] bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-1 cursor-pointer" />
+          </div>
+        </div>
+
+        <div class="space-y-1">
+          <label for="titleDesc" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_bestiary_desc_field()}</label>
+          <textarea id="titleDesc" maxlength="200" bind:value={editingTitle.description} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none h-16 resize-none"></textarea>
+        </div>
+
+        <p class="text-center text-sm font-bold bg-[#161221] rounded-lg py-3" style="color: {editingTitle.color}">{editingTitle.name || m.eco_title_name()}</p>
+
+        <fieldset class="border border-outline-variant/10 p-4 rounded-lg">
+          <legend class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50 px-2">{m.eco_title_bonuses()}</legend>
+          <p class="text-[11px] text-on-surface-variant/60 leading-relaxed mb-3">{m.eco_title_bonuses_hint()}</p>
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div class="space-y-1">
+              <label for="titleAtk" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_atk()}</label>
+              <input id="titleAtk" type="number" min="0" max="1000" bind:value={editingTitle.attackBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+            </div>
+            <div class="space-y-1">
+              <label for="titleDef" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_def()}</label>
+              <input id="titleDef" type="number" min="0" max="1000" bind:value={editingTitle.defenseBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+            </div>
+            <div class="space-y-1">
+              <label for="titleSpd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_spd()}</label>
+              <input id="titleSpd" type="number" min="0" max="1000" bind:value={editingTitle.speedBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+            </div>
+            <div class="space-y-1">
+              <label for="titleHp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_bestiary_health()}</label>
+              <input id="titleHp" type="number" min="0" max="10000" bind:value={editingTitle.healthBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+            </div>
+            <div class="space-y-1">
+              <label for="titleCrit" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_title_crit()} (%)</label>
+              <input id="titleCrit" type="number" min="0" max="25" bind:value={editingTitle.critBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+            </div>
+          </div>
+        </fieldset>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-4 border-t border-outline-variant/10">
+        <button type="button" onclick={() => editingTitle = null} class="px-5 py-2.5 bg-outline-variant/10 hover:bg-outline-variant/20 rounded-xl text-xs font-bold transition-all">
+          {m.eco_btn_cancel()}
+        </button>
+        <button type="button" onclick={handleSaveTitle} class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all">
+          {m.eco_btn_save()}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <!-- QUEST MODAL EDITOR -->
 <!-- FICHE D'UNE RECETTE -->
 {#if editingRecipe}
-  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-lg space-y-5 animate-in zoom-in-95 duration-200 my-8">
+  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-lg space-y-5 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
       <h3 class="text-xl font-semibold">{editingRecipe.id ? m.eco_btn_edit() : m.eco_recipe_new()}</h3>
 
       <div class="space-y-1">
@@ -3632,8 +4070,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 {/if}
 
 {#if editingQuest}
-  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-2xl space-y-6 animate-in zoom-in-95 duration-200 my-8">
+  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-2xl space-y-6 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
       <h3 class="text-xl font-semibold">
         {editingQuest.id ? m.eco_quest_modal_edit({ name: editingQuest.name }) : m.eco_quest_modal_create()}
       </h3>
@@ -3764,8 +4202,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 
 <!-- RAID BOSS MODAL EDITOR -->
 {#if editingRaidBoss}
-  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-2xl space-y-6 animate-in zoom-in-95 duration-200 my-8">
+  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-2xl space-y-6 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
       <h3 class="text-xl font-semibold">
         {editingRaidBoss.id ? m.eco_raid_modal_edit({ name: editingRaidBoss.name }) : m.eco_raid_modal_create()}
       </h3>
@@ -3867,7 +4305,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 <!-- PLAYER MODAL EDITOR -->
 {#if editingPlayer}
   <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-lg space-y-6 animate-in zoom-in-95 duration-200">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-lg space-y-6 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
       <h3 class="text-xl font-semibold">{m.eco_modal_edit_player({ name: editingPlayer.displayName || editingPlayer.username })}</h3>
       
       <div class="grid grid-cols-2 gap-4">
@@ -3961,7 +4399,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 <!-- RESET CONFIRMATION MODAL -->
 {#if resetComponent}
   <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-md space-y-6 animate-in zoom-in-95 duration-200">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-md space-y-6 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
       <div class="text-center space-y-3 flex flex-col items-center">
         <div class="w-16 h-16 bg-error/10 text-error rounded-full flex items-center justify-center mb-2">
           <Papicon icon="alert-triangle" size={32} />

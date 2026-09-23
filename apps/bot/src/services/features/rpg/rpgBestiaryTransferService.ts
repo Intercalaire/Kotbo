@@ -58,6 +58,15 @@ export async function exportGuildBestiary(guildId: string): Promise<BestiaryExpo
       isBoss: monster.isBoss,
       bossRespawnHours: monster.bossRespawnHours,
       clanPoints: monster.clanPoints,
+      firstKillCoinReward: monster.firstKillCoinReward,
+      firstKillXpReward: monster.firstKillXpReward,
+      firstKillItemName: monster.firstKillItemName,
+      firstKillClanPoints: monster.firstKillClanPoints,
+      // Un rôle ou un titre n'existe que sur son serveur : exporté, il ne désignerait
+      // rien ailleurs.
+      firstKillRoleId: null,
+      firstKillTitleId: null,
+      winTitleId: null,
       enabled: monster.enabled,
     })),
   };
@@ -130,16 +139,31 @@ export async function importGuildBestiary(guildId: string, payload: unknown): Pr
   const itemNames = new Set(knownItems.map((item) => item.name));
 
   const existing = await listGuildMonsters(guildId, { includeDisabled: true });
-  const byName = new Map(existing.map((monster) => [monster.name, monster.id]));
+  const byName = new Map(existing.map((monster) => [monster.name, monster]));
 
   const report: BestiaryImportReport = { created: 0, updated: 0, droppedLoot: 0 };
 
   for (const monster of normalized) {
     const drops = monster.drops.filter((drop) => itemNames.has(drop.itemName));
     report.droppedLoot += monster.drops.length - drops.length;
+    // Même règle que pour le butin : une prime d'objet inconnu sur ce serveur est retirée,
+    // plutôt que de faire échouer l'import au milieu du fichier.
+    const firstKillItemName = monster.firstKillItemName && itemNames.has(monster.firstKillItemName)
+      ? monster.firstKillItemName
+      : null;
+    if (monster.firstKillItemName && !firstKillItemName) report.droppedLoot += 1;
 
-    const previousId = byName.get(monster.name);
-    await saveGuildMonster(guildId, { ...monster, drops }, previousId);
+    const previous = byName.get(monster.name);
+    const previousId = previous?.id;
+    // Le fichier ne porte ni rôle ni titre : ceux déjà réglés sur la fiche sont conservés.
+    await saveGuildMonster(guildId, {
+      ...monster,
+      drops,
+      firstKillItemName,
+      firstKillRoleId: previous?.firstKillRoleId ?? null,
+      firstKillTitleId: previous?.firstKillTitleId ?? null,
+      winTitleId: previous?.winTitleId ?? null,
+    }, previousId);
     if (previousId) report.updated += 1;
     else report.created += 1;
   }
