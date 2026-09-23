@@ -5249,21 +5249,6 @@ async function handleAdminDropSubmit(interaction: ModalSubmitInteraction, guildI
 // Personnage - classe & points de caractéristiques
 // ─────────────────────────────────────────────────────────────
 
-const STAT_ALLOCATIONS: { stat: AllocatableStat; emoji: string; label: (locale: Locale) => string }[] = [
-  { stat: 'attack', emoji: '⚔️', label: (locale) => m.rpg_stat_attack({}, { locale }) },
-  { stat: 'defense', emoji: '🛡️', label: (locale) => m.rpg_stat_defense({}, { locale }) },
-  { stat: 'speed', emoji: '💨', label: (locale) => m.rpg_stat_speed({}, { locale }) },
-  { stat: 'maxHealth', emoji: '❤️', label: (locale) => m.rpg_stat_health({}, { locale }) },
-];
-
-/**
- * Écran Personnage, en conteneur V2.
- *
- * L'écran alignait quatre boutons de répartition sous un bloc de texte : rien ne disait
- * quel bouton montait quelle ligne, et ils restaient affichés - grisés - même sans point
- * à dépenser. Chaque caractéristique porte désormais SON bouton, à sa droite, et les
- * boutons disparaissent quand il n'y a rien à répartir.
- */
 /** Bonus d'un titre : en icônes pour un texte, en mots pour une option de menu. */
 function titleBonusText(
   title: Parameters<typeof titleBonusParts>[0],
@@ -5282,6 +5267,21 @@ function titleBonusText(
     .join(plain ? ' · ' : '  ');
 }
 
+const STAT_ALLOCATIONS: { stat: AllocatableStat; emoji: string; label: (locale: Locale) => string }[] = [
+  { stat: 'attack', emoji: '⚔️', label: (locale) => m.rpg_stat_attack({}, { locale }) },
+  { stat: 'defense', emoji: '🛡️', label: (locale) => m.rpg_stat_defense({}, { locale }) },
+  { stat: 'speed', emoji: '💨', label: (locale) => m.rpg_stat_speed({}, { locale }) },
+  { stat: 'maxHealth', emoji: '❤️', label: (locale) => m.rpg_stat_health({}, { locale }) },
+];
+
+/**
+ * Écran Personnage, en conteneur V2.
+ *
+ * L'écran alignait quatre boutons de répartition sous un bloc de texte : rien ne disait
+ * quel bouton montait quelle ligne, et ils restaient affichés - grisés - même sans point
+ * à dépenser. Chaque caractéristique porte désormais SON bouton, à sa droite, et les
+ * boutons disparaissent quand il n'y a rien à répartir.
+ */
 async function buildCharacterView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
   const rpgClass = getRpgClass(profile.className);

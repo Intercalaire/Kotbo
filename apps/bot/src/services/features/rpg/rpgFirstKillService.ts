@@ -105,32 +105,39 @@ export async function claimFirstKill(
       result.itemEmoji = item.emoji;
     }
 
-    if (result.xp > 0) await checkLevelUp(guildId, userId);
+    // Le record est déjà inscrit : chaque versement qui suit est isolé, pour qu'un incident
+    // sur l'un ne prive pas le vainqueur des autres, qu'il ne pourra plus réclamer.
+    const settle = <T>(step: string, run: () => Promise<T>): Promise<T | null> => run().catch((err) => {
+      logger.warn('RpgFirstKill', `${step} du premier vainqueur en échec pour ${monster.name} :`, err);
+      return null;
+    });
+
+    if (result.xp > 0) await settle('Passage de niveau', () => checkLevelUp(guildId, userId));
 
     if (monster.firstKillClanPoints > 0) {
-      const team = await awardRpgTeamPoints({
+      const team = await settle('Points de clan', () => awardRpgTeamPoints({
         client,
         guildId,
         userId,
         amount: monster.firstKillClanPoints,
         source: monster.isBoss ? 'RPG_BOSS' : 'RPG_MOB',
         reason: monster.name,
-      });
-      result.teamPoints = team.amount;
-      result.toGuild = team.toGuild;
+      }));
+      result.teamPoints = team?.amount ?? 0;
+      result.toGuild = team?.toGuild ?? false;
     }
 
-    if (monster.firstKillTitleId) {
-      const profile = await prisma.rpgProfile.findUnique({ where: { guildId_userId: { guildId, userId } }, select: { id: true } });
-      const title = profile ? await grantTitle(profile.id, monster.firstKillTitleId) : null;
+    const titleId = monster.firstKillTitleId;
+    if (titleId) {
+      const title = await settle('Titre', async () => {
+        const profile = await prisma.rpgProfile.findUnique({ where: { guildId_userId: { guildId, userId } }, select: { id: true } });
+        return profile ? grantTitle(profile.id, titleId) : null;
+      });
       result.titleName = title?.name ?? null;
     }
 
     if (monster.firstKillRoleId) {
-      result.roleId = await grantFirstKillRole(client, guildId, userId, monster).catch((err) => {
-        logger.warn('RpgFirstKill', `Rôle du premier vainqueur non attribué pour ${monster.name} :`, err);
-        return null;
-      });
+      result.roleId = await settle('Rôle', () => grantFirstKillRole(client, guildId, userId, monster));
     }
   }
 

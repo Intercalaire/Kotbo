@@ -801,7 +801,9 @@ export async function handleEconomyRoutes(
 
     // POST   /api/dashboard/guilds/:guildId/economy/titles/:titleId/owners           { userId }
     // DELETE /api/dashboard/guilds/:guildId/economy/titles/:titleId/owners/:userId
-    if (parts[7] === 'owners' && (parts.length === 8 || parts.length === 9)) {
+    const grantsOwner = method === 'POST' && parts.length === 8;
+    const revokesOwner = method === 'DELETE' && parts.length === 9;
+    if (parts[7] === 'owners' && (grantsOwner || revokesOwner)) {
       try {
         const titleId = parts[6];
         const title = await prisma.rpgTitle.findUnique({ where: { id: titleId } });
@@ -810,7 +812,7 @@ export async function handleEconomyRoutes(
           return true;
         }
 
-        const userId = method === 'POST'
+        const userId = grantsOwner
           ? (await readJsonBody<{ userId?: string }>(req))?.userId
           : parts[8];
         if (!userId || !/^\d{17,20}$/.test(userId)) {
@@ -823,21 +825,19 @@ export async function handleEconomyRoutes(
           return true;
         }
 
-        if (method === 'POST' && parts.length === 8) {
+        if (grantsOwner) {
           const granted = await grantTitle(profile.id, titleId);
           if (!granted) {
             json(res, 409, { error: 'Ce membre possède déjà ce titre.' });
             return true;
           }
-        } else if (method === 'DELETE' && parts.length === 9) {
-          await revokeTitle(profile.id, titleId);
         } else {
-          return false;
+          await revokeTitle(profile.id, titleId);
         }
 
         await pushAudit(guildId, {
           user: auditUser,
-          action: method === 'POST' ? 'Attribution titre RPG' : 'Retrait titre RPG',
+          action: grantsOwner ? 'Attribution titre RPG' : 'Retrait titre RPG',
           context: getGuildName(client, guildId),
           module: 'Économie',
           eventType: 'Manuel',

@@ -359,7 +359,7 @@ export function registerRpgTools(ctx: McpToolContext) {
         description: "Crée un titre du RPG, ou modifie celui qui porte cet ID. Seul le titre porté par un joueur lui donne ses bonus. Requiert WRITE_MEMBERS.",
         inputSchema: {
           id: z.string().optional().describe('ID du titre à modifier (voir get_rpg_titles). Absent : création.'),
-          name: z.string().describe('Nom affiché en haut de la carte du personnage'),
+          name: z.string().optional().describe('Nom affiché en haut de la carte du personnage (requis à la création)'),
           description: z.string().optional(),
           color: z.string().optional().describe('Couleur hexadécimale, ex. #fbbf24'),
           attackBonus: z.number().int().optional(),
@@ -373,7 +373,20 @@ export function registerRpgTools(ctx: McpToolContext) {
       },
       guard('WRITE_MEMBERS', async ({ id, key_name, ...input }) => {
         try {
-          const { title, created } = await saveGuildTitle(guildId, input, id);
+          // En modification, le titre existant sert de base : un appel qui ne voulait changer
+          // qu'un bonus ne doit pas remettre les autres à zéro.
+          const existing = id ? await prisma.rpgTitle.findUnique({ where: { id } }) : null;
+          const base = existing && existing.guildId === guildId ? {
+            name: existing.name,
+            description: existing.description,
+            color: existing.color,
+            attackBonus: existing.attackBonus,
+            defenseBonus: existing.defenseBonus,
+            speedBonus: existing.speedBonus,
+            healthBonus: existing.healthBonus,
+            critBonus: existing.critBonus,
+          } : null;
+          const { title, created } = await saveGuildTitle(guildId, mergeDefined(base, input), id);
           await audit(key_name, created ? 'Création titre RPG MCP' : 'Modification titre RPG MCP', title.name, title.description);
           return ok({ ok: true, id: title.id, created });
         } catch (e) {
