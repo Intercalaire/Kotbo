@@ -1187,24 +1187,72 @@ async function panneauSalon(
 }
 
 /** 👥 Membres — une porte au lieu de quatre : on choisit d'abord la personne. */
-function panneauMembres(entree: EntreeSalonTemporaire, ctxp: ContextePanneau): PanneauRendu {
+/** Discord n'accepte pas plus de vingt-cinq options dans un menu. */
+const MAX_OPTIONS_MENU = 25;
+
+/**
+ * Le sous-panneau « Membres », avec deux portes plutôt qu'une.
+ *
+ * Chercher dans tout le serveur pour agir sur quelqu'un qui est déjà dans le
+ * salon est le cas le plus fréquent, et c'était le plus laborieux : il fallait
+ * taper un nom qu'on avait sous les yeux. La liste des présents règle celui-là ;
+ * la recherche reste pour tous les autres.
+ *
+ * Au-delà de vingt-cinq personnes, la liste est tronquée plutôt qu'omise — et
+ * elle le dit, sans quoi quelqu'un chercherait longtemps un nom absent.
+ */
+function panneauMembres(
+  channel: VoiceChannel,
+  entree: EntreeSalonTemporaire,
+  ctxp: ContextePanneau,
+): PanneauRendu {
+  // Les bots occupent des places dans la liste sans qu'aucune action du panneau
+  // ait de sens sur eux.
+  const presents = [...(channel.members?.values() ?? [])].filter((membre) => !membre.user?.bot);
+  const listes = presents.slice(0, MAX_OPTIONS_MENU);
+  const tronquee = presents.length > listes.length;
+
   const invite = new EmbedBuilder()
     .setColor(COULEUR_NEUTRE)
     .setTitle('Qui ?')
-    .setDescription("Choisis un membre du salon, ou cherche n'importe qui du serveur.");
+    .setDescription(presents.length === 0
+      ? "Personne n'est dans le salon pour l'instant : cherche n'importe qui du serveur."
+      : tronquee
+        ? `Choisis quelqu'un du salon — les ${listes.length} premiers sont listés — ou cherche n'importe qui du serveur.`
+        : "Choisis quelqu'un qui est dans le salon, ou cherche n'importe qui du serveur.");
 
-  return {
-    embeds: [...encartRole(entree, ctxp), invite],
-    components: [
+  const rangees: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
+
+  // Un menu sans option fait rejeter le message entier par Discord : la rangée
+  // n'existe que lorsqu'il y a quelqu'un à y mettre.
+  if (listes.length > 0) {
+    rangees.push(
       new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
-        new UserSelectMenuBuilder()
-          .setCustomId('tempvoice:membre_select')
-          .setPlaceholder('Sélectionner un membre…')
-          .setMinValues(1)
-          .setMaxValues(1),
+        new StringSelectMenuBuilder()
+          .setCustomId('tempvoice:membre_ici')
+          .setPlaceholder(`Dans le salon · ${presents.length} personne${presents.length > 1 ? 's' : ''}`)
+          .addOptions(
+            listes.map((membre) => new StringSelectMenuOptionBuilder()
+              // Discord plafonne un libellé à cent caractères, et un pseudo
+              // Discord peut aller au-delà une fois décoré.
+              .setLabel(membre.displayName.slice(0, 100))
+              .setValue(membre.id)),
+          ),
       ),
-    ],
-  };
+    );
+  }
+
+  rangees.push(
+    new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+      new UserSelectMenuBuilder()
+        .setCustomId('tempvoice:membre_select')
+        .setPlaceholder('Chercher n\'importe qui du serveur…')
+        .setMinValues(1)
+        .setMaxValues(1),
+    ),
+  );
+
+  return { embeds: [...encartRole(entree, ctxp), invite], components: rangees };
 }
 
 /** Une autorisation nominative se lit sur la surcharge, pas sur une intention. */
@@ -1772,6 +1820,7 @@ const ONGLET_DORIGINE: Readonly<Record<string, OngletPanneau>> = {
   unlock: 'salon',
   chat: 'salon',
   membre_select: 'membres',
+  membre_ici: 'membres',
   m_kick: 'membres',
   m_ban: 'membres',
   m_trust: 'membres',
@@ -2438,6 +2487,23 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
   }
 
   // ─── Fiche d'un membre : choisir la personne, puis voir ce qui est possible ───
+  // Deux portes, une seule fiche : la liste des présents et la recherche dans le
+  // serveur mènent au même endroit.
+  if (action === 'membre_ici' && interaction.isStringSelectMenu()) {
+    await acquitterMiseAJour(interaction);
+
+    const cibleId = interaction.values[0];
+    const target = cibleId ? await guild.members.fetch(cibleId).catch(() => null) : null;
+    if (!target) {
+      await reponseSupplementaire(interaction, '❌ Ce membre a quitté le serveur.');
+      return;
+    }
+
+    const fiche = await ficheMembre(channel, cache, target, user.id, ctx.ctxp);
+    await interaction.editReply(fiche).catch(() => null);
+    return;
+  }
+
   if (action === 'membre_select' && interaction.isUserSelectMenu()) {
     await acquitterMiseAJour(interaction);
 
@@ -2480,7 +2546,7 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
       }
 
       case 'membres': {
-        await interaction.reply({ ...panneauMembres(cache, ctx.ctxp), ...ephemeral });
+        await interaction.reply({ ...panneauMembres(channel, cache, ctx.ctxp), ...ephemeral });
         return;
       }
 
@@ -2727,17 +2793,34 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
           await reply(`${I.lock} ${reservationAutorisee.raison}`);
           return;
         }
+        // La reservation en cours est preselectionnee : on voit ce qui est pose,
+        // et la retirer devient un clic dans le menu plutot qu'un acte de foi.
+        // `setMinValues(0)` est ce qui autorise a tout decocher.
+        const reservationPosee = await prisma.tempVoiceChannel
+          .findUnique({ where: { id: channel.id } })
+          .then((ligne) => ligne?.roleId ?? null)
+          .catch(() => null);
+
+        const menuRole = new RoleSelectMenuBuilder()
+          .setCustomId('tempvoice:reserve_select')
+          .setPlaceholder(reservationPosee
+            ? 'Décochez pour lever la réservation, ou choisissez un autre rôle'
+            : 'Sélectionnez un rôle pour réserver le salon')
+          .setMinValues(0)
+          .setMaxValues(1);
+
+        // Un role supprime depuis la reservation ferait rejeter le message
+        // entier : la preselection ne vaut que si le role existe encore.
+        if (reservationPosee && guild.roles.cache.has(reservationPosee)) {
+          menuRole.setDefaultRoles(reservationPosee);
+        }
+
         await interaction.reply({
-          content: '🛡️ **Réserver le salon pour un rôle** :\nSélectionnez le rôle qui sera autorisé à rejoindre votre salon vocal. Ne sélectionnez rien pour réinitialiser.',
-          components: [
-            new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(
-              new RoleSelectMenuBuilder()
-                .setCustomId('tempvoice:reserve_select')
-                .setPlaceholder('Sélectionnez un rôle pour réserver le salon')
-                .setMinValues(0)
-                .setMaxValues(1),
-            ),
-          ],
+          content: reservationPosee
+            ? `🛡️ **Réserver le salon pour un rôle** :\nLe salon est réservé à <@&${reservationPosee}>. Décochez-le pour lever la réservation, ou choisissez un autre rôle.`
+            : '🛡️ **Réserver le salon pour un rôle** :\nSélectionnez le rôle qui sera autorisé à rejoindre votre salon vocal. Ne sélectionnez rien pour réinitialiser.',
+          components: [new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(menuRole)],
+          allowedMentions: { parse: [] },
           ...ephemeral,
         });
         return;

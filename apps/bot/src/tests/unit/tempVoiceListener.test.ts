@@ -77,7 +77,7 @@ const ACTIONS_DU_PANNEAU = [
   // lorsque le salon est fermé.
   'salon', 'membres', 'propriete', 'demander',
   // Sous-panneaux éphémères.
-  'bascule_verrou', 'mode_select', 'membre_select',
+  'bascule_verrou', 'mode_select', 'membre_select', 'membre_ici',
   'm_kick', 'm_ban', 'm_trust', 'm_untrust', 'm_transfer',
   'demande_ok', 'demande_non', 'demande_ban',
   // Identifiants des panneaux postés avant la refonte : toujours acceptés.
@@ -241,9 +241,11 @@ function fakeSelectInteraction(options: {
     // meme de lire l'identifiant : un banc qui rend `false` partout laisse
     // l'interaction tomber dans le vide, sans erreur et sans effet.
     isRoleSelectMenu: () => options.customId.includes('reserve'),
-    isStringSelectMenu: () => options.customId.includes('mode_select'),
+    isStringSelectMenu: () => options.customId.includes('mode_select')
+      || options.customId.includes('membre_ici'),
     isUserSelectMenu: () => !options.customId.includes('reserve')
-      && !options.customId.includes('mode_select'),
+      && !options.customId.includes('mode_select')
+      && !options.customId.includes('membre_ici'),
     isMessageComponent: () => true,
     isRepliable: () => true,
     message: { edit: mock(async () => undefined) },
@@ -3042,5 +3044,102 @@ describe('Modes d\'écriture : ce que le libellé promet', () => {
     const patch = dernierPatch(edits, OTHER);
     expect(patch).toBeDefined();
     expect(patch?.SendMessages).not.toBe(true);
+  });
+});
+
+describe('Sous-panneau « Membres » : deux portes', () => {
+  /** Les options d'un menu, ou qu'elles se trouvent selon la version du builder. */
+  function optionsDuMenu(menu: unknown): Array<{ value?: string }> {
+    const brut = menu as { options?: unknown[]; data?: { options?: unknown[] } } | undefined;
+    const liste = brut?.options ?? brut?.data?.options ?? [];
+    return liste.map((option) => {
+      const o = option as { value?: string; data?: { value?: string } };
+      return { value: o.value ?? o.data?.value };
+    });
+  }
+
+  function salonAvecPresents(nombre: number) {
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+    const { channel } = fakeChannel();
+    const membres = new Map<string, unknown>();
+    for (let i = 0; i < nombre; i += 1) {
+      // Jamais d'arithmetique sur un identifiant Discord : 7e17 depasse
+      // `Number.MAX_SAFE_INTEGER`, et l'increment s'evapore - les trente
+      // membres se seraient ecrases sur un seul, sans la moindre erreur.
+      const id = `70000000000000${String(1000 + i)}`;
+      membres.set(id, { ...fakeTarget(id, false), displayName: `Membre ${i}` });
+    }
+    // Un bot present ne doit pas occuper une place dans la liste : aucune action
+    // du panneau n'a de sens sur lui.
+    membres.set('799999999999999999', { ...fakeTarget('799999999999999999', true), displayName: 'Robot' });
+    (channel as { members: Map<string, unknown> }).members = membres;
+    return channel;
+  }
+
+  async function ouvrirMembres(channel: unknown) {
+    const guild = fakeGuild(new Map());
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const { interaction } = fakeButtonInteraction('membres', {
+      channel,
+      guild,
+      member: fakeTarget(OWNER, false),
+    });
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+
+    tempChannels.delete(CHANNEL);
+    guildConfig = null;
+
+    const appels = (interaction.reply as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    return (appels[0]?.[0] ?? {}) as { components?: Array<{ components: Array<{ data: Record<string, unknown> }> }> };
+  }
+
+  test('les personnes présentes ont leur propre menu, en plus de la recherche', async () => {
+    // Chercher dans tout le serveur quelqu'un qu'on a sous les yeux était le cas
+    // le plus fréquent, et le plus laborieux.
+    const charge = await ouvrirMembres(salonAvecPresents(3));
+    const identifiants = (charge.components ?? [])
+      .flatMap((rangee) => rangee.components.map((composant) => composant.data.custom_id as string));
+
+    expect(identifiants).toContain('tempvoice:membre_ici');
+    expect(identifiants).toContain('tempvoice:membre_select');
+  });
+
+  test('un salon vide ne pose pas de menu vide', async () => {
+    // Discord rejette le message entier quand un menu n'a aucune option : la
+    // rangée doit disparaître, pas se vider.
+    const charge = await ouvrirMembres(salonAvecPresents(0));
+    const identifiants = (charge.components ?? [])
+      .flatMap((rangee) => rangee.components.map((composant) => composant.data.custom_id as string));
+
+    expect(identifiants).not.toContain('tempvoice:membre_ici');
+    expect(identifiants).toContain('tempvoice:membre_select');
+  });
+
+  test('le menu des présents ne dépasse jamais vingt-cinq options', async () => {
+    // Le plafond de Discord. Au-delà, la liste est tronquée plutôt qu'omise.
+    const charge = await ouvrirMembres(salonAvecPresents(30));
+    const menu = (charge.components ?? [])
+      .flatMap((rangee) => rangee.components)
+      .find((composant) => composant.data.custom_id === 'tempvoice:membre_ici');
+
+    // `StringSelectMenuBuilder` range ses options hors de `data` : les lire la
+    // rendrait un tableau vide, et le test passerait pour rien.
+    const options = optionsDuMenu(menu);
+    expect(options).toHaveLength(25);
+  });
+
+  test('un bot présent n\'occupe pas une place dans la liste', async () => {
+    // Aucune action du panneau n'a de sens sur un bot.
+    const charge = await ouvrirMembres(salonAvecPresents(2));
+    const menu = (charge.components ?? [])
+      .flatMap((rangee) => rangee.components)
+      .find((composant) => composant.data.custom_id === 'tempvoice:membre_ici');
+
+    const options = optionsDuMenu(menu);
+    expect(options).toHaveLength(2);
+    expect(options.map((option) => option.value)).not.toContain('799999999999999999');
   });
 });

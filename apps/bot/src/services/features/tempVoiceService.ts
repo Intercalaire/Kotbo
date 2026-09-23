@@ -1353,6 +1353,20 @@ export function peutAgirSurCible(
     return refus('cibleHorsSalon', `${designation(cible)} n'est pas dans le salon.`);
   }
 
+  // « Autoriser » et « Retirer l'acces » ecrivent une surcharge de confiance.
+  // Le proprietaire, lui, tient son acces de SA surcharge de proprietaire :
+  // « Retirer l'acces » ne lui retirait donc rien de visible, mais supprimait
+  // au passage la surcharge qui porte ses droits. Un bouton qui n'a pas d'effet
+  // utile et un effet de bord nuisible n'a pas a etre cliquable.
+  if (action === 'autoriser' && cible.estProprietaire) {
+    return refus(
+      'cibleDejaProprietaire',
+      cible.nom
+        ? `${cible.nom} est propriétaire du salon : son accès ne vient pas d'une autorisation.`
+        : "Cette personne est propriétaire du salon : son accès ne vient pas d'une autorisation.",
+    );
+  }
+
   if (action === 'transferer') {
     if (cible.estSoiMeme) {
       return refus('cibleSoiMeme', 'Tu ne peux pas te transférer le salon à toi-même.');

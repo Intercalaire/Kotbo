@@ -1014,3 +1014,42 @@ describe('nettoyagePresenceAuDemarrage', () => {
     }
   });
 });
+
+describe("Retirer l'acces au proprietaire", () => {
+  const cibleProprietaire = {
+    nom: 'Toji',
+    estStaff: false,
+    estProprietaire: true,
+    estSoiMeme: false,
+    dansLeSalon: true,
+    autorise: true,
+  };
+
+  test("« Retirer l'acces » est refuse sur le proprietaire du salon", () => {
+    // Signale en conditions reelles : le bouton repondait sans rien changer.
+    // L'acces du proprietaire vient de SA surcharge, pas d'une autorisation -
+    // et « retirer » supprimait cette surcharge, donc ses propres droits.
+    const verdict = peutAgirSurCible('proprietaire', 'autoriser', undefined, cibleProprietaire);
+    expect(verdict.autorise).toBe(false);
+    if (!verdict.autorise) {
+      expect(verdict.motif).toBe('cibleDejaProprietaire');
+      expect(verdict.raison).toContain('propriétaire');
+    }
+  });
+
+  test('un moderateur et un admin se heurtent a la meme garde', () => {
+    // Elle tient a la cible, pas au role de qui clique.
+    for (const role of ['moderateur', 'admin'] as const) {
+      expect(peutAgirSurCible(role, 'autoriser', undefined, cibleProprietaire).autorise).toBe(false);
+    }
+  });
+
+  test("autoriser quelqu'un qui n'est pas proprietaire reste possible", () => {
+    // La garde ne doit pas fermer la porte qu'elle n'a pas a fermer.
+    const verdict = peutAgirSurCible('proprietaire', 'autoriser', undefined, {
+      ...cibleProprietaire,
+      estProprietaire: false,
+    });
+    expect(verdict.autorise).toBe(true);
+  });
+});
