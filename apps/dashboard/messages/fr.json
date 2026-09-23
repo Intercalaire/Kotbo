@@ -5562,6 +5562,7 @@
   "clan_public_source_rpg_quest": "RPG-quête",
   "clan_public_source_rpg_raid": "RPG-raid",
   "clan_public_source_rpg_item": "RPG-items",
+  "clan_public_source_rpg_first_kill": "Premier vainqueur",
   "eco_bestiary_title": "Bestiaire du serveur",
   "eco_bestiary_desc": "Les créatures livrées avec le bot sont communes à tous les serveurs. Les personnaliser ici en crée une version propre à ce serveur, sans toucher à l'originale : le bouton Réinitialiser la rend à tout moment.",
   "eco_bestiary_filter_all": "Tout",
