@@ -179,7 +179,7 @@
     if (path.startsWith("/absences")) return "absences";
     if (path.startsWith("/planning")) return "absences";
     if (path.startsWith("/leveling")) return "leveling";
-    if (path.startsWith("/economy")) return "economy";
+    if (path.startsWith("/economy") || path.startsWith("/rpg")) return "economy";
     if (path.startsWith("/giveaways")) return "giveaways";
     if (path.startsWith("/welcome") || path.startsWith("/announcement")) return "welcome_goodbye";
     if (path.startsWith("/reaction-roles")) return "reaction_roles";
@@ -1046,6 +1046,10 @@
             <LazyRoute
               path="/economy/*"
               load={() => import("./pages/Economy.svelte")}
+            />
+            <LazyRoute
+              path="/rpg/*"
+              load={() => import("./pages/Rpg.svelte")}
             />
             <LazyRoute
               path="/giveaways/*"

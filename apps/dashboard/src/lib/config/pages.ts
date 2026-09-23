@@ -147,6 +147,7 @@ export const economyItems: PageConfig[] = [
   // fois, il ne releve donc d'aucun onglet de la page, et c'est par la qu'on commence.
   { name: m.nav_economy_quick_setup(), icon: "sparkles", href: "/economy-setup",    featureKey: "economy",  beta: false, wip: false, hidden: true },
   { name: m.nav_economy(),      icon: "coins",         href: "/economy",          featureKey: "economy",  beta: false, wip: false },
+  { name: m.nav_rpg(),          icon: "sword",         href: "/rpg",              featureKey: "economy",  beta: false, wip: false },
   { name: m.nav_marketplace(),              icon: "shopping-bag",  href: "/marketplace",      featureKey: "marketplace",  beta: false, wip: false },
   { name: m.nav_quests(),              icon: "compass",       href: "/quests",           featureKey: "quests",  beta: false, wip: false },
 ];

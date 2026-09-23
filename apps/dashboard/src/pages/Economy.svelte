@@ -100,13 +100,30 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     publicUrlCopied = true;
     setTimeout(() => { publicUrlCopied = false; }, 2000);
   }
-  const economyTabs = ['config', 'items', 'recettes', 'bestiaire', 'raid', 'quetes', 'titres', 'aventures', 'blackmarket', 'guildes', 'players'] as const;
-  const DEFAULT_TAB = 'config';
-  let activeTab = $state(DEFAULT_TAB);
+  // Economie et Jeu RPG sont deux pages du menu qui partagent ce composant :
+  // l'une porte la monnaie et la boutique, l'autre le jeu. Onze onglets sur
+  // une seule barre ne laissaient plus voir ce que la page contenait.
+  const { section = 'economy' }: { section?: 'economy' | 'rpg' } = $props();
+  const ECONOMY_TABS = ['config', 'items', 'blackmarket', 'players'] as const;
+  const RPG_TABS = ['recettes', 'bestiaire', 'raid', 'quetes', 'titres', 'aventures', 'guildes'] as const;
+  const BASE = $derived(section === 'rpg' ? '/rpg' : '/economy');
+  const DEFAULT_TAB = $derived(section === 'rpg' ? RPG_TABS[0] : ECONOMY_TABS[0]);
+  // Pose par l'effet ci-dessous, avant le premier rendu.
+  let activeTab = $state<string>('');
 
-  $effect(() => {
-    const _path = $router.path;
-    activeTab = resolveTabFromUrl('/economy', economyTabs, DEFAULT_TAB);
+  $effect.pre(() => {
+    const path = $router.path;
+    if (section === 'rpg') {
+      activeTab = resolveTabFromUrl('/rpg', RPG_TABS, 'recettes');
+      return;
+    }
+    // Les anciens liens (/economy/bestiaire, favoris compris) menent au jeu.
+    const segment = path.startsWith('/economy/') ? path.slice('/economy/'.length).split('/')[0] : '';
+    if ((RPG_TABS as readonly string[]).includes(segment)) {
+      router.goto(`/rpg/${segment}`, true);
+      return;
+    }
+    activeTab = resolveTabFromUrl('/economy', ECONOMY_TABS, 'config');
   });
 
   const canManageSettings = $derived(
@@ -1516,13 +1533,14 @@ import EmojiText from '../lib/components/EmojiText.svelte';
      Sans lui, la garde d'API refusait chaque appel sans que rien ne dise pourquoi, et
      aucun chemin ne permettait de rallumer le module depuis ici. -->
 <ModulePage
-  title={m.eco_page_title()}
-  description={m.eco_page_desc()}
-  icon="coins"
+  title={section === 'rpg' ? m.rpg_page_title() : m.eco_page_title()}
+  description={section === 'rpg' ? m.rpg_page_desc() : m.eco_page_desc()}
+  icon={section === 'rpg' ? 'sword' : 'coins'}
   featureKey="economy"
 >
   {#snippet actions()}
     {#if !loading}
+      {#if section === 'economy'}
       <button
         type="button"
         onclick={() => router.goto('/economy-setup')}
@@ -1532,7 +1550,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
         {m.eco_quick_setup_title()}
         <Papicon icon="ChevronRight" size={14} class="transition-transform group-hover:translate-x-0.5" />
       </button>
-      {#if publicRpgUrl}
+      {/if}
+      {#if publicRpgUrl && section === 'rpg'}
         <a
           href={publicRpgUrl}
           target="_blank"
@@ -1575,10 +1594,10 @@ import EmojiText from '../lib/components/EmojiText.svelte';
   {/if}
 
   <Tabs
-    label={m.eco_page_title()}
-    tabs={pageTabItems('/economy')}
+    label={section === 'rpg' ? m.rpg_page_title() : m.eco_page_title()}
+    tabs={pageTabItems(BASE)}
     active={activeTab}
-    onchange={(id) => gotoTab('/economy', id, DEFAULT_TAB)}
+    onchange={(id) => gotoTab(BASE, id, DEFAULT_TAB)}
   />
 
   {#if loading}

@@ -137,15 +137,18 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
   '/economy': [
     { id: 'config', label: () => m.eco_tab_config(), icon: 'settings' },
     { id: 'items', label: () => m.eco_tab_items(), icon: 'package' },
+    { id: 'blackmarket', label: () => m.eco_tab_blackmarket(), icon: 'moon' },
+    { id: 'players', label: () => m.eco_tab_players(), icon: 'users' },
+  ],
+
+  '/rpg': [
     { id: 'recettes', label: () => m.eco_tab_recipes(), icon: 'Hammer' },
     { id: 'bestiaire', label: () => m.eco_tab_bestiary(), icon: 'ghost' },
     { id: 'raid', label: () => m.eco_tab_raid(), icon: 'crown' },
     { id: 'quetes', label: () => m.eco_tab_quests(), icon: 'Tasks' },
     { id: 'titres', label: () => m.eco_tab_titles(), icon: 'award' },
     { id: 'aventures', label: () => m.eco_tab_events(), icon: 'Compass' },
-    { id: 'blackmarket', label: () => m.eco_tab_blackmarket(), icon: 'moon' },
     { id: 'guildes', label: () => m.eco_tab_guilds(), icon: 'Shield' },
-    { id: 'players', label: () => m.eco_tab_players(), icon: 'users' },
   ],
 
   '/marketplace': [
