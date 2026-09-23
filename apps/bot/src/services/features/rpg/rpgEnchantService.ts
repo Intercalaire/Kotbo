@@ -287,13 +287,15 @@ export async function applyEnchantScroll(
   });
 
   const successChance = enchantSuccessChance(tier);
-  const success = Math.random() < successChance;
+  let success = Math.random() < successChance;
 
   if (success) {
-    await prisma.$transaction(async (tx) => {
+    // Un renoncement sous verrou (même enchantement posé entre-temps depuis une autre
+    // fenêtre) ne doit pas s'annoncer comme une réussite.
+    success = await prisma.$transaction(async (tx) => {
       await lockRpgProfile(tx, profile.id);
       // Relu sous verrou : une forge réussie entre-temps ne doit pas être écrasée.
-      await writeWornProgression(tx, profile.id, itemId, (current) => {
+      return writeWornProgression(tx, profile.id, itemId, (current) => {
         const held = current.enchants.find((stack) => stack.id === enchant.id);
         if (held && held.tier >= tier) return null;
         if (!held && current.enchants.length >= capacity) return null;

@@ -92,7 +92,6 @@ import {
   isEquipmentSlot,
   itemIdInSlot,
   slotForItemType,
-  slotHoldingItem,
   unlockedAccessorySlots,
   type EquipmentSlot,
   type SlottedProfile,

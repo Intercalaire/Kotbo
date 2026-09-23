@@ -126,7 +126,8 @@ async function sellerNames(guild: Guild | null, userIds: string[]): Promise<Map<
   const names = new Map<string, string>();
   const unique = [...new Set(userIds)];
   if (guild && unique.length > 0) {
-    const members = await guild.members.fetch({ user: unique }).catch(() => null);
+    // Attente bornée : par défaut, discord.js patiente deux minutes sur une gateway muette.
+    const members = await guild.members.fetch({ user: unique, time: 5_000 }).catch(() => null);
     for (const id of unique) {
       const member = members?.get(id) ?? guild.members.cache.get(id);
       if (member) names.set(id, member.displayName);
