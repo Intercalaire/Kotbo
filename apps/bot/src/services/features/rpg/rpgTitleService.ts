@@ -2,7 +2,7 @@
  * Titres du RPG : catalogue du serveur, collection des joueurs, titre porté.
  */
 
-import type { RpgTitle } from '@prisma/client';
+import type { Prisma, RpgTitle } from '@prisma/client';
 import prisma from '../../../utils/db.js';
 import { NO_PERMANENT_BONUSES, type PermanentBonuses } from './rpgStats.js';
 import { normalizeTitleInput, type TitleInput } from './rpgTitlePolicy.js';
@@ -60,11 +60,23 @@ export async function saveGuildTitle(
  *
  * Les joueurs le perdent de leur collection, ceux qui le portaient n'en portent plus, et
  * les créatures qui l'offraient n'offrent plus rien : les clés étrangères s'en chargent.
+ * Les choix d'aventure, eux, vivent dans une colonne JSON sans clé étrangère : on les
+ * nettoie à la main, sans quoi l'aventure ne pourrait plus être enregistrée au dashboard.
  */
 export async function deleteGuildTitle(guildId: string, titleId: string): Promise<RpgTitle> {
   const existing = await prisma.rpgTitle.findUnique({ where: { id: titleId } });
   if (!existing || existing.guildId !== guildId) throw new TitleError('Titre introuvable.', 404);
-  await prisma.rpgTitle.delete({ where: { id: titleId } });
+
+  const events = await prisma.rpgAdventureEvent.findMany({ where: { guildId }, select: { id: true, choices: true } });
+  const writes = events.flatMap((event) => {
+    if (!Array.isArray(event.choices)) return [];
+    const choices = event.choices as Record<string, unknown>[];
+    if (!choices.some((choice) => choice?.titleId === titleId)) return [];
+    const cleaned = choices.map((choice) => (choice?.titleId === titleId ? { ...choice, titleId: null } : choice));
+    return [prisma.rpgAdventureEvent.update({ where: { id: event.id }, data: { choices: cleaned as Prisma.InputJsonValue } })];
+  });
+
+  await prisma.$transaction([...writes, prisma.rpgTitle.delete({ where: { id: titleId } })]);
   return existing;
 }
 

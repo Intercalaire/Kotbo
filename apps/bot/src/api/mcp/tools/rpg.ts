@@ -92,6 +92,7 @@ const choiceSchema = z.object({
   coinEffect: z.number().int().optional().describe('Pièces gagnées ou perdues'),
   xpEffect: z.number().int().min(0).optional().describe('XP gagnée'),
   minLevel: z.number().int().min(0).optional().describe('Niveau minimum pour choisir cette option'),
+  titleId: z.string().nullable().optional().describe('ID du titre remis à qui fait ce choix (voir get_rpg_titles)'),
 });
 
 /**
@@ -359,7 +360,7 @@ export function registerRpgTools(ctx: McpToolContext) {
         description: "Crée un titre du RPG, ou modifie celui qui porte cet ID. Seul le titre porté par un joueur lui donne ses bonus. Requiert WRITE_MEMBERS.",
         inputSchema: {
           id: z.string().optional().describe('ID du titre à modifier (voir get_rpg_titles). Absent : création.'),
-          name: z.string().optional().describe('Nom affiché en haut de la carte du personnage (requis à la création)'),
+          name: z.string().max(24).optional().describe('Nom affiché en haut de la carte du personnage, 24 caractères maximum (requis à la création)'),
           description: z.string().optional(),
           color: z.string().optional().describe('Couleur hexadécimale, ex. #fbbf24'),
           attackBonus: z.number().int().optional(),

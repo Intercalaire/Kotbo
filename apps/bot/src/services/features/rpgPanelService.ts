@@ -3593,6 +3593,12 @@ async function handleTravelEventChoice(interaction: ButtonInteraction, guildId: 
     )
     .setColor(resolution.hpEffect < 0 ? COLORS.danger : COLORS.success);
 
+  if (resolution.titleName) {
+    embed.addFields({
+      name: m.rpg_title_obtained_field({}, { locale }),
+      value: m.rpg_title_obtained_value({ title: resolution.titleName }, { locale }),
+    });
+  }
   if (resolution.levelUp) {
     embed.addFields({ name: m.rpg_travel_field_levelup({}, { locale }), value: m.rpg_travel_levelup_value({ level: Number(resolution.levelUp) }, { locale }) });
   }
