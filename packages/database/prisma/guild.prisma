@@ -639,6 +639,7 @@ model Guild {
   rpgAdventureEvents       RpgAdventureEvent[]
   rpgDrops                 RpgDrop[]
   rpgMonsters              RpgMonster[]
+  rpgTitles                RpgTitle[]
   rpgBattles               RpgBattle[]
   rpgArenaRecords          RpgArenaRecord[]
   rpgCampaignProgress      RpgCampaignProgress[]

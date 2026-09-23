@@ -1088,6 +1088,8 @@
                           <span class="text-[9px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-fuchsia-500/10 text-fuchsia-500 shrink-0">{m.clan_public_source_rpg_raid()}</span>
                         {:else if s.source === 'RPG_ITEM'}
                           <span class="text-[9px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-fuchsia-500/10 text-fuchsia-500 shrink-0">{m.clan_public_source_rpg_item()}</span>
+                        {:else if s.source === 'RPG_FIRST_KILL'}
+                          <span class="text-[9px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-500 shrink-0">{m.clan_public_source_rpg_first_kill()}</span>
                         {:else if s.source === 'RPG'}
                           <!-- Gains enregistres avant la separation des trois origines. -->
                           <span class="text-[9px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-fuchsia-500/10 text-fuchsia-500 shrink-0">{m.clan_public_source_rpg()}</span>

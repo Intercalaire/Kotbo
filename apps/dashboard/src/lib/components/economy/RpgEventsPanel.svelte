@@ -10,7 +10,7 @@
   import { m } from '../../i18n';
   import { confirmDialog } from '../../stores/confirmDialog.svelte';
   import { createAsyncActionState } from '../../asyncAction.svelte';
-  import { deleteRpgEvent, fetchRpgEvents, saveRpgEvent, setRpgEventEnabled } from '../../api';
+  import { deleteRpgEvent, fetchRpgEvents, fetchRpgTitles, saveRpgEvent, setRpgEventEnabled } from '../../api';
   import Papicon from '../Papicon.svelte';
   import EmojiPicker from '../EmojiPicker.svelte';
   import EmojiText from '../EmojiText.svelte';
@@ -19,7 +19,7 @@
 
   const { canManage = false, disabled = false }: { canManage?: boolean; disabled?: boolean } = $props();
 
-  type Choice = { text: string; hpEffect: number; coinEffect: number; xpEffect: number; minLevel: number };
+  type Choice = { text: string; hpEffect: number; coinEffect: number; xpEffect: number; minLevel: number; titleId: string | null };
   type AdventureEvent = {
     id: string;
     title: string;
@@ -35,6 +35,8 @@
   let events = $state<AdventureEvent[]>([]);
   let loading = $state(true);
   let limits = $state({ titleMax: 100, descriptionMax: 1000, choicesMax: 5, choiceTextMax: 80 });
+  // Titres du serveur, pour la récompense de titre d'un choix.
+  let titles = $state<{ id: string; name: string; color: string }[]>([]);
   let editing = $state<(Omit<AdventureEvent, 'id' | 'scope' | 'overridesGlobal' | 'enabled'> & { id?: string; titleLocked: boolean }) | null>(null);
 
   const sorted = $derived(
@@ -56,9 +58,25 @@
     }
   }
 
-  onMount(load);
+  async function loadTitles() {
+    try {
+      const res = await fetchRpgTitles();
+      if (res) titles = res.titles ?? [];
+    } catch (err) {
+      console.error(err);
+    }
+  }
 
-  const blankChoice = (): Choice => ({ text: '', hpEffect: 0, coinEffect: 0, xpEffect: 10, minLevel: 0 });
+  onMount(() => {
+    void load();
+    void loadTitles();
+  });
+
+  function titleOf(titleId: string | null) {
+    return titleId ? titles.find((title) => title.id === titleId) ?? null : null;
+  }
+
+  const blankChoice = (): Choice => ({ text: '', hpEffect: 0, coinEffect: 0, xpEffect: 10, minLevel: 0, titleId: null });
 
   function openNew() {
     editing = { title: '', description: '', emoji: '🌲', choices: [blankChoice()], titleLocked: false };
@@ -72,7 +90,7 @@
       title: event.title,
       description: event.description,
       emoji: event.emoji,
-      choices: event.choices.length > 0 ? event.choices.map((choice) => ({ ...choice })) : [blankChoice()],
+      choices: event.choices.length > 0 ? event.choices.map((choice) => ({ ...choice, titleId: choice.titleId ?? null })) : [blankChoice()],
       titleLocked: event.scope === 'GLOBAL' || event.overridesGlobal,
     };
   }
@@ -102,6 +120,7 @@
           coinEffect: Number(choice.coinEffect) || 0,
           xpEffect: Number(choice.xpEffect) || 0,
           minLevel: Number(choice.minLevel) || 0,
+          titleId: choice.titleId || null,
         })),
       });
       editing = null;
@@ -197,6 +216,9 @@
                   {#if choice.coinEffect}<span class="{choice.coinEffect < 0 ? 'text-red-400' : 'text-amber-400'} font-bold">{effectLabel(choice.coinEffect, m.eco_events_unit_coins())}</span>{/if}
                   {#if choice.xpEffect}<span class="text-sky-400 font-bold">{effectLabel(choice.xpEffect, 'XP')}</span>{/if}
                   {#if choice.minLevel > 1}<span class="text-on-surface-variant/50">{m.eco_events_min_level({ level: choice.minLevel })}</span>{/if}
+                  {#if titleOf(choice.titleId)}
+                    <span class="font-bold flex items-center gap-1" style="color: {titleOf(choice.titleId)?.color}"><Papicon icon="award" size={11} /> {titleOf(choice.titleId)?.name}</span>
+                  {/if}
                 </li>
               {/each}
             </ul>
@@ -303,6 +325,15 @@
                 <input type="number" min="0" bind:value={choice.minLevel} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs font-normal normal-case tracking-normal focus:outline-none" />
               </label>
             </div>
+            <label class="block space-y-1 text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">
+              {m.eco_events_field_title()}
+              <select bind:value={choice.titleId} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs font-normal normal-case tracking-normal focus:outline-none">
+                <option value={null}>{titles.length > 0 ? m.eco_bestiary_title_none() : m.eco_bestiary_title_empty()}</option>
+                {#each titles as title (title.id)}
+                  <option value={title.id}>{title.name}</option>
+                {/each}
+              </select>
+            </label>
           </div>
         {/each}
 

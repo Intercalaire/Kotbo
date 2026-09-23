@@ -21,6 +21,7 @@ import {
 import { ensureItemInstance } from './rpg/rpgItemInstanceService.js';
 import { addInventoryQuantity, lockRpgProfile, takeInventoryQuantity } from './rpg/rpgInventoryWrites.js';
 import { listPlayableAdventureEvents } from './rpg/rpgAdventureEventService.js';
+import { deleteAllGuildTitles, grantTitle } from './rpg/rpgTitleService.js';
 import { buildFishBook, type FishBook, type FishSpecies } from './rpg/rpgFishBook.js';
 
 // Cooldown tracker for in-memory message activity (to prevent spam farming)
@@ -574,8 +575,19 @@ export async function chooseAdventureOutcome(guildId: string, userId: string, ev
 
   const levelUp = await checkLevelUp(guildId, userId);
 
+  // Le titre suit le choix réellement résolu : la garde sur `isTraveling` ci-dessus assure
+  // qu'un double clic ne passe jamais jusqu'ici deux fois. Un titre déjà possédé ne revient
+  // pas, et un incident sur le titre ne doit pas faire échouer l'aventure déjà encaissée.
+  const title = choice.titleId
+    ? await grantTitle(profile.id, choice.titleId).catch((err) => {
+      logger.warn('Economy', `Titre d'aventure non attribué à ${userId} :`, err);
+      return null;
+    })
+    : null;
+
   return {
     choiceText: choice.text,
+    titleName: title?.name ?? null,
     hpEffect: finalHpEffect,
     coinEffect: finalCoinEffect,
     xpEffect: finalXpEffect,
@@ -1053,7 +1065,14 @@ export async function depositToRpgGuildTreasury(guildId: string, userId: string,
 /**
  * Revend un objet de l'inventaire à la boutique à 50% de son prix d'achat.
  */
-export async function sellShopItem(guildId: string, userId: string, itemId: string) {
+/**
+ * Vend un exemplaire d'un objet possédé.
+ *
+ * `minOwned` refuse la vente si le joueur en possède moins que ce nombre au moment de vendre.
+ * Le bouton de revente du butin s'en sert pour ne vendre que l'exemplaire gagné au combat :
+ * s'il a déjà été vendu, un second clic tomberait sinon sur un exemplaire possédé avant.
+ */
+export async function sellShopItem(guildId: string, userId: string, itemId: string, options: { minOwned?: number } = {}) {
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.shopEnabled) throw new Error('La boutique RPG est désactivée.');
 
@@ -1073,6 +1092,16 @@ export async function sellShopItem(guildId: string, userId: string, itemId: stri
     const current = await tx.rpgProfile.findUniqueOrThrow({ where: { id: profile.id } });
     if (isItemEquipped(current, item.id)) {
       throw new Error("Vous ne pouvez pas vendre un objet équipé. Déséquipez-le d'abord depuis l'onglet Inventaire de `/rpg`.");
+    }
+
+    if (options.minOwned !== undefined) {
+      const stock = await tx.rpgInventoryItem.findUnique({
+        where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: item.id } },
+        select: { quantity: true },
+      });
+      if (!stock || stock.quantity < options.minOwned) {
+        throw new Error('Cet exemplaire a déjà été vendu ou utilisé.');
+      }
     }
 
     // Vendre son dernier exemplaire emporte sa progression : garder l'instance ferait
@@ -1240,6 +1269,12 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
         data: { bossDifficulty: 'NORMAL', monsterDifficulty: 'NORMAL' }
       });
     }
+  }
+
+  // Les titres sont un catalogue du serveur, comme le bestiaire : seule la remise à zéro
+  // complète les efface. Collections et titres portés partent avec eux.
+  if (component === 'all') {
+    await deleteAllGuildTitles(guildId);
   }
 
   if (component === 'profiles' || component === 'all') {

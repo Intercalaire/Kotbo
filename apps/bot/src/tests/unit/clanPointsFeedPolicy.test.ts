@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   chunkFeedLines,
+  feedSourceLabel,
   fitClanBlock,
   formatFeedLine,
   summarizeFeed,
@@ -95,5 +96,11 @@ describe('récapitulatif d\'une grosse rafale', () => {
 
     expect(value).toBe('**Drop** · `+3`\n<@1> `+1`\n… et 2 autres');
     expect(value.length).toBeLessThanOrEqual(40);
+  });
+});
+
+describe('libellé de provenance', () => {
+  test('la prime du premier vainqueur a son propre libellé', () => {
+    expect(feedSourceLabel('RPG_FIRST_KILL')).toBe('Premier vainqueur');
   });
 });

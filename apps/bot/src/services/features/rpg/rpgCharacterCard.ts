@@ -103,6 +103,8 @@ export type CharacterCardInput = {
   slots: CardSlot[];
   /** Nom de la guilde RPG, affiché sous le nom du personnage. */
   guildName: string | null;
+  /** Titre porté, affiché en tête de carte au-dessus du portrait. */
+  title: { name: string; color: string } | null;
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -356,6 +358,14 @@ function draw(ctx: SKRSContext2D, input: CharacterCardInput): void {
     ? `${input.className} · Niveau ${input.level}`
     : `Niveau ${input.level}`;
   ctx.fillText(fitText(ctx, subtitle, leftW - 40), 20 + leftW / 2, 304);
+
+  // Le titre occupe la bande libre entre le haut du panneau et le portrait, qui démarre
+  // à y = 64 : plus bas, il mordrait le cadre de l'avatar.
+  if (input.title) {
+    ctx.font = canvasFont(15, 'bold');
+    ctx.fillStyle = input.title.color;
+    ctx.fillText(fitText(ctx, input.title.name, leftW - 40), 20 + leftW / 2, 50);
+  }
 
   if (input.guildName) {
     ctx.font = canvasFont(12);
