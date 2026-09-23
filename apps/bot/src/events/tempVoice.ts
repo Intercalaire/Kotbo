@@ -323,8 +323,8 @@ function oublierSalon(guildId: string, salonId: string): void {
   registreDemandes.oublierSalon(guildId, salonId);
   originesSurcharge.oublierSalon(guildId, salonId);
   historiquesRenommage.delete(salonId);
-  const fenetre = rafraichissements.get(salonId);
-  if (fenetre) clearTimeout(fenetre.minuteur);
+  const etat = rafraichissements.get(salonId);
+  if (etat?.minuteur) clearTimeout(etat.minuteur);
   rafraichissements.delete(salonId);
 }
 
@@ -436,46 +436,87 @@ async function roleAgissant(
 // Réécriture du panneau, anti-rebond de 2 s par salon
 // ─────────────────────────────────────────────────────────────────────────────
 
-const FENETRE_COALESCENCE_MS = 1_500;
+/**
+ * Espacement minimal entre deux reecritures d'un meme panneau.
+ *
+ * Discord plafonne les editions a cinq par tranche de cinq secondes et par
+ * salon. Une seconde laisse donc quatre fois la marge, tout en restant
+ * imperceptible : le premier changement s'affiche sans delai, et le suivant au
+ * plus tard une seconde apres.
+ */
+const ESPACEMENT_REECRITURE_MS = 1_000;
 
-interface FenetreRafraichissement {
-  minuteur: ReturnType<typeof setTimeout>;
-  /** Un changement est arrivé pendant la fenêtre : il lui faut son passage. */
-  enAttente: boolean;
+interface EtatReecriture {
+  /** Une reecriture est en cours : la suivante attend qu'elle finisse. */
+  enCours: boolean;
+  /** Un changement est arrive depuis : il faudra repasser. */
+  sale: boolean;
+  /** Fin de la derniere reecriture, pour tenir l'espacement. */
+  dernierePassee: number;
+  minuteur?: ReturnType<typeof setTimeout>;
 }
 
-const rafraichissements = new Map<string, FenetreRafraichissement>();
+const rafraichissements = new Map<string, EtatReecriture>();
+
+function etatReecriture(salonId: string): EtatReecriture {
+  const existant = rafraichissements.get(salonId);
+  if (existant) return existant;
+  const neuf: EtatReecriture = { enCours: false, sale: false, dernierePassee: 0 };
+  rafraichissements.set(salonId, neuf);
+  return neuf;
+}
 
 /**
- * Le panneau dit l'état du salon : le laisser mentir une seconde de plus que
- * nécessaire est le seul vrai défaut qu'il puisse avoir.
+ * Le panneau dit l'etat du salon : le laisser mentir une seconde de plus que
+ * necessaire est le seul vrai defaut qu'il puisse avoir.
  *
- * La première action réécrit donc **tout de suite**, et c'est la rafale qui est
- * amortie derrière — l'inverse de ce que faisait l'anti-rebond, qui faisait
- * attendre deux secondes à un simple clic sur « Verrouiller ». Les changements
- * survenus pendant la fenêtre déclenchent un unique passage de rattrapage à sa
- * fermeture : deux écritures par fenêtre au pire, loin du plafond de Discord
- * (cinq éditions par tranche de cinq secondes et par salon).
+ * Pas de fenetre fixe. Le premier changement part **immediatement** ; ceux qui
+ * arrivent pendant une reecriture marquent le panneau « sale » et declenchent un
+ * second passage des que le premier finit, en respectant l'espacement minimal.
+ * Une rafale se replie donc toute seule, sans jamais faire attendre un
+ * changement plus longtemps que cet espacement.
+ *
+ * L'ancienne fenetre de coalescence faisait patienter le DEUXIEME clic jusqu'a
+ * sa fermeture : verrouiller puis deverrouiller laissait « Verrouille » affiche
+ * une seconde et demie apres coup.
  */
 function planifierRafraichissementPanneau(channel: VoiceChannel): void {
-  const fenetre = rafraichissements.get(channel.id);
-  if (fenetre) {
-    fenetre.enAttente = true;
+  const etat = etatReecriture(channel.id);
+
+  if (etat.enCours) {
+    etat.sale = true;
+    return;
+  }
+  if (etat.minuteur) return;
+
+  const attente = Math.max(0, ESPACEMENT_REECRITURE_MS - (Date.now() - etat.dernierePassee));
+  if (attente === 0) {
+    void executerReecriture(channel, etat);
     return;
   }
 
-  void lancerReecriture(channel);
-
   const minuteur = setTimeout(() => {
-    const courante = rafraichissements.get(channel.id);
-    rafraichissements.delete(channel.id);
-    if (courante?.enAttente) void lancerReecriture(channel);
-  }, FENETRE_COALESCENCE_MS);
-
+    etat.minuteur = undefined;
+    void executerReecriture(channel, etat);
+  }, attente);
   // Un minuteur en attente garderait le process en vie : le panneau n'est pas
-  // une raison de ne pas s'arrêter.
+  // une raison de ne pas s'arreter.
   (minuteur as unknown as { unref?: () => void }).unref?.();
-  rafraichissements.set(channel.id, { minuteur, enAttente: false });
+  etat.minuteur = minuteur;
+}
+
+async function executerReecriture(channel: VoiceChannel, etat: EtatReecriture): Promise<void> {
+  etat.enCours = true;
+  etat.sale = false;
+  try {
+    await lancerReecriture(channel);
+  } finally {
+    etat.enCours = false;
+    etat.dernierePassee = Date.now();
+    // Un changement est arrive pendant la reecriture : il a droit a son passage,
+    // au plus tot que l'espacement autorise.
+    if (etat.sale) planifierRafraichissementPanneau(channel);
+  }
 }
 
 function lancerReecriture(channel: VoiceChannel): Promise<void> {
@@ -1777,7 +1818,7 @@ export function registerTempVoiceListener(client: Client): void {
     const cache = tempChannels.get(channel.id);
     if (!cache) {
       await interaction
-        .reply({ content: "❌ Ce salon n'est plus enregistré comme temporaire.", flags: [MessageFlags.Ephemeral] })
+        .reply({ embeds: [avis("❌ Ce salon n'est plus enregistré comme temporaire.")], flags: [MessageFlags.Ephemeral] })
         .catch(() => null);
       return;
     }
@@ -1793,7 +1834,7 @@ export function registerTempVoiceListener(client: Client): void {
     // dehors. Les deux sont donc ouvertes à autrui.
     if (!ACTIONS_OUVERTES.has(action) && cache.creatorId !== user.id && !(await isStaff(guildId, actingMember))) {
       await interaction
-        .reply({ content: '❌ Seul le propriétaire du salon peut effectuer cette action.', flags: [MessageFlags.Ephemeral] })
+        .reply({ embeds: [avis('❌ Seul le propriétaire du salon peut effectuer cette action.')], flags: [MessageFlags.Ephemeral] })
         .catch(() => null);
       return;
     }
@@ -1807,17 +1848,23 @@ export function registerTempVoiceListener(client: Client): void {
       demandes: await lireConfigDemandes(guildId),
     };
 
-    // Les panneaux déjà postés avant la refonte restent en place dans les salons
-    // vivants. Leurs identifiants de boutons continuent d'être acceptés (voir le
-    // `switch`), et la première interaction redessine le message : personne ne
-    // reste devant onze boutons qui ne disent pas l'état du salon.
-    planifierRafraichissementPanneau(channel);
-
+    // ⚠️ Aucun redessin ici. Il y en avait un, hérité de l'époque où
+    // l'anti-rebond n'avait pas de front montant : la réécriture arrivait deux
+    // secondes plus tard, donc après l'action, et lire l'état avant ne coûtait
+    // rien.
+    //
+    // Avec le front montant, ce même appel consomme la fenêtre sur l'état
+    // d'AVANT le clic — le panneau se redessinait identique, puis attendait la
+    // fermeture de la fenêtre pour dire la vérité. Verrouiller laissait donc
+    // « Ouvert » affiché.
+    //
+    // Chaque action qui change quelque chose appelle `planifierRafraichissement`
+    // une fois son travail fait : c'est là que le redessin a un sens.
     try {
       await handleTempVoiceAction({ interaction, action, channel, cache, guild, guildId, actingMember, ctxp });
     } catch (err) {
       logger.error('TempVoice', `Erreur lors de l'action « ${action} » :`, err);
-      const message = { content: "❌ L'action n'a pas pu être appliquée.", flags: [MessageFlags.Ephemeral] as const };
+      const message = { embeds: [avis("❌ L'action n'a pas pu être appliquée.")], flags: [MessageFlags.Ephemeral] as const };
       await (interaction.isRepliable() && (interaction.replied || interaction.deferred)
         ? interaction.followUp(message).catch(() => null)
         : interaction.reply(message).catch(() => null));
@@ -1915,22 +1962,50 @@ function rangeeRetour(onglet: OngletPanneau): ActionRowBuilder<MessageActionRowC
   );
 }
 
+/**
+ * Un éphémère de ce module, toujours sous la même forme.
+ *
+ * **Règle : jamais de `content` brut.** `patchV2` ne convertit une charge en
+ * composants V2 que si elle porte des embeds. Un message posté en `content` naît
+ * donc *legacy*, et la première édition qui, elle, portera un embed tentera de
+ * le convertir en V2 — ce que Discord refuse tant que le `content` est là
+ * (`MESSAGE_CANNOT_USE_LEGACY_FIELDS_WITH_COMPONENTS_V2`, HTTP 400).
+ *
+ * Tout passer par un embed met chaque message du module dans le même monde dès
+ * sa naissance, et rend toutes les éditions suivantes possibles.
+ */
+function avis(texte: string, couleur = COULEUR_NEUTRE): EmbedBuilder {
+  return new EmbedBuilder().setColor(couleur).setDescription(texte);
+}
+
 async function respond(
   interaction: RepliableInteraction,
   content: string,
   retour?: OngletPanneau | null,
 ): Promise<void> {
   if (interaction.deferred || interaction.replied) {
-    // En mode compact, le verdict prend la place du menu qui l'a provoqué :
-    // laisser ce menu rendrait cliquable un sélecteur déjà consommé, et le
-    // bouton « Retour » est ce qui évite de rester devant une phrase sans issue.
-    const charge = retour
-      ? { content, components: [rangeeRetour(retour)], embeds: [] }
-      : { content };
+    // ⚠️ Le verdict part en EMBED, jamais en `content` brut.
+    //
+    // `editReply` n'est pas converti en composants V2 par `patchV2` : il ne
+    // connait pas le message cible et ne convertit que si la charge porte des
+    // embeds. Or ce message-la EST en V2 des qu'un sous-panneau l'a occupe, et
+    // Discord refuse alors tout `content`
+    // (`MESSAGE_CANNOT_USE_LEGACY_FIELDS_WITH_COMPONENTS_V2`, HTTP 400).
+    //
+    // Passer par un embed remet la charge sur le chemin qui la convertit : le
+    // texte devient un `TextDisplay`, le `content` disparait, et l'edition est
+    // acceptee.
+    const charge = {
+      embeds: [new EmbedBuilder().setColor(COULEUR_NEUTRE).setDescription(content)],
+      // Le menu qui a provoque le verdict est retire : un selecteur deja
+      // consomme ne doit pas rester cliquable.
+      components: retour ? [rangeeRetour(retour)] : [],
+    };
     await interaction.editReply(charge).catch(() => null);
     return;
   }
-  await interaction.reply({ content, flags: [MessageFlags.Ephemeral] }).catch(() => null);
+  // Un embed, pas un `content` : voir la règle sur `avis`.
+  await interaction.reply({ embeds: [avis(content)], flags: [MessageFlags.Ephemeral] }).catch(() => null);
 }
 
 interface ActionContext {
@@ -1989,7 +2064,8 @@ async function acquitterMiseAJour(interaction: RepliableInteraction): Promise<vo
 
 /** Une réponse qui ne remplace pas le sous-panneau ouvert : elle s'ajoute à côté. */
 async function reponseSupplementaire(interaction: RepliableInteraction, texte: string): Promise<void> {
-  const message = { content: texte, flags: [MessageFlags.Ephemeral] as const };
+  // Un embed, pas un `content` : voir la regle sur `avis`.
+  const message = { embeds: [avis(texte)], flags: [MessageFlags.Ephemeral] as const };
   if (interaction.deferred || interaction.replied) {
     await interaction.followUp(message).catch(() => null);
     return;
@@ -2376,7 +2452,7 @@ async function appliquerDebordement(ctx: ActionContext, plan: PlanDebordement): 
 /** Referme la proposition : ses boutons ne doivent pas rester cliquables. */
 async function cloreProposition(interaction: RepliableInteraction, verdict: string): Promise<void> {
   if (!interaction.isMessageComponent()) return;
-  await interaction.update({ content: verdict, embeds: [], components: [] }).catch(() => null);
+  await interaction.update({ embeds: [avis(verdict)], components: [] }).catch(() => null);
 }
 
 /**
@@ -2433,7 +2509,7 @@ async function repondreDebordement(ctx: ActionContext, choix: 'deplacer' | 'deco
 async function cloreCarteDecision(interaction: RepliableInteraction, verdictAffiche: string): Promise<void> {
   if (!interaction.isMessageComponent()) return;
   await interaction.message
-    .edit({ components: [], content: verdictAffiche })
+    .edit({ components: [], embeds: [avis(verdictAffiche)] })
     .catch(() => null);
 }
 
@@ -3079,7 +3155,7 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
           return;
         }
         await interaction.reply({
-          content: labels[action] ?? 'Sélectionnez un membre.',
+          embeds: [avis(labels[action] ?? 'Sélectionnez un membre.')],
           components: [userPicker(`tempvoice:${action}_select`, 'Choisissez un membre')],
           ...ephemeral,
         });
@@ -3141,9 +3217,9 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
         }
 
         await interaction.reply({
-          content: reservationPosee
+          embeds: [avis(reservationPosee
             ? `🛡️ **Réserver le salon pour un rôle** :\nLe salon est réservé à <@&${reservationPosee}>. Décochez-le pour lever la réservation, ou choisissez un autre rôle.`
-            : '🛡️ **Réserver le salon pour un rôle** :\nSélectionnez le rôle qui sera autorisé à rejoindre votre salon vocal. Ne sélectionnez rien pour réinitialiser.',
+            : '🛡️ **Réserver le salon pour un rôle** :\nSélectionnez le rôle qui sera autorisé à rejoindre votre salon vocal. Ne sélectionnez rien pour réinitialiser.')],
           components: [new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(menuRole)],
           allowedMentions: { parse: [] },
           ...ephemeral,
