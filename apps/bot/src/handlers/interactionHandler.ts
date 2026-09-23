@@ -629,6 +629,13 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  // Hôtel des ventes (/market) - étal, fiche d'annonce, achat, retrait, mise en vente
+  if (customId.startsWith('mkt:')) {
+    const { handleMarketButton } = await import('../services/economy/marketplacePanel.js');
+    await handleMarketButton(client, customId, interaction);
+    return;
+  }
+
   // Ban appeal decision buttons (staff channel)
   if (customId.startsWith('appeal:')) {
     const { handleAppealButton } = await import('../services/moderation/banAppealService.js');
@@ -1449,6 +1456,13 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
     return;
   }
 
+  if (customId.startsWith('mkt:')) {
+    if (!interaction.isStringSelectMenu()) return;
+    const { handleMarketSelect } = await import('../services/economy/marketplacePanel.js');
+    await handleMarketSelect(client, customId, interaction);
+    return;
+  }
+
   const caseRoute = parseUserCaseRoute(customId);
   if (caseRoute?.action === 'section') {
     if (!interaction.isStringSelectMenu()) return;
@@ -1620,6 +1634,12 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
   // Hub RPG (/rpg) - création/rejoindre guilde, dépôt, payer, vendre, admin
   if (customId.startsWith('rpg:')) {
     await handleRpgModalSubmit(client, customId, interaction);
+    return;
+  }
+
+  if (customId.startsWith('mkt:')) {
+    const { handleMarketModal } = await import('../services/economy/marketplacePanel.js');
+    await handleMarketModal(client, customId, interaction);
     return;
   }
 

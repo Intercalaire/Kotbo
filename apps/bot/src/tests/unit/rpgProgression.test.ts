@@ -69,23 +69,37 @@ const ITEMS: Record<string, Item> = {
   sword: makeItem({ id: 'sword', name: 'Épée en bois', type: 'WEAPON', atkBonus: 5, spdBonus: 2, price: 50 }),
   blade: makeItem({ id: 'blade', name: 'Dague en fer', type: 'WEAPON', atkBonus: 9, spdBonus: 4, price: 150 }),
   ring: makeItem({ id: 'ring', name: 'Anneau de cuivre', type: 'ACCESSORY', atkBonus: 2, price: 80 }),
+  mail: makeItem({ id: 'mail', name: 'Cotte de mailles', type: 'ARMOR', hpBonus: 30, price: 120 }),
   gate: makeItem({ id: 'gate', name: 'Lame des Anciens', type: 'WEAPON', atkBonus: 30, price: 900, levelRequired: 10 }),
   ore: makeItem({ id: 'ore', name: 'Écaille de Dragon', type: 'MATERIAL', price: 180 }),
 };
 
-type Instance = { id: string; rpgProfileId: string; itemId: string; upgrade: number; enchants: unknown };
+type Instance = { id: string; rpgProfileId: string; itemId: string; upgrade: number; enchants: unknown; equipped: boolean };
 
 let profile: Profile;
-/** Progression par objet possédé, indexée comme la contrainte `@@unique([profil, objet])`. */
-let instances: Record<string, Instance>;
+/** Exemplaires forgés ou enchantés : plusieurs par objet, chacun avec sa progression. */
+let instances: Instance[];
+/** Exemplaires possédés par objet, forgés compris. Un seul par défaut. */
+let stock: Record<string, number>;
 /** Nœuds d'arbre achetés, que la reconversion doit effacer en rendant les points. */
 let skillUnlocks: { rpgProfileId: string; nodeId: string; rank: number }[];
 
-const instanceKey = (rpgProfileId: string, itemId: string) => `${rpgProfileId}:${itemId}`;
-
-/** Raccourci de lecture pour les tests : niveau de forge de l'exemplaire possédé. */
+/** Raccourci de lecture pour les tests : niveau de forge de l'exemplaire porté, sinon du plus forgé. */
 function upgradeOf(itemId: string): number {
-  return instances[instanceKey('profile-1', itemId)]?.upgrade ?? 0;
+  const copies = instances.filter((instance) => instance.itemId === itemId);
+  return (copies.find((instance) => instance.equipped) ?? copies[0])?.upgrade ?? 0;
+}
+
+/** Filtre Prisma réduit aux opérateurs utilisés sur les exemplaires : égalité, `in`, `not`. */
+function matches(instance: Instance, where: Record<string, any> = {}): boolean {
+  return Object.entries(where).every(([key, expected]) => {
+    const actual = (instance as any)[key];
+    if (expected && typeof expected === 'object') {
+      if ('in' in expected) return expected.in.includes(actual);
+      if ('not' in expected) return actual !== expected.not;
+    }
+    return actual === expected;
+  });
 }
 
 /** Applique le sous-ensemble d'opérateurs Prisma utilisé par les services. */
@@ -102,6 +116,7 @@ function applyData(target: Profile, data: Record<string, any>): void {
 
 const rpgProfile = {
   findUnique: mock(async () => ({ ...profile })),
+  findUniqueOrThrow: mock(async () => ({ ...profile })),
   create: mock(async () => ({ ...profile })),
   update: mock(async ({ data }: any) => {
     applyData(profile, data);
@@ -165,7 +180,7 @@ const mockDb = {
   rpgInventoryItem: {
     findUnique: mock(async ({ where }: any) => {
       const item = ITEMS[where.rpgProfileId_itemId.itemId];
-      return item ? { id: `inv-${item.id}`, quantity: 1, item } : null;
+      return item ? { id: `inv-${item.id}`, quantity: stock[item.id] ?? 1, item } : null;
     }),
   },
   rpgAdventureEvent: {
@@ -178,39 +193,34 @@ const mockDb = {
   },
   rpgProfile,
   rpgItemInstance: {
-    findUnique: mock(async ({ where }: any) => {
-      const { rpgProfileId, itemId } = where.rpgProfileId_itemId;
-      return instances[instanceKey(rpgProfileId, itemId)] ?? null;
+    findFirst: mock(async ({ where }: any) => {
+      const found = instances.find((instance) => matches(instance, where));
+      return found ? { ...found } : null;
     }),
-    findMany: mock(async ({ where }: any) => Object.values(instances).filter((instance) => (
-      instance.rpgProfileId === where.rpgProfileId
-      && (!where.itemId?.in || where.itemId.in.includes(instance.itemId))
-    ))),
-    upsert: mock(async ({ where, create }: any) => {
-      const { rpgProfileId, itemId } = where.rpgProfileId_itemId;
-      const key = instanceKey(rpgProfileId, itemId);
-      instances[key] ??= { id: `inst-${itemId}`, rpgProfileId, itemId, upgrade: create.upgrade ?? 0, enchants: create.enchants ?? [] };
-      return { ...instances[key] };
+    findMany: mock(async ({ where }: any) => instances.filter((instance) => matches(instance, where)).map((instance) => ({ ...instance }))),
+    create: mock(async ({ data }: any) => {
+      const created = { id: `inst-${instances.length + 1}`, enchants: [], equipped: false, upgrade: 0, ...data };
+      instances.push(created);
+      return { ...created };
     }),
     update: mock(async ({ where, data }: any) => {
-      const instance = Object.values(instances).find((candidate) => candidate.id === where.id)!;
+      const instance = instances.find((candidate) => candidate.id === where.id)!;
       applyData(instance as any, data);
       return { ...instance };
     }),
     updateMany: mock(async ({ where, data }: any) => {
-      const instance = Object.values(instances).find((candidate) => candidate.id === where.id);
-      // Garde atomique sur le niveau : reproduit celle dont dépend la forge.
-      if (!instance || (where.upgrade !== undefined && instance.upgrade !== where.upgrade)) return { count: 0 };
-      applyData(instance as any, data);
-      return { count: 1 };
+      const targets = instances.filter((instance) => matches(instance, where));
+      for (const instance of targets) applyData(instance as any, data);
+      return { count: targets.length };
     }),
-    deleteMany: mock(async ({ where }: any) => {
-      const key = instanceKey(where.rpgProfileId, where.itemId);
-      const existed = key in instances;
-      delete instances[key];
-      return { count: existed ? 1 : 0 };
+    delete: mock(async ({ where }: any) => {
+      const index = instances.findIndex((candidate) => candidate.id === where.id);
+      const [removed] = instances.splice(index, 1);
+      return removed;
     }),
   },
+  // Verrou du profil : sans effet ici, les tests étant séquentiels.
+  $queryRaw: mock(async () => []),
   // Arbre de compétences : la reconversion l'efface et rend les points investis.
   rpgSkillUnlock: {
     findMany: mock(async ({ where }: any) => skillUnlocks.filter((unlock) => unlock.rpgProfileId === where.rpgProfileId)),
@@ -237,7 +247,8 @@ const { allocateStatPoint, chooseRpgClass, upgradeEquipment } = await import('..
 
 beforeEach(() => {
   const now = new Date();
-  instances = {};
+  instances = [];
+  stock = {};
   skillUnlocks = [];
   profile = {
     id: 'profile-1',
@@ -286,6 +297,16 @@ describe('checkLevelUp', () => {
     expect(profile.statPoints).toBe(6); // 3 points à répartir par niveau
   });
 
+  test('le soin complet remplit aussi les PV apportés par l équipement', async () => {
+    profile.xp = 100;
+    profile.armorId = 'mail';
+
+    await checkLevelUp('guild-1', 'user-1');
+
+    expect(profile.maxHealth).toBe(108);
+    expect(profile.health).toBe(138);
+  });
+
   test('ne fait rien tant que le palier n est pas atteint', async () => {
     profile.xp = 99;
 
@@ -325,7 +346,7 @@ describe('equipInventoryItem', () => {
     // à +10 avant d'y glisser une légendaire n'existe plus - et reprendre la première la
     // retrouve intacte, là où l'ancien modèle l'effaçait au déséquipement.
     await equipInventoryItem('guild-1', 'user-1', 'sword');
-    instances[instanceKey('profile-1', 'sword')].upgrade = 7;
+    instances.push({ id: 'inst-sword', rpgProfileId: 'profile-1', itemId: 'sword', upgrade: 7, enchants: [], equipped: true });
 
     await equipInventoryItem('guild-1', 'user-1', 'blade');
     expect(upgradeOf('blade')).toBe(0);
@@ -333,6 +354,22 @@ describe('equipInventoryItem', () => {
 
     await equipInventoryItem('guild-1', 'user-1', 'sword');
     expect(upgradeOf('sword')).toBe(7);
+    expect(instances.find((instance) => instance.itemId === 'sword')?.equipped).toBe(true);
+  });
+
+  test('changer d exemplaire garde l emplacement et déplace la marque', async () => {
+    stock.sword = 2;
+    instances.push({ id: 'inst-sword', rpgProfileId: 'profile-1', itemId: 'sword', upgrade: 4, enchants: [], equipped: false });
+
+    await equipInventoryItem('guild-1', 'user-1', 'sword', 'plain');
+    expect(profile.weaponId).toBe('sword');
+    expect(upgradeOf('sword')).toBe(4);
+    expect(instances[0].equipped).toBe(false);
+
+    const swapped = await equipInventoryItem('guild-1', 'user-1', 'sword', 'inst-sword');
+    expect(swapped.equipped).toBe(true);
+    expect(profile.weaponId).toBe('sword');
+    expect(instances[0].equipped).toBe(true);
   });
 
   test('un accessoire occupe son propre emplacement', async () => {
@@ -419,9 +456,9 @@ describe('choix de classe', () => {
 describe('forge', () => {
   test('un échec ne rétrograde pas l objet mais coûte les pièces', async () => {
     profile.weaponId = 'sword';
-    instances[instanceKey('profile-1', 'sword')] = {
-      id: 'inst-sword', rpgProfileId: 'profile-1', itemId: 'sword', upgrade: 9, enchants: [],
-    }; // au-delà de la zone garantie
+    instances.push({
+      id: 'inst-sword', rpgProfileId: 'profile-1', itemId: 'sword', upgrade: 9, enchants: [], equipped: true,
+    }); // au-delà de la zone garantie
     profile.balance = 1_000_000;
     const balanceBefore = profile.balance;
 
@@ -447,6 +484,24 @@ describe('forge', () => {
     } finally {
       random.mockRestore();
     }
+  });
+
+  test('forger l exemplaire porté ne rend pas forgés les autres exemplaires', async () => {
+    profile.weaponId = 'sword';
+    profile.balance = 1_000_000;
+    stock.sword = 3;
+
+    const random = spyOn(Math, 'random').mockReturnValue(0);
+    try {
+      await upgradeEquipment('guild-1', 'user-1', 'weapon');
+      await upgradeEquipment('guild-1', 'user-1', 'weapon');
+    } finally {
+      random.mockRestore();
+    }
+
+    // Un seul exemplaire individualisé, porté, à +2 : les deux autres restent ordinaires.
+    expect(instances).toHaveLength(1);
+    expect(instances[0]).toMatchObject({ itemId: 'sword', upgrade: 2, equipped: true });
   });
 
   test('refuse d améliorer un emplacement vide', () => {

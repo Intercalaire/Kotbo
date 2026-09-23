@@ -156,6 +156,36 @@ export async function updateChannelsManagementConfig(
     tempVoiceRequiredRoleId?: string | null;
     tempVoiceDefaults?: TempVoicePolicy;
     tempVoiceGenerators?: Array<TempVoiceGeneratorPayload>;
+    // Demandes d'accès à un salon verrouillé/réservé, et permissions du staff
+    // sur les salons temporaires. Formes calquées sur les modèles Prisma
+    // `TempVoiceAccessRequestConfig` / `TempVoiceModPermissionsConfig`
+    // (packages/database/prisma/temp-voice-access.prisma), servies par
+    // `GET`/`PATCH /channels-management` côté bot.
+    tempVoiceAccessRequest?: {
+      enabled: boolean;
+      responders: 'OWNER' | 'OWNER_AND_STAFF';
+      notifyVia: 'VOICE' | 'DM' | 'CHANNEL';
+      notifyChannelId: string | null;
+      requestExpiresMinutes: number;
+      denyCooldownMinutes: number;
+    };
+    tempVoiceModPermissions?: {
+      canRename: boolean;
+      canChangeLimit: boolean;
+      canLock: boolean;
+      canChangeWriteMode: boolean;
+      canKickOrBan: boolean;
+      canReserve: boolean;
+      canTransfer: boolean;
+      /** Pas une permission : un choix de présentation. Défaut `false`. */
+      panelCompactMode: boolean;
+      /** Rôles proposés dans le menu « Réserver le salon ». Vide = tous. */
+      reservableRoleIds: string[];
+      /** Sort des personnes déjà présentes sans le rôle au moment de la réservation. */
+      reservationOverflow: 'ASK' | 'NOTHING' | 'MOVE' | 'DISCONNECT';
+      /** Salon vers lequel déplacer quand la décision est `MOVE`. */
+      reservationFallbackChannelId: string | null;
+    };
     honeypotEnabled?: boolean;
     honeypotChannelId?: string | null;
     honeypotSanction?: string;

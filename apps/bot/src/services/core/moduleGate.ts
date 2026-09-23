@@ -58,6 +58,33 @@ const CACHE_TTL_SECONDS = 30;
  */
 const inFlight = new Map<string, Promise<ModuleStates>>();
 
+/**
+ * Durée pendant laquelle une valeur périmée reste servable en attendant son
+ * rechargement. Au-delà, on repasse par un chargement bloquant.
+ */
+const STALE_TTL_SECONDS = 300;
+
+/**
+ * Enveloppe horodatée, volontairement dupliquée depuis `utils/cache` plutôt
+ * qu'importée : plusieurs suites remplacent ce module par un double qui
+ * n'expose que `cache.get`, `set`, `delete` et `invalidateGuild`. Tout nouvel
+ * import depuis `utils/cache` y vaudrait `undefined`.
+ */
+interface StatesEnvelope {
+  __swr: 1;
+  v: ModuleStates;
+  t: number;
+}
+
+function isStatesEnvelope(value: unknown): value is StatesEnvelope {
+  return (
+    typeof value === 'object'
+    && value !== null
+    && (value as { __swr?: unknown }).__swr === 1
+    && typeof (value as { t?: unknown }).t === 'number'
+  );
+}
+
 function readLegacyFlag(guild: Record<string, unknown> | null, field: string | undefined): boolean | undefined {
   if (!guild || !field) return undefined;
   const value = guild[field];
@@ -156,31 +183,42 @@ async function loadModuleStates(guildId: string): Promise<ModuleStates> {
 export async function getModuleStates(guildId: string): Promise<ModuleStates> {
   const key = cacheKeyFor(guildId);
 
-  const cached = await cache.get<ModuleStates>(key);
-  if (cached) return cached;
+  const load = (): Promise<ModuleStates> => {
+    const pending = inFlight.get(guildId);
+    if (pending) return pending;
 
-  const pending = inFlight.get(guildId);
-  if (pending) return pending;
+    const promise = loadModuleStates(guildId)
+      .then(async (states) => {
+        await cache.set(key, { __swr: 1, v: states, t: Date.now() }, STALE_TTL_SECONDS);
+        return states;
+      })
+      .catch((err) => {
+        // Une base injoignable ne doit pas éteindre le serveur entier : on repart
+        // sur les défauts du registre, qui laissent le bot dans son état nominal.
+        logger.error('ModuleGate', `Lecture de l'état des modules impossible pour ${guildId}:`, err);
+        const fallback: ModuleStates = {};
+        for (const mod of MODULE_REGISTRY) fallback[mod.key] = mod.core ? true : mod.defaultEnabled;
+        return fallback;
+      })
+      .finally(() => {
+        inFlight.delete(guildId);
+      });
 
-  const promise = loadModuleStates(guildId)
-    .then(async (states) => {
-      await cache.set(key, states, CACHE_TTL_SECONDS);
-      return states;
-    })
-    .catch((err) => {
-      // Une base injoignable ne doit pas éteindre le serveur entier : on repart
-      // sur les défauts du registre, qui laissent le bot dans son état nominal.
-      logger.error('ModuleGate', `Lecture de l'état des modules impossible pour ${guildId}:`, err);
-      const fallback: ModuleStates = {};
-      for (const mod of MODULE_REGISTRY) fallback[mod.key] = mod.core ? true : mod.defaultEnabled;
-      return fallback;
-    })
-    .finally(() => {
-      inFlight.delete(guildId);
-    });
+    inFlight.set(guildId, promise);
+    return promise;
+  };
 
-  inFlight.set(guildId, promise);
-  return promise;
+  const stored = await cache.get<StatesEnvelope>(key);
+  if (isStatesEnvelope(stored)) {
+    if (Date.now() - stored.t < CACHE_TTL_SECONDS * 1000) return stored.v;
+
+    // Périmé : on sert la valeur connue et on recharge derrière. `load` ne
+    // rejette jamais (il retombe sur les défauts du registre), d'où le `void`.
+    void load();
+    return stored.v;
+  }
+
+  return load();
 }
 
 /**

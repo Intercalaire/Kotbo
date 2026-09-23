@@ -14,7 +14,7 @@ import { listGuildMonsters } from './rpgBestiaryService.js';
 import { parseMonsterDrops } from './rpgBestiaryPolicy.js';
 import { RPG_CAMPAIGN } from './rpgCampaign.js';
 import { listFirstKills } from './rpgFirstKillService.js';
-import { preferGuildRecipes } from './rpgRecipePolicy.js';
+import { parseRecipeIngredients, preferGuildRecipes } from './rpgRecipePolicy.js';
 
 export type ItemCatalogEntry = {
   item: RpgItem;
@@ -125,4 +125,61 @@ export async function getItemCatalog(guildId: string): Promise<ItemCatalogEntry[
     firstKill: firstKillOf.get(item.name) ?? [],
     campaign: campaignNames.has(item.name),
   }));
+}
+
+export type ItemDropSource = { name: string; emoji: string; level: number; isBoss: boolean; chance: number };
+
+export type ItemIngredient = { itemName: string; emoji: string; quantity: number };
+
+export type ItemCatalogDetail = {
+  entry: ItemCatalogEntry;
+  drops: ItemDropSource[];
+  recipe: { ingredients: ItemIngredient[]; coinCost: number; levelRequired: number } | null;
+  /** Objets dont la recette réclame celui-ci, avec la quantité demandée. */
+  usedIn: ItemIngredient[];
+};
+
+/**
+ * Fiche complète d'un objet du catalogue : chaque créature avec sa chance de butin, la
+ * recette ingrédient par ingrédient, et ce que l'objet permet à son tour de fabriquer.
+ */
+export async function getItemCatalogDetail(guildId: string, itemId: string): Promise<ItemCatalogDetail | null> {
+  const catalog = await getItemCatalog(guildId);
+  const entry = catalog.find((candidate) => candidate.item.id === itemId);
+  if (!entry) return null;
+
+  const [monsters, recipes] = await Promise.all([
+    listGuildMonsters(guildId),
+    prisma.rpgRecipe.findMany({
+      where: { OR: [{ guildId: null }, { guildId }] },
+      include: { resultItem: { select: { name: true, emoji: true } } },
+    }),
+  ]);
+
+  const emojiByName = new Map(catalog.map((candidate) => [candidate.item.name, candidate.item.emoji]));
+
+  const drops = monsters.flatMap((monster) => parseMonsterDrops(monster.drops)
+    .filter((drop) => drop.itemName === entry.item.name)
+    .map((drop) => ({ name: monster.name, emoji: monster.emoji, level: monster.level, isBoss: monster.isBoss, chance: drop.chance })))
+    .sort((a, b) => b.chance - a.chance || a.level - b.level);
+
+  const active = preferGuildRecipes(recipes);
+  const own = active.find((recipe) => recipe.resultItem.name === entry.item.name);
+  const recipe = own
+    ? {
+      ingredients: parseRecipeIngredients(own.ingredients).map((ingredient) => ({
+        ...ingredient,
+        emoji: emojiByName.get(ingredient.itemName) ?? '📦',
+      })),
+      coinCost: own.coinCost,
+      levelRequired: own.levelRequired,
+    }
+    : null;
+
+  const usedIn = active.flatMap((candidate) => {
+    const need = parseRecipeIngredients(candidate.ingredients).find((ingredient) => ingredient.itemName === entry.item.name);
+    return need ? [{ itemName: candidate.resultItem.name, emoji: candidate.resultItem.emoji, quantity: need.quantity }] : [];
+  });
+
+  return { entry, drops, recipe, usedIn };
 }

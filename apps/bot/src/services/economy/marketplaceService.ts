@@ -2,9 +2,46 @@ import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { isModuleEnabled } from '../core/moduleGate.js';
 import { equippedItemIds } from '../features/rpg/rpgEquipment.js';
-import { lockRpgProfile } from '../features/rpg/rpgInventoryWrites.js';
+import type { MarketplaceListing, Prisma, RpgItem } from '@prisma/client';
+import {
+  LISTING_PRICE_RANGE,
+  SUGGESTED_PRICE_WINDOW_DAYS,
+  suggestedUnitPrice,
+  type SuggestedPrice,
+} from './marketplacePolicy.js';
+import { parseEnchants } from '../features/rpg/rpgEnchantments.js';
+import {
+  addInventoryQuantity,
+  addItemInstance,
+  freePlainCopies,
+  lockRpgProfile,
+  takeInventoryQuantity,
+  takeItemInstance,
+} from '../features/rpg/rpgInventoryWrites.js';
 
 class MarketplacePurchaseError extends Error {}
+
+/** Durées proposées à la mise en vente, en heures. */
+export const LISTING_DURATION_RANGE = { min: 1, max: 168 } as const;
+
+/**
+ * Remet à un joueur ce que contenait une annonce : un exemplaire forgé garde sa progression,
+ * des exemplaires ordinaires rejoignent sa pile.
+ */
+async function deliverListing(
+  tx: Prisma.TransactionClient,
+  rpgProfileId: string,
+  listing: { itemId: string; quantity: number; upgrade?: number | null; enchants?: unknown },
+): Promise<void> {
+  const progression = { upgrade: listing.upgrade ?? 0, enchants: parseEnchants(listing.enchants) };
+  if (progression.upgrade > 0 || progression.enchants.length > 0) {
+    for (let copy = 0; copy < listing.quantity; copy++) {
+      await addItemInstance(tx, rpgProfileId, listing.itemId, progression);
+    }
+    return;
+  }
+  await addInventoryQuantity(tx, rpgProfileId, listing.itemId, listing.quantity);
+}
 
 async function attachItemsToListings<T extends { itemId: string }>(listings: T[]) {
   const itemIds = [...new Set(listings.map((listing) => listing.itemId))];
@@ -22,59 +59,28 @@ async function attachItemsToListings<T extends { itemId: string }>(listings: T[]
   }));
 }
 
-export async function getMarketplaceSellableItems(guildId: string, userId: string) {
-  const profile = await prismaRead.rpgProfile.findUnique({
-    where: { guildId_userId: { guildId, userId } },
-    select: { id: true },
-  });
-  if (!profile) return [];
-
-  return prismaRead.rpgInventoryItem.findMany({
-    where: { rpgProfileId: profile.id, quantity: { gt: 0 } },
-    include: {
-      item: {
-        select: { id: true, name: true, emoji: true },
-      },
-    },
-    orderBy: { itemId: 'asc' },
-  });
-}
-
-export async function getMarketplaceListingChoices(
-  guildId: string,
-  userId: string,
-  action: 'buy' | 'bid' | 'cancel',
-) {
-  const listings = await prismaRead.marketplaceListing.findMany({
-    where: {
-      guildId,
-      status: 'ACTIVE',
-      expiresAt: { gt: new Date() },
-      ...(action === 'cancel' ? { sellerId: userId } : { sellerId: { not: userId } }),
-      ...(action === 'buy' ? { type: 'FIXED_PRICE' } : {}),
-      ...(action === 'bid' ? { type: 'AUCTION' } : {}),
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 100,
-  });
-
-  return attachItemsToListings(listings);
-}
-
+/**
+ * Met en vente des exemplaires ordinaires, ou UN exemplaire forgé désigné par `instanceId`.
+ * L'exemplaire forgé part avec sa progression, que l'acheteur reçoit telle quelle.
+ */
 export async function createListing(guildId: string, sellerId: string, data: {
   itemId: string;
+  instanceId?: string;
   quantity: number;
   price: number;
   type: 'FIXED_PRICE' | 'AUCTION';
   durationHours?: number;
 }): Promise<{ success: boolean; error?: string; listing?: any }> {
-  const quantity = Math.trunc(Number(data.quantity));
+  const quantity = data.instanceId ? 1 : Math.trunc(Number(data.quantity));
   if (!Number.isFinite(quantity) || quantity < 1) {
     return { success: false, error: 'La quantité doit être d\'au moins un.' };
   }
-  if (data.price <= 0) return { success: false, error: 'Le prix doit être positif.' };
+  if (!Number.isSafeInteger(data.price) || data.price < LISTING_PRICE_RANGE.min || data.price > LISTING_PRICE_RANGE.max) {
+    return { success: false, error: `Le prix doit être un entier entre ${LISTING_PRICE_RANGE.min} et ${LISTING_PRICE_RANGE.max}.` };
+  }
 
-  const durationMs = (data.durationHours ?? 24) * 3600000;
+  const hours = Math.min(LISTING_DURATION_RANGE.max, Math.max(LISTING_DURATION_RANGE.min, Math.trunc(data.durationHours ?? 24)));
+  const durationMs = hours * 3600000;
   const expiresAt = new Date(Date.now() + durationMs);
 
   try {
@@ -89,43 +95,24 @@ export async function createListing(guildId: string, sellerId: string, data: {
       await lockRpgProfile(tx, found.id);
       const profile = await tx.rpgProfile.findUniqueOrThrow({ where: { id: found.id } });
 
-      // Le dernier exemplaire d'un objet porté ne se met pas en vente : les statistiques se
-      // lisent sur l'emplacement, et le vendeur garderait les bonus d'un objet qu'un autre
-      // joueur vient de lui acheter.
-      if (equippedItemIds(profile).includes(data.itemId)) {
-        const stock = await tx.rpgInventoryItem.findUnique({
-          where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: data.itemId } },
-          select: { quantity: true },
+      let progression = { upgrade: 0, enchants: [] as ReturnType<typeof parseEnchants> };
+      if (data.instanceId) {
+        // Un exemplaire forgé se vend seul et désigné : l'exemplaire porté est refusé.
+        const copy = await takeItemInstance(tx, profile.id, data.instanceId).catch((error: Error) => {
+          throw new MarketplacePurchaseError(error.message);
         });
-        if ((stock?.quantity ?? 0) - quantity < 1) {
-          throw new MarketplacePurchaseError("Cet objet est équipé : déséquipez-le d'abord, ou mettez en vente un exemplaire de moins.");
+        if (!copy || copy.item.id !== data.itemId) throw new MarketplacePurchaseError('Cet exemplaire n\'est plus dans votre inventaire.');
+        progression = { upgrade: copy.upgrade, enchants: copy.enchants };
+      } else {
+        // Seuls des exemplaires ordinaires que le vendeur ne porte pas partent en vente : un
+        // exemplaire forgé garde sa progression et ne se confond pas avec la pile.
+        if ((await freePlainCopies(tx, profile.id, data.itemId)) < quantity) {
+          throw new MarketplacePurchaseError(equippedItemIds(profile).includes(data.itemId)
+            ? "Cet objet est équipé : déséquipez-le d'abord, ou mettez en vente un exemplaire de moins."
+            : 'Vous n\'avez pas assez d\'exemplaires ordinaires de cet objet.');
         }
-      }
-
-      // Retrait conditionnel : la ligne lue puis décrémentée sans garde laissait deux
-      // mises en vente simultanées retirer deux fois le même exemplaire, et la quantité
-      // passer sous zéro. C'était une duplication d'objet à portée de double-clic.
-      const removed = await tx.rpgInventoryItem.updateMany({
-        where: { rpgProfileId: profile.id, itemId: data.itemId, quantity: { gte: quantity } },
-        data: { quantity: { decrement: quantity } },
-      });
-      if (removed.count === 0) {
-        throw new MarketplacePurchaseError('Vous n\'avez pas assez de cet objet.');
-      }
-
-      // Une ligne d'inventaire vidée est supprimée, comme après une fabrication : la
-      // laisser à zéro ferait proposer un objet qu'on ne possède plus.
-      const emptied = await tx.rpgInventoryItem.deleteMany({
-        where: { rpgProfileId: profile.id, itemId: data.itemId, quantity: { lte: 0 } },
-      });
-
-      // Mettre en vente son dernier exemplaire emporte sa progression (forge,
-      // enchantements) : l'acheteur reçoit un objet nu, et retirer l'annonce ne restitue
-      // donc pas une amélioration qu'on aurait pu revendre au prix du neuf.
-      if (emptied.count > 0) {
-        await tx.rpgItemInstance.deleteMany({
-          where: { rpgProfileId: profile.id, itemId: data.itemId },
-        });
+        const taken = await takeInventoryQuantity(tx, profile.id, data.itemId, quantity);
+        if (!taken) throw new MarketplacePurchaseError('Vous n\'avez pas assez de cet objet.');
       }
 
       return tx.marketplaceListing.create({
@@ -137,6 +124,8 @@ export async function createListing(guildId: string, sellerId: string, data: {
           price: data.price,
           type: data.type,
           expiresAt,
+          upgrade: progression.upgrade,
+          enchants: progression.enchants,
         },
       });
     });
@@ -198,11 +187,7 @@ export async function buyListing(
         where: { guildId_userId: { guildId, userId: listing.sellerId } },
         data: { balance: { increment: listing.price } },
       });
-      await tx.rpgInventoryItem.upsert({
-        where: { rpgProfileId_itemId: { rpgProfileId: buyerProfile.id, itemId: listing.itemId } },
-        create: { rpgProfileId: buyerProfile.id, itemId: listing.itemId, quantity: listing.quantity },
-        update: { quantity: { increment: listing.quantity } },
-      });
+      await deliverListing(tx, buyerProfile.id, listing);
       await tx.marketplaceTransaction.create({
         data: {
           guildId,
@@ -212,6 +197,7 @@ export async function buyListing(
           itemId: listing.itemId,
           quantity: listing.quantity,
           price: listing.price,
+          upgrade: listing.upgrade ?? 0,
         },
       });
 
@@ -346,13 +332,7 @@ export async function cancelListing(
         where: { guildId_userId: { guildId, userId } },
         select: { id: true },
       });
-      if (seller) {
-        await tx.rpgInventoryItem.upsert({
-          where: { rpgProfileId_itemId: { rpgProfileId: seller.id, itemId: listing.itemId } },
-          create: { rpgProfileId: seller.id, itemId: listing.itemId, quantity: listing.quantity },
-          update: { quantity: { increment: listing.quantity } },
-        });
-      }
+      if (seller) await deliverListing(tx, seller.id, listing);
 
       return { itemId: listing.itemId };
     });
@@ -374,6 +354,8 @@ type ExpiredListing = {
   currentBid: number | null;
   itemId: string;
   quantity: number;
+  upgrade?: number | null;
+  enchants?: unknown;
 };
 
 /**
@@ -423,11 +405,7 @@ async function settleAuction(listing: ExpiredListing & { bidderId: string; curre
     });
 
     if (buyer) {
-      await tx.rpgInventoryItem.upsert({
-        where: { rpgProfileId_itemId: { rpgProfileId: buyer.id, itemId: listing.itemId } },
-        create: { rpgProfileId: buyer.id, itemId: listing.itemId, quantity: listing.quantity },
-        update: { quantity: { increment: listing.quantity } },
-      });
+      await deliverListing(tx, buyer.id, listing);
     } else {
       // L'acheteur a payé au moment d'enchérir : sans profil, l'objet n'a nulle part où
       // aller, mais la vente reste due au vendeur.
@@ -443,6 +421,7 @@ async function settleAuction(listing: ExpiredListing & { bidderId: string; curre
         itemId: listing.itemId,
         quantity: listing.quantity,
         price: listing.currentBid,
+        upgrade: listing.upgrade ?? 0,
       },
     });
   });
@@ -466,11 +445,7 @@ async function returnListingToSeller(listing: ExpiredListing): Promise<void> {
       return;
     }
 
-    await tx.rpgInventoryItem.upsert({
-      where: { rpgProfileId_itemId: { rpgProfileId: seller.id, itemId: listing.itemId } },
-      create: { rpgProfileId: seller.id, itemId: listing.itemId, quantity: listing.quantity },
-      update: { quantity: { increment: listing.quantity } },
-    });
+    await deliverListing(tx, seller.id, listing);
   });
 }
 
@@ -517,15 +492,6 @@ export async function getActiveListings(guildId: string, page = 0, limit = 20) {
   return { listings, total, page, totalPages: Math.ceil(total / limit) };
 }
 
-export async function getMyListings(guildId: string, userId: string) {
-  const listings = await prismaRead.marketplaceListing.findMany({
-    where: { guildId, sellerId: userId },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-  });
-  return attachItemsToListings(listings);
-}
-
 export async function getTransactionHistory(guildId: string, userId?: string, limit = 30) {
   const where: any = { guildId };
   if (userId) where.OR = [{ sellerId: userId }, { buyerId: userId }];
@@ -550,8 +516,166 @@ export async function getMarketplaceDashboardData(guildId: string) {
 
   return {
     activeListings: active.listings,
-    recentTransactions: recent,
+    recentTransactions: await attachItemsToListings(recent),
     totalTransactions,
     totalVolume: totalVolume._sum.price ?? 0,
   };
+}
+
+/** Prix unitaire proposé à la mise en vente d'un objet, au niveau de forge donné. */
+export async function getSuggestedPrice(guildId: string, itemId: string, upgrade: number): Promise<SuggestedPrice> {
+  const since = new Date(Date.now() - SUGGESTED_PRICE_WINDOW_DAYS * 24 * 3600000);
+  const [samples, item] = await Promise.all([
+    prismaRead.marketplaceTransaction.findMany({
+      where: { guildId, itemId, upgrade, createdAt: { gte: since } },
+      select: { price: true, quantity: true },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    }),
+    prismaRead.rpgItem.findUnique({ where: { id: itemId }, select: { price: true } }),
+  ]);
+  return suggestedUnitPrice(samples, item?.price ?? 0, upgrade);
+}
+
+export type MarketListing = {
+  id: string;
+  sellerId: string;
+  itemId: string;
+  quantity: number;
+  type: 'FIXED_PRICE' | 'AUCTION';
+  price: number;
+  currentBid: number | null;
+  bidderId: string | null;
+  expiresAt: Date;
+  upgrade: number;
+  enchants: ReturnType<typeof parseEnchants>;
+  item: RpgItem | null;
+};
+
+async function withFullItems(listings: MarketplaceListing[]): Promise<MarketListing[]> {
+  const itemIds = [...new Set(listings.map((listing) => listing.itemId))];
+  const items = itemIds.length > 0 ? await prismaRead.rpgItem.findMany({ where: { id: { in: itemIds } } }) : [];
+  const itemsById = new Map(items.map((item) => [item.id, item]));
+  return listings.map((listing) => ({
+    id: listing.id,
+    sellerId: listing.sellerId,
+    itemId: listing.itemId,
+    quantity: listing.quantity,
+    type: listing.type,
+    price: listing.price,
+    currentBid: listing.currentBid,
+    bidderId: listing.bidderId,
+    expiresAt: listing.expiresAt,
+    upgrade: listing.upgrade,
+    enchants: parseEnchants(listing.enchants),
+    item: itemsById.get(listing.itemId) ?? null,
+  }));
+}
+
+/**
+ * Annonces actives du panneau `/market`, d'un type (boutique ou enchères), filtrées par
+ * famille d'objet. Les plus récentes d'abord ; `sellerId` réduit aux annonces d'un joueur.
+ */
+export async function getMarketListings(guildId: string, options: {
+  type?: 'FIXED_PRICE' | 'AUCTION';
+  itemType?: string;
+  sellerId?: string;
+  page: number;
+  pageSize: number;
+}): Promise<{ listings: MarketListing[]; total: number }> {
+  const where: Prisma.MarketplaceListingWhereInput = {
+    guildId,
+    status: 'ACTIVE',
+    expiresAt: { gt: new Date() },
+    ...(options.type ? { type: options.type } : {}),
+    ...(options.sellerId ? { sellerId: options.sellerId } : {}),
+  };
+  // Le type d'objet vit sur `RpgItem`, sans relation depuis l'annonce : on passe par les
+  // identifiants des objets de ce type.
+  if (options.itemType) {
+    const ids = await prismaRead.rpgItem.findMany({ where: { type: options.itemType }, select: { id: true } });
+    where.itemId = { in: ids.map((item) => item.id) };
+  }
+
+  // Base primaire : l'étal se réaffiche juste après un achat ou un retrait, qu'une réplique
+  // en retard montrerait encore.
+  const [rows, total] = await Promise.all([
+    prisma.marketplaceListing.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: options.page * options.pageSize,
+      take: options.pageSize,
+    }),
+    prisma.marketplaceListing.count({ where }),
+  ]);
+  return { listings: await withFullItems(rows), total };
+}
+
+/** Annonce encore ouverte : une annonce vendue, retirée ou expirée ne se montre plus. */
+export async function getMarketListing(guildId: string, listingId: string): Promise<MarketListing | null> {
+  // Base primaire : juste après une enchère ou un achat, une réplique en retard montrerait
+  // encore l'état d'avant.
+  const row = await prisma.marketplaceListing.findFirst({ where: { id: listingId, guildId, status: 'ACTIVE' } });
+  if (!row) return null;
+  return (await withFullItems([row]))[0] ?? null;
+}
+
+/** Dernières ventes conclues par un joueur, en tant que vendeur. */
+export async function getRecentSales(guildId: string, sellerId: string, limit = 5) {
+  const sales = await prismaRead.marketplaceTransaction.findMany({
+    where: { guildId, sellerId },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+  });
+  return attachItemsToListings(sales);
+}
+
+export type SellableCopy = {
+  item: RpgItem;
+  /** `null` pour des exemplaires ordinaires, sinon l'exemplaire forgé désigné. */
+  instanceId: string | null;
+  upgrade: number;
+  enchants: ReturnType<typeof parseEnchants>;
+  /** Exemplaires disponibles : ordinaires non portés, ou 1 pour un exemplaire forgé. */
+  available: number;
+};
+
+/**
+ * Ce qu'un joueur peut mettre en vente : ses exemplaires ordinaires non portés, et chacun de
+ * ses exemplaires forgés qu'il ne porte pas. Les plus précieux d'abord.
+ */
+export async function getMarketSellableCopies(guildId: string, userId: string): Promise<SellableCopy[]> {
+  // Base primaire : la liste se relit juste après une vente ou un équipement.
+  const profile = await prisma.rpgProfile.findUnique({
+    where: { guildId_userId: { guildId, userId } },
+    include: { inventory: { where: { quantity: { gt: 0 } }, include: { item: true } } },
+  });
+  if (!profile) return [];
+
+  const instances = await prisma.rpgItemInstance.findMany({ where: { rpgProfileId: profile.id } });
+  const worn = new Set(equippedItemIds(profile));
+  const copies: SellableCopy[] = [];
+
+  for (const entry of profile.inventory) {
+    const forged = instances.filter((instance) => instance.itemId === entry.itemId);
+    const wornForged = worn.has(entry.itemId) && forged.some((instance) => instance.equipped);
+    const plainFree = entry.quantity - forged.length - (worn.has(entry.itemId) && !wornForged ? 1 : 0);
+    if (plainFree > 0) {
+      copies.push({ item: entry.item, instanceId: null, upgrade: 0, enchants: [], available: plainFree });
+    }
+    for (const instance of forged) {
+      if (worn.has(entry.itemId) && instance.equipped) continue;
+      copies.push({
+        item: entry.item,
+        instanceId: instance.id,
+        upgrade: instance.upgrade,
+        enchants: parseEnchants(instance.enchants),
+        available: 1,
+      });
+    }
+  }
+
+  return copies.sort((a, b) =>
+    b.item.price * (1 + b.upgrade) - a.item.price * (1 + a.upgrade)
+    || a.item.name.localeCompare(b.item.name));
 }

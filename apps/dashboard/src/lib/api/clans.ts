@@ -592,7 +592,7 @@ export interface RecentScore {
   amount: number;
   /** Part de la mise payee a credit : elle n'a bouge aucun score. */
   credit: number;
-  /** XP | ADMIN | BOOST | DAILY_ALGO | BET | DEBT | DROP | RPG_BOSS | RPG_MOB | RPG_ITEM | RPG_FIRST_KILL */
+  /** XP | ADMIN | BOOST | DAILY_ALGO | BET | DEBT | DROP | RPG_BOSS | RPG_MOB | RPG_ITEM | RPG_FIRST_KILL | RPG_FISHBOOK */
   source: string;
   isClan: boolean;
   userId: string | null;

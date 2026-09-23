@@ -78,16 +78,54 @@ export async function loadAllInstances(): Promise<ResolvedInstance[]> {
   }
 
   try {
-    const dbInstances = await prisma.whiteLabelInstance.findMany({
-      where: { enabled: true },
+    // On lit TOUTES les instances, désactivées comprises : l'attribution d'un
+    // port automatique doit donner le même résultat dans le launcher et dans
+    // chaque shard worker, et ne pas bouger quand on active/désactive une
+    // instance voisine. L'ordre est figé sur (createdAt, id).
+    const allInstances = await prisma.whiteLabelInstance.findMany({
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     });
 
+    const takenPorts = new Set<number>([defaultInstance.apiPort]);
+    for (const inst of allInstances) {
+      if (inst.apiPort !== null) takenPorts.add(inst.apiPort);
+    }
+
     let nextAutoPort = defaultInstance.apiPort + 1;
+    const assignedPorts = new Map<string, number>();
+    const portsToPersist: Array<{ id: string; apiPort: number }> = [];
+
+    for (const inst of allInstances) {
+      if (inst.apiPort !== null) {
+        assignedPorts.set(inst.id, inst.apiPort);
+        continue;
+      }
+      while (takenPorts.has(nextAutoPort)) nextAutoPort++;
+      takenPorts.add(nextAutoPort);
+      assignedPorts.set(inst.id, nextAutoPort);
+      portsToPersist.push({ id: inst.id, apiPort: nextAutoPort });
+    }
+
+    // Fige le port en base pour qu'il survive à la suppression d'une instance
+    // antérieure. Le `apiPort: null` en garde rend l'écriture idempotente : si
+    // un autre worker est passé avant, il a calculé la même valeur.
+    for (const { id, apiPort } of portsToPersist) {
+      try {
+        await prisma.whiteLabelInstance.updateMany({
+          where: { id, apiPort: null },
+          data: { apiPort },
+        });
+      } catch (error) {
+        logger.warn('WhiteLabel', `Impossible de figer le port ${apiPort} de l'instance ${id} en base.`, error);
+      }
+    }
+
+    const dbInstances = allInstances.filter((inst) => inst.enabled);
 
     for (const inst of dbInstances) {
       const dashboardUrl = inst.dashboardUrl || defaultInstance.dashboardUrl;
       const dashboardOrigin = inst.dashboardOrigin || buildOrigin(dashboardUrl);
-      const apiPort = inst.apiPort ?? nextAutoPort++;
+      const apiPort = assignedPorts.get(inst.id)!;
 
       const resolved: ResolvedInstance = {
         id: inst.id,

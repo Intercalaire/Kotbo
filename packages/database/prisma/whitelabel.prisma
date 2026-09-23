@@ -17,7 +17,7 @@ model WhiteLabelInstance {
   // Dashboard / Branding
   dashboardUrl    String? // URL custom du dashboard (ex: "https://panel.macommu.fr")
   dashboardOrigin String? // Origin calculé depuis dashboardUrl
-  apiPort         Int?    // Port API custom (null = auto-assigné)
+  apiPort         Int?    // Port API custom (null = auto-assigné au premier chargement, puis figé ici)
 
   // Branding
   brandName     String? // Nom affiché dans le dashboard (fallback: name)

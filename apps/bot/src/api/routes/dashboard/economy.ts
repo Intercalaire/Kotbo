@@ -113,6 +113,17 @@ import {
 } from '../../../services/features/rpg/rpgGuildAdminService.js';
 import { jsonFailure } from '../../shared/failure.js';
 import {
+  deleteGuildFish,
+  FishCatalogError,
+  fishKey,
+  getGuildFishCatalog,
+  saveGuildFish,
+  setGuildFishEnabled,
+} from '../../../services/features/rpg/rpgFishService.js';
+import { FISH_RARITY_WEIGHTS, type FishInput } from '../../../services/features/rpg/rpgFishCatalog.js';
+import { isFishBookTier, type FishBookRewardInput } from '../../../services/features/rpg/rpgFishBook.js';
+import { getFishBookRewards, resetFishBookReward, saveFishBookReward } from '../../../services/features/rpg/rpgFishBookRewardService.js';
+import {
   normalizeCommandRestrictions,
   readCommandChannels,
   RPG_CHANNEL_COMMANDS,
@@ -185,7 +196,7 @@ export async function handleEconomyRoutes(
     }
   }
 
-  // Salons RPG : une vue sur les règles d'accès de /rpg et /raid, stockées avec les autres
+  // Salons RPG : une vue sur les règles d'accès de /rpg, /raid et /market, stockées avec les autres
   // restrictions de commandes pour que le bot n'ait qu'un seul endroit à consulter.
   if (subAction === 'rpg-channels' && parts.length === 6) {
     if (method === 'GET') {
@@ -710,6 +721,124 @@ export async function handleEconomyRoutes(
         }
         logger.error('EconomyAPI', 'Error deleting quest:', err);
         jsonFailure(res, err, 'Erreur lors de la suppression de la quête.', 'EconomyAPI');
+      }
+      return true;
+    }
+  }
+
+  // Pêche : espèces du serveur et récompenses des paliers du carnet.
+  if (subAction === 'fish') {
+    const fishFailure = (err: unknown, fallback: string) => {
+      if (err instanceof FishCatalogError) {
+        json(res, err.status, { error: err.message });
+        return;
+      }
+      logger.error('EconomyAPI', fallback, err);
+      jsonFailure(res, err, fallback, 'EconomyAPI');
+    };
+    const fishAudit = (action: string, details: string) => pushAudit(guildId, {
+      user: auditUser,
+      action,
+      context: getGuildName(client, guildId),
+      module: 'Économie',
+      eventType: 'Manuel',
+      details,
+      channelId: null
+    });
+
+    // GET /api/dashboard/guilds/:guildId/economy/fish
+    if (parts.length === 6 && method === 'GET') {
+      try {
+        const [species, rewards, catches] = await Promise.all([
+          getGuildFishCatalog(guildId),
+          getFishBookRewards(guildId),
+          prisma.rpgFishCatch.groupBy({ by: ['fishName'], where: { guildId }, _count: { _all: true } }),
+        ]);
+        const caught = new Map(catches.map((row) => [row.fishName, row._count._all]));
+        json(res, 200, {
+          rarityWeights: FISH_RARITY_WEIGHTS,
+          species: species.map((fish) => ({ ...fish, key: fishKey(fish), caught: caught.get(fish.name) ?? 0 })),
+          rewards,
+        });
+      } catch (err) {
+        fishFailure(err, 'Erreur lors de la récupération des poissons.');
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/fish (création ou modification)
+    if (parts.length === 6 && method === 'POST') {
+      try {
+        const body = await readJsonBody<FishInput & { key?: string }>(req);
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant.' });
+          return true;
+        }
+        const { fish, created } = await saveGuildFish(guildId, body, body.key || undefined);
+        await fishAudit(created ? 'Création poisson RPG' : 'Modification poisson RPG', `${fish.name} (${fish.rarity})`);
+        json(res, 200, { fish });
+      } catch (err) {
+        fishFailure(err, 'Erreur lors de la sauvegarde du poisson.');
+      }
+      return true;
+    }
+
+    // PUT    /api/dashboard/guilds/:guildId/economy/fish/rewards/:tier
+    // DELETE /api/dashboard/guilds/:guildId/economy/fish/rewards/:tier (retour au défaut)
+    if (parts.length === 8 && parts[6] === 'rewards') {
+      const tier = parts[7];
+      if (!isFishBookTier(tier)) {
+        json(res, 400, { error: 'Palier inconnu.' });
+        return true;
+      }
+      try {
+        if (method === 'PUT') {
+          const body = await readJsonBody<FishBookRewardInput>(req);
+          if (!body) {
+            json(res, 400, { error: 'Corps de requête manquant.' });
+            return true;
+          }
+          const reward = await saveFishBookReward(client, guildId, tier, body).catch((err: Error) => {
+            throw new FishCatalogError(err.message, 400);
+          });
+          await fishAudit('Récompense carnet de pêche', `${tier} : ${reward.coinReward} pièces, ${reward.xpReward} XP`);
+          json(res, 200, { reward });
+          return true;
+        }
+        if (method === 'DELETE') {
+          await resetFishBookReward(guildId, tier);
+          await fishAudit('Réinitialisation récompense carnet de pêche', tier);
+          json(res, 200, { success: true });
+          return true;
+        }
+      } catch (err) {
+        fishFailure(err, 'Erreur lors de la sauvegarde de la récompense.');
+        return true;
+      }
+    }
+
+    // La clé d'une espèce livrée porte son nom (`default:Poisson d'Or`) : elle voyage encodée.
+    // PATCH  /api/dashboard/guilds/:guildId/economy/fish/:key (activation)
+    // DELETE /api/dashboard/guilds/:guildId/economy/fish/:key
+    if (parts.length === 7 && (method === 'PATCH' || method === 'DELETE')) {
+      try {
+        const key = decodeURIComponent(parts[6]);
+        if (method === 'PATCH') {
+          const body = await readJsonBody<{ enabled?: boolean }>(req);
+          if (!body || typeof body.enabled !== 'boolean') {
+            json(res, 400, { error: "Champ « enabled » manquant." });
+            return true;
+          }
+          const fish = await setGuildFishEnabled(guildId, key, body.enabled);
+          await fishAudit(body.enabled ? 'Réactivation poisson RPG' : 'Désactivation poisson RPG', fish.name);
+          json(res, 200, { fish });
+          return true;
+        }
+        const { fish, restoredDefault } = await deleteGuildFish(guildId, key);
+        await fishAudit(restoredDefault ? 'Restauration poisson RPG par défaut' : 'Suppression poisson RPG', fish.name);
+        json(res, 200, { success: true, restoredDefault });
+      } catch (err) {
+        fishFailure(err, 'Erreur lors de la mise à jour du poisson.');
       }
       return true;
     }

@@ -599,6 +599,10 @@ model Guild {
   tempVoiceDefaults       Json?
   tempVoiceGenerators     Json?
   tempVoiceChannels       TempVoiceChannel[]
+  // Demandes d'accès (bouton sur salon verrouillé/réservé) et permissions
+  // modérateur, action par action (cf. temp-voice-access.prisma)
+  tempVoiceAccessRequestConfig  TempVoiceAccessRequestConfig?
+  tempVoiceModPermissionsConfig TempVoiceModPermissionsConfig?
 
   // Honeypot trap channels
   honeypotEnabled         Boolean  @default(false)
@@ -645,6 +649,8 @@ model Guild {
   rpgCampaignProgress      RpgCampaignProgress[]
   rpgArenaMatches          RpgArenaMatch[]
   rpgFishCatches           RpgFishCatch[]
+  rpgFish                  RpgFish[]
+  rpgFishBookRewards       RpgFishBookReward[]
   rpgBlackMarketSessions   RpgBlackMarketSession[]
   rpgRaidBosses            RpgRaidBoss[]
   rpgRaids                 RpgRaid[]
@@ -1066,6 +1072,29 @@ model TempVoiceChannel {
   guildId    String
   creatorId  String
   roleId     String?  // Optional role restriction
+  /// Qui a le droit d'ecrire : everyone | inVoice | ownerOnly | nobody.
+  /// Trois de ces modes se relisent dans les surcharges Discord au demarrage ;
+  /// `inVoice` non — il ne se distingue d'aucun autre sans cette colonne, et
+  /// sa perte laissait derriere elle des surcharges de presence que plus rien
+  /// ne retirait. `null` = salon d'avant cette colonne, mode deduit.
+  writeMode  String?
+
+  /// Instants des renommages recents, en millisecondes : `[1727..., 1727...]`.
+  ///
+  /// Discord plafonne le renommage a deux par tranche de dix minutes et par
+  /// salon, et n'annonce jamais le refus — la requete attend. Sans cette
+  /// colonne, un redemarrage remettait le compteur a zero et le bouton
+  /// annoncait « 2/2 » alors que Discord, lui, comptait toujours.
+  renameHistory Json?
+
+  /// Demandes d'acces en attente et silences apres refus, pour ce salon.
+  ///
+  /// Forme : `{ "demandes": [{ userId, demandeeA, expireA }],
+  ///            "silences": [{ userId, libereA }] }`.
+  /// Sans elle, un redemarrage effacait le silence de dix minutes : quelqu'un
+  /// qui venait d'etre refuse pouvait redemander aussitot.
+  accessRequests Json?
+
   createdAt  DateTime @default(now())
 
   guild      Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)

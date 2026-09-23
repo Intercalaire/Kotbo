@@ -63,7 +63,6 @@ import {
   leaveRpgGuild,
   depositToRpgGuildTreasury,
   sellShopItem,
-  getFishBook,
   RARITY_COLORS,
   work,
   RPG_GUILD_NAME_MAX,
@@ -71,6 +70,8 @@ import {
   adminSetStats,
   transferCoins,
   fish,
+  FISH_COOLDOWN_MS,
+  ADVENTURE_ENERGY_COST,
   isItemEquipped,
   xpRequiredForLevel,
 } from './economyService.js';
@@ -91,7 +92,6 @@ import {
   isEquipmentSlot,
   itemIdInSlot,
   slotForItemType,
-  slotHoldingItem,
   unlockedAccessorySlots,
   type EquipmentSlot,
   type SlottedProfile,
@@ -101,7 +101,8 @@ import {
   renderCharacterCard,
   type CardSlot,
 } from './rpg/rpgCharacterCard.js';
-import { formatEnchant } from './rpg/rpgEnchantments.js';
+import { formatEnchant, type EnchantStack } from './rpg/rpgEnchantments.js';
+import { listItemInstances, type ItemProgression } from './rpg/rpgItemInstanceService.js';
 import { SKILL_TREE_UNLOCK_LEVEL, getSkillNode } from './rpg/rpgSkillTree.js';
 import { discountedPrice, type GuildPerks } from './rpg/rpgGuildBuildings.js';
 import {
@@ -160,6 +161,7 @@ import {
 } from './combatService.js';
 import type { RpgSkill } from './rpg/rpgClasses.js';
 import { findGuildMonsterById } from './rpg/rpgBestiaryService.js';
+import { huntXpRatio } from './rpg/rpgBestiaryPolicy.js';
 import {
   getBestiaryEntry,
   getBestiaryOverview,
@@ -185,8 +187,16 @@ import { bossCooldownMs, fightCooldownMs, formatCooldown, remainingCooldownMs } 
 import { claimFirstKill, formatFirstKillBounty, formatFirstKillReward, getFirstKill, type FirstKillMonster } from './rpg/rpgFirstKillService.js';
 import { grantWinTitle, listOwnedTitles, setActiveTitle } from './rpg/rpgTitleService.js';
 import { titleBonusParts } from './rpg/rpgTitlePolicy.js';
+import { fishBookProgress, type FishBookTier } from './rpg/rpgFishBook.js';
+import {
+  claimFishBookRewards,
+  getFishBookRewards,
+  listFishBookClaims,
+  type FishBookPayout,
+} from './rpg/rpgFishBookRewardService.js';
 import {
   getItemCatalog,
+  getItemCatalogDetail,
   isUnavailableItem,
   isUniqueItem,
   ITEM_SOURCE_FILTERS,
@@ -201,8 +211,8 @@ import {
   type BlackMarketOfferView,
 } from './rpg/rpgBlackMarketService.js';
 
-type Locale = BotLocale;
-type PanelInteraction = ButtonInteraction | StringSelectMenuInteraction | UserSelectMenuInteraction | ModalSubmitInteraction;
+export type Locale = BotLocale;
+export type PanelInteraction = ButtonInteraction | StringSelectMenuInteraction | UserSelectMenuInteraction | ModalSubmitInteraction;
 
 // Coûts et verrous de combat, centralisés pour que le contrôle préalable et l'écriture
 // atomique ne puissent plus diverger.
@@ -211,7 +221,7 @@ const FIGHT_MIN_HEALTH = 5;
 const BOSS_ENERGY_COST = 30;
 const BOSS_MIN_HEALTH = 10;
 const COMBAT_TURN_TIMEOUT_MS = 60 * 1000;
-type PanelRow = ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>;
+export type PanelRow = ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>;
 
 /**
  * Un écran du hub.
@@ -222,7 +232,7 @@ type PanelRow = ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>;
  * aux écrans qui ont besoin de composants riches - la boutique et son bouton
  * par article - que jamais un embed ne saura porter.
  */
-type PanelView = {
+export type PanelView = {
   embeds: EmbedBuilder[];
   components: PanelRow[];
   container?: ContainerBuilder;
@@ -303,13 +313,13 @@ export function isInteractionAdmin(interaction: { memberPermissions: import('dis
   return interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) ?? false;
 }
 
-async function ensureOwner(interaction: PanelInteraction, ownerId: string, locale: Locale): Promise<boolean> {
+export async function ensureOwner(interaction: PanelInteraction, ownerId: string, locale: Locale): Promise<boolean> {
   if (interaction.user.id === ownerId) return true;
   await interaction.reply({ content: m.rpg_hub_not_yours({}, { locale }), flags: [MessageFlags.Ephemeral] });
   return false;
 }
 
-async function replyPanelError(interaction: PanelInteraction, err: unknown, locale: Locale): Promise<void> {
+export async function replyPanelError(interaction: PanelInteraction, err: unknown, locale: Locale): Promise<void> {
   const embed = errorEmbed(m.rpg_generic_error_title({}, { locale }), errorMessage(err));
 
   // Les écrans qui défèrent l'interaction (combat, boss) ne peuvent plus utiliser `reply` :
@@ -405,7 +415,7 @@ export function renderPanelView(view: PanelView): PanelPayload {
  * Le retour y devient une dernière ligne en petit, à l'endroit où l'oeil cherche le pied
  * de page d'un embed.
  */
-function withNote(view: PanelView, text: string): PanelView {
+export function withNote(view: PanelView, text: string): PanelView {
   if (!text) return view;
 
   if (view.container) {
@@ -417,7 +427,7 @@ function withNote(view: PanelView, text: string): PanelView {
   return view;
 }
 
-async function respond(interaction: PanelInteraction, view: PanelView): Promise<void> {
+export async function respond(interaction: PanelInteraction, view: PanelView): Promise<void> {
   const payload = renderPanelView(view);
 
   if (interaction.deferred) {
@@ -706,6 +716,7 @@ function hubNavOptions(locale: Locale, isAdmin: boolean): { label: string; value
     { label: m.rpg_war_title({}, { locale }), value: 'clanwar', description: m.rpg_hub_nav_war_desc({}, { locale }), emoji: icon('rpgWar') },
     { label: m.rpg_hub_btn_pay({}, { locale }), value: 'pay', description: m.rpg_hub_nav_pay_desc({}, { locale }), emoji: icon('rpgPay') },
     { label: m.rpg_hub_btn_sell({}, { locale }), value: 'sell', description: m.rpg_hub_nav_sell_desc({}, { locale }), emoji: icon('rpgSell') },
+    { label: m.rpg_hub_btn_market({}, { locale }), value: 'market', description: m.rpg_hub_nav_market_desc({}, { locale }), emoji: icon('rpgShop') },
   ];
 
   if (isAdmin) {
@@ -843,11 +854,11 @@ const SELL_RATIO = 0.5;
 /** Objets par page du sac. Une section par objet : au-delà, le conteneur devient illisible. */
 const BAG_PAGE_SIZE = 6;
 
-type BagCategory = 'all' | 'WEAPON' | 'ARMOR' | 'ACCESSORY' | 'POTION' | 'SCROLL' | 'MATERIAL';
+export type BagCategory = 'all' | 'WEAPON' | 'ARMOR' | 'ACCESSORY' | 'POTION' | 'SCROLL' | 'MATERIAL';
 
-const BAG_CATEGORIES: BagCategory[] = ['all', 'WEAPON', 'ARMOR', 'ACCESSORY', 'POTION', 'SCROLL', 'MATERIAL'];
+export const BAG_CATEGORIES: BagCategory[] = ['all', 'WEAPON', 'ARMOR', 'ACCESSORY', 'POTION', 'SCROLL', 'MATERIAL'];
 
-function bagCategoryLabel(category: BagCategory, locale: Locale): string {
+export function bagCategoryLabel(category: BagCategory, locale: Locale): string {
   if (category === 'all') return m.rpg_inventory_cat_all({}, { locale });
   return shopCategoryLabel(category, locale);
 }
@@ -866,7 +877,7 @@ function bagNavId(ownerId: string, state: BagState): string {
 }
 
 /** Bonus d'un objet, en une ligne. Vide quand l'objet n'en porte aucun. */
-function itemStatLine(item: LocalRpgItem, locale: Locale): string {
+export function itemStatLine(item: LocalRpgItem, locale: Locale): string {
   const parts = [
     item.atkBonus ? `${icon('rpgAtk')} +${item.atkBonus}` : null,
     item.defBonus ? `${icon('rpgDef')} +${item.defBonus}` : null,
@@ -889,6 +900,21 @@ function comparisonLine(lines: StatComparison[], locale: Locale): string {
 }
 
 /**
+ * Enchantements gagnés et perdus en échangeant la pièce portée contre l'exemplaire regardé.
+ * Leurs effets ne s'additionnent pas aux stats brutes (une partie est en pourcentage du
+ * total) : on les nomme plutôt que de les chiffrer.
+ */
+function enchantSwapLine(candidate: EnchantStack[], worn: EnchantStack[], locale: Locale): string {
+  const same = (a: EnchantStack, b: EnchantStack) => a.id === b.id && a.tier === b.tier;
+  const gained = candidate.filter((stack) => !worn.some((other) => same(stack, other)));
+  const lost = worn.filter((stack) => !candidate.some((other) => same(stack, other)));
+  return [
+    gained.length > 0 ? m.rpg_item_compare_enchants_gained({ enchants: gained.map(formatEnchant).join(', ') }, { locale }) : '',
+    lost.length > 0 ? m.rpg_item_compare_enchants_lost({ enchants: lost.map(formatEnchant).join(', ') }, { locale }) : '',
+  ].filter(Boolean).join(' · ');
+}
+
+/**
  * Champ « comparé à ce que vous portez » d'une fiche d'objet, ou `null` quand l'objet ne
  * s'équipe pas ou qu'il est déjà porté.
  *
@@ -899,14 +925,14 @@ function comparisonLine(lines: StatComparison[], locale: Locale): string {
 async function equipmentComparisonField(
   profile: Awaited<ReturnType<typeof getOrCreateRpgProfile>>,
   item: LocalRpgItem,
-  candidateUpgrade: number,
+  progression: { upgrade: number; enchants: EnchantStack[] },
   locale: Locale,
 ): Promise<{ name: string; value: string; inline: boolean } | null> {
   const slot = slotForItemType(item.type);
   if (!slot || equippedItemIds(profile).includes(item.id)) return null;
 
   const equipment = await loadEquipment(profile);
-  const candidate = itemContribution({ ...item, upgrade: candidateUpgrade, enchants: [] });
+  const candidate = itemContribution({ ...item, upgrade: progression.upgrade, enchants: progression.enchants });
   const nameOf = (itemId: string | null) => {
     const owned = profile.inventory.find((entry) => entry.itemId === itemId)?.item;
     return owned ? `${owned.emoji} ${owned.name}` : '?';
@@ -926,7 +952,10 @@ async function equipmentComparisonField(
   if (targets.length === 0) return null;
 
   const value = targets
-    .map((target) => `${target.label} : ${comparisonLine(compareStats(candidate, target.piece ? itemContribution(target.piece) : null), locale)}`)
+    .map((target) => [
+      `${target.label} : ${comparisonLine(compareStats(candidate, target.piece ? itemContribution(target.piece) : null), locale)}`,
+      enchantSwapLine(progression.enchants, target.piece?.enchants ?? [], locale),
+    ].filter(Boolean).join(' · '))
     .join('\n');
   return { name: m.rpg_item_field_compare({}, { locale }), value: truncate(value, 1024), inline: false };
 }
@@ -944,18 +973,70 @@ function levelRequirementLabel(item: { levelRequired: number }, playerLevel: num
     : `· ⚠️ ${m.rpg_item_level_required({ level: item.levelRequired }, { locale })}`;
 }
 
+/**
+ * Ligne du sac : les exemplaires ordinaires d'un objet, ou UN exemplaire forgé.
+ *
+ * Un exemplaire forgé ou enchanté a sa propre ligne : il ne s'empile ni avec un autre
+ * niveau de forge ni avec les exemplaires ordinaires, qui ne partagent pas sa progression.
+ */
+type BagEntry = {
+  entry: LocalInventoryEntry;
+  copy: ItemProgression | null;
+  count: number;
+  worn: boolean;
+  /** L'objet a aussi des exemplaires forgés ou enchantés : la ligne doit dire lequel elle montre. */
+  mixed: boolean;
+};
+
+function bagEntries(
+  inventory: LocalInventoryEntry[],
+  copies: ItemProgression[],
+  profile: SlottedProfile,
+): BagEntry[] {
+  const byItem = new Map<string, ItemProgression[]>();
+  for (const copy of copies) byItem.set(copy.itemId, [...(byItem.get(copy.itemId) ?? []), copy]);
+
+  return inventory.flatMap((entry) => {
+    const forged = (byItem.get(entry.item.id) ?? []).slice(0, Math.max(0, entry.quantity));
+    const worn = isItemEquipped(profile, entry.item.id);
+    const wornForged = worn && forged.some((copy) => copy.equipped);
+    const plain = entry.quantity - forged.length;
+    return [
+      ...(plain > 0 ? [{ entry, copy: null, count: plain, worn: worn && !wornForged, mixed: forged.length > 0 }] : []),
+      ...forged.map((copy) => ({ entry, copy, count: 1, worn: worn && copy.equipped, mixed: true })),
+    ];
+  });
+}
+
+function copyLabel(item: { emoji: string; name: string }, copy: ItemProgression | null): string {
+  return copy && copy.upgrade > 0 ? `${item.emoji} ${item.name} +${copy.upgrade}` : `${item.emoji} ${item.name}`;
+}
+
+/**
+ * Distingue les exemplaires d'un même objet : sans ce repère, la ligne ordinaire et la
+ * ligne enchantée portent le même nom, et rééquiper la mauvaise fait croire à un
+ * enchantement perdu. La forge se lit déjà dans le « +N » du nom.
+ */
+function copyKindTag(copy: ItemProgression | null, locale: Locale): string {
+  if (!copy) return m.rpg_inventory_plain_tag({}, { locale });
+  return copy.enchants.length > 0 ? m.rpg_inventory_enchanted_tag({}, { locale }) : '';
+}
+
 /** Une ligne de sac : l'objet, sa rareté, son niveau requis et ses bonus. */
-function bagItemLine(entry: LocalInventoryEntry, playerLevel: number, equipped: boolean, favorite: boolean, locale: Locale): string {
-  const item = entry.item;
+function bagItemLine(bag: BagEntry, playerLevel: number, favorite: boolean, locale: Locale): string {
+  const item = bag.entry.item;
   const stats = itemStatLine(item, locale);
 
-  const header = `${favorite ? '⭐ ' : ''}${item.emoji} **${item.name}** ×${entry.quantity}`
-    + (equipped ? ` ${m.rpg_inventory_equipped_tag({}, { locale })}` : '');
+  const upgrade = bag.copy && bag.copy.upgrade > 0 ? ` **+${bag.copy.upgrade}**` : '';
+  const header = `${favorite ? '⭐ ' : ''}${item.emoji} **${item.name}**${upgrade} ×${bag.count}`
+    + (bag.mixed ? copyKindTag(bag.copy, locale) : '')
+    + (bag.worn ? ` ${m.rpg_inventory_equipped_tag({}, { locale })}` : '');
+  const enchants = bag.copy && bag.copy.enchants.length > 0 ? bag.copy.enchants.map(formatEnchant).join(' · ') : '';
 
   const meta = `-# ${rarityIcon(item.rarity)} ${shopCategoryLabel(item.type, locale)} `
     + levelRequirementLabel(item, playerLevel, locale);
 
-  return stats ? `${header}\n${stats}\n${meta}` : `${header}\n${meta}`;
+  return [header, enchants || null, stats || null, meta].filter((line): line is string => line !== null).join('\n');
 }
 
 /**
@@ -975,7 +1056,11 @@ async function buildInventoryView(
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
   const config = await getOrCreateEconomyConfig(guildId);
   const inventory = profile.inventory as unknown as LocalInventoryEntry[];
-  const [equipment, ownedTitles] = await Promise.all([loadEquipment(profile), listOwnedTitles(profile.id)]);
+  const [equipment, ownedTitles, copies] = await Promise.all([
+    loadEquipment(profile),
+    listOwnedTitles(profile.id),
+    listItemInstances(profile.id),
+  ]);
   const activeTitle = ownedTitles.find((title) => title.id === profile.activeTitleId) ?? null;
 
   const itemById = new Map(inventory.map((entry) => [entry.item.id, entry.item]));
@@ -1049,19 +1134,19 @@ async function buildInventoryView(
   ));
 
   // ── Sac ──
-  const filtered = state.category === 'all'
-    ? inventory
-    : inventory.filter((entry) => entry.item.type === state.category);
+  const filtered = bagEntries(inventory, copies, profile)
+    .filter((bag) => state.category === 'all' || bag.entry.item.type === state.category);
 
   // Les favoris d'abord, puis le plus utile : ce qui s'équipe, ce qui se boit, la
   // matière première.
   const favorites = new Set(profile.favoriteItemIds);
   const TYPE_ORDER: Record<string, number> = { WEAPON: 0, ARMOR: 1, ACCESSORY: 2, POTION: 3, SCROLL: 4, MATERIAL: 5 };
   const sorted = [...filtered].sort((a, b) =>
-    Number(favorites.has(b.item.id)) - Number(favorites.has(a.item.id))
-    || (TYPE_ORDER[a.item.type] ?? 9) - (TYPE_ORDER[b.item.type] ?? 9)
-    || b.item.levelRequired - a.item.levelRequired
-    || a.item.name.localeCompare(b.item.name));
+    Number(favorites.has(b.entry.item.id)) - Number(favorites.has(a.entry.item.id))
+    || (TYPE_ORDER[a.entry.item.type] ?? 9) - (TYPE_ORDER[b.entry.item.type] ?? 9)
+    || b.entry.item.levelRequired - a.entry.item.levelRequired
+    || a.entry.item.name.localeCompare(b.entry.item.name)
+    || (b.copy?.upgrade ?? -1) - (a.copy?.upgrade ?? -1));
 
   const pageCount = Math.max(1, Math.ceil(sorted.length / BAG_PAGE_SIZE));
   const page = Math.min(state.page, pageCount - 1);
@@ -1078,15 +1163,15 @@ async function buildInventoryView(
     ));
   }
 
-  for (const entry of shown) {
+  for (const bag of shown) {
     container.addSectionComponents(
       new SectionBuilder()
         .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-          truncate(bagItemLine(entry, profile.level, isItemEquipped(profile, entry.item.id), favorites.has(entry.item.id), locale), 600),
+          truncate(bagItemLine(bag, profile.level, favorites.has(bag.entry.item.id), locale), 600),
         ))
         .setButtonAccessory(
           new ButtonBuilder()
-            .setCustomId(`rpg:invopen:${ownerId}:${entry.item.id}:${state.category}:${page}`)
+            .setCustomId(`rpg:invopen:${ownerId}:${bag.entry.item.id}:${state.category}:${page}${bag.copy ? `:${bag.copy.id}` : ''}`)
             .setLabel(m.rpg_inventory_open_btn({}, { locale }))
             .setStyle(ButtonStyle.Primary),
         ),
@@ -1169,12 +1254,17 @@ async function buildInventoryItemView(
   itemId: string,
   locale: Locale,
   back: BagState,
+  copyId?: string,
 ): Promise<PanelView> {
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
   const inventory = profile.inventory as unknown as LocalInventoryEntry[];
   const entry = inventory.find((candidate) => candidate.item.id === itemId);
+  const copies = entry ? await listItemInstances(profile.id, [itemId]) : [];
+  // `copyId` désigne un exemplaire forgé ; sans lui, la fiche parle des exemplaires ordinaires.
+  const copy = copyId ? copies.find((candidate) => candidate.id === copyId) ?? null : null;
+  const plainCount = entry ? Math.max(0, entry.quantity - copies.length) : 0;
 
-  if (!entry) {
+  if (!entry || (copyId && !copy) || (!copyId && plainCount <= 0)) {
     return {
       embeds: [errorEmbed(m.rpg_inventory_title({}, { locale }), m.rpg_inventory_item_gone({}, { locale }))],
       components: [backRow(ownerId, locale)],
@@ -1182,17 +1272,15 @@ async function buildInventoryItemView(
   }
 
   const item = entry.item;
-  const equipped = isItemEquipped(profile, item.id);
-  const equipment = await loadEquipment(profile);
-  const holdingSlot = slotHoldingItem(profile, item.id);
-  const piece = holdingSlot
-    ? (isAccessorySlot(holdingSlot)
-      ? equipment.accessories[ACCESSORY_SLOTS.indexOf(holdingSlot)] ?? null
-      : holdingSlot === 'weapon' ? equipment.weapon : equipment.armor)
-    : null;
+  const itemWorn = isItemEquipped(profile, item.id);
+  const wornForged = copies.some((candidate) => candidate.equipped);
+  // Cet exemplaire-ci est-il celui porté ? Un objet ne se porte qu'une fois : c'est soit
+  // un exemplaire forgé marqué, soit un exemplaire ordinaire.
+  const equipped = itemWorn && (copy ? copy.equipped : !wornForged);
+  const freePlain = plainCount - (itemWorn && !wornForged ? 1 : 0);
 
   const embed = new EmbedBuilder()
-    .setTitle(truncate(`${item.emoji} ${item.name}`, 256))
+    .setTitle(truncate(`${copyLabel(item, copy)}${copies.length > 0 ? copyKindTag(copy, locale).replace(/\*/g, '') : ''}`, 256))
     .setDescription(`*${item.description}*`)
     .setColor(RPG_COLORS.hub)
     .addFields(
@@ -1206,7 +1294,7 @@ async function buildInventoryItemView(
           : m.rpg_item_level_none({}, { locale }),
         inline: true,
       },
-      { name: m.rpg_item_field_quantity({}, { locale }), value: `**${entry.quantity}**`, inline: true },
+      { name: m.rpg_item_field_quantity({}, { locale }), value: `**${copy ? 1 : plainCount}**`, inline: true },
     );
 
   const stats = itemStatLine(item, locale);
@@ -1214,20 +1302,15 @@ async function buildInventoryItemView(
     embed.addFields({ name: m.rpg_item_field_stats({}, { locale }), value: stats, inline: false });
   }
 
-  // Un exemplaire du sac a pu être forgé puis retiré : il se compare avec sa forge.
-  const ownInstance = equipped ? null : await prisma.rpgItemInstance.findUnique({
-    where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: item.id } },
-    select: { upgrade: true },
-  });
-  const comparison = await equipmentComparisonField(profile, item, ownInstance?.upgrade ?? 0, locale);
+  // Un exemplaire forgé ou enchanté resté dans le sac se compare avec sa progression.
+  const comparison = equipped ? null : await equipmentComparisonField(profile, item, copy ?? { upgrade: 0, enchants: [] }, locale);
   if (comparison) embed.addFields(comparison);
 
-  // Forge et enchantements vivent sur l'exemplaire possédé : ils ne se montrent que
-  // lorsque l'objet est porté, seul cas où une instance existe à coup sûr.
-  if (piece && (piece.upgrade > 0 || piece.enchants.length > 0)) {
+  // Forge et enchantements appartiennent à cet exemplaire seul.
+  if (copy) {
     const progress = [
-      piece.upgrade > 0 ? m.rpg_item_field_upgrade_value({ level: piece.upgrade }, { locale }) : null,
-      piece.enchants.length > 0 ? piece.enchants.map(formatEnchant).join(' · ') : null,
+      copy.upgrade > 0 ? m.rpg_item_field_upgrade_value({ level: copy.upgrade }, { locale }) : null,
+      copy.enchants.length > 0 ? copy.enchants.map(formatEnchant).join(' · ') : null,
     ].filter((part): part is string => part !== null);
 
     embed.addFields({ name: m.rpg_item_field_progress({}, { locale }), value: progress.join('\n'), inline: false });
@@ -1264,23 +1347,23 @@ async function buildInventoryItemView(
   } else if (slotForItemType(item.type)) {
     row.addComponents(
       new ButtonBuilder()
-        .setCustomId(`rpg:invtoggle:${ownerId}:${item.id}`)
+        .setCustomId(`rpg:invtoggle:${ownerId}:${item.id}:${copy?.id ?? 'plain'}`)
         .setLabel(equipped ? m.rpg_inventory_unequip_btn({}, { locale }) : m.rpg_inventory_equip_btn({}, { locale }))
         .setEmoji(itemTypeIcon(item.type))
         .setStyle(equipped ? ButtonStyle.Secondary : ButtonStyle.Success)
         // Un objet hors niveau garde son bouton grisé : le voir désactivé dit pourquoi,
         // le retirer laisserait croire que l'objet n'est pas équipable du tout.
-        .setDisabled(!equipped && profile.level < item.levelRequired),
+        .setDisabled(!equipped && !itemWorn && profile.level < item.levelRequired),
     );
   }
 
-  // Vendre, ici, sur l'objet qu'on regarde. Le dernier exemplaire d'un objet porté doit
-  // d'abord être retiré : le refus vient de `sellShopItem`, on grise plutôt que de le
-  // laisser échouer. Un exemplaire en plus de celui porté, lui, se vend normalement.
-  const onlyWornCopy = equipped && entry.quantity <= 1;
+  // Vendre, ici, sur l'exemplaire qu'on regarde. L'exemplaire porté doit d'abord être
+  // retiré : le refus vient de `sellShopItem`, on grise plutôt que de le laisser échouer.
+  const copySuffix = copy ? `:${copy.id}` : '';
+  const onlyWornCopy = copy ? equipped : freePlain < 1;
   row.addComponents(
     new ButtonBuilder()
-      .setCustomId(`rpg:invsell:${ownerId}:${item.id}:${back.category}:${back.page}`)
+      .setCustomId(`rpg:invsell:${ownerId}:${item.id}:${back.category}:${back.page}${copySuffix}`)
       .setLabel(m.rpg_inventory_sell_btn({ price: sellPrice }, { locale }))
       .setEmoji(icon('rpgSell'))
       .setStyle(ButtonStyle.Danger)
@@ -1289,7 +1372,7 @@ async function buildInventoryItemView(
   if (salvage) {
     row.addComponents(
       new ButtonBuilder()
-        .setCustomId(`rpg:invsalvage:${ownerId}:${item.id}:${back.category}:${back.page}`)
+        .setCustomId(`rpg:invsalvage:${ownerId}:${item.id}:${back.category}:${back.page}${copySuffix}`)
         .setLabel(m.rpg_inventory_salvage_btn({}, { locale }))
         .setEmoji(icon('rpgCraft'))
         .setStyle(ButtonStyle.Secondary)
@@ -1299,7 +1382,7 @@ async function buildInventoryItemView(
   const favorite = profile.favoriteItemIds.includes(item.id);
   row.addComponents(
     new ButtonBuilder()
-      .setCustomId(`rpg:invfav:${ownerId}:${item.id}:${back.category}:${back.page}`)
+      .setCustomId(`rpg:invfav:${ownerId}:${item.id}:${back.category}:${back.page}${copySuffix}`)
       .setLabel(favorite ? m.rpg_inventory_unfavorite_btn({}, { locale }) : m.rpg_inventory_favorite_btn({}, { locale }))
       .setEmoji('⭐')
       .setStyle(favorite ? ButtonStyle.Primary : ButtonStyle.Secondary),
@@ -1312,7 +1395,17 @@ async function buildInventoryItemView(
       .setStyle(ButtonStyle.Secondary),
   );
 
-  return { embeds: [embed], components: [row] };
+  // Seconde rangée : la première est pleine, et Discord refuse une sixième case.
+  const marketRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`mkt:sellsetup:${ownerId}:${item.id}:${copy?.id ?? '-'}`)
+      .setLabel(m.rpg_inventory_market_btn({}, { locale }))
+      .setEmoji(icon('rpgShop'))
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(onlyWornCopy),
+  );
+
+  return { embeds: [embed], components: [row, marketRow] };
 }
 
 /**
@@ -1423,8 +1516,9 @@ async function handleInventoryToggle(
   ownerId: string,
   locale: Locale,
   itemId: string,
+  copy?: string,
 ): Promise<void> {
-  const toggled = await equipInventoryItem(guildId, ownerId, itemId);
+  const toggled = await equipInventoryItem(guildId, ownerId, itemId, copy);
   const view = await buildInventoryView(guildId, ownerId, locale);
 
   await respond(interaction, withNote(view, toggled.equipped
@@ -1459,7 +1553,7 @@ async function handleInventoryDrink(
  * `need` ne garde que les potions qui règlent le refus affiché.
  */
 type QuickDrinkNeed = 'any' | 'hp' | 'energy';
-type QuickDrinkOrigin = 'hub' | 'alert';
+type QuickDrinkOrigin = 'hub' | 'alert' | 'travel';
 
 async function quickDrinkRow(
   guildId: string,
@@ -1501,7 +1595,11 @@ async function quickDrinkRow(
       const effects = [
         item.hpRestore > 0 ? m.rpg_quickdrink_hp({ hp: item.hpRestore }, { locale }) : null,
         item.energyRestore > 0 ? m.rpg_quickdrink_energy({ energy: item.energyRestore }, { locale }) : null,
-      ].filter((effect): effect is string => effect !== null);
+      // `LocalizedString` est un type marque, pas `string` : un predicat
+      // `effect is string` est plus LARGE que l'element, et TypeScript le
+      // refuse. `NonNullable<typeof effect>` reste juste quelle que soit la
+      // marque, et le jour ou elle change.
+      ].filter((effect): effect is NonNullable<typeof effect> => effect !== null);
       return {
         label: truncate(`${favorites.has(item.id) ? '⭐ ' : ''}${item.name} ×${quantity}`, 100),
         value: item.id,
@@ -1523,7 +1621,13 @@ async function replyVitalsAlert(
   need: Exclude<QuickDrinkNeed, 'any'>,
 ): Promise<void> {
   const row = await quickDrinkRow(guildId, ownerId, locale, 'alert', need);
-  await interaction.reply({ embeds: [embed], components: row ? [row] : [], flags: [MessageFlags.Ephemeral] });
+  const components = row ? [row] : [];
+  // Le départ en aventure est acquitté avant tout travail : `reply` échouerait alors en silence.
+  if (interaction.deferred || interaction.replied) {
+    await interaction.followUp({ embeds: [embed], components, flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+  await interaction.reply({ embeds: [embed], components, flags: [MessageFlags.Ephemeral] });
 }
 
 async function handleQuickDrink(
@@ -1533,7 +1637,8 @@ async function handleQuickDrink(
   locale: Locale,
   rest: string[],
 ): Promise<void> {
-  const origin: QuickDrinkOrigin = rest[0] === 'alert' ? 'alert' : 'hub';
+  const rawOrigin = rest[0];
+  const origin: QuickDrinkOrigin = rawOrigin === 'alert' || rawOrigin === 'travel' ? rawOrigin : 'hub';
   const requested = rest[1];
   const need: QuickDrinkNeed = requested === 'hp' || requested === 'energy' ? requested : 'any';
 
@@ -1545,6 +1650,11 @@ async function handleQuickDrink(
   }
 
   const feedback = await consumePotion(interaction, guildId, ownerId, entry, locale);
+
+  if (origin === 'travel') {
+    await respond(interaction, withNote(await buildTravelView(guildId, ownerId, locale), feedback));
+    return;
+  }
 
   if (origin === 'hub') {
     const view = await buildHubView(guildId, interaction.user, interaction.user, locale, isInteractionAdmin(interaction));
@@ -1576,7 +1686,7 @@ async function handleInventoryFavorite(
     : [...profile.favoriteItemIds, itemId];
 
   await prisma.rpgProfile.update({ where: { id: profile.id }, data: { favoriteItemIds: favorites } });
-  await respond(interaction, await buildInventoryItemView(guildId, ownerId, itemId, locale, parseBagState(backState)));
+  await respond(interaction, await buildInventoryItemView(guildId, ownerId, itemId, locale, parseBagState(backState), backState[2]));
 }
 
 /** Vend un exemplaire depuis sa fiche, et ramène au sac là où on l'avait quitté. */
@@ -1588,7 +1698,7 @@ async function handleInventorySell(
   rest: string[],
 ): Promise<void> {
   const [itemId, ...back] = rest;
-  const result = await sellShopItem(guildId, ownerId, itemId);
+  const result = await sellShopItem(guildId, ownerId, itemId, back[2] ? { instanceId: back[2] } : {});
 
   const view = await buildInventoryView(guildId, ownerId, locale, parseBagState(back));
   await respond(interaction, withNote(
@@ -1606,7 +1716,7 @@ async function handleInventorySalvage(
   rest: string[],
 ): Promise<void> {
   const [itemId, ...back] = rest;
-  const result = await salvageItem(guildId, ownerId, itemId);
+  const result = await salvageItem(guildId, ownerId, itemId, back[2]);
 
   const materials = result.returned.map((ingredient) => `${ingredient.emoji} ${ingredient.quantity} × ${ingredient.itemName}`).join(', ');
   const view = await buildInventoryView(guildId, ownerId, locale, parseBagState(back));
@@ -1715,13 +1825,13 @@ function addOptionsWithinBudget(select: StringSelectMenuBuilder, entries: Budget
  * ou un emoji qui n'en est pas un suffit : un objet créé au dashboard sans description, ou
  * dont le champ emoji contient du texte, rendait toute la boutique inaccessible.
  */
-function optionDescription(value: string | null | undefined): string | undefined {
+export function optionDescription(value: string | null | undefined): string | undefined {
   const text = value?.trim();
   return text ? truncate(text, 100) : undefined;
 }
 
 /** Emoji unicode, ou emoji personnalisé `<a?:nom:id>`. Tout le reste est écarté. */
-function optionEmoji(value: string | null | undefined): string | undefined {
+export function optionEmoji(value: string | null | undefined): string | undefined {
   const text = value?.trim();
   if (!text) return undefined;
   if (/^<a?:\w{2,32}:\d{17,20}>$/.test(text)) return text;
@@ -1756,7 +1866,7 @@ const SHOP_BUY_QUANTITIES = [1, 5, 10] as const;
 const SHOP_CATEGORIES = ['WEAPON', 'ARMOR', 'ACCESSORY', 'POTION', 'MATERIAL', 'SCROLL', 'QUEST'] as const;
 type ShopCategory = (typeof SHOP_CATEGORIES)[number];
 
-function shopCategoryLabel(type: string, locale: Locale): string {
+export function shopCategoryLabel(type: string, locale: Locale): string {
   switch (type) {
     case 'WEAPON': return m.rpg_shop_type_weapon({}, { locale });
     case 'ARMOR': return m.rpg_shop_type_armor({}, { locale });
@@ -2081,7 +2191,7 @@ async function buildShopItemView(
     ]);
 
   // Un exemplaire acheté arrive sans forge : c'est un objet neuf qu'on compare.
-  const comparison = await equipmentComparisonField(profile, item, 0, locale);
+  const comparison = await equipmentComparisonField(profile, item, { upgrade: 0, enchants: [] }, locale);
   if (comparison) embed.addFields(comparison);
 
   if (item.description?.trim()) {
@@ -3579,13 +3689,26 @@ async function buildTravelView(guildId: string, ownerId: string, locale: Locale)
     );
   });
 
-  return { embeds: [embed], components: [row, backRow(ownerId, locale)] };
+  const drinkRow = profile.energy < ADVENTURE_ENERGY_COST
+    ? await quickDrinkRow(guildId, ownerId, locale, 'travel', 'energy')
+    : null;
+  return { embeds: [embed], components: drinkRow ? [row, drinkRow, backRow(ownerId, locale)] : [row, backRow(ownerId, locale)] };
 }
 
 async function handleTravelDestinationChoice(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale, idxRaw: string): Promise<void> {
   const idx = Number.parseInt(idxRaw, 10);
   const dest = getTravelDestinations(locale)[idx];
   if (!dest) return;
+
+  const profile = await getOrCreateRpgProfile(guildId, ownerId);
+  if (!profile.isTraveling && profile.health <= 0) {
+    await replyVitalsAlert(interaction, guildId, ownerId, locale, errorEmbed(m.rpg_travel_low_hp_title({}, { locale }), m.rpg_travel_low_hp_desc({}, { locale })), 'hp');
+    return;
+  }
+  if (!profile.isTraveling && profile.energy < ADVENTURE_ENERGY_COST) {
+    await replyVitalsAlert(interaction, guildId, ownerId, locale, errorEmbed(m.rpg_travel_energy_insufficient_title({}, { locale }), m.rpg_travel_low_energy_desc({ cost: ADVENTURE_ENERGY_COST, energy: profile.energy }, { locale })), 'energy');
+    return;
+  }
 
   await startTravel(guildId, ownerId, dest.name, dest.time);
   const embed = successEmbed(m.rpg_travel_bon_voyage_title({}, { locale }), m.rpg_travel_bon_voyage_desc({ dest: dest.name, time: dest.time }, { locale }));
@@ -3650,9 +3773,15 @@ async function handleFishClaim(interaction: ButtonInteraction, guildId: string, 
   const result = await fish(guildId, ownerId);
 
   if (!result.success) {
-    const embed = result.cooldown
-      ? errorEmbed(m.rpg_fish_cooldown_title({}, { locale }), m.rpg_fish_cooldown_desc({ min: result.remainingMin ?? 0, sec: result.remainingSec ?? 0 }, { locale }))
-      : errorEmbed(m.rpg_fish_no_energy_title({}, { locale }), m.rpg_fish_no_energy_desc({}, { locale }));
+    if ('noFish' in result && result.noFish) {
+      await interaction.reply({ embeds: [errorEmbed(m.rpg_fish_empty_title({}, { locale }), m.rpg_fish_empty_desc({}, { locale }))], flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+    if (!result.cooldown) {
+      await replyVitalsAlert(interaction, guildId, ownerId, locale, errorEmbed(m.rpg_fish_no_energy_title({}, { locale }), m.rpg_fish_no_energy_desc({}, { locale })), 'energy');
+      return;
+    }
+    const embed = errorEmbed(m.rpg_fish_cooldown_title({}, { locale }), m.rpg_fish_cooldown_desc({ min: result.remainingMin ?? 0, sec: result.remainingSec ?? 0 }, { locale }));
     await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
     return;
   }
@@ -3674,9 +3803,25 @@ async function handleFishClaim(interaction: ButtonInteraction, guildId: string, 
       { name: m.rpg_fish_field_xp({}, { locale }), value: `**+${result.fish.xp}**`, inline: true },
       { name: m.rpg_fish_field_total({}, { locale }), value: m.rpg_fish_field_total_value({ count: result.totalFishCaught }, { locale }), inline: true },
     );
+  embed.addFields({ name: m.rpg_fish_field_next({}, { locale }), value: `<t:${Math.floor(result.nextFishAt.getTime() / 1000)}:R>`, inline: false });
   if (result.newSpecies) embed.setFooter({ text: m.rpg_fish_new_species({}, { locale }) });
 
-  await respond(interaction, { embeds: [embed], components: [fishBookRow(ownerId, locale)] });
+  // Seule une nouvelle espèce peut terminer un palier : les autres prises s'épargnent la lecture.
+  // Le versement peut enchaîner plusieurs paliers et un rôle : on acquitte d'abord, Discord
+  // n'attend que trois secondes.
+  if (result.newSpecies) {
+    await interaction.deferUpdate();
+    const { payouts } = await claimFishBookRewards(interaction.client, guildId, ownerId).catch((err) => {
+      logger.error('RpgPanel', `Récompenses du carnet non versées pour ${ownerId} :`, err);
+      return { payouts: [] as FishBookPayout[] };
+    });
+    for (const payout of payouts) {
+      embed.addFields({ name: fishBookTierDoneLabel(payout.tier, locale), value: formatFishBookPayout(payout, config.currencyEmoji, locale), inline: false });
+    }
+  }
+
+  // Pas de bouton « Pêcher » ici : la ligne vient de servir et reste au repos cinq minutes.
+  await respond(interaction, { embeds: [embed], components: [fishBookRow(ownerId, locale, { fish: false, book: true })] });
 }
 
 function fishRarityLabel(rarity: string, locale: Locale): string {
@@ -3690,12 +3835,14 @@ function fishRarityLabel(rarity: string, locale: Locale): string {
   }
 }
 
-/** Pêcher encore, ouvrir le carnet, revenir au hub : les trois gestes qui suivent une prise. */
-function fishBookRow(ownerId: string, locale: Locale, showBook = true): ActionRowBuilder<ButtonBuilder> {
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`rpg:fish:${ownerId}`).setLabel(m.rpg_hub_btn_fish({}, { locale })).setEmoji(icon('rpgFish')).setStyle(ButtonStyle.Success),
-  );
-  if (showBook) {
+function fishBookRow(ownerId: string, locale: Locale, show: { fish: boolean; book: boolean }): ActionRowBuilder<ButtonBuilder> {
+  const row = new ActionRowBuilder<ButtonBuilder>();
+  if (show.fish) {
+    row.addComponents(
+      new ButtonBuilder().setCustomId(`rpg:fish:${ownerId}`).setLabel(m.rpg_hub_btn_fish({}, { locale })).setEmoji(icon('rpgFish')).setStyle(ButtonStyle.Success),
+    );
+  }
+  if (show.book) {
     row.addComponents(
       new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:fishbook`).setLabel(m.rpg_hub_btn_fishbook({}, { locale })).setEmoji(icon('rpgBestiary')).setStyle(ButtonStyle.Primary),
     );
@@ -3706,14 +3853,70 @@ function fishBookRow(ownerId: string, locale: Locale, showBook = true): ActionRo
   return row;
 }
 
+function fishBookTierLabel(tier: FishBookTier, locale: Locale): string {
+  return tier === 'COMPLETE' ? m.rpg_fishbook_tier_complete({}, { locale }) : fishRarityLabel(tier, locale);
+}
+
+function fishBookTierDoneLabel(tier: FishBookTier, locale: Locale): string {
+  return tier === 'COMPLETE'
+    ? m.rpg_fishbook_done_complete({}, { locale })
+    : m.rpg_fishbook_done_rarity({ rarity: fishRarityLabel(tier, locale) }, { locale });
+}
+
+function formatFishBookReward(
+  reward: { coinReward: number; xpReward: number; clanPoints: number; itemName: string | null; roleId: string | null; titleName: string | null },
+  currencyEmoji: string,
+  locale: Locale,
+): string {
+  const parts = [
+    reward.coinReward > 0 ? `${currencyEmoji} +${reward.coinReward}` : null,
+    reward.xpReward > 0 ? `${icon('rpgXp')} +${reward.xpReward} XP` : null,
+    reward.clanPoints > 0 ? `${icon('rpgClan')} +${reward.clanPoints}` : null,
+    reward.itemName ? `📦 ${reward.itemName}` : null,
+    reward.titleName ? `🏅 ${reward.titleName}` : null,
+    reward.roleId ? `<@&${reward.roleId}>` : null,
+  ].filter((part): part is string => part !== null);
+  return parts.length > 0 ? parts.join(' · ') : m.rpg_fishbook_no_reward({}, { locale });
+}
+
+function formatFishBookPayout(payout: FishBookPayout, currencyEmoji: string, locale: Locale): string {
+  return formatFishBookReward({
+    coinReward: payout.coins,
+    xpReward: payout.xp,
+    // Seuls les points réellement encaissés : un joueur sans clan ni guilde n'a rien reçu.
+    clanPoints: payout.teamPoints,
+    itemName: payout.itemName ? `${payout.itemEmoji ?? ''} ${payout.itemName}`.trim() : null,
+    roleId: payout.roleId,
+    titleName: payout.titleName,
+  }, currencyEmoji, locale);
+}
+
 /**
- * Carnet de pêche : chaque espèce du catalogue, rangée par rareté.
+ * Carnet de pêche : chaque espèce du catalogue, rangée par rareté, avec la récompense de
+ * chaque série et celle du carnet complet.
  *
  * Les espèces jamais attrapées restent listées sans leur nom, comme les créatures du
- * bestiaire : voir ce qui manque est ce qui donne envie de relancer sa ligne.
+ * bestiaire : voir ce qui manque est ce qui donne envie de relancer sa ligne. L'ouverture
+ * verse aussi les paliers terminés avant que les récompenses n'existent.
  */
-async function buildFishBookView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
-  const book = await getFishBook(guildId, ownerId);
+const FISH_BOOK_FIELD_MAX = 520;
+
+async function buildFishBookView(client: Client, guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  const { book, payouts } = await claimFishBookRewards(client, guildId, ownerId);
+  const [rewards, claimed, config, profile] = await Promise.all([
+    getFishBookRewards(guildId),
+    listFishBookClaims(guildId, ownerId),
+    getOrCreateEconomyConfig(guildId),
+    getOrCreateRpgProfile(guildId, ownerId),
+  ]);
+  const rewardByTier = new Map(rewards.map((reward) => [reward.tier, reward]));
+  const progress = new Map(fishBookProgress(book).map((tier) => [tier.tier, tier]));
+
+  const rewardLine = (tier: FishBookTier): string => {
+    const reward = rewardByTier.get(tier);
+    const status = claimed.has(tier) ? `${icon('success')} ${m.rpg_fishbook_reward_claimed({}, { locale })}` : `🎁 ${m.rpg_fishbook_reward_pending({}, { locale })}`;
+    return `-# ${status} : ${reward ? formatFishBookReward(reward, config.currencyEmoji, locale) : m.rpg_fishbook_no_reward({}, { locale })}`;
+  };
 
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_fishbook_title({}, { locale }))
@@ -3722,15 +3925,41 @@ async function buildFishBookView(guildId: string, ownerId: string, locale: Local
 
   const rarities = [...new Set(book.entries.map((entry) => entry.rarity))];
   for (const rarity of rarities) {
+    const tier = progress.get(rarity as FishBookTier);
     const lines = book.entries
       .filter((entry) => entry.rarity === rarity)
       .map((entry) => (entry.caught > 0
         ? `${entry.emoji} **${entry.name}** ×${entry.caught}`
         : `❔ ${m.rpg_fishbook_unknown({}, { locale })}`));
-    embed.addFields({ name: `${RARITY_COLORS[rarity] ?? '⬜'} ${fishRarityLabel(rarity, locale)}`, value: lines.join('\n'), inline: true });
+    const footer = tier ? `\n${rewardLine(tier.tier)}` : '';
+    const count = tier ? ` · ${tier.caught}/${tier.total}` : '';
+    embed.addFields({
+      name: `${RARITY_COLORS[rarity] ?? '⬜'} ${fishRarityLabel(rarity, locale)}${count}`,
+      value: joinFieldEntries(lines, {
+        more: (hidden) => m.rpg_itembook_detail_more({ count: hidden }, { locale }),
+        // Chaque champ devient un bloc de texte Components V2, et Discord refuse un message
+        // au-delà de 4000 caractères au total : cinq séries pleines doivent tenir ensemble.
+        max: FISH_BOOK_FIELD_MAX - footer.length,
+      }) + footer,
+      inline: true,
+    });
   }
 
-  return { embeds: [embed], components: [fishBookRow(ownerId, locale, false)] };
+  const complete = progress.get('COMPLETE');
+  if (complete) {
+    embed.addFields({
+      name: `🏆 ${fishBookTierLabel('COMPLETE', locale)} · ${complete.caught}/${complete.total}`,
+      value: rewardLine('COMPLETE'),
+      inline: false,
+    });
+  }
+
+  for (const payout of payouts) {
+    embed.addFields({ name: fishBookTierDoneLabel(payout.tier, locale), value: formatFishBookPayout(payout, config.currencyEmoji, locale), inline: false });
+  }
+
+  const canFish = !profile.lastFish || Date.now() - profile.lastFish.getTime() >= FISH_COOLDOWN_MS;
+  return { embeds: [embed], components: [fishBookRow(ownerId, locale, { fish: canFish, book: false })] };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -3778,6 +4007,14 @@ function bestiaryLine(entry: BestiaryEntry, locale: Locale): string {
   return `${monster.emoji} **${monster.name}**${bossTag}\n${sheet}\n-# ${tally}`;
 }
 
+function huntButton(ownerId: string, monsterId: string, locale: Locale): ButtonBuilder {
+  return new ButtonBuilder()
+    .setCustomId(`rpg:hunt:${ownerId}:${monsterId}`)
+    .setLabel(m.rpg_hunt_btn({}, { locale }))
+    .setEmoji(icon('rpgFight'))
+    .setStyle(ButtonStyle.Danger);
+}
+
 async function buildBestiaryView(
   guildId: string,
   ownerId: string,
@@ -3785,7 +4022,10 @@ async function buildBestiaryView(
   locale: Locale,
   state: BestiaryState = { filter: 'all', page: 0 },
 ): Promise<PanelView> {
-  const overview = await getBestiaryOverview(guildId, ownerId);
+  const [overview, profile] = await Promise.all([
+    getBestiaryOverview(guildId, ownerId),
+    getOrCreateRpgProfile(guildId, ownerId),
+  ]);
 
   const container = new ContainerBuilder().setAccentColor(RPG_COLORS.wild);
 
@@ -3833,9 +4073,18 @@ async function buildBestiaryView(
     const line = new TextDisplayBuilder().setContent(truncate(bestiaryLine(entry, locale), 600));
 
     // Une créature inconnue n'a pas de fiche à ouvrir : le bouton mènerait à un écran
-    // qui ne dirait rien de plus que la ligne elle-même.
+    // qui ne dirait rien de plus que la ligne elle-même. On peut en revanche aller la
+    // chercher, si elle n'est pas au-dessus du niveau du joueur.
     if (!entry.discovered) {
-      container.addTextDisplayComponents(line);
+      if (canHunt(entry.monster, profile.level)) {
+        container.addSectionComponents(
+          new SectionBuilder()
+            .addTextDisplayComponents(line)
+            .setButtonAccessory(huntButton(ownerId, entry.monster.id, locale)),
+        );
+      } else {
+        container.addTextDisplayComponents(line);
+      }
       continue;
     }
 
@@ -4012,9 +4261,19 @@ async function buildItemBookView(
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`*${m.rpg_itembook_empty({}, { locale })}*`));
   }
   for (const entry of shown) {
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      truncate(itemBookLine(entry, config.currencyEmoji, locale), 900),
-    ));
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+          truncate(itemBookLine(entry, config.currencyEmoji, locale), 900),
+        ))
+        .setButtonAccessory(
+          new ButtonBuilder()
+            .setCustomId(`rpg:itemopen:${ownerId}:${entry.item.id}:${state.category}:${state.source}:${page}`)
+            .setEmoji('🔍')
+            .setLabel(m.rpg_itembook_details_btn({}, { locale }))
+            .setStyle(ButtonStyle.Secondary),
+        ),
+    );
   }
 
   const components: PanelRow[] = [
@@ -4070,6 +4329,121 @@ async function buildItemBookView(
   components.push(navRow);
 
   return { embeds: [], components, container };
+}
+
+function dropChanceLabel(chance: number): string {
+  const percent = chance * 100;
+  return `${percent >= 10 || Number.isInteger(percent) ? Math.round(percent) : percent.toFixed(1)} %`;
+}
+
+/**
+ * Fiche d'un objet du catalogue : tout ce que la ligne résumait, en entier.
+ *
+ * La ligne du catalogue tronque les créatures à trois noms et ne dit rien de la recette :
+ * la fiche liste chaque source avec sa chance, et chaque matériau avec ce que le joueur
+ * en possède déjà, pour savoir d'un coup d'oeil ce qui manque.
+ */
+async function buildItemBookEntryView(
+  guildId: string,
+  ownerId: string,
+  itemId: string,
+  locale: Locale,
+  state: ItemBookState,
+): Promise<PanelView> {
+  const [detail, config, inventory] = await Promise.all([
+    getItemCatalogDetail(guildId, itemId),
+    getOrCreateEconomyConfig(guildId),
+    prisma.rpgInventoryItem.findMany({
+      where: { profile: { guildId, userId: ownerId }, quantity: { gt: 0 } },
+      select: { quantity: true, item: { select: { name: true } } },
+    }),
+  ]);
+  if (!detail) return buildItemBookView(guildId, ownerId, locale, state);
+
+  const owned = new Map<string, number>();
+  for (const row of inventory) owned.set(row.item.name, (owned.get(row.item.name) ?? 0) + row.quantity);
+
+  const { entry, drops, recipe, usedIn } = detail;
+  const item = entry.item;
+  const meta = `${rarityIcon(item.rarity)} ${shopCategoryLabel(item.type, locale)}`
+    + (item.levelRequired > 0 ? ` · ${m.rpg_item_level_required({ level: item.levelRequired }, { locale })}` : '')
+    + ` · ${m.rpg_itembook_owned({ count: owned.get(item.name) ?? 0 }, { locale })}`;
+
+  const container = new ContainerBuilder().setAccentColor(RPG_COLORS.hub);
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent([
+    `## ${item.emoji} ${item.name}`,
+    `-# ${meta}`,
+    item.description ? `*${truncate(item.description, 400)}*` : null,
+    itemStatLine(item, locale) || null,
+  ].filter((line): line is string => line !== null).join('\n')));
+
+  const sources: string[] = [];
+  if (isUniqueItem(entry)) sources.push(`✨ **${m.rpg_itembook_source_unique({}, { locale })}**`);
+  if (isUnavailableItem(entry)) sources.push(`⛔ **${m.rpg_itembook_source_unavailable({}, { locale })}**`);
+  if (entry.shop) sources.push(`${icon('rpgShop')} ${m.rpg_itembook_detail_shop({ price: item.price, emoji: config.currencyEmoji }, { locale })}`);
+  for (const drop of drops.slice(0, 12)) {
+    sources.push(`${drop.isBoss ? icon('rpgBoss') : icon('rpgFight')} ${drop.emoji} **${drop.name}** · ${m.rpg_itembook_detail_drop({ level: drop.level, chance: dropChanceLabel(drop.chance) }, { locale })}`);
+  }
+  if (drops.length > 12) sources.push(`-# ${m.rpg_itembook_detail_more({ count: drops.length - 12 }, { locale })}`);
+  if (entry.firstKill.length > 0) sources.push(`🏆 ${m.rpg_itembook_first_kill({ names: entry.firstKill.join(', ') }, { locale })}`);
+  if (entry.campaign) sources.push(`${icon('rpgKey')} ${m.rpg_itembook_campaign({}, { locale })}`);
+
+  if (sources.length > 0) {
+    container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      truncate(`### ${m.rpg_itembook_detail_sources({}, { locale })}\n${sources.join('\n')}`, 1400),
+    ));
+  }
+
+  if (recipe) {
+    const lines = recipe.ingredients.map((ingredient) => {
+      const have = owned.get(ingredient.itemName) ?? 0;
+      const mark = have >= ingredient.quantity ? icon('success') : '▫️';
+      return `${mark} ${ingredient.emoji} **${ingredient.itemName}** ${have}/${ingredient.quantity}`;
+    });
+    const extras = [
+      recipe.coinCost > 0 ? `${recipe.coinCost} ${config.currencyEmoji}` : null,
+      m.rpg_item_level_required({ level: recipe.levelRequired }, { locale }),
+    ].filter((part): part is string => part !== null).join(' · ');
+    container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      truncate(`### ${icon('rpgCraft')} ${m.rpg_itembook_detail_recipe({}, { locale })}\n${lines.join('\n')}\n-# ${extras}`, 800),
+    ));
+  }
+
+  if (usedIn.length > 0) {
+    const lines = usedIn.slice(0, 12).map((use) => `${use.emoji} **${use.itemName}** · ×${use.quantity}`);
+    if (usedIn.length > 12) lines.push(`-# ${m.rpg_itembook_detail_more({ count: usedIn.length - 12 }, { locale })}`);
+    container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      truncate(`### ${m.rpg_itembook_detail_used_in({}, { locale })}\n${lines.join('\n')}`, 800),
+    ));
+  }
+
+  const navRow = new ActionRowBuilder<ButtonBuilder>();
+  if (recipe) {
+    navRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:nav:${ownerId}:craft`)
+        .setLabel(m.rpg_itembook_detail_to_craft({}, { locale }))
+        .setEmoji(icon('rpgCraft'))
+        .setStyle(ButtonStyle.Primary),
+    );
+  }
+  navRow.addComponents(
+    new ButtonBuilder()
+      .setCustomId(itemBookNavId(ownerId, state))
+      .setLabel(m.rpg_itembook_detail_back({}, { locale }))
+      .setEmoji(icon('rpgBag'))
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  return { embeds: [], components: [navRow], container };
 }
 
 /** Changer de filtre ramène en première page, comme partout ailleurs. */
@@ -4200,7 +4574,10 @@ async function buildBestiaryEntryView(
     });
   }
 
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+  const profile = await getOrCreateRpgProfile(guildId, ownerId);
+  const row = new ActionRowBuilder<ButtonBuilder>();
+  if (canHunt(monster, profile.level)) row.addComponents(huntButton(ownerId, monster.id, locale));
+  row.addComponents(
     new ButtonBuilder()
       .setCustomId(`rpg:nav:${ownerId}:bestiary:${back.filter}:${back.page}`)
       .setLabel(m.rpg_bestiary_back_btn({}, { locale }))
@@ -4482,7 +4859,25 @@ function firstWinField(locale: Locale) {
   };
 }
 
-async function startFightSession(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+/**
+ * Créature qu'un joueur peut traquer depuis le bestiaire : ni boss, ni plus forte que lui.
+ *
+ * Les rencontres ordinaires ne tirent qu'autour du niveau du joueur : passé ce palier, les
+ * premières créatures ne se croisaient plus jamais et le bestiaire restait incomplet. Le
+ * plafond au niveau du joueur empêche de s'en servir pour sauter en avant, et `huntXpRatio`
+ * rogne l'XP d'une proie trop faible.
+ */
+function canHunt(monster: { isBoss: boolean; level: number }, playerLevel: number): boolean {
+  return !monster.isBoss && monster.level <= playerLevel;
+}
+
+async function startFightSession(
+  interaction: ButtonInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  targetMonsterId?: string,
+): Promise<void> {
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.rpgEnabled) {
     await interaction.reply({ embeds: [errorEmbed(m.rpg_travel_disabled_title({}, { locale }), m.rpg_boss_disabled_desc({}, { locale }))], flags: [MessageFlags.Ephemeral] });
@@ -4491,6 +4886,13 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
 
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
   const cooldownMs = fightCooldownMs(config);
+
+  // Résolue avant tout débit d'énergie : une cible refusée ne doit rien coûter.
+  const target = targetMonsterId ? await findGuildMonsterById(guildId, targetMonsterId) : null;
+  if (targetMonsterId && (!target || !canHunt(target, profile.level))) {
+    await interaction.reply({ embeds: [errorEmbed(m.rpg_hunt_refused_title({}, { locale }), m.rpg_hunt_refused_desc({}, { locale }))], flags: [MessageFlags.Ephemeral] });
+    return;
+  }
 
   const remainingMs = remainingCooldownMs(profile.lastBattle, cooldownMs);
   if (remainingMs > 0) {
@@ -4539,7 +4941,7 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
 
   await interaction.deferUpdate();
 
-  const monster = await findRandomMonster(guildId, profile.level);
+  const monster = target ?? await findRandomMonster(guildId, profile.level);
   if (!monster) {
     await refundFightCost();
     await interaction.editReply({ embeds: [errorEmbed(m.rpg_fight_no_monster_title({}, { locale }), m.rpg_fight_no_monster_desc({}, { locale }))], components: [backRow(ownerId, locale)] });
@@ -4805,7 +5207,8 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
         const rawXp = monster.xpReward + Math.floor(Math.random() * Math.floor(monster.xpReward * 0.3));
         const rawCoins = monster.coinReward + Math.floor(Math.random() * Math.floor(monster.coinReward * 0.3));
 
-        let xpEarned = Math.round(rawXp * (1 + villagePerks.xpBonus));
+        const huntRatio = target ? huntXpRatio(profile.level, monster.level) : 1;
+        let xpEarned = Math.round(rawXp * (1 + villagePerks.xpBonus) * huntRatio);
         let coinsEarned = Math.round(rawCoins * (1 + villagePerks.coinBonus));
 
         let itemDropped: string | null = null;
@@ -4927,10 +5330,53 @@ async function startFightSession(interaction: ButtonInteraction, guildId: string
 }
 
 // ─────────────────────────────────────────────────────────────
-// Boss (résolution instantanée via select menu)
+// Boss (résolution instantanée, une fiche par boss)
 // ─────────────────────────────────────────────────────────────
 
-async function buildBossSelectView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+/** Boss par page. Une section chacune, comme le bestiaire. */
+const BOSS_PAGE_SIZE = 6;
+
+type BossReadiness =
+  | { kind: 'ready' }
+  | { kind: 'resting'; until: Date }
+  | { kind: 'locked'; level: number };
+
+type BossRow = {
+  boss: Awaited<ReturnType<typeof listBosses>>[number];
+  readiness: BossReadiness;
+  kills: number;
+};
+
+function bossReadinessRank(readiness: BossReadiness): number {
+  return readiness.kind === 'ready' ? 0 : readiness.kind === 'resting' ? 1 : 2;
+}
+
+function discordTimestamp(date: Date): string {
+  return `<t:${Math.floor(date.getTime() / 1000)}:R>`;
+}
+
+function bossLine(row: BossRow, currencyEmoji: string, locale: Locale): string {
+  const { boss, readiness } = row;
+  const status = readiness.kind === 'ready'
+    ? `${icon('success')} ${m.rpg_boss_status_ready({}, { locale })}`
+    : readiness.kind === 'resting'
+      ? `${icon('rpgRest')} ${m.rpg_boss_status_resting({ when: discordTimestamp(readiness.until) }, { locale })}`
+      : `${icon('lock')} ${m.rpg_boss_status_locked({ level: readiness.level }, { locale })}`;
+  const sheet = `${icon('star')} ${boss.level} · ${icon('rpgHp')} ${boss.health} · ${icon('rpgAtk')} ${boss.attack} · ${icon('rpgDef')} ${boss.defense}`;
+  const gains = `${icon('rpgXp')} ${boss.xpReward} XP · ${boss.coinReward} ${currencyEmoji}`
+    + (boss.bossRespawnHours ? ` · ${m.rpg_boss_respawn_every({ hours: boss.bossRespawnHours }, { locale })}` : '')
+    + (row.kills > 0 ? ` · ${m.rpg_boss_kills({ count: row.kills }, { locale })}` : '');
+  return `${boss.emoji} **${boss.name}**\n${status}\n${sheet}\n-# ${gains}`;
+}
+
+/**
+ * Salle des boss : chacun avec son état pour ce joueur, et le délai commun en tête.
+ *
+ * Les deux attentes (le repos d'un boss vaincu, et la pause entre deux boss) ne se
+ * découvraient qu'en tentant le combat. Les horodatages relatifs de Discord se mettent à
+ * jour seuls : le joueur voit le compte à rebours sans rafraîchir l'écran.
+ */
+async function buildBossSelectView(guildId: string, ownerId: string, locale: Locale, page = 0): Promise<PanelView> {
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.rpgEnabled) {
     const embed = errorEmbed(m.rpg_travel_disabled_title({}, { locale }), m.rpg_boss_disabled_desc({}, { locale }));
@@ -4943,26 +5389,101 @@ async function buildBossSelectView(guildId: string, ownerId: string, locale: Loc
     return { embeds: [embed], components: [backRow(ownerId, locale)] };
   }
 
-  const embed = new EmbedBuilder()
-    .setTitle(m.rpg_hub_boss_select_title({}, { locale }))
-    .setDescription(m.rpg_hub_boss_select_desc({}, { locale }))
-    .setColor(RPG_COLORS.combat);
+  const [profile, wins] = await Promise.all([
+    getOrCreateRpgProfile(guildId, ownerId),
+    prisma.rpgBattle.groupBy({
+      by: ['monsterId'],
+      where: { guildId, userId: ownerId, won: true, monsterId: { in: bosses.map((boss) => boss.id) } },
+      _count: { _all: true },
+      _max: { createdAt: true },
+    }),
+  ]);
+  const winsByBoss = new Map(wins.map((row) => [row.monsterId, row]));
 
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(`rpg:bossselect:${ownerId}`)
-    .setPlaceholder(m.rpg_hub_boss_select_placeholder({}, { locale }));
-
-  bosses.slice(0, 25).forEach((boss) => {
-    select.addOptions({
-      label: `${boss.emoji} ${boss.name}`,
-      description: m.rpg_boss_autocomplete_level({ level: boss.level }, { locale }),
-      value: boss.id,
-      emoji: optionEmoji(boss.emoji),
-    });
+  const now = Date.now();
+  const rows: BossRow[] = bosses.map((boss) => {
+    const record = winsByBoss.get(boss.id);
+    const lastWin = record?._max.createdAt;
+    let readiness: BossReadiness = { kind: 'ready' };
+    if (profile.level < boss.level) {
+      readiness = { kind: 'locked', level: boss.level };
+    } else if (boss.bossRespawnHours && boss.bossRespawnHours > 0 && lastWin) {
+      const until = lastWin.getTime() + boss.bossRespawnHours * 60 * 60 * 1000;
+      if (until > now) readiness = { kind: 'resting', until: new Date(until) };
+    }
+    return { boss, readiness, kills: record?._count._all ?? 0 };
   });
+  rows.sort((a, b) =>
+    bossReadinessRank(a.readiness) - bossReadinessRank(b.readiness)
+    || (a.readiness.kind === 'resting' && b.readiness.kind === 'resting' ? a.readiness.until.getTime() - b.readiness.until.getTime() : 0)
+    || a.boss.level - b.boss.level);
 
-  const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
-  return { embeds: [embed], components: [selectRow, backRow(ownerId, locale)] };
+  const pauseMs = remainingCooldownMs(profile.lastBossBattle, bossCooldownMs(config));
+  const pauseLine = pauseMs > 0
+    ? `${icon('rpgRest')} ${m.rpg_boss_pause_until({ when: discordTimestamp(new Date(now + pauseMs)) }, { locale })}`
+    : `${icon('success')} ${m.rpg_boss_pause_none({}, { locale })}`;
+  const energyLine = `${icon('rpgEnergy')} ${m.rpg_boss_energy_line({ energy: profile.energy, cost: BOSS_ENERGY_COST }, { locale })}`;
+
+  const pageCount = Math.max(1, Math.ceil(rows.length / BOSS_PAGE_SIZE));
+  const current = Math.min(Math.max(0, page), pageCount - 1);
+  const shown = rows.slice(current * BOSS_PAGE_SIZE, current * BOSS_PAGE_SIZE + BOSS_PAGE_SIZE);
+
+  const container = new ContainerBuilder().setAccentColor(RPG_COLORS.combat);
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    `## ${icon('rpgBoss')} ${m.rpg_hub_boss_select_title({}, { locale })}\n${pauseLine}\n${energyLine}`,
+  ));
+  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+
+  for (const row of shown) {
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(truncate(bossLine(row, config.currencyEmoji, locale), 450)))
+        .setButtonAccessory(
+          new ButtonBuilder()
+            .setCustomId(`rpg:bossfight:${ownerId}:${row.boss.id}`)
+            .setLabel(m.rpg_boss_fight_btn({}, { locale }))
+            .setStyle(ButtonStyle.Danger)
+            // Le manque d'énergie ou de PV ne désactive rien : le clic ouvre alors le menu
+            // des potions, qui règle le problème sur place.
+            .setDisabled(row.readiness.kind !== 'ready' || pauseMs > 0),
+        ),
+    );
+  }
+
+  const navRow = new ActionRowBuilder<ButtonBuilder>();
+  if (pageCount > 1) {
+    navRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:nav:${ownerId}:boss:${current - 1}`)
+        .setLabel(m.rpg_shop_prev({}, { locale }))
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(current <= 0),
+      new ButtonBuilder()
+        .setCustomId(`rpg:noop:${ownerId}`)
+        .setLabel(`${current + 1} / ${pageCount}`)
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId(`rpg:nav:${ownerId}:boss:${current + 1}`)
+        .setLabel(m.rpg_shop_next({}, { locale }))
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(current >= pageCount - 1),
+    );
+  }
+  navRow.addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:boss:${current}`)
+      .setLabel(m.rpg_boss_refresh_btn({}, { locale }))
+      .setEmoji(icon('rpgRefresh'))
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  return { embeds: [], components: [navRow], container };
 }
 
 // Sans délai entre deux boss, plus rien ne sérialise les combats d'un même joueur : deux
@@ -4970,7 +5491,13 @@ async function buildBossSelectView(guildId: string, ownerId: string, locale: Loc
 // qui ne voit la victoire qu'une fois le premier combat enregistré.
 const bossFightsInFlight = new Set<string>();
 
-async function handleBossSelect(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
+async function handleBossSelect(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  bossId: string,
+): Promise<void> {
   const key = `${guildId}:${ownerId}`;
   if (bossFightsInFlight.has(key)) {
     await interaction.deferUpdate().catch(() => null);
@@ -4978,14 +5505,19 @@ async function handleBossSelect(interaction: StringSelectMenuInteraction, guildI
   }
   bossFightsInFlight.add(key);
   try {
-    await runBossFight(interaction, guildId, ownerId, locale);
+    await runBossFight(interaction, guildId, ownerId, locale, bossId);
   } finally {
     bossFightsInFlight.delete(key);
   }
 }
 
-async function runBossFight(interaction: StringSelectMenuInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
-  const bossId = interaction.values[0];
+async function runBossFight(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  bossId: string,
+): Promise<void> {
   const boss = await findGuildMonsterById(guildId, bossId);
   if (!boss || !boss.isBoss) {
     await replyPanelError(interaction, new Error(m.rpg_boss_not_found_desc({ name: bossId }, { locale })), locale);
@@ -6344,15 +6876,20 @@ async function renderSection(
     case 'guildprofile': return buildGuildProfileView(guildId, ownerId, rest[0], locale);
     case 'clanwar': return buildClanWarView(guildId, ownerId, await panelMember(interaction, ownerId), locale, asClanWarScope(rest[0]));
     case 'raid': return buildRaidView(guildId, ownerId, await panelMember(interaction, ownerId), locale);
-    case 'fishbook': return buildFishBookView(guildId, ownerId, locale);
+    case 'fishbook': return buildFishBookView(interaction.client, guildId, ownerId, locale);
     case 'bestiary': return buildBestiaryView(guildId, ownerId, interaction.user, locale, parseBestiaryState(rest));
     case 'itembook': return buildItemBookView(guildId, ownerId, locale, parseItemBookState(rest));
-    case 'boss': return buildBossSelectView(guildId, ownerId, locale);
+    case 'boss': return buildBossSelectView(guildId, ownerId, locale, Number.parseInt(rest[0] ?? '0', 10) || 0);
     case 'character': return buildCharacterView(guildId, ownerId, locale);
     case 'skilltree': return buildSkillTreeView(guildId, ownerId, locale);
     case 'craft': return buildCraftView(guildId, ownerId, locale);
     case 'forge': return buildForgeView(guildId, ownerId, locale);
     case 'enchant': return buildEnchantView(guildId, ownerId, locale);
+    // Import tardif : le panneau du marché importe ce module, l'inverse créerait un cycle.
+    case 'market': {
+      const { buildMarketView } = await import('../economy/marketplacePanel.js');
+      return buildMarketView(guildId, ownerId, interaction.guild, locale);
+    }
     case 'admin': {
       if (!isInteractionAdmin(interaction)) {
         await interaction.reply({ content: m.rpg_hub_admin_only({}, { locale }), flags: [MessageFlags.Ephemeral] });
@@ -6373,7 +6910,7 @@ async function renderSection(
  * une fenêtre de saisie ou une réponse privée ne peut plus s'ouvrir après l'acquittement.
  */
 const DEFERRED_BUTTON_ACTIONS = new Set([
-  'nav', 'shopbuy', 'shopopen', 'invopen', 'bestopen', 'invtoggle', 'invuse2', 'invsell', 'invsalvage', 'invfav', 'sellloot',
+  'nav', 'shopbuy', 'shopopen', 'invopen', 'bestopen', 'itemopen', 'invtoggle', 'invuse2', 'invsell', 'invsalvage', 'invfav', 'sellloot',
   'work', 'upgrade', 'enchantapply', 'dest', 'choice',
 ]);
 
@@ -6408,9 +6945,10 @@ export async function handleRpgButton(client: Client, customId: string, interact
         return;
       }
       case 'shopbuy': await handleShopBuy(interaction, guildId, ownerId, locale, rest); return;
-      case 'invopen': await respond(interaction, await buildInventoryItemView(guildId, ownerId, rest[0], locale, parseBagState(rest.slice(1)))); return;
+      case 'invopen': await respond(interaction, await buildInventoryItemView(guildId, ownerId, rest[0], locale, parseBagState(rest.slice(1)), rest[3])); return;
+      case 'itemopen': await respond(interaction, await buildItemBookEntryView(guildId, ownerId, rest[0], locale, parseItemBookState(rest.slice(1)))); return;
       case 'bestopen': await respond(interaction, await buildBestiaryEntryView(guildId, ownerId, rest[0], locale, parseBestiaryState(rest.slice(1)))); return;
-      case 'invtoggle': await handleInventoryToggle(interaction, guildId, ownerId, locale, rest[0]); return;
+      case 'invtoggle': await handleInventoryToggle(interaction, guildId, ownerId, locale, rest[0], rest[1]); return;
       case 'invuse2': await handleInventoryDrink(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'invsell': await handleInventorySell(interaction, guildId, ownerId, locale, rest); return;
       case 'invsalvage': await handleInventorySalvage(interaction, guildId, ownerId, locale, rest); return;
@@ -6428,6 +6966,8 @@ export async function handleRpgButton(client: Client, customId: string, interact
       case 'upgrade': await handleUpgrade(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'enchantapply': await handleEnchantApply(interaction, guildId, ownerId, locale, rest[0], rest[1]); return;
       case 'fight': await startFightSession(interaction, guildId, ownerId, locale); return;
+      case 'hunt': await startFightSession(interaction, guildId, ownerId, locale, rest[0]); return;
+      case 'bossfight': await handleBossSelect(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'raidattack': await handleRaidAttack(interaction, guildId, ownerId, locale); return;
       case 'dest': await handleTravelDestinationChoice(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'choice': await handleTravelEventChoice(interaction, guildId, ownerId, locale, rest[0], rest[1]); return;
@@ -6510,7 +7050,8 @@ export async function handleRpgSelectMenu(client: Client, customId: string, inte
       case 'shopitem': await handleShopItemSelect(interaction, guildId, ownerId, locale, rest); return;
       case 'shopcat': await handleShopCategorySelect(interaction, guildId, ownerId, locale); return;
       case 'bmbuy': await handleBlackMarketBuy(interaction, guildId, ownerId, locale); return;
-      case 'bossselect': await handleBossSelect(interaction, guildId, ownerId, locale); return;
+      // Les messages antérieurs aux fiches de boss portent encore le menu déroulant.
+      case 'bossselect': await handleBossSelect(interaction, guildId, ownerId, locale, destination); return;
       case 'classselect': await handleClassSelect(interaction, guildId, ownerId, locale); return;
       case 'skillbuy': await handleSkillNodeBuy(interaction, guildId, ownerId, locale); return;
       case 'villagebuild': await handleVillageBuild(interaction, guildId, ownerId, locale); return;

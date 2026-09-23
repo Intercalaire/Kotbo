@@ -62,7 +62,7 @@ describe('parseAdventureChoices', () => {
   test('ignore les entrées abîmées au lieu de lever', () => {
     expect(parseAdventureChoices(null)).toEqual([]);
     expect(parseAdventureChoices([{ text: '' }, 'texte', { text: 'Ok', hpEffect: '3' }])).toEqual([
-      { text: 'Ok', hpEffect: 3, coinEffect: 0, xpEffect: 0, minLevel: 0 },
+      { text: 'Ok', hpEffect: 3, coinEffect: 0, xpEffect: 0, minLevel: 0, titleId: null },
     ]);
   });
 });

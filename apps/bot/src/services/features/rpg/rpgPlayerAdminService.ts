@@ -82,16 +82,28 @@ export async function getPlayerInventory(guildId: string, userId: string) {
   });
   if (!profile) throw new PlayerAdminError('Profil RPG introuvable pour cet utilisateur.', 404);
 
-  const instances = await prisma.rpgItemInstance.findMany({ where: { rpgProfileId: profile.id } });
-  const upgradeByItem = new Map(instances.map((instance) => [instance.itemId, instance.upgrade]));
+  const instances = await prisma.rpgItemInstance.findMany({
+    where: { rpgProfileId: profile.id },
+    orderBy: { upgrade: 'desc' },
+  });
+  const upgradesByItem = new Map<string, number[]>();
+  for (const instance of instances) {
+    upgradesByItem.set(instance.itemId, [...(upgradesByItem.get(instance.itemId) ?? []), instance.upgrade]);
+  }
 
-  return profile.inventory.map((entry) => ({
-    itemId: entry.itemId,
-    quantity: entry.quantity,
-    item: entry.item,
-    equipped: slotHoldingItem(profile, entry.itemId) !== null,
-    upgrade: upgradeByItem.get(entry.itemId) ?? 0,
-  }));
+  return profile.inventory.map((entry) => {
+    const upgrades = upgradesByItem.get(entry.itemId) ?? [];
+    return {
+      itemId: entry.itemId,
+      quantity: entry.quantity,
+      item: entry.item,
+      equipped: slotHoldingItem(profile, entry.itemId) !== null,
+      // Le meilleur exemplaire : chaque exemplaire forgé a désormais sa propre progression.
+      upgrade: upgrades[0] ?? 0,
+      /** Niveaux de forge des exemplaires individualisés, du plus forgé au moins forgé. */
+      forgedCopies: upgrades,
+    };
+  });
 }
 
 /** Donne des exemplaires d'un objet de ce serveur ou du catalogue livré. */

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  huntXpRatio,
   MONSTER_DROPS_MAX,
   normalizeMonsterInput,
   parseMonsterDrops,
@@ -127,5 +128,18 @@ describe('versement des points de clan', () => {
     expect(shouldAwardClanPoints(ON, 0)).toBe(false);
     expect(shouldAwardClanPoints(ON, -5)).toBe(false);
     expect(shouldAwardClanPoints(ON, Number.NaN)).toBe(false);
+  });
+});
+
+describe('XP d\'une traque', () => {
+  test('entière dans l\'écart des rencontres ordinaires', () => {
+    expect(huntXpRatio(10, 10)).toBe(1);
+    expect(huntXpRatio(10, 8)).toBe(1);
+  });
+
+  test('réduite de 15 % par niveau au-delà, avec un plancher', () => {
+    expect(huntXpRatio(10, 7)).toBeCloseTo(0.85);
+    expect(huntXpRatio(10, 5)).toBeCloseTo(0.55);
+    expect(huntXpRatio(30, 1)).toBe(0.25);
   });
 });

@@ -23,7 +23,7 @@ import { asRpgTeamMode, resolveRpgTeam, type RpgTeamMode } from './rpgTeamResolv
  * Le tableau de guerre ne compte que celles-ci : mélanger l'XP de messagerie ou
  * les paris aux prises de guerre ferait gagner la guerre à qui parle le plus.
  */
-export const RPG_CLAN_WAR_SOURCES = ['RPG_MOB', 'RPG_BOSS', 'RPG_ITEM', 'RPG_QUEST', 'RPG_RAID', 'RPG_FIRST_KILL'] as const;
+export const RPG_CLAN_WAR_SOURCES = ['RPG_MOB', 'RPG_BOSS', 'RPG_ITEM', 'RPG_QUEST', 'RPG_RAID', 'RPG_FIRST_KILL', 'RPG_FISHBOOK'] as const;
 
 /** Fenêtre observée. La semaine sert de front courant, la saison de bilan. */
 export const CLAN_WAR_SCOPES = ['season', 'week'] as const;

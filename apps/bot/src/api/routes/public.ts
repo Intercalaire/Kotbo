@@ -1699,7 +1699,7 @@ export async function handlePublicRoutes(
             // elle explique le remboursement qui apparaîtra plus haut dans le
             // flux, sans origine visible sans elle.
             credit: e.credit ?? 0,
-            source: e.source, // 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP' | 'RPG_BOSS' | 'RPG_MOB' | 'RPG_ITEM' | 'RPG_FIRST_KILL'
+            source: e.source, // 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO' | 'BET' | 'DEBT' | 'DROP' | 'RPG_BOSS' | 'RPG_MOB' | 'RPG_ITEM' | 'RPG_FIRST_KILL' | 'RPG_FISHBOOK'
             isClan: isClanGlobal,
             userId: isClanGlobal ? null : e.userId,
             displayName,

@@ -12,17 +12,19 @@ import {
   SLOT_ITEM_FIELD,
   firstFreeAccessorySlot,
   isAccessorySlot,
+  itemIdInSlot,
   slotForItemType,
   slotHoldingItem,
   unlockedAccessorySlots,
   type EquipmentSlot,
   type SlottedProfile,
 } from './rpg/rpgEquipment.js';
-import { ensureItemInstance } from './rpg/rpgItemInstanceService.js';
-import { addInventoryQuantity, lockRpgProfile, takeInventoryQuantity } from './rpg/rpgInventoryWrites.js';
+import { addInventoryQuantity, freePlainCopies, lockRpgProfile, takeInventoryQuantity, takeItemInstance } from './rpg/rpgInventoryWrites.js';
 import { listPlayableAdventureEvents } from './rpg/rpgAdventureEventService.js';
 import { deleteAllGuildTitles, grantTitle } from './rpg/rpgTitleService.js';
-import { buildFishBook, type FishBook, type FishSpecies } from './rpg/rpgFishBook.js';
+import { buildFishBook, type FishBook } from './rpg/rpgFishBook.js';
+import { rollFishSpecies } from './rpg/rpgFishCatalog.js';
+import { listActiveFish } from './rpg/rpgFishService.js';
 
 // Cooldown tracker for in-memory message activity (to prevent spam farming)
 const messageActivityCooldown = new Map<string, number>();
@@ -269,13 +271,12 @@ export async function checkLevelUp(guildId: string, userId: string) {
 
   const newMaxHealth = profile.maxHealth + MAX_HEALTH_INCREASE * gained;
 
-  await prisma.rpgProfile.update({
+  const leveled = await prisma.rpgProfile.update({
     where: { id: profile.id },
     data: {
       level,
       xp,
       maxHealth: newMaxHealth,
-      health: newMaxHealth, // Full heal on level up
       attack: profile.attack + AUTO_STATS_INCREASE * gained,
       defense: profile.defense + AUTO_STATS_INCREASE * gained,
       speed: profile.speed + AUTO_STATS_INCREASE * gained,
@@ -286,6 +287,13 @@ export async function checkLevelUp(guildId: string, userId: string) {
       skillPoints: { increment: SKILL_POINTS_PER_LEVEL * gained }
     }
   });
+
+  // Le soin complet vise les PV max effectifs : `maxHealth` ne porte que la base, et y
+  // plafonner laissait de côté ce qu'apportent équipement, enchantements, arbre et titre.
+  // Calculé après la montée, qui peut ouvrir un emplacement d'accessoire.
+  const { loadEffectiveStats } = await import('./combatService.js');
+  const { maxHealth } = await loadEffectiveStats(leveled);
+  await prisma.rpgProfile.update({ where: { id: profile.id }, data: { health: maxHealth } });
 
   logger.info('EconomyService', `Player ${userId} leveled up to Level ${level} in Guild ${guildId}`);
   return level;
@@ -362,6 +370,8 @@ export async function claimDaily(guildId: string, userId: string) {
   };
 }
 
+export const ADVENTURE_ENERGY_COST = 20;
+
 /**
  * Initiates a travel adventure.
  */
@@ -372,7 +382,7 @@ export async function startTravel(guildId: string, userId: string, destination: 
   const profile = await getOrCreateRpgProfile(guildId, userId);
   if (profile.isTraveling) throw new Error('Vous êtes déjà en cours de voyage !');
   if (profile.health <= 0) throw new Error("Vous n'avez plus de PV (0 PV). Prenez des potions ou attendez de vous reposer pour regagner des forces.");
-  if (profile.energy < 20) throw new Error("Vous n'avez pas assez d'énergie (requis: 20 énergie). Restez inactif pour regagner de l'énergie.");
+  if (profile.energy < ADVENTURE_ENERGY_COST) throw new Error(`Vous n'avez pas assez d'énergie (requis: ${ADVENTURE_ENERGY_COST} énergie). Restez inactif pour regagner de l'énergie.`);
 
   if (profile.lastTravelEndedAt) {
     const cooldownMs = config.adventureCooldownMin * 60 * 1000;
@@ -387,13 +397,13 @@ export async function startTravel(guildId: string, userId: string, destination: 
   // so two near-simultaneous energy-consuming actions can't both pass a stale check
   // and push energy below zero.
   const result = await prisma.rpgProfile.updateMany({
-    where: { id: profile.id, energy: { gte: 20 }, isTraveling: false },
+    where: { id: profile.id, energy: { gte: ADVENTURE_ENERGY_COST }, isTraveling: false },
     data: {
       isTraveling: true,
       travelDestination: destination,
       travelDurationMin: durationMin,
       travelStartedAt: new Date(),
-      energy: { decrement: 20 }
+      energy: { decrement: ADVENTURE_ENERGY_COST }
     }
   });
 
@@ -547,8 +557,11 @@ export async function chooseAdventureOutcome(guildId: string, userId: string, ev
     criticalMessage = '🌟 Réussite critique ! Vous avez tiré le meilleur parti de cette situation !';
   }
 
-  // Update Profile Stats
-  const newHp = Math.max(0, Math.min(profile.maxHealth, profile.health + finalHpEffect));
+  // Plafond aux PV max effectifs : celui des PV de base retirait les PV bonus de
+  // l'équipement même quand l'événement soignait.
+  const { loadEffectiveStats } = await import('./combatService.js');
+  const { maxHealth } = await loadEffectiveStats(profile);
+  const newHp = Math.max(0, Math.min(maxHealth, profile.health + finalHpEffect));
   const newBalance = Math.max(0, profile.balance + finalCoinEffect);
   const newXp = Math.max(0, profile.xp + finalXpEffect);
 
@@ -713,7 +726,16 @@ export async function buyShopItem(guildId: string, userId: string, itemId: strin
  * Le basculement équiper/déséquiper est indispensable : sans lui, un objet équipé ne pouvait
  * plus jamais être vendu ni donné, `sellShopItem` refusant tout objet porté.
  */
-export async function equipInventoryItem(guildId: string, userId: string, itemId: string) {
+/**
+ * Équipe, change ou retire un exemplaire d'un objet.
+ *
+ * `copy` désigne l'exemplaire visé : l'identifiant d'un exemplaire forgé, ou `plain` pour
+ * un exemplaire ordinaire. Viser l'exemplaire déjà porté le retire ; viser un autre
+ * exemplaire d'un objet porté l'échange sans libérer l'emplacement. Sans `copy` (anciens
+ * boutons), l'objet porté se retire, et un objet libre s'équipe avec son exemplaire le
+ * plus forgé.
+ */
+export async function equipInventoryItem(guildId: string, userId: string, itemId: string, copy?: string) {
   const profile = await getOrCreateRpgProfile(guildId, userId);
 
   const inventoryEntry = await prisma.rpgInventoryItem.findUnique({
@@ -736,51 +758,77 @@ export async function equipInventoryItem(guildId: string, userId: string, itemId
     throw new Error('Seuls les armes, armures et accessoires peuvent être équipés.');
   }
 
-  if (item.levelRequired > 0 && profile.level < item.levelRequired) {
-    throw new Error(`Cet objet requiert le niveau ${item.levelRequired}. Vous êtes niveau ${profile.level}.`);
-  }
-
-  // L'objet déjà porté se retire, quel que soit l'emplacement qui le tient. C'est ce qui
-  // rend le geste réversible pour les accessoires, dont l'emplacement est choisi par le
-  // jeu et non par le joueur.
-  const occupied = slotHoldingItem(profile, item.id);
-  if (occupied) {
-    await prisma.rpgProfile.update({
-      where: { id: profile.id },
-      data: { [SLOT_ITEM_FIELD[occupied]]: null }
+  return prisma.$transaction(async (tx) => {
+    await lockRpgProfile(tx, profile.id);
+    const current = await tx.rpgProfile.findUniqueOrThrow({ where: { id: profile.id } });
+    const instances = await tx.rpgItemInstance.findMany({
+      where: { rpgProfileId: profile.id, itemId: item.id },
+      orderBy: [{ upgrade: 'desc' }, { createdAt: 'asc' }],
     });
+    const stock = await tx.rpgInventoryItem.findUnique({
+      where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: item.id } },
+      select: { quantity: true },
+    });
+    const plainCount = Math.max(0, (stock?.quantity ?? 0) - instances.length);
 
-    return { itemName: item.name, type: item.type, slot: occupied, equipped: false };
-  }
+    const occupied = slotHoldingItem(current, item.id);
+    const wornCopy = occupied ? (instances.find((instance) => instance.equipped)?.id ?? 'plain') : null;
+    const target = copy ?? (occupied ? wornCopy : (instances[0]?.id ?? 'plain'));
 
-  // Un accessoire va dans le premier emplacement ouvert et libre. Quand ils sont tous
-  // pris, on refuse plutôt que d'en écraser un au hasard : c'est au joueur de dire
-  // lequel de ses accessoires il abandonne.
-  let slot: EquipmentSlot = kind;
-  if (isAccessorySlot(kind)) {
-    const free = firstFreeAccessorySlot(profile, profile.level);
-    if (!free) {
-      const open = unlockedAccessorySlots(profile.level).length;
-      throw new Error(
-        `Vos ${open} emplacement(s) d'accessoire sont occupés. Retirez-en un avant d'équiper ${item.name}.`,
-      );
+    if (target === 'plain' ? plainCount < 1 : !instances.some((instance) => instance.id === target)) {
+      throw new Error("Cet exemplaire n'est plus dans votre inventaire.");
     }
-    slot = free;
-  }
 
-  const slotField = SLOT_ITEM_FIELD[slot];
+    const markWorn = (instanceId: string | null) => Promise.all([
+      tx.rpgItemInstance.updateMany({
+        where: { rpgProfileId: profile.id, itemId: item.id, ...(instanceId ? { id: { not: instanceId } } : {}) },
+        data: { equipped: false },
+      }),
+      instanceId
+        ? tx.rpgItemInstance.update({ where: { id: instanceId }, data: { equipped: true } })
+        : Promise.resolve(null),
+    ]);
 
-  // Le niveau de forge et les enchantements appartiennent à l'objet, pas à l'emplacement :
-  // ils vivent sur l'instance et ne sont donc ni remis à zéro au déséquipement, ni hérités
-  // par l'objet suivant. On matérialise l'instance dès l'équipement pour que la forge et
-  // l'autel aient toujours une ligne sur laquelle écrire.
-  await prisma.rpgProfile.update({
-    where: { id: profile.id },
-    data: { [slotField]: item.id }
+    if (occupied && target === wornCopy) {
+      await tx.rpgProfile.update({ where: { id: profile.id }, data: { [SLOT_ITEM_FIELD[occupied]]: null } });
+      await markWorn(null);
+      return { itemName: item.name, type: item.type, slot: occupied, equipped: false };
+    }
+
+    if (occupied) {
+      await markWorn(target === 'plain' ? null : target);
+      return { itemName: item.name, type: item.type, slot: occupied, equipped: true };
+    }
+
+    if (item.levelRequired > 0 && current.level < item.levelRequired) {
+      throw new Error(`Cet objet requiert le niveau ${item.levelRequired}. Vous êtes niveau ${current.level}.`);
+    }
+
+    // Un accessoire va dans le premier emplacement ouvert et libre. Quand ils sont tous
+    // pris, on refuse plutôt que d'en écraser un au hasard : c'est au joueur de dire
+    // lequel de ses accessoires il abandonne.
+    let slot: EquipmentSlot = kind;
+    if (isAccessorySlot(kind)) {
+      const free = firstFreeAccessorySlot(current, current.level);
+      if (!free) {
+        const open = unlockedAccessorySlots(current.level).length;
+        throw new Error(
+          `Vos ${open} emplacement(s) d'accessoire sont occupés. Retirez-en un avant d'équiper ${item.name}.`,
+        );
+      }
+      slot = free;
+    }
+
+    // L'objet chassé de l'emplacement n'est plus porté : son exemplaire forgé perd sa marque.
+    const replaced = itemIdInSlot(current, slot);
+    if (replaced && replaced !== item.id) {
+      await tx.rpgItemInstance.updateMany({ where: { rpgProfileId: profile.id, itemId: replaced }, data: { equipped: false } });
+    }
+    await tx.rpgProfile.update({ where: { id: profile.id }, data: { [SLOT_ITEM_FIELD[slot]]: item.id } });
+    await markWorn(target === 'plain' ? null : target);
+
+    return { itemName: item.name, type: item.type, slot, equipped: true };
   });
-  await ensureItemInstance(profile.id, item.id);
-
-  return { itemName: item.name, type: item.type, slot, equipped: true };
 }
 
 /**
@@ -1071,8 +1119,15 @@ export async function depositToRpgGuildTreasury(guildId: string, userId: string,
  * `minOwned` refuse la vente si le joueur en possède moins que ce nombre au moment de vendre.
  * Le bouton de revente du butin s'en sert pour ne vendre que l'exemplaire gagné au combat :
  * s'il a déjà été vendu, un second clic tomberait sinon sur un exemplaire possédé avant.
+ *
+ * `instanceId` vend un exemplaire forgé précis ; sans lui, un exemplaire ordinaire libre.
  */
-export async function sellShopItem(guildId: string, userId: string, itemId: string, options: { minOwned?: number } = {}) {
+export async function sellShopItem(
+  guildId: string,
+  userId: string,
+  itemId: string,
+  options: { minOwned?: number; instanceId?: string } = {},
+) {
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.shopEnabled) throw new Error('La boutique RPG est désactivée.');
 
@@ -1097,21 +1152,24 @@ export async function sellShopItem(guildId: string, userId: string, itemId: stri
 
     if (!stock || stock.quantity <= 0) throw new Error('Vous ne possédez plus cet objet dans votre inventaire.');
 
-    // Les exemplaires d'un même objet s'empilent sur une seule ligne, et un seul peut être
-    // porté : on refuse seulement de vendre le dernier, celui qui occupe l'emplacement.
-    if (isItemEquipped(current, item.id) && stock.quantity <= 1) {
-      throw new Error("Vous ne pouvez pas vendre un objet équipé. Déséquipez-le d'abord depuis l'onglet Inventaire de `/rpg`.");
-    }
-
     if (options.minOwned !== undefined && stock.quantity < options.minOwned) {
       throw new Error('Cet exemplaire a déjà été vendu ou utilisé.');
     }
 
-    // Vendre son dernier exemplaire emporte sa progression : garder l'instance ferait
-    // réapparaître le +7 et les enchantements sur un objet racheté plus tard pour trois fois
-    // rien, transformant la revente en sauvegarde gratuite.
-    const taken = await takeInventoryQuantity(tx, profile.id, item.id, 1, { dropInstance: true });
-    if (!taken) throw new Error('Vous ne possédez plus cet objet dans votre inventaire.');
+    // Un exemplaire forgé se vend désigné, et sa progression part avec lui. Sans
+    // désignation, seul un exemplaire ordinaire que le joueur ne porte pas peut partir.
+    if (options.instanceId) {
+      const taken = await takeItemInstance(tx, profile.id, options.instanceId);
+      if (!taken || taken.item.id !== item.id) throw new Error('Vous ne possédez plus cet exemplaire.');
+    } else {
+      if ((await freePlainCopies(tx, profile.id, item.id)) < 1) {
+        throw new Error(isItemEquipped(current, item.id)
+          ? "Vous ne pouvez pas vendre un objet équipé. Déséquipez-le d'abord depuis l'onglet Inventaire de `/rpg`."
+          : 'Il ne vous reste que des exemplaires forgés : vendez-les depuis leur fiche.');
+      }
+      const taken = await takeInventoryQuantity(tx, profile.id, item.id, 1);
+      if (!taken) throw new Error('Vous ne possédez plus cet objet dans votre inventaire.');
+    }
 
     const credited = await tx.rpgProfile.update({
       where: { id: profile.id },
@@ -1252,6 +1310,9 @@ export async function adminResetGuildEconomy(guildId: string, component: 'all' |
     await prisma.rpgRaidBoss.deleteMany({ where: { guildId } });
     // Les progressions suivent leur quête en cascade.
     await prisma.rpgQuest.deleteMany({ where: { guildId } });
+    // Les espèces livrées reviennent d'elles-mêmes : elles vivent dans le code.
+    await prisma.rpgFish.deleteMany({ where: { guildId } });
+    await prisma.rpgFishBookReward.deleteMany({ where: { guildId } });
   }
 
   if (component === 'bestiary' || component === 'all') {
@@ -1538,18 +1599,17 @@ export async function giveInventoryItem(guildId: string, senderId: string, recei
   await prisma.$transaction(async (tx) => {
     await lockRpgProfile(tx, senderProfile.id);
 
-    const current = await tx.rpgInventoryItem.findUnique({
-      where: { rpgProfileId_itemId: { rpgProfileId: senderProfile.id, itemId } }
-    });
     const sender = await tx.rpgProfile.findUniqueOrThrow({ where: { id: senderProfile.id } });
-    if (current && isItemEquipped(sender, itemId) && current.quantity - quantity <= 0) {
-      throw new Error("Cet objet est actuellement équipé. Déséquipez-le depuis l'onglet Inventaire de `/rpg` avant de pouvoir le donner.");
+    // Seuls des exemplaires ordinaires se donnent : ni celui qu'on porte, ni un exemplaire
+    // forgé, dont la progression ne doit pas faire le tour du serveur pour une forge payée
+    // une seule fois.
+    if ((await freePlainCopies(tx, senderProfile.id, itemId)) < quantity) {
+      throw new Error(isItemEquipped(sender, itemId)
+        ? "Cet objet est actuellement équipé. Déséquipez-le depuis l'onglet Inventaire de `/rpg` avant de pouvoir le donner."
+        : "Vous n'avez pas assez d'exemplaires ordinaires de cet objet : les exemplaires forgés ne se donnent pas.");
     }
 
-    // La progression n'est pas transmissible : le donneur perd la sienne avec son dernier
-    // exemplaire, le receveur reçoit un objet nu. Sinon un objet enchanté ferait le tour
-    // du serveur et chacun profiterait d'une forge payée une seule fois.
-    const taken = await takeInventoryQuantity(tx, senderProfile.id, itemId, quantity, { dropInstance: true });
+    const taken = await takeInventoryQuantity(tx, senderProfile.id, itemId, quantity);
     if (!taken) {
       throw new Error("Vous ne possédez pas cet objet en quantité suffisante dans votre inventaire.");
     }
@@ -1678,9 +1738,9 @@ export async function adminRemoveItem(guildId: string, userId: string, itemId: s
     const actualRemoveQty = Math.min(inventoryEntry.quantity, quantity);
     const remainingQty = inventoryEntry.quantity - actualRemoveQty;
 
-    // L'objet quitte l'inventaire : sa progression part avec lui, sinon la rendre au
-    // joueur plus tard lui restituerait gratuitement forge et enchantements.
-    await takeInventoryQuantity(tx, profile.id, itemId, actualRemoveQty, { dropInstance: true });
+    // Les exemplaires ordinaires partent d'abord, puis les moins forgés : un administrateur
+    // qui retire un objet n'efface la forge d'un joueur qu'en dernier recours.
+    await takeInventoryQuantity(tx, profile.id, itemId, actualRemoveQty, { anyCopy: true });
 
     if (remainingQty <= 0) {
       // On libère aussi l'emplacement s'il y était porté. Les stats étant dérivées, il n'y a
@@ -1720,72 +1780,25 @@ export async function getRichestPlayers(guildId: string, limit = 10) {
 // PÊCHE
 // ============================================================================
 
-type FishEntry = {
-  name: string;
-  emoji: string;
-  rarity: string;
-  value: number;
-  xp: number;
-};
-
-const FISH_TABLE: { weight: number; rarity: string; fish: Omit<FishEntry, 'rarity'>[] }[] = [
-  { weight: 60, rarity: 'COMMON', fish: [
-    { name: 'Sardine', emoji: '🐟', value: 5, xp: 5 },
-    { name: 'Truite', emoji: '🐟', value: 8, xp: 5 },
-    { name: 'Maquereau', emoji: '🐟', value: 6, xp: 5 },
-    { name: 'Perche', emoji: '🐟', value: 7, xp: 5 },
-  ]},
-  { weight: 25, rarity: 'UNCOMMON', fish: [
-    { name: 'Saumon', emoji: '🐠', value: 15, xp: 8 },
-    { name: 'Thon', emoji: '🐠', value: 20, xp: 8 },
-    { name: 'Espadon', emoji: '🐠', value: 18, xp: 10 },
-  ]},
-  { weight: 10, rarity: 'RARE', fish: [
-    { name: 'Poisson-Lune', emoji: '🌙', value: 40, xp: 15 },
-    { name: 'Barracuda', emoji: '🦈', value: 50, xp: 15 },
-  ]},
-  { weight: 4, rarity: 'EPIC', fish: [
-    { name: 'Coelacanthe', emoji: '🐡', value: 100, xp: 25 },
-    { name: 'Poisson d\'Or', emoji: '✨', value: 120, xp: 30 },
-  ]},
-  { weight: 1, rarity: 'LEGENDARY', fish: [
-    { name: 'Léviathan Miniature', emoji: '🐋', value: 300, xp: 60 },
-    { name: 'Kraken Bébé', emoji: '🦑', value: 500, xp: 80 },
-  ]},
-];
-
 const RARITY_COLORS: Record<string, string> = {
   COMMON: '⬜', UNCOMMON: '🟩', RARE: '🟦', EPIC: '🟪', LEGENDARY: '🟨'
 };
 
-function rollFish(): FishEntry {
-  const totalWeight = FISH_TABLE.reduce((s, t) => s + t.weight, 0);
-  let roll = Math.random() * totalWeight;
-  for (const tier of FISH_TABLE) {
-    roll -= tier.weight;
-    if (roll <= 0) {
-      const picked = tier.fish[Math.floor(Math.random() * tier.fish.length)];
-      return { ...picked, rarity: tier.rarity };
-    }
-  }
-  const fallback = FISH_TABLE[0].fish[0];
-  return { ...fallback, rarity: 'COMMON' };
-}
-
 export { RARITY_COLORS };
 
-/** Toutes les espèces pêchables, de la plus commune à la plus rare. */
-export const FISH_SPECIES: FishSpecies[] = FISH_TABLE.flatMap((tier) =>
-  tier.fish.map((fish) => ({ name: fish.name, emoji: fish.emoji, rarity: tier.rarity })));
-
 export async function getFishBook(guildId: string, userId: string): Promise<FishBook> {
-  const rows = await prisma.rpgFishCatch.groupBy({
-    by: ['fishName'],
-    where: { guildId, userId },
-    _count: { _all: true },
-  });
-  return buildFishBook(FISH_SPECIES, new Map(rows.map((row) => [row.fishName, row._count._all])));
+  const [species, rows] = await Promise.all([
+    listActiveFish(guildId),
+    prisma.rpgFishCatch.groupBy({
+      by: ['fishName'],
+      where: { guildId, userId },
+      _count: { _all: true },
+    }),
+  ]);
+  return buildFishBook(species, new Map(rows.map((row) => [row.fishName, row._count._all])));
 }
+
+export const FISH_COOLDOWN_MS = 5 * 60 * 1000;
 
 export async function fish(guildId: string, userId: string) {
   const config = await getOrCreateEconomyConfig(guildId);
@@ -1793,11 +1806,10 @@ export async function fish(guildId: string, userId: string) {
 
   const profile = await getOrCreateRpgProfile(guildId, userId);
 
-  // Cooldown 5 minutes
   if (profile.lastFish) {
     const diff = Date.now() - profile.lastFish.getTime();
-    if (diff < 5 * 60 * 1000) {
-      const remaining = Math.ceil((5 * 60 * 1000 - diff) / 1000);
+    if (diff < FISH_COOLDOWN_MS) {
+      const remaining = Math.ceil((FISH_COOLDOWN_MS - diff) / 1000);
       const mins = Math.floor(remaining / 60);
       const secs = remaining % 60;
       return { success: false as const, cooldown: true, remainingMin: mins, remainingSec: secs };
@@ -1809,9 +1821,12 @@ export async function fish(guildId: string, userId: string) {
     return { success: false as const, cooldown: false, noEnergy: true };
   }
 
-  const caught = rollFish();
+  const species = rollFishSpecies(await listActiveFish(guildId));
+  if (!species) return { success: false as const, cooldown: false, noFish: true };
+  const caught = { name: species.name, emoji: species.emoji, rarity: species.rarity, value: species.value, xp: species.xp };
 
   // Atomic guard: only spend energy if the row still has enough at write time.
+  const caughtAt = new Date();
   const spent = await prisma.rpgProfile.updateMany({
     where: { id: profile.id, energy: { gte: 5 } },
     data: {
@@ -1819,7 +1834,7 @@ export async function fish(guildId: string, userId: string) {
       xp: { increment: caught.xp },
       energy: { decrement: 5 },
       totalFishCaught: { increment: 1 },
-      lastFish: new Date()
+      lastFish: caughtAt
     }
   });
 
@@ -1852,6 +1867,7 @@ export async function fish(guildId: string, userId: string) {
     fish: caught,
     rarityIcon: RARITY_COLORS[caught.rarity] || '⬜',
     newSpecies,
+    nextFishAt: new Date(caughtAt.getTime() + FISH_COOLDOWN_MS),
     newBalance: updatedProfile?.balance ?? profile.balance + caught.value,
     totalFishCaught: updatedProfile?.totalFishCaught ?? profile.totalFishCaught + 1
   };

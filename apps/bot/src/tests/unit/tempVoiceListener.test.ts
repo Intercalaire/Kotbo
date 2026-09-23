@@ -1,7 +1,7 @@
-import { describe, expect, mock, test } from 'bun:test';
+import { afterAll, describe, expect, mock, setSystemTime, test } from 'bun:test';
 import path from 'node:path';
 import { completeModuleMock } from '../helpers/moduleMock.js';
-import { Events, PermissionFlagsBits, type Client } from 'discord.js';
+import { Events, MessageFlags, PermissionFlagsBits, type Client } from 'discord.js';
 import { MAX_USER_LIMIT } from '../../services/features/tempVoiceService.js';
 
 /**
@@ -17,7 +17,20 @@ import { MAX_USER_LIMIT } from '../../services/features/tempVoiceService.js';
  * et le mock fuiterait dans les autres fichiers de test.
  */
 
+/** Reglages moderateur servis par le faux Prisma ; `null` = aucune ligne en base. */
+let permissionsModerateur: Record<string, boolean> | null = null;
+
+/** Ligne `TempVoiceAccessRequestConfig` ; `null` = aucune ligne, donc demandes
+ *  desactivees et aucun bouton nulle part. */
+let configDemandes: Record<string, unknown> | null = null;
+
 const prismaMock = {
+  tempVoiceModPermissionsConfig: {
+    findUnique: mock(async () => permissionsModerateur),
+  },
+  tempVoiceAccessRequestConfig: {
+    findUnique: mock(async () => configDemandes),
+  },
   tempVoiceChannel: {
     findMany: mock(async () => [] as Array<Record<string, unknown>>),
     findUnique: mock(async () => null as Record<string, unknown> | null),
@@ -60,6 +73,14 @@ const GENERATOR = '500000000000000000';
  * sans réponse, sans qu'aucune erreur ne soit levée.
  */
 const ACTIONS_DU_PANNEAU = [
+  // Les trois portes du panneau refondu, plus la quatrième qui n'existe que
+  // lorsque le salon est fermé.
+  'salon', 'membres', 'propriete', 'demander',
+  // Sous-panneaux éphémères.
+  'bascule_verrou', 'mode_select', 'membre_select', 'membre_ici',
+  'm_kick', 'm_ban', 'm_trust', 'm_untrust', 'm_transfer',
+  'demande_ok', 'demande_non', 'demande_ban',
+  // Identifiants des panneaux postés avant la refonte : toujours acceptés.
   'lock', 'unlock', 'limit', 'rename', 'chat', 'kick', 'ban', 'trust', 'transfer', 'claim', 'reserve',
 ];
 const CATEGORY = '600000000000000000';
@@ -125,6 +146,25 @@ function applyPatch(current: ReturnType<typeof fakeOverwrite>, patch: Record<str
  * `latencyMs` espace les écritures : sans délai, deux actions lancées ensemble
  * s'exécutent bout à bout et aucune course ne se produit.
  */
+/**
+ * Le texte d'une reponse du module, quelle que soit sa forme.
+ *
+ * `respond` passe par un embed : `editReply` n'est pas converti en composants
+ * V2 par `patchV2`, et un `content` brut sur un message deja en V2 fait rejeter
+ * l'edition par Discord. Un banc qui ne lirait que `content` mesurerait la
+ * forme au lieu du message.
+ */
+function texteDeLaReponse(charge: unknown): string {
+  const p = charge as {
+    content?: unknown;
+    embeds?: Array<{ data?: { description?: string }; description?: string }>;
+  } | undefined;
+  if (typeof p?.content === 'string' && p.content.length > 0) return p.content;
+  return (p?.embeds ?? [])
+    .map((embed) => embed?.data?.description ?? embed?.description ?? '')
+    .join(' ');
+}
+
 function fakeChannel(everyoneDeny = 0n, latencyMs = 0) {
   // Cibles qu'aucun des deux caches consultes par `upsert` - `roles.cache` puis
   // `users.cache` - ne saurait résoudre. Vide par defaut : tout ce que le module
@@ -162,7 +202,7 @@ function fakeChannel(everyoneDeny = 0n, latencyMs = 0) {
       setName,
       setUserLimit: mock(async () => undefined),
       delete: mock(async () => undefined),
-      send: mock(async () => undefined),
+      send: mock(async () => ({ id: '888888888888888888' })),
       parentId: null as string | null,
       parent: null as unknown,
       permissionOverwrites: {
@@ -216,9 +256,19 @@ function fakeSelectInteraction(options: {
     replied: false,
     isButton: () => false,
     isModalSubmit: () => false,
+    // Trois familles de menus, et le module les distingue par leur type avant
+    // meme de lire l'identifiant : un banc qui rend `false` partout laisse
+    // l'interaction tomber dans le vide, sans erreur et sans effet.
     isRoleSelectMenu: () => options.customId.includes('reserve'),
-    isUserSelectMenu: () => !options.customId.includes('reserve'),
+    isStringSelectMenu: () => options.customId.includes('mode_select')
+      || options.customId.includes('membre_ici'),
+    isUserSelectMenu: () => !options.customId.includes('reserve')
+      && !options.customId.includes('mode_select')
+      && !options.customId.includes('membre_ici'),
+    isMessageComponent: () => true,
     isRepliable: () => true,
+    message: { edit: mock(async () => undefined) },
+    deferUpdate: mock(async () => { calls.push('deferUpdate'); interaction.deferred = true; }),
     deferReply: mock(async () => { calls.push('defer'); interaction.deferred = true; }),
     reply: mock(async () => { calls.push('reply'); interaction.replied = true; }),
     editReply: mock(async () => { calls.push('editReply'); }),
@@ -244,7 +294,11 @@ function fakeButtonInteraction(action: string, options: { channel: unknown; memb
     isModalSubmit: () => false,
     isRoleSelectMenu: () => false,
     isUserSelectMenu: () => false,
+    isStringSelectMenu: () => false,
+    isMessageComponent: () => true,
     isRepliable: () => true,
+    message: { edit: mock(async () => undefined) },
+    deferUpdate: mock(async () => { calls.push('deferUpdate'); interaction.deferred = true; }),
     deferReply: mock(async () => { calls.push('defer'); interaction.deferred = true; }),
     reply: mock(async () => { calls.push('reply'); interaction.replied = true; }),
     editReply: mock(async () => { calls.push('editReply'); }),
@@ -281,6 +335,9 @@ function fakeGuild(members: Map<string, unknown>, roles: Map<string, unknown> = 
 }
 
 function fakeTarget(id: string, isBot: boolean) {
+  // Ce que le membre a reçu en MP. Un refus de demande d'accès ne se dit que
+  // là : l'écrire dans le salon transformerait un réglage en humiliation.
+  const mp: Array<Record<string, unknown>> = [];
   return {
     id,
     displayName: `membre-${id}`,
@@ -289,6 +346,8 @@ function fakeTarget(id: string, isBot: boolean) {
     roles: { cache: { has: (_id: string): boolean => false } },
     guild: { ownerId: '999999999999999999' },
     voice: { channelId: null as string | null, disconnect: mock(async () => undefined) },
+    mp,
+    send: mock(async (payload: Record<string, unknown>) => { mp.push(payload); }),
   };
 }
 
@@ -308,7 +367,10 @@ function fakeCategory(options: { inherited?: Map<string, unknown>; botCanAll?: b
 }
 
 /** Serveur vu depuis le chemin de création : cache des salons et fabrique. */
-function fakeCreationGuild(category: ReturnType<typeof fakeCategory> | null) {
+function fakeCreationGuild(
+  category: ReturnType<typeof fakeCategory> | null,
+  options: { everyoneDeny?: bigint } = {},
+) {
   const created: Array<Record<string, unknown>> = [];
   // Ce que le bot poste dans le salon fraîchement créé : le panneau de gestion.
   const posted: Array<Record<string, unknown>> = [];
@@ -334,8 +396,21 @@ function fakeCreationGuild(category: ReturnType<typeof fakeCategory> | null) {
           return {
             id: CHANNEL,
             name: payload.name,
+            // La carte d'état lit le salon : un salon créé verrouillé doit
+            // porter son refus, sinon le quatrième bouton ne peut pas apparaître.
+            guild: { id: GUILD, members: { me: { id: '111111111111111111' } } },
+            members: new Map<string, unknown>(),
+            userLimit: (payload.userLimit as number | undefined) ?? 0,
+            permissionOverwrites: {
+              cache: new Map<string, unknown>([
+                [GUILD, fakeOverwrite(0n, options.everyoneDeny ?? 0n)],
+              ]),
+            },
             delete: mock(async () => undefined),
-            send: mock(async (message: Record<string, unknown>) => { posted.push(message); }),
+            send: mock(async (message: Record<string, unknown>) => {
+              posted.push(message);
+              return { id: '777777777777777777' };
+            }),
           };
         }),
       },
@@ -369,6 +444,26 @@ function generatorConfig(policy: Record<string, unknown> = {}) {
     tempVoiceCategoryId: CATEGORY,
     tempVoiceNameTemplate: '🔊 Salon de {user}',
     tempVoiceDefaults: policy,
+  };
+}
+
+/**
+ * La ligne que le dashboard écrit, demandes activées.
+ *
+ * Les champs sont ceux des colonnes, pas ceux de `ConfigDemandesAcces` : c'est
+ * `normaliserConfigDemandes` qui traduit, et un test qui lui donnerait déjà la
+ * forme traduite ne prouverait pas qu'elle est appelée.
+ */
+function ligneDemandes(champs: Record<string, unknown> = {}) {
+  return {
+    guildId: GUILD,
+    enabled: true,
+    responders: 'OWNER_AND_STAFF',
+    notifyVia: 'VOICE',
+    notifyChannelId: null,
+    requestExpiresMinutes: 10,
+    denyCooldownMinutes: 10,
+    ...champs,
   };
 }
 
@@ -691,8 +786,8 @@ describe('autorisation d\'un membre', () => {
       customId: 'tempvoice:trust_select', values: [OTHER],
       channel, member: fakeTarget(OWNER, false), guild,
     });
-    interaction.editReply = mock(async (p: { content: string }) => { messages.push(p.content); }) as never;
-    interaction.reply = mock(async (p: { content: string }) => { messages.push(p.content); }) as never;
+    interaction.editReply = mock(async (p: unknown) => { messages.push(texteDeLaReponse(p)); }) as never;
+    interaction.reply = mock(async (p: unknown) => { messages.push(texteDeLaReponse(p)); }) as never;
 
     await listeners.get(Events.InteractionCreate)?.(interaction);
     tempChannels.delete(CHANNEL);
@@ -1407,11 +1502,15 @@ describe('limite de places', () => {
       isModalSubmit: () => true,
       isRoleSelectMenu: () => false,
       isUserSelectMenu: () => false,
+      // Une vraie interaction Discord porte les trois gardes de type, quelle que
+      // soit sa nature. En omettre une ici fait lever le module sur un appel
+      // parfaitement legitime, et l'echec accuse le code au lieu du banc.
+      isStringSelectMenu: () => false,
       isRepliable: () => true,
       fields: { getTextInputValue: () => value },
       deferReply: mock(async () => { interaction.deferred = true; }),
-      reply: mock(async (p: { content: string }) => { messages.push(p.content); }),
-      editReply: mock(async (p: { content: string }) => { messages.push(p.content); }),
+      reply: mock(async (p: unknown) => { messages.push(texteDeLaReponse(p)); }),
+      editReply: mock(async (p: unknown) => { messages.push(texteDeLaReponse(p)); }),
       followUp: mock(async () => undefined),
     };
 
@@ -1780,11 +1879,15 @@ describe('renommage refusé', () => {
       isModalSubmit: () => true,
       isRoleSelectMenu: () => false,
       isUserSelectMenu: () => false,
+      // Une vraie interaction Discord porte les trois gardes de type, quelle que
+      // soit sa nature. En omettre une ici fait lever le module sur un appel
+      // parfaitement legitime, et l'echec accuse le code au lieu du banc.
+      isStringSelectMenu: () => false,
       isRepliable: () => true,
       fields: { getTextInputValue: () => 'Nouveau nom' },
       deferReply: mock(async () => { interaction.deferred = true; }),
-      reply: mock(async (p: { content: string }) => { messages.push(p.content); }),
-      editReply: mock(async (p: { content: string }) => { messages.push(p.content); }),
+      reply: mock(async (p: unknown) => { messages.push(texteDeLaReponse(p)); }),
+      editReply: mock(async (p: unknown) => { messages.push(texteDeLaReponse(p)); }),
       followUp: mock(async () => undefined),
     };
 
@@ -1915,11 +2018,15 @@ describe('renommage', () => {
       isModalSubmit: () => true,
       isRoleSelectMenu: () => false,
       isUserSelectMenu: () => false,
+      // Une vraie interaction Discord porte les trois gardes de type, quelle que
+      // soit sa nature. En omettre une ici fait lever le module sur un appel
+      // parfaitement legitime, et l'echec accuse le code au lieu du banc.
+      isStringSelectMenu: () => false,
       isRepliable: () => true,
       fields: { getTextInputValue: () => 'Nouveau nom' },
       deferReply: mock(async () => { interaction.deferred = true; }),
-      reply: mock(async (payload: { content: string }) => { messages.push(payload.content); }),
-      editReply: mock(async (payload: { content: string }) => { messages.push(payload.content); }),
+      reply: mock(async (payload: unknown) => { messages.push(texteDeLaReponse(payload)); }),
+      editReply: mock(async (payload: unknown) => { messages.push(texteDeLaReponse(payload)); }),
       followUp: mock(async () => undefined),
     };
 
@@ -1931,4 +2038,1722 @@ describe('renommage', () => {
     // cours) - le message doit dire que Discord n'a pas confirmé.
     expect(messages[0]).toContain("n'a pas confirmé");
   });
+});
+
+/**
+ * Le câblage, et non le calcul.
+ *
+ * `tempVoiceService.test.ts` prouve que les fonctions pures sont justes ; rien
+ * n'y prouve que l'écouteur les appelle. Un test de la fonction laisse passer
+ * l'appelant qui l'oublie — c'est une leçon déjà payée deux fois ici. Un test
+ * par site d'appel, donc, et chacun échoue si on retire l'appel correspondant
+ * de `tempVoice.ts` sans rien casser d'autre.
+ */
+describe('câblage du panneau refondu', () => {
+  const TROISIEME = '700000000000000000';
+
+  /** Écouteur prêt à recevoir, sur un salon déjà enregistré. */
+  function scene(entree: { creatorId: string; modeEcriture?: 'everyone' | 'inVoice' | 'ownerOnly' | 'nobody' }) {
+    const { channel, edits } = fakeChannel();
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, entree);
+    return { channel, edits, listeners };
+  }
+
+  function entreeVocale(channel: unknown, membre: unknown) {
+    return [
+      { channelId: null, channel: null },
+      { channelId: CHANNEL, channel, guild: { id: GUILD }, member: membre },
+    ] as const;
+  }
+
+  function sortieVocale(channel: unknown, membre: unknown) {
+    return [
+      { channelId: CHANNEL, channel },
+      { channelId: null, channel: null, guild: { id: GUILD }, member: membre },
+    ] as const;
+  }
+
+  test('une entrée en vocal pose la parole quand le mode la suit', async () => {
+    // `decisionEntreeVocal` est testée ailleurs ; ici on prouve qu'elle est
+    // appelée sur `VoiceStateUpdate`. Sans cet appel, le mode « ceux qui sont en
+    // vocal » ne donne la parole à personne, en silence.
+    guildConfig = { tempVoiceEnabled: true };
+    const { channel, edits, listeners } = scene({ creatorId: OWNER, modeEcriture: 'inVoice' });
+
+    await listeners.get(Events.VoiceStateUpdate)?.(...entreeVocale(channel, fakeTarget(OTHER, false)));
+
+    expect(edits).toEqual([{ id: OTHER, patch: { SendMessages: true } }]);
+    tempChannels.delete(CHANNEL);
+  });
+
+  test('un autre mode ne pose aucune surcharge à l\'entrée', async () => {
+    // Le versant négatif : une pose inconditionnelle passerait le test ci-dessus.
+    guildConfig = { tempVoiceEnabled: true };
+    const { channel, edits, listeners } = scene({ creatorId: OWNER, modeEcriture: 'everyone' });
+
+    await listeners.get(Events.VoiceStateUpdate)?.(...entreeVocale(channel, fakeTarget(OTHER, false)));
+
+    expect(edits).toEqual([]);
+    tempChannels.delete(CHANNEL);
+  });
+
+  test('quitter le vocal retire la surcharge que la présence avait posée', async () => {
+    // Membre propre au test : les marques d'origine ne s'effacent qu'à la mort
+    // du salon, et deux tests sur le même couple salon+membre se marcheraient
+    // dessus.
+    const PARTANT = '710000000000000000';
+    guildConfig = { tempVoiceEnabled: true };
+    const { channel, edits, listeners } = scene({ creatorId: OWNER, modeEcriture: 'inVoice' });
+    const partant = fakeTarget(PARTANT, false);
+
+    await listeners.get(Events.VoiceStateUpdate)?.(...entreeVocale(channel, partant));
+    // Le salon n'est pas vide : sans occupant, il serait supprimé au départ.
+    channel.members.set(OWNER, {});
+    await listeners.get(Events.VoiceStateUpdate)?.(...sortieVocale(channel, partant));
+
+    expect(edits).toEqual([
+      { id: PARTANT, patch: { SendMessages: true } },
+      { id: PARTANT, patch: { SendMessages: null } },
+    ]);
+    tempChannels.delete(CHANNEL);
+  });
+
+  test('quitter le vocal n\'efface pas une autorisation donnée à la main', async () => {
+    // Le point le plus exposé de la refonte : « Autoriser » et la présence
+    // écrivent la même surcharge. Sans le marquage d'origine posé par
+    // `trust_select`, ce départ effacerait un droit donné à la main — et rien,
+    // ni côté service ni côté Discord, ne le signalerait.
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+    const { channel, edits, listeners } = scene({ creatorId: OWNER, modeEcriture: 'inVoice' });
+
+    const INVITE = '720000000000000000';
+    const invite = fakeTarget(INVITE, false);
+    const guild = fakeGuild(new Map<string, unknown>([[INVITE, invite]]));
+
+    const { interaction } = fakeSelectInteraction({
+      customId: 'tempvoice:trust_select', values: [INVITE],
+      channel, member: fakeTarget(OWNER, false), guild,
+    });
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+
+    const ecrituresApresAutorisation = edits.length;
+    expect(ecrituresApresAutorisation).toBeGreaterThan(0);
+
+    channel.members.set(OWNER, {});
+    await listeners.get(Events.VoiceStateUpdate)?.(...sortieVocale(channel, invite));
+
+    // Rien de plus n'a été écrit : la surcharge d'« Autoriser » est intacte.
+    expect(edits).toHaveLength(ecrituresApresAutorisation);
+    tempChannels.delete(CHANNEL);
+  });
+
+  /** Rejoue un clic de bouton d'un modérateur, et rend ce que Discord a reçu. */
+  async function verrouParModerateur(reglages: Record<string, string> | undefined) {
+    const STAFF_ROLE = '500000000000000000';
+    guildConfig = {
+      tempVoiceEnabled: true,
+      baseStaffRoleId: STAFF_ROLE,
+      moderatorRoleId: null,
+      testStaffRoleId: null,
+    };
+    // Les reglages viennent d'une TABLE, pas d'une colonne de `Guild` : sans
+    // cette ligne, `lireReglagesAdmin` retombe sur « tout autorise » et le test
+    // passerait au vert en prouvant le contraire de ce qu'il annonce.
+    permissionsModerateur = reglages
+      ? { canLock: reglages.verrouiller !== 'adminsSeulement' }
+      : null;
+    const { channel, edits, listeners } = scene({ creatorId: OWNER });
+
+    const moderateur = fakeTarget(OTHER, false);
+    moderateur.roles = { cache: { has: (id: string): boolean => id === STAFF_ROLE } };
+    const guild = fakeGuild(new Map<string, unknown>([[OTHER, moderateur]]));
+
+    const { interaction } = fakeButtonInteraction('lock', { channel, guild, member: moderateur });
+    interaction.user = { id: OTHER, bot: false };
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+
+    tempChannels.delete(CHANNEL);
+    return edits;
+  }
+
+  test('un modérateur ne verrouille pas ce qu\'un admin lui a fermé', async () => {
+    // `peutAgir` n'a pas de valeur par défaut à dessein : un appelant qui
+    // l'oublierait obtiendrait un panneau tout permis, et ce test serait le seul
+    // à s'en apercevoir.
+    expect(await verrouParModerateur({ verrouiller: 'adminsSeulement' })).toHaveLength(0);
+  });
+
+  test('le même modérateur verrouille quand le réglage l\'autorise', async () => {
+    // Le versant positif : une garde qui refuserait toujours passerait aussi le
+    // test précédent, et le panneau serait mort sans que rien ne le dise.
+    expect(await verrouParModerateur({ verrouiller: 'autorise' })).not.toHaveLength(0);
+  });
+
+  /** Rejoue la fenêtre de saisie du renommage. */
+  async function renomme(channel: unknown, guild: unknown, listeners: Map<string, (...args: unknown[]) => unknown>, valeur: string) {
+    const interaction = {
+      guildId: GUILD,
+      customId: 'tempvoice:rename_modal',
+      channel,
+      guild,
+      member: fakeTarget(OWNER, false),
+      user: { id: OWNER, bot: false },
+      deferred: false,
+      replied: false,
+      isButton: () => false,
+      isModalSubmit: () => true,
+      isRoleSelectMenu: () => false,
+      isUserSelectMenu: () => false,
+      // Une vraie interaction Discord porte les trois gardes de type, quelle que
+      // soit sa nature. En omettre une ici fait lever le module sur un appel
+      // parfaitement legitime, et l'echec accuse le code au lieu du banc.
+      isStringSelectMenu: () => false,
+      isMessageComponent: () => false,
+      isRepliable: () => true,
+      fields: { getTextInputValue: () => valeur },
+      deferReply: mock(async () => { interaction.deferred = true; }),
+      reply: mock(async () => { interaction.replied = true; }),
+      editReply: mock(async () => undefined),
+      followUp: mock(async () => undefined),
+    };
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+  }
+
+  test('le troisième renommage en dix minutes n\'ouvre pas la fenêtre de saisie', async () => {
+    // Discord ne refuse pas le troisième : il l'attend, parfois plusieurs
+    // minutes, sans rien dire. Le quota doit donc être consommé au site d'appel,
+    // sinon le bouton annonce un compte qui ne bouge jamais.
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+    const { channel, listeners } = scene({ creatorId: OWNER });
+    const guild = fakeGuild(new Map());
+
+    await renomme(channel, guild, listeners, 'Un');
+    await renomme(channel, guild, listeners, 'Deux');
+
+    const { interaction, calls } = fakeButtonInteraction('rename', {
+      channel, guild, member: fakeTarget(OWNER, false),
+    });
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+
+    expect(calls).not.toContain('showModal');
+    tempChannels.delete(CHANNEL);
+  });
+
+  test('le bouton « Demander l\'accès » suit le réglage du serveur', async () => {
+    // `boutonDemanderAccesVisible` décide ; encore faut-il que la rangée
+    // l'appelle, et avec la config. Un salon ouvert n'a que trois portes, et un
+    // serveur qui n'a pas activé les demandes n'en a jamais quatre.
+    guildConfig = generatorConfig();
+
+    const identifiantsDuPanneau = async (ligne: Record<string, unknown> | null, verrouille: boolean) => {
+      configDemandes = ligne;
+      const scene = fakeCreationGuild(
+        fakeCategory(),
+        verrouille ? { everyoneDeny: PermissionFlagsBits.Connect } : {},
+      );
+      const arrivee = fakeJoiningMember(scene.guild);
+      const { client, listeners } = fakeClient();
+      registerTempVoiceListener(client);
+      await listeners.get(Events.VoiceStateUpdate)?.(arrivee.oldState, arrivee.newState);
+      tempChannels.delete(CHANNEL);
+
+      const rows = (scene.posted[0]?.components ?? []) as Array<{ components: Array<{ data: { custom_id?: string } }> }>;
+      return rows.flatMap((row) => row.components.map((c) => c.data.custom_id ?? ''));
+    };
+
+    expect(await identifiantsDuPanneau(ligneDemandes(), true)).toContain('tempvoice:demander');
+    // Le versant négatif, celui que la revue a relevé : la colonne `enabled`
+    // était écrite par le dashboard et jamais lue.
+    expect(await identifiantsDuPanneau(ligneDemandes({ enabled: false }), true)).not.toContain('tempvoice:demander');
+    expect(await identifiantsDuPanneau(null, true)).not.toContain('tempvoice:demander');
+    expect(await identifiantsDuPanneau(ligneDemandes(), false)).not.toContain('tempvoice:demander');
+    configDemandes = null;
+  });
+
+  test('une deuxième demande d\'accès ne repingue pas le propriétaire', async () => {
+    // Sans le registre, un membre contrarié envoie trente pings en dix secondes.
+    // Le garde-fou vit dans le service ; ce test prouve qu'on le consulte.
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+    configDemandes = ligneDemandes();
+    const { channel: salon } = fakeChannel(PermissionFlagsBits.Connect);
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const demandeur = fakeTarget(TROISIEME, false);
+    const guild = fakeGuild(new Map<string, unknown>([[TROISIEME, demandeur]]));
+
+    const cliquer = async () => {
+      const { interaction } = fakeButtonInteraction('demander', { channel: salon, guild, member: demandeur });
+      interaction.user = { id: TROISIEME, bot: false };
+      await listeners.get(Events.InteractionCreate)?.(interaction);
+    };
+
+    await cliquer();
+    await cliquer();
+
+    expect(salon.send).toHaveBeenCalledTimes(1);
+    tempChannels.delete(CHANNEL);
+    configDemandes = null;
+  });
+});
+
+/**
+ * Ce que la configuration des demandes d'accès change *au clic*.
+ *
+ * `tempVoiceService.test.ts` prouve que `peutRepondreDemande`,
+ * `boutonDemanderAccesVisible` et `nettoyagePresenceAuDemarrage` sont justes.
+ * Aucun de ces tests ne prouve que l'écouteur les appelle : la colonne
+ * `enabled` était écrite par le dashboard et lue par personne. Un test par site
+ * d'appel, donc, chacun rouge si l'appel disparaît de `tempVoice.ts`.
+ */
+describe('configuration des demandes d\'accès', () => {
+  const ROLE_STAFF = '510000000000000000';
+
+  afterAll(() => setSystemTime());
+
+  /**
+   * Un salon verrouillé sur lequel une demande a déjà été déposée *par le
+   * bouton*, et la carte de décision postée. Rien n'est injecté dans le
+   * registre : la demande suit le chemin de production.
+   */
+  async function demandeDeposee(options: {
+    ligne: Record<string, unknown>;
+    demandeur: ReturnType<typeof fakeTarget>;
+    repondeur: ReturnType<typeof fakeTarget>;
+    proprietaire?: ReturnType<typeof fakeTarget>;
+    reglagesModerateur?: Record<string, boolean>;
+    /** Salon de notification dédié, avec ou sans droit d'écriture pour le bot. */
+    salonDedie?: { id: string; peutEcrire: boolean };
+  }) {
+    guildConfig = {
+      tempVoiceEnabled: true,
+      baseStaffRoleId: ROLE_STAFF,
+      moderatorRoleId: null,
+      testStaffRoleId: null,
+    };
+    configDemandes = options.ligne;
+    permissionsModerateur = options.reglagesModerateur ?? null;
+
+    const { channel, edits } = fakeChannel(PermissionFlagsBits.Connect);
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const membres = new Map<string, unknown>([
+      [options.demandeur.id, options.demandeur],
+      [options.repondeur.id, options.repondeur],
+    ]);
+    if (options.proprietaire) membres.set(OWNER, options.proprietaire);
+    const guild = fakeGuild(membres);
+
+    // Le salon dédié n'existe que si le test en demande un : `fakeGuild` rend
+    // `null` par défaut, ce qui est exactement le cas « salon disparu ».
+    const messagesDedies: Array<Record<string, unknown>> = [];
+    if (options.salonDedie) {
+      const dedie = {
+        id: options.salonDedie.id,
+        isTextBased: () => true,
+        permissionsFor: () => ({ has: () => options.salonDedie?.peutEcrire ?? false }),
+        send: mock(async (message: Record<string, unknown>) => {
+          messagesDedies.push(message);
+          return { id: '900000000000000000' };
+        }),
+      };
+      guild.channels.fetch = mock(async (id: string) => (id === dedie.id ? dedie : null)) as never;
+    }
+
+    const depot = fakeButtonInteraction('demander', { channel, guild, member: options.demandeur });
+    depot.interaction.user = { id: options.demandeur.id, bot: false };
+    await listeners.get(Events.InteractionCreate)?.(depot.interaction);
+
+    /** Le clic du répondeur sur la carte, avec l'identifiant qu'elle porte. */
+    const trancher = async (verdict: 'ok' | 'non' | 'ban') => {
+      const { interaction } = fakeButtonInteraction(
+        `demande_${verdict}:${options.demandeur.id}:${CHANNEL}`,
+        { channel, guild, member: options.repondeur },
+      );
+      interaction.user = { id: options.repondeur.id, bot: false };
+      await listeners.get(Events.InteractionCreate)?.(interaction);
+    };
+
+    /** Rend la mémoire du module : sinon la demande suivante hérite de celle-ci. */
+    const ranger = () => {
+      tempChannels.delete(CHANNEL);
+      configDemandes = null;
+      permissionsModerateur = null;
+    };
+
+    return { channel, edits, guild, listeners, trancher, ranger, messagesDedies };
+  }
+
+  /** Un modérateur : reconnu staff, mais ni propriétaire ni administrateur. */
+  function moderateur(id: string) {
+    const membre = fakeTarget(id, false);
+    membre.roles = { cache: { has: (role: string): boolean => role === ROLE_STAFF } };
+    return membre;
+  }
+
+  test('`responders: OWNER` refuse au modérateur d\'accepter une demande', async () => {
+    // Le clic passe la garde d'entrée (un modérateur est staff) : seule la
+    // colonne `responders` l'arrête. Elle ne gouverne aucune action de
+    // `peutAgir`, et l'écouteur appelait justement `peutAgir`.
+    const demandeur = fakeTarget('730000000000000000', false);
+    const scene = await demandeDeposee({
+      ligne: ligneDemandes({ responders: 'OWNER' }),
+      demandeur,
+      repondeur: moderateur(OTHER),
+    });
+
+    await scene.trancher('ok');
+
+    expect(scene.edits.filter((e) => e.id === demandeur.id)).toHaveLength(0);
+    scene.ranger();
+  });
+
+  test('`responders: OWNER_AND_STAFF` le laisse trancher', async () => {
+    // Le versant positif : une garde qui refuserait toujours passerait aussi le
+    // test précédent, et la carte serait morte sans que rien ne le dise.
+    const demandeur = fakeTarget('731000000000000000', false);
+    const scene = await demandeDeposee({
+      ligne: ligneDemandes({ responders: 'OWNER_AND_STAFF' }),
+      demandeur,
+      repondeur: moderateur(OTHER),
+    });
+
+    await scene.trancher('ok');
+
+    expect(scene.edits.filter((e) => e.id === demandeur.id)).not.toHaveLength(0);
+    scene.ranger();
+  });
+
+  test('« Refuser et bannir » respecte le réglage des modérateurs', async () => {
+    // Le plus grave des points de revue : cette branche passait par
+    // `repondreDemande`, qu'aucun réglage ne gouverne. Un modérateur bannissait
+    // avec `canKickOrBan` désactivé.
+    const demandeur = fakeTarget('732000000000000000', false);
+    const scene = await demandeDeposee({
+      ligne: ligneDemandes(),
+      demandeur,
+      repondeur: moderateur(OTHER),
+      reglagesModerateur: { canKickOrBan: false },
+    });
+
+    await scene.trancher('ban');
+
+    expect(scene.edits.filter((e) => e.id === demandeur.id)).toHaveLength(0);
+    scene.ranger();
+  });
+
+  test('« Refuser et bannir » ne touche pas un membre du staff', async () => {
+    // L'autre moitié du même trou : aucun `isProtectedTarget` ne protégeait le
+    // staff sur cette branche, alors que le même geste sur la fiche du membre
+    // l'exige. Le propriétaire tranche ici, pour qu'aucun réglage de modérateur
+    // ne puisse expliquer le refus à sa place.
+    const demandeur = fakeTarget('733000000000000000', false);
+    demandeur.roles = { cache: { has: (role: string): boolean => role === ROLE_STAFF } };
+    const scene = await demandeDeposee({
+      ligne: ligneDemandes(),
+      demandeur,
+      repondeur: fakeTarget(OWNER, false),
+    });
+
+    await scene.trancher('ban');
+
+    expect(scene.edits.filter((e) => e.id === demandeur.id)).toHaveLength(0);
+    scene.ranger();
+  });
+
+  test('une demande expirée n\'ouvre plus rien', async () => {
+    // Une carte reste cliquable indéfiniment : sans vérification, « Autoriser »
+    // accordait encore l'accès sur une demande que le registre avait oubliée.
+    const T0 = Date.UTC(2026, 8, 23, 12, 0, 0);
+    setSystemTime(new Date(T0));
+
+    const demandeur = fakeTarget('734000000000000000', false);
+    const scene = await demandeDeposee({
+      // Une minute, le minimum que le schéma accepte.
+      ligne: ligneDemandes({ requestExpiresMinutes: 1 }),
+      demandeur,
+      repondeur: fakeTarget(OWNER, false),
+    });
+
+    setSystemTime(new Date(T0 + 5 * 60_000));
+    await scene.trancher('ok');
+    setSystemTime();
+
+    expect(scene.edits.filter((e) => e.id === demandeur.id)).toHaveLength(0);
+    scene.ranger();
+  });
+
+  test('le refus annonce le délai du serveur, pas celui du registre', async () => {
+    // `prevenirDemandeur` affichait `registreDemandes.silenceMs` - le défaut du
+    // registre, partagé par tous les serveurs. Un administrateur qui règle
+    // trente minutes lisait dix.
+    const demandeur = fakeTarget('735000000000000000', false);
+    const scene = await demandeDeposee({
+      ligne: ligneDemandes({ denyCooldownMinutes: 30 }),
+      demandeur,
+      repondeur: fakeTarget(OWNER, false),
+    });
+
+    await scene.trancher('non');
+
+    const descriptions = demandeur.mp.flatMap((message) => {
+      const embeds = (message.embeds ?? []) as Array<{ data?: { description?: string } }>;
+      return embeds.map((embed) => embed.data?.description ?? '');
+    });
+    expect(descriptions.join(' ')).toContain('30 min');
+    scene.ranger();
+  });
+
+  test('un MP fermé fait retomber la carte dans le salon vocal', async () => {
+    // Discord n'offre aucun moyen de savoir à l'avance qu'un membre a fermé ses
+    // MP : l'envoi échoue en silence. Sans repli, la demande n'atteint
+    // personne et le demandeur attend une réponse qui ne viendra jamais.
+    const demandeur = fakeTarget('736000000000000000', false);
+    const proprietaire = fakeTarget(OWNER, false);
+    proprietaire.send = mock(async () => { throw new Error('Cannot send messages to this user'); });
+
+    const scene = await demandeDeposee({
+      ligne: ligneDemandes({ notifyVia: 'DM' }),
+      demandeur,
+      repondeur: proprietaire,
+      proprietaire,
+    });
+
+    expect(proprietaire.send).toHaveBeenCalled();
+    expect(scene.channel.send).toHaveBeenCalledTimes(1);
+    scene.ranger();
+  });
+
+  test('le salon dédié reçoit la carte, et elle garde ses boutons', async () => {
+    // La seule branche de la cascade qu'aucun test ne couvrait. Elle enchaîne
+    // trois choses qu'une relecture ne prouve pas : la relecture du salon par
+    // son identifiant, le contrôle du droit d'écriture, et l'identifiant de
+    // salon embarqué dans les boutons - sans lui, une carte hors du salon
+    // vocal n'a plus rien à piloter.
+    const demandeur = fakeTarget('738000000000000000', false);
+    const proprietaire = fakeTarget(OWNER, false);
+    const DEDIE = '850000000000000000';
+
+    const scene = await demandeDeposee({
+      ligne: ligneDemandes({ notifyVia: 'CHANNEL', notifyChannelId: DEDIE }),
+      demandeur,
+      repondeur: proprietaire,
+      proprietaire,
+      salonDedie: { id: DEDIE, peutEcrire: true },
+    });
+
+    expect(scene.messagesDedies).toHaveLength(1);
+    // Le salon dédié a servi : ni le salon vocal ni le MP n'ont été sollicités.
+    expect(scene.channel.send).not.toHaveBeenCalled();
+    expect(proprietaire.mp).toHaveLength(0);
+
+    const carte = scene.messagesDedies[0] as {
+      content?: string;
+      components?: Array<{ components: Array<{ data: { custom_id?: string } }> }>;
+    };
+    // C'est la mention qui notifie : un embed n'en produit aucune.
+    expect(carte.content).toBe(`<@${OWNER}>`);
+
+    const autoriser = (carte.components ?? [])
+      .flatMap((rangee) => rangee.components.map((composant) => composant.data.custom_id ?? ''))
+      .find((id) => id.startsWith('tempvoice:demande_ok:')) ?? '';
+    expect(autoriser).toBe(`tempvoice:demande_ok:${demandeur.id}:${CHANNEL}`);
+    expect(autoriser.length).toBeLessThanOrEqual(100);
+
+    scene.ranger();
+  });
+
+  test('un salon dédié où le bot est muet fait retomber la carte dans le vocal', async () => {
+    // Un salon où le bot ne peut pas écrire n'est pas un canal. Sans ce
+    // contrôle, la demande partait dans le vide : la carte semblait envoyée et
+    // le propriétaire n'en voyait jamais la couleur.
+    const demandeur = fakeTarget('739000000000000000', false);
+    const proprietaire = fakeTarget(OWNER, false);
+    const DEDIE = '851000000000000000';
+
+    const scene = await demandeDeposee({
+      ligne: ligneDemandes({ notifyVia: 'CHANNEL', notifyChannelId: DEDIE }),
+      demandeur,
+      repondeur: proprietaire,
+      proprietaire,
+      salonDedie: { id: DEDIE, peutEcrire: false },
+    });
+
+    expect(scene.messagesDedies).toHaveLength(0);
+    expect(scene.channel.send).toHaveBeenCalledTimes(1);
+    scene.ranger();
+  });
+
+  test('un salon dédié disparu fait retomber la carte dans le vocal', async () => {
+    // `notifyChannelId` désigne un salon que l'administrateur a pu supprimer
+    // depuis. La relecture rend `null`, et la cascade doit continuer.
+    const demandeur = fakeTarget('740000000000000000', false);
+    const proprietaire = fakeTarget(OWNER, false);
+
+    const scene = await demandeDeposee({
+      ligne: ligneDemandes({ notifyVia: 'CHANNEL', notifyChannelId: '852000000000000000' }),
+      demandeur,
+      repondeur: proprietaire,
+      proprietaire,
+    });
+
+    expect(scene.channel.send).toHaveBeenCalledTimes(1);
+    scene.ranger();
+  });
+
+  test('une carte reçue en MP garde la main sur son salon', async () => {
+    // Le piège de la cascade : le gestionnaire résolvait le salon depuis
+    // `interaction.channel`. Une carte reçue en MP n'a plus le salon vocal sous
+    // la main, et ses boutons n'auraient plus rien à piloter.
+    const demandeur = fakeTarget('737000000000000000', false);
+    const proprietaire = fakeTarget(OWNER, false);
+
+    const scene = await demandeDeposee({
+      ligne: ligneDemandes({ notifyVia: 'DM' }),
+      demandeur,
+      repondeur: proprietaire,
+      proprietaire,
+    });
+
+    // Le MP a abouti : la carte n'est pas partie dans le salon vocal.
+    expect(scene.channel.send).not.toHaveBeenCalled();
+
+    const carte = proprietaire.mp[0] as {
+      components?: Array<{ components: Array<{ data: { custom_id?: string } }> }>;
+    };
+    const autoriser = (carte.components ?? [])
+      .flatMap((rangee) => rangee.components.map((composant) => composant.data.custom_id ?? ''))
+      .find((id) => id.startsWith('tempvoice:demande_ok:')) ?? '';
+
+    expect(autoriser).toBe(`tempvoice:demande_ok:${demandeur.id}:${CHANNEL}`);
+    // Discord refuse un `custom_id` au-delà de cent caractères.
+    expect(autoriser.length).toBeLessThanOrEqual(100);
+
+    // Le MP ne porte ni salon vocal ni serveur : seul l'identifiant les désigne.
+    scene.channel.guild = scene.guild;
+    const interaction = {
+      guildId: null as string | null,
+      customId: autoriser,
+      channel: { id: '800000000000000000', type: 1 },
+      guild: null as unknown,
+      member: null as unknown,
+      client: { channels: { fetch: mock(async () => scene.channel) } },
+      user: { id: OWNER, bot: false },
+      deferred: false,
+      replied: false,
+      isButton: () => true,
+      isModalSubmit: () => false,
+      isRoleSelectMenu: () => false,
+      isUserSelectMenu: () => false,
+      isStringSelectMenu: () => false,
+      isMessageComponent: () => true,
+      isRepliable: () => true,
+      message: { edit: mock(async () => undefined) },
+      deferUpdate: mock(async () => { interaction.deferred = true; }),
+      deferReply: mock(async () => { interaction.deferred = true; }),
+      reply: mock(async () => { interaction.replied = true; }),
+      editReply: mock(async () => undefined),
+      followUp: mock(async () => undefined),
+    };
+    await scene.listeners.get(Events.InteractionCreate)?.(interaction);
+
+    expect(scene.edits.filter((e) => e.id === demandeur.id)).not.toHaveLength(0);
+    scene.ranger();
+  });
+});
+
+describe('reprise des surcharges au démarrage', () => {
+  test('ne retire que les présences devenues orphelines', async () => {
+    // Le registre d'origines est en mémoire : après un redémarrage, les
+    // surcharges de présence n'ont plus personne pour les retirer. Et la forme
+    // ne sert que dans un sens - `SendMessages` sans `Connect` ne peut venir
+    // que de la présence ; une autorisation donne toujours `Connect`.
+    const ABSENT = '740000000000000000';
+    const PRESENT = '741000000000000000';
+    const AUTORISE = '742000000000000000';
+
+    prismaMock.tempVoiceChannel.findMany = mock(async () => [
+      // `writeMode` relu : sans lui le mode retombe sur « ouvert », et toutes
+      // les présences seraient retirées, y compris celle d'un membre encore là.
+      { id: CHANNEL, guildId: GUILD, creatorId: OWNER, writeMode: 'inVoice' },
+    ]);
+    prismaMock.tempVoiceChannel.delete = mock(async () => ({}));
+
+    const { channel, edits, seedOverwrite } = fakeChannel();
+    channel.members = new Map<string, unknown>([[PRESENT, fakeTarget(PRESENT, false)]]);
+    seedOverwrite(ABSENT, fakeOverwrite(PermissionFlagsBits.SendMessages));
+    seedOverwrite(PRESENT, fakeOverwrite(PermissionFlagsBits.SendMessages));
+    seedOverwrite(AUTORISE, fakeOverwrite(PermissionFlagsBits.SendMessages | PermissionFlagsBits.Connect));
+
+    const guild = { id: GUILD, available: true, channels: { cache: new Map([[CHANNEL, channel]]) } };
+    const { client, listeners } = fakeClient(new Map([[GUILD, guild]]));
+
+    registerTempVoiceListener(client);
+    await runSweep(listeners);
+
+    expect(edits).toEqual([{ id: ABSENT, patch: { SendMessages: null } }]);
+    tempChannels.delete(CHANNEL);
+  });
+});
+
+describe('Réécriture du panneau : anciens messages et composants V2', () => {
+  /**
+   * Un panneau tel que Discord le rend : `flags.has()` dit s'il est déjà en
+   * composants V2. Un message posté avant ce passage porte encore un `content`,
+   * que Discord refuse de voir coexister avec des composants V2.
+   */
+  function fauxPanneau(estV2: boolean, supprimable = true) {
+    return {
+      id: '777000000000000001',
+      flags: { has: (drapeau: number) => estV2 && drapeau === MessageFlags.IsComponentsV2 },
+      edit: mock(async () => undefined),
+      delete: mock(async () => {
+        if (!supprimable) throw new Error('Missing Permissions');
+      }),
+    };
+  }
+
+  /** Un salon temporaire vivant dont le panneau est déjà connu. */
+  function salonAvecPanneau(id: string, panneau: ReturnType<typeof fauxPanneau>) {
+    const { channel } = fakeChannel();
+    channel.id = id;
+    (channel as { guild: Record<string, unknown> }).guild = {
+      id: GUILD,
+      roles: { everyone: { id: GUILD } },
+      channels: { fetch: mock(async () => null) },
+    };
+    (channel as { messages?: unknown }).messages = { fetch: mock(async () => panneau) };
+    tempChannels.set(id, { creatorId: OWNER, panneauId: panneau.id });
+    return channel;
+  }
+
+  test('le panneau est mis a jour, jamais supprime ni repose', async () => {
+    // Le panneau de base est poste une fois, a la creation du salon. Le
+    // supprimer pour en reposter un laissait le salon SANS AUCUN panneau des que
+    // l'envoi echouait - et il echoue precisement quand le mode d'ecriture ferme
+    // le chat, puisque le bot n'a pas de surcharge a lui.
+    const ancien = fauxPanneau(false);
+    const dejaV2 = fauxPanneau(true);
+
+    const salonAncien = salonAvecPanneau('910000000000000001', ancien);
+    const salonV2 = salonAvecPanneau('910000000000000002', dejaV2);
+
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    const guild = fakeGuild(new Map());
+
+    // Une action qui CHANGE l'etat : ouvrir un sous-panneau ne redessine rien,
+    // et c'est voulu - le panneau ne dit que ce qui a bouge.
+    for (const salon of [salonAncien, salonV2]) {
+      const { interaction } = fakeButtonInteraction('bascule_verrou', {
+        channel: salon,
+        guild,
+        member: fakeTarget(OWNER, false),
+      });
+      await listeners.get(Events.InteractionCreate)?.(interaction);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    // Les deux sont edites, quelle que soit leur forme.
+    expect(ancien.edit).toHaveBeenCalled();
+    expect(dejaV2.edit).toHaveBeenCalled();
+
+    // Et aucun n'est supprime, ni remplace par un envoi.
+    expect(ancien.delete).not.toHaveBeenCalled();
+    expect(dejaV2.delete).not.toHaveBeenCalled();
+    expect(salonAncien.send).not.toHaveBeenCalled();
+    expect(salonV2.send).not.toHaveBeenCalled();
+
+    for (const id of ['910000000000000001', '910000000000000002']) {
+      tempChannels.delete(id);
+    }
+  }, 10_000);
+});
+
+describe('Fraîcheur des sous-panneaux', () => {
+  test('la fiche d\'un membre est redessinée sur les vraies données après une action', async () => {
+    // `PermissionOverwriteManager.upsert` fait l'appel REST et rend le salon tel
+    // quel : ce qu'on vient d'écrire n'est PAS dans le cache. La fiche annonçait
+    // donc « Non autorisé » juste après avoir autorisé quelqu'un - elle lisait
+    // l'état d'avant son propre clic.
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+    const { channel, syncFromGateway } = fakeChannel();
+    const cible = fakeTarget(OTHER, false);
+
+    // La relecture passe par `channel.guild.channels` - en production, le salon
+    // porte son serveur. Le `fetch` joue ce que fait une relecture forcée : la
+    // passerelle livre enfin ce que Discord a reçu.
+    const guild = fakeGuild(new Map([[OTHER, cible]]));
+    (channel as { guild: Record<string, unknown> }).guild = {
+      id: GUILD,
+      roles: { everyone: { id: GUILD } },
+      channels: {
+        fetch: mock(async () => {
+          syncFromGateway();
+          return null;
+        }),
+      },
+    };
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const { interaction } = fakeButtonInteraction(`m_trust:${OTHER}`, {
+      channel,
+      guild,
+      member: fakeTarget(OWNER, false),
+    });
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+
+    // L'autorisation a bien été écrite chez Discord...
+    const ecrites = channel.permissionOverwrites.edit as unknown as { mock: { calls: unknown[][] } };
+    expect(ecrites.mock.calls.some((appel) => appel[0] === OTHER)).toBe(true);
+
+    // ...et le cache que lit la fiche la connaît maintenant. C'est la relecture
+    // qui l'y met : sans elle, la fiche redessinée montrerait l'état d'avant.
+    expect(channel.permissionOverwrites.cache.has(OTHER)).toBe(true);
+
+    // La fiche a bien été réécrite en place, pas seulement acquittée.
+    expect(interaction.editReply).toHaveBeenCalled();
+
+    tempChannels.delete(CHANNEL);
+    guildConfig = null;
+  }, 10_000);
+});
+
+describe('Mode compact des sous-panneaux', () => {
+  /** Un clic sur un bouton qui vit dans un sous-panneau éphémère. */
+  function clicDansSousPanneau(channel: unknown, guild: unknown) {
+    const scene = fakeButtonInteraction('lock', { channel, guild, member: fakeTarget(OWNER, false) });
+    (scene.interaction as { message: Record<string, unknown> }).message = {
+      flags: { has: (drapeau: number) => drapeau === MessageFlags.Ephemeral },
+      edit: mock(async () => undefined),
+    };
+    return scene;
+  }
+
+  async function jouer(compact: boolean) {
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+    // Les sept permissions restent ouvertes : seul le mode d'affichage varie.
+    permissionsModerateur = {
+      canRename: true,
+      canChangeLimit: true,
+      canLock: true,
+      canChangeWriteMode: true,
+      canKickOrBan: true,
+      canReserve: true,
+      canTransfer: true,
+      panelCompactMode: compact,
+    };
+
+    const { channel } = fakeChannel();
+    const guild = fakeGuild(new Map());
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const scene = clicDansSousPanneau(channel, guild);
+    await listeners.get(Events.InteractionCreate)?.(scene.interaction);
+
+    tempChannels.delete(CHANNEL);
+    permissionsModerateur = null;
+    guildConfig = null;
+    return scene;
+  }
+
+  test('le mode compact reprend le sous-panneau au lieu d\'empiler un message', async () => {
+    // `deferReply` crée un message de plus - trois éphémères pour une seule
+    // réservation. `deferUpdate` reprend celui qui porte le bouton.
+    const scene = await jouer(true);
+    expect(scene.calls).toContain('deferUpdate');
+    expect(scene.calls).not.toContain('defer');
+  }, 10_000);
+
+  test('sans le mode compact, rien ne change : un message de plus, comme avant', async () => {
+    // Le défaut ne doit rien changer pour les serveurs qui n'ont rien demandé.
+    const scene = await jouer(false);
+    expect(scene.calls).toContain('defer');
+    expect(scene.calls).not.toContain('deferUpdate');
+  }, 10_000);
+
+  test('en mode compact, la réponse porte un bouton de retour', async () => {
+    // Le verdict remplace le menu qui l'a provoqué : sans chemin de retour, la
+    // personne reste devant une phrase et plus aucun bouton.
+    const scene = await jouer(true);
+    const charges = (scene.interaction.editReply as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const composants = charges.flatMap((appel) => {
+      const charge = appel[0] as { components?: unknown[] } | undefined;
+      return charge?.components ?? [];
+    });
+    expect(composants.length).toBeGreaterThan(0);
+  }, 10_000);
+
+  test('sans le mode compact, la réponse ne pose aucun bouton de retour', async () => {
+    // Le sous-panneau est toujours là derrière : un « Retour » y renverrait
+    // depuis un message qui ne l'a jamais remplacé.
+    const scene = await jouer(false);
+    const charges = (scene.interaction.editReply as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const composants = charges.flatMap((appel) => {
+      const charge = appel[0] as { components?: unknown[] } | undefined;
+      return charge?.components ?? [];
+    });
+    expect(composants).toHaveLength(0);
+  }, 10_000);
+});
+
+describe('Vitesse de réécriture du panneau', () => {
+  function panneauDeSalon(id: string) {
+    const message = {
+      id: '778000000000000001',
+      flags: { has: (drapeau: number) => drapeau === MessageFlags.IsComponentsV2 },
+      edit: mock(async () => undefined),
+      delete: mock(async () => undefined),
+    };
+    const { channel } = fakeChannel();
+    channel.id = id;
+    (channel as { guild: Record<string, unknown> }).guild = {
+      id: GUILD,
+      roles: { everyone: { id: GUILD } },
+      channels: { fetch: mock(async () => null) },
+    };
+    (channel as { messages?: unknown }).messages = { fetch: mock(async () => message) };
+    tempChannels.set(id, { creatorId: OWNER, panneauId: message.id });
+    return { channel, message };
+  }
+
+  test('le panneau se réécrit sans attendre la fin de la fenêtre', async () => {
+    // L'anti-rebond n'avait pas de front montant : un clic sur « Verrouiller »
+    // laissait le panneau annoncer « Ouvert » pendant deux secondes pleines.
+    const { channel, message } = panneauDeSalon('930000000000000001');
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+
+    const { interaction } = fakeButtonInteraction('bascule_verrou', {
+      channel,
+      guild: fakeGuild(new Map()),
+      member: fakeTarget(OWNER, false),
+    });
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+
+    // Bien en deçà de la fenêtre de coalescence : si la réécriture l'attendait,
+    // rien ne serait encore parti.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(message.edit).toHaveBeenCalled();
+
+    tempChannels.delete('930000000000000001');
+  }, 10_000);
+
+  test('la mention du propriétaire survit à la réécriture', async () => {
+    // Une édition remplace tous les composants : sans repasser la mention, la
+    // ligne « @propriétaire » disparaissait au premier changement d'état.
+    const { channel, message } = panneauDeSalon('930000000000000002');
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+
+    const { interaction } = fakeButtonInteraction('bascule_verrou', {
+      channel,
+      guild: fakeGuild(new Map()),
+      member: fakeTarget(OWNER, false),
+    });
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    const appels = message.edit.mock.calls as unknown as unknown[][];
+    const charge = appels[0]?.[0] as { content?: string } | undefined;
+    expect(charge?.content).toBe(`<@${OWNER}>`);
+
+    tempChannels.delete('930000000000000002');
+  }, 10_000);
+
+  test('une rafale de clics ne produit qu\'un seul rattrapage', async () => {
+    // Le front montant ne doit pas se payer en écritures : Discord plafonne les
+    // éditions à cinq par tranche de cinq secondes et par salon.
+    const { channel, message } = panneauDeSalon('930000000000000003');
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    const guild = fakeGuild(new Map());
+
+    for (let i = 0; i < 6; i += 1) {
+      const { interaction } = fakeButtonInteraction('bascule_verrou', {
+        channel,
+        guild,
+        member: fakeTarget(OWNER, false),
+      });
+      await listeners.get(Events.InteractionCreate)?.(interaction);
+    }
+
+    // Une fois la fenêtre refermée : un passage immédiat, un seul rattrapage.
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    expect(message.edit).toHaveBeenCalledTimes(2);
+
+    tempChannels.delete('930000000000000003');
+  }, 10_000);
+});
+
+describe('Modes d\'écriture : ce que le libellé promet', () => {
+  /**
+   * Un salon où quelqu'un a été « Autorisé ».
+   *
+   * `categoryTrustPatch` accorde cinq bits d'un coup, `SendMessages` compris :
+   * la personne peut donc écrire par une surcharge nominative, et non par
+   * @everyone. C'est ce qui rend le défaut invisible tant qu'on ne regarde que
+   * le patch pose sur @everyone.
+   */
+  async function basculerVers(mode: string) {
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+    const { channel, edits, seedOverwrite, syncFromGateway } = fakeChannel();
+    seedOverwrite(OTHER, fakeOverwrite(
+      PermissionFlagsBits.SendMessages | PermissionFlagsBits.Connect | PermissionFlagsBits.ViewChannel,
+      0n,
+    ));
+    (channel as { guild: Record<string, unknown> }).guild = {
+      id: GUILD,
+      roles: { everyone: { id: GUILD } },
+      channels: { fetch: mock(async () => { syncFromGateway(); return null; }) },
+    };
+
+    const guild = fakeGuild(new Map([[OTHER, fakeTarget(OTHER, false)]]));
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const { interaction } = fakeSelectInteraction({
+      customId: 'tempvoice:mode_select',
+      values: [mode],
+      channel,
+      member: fakeTarget(OWNER, false),
+      guild,
+    });
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+
+    tempChannels.delete(CHANNEL);
+    guildConfig = null;
+    return edits;
+  }
+
+  /** Le dernier patch écrit pour cette cible, ou `undefined`. */
+  function dernierPatch(edits: Array<{ id: string; patch: Record<string, unknown> }>, id: string) {
+    return [...edits].reverse().find((e) => e.id === id)?.patch;
+  }
+
+  test('« Personne » fait taire aussi ceux qui ont été autorisés', async () => {
+    // « Personne — y compris moi. Le salon devient un mur d'affichage. » Couper
+    // @everyone ne suffit pas : une autorisation accorde `SendMessages`
+    // nominativement, et une surcharge nominative prime sur @everyone.
+    const edits = await basculerVers('nobody');
+    // Exiger une ECRITURE : sans elle, le test passerait aussi bien quand le
+    // mode ne touche a rien - c'est-a-dire precisement quand le defaut est la.
+    const patch = dernierPatch(edits, OTHER);
+    expect(patch).toBeDefined();
+    expect(patch?.SendMessages).not.toBe(true);
+  });
+
+  test('« Moi seul » fait taire aussi ceux qui ont été autorisés', async () => {
+    // « Moi seul — personne d'autre ne peut écrire. »
+    const edits = await basculerVers('ownerOnly');
+    // Exiger une ECRITURE : sans elle, le test passerait aussi bien quand le
+    // mode ne touche a rien - c'est-a-dire precisement quand le defaut est la.
+    const patch = dernierPatch(edits, OTHER);
+    expect(patch).toBeDefined();
+    expect(patch?.SendMessages).not.toBe(true);
+  });
+
+  test('« Ceux qui sont en vocal » fait taire un autorisé qui n\'est pas connecté', async () => {
+    // Le mode suit la présence : une autorisation ne doit pas valoir laissez-
+    // passer permanent pour le chat, sans quoi le libellé ment aussi.
+    const edits = await basculerVers('inVoice');
+    // Exiger une ECRITURE : sans elle, le test passerait aussi bien quand le
+    // mode ne touche a rien - c'est-a-dire precisement quand le defaut est la.
+    const patch = dernierPatch(edits, OTHER);
+    expect(patch).toBeDefined();
+    expect(patch?.SendMessages).not.toBe(true);
+  });
+});
+
+describe('Sous-panneau « Membres » : deux portes', () => {
+  /** Les options d'un menu, ou qu'elles se trouvent selon la version du builder. */
+  function optionsDuMenu(menu: unknown): Array<{ value?: string }> {
+    const brut = menu as { options?: unknown[]; data?: { options?: unknown[] } } | undefined;
+    const liste = brut?.options ?? brut?.data?.options ?? [];
+    return liste.map((option) => {
+      const o = option as { value?: string; data?: { value?: string } };
+      return { value: o.value ?? o.data?.value };
+    });
+  }
+
+  function salonAvecPresents(nombre: number) {
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+    const { channel } = fakeChannel();
+    const membres = new Map<string, unknown>();
+    for (let i = 0; i < nombre; i += 1) {
+      // Jamais d'arithmetique sur un identifiant Discord : 7e17 depasse
+      // `Number.MAX_SAFE_INTEGER`, et l'increment s'evapore - les trente
+      // membres se seraient ecrases sur un seul, sans la moindre erreur.
+      const id = `70000000000000${String(1000 + i)}`;
+      membres.set(id, { ...fakeTarget(id, false), displayName: `Membre ${i}` });
+    }
+    // Un bot present ne doit pas occuper une place dans la liste : aucune action
+    // du panneau n'a de sens sur lui.
+    membres.set('799999999999999999', { ...fakeTarget('799999999999999999', true), displayName: 'Robot' });
+    (channel as { members: Map<string, unknown> }).members = membres;
+    return channel;
+  }
+
+  async function ouvrirMembres(channel: unknown) {
+    const guild = fakeGuild(new Map());
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const { interaction } = fakeButtonInteraction('membres', {
+      channel,
+      guild,
+      member: fakeTarget(OWNER, false),
+    });
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+
+    tempChannels.delete(CHANNEL);
+    guildConfig = null;
+
+    const appels = (interaction.reply as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    return (appels[0]?.[0] ?? {}) as { components?: Array<{ components: Array<{ data: Record<string, unknown> }> }> };
+  }
+
+  test('les personnes présentes ont leur propre menu, en plus de la recherche', async () => {
+    // Chercher dans tout le serveur quelqu'un qu'on a sous les yeux était le cas
+    // le plus fréquent, et le plus laborieux.
+    const charge = await ouvrirMembres(salonAvecPresents(3));
+    const identifiants = (charge.components ?? [])
+      .flatMap((rangee) => rangee.components.map((composant) => composant.data.custom_id as string));
+
+    expect(identifiants).toContain('tempvoice:membre_ici');
+    expect(identifiants).toContain('tempvoice:membre_select');
+  });
+
+  test('un salon vide ne pose pas de menu vide', async () => {
+    // Discord rejette le message entier quand un menu n'a aucune option : la
+    // rangée doit disparaître, pas se vider.
+    const charge = await ouvrirMembres(salonAvecPresents(0));
+    const identifiants = (charge.components ?? [])
+      .flatMap((rangee) => rangee.components.map((composant) => composant.data.custom_id as string));
+
+    expect(identifiants).not.toContain('tempvoice:membre_ici');
+    expect(identifiants).toContain('tempvoice:membre_select');
+  });
+
+  test('le menu des présents ne dépasse jamais vingt-cinq options', async () => {
+    // Le plafond de Discord. Au-delà, la liste est tronquée plutôt qu'omise.
+    const charge = await ouvrirMembres(salonAvecPresents(30));
+    const menu = (charge.components ?? [])
+      .flatMap((rangee) => rangee.components)
+      .find((composant) => composant.data.custom_id === 'tempvoice:membre_ici');
+
+    // `StringSelectMenuBuilder` range ses options hors de `data` : les lire la
+    // rendrait un tableau vide, et le test passerait pour rien.
+    const options = optionsDuMenu(menu);
+    expect(options).toHaveLength(25);
+  });
+
+  test('un bot présent n\'occupe pas une place dans la liste', async () => {
+    // Aucune action du panneau n'a de sens sur un bot.
+    const charge = await ouvrirMembres(salonAvecPresents(2));
+    const menu = (charge.components ?? [])
+      .flatMap((rangee) => rangee.components)
+      .find((composant) => composant.data.custom_id === 'tempvoice:membre_ici');
+
+    const options = optionsDuMenu(menu);
+    expect(options).toHaveLength(2);
+    expect(options.map((option) => option.value)).not.toContain('799999999999999999');
+  });
+});
+
+describe('Verite des presents : le cache de discord.js ment par omission', () => {
+  test('un membre en vocal mais absent du cache est recupere avant affichage', async () => {
+    // `channel.members` n'est pas la liste des connectes : c'est celle des etats
+    // vocaux DONT le membre est deja en cache. Un absent du cache disparait du
+    // decompte, de la liste et des autorisations - sans erreur, sans trace.
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+    const { channel } = fakeChannel();
+
+    const ABSENT = '760000000000000001';
+    const membresEnCache = new Map<string, unknown>();
+    const recuperes: string[][] = [];
+
+    (channel as { members: Map<string, unknown> }).members = membresEnCache;
+    (channel as { guild: Record<string, unknown> }).guild = {
+      id: GUILD,
+      roles: { everyone: { id: GUILD } },
+      channels: { fetch: mock(async () => null) },
+      // L'etat vocal fait foi : il dit que quelqu'un est la.
+      voiceStates: { cache: new Map([[ABSENT, { id: ABSENT, channelId: CHANNEL }]]) },
+      members: {
+        cache: membresEnCache,
+        fetch: mock(async (options: { user: string[] }) => {
+          recuperes.push(options.user);
+          for (const id of options.user) {
+            membresEnCache.set(id, { ...fakeTarget(id, false), displayName: 'Arrive tard' });
+          }
+          return membresEnCache;
+        }),
+      },
+    };
+
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const { interaction } = fakeButtonInteraction('membres', {
+      channel,
+      guild: fakeGuild(new Map()),
+      member: fakeTarget(OWNER, false),
+    });
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+
+    // Le membre manquant a bien ete reclame a Discord...
+    expect(recuperes.flat()).toContain(ABSENT);
+
+    // ...et il figure dans le menu des presents.
+    const appels = (interaction.reply as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const charge = (appels[0]?.[0] ?? {}) as {
+      components?: Array<{ components: Array<{ data: Record<string, unknown>; options?: unknown[] }> }>;
+    };
+    const menu = (charge.components ?? [])
+      .flatMap((rangee) => rangee.components)
+      .find((composant) => composant.data.custom_id === 'tempvoice:membre_ici');
+    const valeurs = ((menu?.options ?? []) as Array<{ data?: { value?: string }; value?: string }>)
+      .map((option) => option.value ?? option.data?.value);
+
+    expect(valeurs).toContain(ABSENT);
+
+    tempChannels.delete(CHANNEL);
+    guildConfig = null;
+  }, 10_000);
+});
+
+describe('Les trois portes : ouvrir a cote, ou reprendre le sous-panneau', () => {
+  async function cliquerPorte(depuisEphemere: boolean) {
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+    const { channel } = fakeChannel();
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const scene = fakeButtonInteraction('salon', {
+      channel,
+      guild: fakeGuild(new Map()),
+      member: fakeTarget(OWNER, false),
+    });
+    (scene.interaction as { update?: unknown }).update = mock(async () => undefined);
+    if (depuisEphemere) {
+      (scene.interaction as { message: Record<string, unknown> }).message = {
+        flags: { has: (drapeau: number) => drapeau === MessageFlags.Ephemeral },
+        edit: mock(async () => undefined),
+      };
+    }
+
+    await listeners.get(Events.InteractionCreate)?.(scene.interaction);
+
+    tempChannels.delete(CHANNEL);
+    guildConfig = null;
+    return scene.interaction as unknown as {
+      reply: { mock: { calls: unknown[][] } };
+      update: { mock: { calls: unknown[][] } };
+    };
+  }
+
+  test('depuis le panneau public, un ephemere s ouvre a cote', async () => {
+    // L'editer effacerait le panneau pour tout le serveur.
+    const interaction = await cliquerPorte(false);
+    expect(interaction.reply.mock.calls.length).toBeGreaterThan(0);
+    expect(interaction.update.mock.calls).toHaveLength(0);
+  }, 10_000);
+
+  test('depuis un sous-panneau, le message existant est repris', async () => {
+    // C'est le cas du bouton « Retour » du mode compact : sans cela, il empilait
+    // un ephemere de plus a chaque retour - exactement ce que ce mode evite.
+    const interaction = await cliquerPorte(true);
+    expect(interaction.update.mock.calls.length).toBeGreaterThan(0);
+    expect(interaction.reply.mock.calls).toHaveLength(0);
+  }, 10_000);
+});
+
+describe('Limites de Discord : depassees, le message entier est rejete', () => {
+  /** Chaque rangee et chaque composant d'une charge, quelle que soit sa forme. */
+  function rangeesDe(charge: unknown) {
+    const p = charge as { components?: Array<{ components?: unknown[] }> } | undefined;
+    return (p?.components ?? []).map((rangee) => ({
+      composants: (rangee.components ?? []) as Array<Record<string, unknown>>,
+    }));
+  }
+
+  function identifiants(charge: unknown): string[] {
+    return rangeesDe(charge).flatMap((rangee) => rangee.composants
+      .map((composant) => {
+        const c = composant as { data?: { custom_id?: string }; custom_id?: string };
+        return c.data?.custom_id ?? c.custom_id ?? '';
+      })
+      .filter(Boolean));
+  }
+
+  function optionsDe(composant: unknown): unknown[] {
+    const c = composant as { options?: unknown[]; data?: { options?: unknown[] } };
+    return c.options ?? c.data?.options ?? [];
+  }
+
+  /** Ouvre une porte du panneau et rend ce que Discord recevrait. */
+  async function charge(action: string, presents = 3) {
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+    const { channel } = fakeChannel();
+    const membres = new Map<string, unknown>();
+    for (let i = 0; i < presents; i += 1) {
+      const id = `71000000000000${String(1000 + i)}`;
+      membres.set(id, { ...fakeTarget(id, false), displayName: `Membre tres tres long nom ${i}` });
+    }
+    (channel as { members: Map<string, unknown> }).members = membres;
+
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const scene = fakeButtonInteraction(action, {
+      channel,
+      guild: fakeGuild(new Map()),
+      member: fakeTarget(OWNER, false),
+    });
+    await listeners.get(Events.InteractionCreate)?.(scene.interaction);
+
+    tempChannels.delete(CHANNEL);
+    guildConfig = null;
+
+    const appels = (scene.interaction.reply as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    return appels[0]?.[0];
+  }
+
+  test('les trois portes respectent les plafonds de composants', async () => {
+    // Cinq rangees par message, cinq boutons par rangee, vingt-cinq options par
+    // menu : au-dela, Discord refuse le message entier, pas le composant fautif.
+    // Trente presents : assez pour depasser le plafond d'options si rien ne le
+    // borne. Avec trois, le test passerait sans rien prouver.
+    for (const porte of ['salon', 'membres', 'propriete']) {
+      const rendu = await charge(porte, 30);
+      const rangees = rangeesDe(rendu);
+
+      // D'abord : la charge existe. Un sous-panneau qui leve en se construisant
+      // ne produit RIEN, et toutes les assertions suivantes porteraient alors
+      // sur un tableau vide - le test passerait en defendant un plantage.
+      expect(rendu).toBeDefined();
+      expect(rangees.length).toBeGreaterThan(0);
+
+      expect(rangees.length).toBeLessThanOrEqual(5);
+      for (const rangee of rangees) {
+        expect(rangee.composants.length).toBeLessThanOrEqual(5);
+        for (const composant of rangee.composants) {
+          expect(optionsDe(composant).length).toBeLessThanOrEqual(25);
+        }
+      }
+    }
+  }, 15_000);
+
+  test('aucun identifiant de composant ne depasse cent caracteres', async () => {
+    // Le plafond de `custom_id`. Deux identifiants Discord y tiennent, mais rien
+    // n'empeche d'en ajouter un troisieme sans s'en rendre compte.
+    for (const porte of ['salon', 'membres', 'propriete']) {
+      const rendu = await charge(porte);
+      expect(rendu).toBeDefined();
+      for (const id of identifiants(rendu)) {
+        expect(id.length).toBeLessThanOrEqual(100);
+        // Et il doit rester lisible par le routeur du module.
+        expect(id.startsWith('tempvoice:')).toBe(true);
+      }
+    }
+  }, 15_000);
+
+  test('un salon vide retire la rangee au lieu de poser un menu sans option', async () => {
+    // Un menu sans option fait rejeter le message ENTIER : la rangee doit
+    // disparaitre, pas se vider. Salon sans personne = cas reel, et c'est le
+    // seul menu du module dont les options sont calculees.
+    const rendu = await charge('membres', 0);
+
+    // D'abord la preuve que quelque chose a ete rendu : sans elle, un
+    // sous-panneau qui leve en se construisant ferait passer ce test a vide -
+    // exactement le piege paye sur le controle des plafonds.
+    expect(rendu).toBeDefined();
+    const rangees = rangeesDe(rendu);
+    expect(rangees.length).toBeGreaterThan(0);
+
+    const composants = rangees.flatMap((rangee) => rangee.composants);
+    const menuDesPresents = composants.find((composant) => {
+      const c = composant as { data?: { custom_id?: string } };
+      return c.data?.custom_id === 'tempvoice:membre_ici';
+    });
+
+    // La rangee des presents a disparu...
+    expect(menuDesPresents).toBeUndefined();
+    // ...et la recherche dans le serveur, elle, est toujours la.
+    const identifiants = composants.map((composant) => {
+      const c = composant as { data?: { custom_id?: string } };
+      return c.data?.custom_id ?? '';
+    });
+    expect(identifiants).toContain('tempvoice:membre_select');
+  }, 15_000);
+});
+
+describe('Le bot ne se muselle pas lui-meme', () => {
+  /** Un salon ou le bot n'a PAS le droit d'ecrire au moment du controle. */
+  function salonOuLeBotEstMuet() {
+    const { channel, edits } = fakeChannel();
+    (channel as { guild: Record<string, unknown> }).guild = {
+      id: GUILD,
+      roles: { everyone: { id: GUILD } },
+      channels: { fetch: mock(async () => null) },
+      members: { me: { id: BOT_ID, permissions: { has: () => true } } },
+    };
+    (channel as { permissionsFor?: unknown }).permissionsFor = () => ({ has: () => false });
+    return { channel, edits };
+  }
+
+  const BOT_ID = '600000000000000009';
+
+  test('verrouiller le salon lui laisse une surcharge pour ecrire', async () => {
+    // `CHANNEL_PATCHES.lock` coupe `SendMessages` a @everyone. Le bot n'a pas de
+    // surcharge a lui : il perdait donc le droit de mettre a jour le panneau
+    // dans le salon qu'il venait de verrouiller.
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+    const { channel, edits } = salonOuLeBotEstMuet();
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const { interaction } = fakeButtonInteraction('lock', {
+      channel,
+      guild: fakeGuild(new Map()),
+      member: fakeTarget(OWNER, false),
+    });
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+
+    const pourLeBot = edits.filter((e) => e.id === BOT_ID);
+    expect(pourLeBot.length).toBeGreaterThan(0);
+    expect(pourLeBot.at(-1)?.patch.SendMessages).toBe(true);
+
+    tempChannels.delete(CHANNEL);
+    guildConfig = null;
+  }, 10_000);
+
+  test('rien n est ecrit quand le bot a deja le droit', async () => {
+    // On n'agit que sur un constat : sans cela, chaque verrou poserait une
+    // surcharge inutile de plus sur un salon deja charge.
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+    const { channel, edits } = salonOuLeBotEstMuet();
+    (channel as { permissionsFor?: unknown }).permissionsFor = () => ({ has: () => true });
+
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const { interaction } = fakeButtonInteraction('lock', {
+      channel,
+      guild: fakeGuild(new Map()),
+      member: fakeTarget(OWNER, false),
+    });
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+
+    expect(edits.filter((e) => e.id === BOT_ID)).toHaveLength(0);
+
+    tempChannels.delete(CHANNEL);
+    guildConfig = null;
+  }, 10_000);
+});
+
+describe('Verrouiller met a jour le panneau de base', () => {
+  test('le panneau public annonce « Verrouille » apres la bascule', async () => {
+    // Signale en conditions reelles : le sous-panneau passait bien en
+    // « Verrouille » et le panneau de base continuait d'afficher « Ouvert ».
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+
+    const { channel, syncFromGateway } = fakeChannel();
+    const panneau = {
+      id: '779000000000000001',
+      flags: { has: (drapeau: number) => drapeau === MessageFlags.IsComponentsV2 },
+      edit: mock(async () => undefined),
+      delete: mock(async () => undefined),
+    };
+    channel.id = '940000000000000001';
+    (channel as { messages?: unknown }).messages = { fetch: mock(async () => panneau) };
+
+    // La relecture forcee est le SEUL moyen de voir ce qu'on vient d'ecrire :
+    // `permissionOverwrites.edit` ne met pas le cache a jour.
+    (channel as { guild: Record<string, unknown> }).guild = {
+      id: GUILD,
+      roles: { everyone: { id: GUILD } },
+      channels: { fetch: mock(async () => { syncFromGateway(); return null; }) },
+      members: { me: { id: '600000000000000009', permissions: { has: () => true } } },
+    };
+    (channel as { permissionsFor?: unknown }).permissionsFor = () => ({ has: () => true });
+
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(channel.id, { creatorId: OWNER, panneauId: panneau.id });
+
+    const { interaction } = fakeButtonInteraction('bascule_verrou', {
+      channel,
+      guild: fakeGuild(new Map()),
+      member: fakeTarget(OWNER, false),
+    });
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    // Le panneau de base a bien ete reecrit...
+    expect(panneau.edit).toHaveBeenCalled();
+
+    // ...et il dit l'etat REEL, pas celui d'avant le clic.
+    const appels = panneau.edit.mock.calls as unknown as unknown[][];
+    const rendu = JSON.stringify(appels.at(-1)?.[0] ?? {});
+    expect(rendu).toContain('Verrouill');
+    expect(rendu).not.toContain('Ouvert');
+
+    tempChannels.delete(channel.id);
+    guildConfig = null;
+  }, 10_000);
+});
+
+describe('Ephemeres : jamais de content brut', () => {
+  /**
+   * `patchV2` ne convertit une charge en composants V2 que si elle porte des
+   * embeds. Un message poste en `content` nait donc legacy, et la premiere
+   * edition qui portera un embed tentera de le convertir - ce que Discord
+   * refuse tant que le `content` est la (HTTP 400).
+   *
+   * Ce test verrouille la regle a l'endroit ou elle a ete enfreinte deux fois.
+   */
+  async function charge(action: string) {
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+    const { channel } = fakeChannel();
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const scene = fakeButtonInteraction(action, {
+      channel,
+      guild: fakeGuild(new Map()),
+      member: fakeTarget(OWNER, false),
+    });
+    await listeners.get(Events.InteractionCreate)?.(scene.interaction);
+
+    tempChannels.delete(CHANNEL);
+    guildConfig = null;
+
+    const appels = (scene.interaction.reply as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    return appels.map((appel) => appel[0] as { content?: unknown; embeds?: unknown[] } | undefined);
+  }
+
+  for (const action of ['reserve', 'kick', 'ban', 'trust']) {
+    test(`l invite « ${action} » porte un embed, jamais un content`, async () => {
+      const charges = await charge(action);
+      expect(charges.length).toBeGreaterThan(0);
+      for (const c of charges) {
+        expect(c?.content).toBeUndefined();
+        expect((c?.embeds ?? []).length).toBeGreaterThan(0);
+      }
+    }, 10_000);
+  }
+});
+
+describe('Reactivite du panneau : chaque changement, tout de suite, et vrai', () => {
+  /**
+   * Un salon vivant dont le panneau est connu, et dont la relecture forcee
+   * livre enfin ce que Discord a recu.
+   *
+   * `permissionOverwrites.edit` ne met PAS le cache a jour : sans la relecture,
+   * le panneau redessine afficherait l'etat d'avant le clic. C'est exactement le
+   * defaut vu en conditions reelles.
+   */
+  function scene(id: string) {
+    guildConfig = { tempVoiceEnabled: true, baseStaffRoleId: null, moderatorRoleId: null, testStaffRoleId: null };
+    const { channel, syncFromGateway } = fakeChannel();
+    channel.id = id;
+
+    const panneau = {
+      id: `${id}9`,
+      flags: { has: (drapeau: number) => drapeau === MessageFlags.IsComponentsV2 },
+      edit: mock(async () => undefined),
+      delete: mock(async () => undefined),
+    };
+    (channel as { messages?: unknown }).messages = { fetch: mock(async () => panneau) };
+
+    let relectures = 0;
+    (channel as { guild: Record<string, unknown> }).guild = {
+      id: GUILD,
+      roles: { everyone: { id: GUILD }, cache: new Map() },
+      channels: { fetch: mock(async () => { relectures += 1; syncFromGateway(); return null; }) },
+      members: { me: { id: '600000000000000009', permissions: { has: () => true } }, cache: new Map() },
+      voiceStates: { cache: new Map() },
+    };
+    (channel as { permissionsFor?: unknown }).permissionsFor = () => ({ has: () => true });
+
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(id, { creatorId: OWNER, panneauId: panneau.id });
+
+    return {
+      channel,
+      panneau,
+      listeners,
+      relectures: () => relectures,
+      ranger: () => { tempChannels.delete(id); guildConfig = null; },
+    };
+  }
+
+  /** Ce que Discord recevrait pour le panneau, apres un delai TRES court. */
+  async function panneauApres(
+    sc: ReturnType<typeof scene>,
+    action: string,
+    valeurs?: string[],
+    attenteMs = 250,
+  ) {
+    const { interaction } = valeurs
+      ? fakeSelectInteraction({
+        customId: `tempvoice:${action}`,
+        values: valeurs,
+        channel: sc.channel,
+        member: fakeTarget(OWNER, false),
+        guild: fakeGuild(new Map()),
+      })
+      : fakeButtonInteraction(action, {
+        channel: sc.channel,
+        guild: fakeGuild(new Map()),
+        member: fakeTarget(OWNER, false),
+      });
+
+    await sc.listeners.get(Events.InteractionCreate)?.(interaction);
+    // 250 ms : bien en deca de la fenetre de coalescence. Si la reecriture
+    // l'attendait, rien ne serait encore parti - c'est la definition de « vif ».
+    await new Promise((resolve) => setTimeout(resolve, attenteMs));
+
+    const appels = sc.panneau.edit.mock.calls as unknown as unknown[][];
+    return JSON.stringify(appels.at(-1)?.[0] ?? {});
+  }
+
+  test('verrouiller : le panneau dit « Verrouille » tout de suite', async () => {
+    const sc = scene('950000000000000001');
+    const rendu = await panneauApres(sc, 'bascule_verrou');
+    expect(rendu).toContain('Verrouill');
+    expect(rendu).not.toContain('Ouvert');
+    sc.ranger();
+  }, 10_000);
+
+  test('deverrouiller : il repasse a « Ouvert » dans la seconde', async () => {
+    // Le deuxieme changement consecutif attend l'espacement minimal, pas une
+    // fenetre entiere : c'est la garantie, et elle est tenue.
+    const sc = scene('950000000000000002');
+    await panneauApres(sc, 'bascule_verrou');
+    const rendu = await panneauApres(sc, 'bascule_verrou', undefined, 1_100);
+    expect(rendu).toContain('Ouvert');
+    expect(rendu).not.toContain('Verrouill');
+    sc.ranger();
+  }, 15_000);
+
+  test('mode d ecriture : le champ « Ecriture » suit le choix', async () => {
+    const sc = scene('950000000000000003');
+    const rendu = await panneauApres(sc, 'mode_select', ['ownerOnly']);
+    expect(rendu).toContain('Moi seul');
+    expect(rendu).not.toContain('Tout le monde');
+    sc.ranger();
+  }, 10_000);
+
+  test('« Personne » se lit aussi dans le panneau', async () => {
+    const sc = scene('950000000000000004');
+    const rendu = await panneauApres(sc, 'mode_select', ['nobody']);
+    expect(rendu).toContain('Personne');
+    sc.ranger();
+  }, 10_000);
+
+  test('entree en vocal : le decompte d occupants bouge tout de suite', async () => {
+    const sc = scene('950000000000000005');
+    const membre = fakeTarget('950000000000000099', false);
+    (sc.channel as { members: Map<string, unknown> }).members = new Map([[membre.id, membre]]);
+
+    await sc.listeners.get(Events.VoiceStateUpdate)?.(
+      { channelId: null, channel: null },
+      { channelId: sc.channel.id, channel: sc.channel, member: membre, guild: { id: GUILD } },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 250));
+
+    const appels = sc.panneau.edit.mock.calls as unknown as unknown[][];
+    expect(appels.length).toBeGreaterThan(0);
+    expect(JSON.stringify(appels.at(-1)?.[0] ?? {})).toContain('1 /');
+    sc.ranger();
+  }, 10_000);
+
+  test('une action ne coute qu une relecture, pas une par lecteur', async () => {
+    // « Vif » ne doit pas vouloir dire « bavard » : le panneau public et le
+    // sous-panneau demandent la meme verite au meme instant, et la relecture
+    // est partagee.
+    const sc = scene('950000000000000006');
+    await panneauApres(sc, 'bascule_verrou');
+    expect(sc.relectures()).toBeLessThanOrEqual(2);
+    sc.ranger();
+  }, 10_000);
+
+  test('un changement arrive PENDANT une reecriture n est jamais perdu', async () => {
+    // La garantie centrale : le panneau finit toujours par dire le DERNIER etat.
+    //
+    // Le chevauchement est force par une EDITION lente, pas par une relecture :
+    // les relectures simultanees sont mutualisees, donc les ralentir ferait
+    // simplement attendre le second clic au lieu de le faire tomber pendant la
+    // premiere reecriture. Avec une edition lente, la fenetre de chevauchement
+    // est certaine.
+    const sc = scene('950000000000000008');
+
+    sc.panneau.edit = mock(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+    }) as never;
+
+    const clic = async () => {
+      const { interaction } = fakeButtonInteraction('bascule_verrou', {
+        channel: sc.channel,
+        guild: fakeGuild(new Map()),
+        member: fakeTarget(OWNER, false),
+      });
+      await sc.listeners.get(Events.InteractionCreate)?.(interaction);
+    };
+
+    await clic();                                                   // verrouille
+    await new Promise((resolve) => setTimeout(resolve, 50));        // reecriture en vol
+    await clic();                                                   // deverrouille
+
+    // De quoi laisser finir la premiere edition, l'espacement, et la seconde.
+    await new Promise((resolve) => setTimeout(resolve, 2_500));
+
+    // Deux passages engages : celui du premier clic, et le rattrapage du second.
+    // On mesure le DEPART de l'edition, pas sa fin : la seconde est encore en
+    // vol a cet instant, et attendre sa fin rendrait le test sensible a la
+    // duree simulee plutot qu'a la garantie.
+    //
+    // Sans le drapeau « sale », le second changement disparait et il n'en reste
+    // qu'un seul - le panneau reste fige sur « Verrouille ».
+    const appels = sc.panneau.edit.mock.calls as unknown as unknown[][];
+    expect(appels).toHaveLength(2);
+    expect(JSON.stringify(appels.at(-1)?.[0] ?? {})).toContain('Ouvert');
+    sc.ranger();
+  }, 20_000);
+
+  test('une rafale ne produit qu un rattrapage', async () => {
+    // Discord plafonne les editions a cinq par tranche de cinq secondes et par
+    // salon : le front montant ne doit pas se payer en ecritures.
+    const sc = scene('950000000000000007');
+    for (let i = 0; i < 6; i += 1) await panneauApres(sc, 'bascule_verrou');
+    await new Promise((resolve) => setTimeout(resolve, 1_800));
+
+    // Six clics espaces de 250 ms couvrent une fenetre et demie : au pire deux
+    // ecritures par fenetre, jamais une par clic.
+    const ecritures = (sc.panneau.edit.mock.calls as unknown as unknown[][]).length;
+    expect(ecritures).toBeLessThan(6);
+    sc.ranger();
+  }, 20_000);
 });
