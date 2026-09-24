@@ -475,8 +475,10 @@ export async function handleMembersRoutes(
     }
     try {
       const searchQuery = (url.searchParams.get('q') ?? '').trim();
-      const limit = Math.min(Number(url.searchParams.get('limit') ?? '24'), 100);
-      const page = Math.max(Number(url.searchParams.get('page') ?? '1'), 1);
+      // Bornés et repliés sur leur défaut : une valeur non numérique donnait NaN (erreur 500)
+      // et une limite négative demandait à la base de lire à rebours.
+      const limit = Math.min(Math.max(Math.trunc(Number(url.searchParams.get('limit') ?? '24')) || 24, 1), 100);
+      const page = Math.max(Math.trunc(Number(url.searchParams.get('page') ?? '1')) || 1, 1);
       const sortBy = url.searchParams.get('sortBy') ?? 'lastSeenAt';
       const sortOrder = url.searchParams.get('sortOrder') ?? 'desc';
       const serverStatus = url.searchParams.get('serverStatus') ?? 'on_server';
