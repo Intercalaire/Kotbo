@@ -33,7 +33,10 @@ const verdicts = new Map<string, Promise<boolean>>();
  * laisse entrer le membre, pour ne pas priver d'accueil tout un serveur sur une panne.
  */
 export function admitJoiningMember(member: GuildMember): Promise<boolean> {
-  const key = `${member.guild.id}:${member.id}`;
+  // L'heure d'arrivée fait partie de la clé : un membre expulsé qui revient aussitôt est une
+  // nouvelle arrivée, qui repasse les contrôles au lieu d'hériter du verdict précédent (qui le
+  // laisserait sur le serveur sans accueil, ou lui ferait contourner un verrouillage).
+  const key = `${member.guild.id}:${member.id}:${member.joinedTimestamp ?? 'inconnu'}`;
   const known = verdicts.get(key);
   if (known) return known;
 

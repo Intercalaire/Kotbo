@@ -21,9 +21,9 @@ for (const ext of ['ts', 'js']) {
 const { admitJoiningMember } = await import('../../services/moderation/joinAdmissionService.js');
 
 let counter = 0;
-function member() {
+function member(id?: string, joinedTimestamp = Date.now()) {
   counter += 1;
-  return { id: `user-${counter}`, guild: { id: 'guild-1' } } as never;
+  return { id: id ?? `user-${counter}`, joinedTimestamp, guild: { id: 'guild-1' } } as never;
 }
 
 beforeEach(() => {
@@ -54,5 +54,14 @@ describe('admission des arrivées', () => {
     config = null;
     youngAccount = true;
     expect(await admitJoiningMember(member())).toBe(true);
+  });
+
+  test('un membre refoulé qui revient aussitôt repasse les contrôles', async () => {
+    youngAccount = true;
+    expect(await admitJoiningMember(member('revenant', 1_000))).toBe(false);
+
+    // Il revient : cette fois il est refoulé à nouveau, et non laissé sans contrôle.
+    expect(await admitJoiningMember(member('revenant', 2_000))).toBe(false);
+    expect(tracked.filter((id) => id === 'revenant')).toHaveLength(2);
   });
 });
