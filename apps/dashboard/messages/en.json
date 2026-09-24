@@ -5970,6 +5970,7 @@
   "eco_max_bet": "Maximum bet per game",
   "eco_max_bet_hint": "Applies to /dice, /roulette and /rps.",
   "eco_max_daily_bets": "Games per day and per member",
+  "eco_max_daily_bets_hint": "Counts every game of /dice, /roulette, /rps and /guess.",
   "eco_max_transfer": "Maximum amount per transfer",
   "eco_max_transfer_hint": "Applies to /rpg-pay.",
   "eco_market_tax": "Marketplace tax (%)",

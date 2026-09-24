@@ -5970,6 +5970,7 @@
   "eco_max_bet": "Mise maximale par partie",
   "eco_max_bet_hint": "S'applique à /dice, /roulette et /rps.",
   "eco_max_daily_bets": "Parties par jour et par membre",
+  "eco_max_daily_bets_hint": "Compte chaque partie de /dice, /roulette, /rps et /guess.",
   "eco_max_transfer": "Montant maximal par transfert",
   "eco_max_transfer_hint": "S'applique à /rpg-pay.",
   "eco_market_tax": "Taxe de l'hôtel des ventes (%)",

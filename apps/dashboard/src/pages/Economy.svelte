@@ -1798,6 +1798,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
             <div class="space-y-1.5">
               <label for="maxDailyBets" class="text-xs font-semibold text-on-surface-variant/60">{m.eco_max_daily_bets()}</label>
               <input id="maxDailyBets" type="number" min="0" bind:value={config.maxDailyBets} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <p class="text-2xs text-on-surface-variant/40">{m.eco_max_daily_bets_hint()}</p>
             </div>
 
             <div class="space-y-1.5">
