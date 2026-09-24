@@ -2351,6 +2351,7 @@
   "mkt_sell_available": "{count} disponible(s)",
   "mkt_sell_suggested_market": "Prix moyen du marché : **{price}** {emoji} par exemplaire, sur {count} vente(s) des 30 derniers jours.",
   "mkt_sell_suggested_shop": "Aucune vente récente : prix suggéré de **{price}** {emoji} par exemplaire, d'après la boutique et le niveau de forge.",
+  "mkt_sell_tax": "Taxe du marché : {percent} % du prix de vente est retenu à la vente.",
   "mkt_modal_fixed_title": "Vente à prix fixe",
   "mkt_modal_auction_title": "Mise aux enchères",
   "mkt_modal_unit_price": "Prix par exemplaire",

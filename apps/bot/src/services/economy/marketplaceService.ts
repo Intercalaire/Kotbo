@@ -5,6 +5,7 @@ import { equippedItemIds } from '../features/rpg/rpgEquipment.js';
 import type { MarketplaceListing, Prisma, RpgItem } from '@prisma/client';
 import {
   LISTING_PRICE_RANGE,
+  marketplaceTax,
   SUGGESTED_PRICE_WINDOW_DAYS,
   suggestedUnitPrice,
   type SuggestedPrice,
@@ -139,6 +140,15 @@ export async function createListing(guildId: string, sellerId: string, data: {
   }
 }
 
+/**
+ * Taux de la taxe du marché sur ce serveur, lu dans la transaction de la vente : un taux changé
+ * depuis le dashboard s'applique à la vente suivante, jamais à moitié d'une vente en cours.
+ */
+async function readTaxPercent(tx: Prisma.TransactionClient, guildId: string): Promise<number> {
+  const config = await tx.economyConfig.findUnique({ where: { guildId }, select: { marketplaceTaxPercent: true } });
+  return config?.marketplaceTaxPercent ?? 0;
+}
+
 export async function buyListing(
   guildId: string,
   buyerId: string,
@@ -147,7 +157,7 @@ export async function buyListing(
   success: boolean;
   error?: string;
   /** Details de l'annonce achetee, utilises pour le message de confirmation. */
-  listing?: { itemId: string; quantity: number; price: number; sellerId: string };
+  listing?: { itemId: string; quantity: number; price: number; sellerId: string; tax: number };
 }> {
   try {
     const purchased = await prisma.$transaction(async (tx) => {
@@ -183,9 +193,11 @@ export async function buyListing(
       });
       if (debited.count === 0) throw new MarketplacePurchaseError('Fonds insuffisants.');
 
+      // L'acheteur paie le prix affiché ; le vendeur touche ce prix moins la taxe du marché.
+      const tax = marketplaceTax(listing.price, await readTaxPercent(tx, guildId));
       await tx.rpgProfile.update({
         where: { guildId_userId: { guildId, userId: listing.sellerId } },
-        data: { balance: { increment: listing.price } },
+        data: { balance: { increment: listing.price - tax } },
       });
       await deliverListing(tx, buyerProfile.id, listing);
       await tx.marketplaceTransaction.create({
@@ -206,6 +218,7 @@ export async function buyListing(
         quantity: listing.quantity,
         price: listing.price,
         sellerId: listing.sellerId,
+        tax,
       };
     });
 
@@ -359,7 +372,7 @@ type ExpiredListing = {
 };
 
 /**
- * Solde une enchère remportée : le vendeur touche la mise, l'acheteur reçoit l'objet.
+ * Solde une enchère remportée : le vendeur touche la mise moins la taxe du marché, l'acheteur reçoit l'objet.
  *
  * Le tout dans une transaction, réclamation de l'annonce comprise : un simple `update` du
  * statut laissait deux passages du cycle payer le vendeur deux fois, et la remise de
@@ -399,9 +412,10 @@ async function settleAuction(listing: ExpiredListing & { bidderId: string; curre
       return;
     }
 
+    const tax = marketplaceTax(listing.currentBid, await readTaxPercent(tx, listing.guildId));
     await tx.rpgProfile.update({
       where: { id: seller.id },
-      data: { balance: { increment: listing.currentBid } },
+      data: { balance: { increment: listing.currentBid - tax } },
     });
 
     if (buyer) {

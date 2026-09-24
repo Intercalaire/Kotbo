@@ -515,6 +515,12 @@ async function buildSellSetupView(
       ? m.mkt_sell_suggested_market({ price: suggested.unitPrice, emoji: config.currencyEmoji, count: suggested.samples }, { locale })
       : m.mkt_sell_suggested_shop({ price: suggested.unitPrice, emoji: config.currencyEmoji }, { locale }),
   ));
+  // Annoncée avant la mise en vente : le vendeur fixe son prix en sachant ce qu'il touchera.
+  if (config.marketplaceTaxPercent > 0) {
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      `-# ${m.mkt_sell_tax({ percent: config.marketplaceTaxPercent }, { locale })}`,
+    ));
+  }
 
   const copyRef = `${itemId}:${instanceId ?? '-'}`;
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(

@@ -12,6 +12,8 @@ type MarketplaceState = {
 };
 
 let state: MarketplaceState;
+/** Taxe du marché du serveur, en %. */
+let taxPercent = 0;
 let transactionQueue = Promise.resolve();
 
 const listing = {
@@ -26,6 +28,9 @@ const listing = {
 };
 
 const tx = {
+  economyConfig: {
+    findUnique: mock(async () => ({ marketplaceTaxPercent: taxPercent })),
+  },
   marketplaceListing: {
     findFirst: mock(async () => state.listingStatus === 'ACTIVE'
       ? { ...listing, status: state.listingStatus }
@@ -111,6 +116,7 @@ beforeEach(() => {
     refunded: 0,
   };
   transactionQueue = Promise.resolve();
+  taxPercent = 0;
 });
 
 describe('atomic marketplace purchase', () => {
@@ -127,6 +133,23 @@ describe('atomic marketplace purchase', () => {
     expect(state.sellerBalance).toBe(100);
     expect(state.inventoryQuantity).toBe(1);
     expect(state.transactionCount).toBe(1);
+  });
+});
+
+describe('taxe du marché', () => {
+  test('le vendeur touche le prix moins la taxe, l’acheteur paie le prix affiché', async () => {
+    taxPercent = 10;
+    const result = await buyListing('guild-1', 'buyer-1', 'listing-1');
+
+    expect(result.success).toBe(true);
+    expect(result.listing?.tax).toBe(10);
+    expect(state.buyerBalance).toBe(0);
+    expect(state.sellerBalance).toBe(90);
+  });
+
+  test('sans taxe, le vendeur touche tout', async () => {
+    await buyListing('guild-1', 'buyer-1', 'listing-1');
+    expect(state.sellerBalance).toBe(100);
   });
 });
 

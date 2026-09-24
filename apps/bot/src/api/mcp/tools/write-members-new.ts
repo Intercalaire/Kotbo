@@ -43,6 +43,7 @@ const economySettingsSchema = z.object({
   maxDailyBets: nonNegative,
   maxTransferAmount: nonNegative,
   transferCooldownMin: nonNegative,
+  marketplaceTaxPercent: z.number().int().min(0).max(50).describe("Taxe de l'hôtel des ventes, en % du prix retenu au vendeur (0 à 50)"),
   blackMarketEnabled: z.boolean(),
   blackMarketIntervalDays: nonNegative,
   blackMarketDurationMin: nonNegative,

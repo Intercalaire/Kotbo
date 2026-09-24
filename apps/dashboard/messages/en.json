@@ -5972,6 +5972,8 @@
   "eco_max_daily_bets": "Games per day and per member",
   "eco_max_transfer": "Maximum amount per transfer",
   "eco_max_transfer_hint": "Applies to /rpg-pay.",
+  "eco_market_tax": "Marketplace tax (%)",
+  "eco_market_tax_hint": "Share of the price withheld from the seller on each sale (0 to 50). These coins are removed, which curbs inflation.",
   "eco_transfer_cd": "Delay between two transfers (minutes)",
   "eco_fight_timers_title": "Combat pacing",
   "eco_fight_timers_desc": "Waiting times between two fights. Monsters and bosses each have their own.",

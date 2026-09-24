@@ -2351,6 +2351,7 @@
   "mkt_sell_available": "{count} available",
   "mkt_sell_suggested_market": "Average market price: **{price}** {emoji} each, over {count} sale(s) in the last 30 days.",
   "mkt_sell_suggested_shop": "No recent sales: suggested price of **{price}** {emoji} each, based on the shop and the forge level.",
+  "mkt_sell_tax": "Market tax: {percent}% of the sale price is withheld when it sells.",
   "mkt_modal_fixed_title": "Fixed-price sale",
   "mkt_modal_auction_title": "Auction",
   "mkt_modal_unit_price": "Price per copy",

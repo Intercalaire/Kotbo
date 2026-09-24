@@ -154,6 +154,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     maxDailyBets: 20,
     maxTransferAmount: 5000,
     transferCooldownMin: 15,
+    marketplaceTaxPercent: 5,
     blackMarketEnabled: false,
     blackMarketIntervalDays: 7,
     blackMarketDurationMin: 120,
@@ -1808,6 +1809,12 @@ import EmojiText from '../lib/components/EmojiText.svelte';
             <div class="space-y-1.5">
               <label for="transferCd" class="text-xs font-semibold text-on-surface-variant/60">{m.eco_transfer_cd()}</label>
               <input id="transferCd" type="number" min="0" bind:value={config.transferCooldownMin} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="marketTax" class="text-xs font-semibold text-on-surface-variant/60">{m.eco_market_tax()}</label>
+              <input id="marketTax" type="number" min="0" max="50" bind:value={config.marketplaceTaxPercent} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <p class="text-2xs text-on-surface-variant/40">{m.eco_market_tax_hint()}</p>
             </div>
           </div>
         </div>

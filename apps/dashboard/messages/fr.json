@@ -5972,6 +5972,8 @@
   "eco_max_daily_bets": "Parties par jour et par membre",
   "eco_max_transfer": "Montant maximal par transfert",
   "eco_max_transfer_hint": "S'applique à /rpg-pay.",
+  "eco_market_tax": "Taxe de l'hôtel des ventes (%)",
+  "eco_market_tax_hint": "Part du prix retenue au vendeur à chaque vente (0 à 50). Ces pièces disparaissent, ce qui freine l'inflation.",
   "eco_transfer_cd": "Délai entre deux transferts (minutes)",
   "eco_fight_timers_title": "Rythme des combats",
   "eco_fight_timers_desc": "Délais imposés entre deux combats. Les monstres et les boss ont chacun le leur.",
