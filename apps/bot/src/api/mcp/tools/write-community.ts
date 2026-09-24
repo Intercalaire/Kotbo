@@ -247,7 +247,7 @@ export function registerWriteCommunityTools(ctx: McpToolContext) {
       },
       guard('WRITE_COMMUNITY', async ({ alert_id, action, note, key_name }) => {
         try {
-          const success = await resolveHealthAlert(alert_id, action, 'mcp_agent', note);
+          const success = await resolveHealthAlert(guildId, alert_id, action, 'mcp_agent', note);
           if (!success) return err('Alerte introuvable');
           await audit(key_name, 'Résolution alerte Channel Health MCP', alert_id, action);
           return ok({ ok: true, alertId: alert_id, action });

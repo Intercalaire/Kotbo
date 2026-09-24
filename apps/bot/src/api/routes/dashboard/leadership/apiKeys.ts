@@ -122,7 +122,8 @@ export async function handleApiKeyRoutes(
       if (method === 'DELETE' && parts[5]) {
         const keyId = parts[5];
         try {
-          const key = await prisma.aPIKey.findUnique({ where: { id: keyId } });
+          // Filtrée par serveur : un admin d'ici supprimait sinon la clé d'un autre serveur.
+          const key = await prisma.aPIKey.findFirst({ where: { id: keyId, guildId } });
           if (!key) {
             json(res, 404, { error: 'Clé API introuvable' });
             return true;

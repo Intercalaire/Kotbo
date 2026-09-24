@@ -128,8 +128,9 @@ export async function handleMembersRoutes(
           return true;
         }
 
-        const link = await prisma.linkedAccount.findUnique({
-          where: { id }
+        // Filtré par serveur : le lien d'un autre serveur se validait ou se supprimait sinon.
+        const link = await prisma.linkedAccount.findFirst({
+          where: { id, guildId }
         });
 
         if (!link) {
@@ -183,8 +184,9 @@ export async function handleMembersRoutes(
     if (parts.length === 6 && method === 'DELETE') {
       try {
         const id = parts[5];
-        const link = await prisma.linkedAccount.findUnique({
-          where: { id }
+        // Filtré par serveur : le lien d'un autre serveur se validait ou se supprimait sinon.
+        const link = await prisma.linkedAccount.findFirst({
+          where: { id, guildId }
         });
 
         if (!link) {

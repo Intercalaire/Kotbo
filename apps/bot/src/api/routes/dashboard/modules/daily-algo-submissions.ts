@@ -245,8 +245,10 @@ export async function handleDailyAlgoSubmissionsRoutes(ctx: ModuleRouteContext):
     if (parts.length === 6 && method === 'GET') {
       const submissionId = parts[5];
       try {
-        const submission = await prisma.dailyAlgoSubmission.findUnique({
-          where: { id: submissionId }
+        // La soumission est rattachée au serveur par son run : sans ce filtre, celle d'un autre
+        // serveur, solution comprise, se lisait en connaissant son identifiant.
+        const submission = await prisma.dailyAlgoSubmission.findFirst({
+          where: { id: submissionId, run: { guildId } }
         });
 
         if (!submission) {

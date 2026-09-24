@@ -36,11 +36,12 @@ const mockDb: any = new Proxy({}, {
       get(_t, method: string) {
         return async (args: any) => {
           const key = `${model}.${method}`;
+          const row = rows[key];
           if (WRITE_METHODS.has(method)) {
             writes.push(key);
+            if (row) return row(args);
             return method.endsWith('Many') ? { count: 1 } : {};
           }
-          const row = rows[key];
           if (row) return row(args);
           if (method === 'findMany') return [];
           if (method === 'count') return 0;
@@ -132,5 +133,41 @@ describe('accès entre serveurs', () => {
     const source = readFileSync(path.resolve(import.meta.dir, '../../api/routes/dashboard/modules/tickets.ts'), 'utf8');
     expect(source).not.toContain('prisma.ticket.findUnique({ where: { id: ticketId } })');
     expect(source.split('prisma.ticket.findFirst({ where: { id: ticketId, guildId } })').length - 1).toBe(9);
+  });
+
+  // Même garde, lue sur la source : ces routes passent d'abord par des contrôles de rôle qui
+  // interrogent Discord, et la vérification tient en une clause sur le serveur.
+  test('déclencheurs, clés API, comptes liés et soumissions sont filtrés par serveur', () => {
+    const read = (file: string) => readFileSync(path.resolve(import.meta.dir, '../../api/routes/dashboard', file), 'utf8');
+
+    const triggers = read('generalistModules.ts');
+    expect(triggers).toContain('prisma.autoResponse.findFirst({\n          where: { id, guildId },');
+    expect(triggers).toContain('prisma.autoResponse.deleteMany({\n          where: { id, guildId },');
+
+    expect(read('leadership/apiKeys.ts')).toContain('prisma.aPIKey.findFirst({ where: { id: keyId, guildId } })');
+
+    const members = read('members.ts');
+    expect(members).not.toContain('prisma.linkedAccount.findUnique({\n          where: { id }');
+    expect(members.split('prisma.linkedAccount.findFirst({\n          where: { id, guildId }').length - 1).toBe(2);
+
+    expect(read('modules/daily-algo-submissions.ts')).toContain('where: { id: submissionId, run: { guildId } }');
+  });
+
+  test('un sous-élément de partenariat doit appartenir au dossier du serveur', () => {
+    const source = readFileSync(path.resolve(import.meta.dir, '../../api/routes/dashboard/partnerships.ts'), 'utf8');
+    for (const model of ['partnershipAgreement', 'partnershipCommitment', 'partnershipPromotion', 'partnershipGuestAccess', 'partnershipPayment']) {
+      expect(source).toContain(`prisma.${model}.count({ where: scoped })`);
+    }
+    // Un pont ne se confirme que depuis le dossier distant.
+    expect(source).toContain("subAction === 'confirm'\n        ? { remotePartnershipId: partnershipId }");
+    expect(source).toContain('prisma.partnerContact.count({ where: { id: parts[7], partnerId } })');
+  });
+
+  test('une alerte de santé d\'un autre serveur ne se résout pas', async () => {
+    const { resolveHealthAlert } = await import('../../services/analytics/channelHealthService.js');
+    // Le mock ne trouve rien pour ce serveur : l'écriture filtrée ne touche aucune ligne.
+    rows['channelHealthAlert.updateMany'] = ({ where }) => ({ count: where.guildId === ELSEWHERE ? 1 : 0 });
+    expect(await resolveHealthAlert(HERE, 'alert-1', 'DISMISSED', 'staff-1')).toBe(false);
+    expect(await resolveHealthAlert(ELSEWHERE, 'alert-1', 'DISMISSED', 'staff-1')).toBe(true);
   });
 });

@@ -375,6 +375,18 @@ async function handlePartnerships(
     return true;
   }
 
+  // Le dossier est à ce serveur, mais le sous-élément visé (accord, engagement, paiement…)
+  // doit aussi être à ce dossier : les services le prennent par son seul identifiant, et
+  // celui d'un autre serveur se proposait, se réglait ou se supprimait depuis le nôtre.
+  const subresourceId = parts.length >= 8 ? parts[7] : undefined;
+  if (subresourceId) {
+    const belongs = await subresourceBelongsToPartnership(parts[6], subresourceId, partnershipId, parts[8]);
+    if (belongs === false) {
+      json(res, 404, { error: 'Élément introuvable' });
+      return true;
+    }
+  }
+
   // GET /partnerships/:id
   if (parts.length === 6 && method === 'GET') {
     const [detail, report, bridged] = await Promise.all([
@@ -738,6 +750,36 @@ async function handlePartnerships(
 
 // ─── /partners ───────────────────────────────────────────────────────────────
 
+/**
+ * Vrai si le sous-élément appartient au dossier, faux sinon, null pour une route qui ne
+ * désigne pas de sous-élément par identifiant (`benefits/apply`, par exemple).
+ *
+ * Un pont relie deux dossiers : il appartient aux deux, mais seul le dossier distant le
+ * confirme. Le confirmer depuis le dossier qui l'a proposé le rendrait unilatéral.
+ */
+async function subresourceBelongsToPartnership(
+  kind: string | undefined,
+  id: string,
+  partnershipId: string,
+  subAction: string | undefined,
+): Promise<boolean | null> {
+  const scoped = { id, partnershipId };
+  switch (kind) {
+    case 'agreements': return (await prisma.partnershipAgreement.count({ where: scoped })) > 0;
+    case 'commitments': return (await prisma.partnershipCommitment.count({ where: scoped })) > 0;
+    case 'promotions': return (await prisma.partnershipPromotion.count({ where: scoped })) > 0;
+    case 'guest-access': return (await prisma.partnershipGuestAccess.count({ where: scoped })) > 0;
+    case 'payments': return (await prisma.partnershipPayment.count({ where: scoped })) > 0;
+    case 'bridge': {
+      const side = subAction === 'confirm'
+        ? { remotePartnershipId: partnershipId }
+        : { OR: [{ localPartnershipId: partnershipId }, { remotePartnershipId: partnershipId }] };
+      return (await prisma.partnershipBridge.count({ where: { id, ...side } })) > 0;
+    }
+    default: return null;
+  }
+}
+
 async function handlePartners(
   req: IncomingMessage,
   res: ServerResponse,
@@ -866,6 +908,12 @@ async function handlePartners(
         representative: body.representative !== false,
       }),
     });
+    return true;
+  }
+  // Le contact doit appartenir à cette fiche, pas à celle d'un autre serveur.
+  if (parts.length === 8 && action === 'contacts'
+    && (await prisma.partnerContact.count({ where: { id: parts[7], partnerId } })) === 0) {
+    json(res, 404, { error: 'Contact introuvable' });
     return true;
   }
   if (parts.length === 8 && action === 'contacts' && method === 'PATCH') {

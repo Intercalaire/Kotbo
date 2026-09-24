@@ -1992,8 +1992,10 @@ export async function handleGeneralistModulesRoutes(
           return true;
         }
 
-        const existing = await prisma.autoResponse.findUnique({
-          where: { id },
+        // Filtré par serveur : un déclencheur d'un autre serveur, rôle à donner compris, se
+        // modifiait sinon en connaissant son identifiant.
+        const existing = await prisma.autoResponse.findFirst({
+          where: { id, guildId },
         });
 
         if (!existing) {
@@ -2063,9 +2065,13 @@ export async function handleGeneralistModulesRoutes(
     if (parts.length === 6 && method === 'DELETE') {
       const id = parts[5];
       try {
-        await prisma.autoResponse.delete({
-          where: { id },
+        const removed = await prisma.autoResponse.deleteMany({
+          where: { id, guildId },
         });
+        if (removed.count === 0) {
+          json(res, 404, { error: 'Déclencheur introuvable' });
+          return true;
+        }
         invalidateAutoResponseCache(guildId);
         json(res, 200, { success: true });
       } catch (err) {

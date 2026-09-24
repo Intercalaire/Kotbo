@@ -113,6 +113,7 @@ export async function handleChannelHealthRoutes(
       }
 
       const success = await resolveHealthAlert(
+        guildId,
         alertId,
         body.action as 'APPLIED' | 'DISMISSED',
         user.userId,
