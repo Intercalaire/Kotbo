@@ -25,6 +25,11 @@ export type ItemCatalogEntry = {
   crafted: boolean;
   /** Créatures dont le premier vainqueur le recevra : celles déjà battues n'offrent plus rien. */
   firstKill: string[];
+  /**
+   * Créatures dont la prime a déjà été remportée. L'objet n'est plus à gagner, mais il reste
+   * unique : il ne doit pas disparaître du catalogue dès que quelqu'un l'a obtenu.
+   */
+  firstKillClaimed: string[];
   campaign: boolean;
 };
 
@@ -41,7 +46,8 @@ function hasRegularSource(entry: ItemCatalogEntry): boolean {
  * premier vainqueur ou par la campagne.
  */
 export function isUniqueItem(entry: ItemCatalogEntry): boolean {
-  return !hasRegularSource(entry) && (entry.firstKill.length > 0 || entry.campaign);
+  return !hasRegularSource(entry)
+    && (entry.firstKill.length > 0 || entry.firstKillClaimed.length > 0 || entry.campaign);
 }
 
 /**
@@ -49,7 +55,7 @@ export function isUniqueItem(entry: ItemCatalogEntry): boolean {
  * campagne. Il n'arrive que par un drop d'animation ou la main d'un administrateur.
  */
 export function isUnavailableItem(entry: ItemCatalogEntry): boolean {
-  return !hasRegularSource(entry) && entry.firstKill.length === 0 && !entry.campaign;
+  return !hasRegularSource(entry) && !isUniqueItem(entry);
 }
 
 export function matchesSourceFilter(entry: ItemCatalogEntry, filter: ItemSourceFilter): boolean {
@@ -101,12 +107,13 @@ export async function getItemCatalog(guildId: string): Promise<ItemCatalogEntry[
   const droppedBy = new Map<string, string[]>();
   const droppedByBoss = new Map<string, string[]>();
   const firstKillOf = new Map<string, string[]>();
+  const firstKillClaimedOf = new Map<string, string[]>();
   for (const monster of monsters) {
     for (const drop of parseMonsterDrops(monster.drops)) {
       push(monster.isBoss ? droppedByBoss : droppedBy, drop.itemName, monster.name);
     }
-    if (monster.firstKillItemName && !firstKills.has(monster.name)) {
-      push(firstKillOf, monster.firstKillItemName, monster.name);
+    if (monster.firstKillItemName) {
+      push(firstKills.has(monster.name) ? firstKillClaimedOf : firstKillOf, monster.firstKillItemName, monster.name);
     }
   }
 
@@ -123,6 +130,7 @@ export async function getItemCatalog(guildId: string): Promise<ItemCatalogEntry[
     bosses: droppedByBoss.get(item.name) ?? [],
     crafted: craftedNames.has(item.name),
     firstKill: firstKillOf.get(item.name) ?? [],
+    firstKillClaimed: firstKillClaimedOf.get(item.name) ?? [],
     campaign: campaignNames.has(item.name),
   }));
 }

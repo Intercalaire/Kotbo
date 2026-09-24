@@ -1911,6 +1911,7 @@
   "rpg_itembook_source_unique": "Unique",
   "rpg_itembook_source_unavailable": "Indisponible",
   "rpg_itembook_first_kill": "Premier vainqueur : {names}",
+  "rpg_itembook_first_kill_claimed": "Déjà remporté (premier vainqueur : {names})",
   "rpg_itembook_details_btn": "Détails",
   "rpg_itembook_owned": "vous en avez {count}",
   "rpg_itembook_detail_sources": "Où l'obtenir",

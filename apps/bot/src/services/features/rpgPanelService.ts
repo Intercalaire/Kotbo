@@ -4205,6 +4205,7 @@ function itemProvenanceLine(entry: ItemCatalogEntry, currencyEmoji: string, loca
     entry.bosses.length > 0 ? `${icon('rpgBoss')} ${shortNameList(entry.bosses)}` : null,
     entry.crafted ? `${icon('rpgCraft')} ${m.rpg_itembook_source_craft({}, { locale })}` : null,
     entry.firstKill.length > 0 ? `🏆 ${m.rpg_itembook_first_kill({ names: shortNameList(entry.firstKill) }, { locale })}` : null,
+    entry.firstKillClaimed.length > 0 ? `🏅 ${m.rpg_itembook_first_kill_claimed({ names: shortNameList(entry.firstKillClaimed) }, { locale })}` : null,
     entry.campaign ? `${icon('rpgKey')} ${m.rpg_itembook_campaign({}, { locale })}` : null,
   ].filter((part): part is string => part !== null);
 
@@ -4396,6 +4397,7 @@ async function buildItemBookEntryView(
   }
   if (drops.length > 12) sources.push(`-# ${m.rpg_itembook_detail_more({ count: drops.length - 12 }, { locale })}`);
   if (entry.firstKill.length > 0) sources.push(`🏆 ${m.rpg_itembook_first_kill({ names: entry.firstKill.join(', ') }, { locale })}`);
+  if (entry.firstKillClaimed.length > 0) sources.push(`🏅 ${m.rpg_itembook_first_kill_claimed({ names: entry.firstKillClaimed.join(', ') }, { locale })}`);
   if (entry.campaign) sources.push(`${icon('rpgKey')} ${m.rpg_itembook_campaign({}, { locale })}`);
 
   if (sources.length > 0) {

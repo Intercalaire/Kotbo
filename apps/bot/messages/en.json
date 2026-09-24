@@ -1911,6 +1911,7 @@
   "rpg_itembook_source_unique": "Unique",
   "rpg_itembook_source_unavailable": "Unavailable",
   "rpg_itembook_first_kill": "First kill: {names}",
+  "rpg_itembook_first_kill_claimed": "Already claimed (first to defeat: {names})",
   "rpg_itembook_details_btn": "Details",
   "rpg_itembook_owned": "you own {count}",
   "rpg_itembook_detail_sources": "Where to get it",
