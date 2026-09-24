@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { pageTabItems } from '../lib/config/pageTabs';
@@ -9,6 +9,8 @@
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
+  import MemberSearchSelect from '../lib/components/MemberSearchSelect.svelte';
+  import UserDisplay from '../lib/components/UserDisplay.svelte';
   import { m, getLocale } from '../lib/i18n';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -22,6 +24,8 @@
     deleteBannedWord,
     toggleBannedWord,
     fetchGuildLanguage,
+    searchGuildMembers,
+    type GuildMemberSearchResult,
   } from '../lib/api';
 
   let unsubscribeRealtime: (() => void) | null = null;
@@ -88,7 +92,33 @@
   });
 
   let newWhitelistItem = $state('');
+  // Membre choisi dans le menu deroulant : il est exempte des qu'il est choisi.
   let newBypassItem = $state('');
+  // Pseudo et avatar des membres exemptes, pour ne plus afficher des identifiants bruts.
+  let bypassMembers = $state<Record<string, GuildMemberSearchResult>>({});
+
+  $effect(() => {
+    const picked = newBypassItem;
+    if (picked) untrack(() => addBypassItem());
+  });
+
+  $effect(() => {
+    const ids = bypass;
+    untrack(() => resolveBypassMembers(ids));
+  });
+
+  async function resolveBypassMembers(ids: string[]) {
+    const missing = ids.filter((id) => !bypassMembers[id]);
+    if (missing.length === 0) return;
+    // La recherche accepte un identifiant : elle rend le membre qu'il designe.
+    const found = await Promise.all(missing.map(async (id) => {
+      const results = await searchGuildMembers(id, 1).catch(() => []);
+      return results.find((member) => member.id === id) ?? null;
+    }));
+    const next = { ...bypassMembers };
+    for (const member of found) if (member) next[member.id] = member;
+    bypassMembers = next;
+  }
 
   const saveToggleAction = createAsyncActionState();
   const wordAction = createAsyncActionState();
@@ -327,6 +357,8 @@
   async function addBypassItem() {
     const trimmed = newBypassItem.trim();
     if (!trimmed) return;
+    // Le menu se vide aussitot : il sert a choisir le membre suivant.
+    newBypassItem = '';
     if (bypass.includes(trimmed)) {
       exceptionAction.setError(m.nm_bypass_exists());
       return;
@@ -343,7 +375,6 @@
         const ok = await updateNicknameModerationConfig({ bypass: updatedBypass });
         if (!ok) throw new Error(m.nm_error_api());
         bypass = updatedBypass;
-        newBypassItem = '';
         return true;
       },
       { successMessage: m.nm_bypass_added({ id: trimmed }) }
@@ -382,9 +413,6 @@
     if (e.key === 'Enter') { e.preventDefault(); addWhitelistItem(); }
   }
 
-  function handleBypassKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter') { e.preventDefault(); addBypassItem(); }
-  }
 </script>
 
 <ModulePage
@@ -737,28 +765,23 @@
             </p>
           </div>
 
-          <div class="flex gap-2">
-            <input
-              type="text"
-              bind:value={newBypassItem}
-              onkeydown={handleBypassKeydown}
-              placeholder={m.nm_bypass_placeholder()}
-              class="flex-1 min-w-0 bg-surface-container/60 border border-outline-variant/30 rounded-lg px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 transition-all"
-            />
-            <button
-              onclick={addBypassItem}
-              disabled={!newBypassItem.trim() || exceptionAction.state.loading}
-              class="shrink-0 px-5 py-3 bg-primary text-white rounded-lg text-sm font-bold transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-40"
-            >
-              {m.nm_add()}
-            </button>
-          </div>
+          <MemberSearchSelect
+            id="nm-bypass-member"
+            bind:value={newBypassItem}
+            placeholder={m.nm_bypass_placeholder()}
+            disabled={exceptionAction.state.loading}
+          />
 
           {#if bypass.length > 0}
             <div class="flex flex-wrap gap-2 p-4 rounded-lg bg-surface-container/20 border border-outline-variant/10">
               {#each bypass as item}
-                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-secondary/10 text-on-secondary-container border border-secondary/20 font-mono">
-                  {item}
+                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-secondary/10 text-on-secondary-container border border-secondary/20">
+                  <UserDisplay
+                    userId={item}
+                    name={bypassMembers[item]?.displayName || bypassMembers[item]?.username || null}
+                    avatarUrl={bypassMembers[item]?.avatarUrl ?? null}
+                    size="xs"
+                  />
                   <button
                     onclick={() => removeBypassItem(item)}
                     disabled={exceptionAction.state.loading}
