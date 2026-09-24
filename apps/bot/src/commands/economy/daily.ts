@@ -3,6 +3,7 @@ import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags, EmbedBuilder } from 'discord.js';
 import { claimDaily, getOrCreateEconomyConfig } from '../../services/features/economyService.js';
 import { errorEmbed, COLORS } from '../../utils/embeds.js';
+import { dailyStreakLine } from '../../services/features/rpgPanelService.js';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
@@ -39,7 +40,10 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     const embed = new EmbedBuilder()
       .setTitle(m.b2_daily_reward_title({}, { locale }))
       .setDescription(m.b2_daily_reward_desc({ reward: result.reward ?? 0, emoji: config.currencyEmoji, name: config.currencyName }, { locale }))
-      .addFields({ name: m.b2_daily_new_balance({}, { locale }), value: `**${result.newBalance}** ${config.currencyEmoji}` })
+      .addFields(
+        { name: m.b2_daily_new_balance({}, { locale }), value: `**${result.newBalance}** ${config.currencyEmoji}` },
+        { name: m.rpg_daily_streak_name({}, { locale }), value: dailyStreakLine(result.streak ?? 1, result.streakBonusPercent ?? 0, locale) },
+      )
       .setColor(COLORS.success)
       .setTimestamp();
 

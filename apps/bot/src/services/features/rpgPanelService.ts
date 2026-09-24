@@ -3748,6 +3748,13 @@ async function handleTravelEventChoice(interaction: ButtonInteraction, guildId: 
 // Daily & Pêche (actions instantanées)
 // ─────────────────────────────────────────────────────────────
 
+/** Ligne de série affichée sous la récompense journalière, ici comme dans `/daily`. */
+export function dailyStreakLine(streak: number, bonusPercent: number, locale: Locale): string {
+  return streak <= 1
+    ? m.rpg_daily_streak_start({}, { locale })
+    : m.rpg_daily_streak_value({ streak, bonus: bonusPercent }, { locale });
+}
+
 async function handleDailyClaim(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
   const config = await getOrCreateEconomyConfig(guildId);
   const result = await claimDaily(guildId, ownerId);
@@ -3763,7 +3770,10 @@ async function handleDailyClaim(interaction: ButtonInteraction, guildId: string,
   await trackQuest(interaction.client, guildId, ownerId, 'DAILY_CLAIMS');
 
   const embed = successEmbed(m.rpg_daily_title({}, { locale }), m.rpg_daily_desc({ reward: result.reward ?? 0, emoji: config.currencyEmoji, currency: config.currencyName }, { locale }))
-    .addFields({ name: m.rpg_daily_new_balance({}, { locale }), value: `**${result.newBalance}** ${config.currencyEmoji}` });
+    .addFields(
+      { name: m.rpg_daily_new_balance({}, { locale }), value: `**${result.newBalance}** ${config.currencyEmoji}` },
+      { name: m.rpg_daily_streak_name({}, { locale }), value: dailyStreakLine(result.streak ?? 1, result.streakBonusPercent ?? 0, locale) },
+    );
 
   await respond(interaction, { embeds: [embed], components: [backRow(ownerId, locale)] });
 }

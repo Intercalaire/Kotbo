@@ -159,6 +159,8 @@ model RpgProfile {
   // Économie de base
   balance   Int      @default(0)
   lastDaily DateTime?
+  // Jours de /daily réclamés d'affilée : chaque jour de série majore la récompense.
+  dailyStreak Int @default(0)
   lastWork  DateTime?
 
   // Statistiques RPG.

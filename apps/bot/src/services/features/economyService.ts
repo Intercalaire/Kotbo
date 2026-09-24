@@ -7,6 +7,7 @@ import { STAT_POINTS_PER_LEVEL } from './rpg/rpgProgressionService.js';
 import { SKILL_POINTS_PER_LEVEL } from './rpg/rpgSkillTree.js';
 import { loadGuildPerksForMember } from './rpg/rpgGuildBuildingService.js';
 import { discountedPrice } from './rpg/rpgGuildBuildings.js';
+import { applyDailyStreak, dailyStreakBonus, nextDailyStreak } from './rpg/rpgDailyStreakPolicy.js';
 import {
   ALL_EQUIPMENT_SLOTS,
   SLOT_ITEM_FIELD,
@@ -326,8 +327,12 @@ export async function claimDaily(guildId: string, userId: string) {
     }
   }
 
-  const reward = Math.floor(Math.random() * (config.dailyRewardMax - config.dailyRewardMin + 1)) + config.dailyRewardMin;
+  const baseReward = Math.floor(Math.random() * (config.dailyRewardMax - config.dailyRewardMin + 1)) + config.dailyRewardMin;
+  const streak = nextDailyStreak(profile.lastDaily, profile.dailyStreak ?? 0, now, cooldownMs);
+  const reward = applyDailyStreak(baseReward, streak);
 
+  // La condition sur `lastDaily` garde la réclamation atomique : deux clics simultanés ne
+  // comptent qu'une fois, et la série lue plus haut est celle qu'elle prolonge.
   const claimed = await prisma.rpgProfile.updateMany({
     where: {
       id: profile.id,
@@ -338,7 +343,8 @@ export async function claimDaily(guildId: string, userId: string) {
     },
     data: {
       balance: { increment: reward },
-      lastDaily: now
+      lastDaily: now,
+      dailyStreak: streak
     }
   });
 
@@ -366,6 +372,9 @@ export async function claimDaily(guildId: string, userId: string) {
     success: true,
     cooldown: false,
     reward,
+    baseReward,
+    streak,
+    streakBonusPercent: Math.round(dailyStreakBonus(streak) * 100),
     newBalance: updated?.balance ?? profile.balance + reward
   };
 }
