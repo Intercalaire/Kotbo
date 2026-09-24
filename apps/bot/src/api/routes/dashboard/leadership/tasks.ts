@@ -142,7 +142,7 @@ export async function handleTaskRoutes(
           if (body?.dueDate !== undefined) updateData.dueDate = body.dueDate ? new Date(body.dueDate) : null;
           if (body?.assigneeId) updateData.assigneeId = body.assigneeId;
 
-          const task = await updateTask(taskId, updateData);
+          const task = await updateTask(guildId, taskId, updateData);
 
           await pushAudit(guildId, {
             user: auditUser,
@@ -157,7 +157,8 @@ export async function handleTaskRoutes(
           json(res, 200, { task });
         } catch (err: unknown) {
           logger.error('StaffAPI', 'Error updating task:', err);
-          json(res, 500, { error: errorMessage(err) || 'Erreur lors de la mise à jour de la tâche' });
+          // Une tâche d'un autre serveur lève l'erreur « introuvable » de Prisma : 404, pas 500.
+          jsonFailure(res, err, 'Erreur lors de la mise à jour de la tâche', 'StaffAPI');
         }
         return true;
       }
@@ -166,7 +167,7 @@ export async function handleTaskRoutes(
       if (parts.length === 6 && method === 'DELETE') {
         const taskId = parts[5];
         try {
-          await deleteTask(taskId);
+          await deleteTask(guildId, taskId);
 
           await pushAudit(guildId, {
             user: auditUser,

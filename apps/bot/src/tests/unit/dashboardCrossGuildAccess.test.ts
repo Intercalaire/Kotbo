@@ -16,6 +16,8 @@ const ELSEWHERE = 'guild-elsewhere';
 
 /** Les écritures reçues, par « modèle.méthode ». */
 let writes: string[] = [];
+/** Le filtre `where` de chaque écriture, pour vérifier qu'il porte le serveur. */
+let writeWheres: Array<{ key: string; where: any }> = [];
 
 const rows: Record<string, (args: any) => unknown> = {
   // Chaque élément appartient à l'autre serveur : un filtre sur `guildId: HERE` ne le trouve pas.
@@ -24,6 +26,9 @@ const rows: Record<string, (args: any) => unknown> = {
   'event.findFirst': ({ where }) => (where.guildId === ELSEWHERE ? { id: where.id } : null),
   'event.findUnique': ({ where }) => ({ id: where.id, guildId: ELSEWHERE }),
   'staffServerLink.findUnique': () => ({ id: 'link-1', mainGuildId: ELSEWHERE, staffGuildId: 'guild-staff-elsewhere' }),
+  'staffPoll.findFirst': ({ where }) => (where.guildId === ELSEWHERE
+    ? { status: 'OPEN', closesAt: null, options: [{ id: 'opt-1' }] }
+    : null),
   'guildInvite.findFirst': ({ where }) => (where.guildId === ELSEWHERE ? { code: where.code } : null),
 };
 
@@ -39,6 +44,7 @@ const mockDb: any = new Proxy({}, {
           const row = rows[key];
           if (WRITE_METHODS.has(method)) {
             writes.push(key);
+            writeWheres.push({ key, where: args?.where });
             if (row) return row(args);
             return method.endsWith('Many') ? { count: 1 } : {};
           }
@@ -86,7 +92,7 @@ function moduleCtx(method: string, parts: string[], body?: unknown): any {
   };
 }
 
-beforeEach(() => { writes = []; });
+beforeEach(() => { writes = []; writeWheres = []; });
 
 describe('accès entre serveurs', () => {
   test('un événement d\'un autre serveur ne se modifie ni ne se supprime', async () => {
@@ -169,5 +175,33 @@ describe('accès entre serveurs', () => {
     rows['channelHealthAlert.updateMany'] = ({ where }) => ({ count: where.guildId === ELSEWHERE ? 1 : 0 });
     expect(await resolveHealthAlert(HERE, 'alert-1', 'DISMISSED', 'staff-1')).toBe(false);
     expect(await resolveHealthAlert(ELSEWHERE, 'alert-1', 'DISMISSED', 'staff-1')).toBe(true);
+  });
+
+  test('tâches, notes manager et clés API ne s\'écrivent que filtrées par serveur', async () => {
+    const leadership = await import('../../services/staff/staffLeadershipService.js');
+    const management = await import('../../services/staff/staffManagementService.js');
+
+    await leadership.updateTask(HERE, 'task-1', { title: 'x' });
+    await leadership.deleteTask(HERE, 'task-1');
+    await leadership.deleteManagerNote(HERE, 'note-1');
+    await management.deleteAPIKey(HERE, 'key-1');
+
+    expect(writeWheres).toEqual([
+      { key: 'staffTask.update', where: { id: 'task-1', guildId: HERE } },
+      { key: 'staffTask.delete', where: { id: 'task-1', guildId: HERE } },
+      { key: 'staffManagerNote.delete', where: { id: 'note-1', guildId: HERE } },
+      { key: 'aPIKey.update', where: { id: 'key-1', guildId: HERE } },
+    ]);
+  });
+
+  test('on ne vote pas au sondage d\'un autre serveur, ni pour une option hors sondage', async () => {
+    const { castPollVote } = await import('../../services/staff/staffLeadershipService.js');
+
+    await expect(castPollVote(HERE, 'poll-1', 'staff-1', 'opt-1')).rejects.toThrow('Sondage introuvable.');
+    await expect(castPollVote(ELSEWHERE, 'poll-1', 'staff-1', 'opt-autre')).rejects.toThrow('Option introuvable.');
+    expect(writes).toEqual([]);
+
+    await castPollVote(ELSEWHERE, 'poll-1', 'staff-1', 'opt-1');
+    expect(writes).toEqual(['staffPollVote.upsert']);
   });
 });

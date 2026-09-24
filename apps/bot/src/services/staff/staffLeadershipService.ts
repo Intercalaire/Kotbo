@@ -1019,9 +1019,12 @@ export const createManagerNote = async (
   return note;
 };
 
-export const deleteManagerNote = async (id: string) => {
+// Les écritures par identifiant portent aussi le serveur : sans lui, le staff (ou une clé
+// MCP) d'un autre serveur supprimait ou modifiait l'élément d'ici en connaissant son id.
+// Un élément hors serveur lève l'erreur « introuvable » de Prisma, rendue en 404.
+export const deleteManagerNote = async (guildId: string, id: string) => {
   return prisma.staffManagerNote.delete({
-    where: { id }
+    where: { id, guildId }
   });
 };
 
@@ -1087,11 +1090,24 @@ export const createPoll = async (
 };
 
 export const castPollVote = async (
+  guildId: string,
   pollId: string,
   staffUserId: string,
   optionId: string,
   weight: number = 1.0
 ) => {
+  // Le sondage doit être de ce serveur et ouvert, et l'option doit lui appartenir : le
+  // dashboard le vérifiait déjà, l'outil MCP non.
+  const poll = await prisma.staffPoll.findFirst({
+    where: { id: pollId, guildId },
+    select: { status: true, closesAt: true, options: { select: { id: true } } },
+  });
+  if (!poll) throw new Error('Sondage introuvable.');
+  if (poll.status !== 'OPEN' || (poll.closesAt && poll.closesAt.getTime() <= Date.now())) {
+    throw new Error('Ce sondage est clos.');
+  }
+  if (!poll.options.some((option) => option.id === optionId)) throw new Error('Option introuvable.');
+
   return prisma.staffPollVote.upsert({
     where: { pollId_staffUserId: { pollId, staffUserId } },
     update: {
@@ -2034,6 +2050,7 @@ export const createTask = async (
 };
 
 export const updateTask = async (
+  guildId: string,
   id: string,
   data: {
     title?: string;
@@ -2045,7 +2062,7 @@ export const updateTask = async (
   }
 ) => {
   return prisma.staffTask.update({
-    where: { id },
+    where: { id, guildId },
     data,
     include: {
       assignee: true,
@@ -2054,6 +2071,6 @@ export const updateTask = async (
   });
 };
 
-export const deleteTask = async (id: string) => {
-  return prisma.staffTask.delete({ where: { id } });
+export const deleteTask = async (guildId: string, id: string) => {
+  return prisma.staffTask.delete({ where: { id, guildId } });
 };

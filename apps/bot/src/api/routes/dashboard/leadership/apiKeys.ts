@@ -134,7 +134,7 @@ export async function handleApiKeyRoutes(
             return true;
           }
 
-          await deleteAPIKey(keyId);
+          await deleteAPIKey(guildId, keyId);
 
           await pushAudit(guildId, {
             user: user.username ?? `User${user.userId}`,

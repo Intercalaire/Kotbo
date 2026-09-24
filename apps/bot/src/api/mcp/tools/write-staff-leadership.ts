@@ -275,7 +275,7 @@ export function registerWriteStaffLeadershipTools(ctx: McpToolContext) {
         if (!voter.ok) return voter.response;
 
         try {
-          const vote = await castPollVote(poll_id, voter.staffMember.id, option_id);
+          const vote = await castPollVote(guildId, poll_id, voter.staffMember.id, option_id);
           return ok({ ok: true, vote });
         } catch (e) {
           return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
@@ -366,7 +366,7 @@ export function registerWriteStaffLeadershipTools(ctx: McpToolContext) {
             if (!assigneeMember.ok) return assigneeMember.response;
             updateData.assigneeId = assigneeMember.staffMember.id;
           }
-          const task = await updateTask(task_id, updateData);
+          const task = await updateTask(guildId, task_id, updateData);
           return ok({ ok: true, task });
         } catch (e) {
           return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
@@ -383,7 +383,7 @@ export function registerWriteStaffLeadershipTools(ctx: McpToolContext) {
       },
       guard('WRITE_MEMBERS', async ({ task_id }) => {
         try {
-          await deleteTask(task_id);
+          await deleteTask(guildId, task_id);
           return ok({ ok: true, taskId: task_id });
         } catch (e) {
           return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
@@ -793,7 +793,7 @@ export function registerWriteStaffLeadershipTools(ctx: McpToolContext) {
       },
       guard('WRITE_MEMBERS', async ({ key_id }) => {
         try {
-          const key = await deleteAPIKey(key_id);
+          const key = await deleteAPIKey(guildId, key_id);
           return ok({ ok: true, key });
         } catch (e) {
           return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
@@ -836,7 +836,7 @@ export function registerWriteStaffLeadershipTools(ctx: McpToolContext) {
       },
       guard('WRITE_MEMBERS', async ({ note_id }) => {
         try {
-          await deleteManagerNote(note_id);
+          await deleteManagerNote(guildId, note_id);
           return ok({ ok: true, noteId: note_id });
         } catch (e) {
           return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);

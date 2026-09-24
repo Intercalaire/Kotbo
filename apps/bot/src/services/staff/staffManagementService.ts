@@ -1232,9 +1232,10 @@ export const getAPIKeys = async (guildId: string, createdByUserId?: string) => {
   });
 };
 
-export const deleteAPIKey = async (id: string) => {
+export const deleteAPIKey = async (guildId: string, id: string) => {
+  // Filtrée par serveur : une clé d'un autre serveur lève l'erreur « introuvable ».
   return prisma.aPIKey.update({
-    where: { id },
+    where: { id, guildId },
     data: { isActive: false },
   });
 };
