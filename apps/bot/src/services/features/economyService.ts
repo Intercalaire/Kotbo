@@ -245,12 +245,6 @@ export function isItemEquipped(profile: SlottedProfile, itemId: string): boolean
  * laissant le surplus bloqué jusqu'au prochain gain d'XP.
  */
 export async function checkLevelUp(guildId: string, userId: string) {
-  const profile = await prisma.rpgProfile.findUnique({
-    where: { guildId_userId: { guildId, userId } }
-  });
-
-  if (!profile) return null;
-
   // Croissance automatique volontairement faible (+1 par stat) : l'essentiel de la
   // progression passe désormais par les points à répartir, qui rendent chaque personnage
   // différent au lieu de faire monter tout le monde sur la même courbe.
@@ -258,46 +252,62 @@ export async function checkLevelUp(guildId: string, userId: string) {
   const MAX_HEALTH_INCREASE = 8;
   const MAX_LEVELS_PER_CALL = 100; // garde-fou contre une boucle infinie sur données corrompues
 
-  let level = profile.level;
-  let xp = profile.xp;
-  let gained = 0;
+  // Tout s'écrit par incrément, sous condition que le niveau n'ait pas bougé depuis la
+  // lecture : réécrire l'XP et les stats lues effaçait un gain d'XP ou un point investi
+  // entre-temps, et deux montées simultanées se seraient accordées deux fois. Si la
+  // condition échoue, un autre appel est passé : on relit et on recommence.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const profile = await prisma.rpgProfile.findUnique({
+      where: { guildId_userId: { guildId, userId } }
+    });
 
-  while (xp >= xpRequiredForLevel(level) && gained < MAX_LEVELS_PER_CALL) {
-    xp -= xpRequiredForLevel(level);
-    level += 1;
-    gained += 1;
+    if (!profile) return null;
+
+    let level = profile.level;
+    let consumedXp = 0;
+    let gained = 0;
+
+    while (profile.xp - consumedXp >= xpRequiredForLevel(level) && gained < MAX_LEVELS_PER_CALL) {
+      consumedXp += xpRequiredForLevel(level);
+      level += 1;
+      gained += 1;
+    }
+
+    if (gained === 0) return null;
+
+    const applied = await prisma.rpgProfile.updateMany({
+      where: { id: profile.id, level: profile.level, xp: { gte: consumedXp } },
+      data: {
+        level: { increment: gained },
+        xp: { decrement: consumedXp },
+        maxHealth: { increment: MAX_HEALTH_INCREASE * gained },
+        attack: { increment: AUTO_STATS_INCREASE * gained },
+        defense: { increment: AUTO_STATS_INCREASE * gained },
+        speed: { increment: AUTO_STATS_INCREASE * gained },
+        statPoints: { increment: STAT_POINTS_PER_LEVEL * gained },
+        // Deux monnaies de progression distinctes : les points de caractéristiques montent
+        // les stats de base, les points de compétence achètent des nœuds d'arbre. Les
+        // confondre ferait de l'arbre un second curseur de statistiques.
+        skillPoints: { increment: SKILL_POINTS_PER_LEVEL * gained }
+      }
+    });
+    if (applied.count === 0) continue;
+
+    const leveled = await prisma.rpgProfile.findUnique({ where: { id: profile.id } });
+    if (!leveled) return level;
+
+    // Le soin complet vise les PV max effectifs : `maxHealth` ne porte que la base, et y
+    // plafonner laissait de côté ce qu'apportent équipement, enchantements, arbre et titre.
+    // Calculé après la montée, qui peut ouvrir un emplacement d'accessoire.
+    const { loadEffectiveStats } = await import('./combatService.js');
+    const { maxHealth } = await loadEffectiveStats(leveled);
+    await prisma.rpgProfile.update({ where: { id: profile.id }, data: { health: maxHealth } });
+
+    logger.info('EconomyService', `Player ${userId} leveled up to Level ${level} in Guild ${guildId}`);
+    return level;
   }
 
-  if (gained === 0) return null;
-
-  const newMaxHealth = profile.maxHealth + MAX_HEALTH_INCREASE * gained;
-
-  const leveled = await prisma.rpgProfile.update({
-    where: { id: profile.id },
-    data: {
-      level,
-      xp,
-      maxHealth: newMaxHealth,
-      attack: profile.attack + AUTO_STATS_INCREASE * gained,
-      defense: profile.defense + AUTO_STATS_INCREASE * gained,
-      speed: profile.speed + AUTO_STATS_INCREASE * gained,
-      statPoints: { increment: STAT_POINTS_PER_LEVEL * gained },
-      // Deux monnaies de progression distinctes : les points de caractéristiques montent
-      // les stats de base, les points de compétence achètent des nœuds d'arbre. Les
-      // confondre ferait de l'arbre un second curseur de statistiques.
-      skillPoints: { increment: SKILL_POINTS_PER_LEVEL * gained }
-    }
-  });
-
-  // Le soin complet vise les PV max effectifs : `maxHealth` ne porte que la base, et y
-  // plafonner laissait de côté ce qu'apportent équipement, enchantements, arbre et titre.
-  // Calculé après la montée, qui peut ouvrir un emplacement d'accessoire.
-  const { loadEffectiveStats } = await import('./combatService.js');
-  const { maxHealth } = await loadEffectiveStats(leveled);
-  await prisma.rpgProfile.update({ where: { id: profile.id }, data: { health: maxHealth } });
-
-  logger.info('EconomyService', `Player ${userId} leveled up to Level ${level} in Guild ${guildId}`);
-  return level;
+  return null;
 }
 
 /**

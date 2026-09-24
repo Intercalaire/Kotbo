@@ -127,6 +127,8 @@ const rpgProfile = {
     if (where?.balance?.gte !== undefined && profile.balance < where.balance.gte) return { count: 0 };
     if (where?.statPoints?.gte !== undefined && profile.statPoints < where.statPoints.gte) return { count: 0 };
     if (where?.className !== undefined && where.className !== profile.className) return { count: 0 };
+    if (typeof where?.level === 'number' && where.level !== profile.level) return { count: 0 };
+    if (where?.xp?.gte !== undefined && profile.xp < where.xp.gte) return { count: 0 };
     applyData(profile, data);
     return { count: 1 };
   }),
@@ -305,6 +307,34 @@ describe('checkLevelUp', () => {
 
     expect(profile.maxHealth).toBe(108);
     expect(profile.health).toBe(138);
+  });
+
+  test('garde un gain d XP ou un point investi arrivé pendant la montée', async () => {
+    profile.xp = 150;
+    profile.attack = 10;
+    // Entre la lecture et l'écriture, le joueur gagne 30 XP et investit un point en attaque.
+    rpgProfile.findUnique.mockImplementationOnce(async () => {
+      const snapshot = { ...profile };
+      profile.xp += 30;
+      profile.attack += 1;
+      return snapshot;
+    });
+
+    await checkLevelUp('guild-1', 'user-1');
+
+    expect(profile.level).toBe(2);
+    expect(profile.xp).toBe(80); // 150 + 30 - 100 : le gain n'est pas effacé
+    expect(profile.attack).toBe(12); // 10 + 1 investi + 1 automatique
+  });
+
+  test('deux montées simultanées n accordent le niveau qu une fois', async () => {
+    profile.xp = 100;
+
+    await Promise.all([checkLevelUp('guild-1', 'user-1'), checkLevelUp('guild-1', 'user-1')]);
+
+    expect(profile.level).toBe(2);
+    expect(profile.xp).toBe(0);
+    expect(profile.statPoints).toBe(3);
   });
 
   test('ne fait rien tant que le palier n est pas atteint', async () => {
