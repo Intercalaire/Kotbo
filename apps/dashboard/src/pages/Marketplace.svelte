@@ -8,6 +8,7 @@
   import { toast } from '../lib/stores/toast.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import UserDisplay from '../lib/components/UserDisplay.svelte';
   import { m } from '../lib/i18n';
 
   let loading = $state(true);
@@ -174,10 +175,12 @@
 
             <!-- Footer: seller -->
             <div class="pt-3 border-t border-outline-variant/10">
-              <span class="flex items-center gap-1.5 font-mono text-xs text-on-surface-variant/60">
-                <Papicon icon="user" size={12} />
-                {listing.sellerId}
-              </span>
+              <UserDisplay
+                userId={listing.sellerId}
+                name={data.members?.[listing.sellerId]?.displayName ?? null}
+                avatarUrl={data.members?.[listing.sellerId]?.avatarUrl ?? null}
+                size="xs"
+              />
             </div>
           </div>
         {/each}
@@ -204,17 +207,21 @@
 
             <!-- Flow: seller -> buyer -->
             <div class="flex items-center gap-2 flex-1">
-              <div class="flex items-center gap-1.5">
-                <Papicon icon="user" size={13} />
-                <span class="font-mono text-xs text-on-surface-variant">{tx.sellerId}</span>
-              </div>
+              <UserDisplay
+                userId={tx.sellerId}
+                name={data.members?.[tx.sellerId]?.displayName ?? null}
+                avatarUrl={data.members?.[tx.sellerId]?.avatarUrl ?? null}
+                size="xs"
+              />
               <div class="text-primary flex items-center">
                 <Papicon icon="arrow-right" size={16} />
               </div>
-              <div class="flex items-center gap-1.5">
-                <Papicon icon="user" size={13} />
-                <span class="font-mono text-xs text-on-surface-variant">{tx.buyerId}</span>
-              </div>
+              <UserDisplay
+                userId={tx.buyerId}
+                name={data.members?.[tx.buyerId]?.displayName ?? null}
+                avatarUrl={data.members?.[tx.buyerId]?.avatarUrl ?? null}
+                size="xs"
+              />
             </div>
 
             <!-- Price + date -->
