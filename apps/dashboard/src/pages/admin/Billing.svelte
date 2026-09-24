@@ -25,21 +25,14 @@
   let busyIds = $state<string[]>([]);
   let drafts = $state<Record<string, AdminPlanKey>>({});
   let reasons = $state<Record<string, string>>({});
-  // Les serveurs que le bot a quittés restent en base, mais la plupart n'ont plus rien à
-  // facturer : masqués par défaut, ils encombraient la liste. Ceux qui paient ou ont encore
-  // un accès restent visibles, ce sont justement ceux à surveiller.
+  // Les serveurs que le bot a quittés restent en base et encombraient la liste : ils sont
+  // masqués par défaut, accès actif compris. Seuls ceux qui ont encore un abonnement Stripe
+  // restent visibles : ils paient alors que le bot n'y est plus, c'est à surveiller.
   let showAbsent = $state(false);
 
-  function stillBillable(guild: AdminBillingGuild): boolean {
-    return Boolean(guild.stripeSubscriptionId)
-      || guild.activated
-      || guild.plan !== 'FREE'
-      || (guild.trial !== null && !guild.trial.consumed);
-  }
-
-  /** Serveur quitté par le bot et sans rien de facturable : masqué tant que la case est décochée. */
+  /** Serveur quitté par le bot et sans abonnement Stripe : masqué tant que le bouton est éteint. */
   function isIdleAbsent(guild: AdminBillingGuild): boolean {
-    return !guild.present && !stillBillable(guild);
+    return !guild.present && !guild.stripeSubscriptionId;
   }
 
   const guilds = $derived(billingState?.guilds ?? []);
@@ -163,7 +156,7 @@
           type="button"
           onclick={() => (showAbsent = !showAbsent)}
           aria-pressed={showAbsent}
-          title="Serveurs que le bot a quittés, sans abonnement, accès ni essai en cours"
+          title="Serveurs que le bot a quittés et qui n'ont pas d'abonnement Stripe"
           class="h-10 px-3 rounded-xl border text-xs font-medium transition {showAbsent
             ? 'bg-primary/10 border-primary/40 text-primary'
             : 'bg-surface-container-low/70 border-outline-variant/25 text-on-surface-variant hover:text-on-surface'}"
