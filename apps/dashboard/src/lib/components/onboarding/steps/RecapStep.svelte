@@ -138,7 +138,7 @@
       {m.onb_recap_title()}
     </h1>
     <p class="mt-3 text-[15.5px] text-on-surface-variant/70">
-      {m.onb_recap_lead({ server: selectedGuild?.name ?? 'votre serveur' })}
+      {m.onb_recap_lead({ server: selectedGuild?.name ?? 'ton serveur' })}
     </p>
   </div>
 
@@ -158,7 +158,7 @@
           <p class="text-[26px] font-semibold leading-none text-on-surface">
             <CountUp value={tile.value} />
           </p>
-          <p class="mt-1.5 text-[12px] text-on-surface-variant/55">{tile.label}</p>
+          <p class="mt-1.5 text-xs text-on-surface-variant/55">{tile.label}</p>
         </div>
       {/each}
     </div>
@@ -174,24 +174,24 @@
           <span class="w-6 h-6 shrink-0 rounded-md bg-primary/10 text-primary flex items-center justify-center">
             <Papicon icon={line.icon} size={12} />
           </span>
-          <span class="text-[13.5px] font-medium text-on-surface flex-1 min-w-0 truncate">{line.label}</span>
-          <span class="text-[12.5px] text-on-surface-variant/55 shrink-0">{line.value}</span>
-          <Papicon icon="check" size={13} class="shrink-0 text-emerald-500" />
+          <span class="text-body-sm font-medium text-on-surface flex-1 min-w-0 truncate">{line.label}</span>
+          <span class="text-xs text-on-surface-variant/55 shrink-0">{line.value}</span>
+          <Papicon icon="check" size={13} class="shrink-0 text-success" />
         </div>
       {/each}
     </div>
   {/if}
 
-  <p class="mt-5 text-center text-[13.5px] text-on-surface-variant/55">
+  <p class="mt-5 text-center text-body-sm text-on-surface-variant/55">
     {m.onb_recap_settings({ count: settingsCount, minutes: wizard.elapsedMinutes })}
   </p>
 
   {#if dormant.length}
     <section class="mt-10">
-      <h2 class="text-[13px] font-semibold text-on-surface">Laissé de côté</h2>
-      <p class="mt-1 text-[12.5px] text-on-surface-variant/50">
-        Vous avez écarté le salon qui les porte. Rien n'est perdu : chacun s'allume depuis
-        sa page du tableau de bord, le jour où vous lui donnez un salon.
+      <h2 class="text-body-sm font-semibold text-on-surface">Laissé de côté</h2>
+      <p class="mt-1 text-xs text-on-surface-variant/50">
+        Tu as écarté le salon qui les porte. Rien n'est perdu : chacun s'allume depuis
+        sa page du tableau de bord, le jour où tu lui donnes un salon.
       </p>
 
       <div class="mt-3 grid gap-2.5 sm:grid-cols-2">
@@ -201,8 +201,8 @@
               <Papicon icon="power" size={15} />
             </span>
             <div class="min-w-0 flex-1">
-              <p class="text-[13.5px] font-semibold text-on-surface-variant/75">{entry.name}</p>
-              <p class="mt-0.5 text-[12.5px] text-on-surface-variant/50 leading-relaxed">
+              <p class="text-body-sm font-semibold text-on-surface-variant/75">{entry.name}</p>
+              <p class="mt-0.5 text-xs text-on-surface-variant/50 leading-relaxed">
                 {entry.because} n'a pas été mis en place.
               </p>
             </div>
@@ -216,8 +216,8 @@
     <!-- La seconde chance. Quelqu'un qui a decoche « L'economie » a l'ecran 3
          ne savait pas encore ce que Kotbo faisait ; ici, il le sait. -->
     <section class="mt-10">
-      <h2 class="text-[13px] font-semibold text-on-surface">{m.onb_recap_missing_title()}</h2>
-      <p class="mt-1 text-[12.5px] text-on-surface-variant/50">{m.onb_recap_missing_hint()}</p>
+      <h2 class="text-body-sm font-semibold text-on-surface">{m.onb_recap_missing_title()}</h2>
+      <p class="mt-1 text-xs text-on-surface-variant/50">{m.onb_recap_missing_hint()}</p>
 
       <div class="mt-3 grid gap-2.5 sm:grid-cols-2">
         {#each missing as track (track.key)}
@@ -226,14 +226,14 @@
               <Papicon icon={track.icon} size={15} />
             </span>
             <div class="min-w-0 flex-1">
-              <p class="text-[13.5px] font-semibold text-on-surface-variant/75">{track.label()}</p>
-              <p class="mt-0.5 text-[12.5px] text-on-surface-variant/50 leading-relaxed">{track.outcome()}</p>
+              <p class="text-body-sm font-semibold text-on-surface-variant/75">{track.label()}</p>
+              <p class="mt-0.5 text-xs text-on-surface-variant/50 leading-relaxed">{track.outcome()}</p>
             </div>
             <button
               type="button"
               onclick={() => addTrack(track.key)}
               class="shrink-0 self-center inline-flex items-center gap-1 rounded-lg border border-primary/35 px-2.5 py-1.5
-                     text-[12px] font-semibold text-primary hover:bg-primary/10 transition-colors"
+                     text-xs font-semibold text-primary hover:bg-primary/10 transition-colors"
             >
               <Papicon icon="plus" size={11} />
               {m.onb_recap_add()}
@@ -251,7 +251,7 @@
     <button
       type="button"
       onclick={() => wizard.complete('recap')}
-      class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[14px] font-semibold text-on-primary
+      class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary
              hover:brightness-110 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
     >
       {m.onb_recap_continue()}

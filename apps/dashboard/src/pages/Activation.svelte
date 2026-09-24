@@ -86,7 +86,7 @@
         {#if authStore.user}
           <div class="flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-2 rounded-lg">
             <span class="text-xs font-bold text-slate-300">{authStore.user.username}</span>
-            <button onclick={logout} class="text-[11px] font-semibold text-rose-500 uppercase tracking-widest hover:underline">{m.ctv_disconnect()}</button>
+            <button onclick={logout} class="text-xs font-semibold text-rose-500 hover:underline">{m.ctv_disconnect()}</button>
           </div>
         {/if}
       </div>
@@ -120,7 +120,7 @@
             <div class="space-y-4">
               <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20">
                  <Papicon icon="lock" size={14} class="text-amber-500" />
-                 <span class="text-[11px] font-semibold uppercase tracking-wider text-amber-500">{m.ctv_security_required()}</span>
+                 <span class="text-xs font-semibold text-amber-500">{m.ctv_security_required()}</span>
               </div>
               <h1 class="font-headline text-3xl font-semibold tracking-tighter text-white leading-tight">
                 Activation du Serveur <br/>
@@ -146,7 +146,7 @@
             {/if}
 
             <div class="space-y-2">
-              <label for="activation-code" class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest block ml-1">{m.ctv_global_activation_key()}</label>
+              <label for="activation-code" class="text-xs font-semibold text-slate-500 block ml-1">{m.ctv_global_activation_key()}</label>
               <div class="relative">
                 <div class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
                   <Papicon icon="key" size={18} />
@@ -168,7 +168,7 @@
               class="relative w-full group/btn overflow-hidden"
             >
               <div class="absolute inset-0 bg-primary rounded-xl transition-all duration-500 group-hover/btn:scale-105 group-hover/btn:shadow-[0_0_40px_rgba(51,69,87,0.4)] disabled:opacity-50"></div>
-              <div class="relative flex items-center justify-center gap-4 py-5 px-8 text-on-primary font-semibold uppercase tracking-widest text-[11px] transition-transform active:scale-95">
+              <div class="relative flex items-center justify-center gap-4 py-5 px-8 text-on-primary font-semibold text-xs transition-transform active:scale-95">
                 {#if loading}
                   <div class="animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white"></div>
                   <span>{m.ctv_activation_in_progress()}</span>
@@ -184,7 +184,7 @@
             <!-- Multi Guild Dropdown Option -->
             {#if authStore.guilds.length > 1}
               <div class="pt-6 border-t border-white/5 space-y-3">
-                <label for="guild-select" class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest block text-center">{m.ctv_access_another_server()}</label>
+                <label for="guild-select" class="text-xs font-semibold text-slate-500 block text-center">{m.ctv_access_another_server()}</label>
                 <div class="relative">
                   <select 
                     id="guild-select"

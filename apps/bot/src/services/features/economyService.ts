@@ -7,6 +7,7 @@ import { STAT_POINTS_PER_LEVEL } from './rpg/rpgProgressionService.js';
 import { SKILL_POINTS_PER_LEVEL } from './rpg/rpgSkillTree.js';
 import { loadGuildPerksForMember } from './rpg/rpgGuildBuildingService.js';
 import { discountedPrice } from './rpg/rpgGuildBuildings.js';
+import { applyDailyStreak, nextDailyStreak } from './rpg/rpgDailyStreakPolicy.js';
 import {
   ALL_EQUIPMENT_SLOTS,
   SLOT_ITEM_FIELD,
@@ -244,12 +245,6 @@ export function isItemEquipped(profile: SlottedProfile, itemId: string): boolean
  * laissant le surplus bloqué jusqu'au prochain gain d'XP.
  */
 export async function checkLevelUp(guildId: string, userId: string) {
-  const profile = await prisma.rpgProfile.findUnique({
-    where: { guildId_userId: { guildId, userId } }
-  });
-
-  if (!profile) return null;
-
   // Croissance automatique volontairement faible (+1 par stat) : l'essentiel de la
   // progression passe désormais par les points à répartir, qui rendent chaque personnage
   // différent au lieu de faire monter tout le monde sur la même courbe.
@@ -257,46 +252,62 @@ export async function checkLevelUp(guildId: string, userId: string) {
   const MAX_HEALTH_INCREASE = 8;
   const MAX_LEVELS_PER_CALL = 100; // garde-fou contre une boucle infinie sur données corrompues
 
-  let level = profile.level;
-  let xp = profile.xp;
-  let gained = 0;
+  // Tout s'écrit par incrément, sous condition que le niveau n'ait pas bougé depuis la
+  // lecture : réécrire l'XP et les stats lues effaçait un gain d'XP ou un point investi
+  // entre-temps, et deux montées simultanées se seraient accordées deux fois. Si la
+  // condition échoue, un autre appel est passé : on relit et on recommence.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const profile = await prisma.rpgProfile.findUnique({
+      where: { guildId_userId: { guildId, userId } }
+    });
 
-  while (xp >= xpRequiredForLevel(level) && gained < MAX_LEVELS_PER_CALL) {
-    xp -= xpRequiredForLevel(level);
-    level += 1;
-    gained += 1;
+    if (!profile) return null;
+
+    let level = profile.level;
+    let consumedXp = 0;
+    let gained = 0;
+
+    while (profile.xp - consumedXp >= xpRequiredForLevel(level) && gained < MAX_LEVELS_PER_CALL) {
+      consumedXp += xpRequiredForLevel(level);
+      level += 1;
+      gained += 1;
+    }
+
+    if (gained === 0) return null;
+
+    const applied = await prisma.rpgProfile.updateMany({
+      where: { id: profile.id, level: profile.level, xp: { gte: consumedXp } },
+      data: {
+        level: { increment: gained },
+        xp: { decrement: consumedXp },
+        maxHealth: { increment: MAX_HEALTH_INCREASE * gained },
+        attack: { increment: AUTO_STATS_INCREASE * gained },
+        defense: { increment: AUTO_STATS_INCREASE * gained },
+        speed: { increment: AUTO_STATS_INCREASE * gained },
+        statPoints: { increment: STAT_POINTS_PER_LEVEL * gained },
+        // Deux monnaies de progression distinctes : les points de caractéristiques montent
+        // les stats de base, les points de compétence achètent des nœuds d'arbre. Les
+        // confondre ferait de l'arbre un second curseur de statistiques.
+        skillPoints: { increment: SKILL_POINTS_PER_LEVEL * gained }
+      }
+    });
+    if (applied.count === 0) continue;
+
+    const leveled = await prisma.rpgProfile.findUnique({ where: { id: profile.id } });
+    if (!leveled) return level;
+
+    // Le soin complet vise les PV max effectifs : `maxHealth` ne porte que la base, et y
+    // plafonner laissait de côté ce qu'apportent équipement, enchantements, arbre et titre.
+    // Calculé après la montée, qui peut ouvrir un emplacement d'accessoire.
+    const { loadEffectiveStats } = await import('./combatService.js');
+    const { maxHealth } = await loadEffectiveStats(leveled);
+    await prisma.rpgProfile.update({ where: { id: profile.id }, data: { health: maxHealth } });
+
+    logger.info('EconomyService', `Player ${userId} leveled up to Level ${level} in Guild ${guildId}`);
+    return level;
   }
 
-  if (gained === 0) return null;
-
-  const newMaxHealth = profile.maxHealth + MAX_HEALTH_INCREASE * gained;
-
-  const leveled = await prisma.rpgProfile.update({
-    where: { id: profile.id },
-    data: {
-      level,
-      xp,
-      maxHealth: newMaxHealth,
-      attack: profile.attack + AUTO_STATS_INCREASE * gained,
-      defense: profile.defense + AUTO_STATS_INCREASE * gained,
-      speed: profile.speed + AUTO_STATS_INCREASE * gained,
-      statPoints: { increment: STAT_POINTS_PER_LEVEL * gained },
-      // Deux monnaies de progression distinctes : les points de caractéristiques montent
-      // les stats de base, les points de compétence achètent des nœuds d'arbre. Les
-      // confondre ferait de l'arbre un second curseur de statistiques.
-      skillPoints: { increment: SKILL_POINTS_PER_LEVEL * gained }
-    }
-  });
-
-  // Le soin complet vise les PV max effectifs : `maxHealth` ne porte que la base, et y
-  // plafonner laissait de côté ce qu'apportent équipement, enchantements, arbre et titre.
-  // Calculé après la montée, qui peut ouvrir un emplacement d'accessoire.
-  const { loadEffectiveStats } = await import('./combatService.js');
-  const { maxHealth } = await loadEffectiveStats(leveled);
-  await prisma.rpgProfile.update({ where: { id: profile.id }, data: { health: maxHealth } });
-
-  logger.info('EconomyService', `Player ${userId} leveled up to Level ${level} in Guild ${guildId}`);
-  return level;
+  return null;
 }
 
 /**
@@ -326,8 +337,12 @@ export async function claimDaily(guildId: string, userId: string) {
     }
   }
 
-  const reward = Math.floor(Math.random() * (config.dailyRewardMax - config.dailyRewardMin + 1)) + config.dailyRewardMin;
+  const baseReward = Math.floor(Math.random() * (config.dailyRewardMax - config.dailyRewardMin + 1)) + config.dailyRewardMin;
+  const streak = nextDailyStreak(profile.lastDaily, profile.dailyStreak ?? 0, now, cooldownMs);
+  const reward = applyDailyStreak(baseReward, streak);
 
+  // La condition sur `lastDaily` garde la réclamation atomique : deux clics simultanés ne
+  // comptent qu'une fois, et la série lue plus haut est celle qu'elle prolonge.
   const claimed = await prisma.rpgProfile.updateMany({
     where: {
       id: profile.id,
@@ -338,7 +353,8 @@ export async function claimDaily(guildId: string, userId: string) {
     },
     data: {
       balance: { increment: reward },
-      lastDaily: now
+      lastDaily: now,
+      dailyStreak: streak
     }
   });
 
@@ -366,6 +382,8 @@ export async function claimDaily(guildId: string, userId: string) {
     success: true,
     cooldown: false,
     reward,
+    baseReward,
+    streak,
     newBalance: updated?.balance ?? profile.balance + reward
   };
 }
@@ -562,8 +580,11 @@ export async function chooseAdventureOutcome(guildId: string, userId: string, ev
   const { loadEffectiveStats } = await import('./combatService.js');
   const { maxHealth } = await loadEffectiveStats(profile);
   const newHp = Math.max(0, Math.min(maxHealth, profile.health + finalHpEffect));
-  const newBalance = Math.max(0, profile.balance + finalCoinEffect);
-  const newXp = Math.max(0, profile.xp + finalXpEffect);
+  // Pièces et XP bougent par incrément : réécrire « solde lu + effet » effaçait tout gain
+  // ou dépense survenu depuis la lecture (une vente, un transfert). La perte reste bornée à
+  // ce que le joueur possédait, comme avant.
+  const coinDelta = Math.max(-profile.balance, finalCoinEffect);
+  const xpDelta = Math.max(-profile.xp, finalXpEffect);
 
   // Garde atomique sur `isTraveling` : un double-clic rapide sur le même bouton de
   // choix ne peut plus encaisser deux fois les récompenses du même événement.
@@ -571,8 +592,8 @@ export async function chooseAdventureOutcome(guildId: string, userId: string, ev
     where: { id: profile.id, isTraveling: true },
     data: {
       health: newHp,
-      balance: newBalance,
-      xp: newXp,
+      balance: { increment: coinDelta },
+      xp: { increment: xpDelta },
       isTraveling: false, // End travel on resolution
       travelDestination: null,
       travelDurationMin: 0,
@@ -585,6 +606,15 @@ export async function chooseAdventureOutcome(guildId: string, userId: string, ev
   if (resolved.count === 0) {
     throw new Error('Cette aventure a déjà été résolue.');
   }
+
+  // Une dépense faite entre la lecture et l'écriture a pu faire passer la perte sous zéro :
+  // le plancher d'avant est rétabli.
+  await prisma.rpgProfile.updateMany({ where: { id: profile.id, balance: { lt: 0 } }, data: { balance: 0 } });
+  // Même plancher pour l'XP : une montée de niveau réglée entre-temps a pu la consommer.
+  await prisma.rpgProfile.updateMany({ where: { id: profile.id, xp: { lt: 0 } }, data: { xp: 0 } });
+  const after = await prisma.rpgProfile.findUnique({ where: { id: profile.id }, select: { balance: true, xp: true } });
+  const newBalance = after?.balance ?? Math.max(0, profile.balance + coinDelta);
+  const newXp = after?.xp ?? Math.max(0, profile.xp + xpDelta);
 
   const levelUp = await checkLevelUp(guildId, userId);
 
@@ -968,24 +998,36 @@ export async function createRpgGuild(guildId: string, userId: string, name: stri
   const twin = await findRpgGuildByName(guildId, cleanName);
   if (twin) throw new Error(`Une guilde se nomme déjà « ${twin.name} ».`);
 
-  const rpgGuild = await prisma.rpgGuild.create({
-    data: {
-      guildId,
-      name: cleanName,
-      description: description?.trim() || null,
-      ownerId: userId
+  // Débit et adhésion dans une seule transaction, sous condition : un double clic créait
+  // deux guildes et débitait deux fois un solde qui ne couvrait qu'une création.
+  return prisma.$transaction(async (tx) => {
+    const paid = await tx.rpgProfile.updateMany({
+      where: { id: profile.id, rpgGuildId: null, balance: { gte: 500 } },
+      data: { balance: { decrement: 500 } }
+    });
+    if (paid.count === 0) {
+      throw new Error("Créer une guilde requiert 500 KotboCoins, et de ne faire partie d'aucune guilde.");
     }
-  });
 
-  await prisma.rpgProfile.update({
-    where: { id: profile.id },
-    data: {
-      rpgGuildId: rpgGuild.id,
-      balance: { decrement: 500 }
-    }
-  });
+    const rpgGuild = await tx.rpgGuild.create({
+      data: {
+        guildId,
+        name: cleanName,
+        description: description?.trim() || null,
+        ownerId: userId
+      }
+    });
 
-  return rpgGuild;
+    // La condition sur `rpgGuildId` garde la place : une seconde création concurrente
+    // échoue ici et toute sa transaction, débit compris, est annulée.
+    const joined = await tx.rpgProfile.updateMany({
+      where: { id: profile.id, rpgGuildId: null },
+      data: { rpgGuildId: rpgGuild.id }
+    });
+    if (joined.count === 0) throw new Error("Vous faites déjà partie d'une guilde !");
+
+    return rpgGuild;
+  });
 }
 
 /**
@@ -1090,20 +1132,24 @@ export async function depositToRpgGuildTreasury(guildId: string, userId: string,
 
   // Trésor et XP montent par incrément, les paliers se règlent après : deux dons versés
   // dans la même seconde partiraient sinon du même état lu, et l'un des deux serait perdu.
-  const [, credited] = await prisma.$transaction([
-    prisma.rpgProfile.update({
-      where: { id: profile.id },
+  // Débit sous condition : deux dons simultanés passaient tous deux le contrôle de solde
+  // ci-dessus, laissant un solde négatif et un trésor gonflé.
+  const credited = await prisma.$transaction(async (tx) => {
+    const debited = await tx.rpgProfile.updateMany({
+      where: { id: profile.id, rpgGuildId: rpgGuild.id, balance: { gte: amount } },
       data: { balance: { decrement: amount } }
-    }),
-    prisma.rpgGuild.update({
+    });
+    if (debited.count === 0) throw new Error('Solde de KotboCoins insuffisant.');
+
+    return tx.rpgGuild.update({
       where: { id: rpgGuild.id },
       data: {
         treasury: { increment: amount },
         xp: { increment: amount }
       },
       select: { level: true, xp: true }
-    })
-  ]);
+    });
+  });
 
   const { levelUp } = await levelUpRpgGuild(rpgGuild.id, credited);
 
@@ -1528,6 +1574,59 @@ export async function transferCoins(guildId: string, senderId: string, receiverI
 }
 
 /**
+ * Débite une mise si le solde la couvre encore, en une seule écriture conditionnelle.
+ *
+ * Les jeux lisaient le solde au début puis réécrivaient « ancien solde + gain » à la fin :
+ * tout ce qui bougeait entre-temps (un transfert, une vente, un daily) était effacé, et un
+ * transfert envoyé pendant la partie revenait à dupliquer les pièces. La mise est désormais
+ * prise d'avance, et le gain versé par incrément.
+ */
+export async function takeBet(profileId: string, bet: number): Promise<boolean> {
+  if (bet <= 0) return true;
+  const debited = await prisma.rpgProfile.updateMany({
+    where: { id: profileId, balance: { gte: bet } },
+    data: { balance: { decrement: bet } },
+  });
+  return debited.count > 0;
+}
+
+/** Verse un gain par incrément et renvoie le nouveau solde. */
+export async function creditBalance(profileId: string, amount: number): Promise<number> {
+  if (amount <= 0) {
+    const current = await prisma.rpgProfile.findUnique({ where: { id: profileId }, select: { balance: true } });
+    return current?.balance ?? 0;
+  }
+  const updated = await prisma.rpgProfile.update({
+    where: { id: profileId },
+    data: { balance: { increment: amount } },
+    select: { balance: true },
+  });
+  return updated.balance;
+}
+
+/**
+ * Retire des pièces sans jamais passer sous zéro, sans lecture préalable : un solde trop
+ * court est ramené à zéro. La boucle couvre un solde qui franchit le seuil entre les deux
+ * écritures. Renvoie le nouveau solde.
+ */
+export async function removeBalanceFloored(profileId: string, amount: number): Promise<number> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const debited = await prisma.rpgProfile.updateMany({
+      where: { id: profileId, balance: { gte: amount } },
+      data: { balance: { decrement: amount } },
+    });
+    if (debited.count > 0) break;
+    const emptied = await prisma.rpgProfile.updateMany({
+      where: { id: profileId, balance: { lt: amount } },
+      data: { balance: 0 },
+    });
+    if (emptied.count > 0) break;
+  }
+  const current = await prisma.rpgProfile.findUnique({ where: { id: profileId }, select: { balance: true } });
+  return current?.balance ?? 0;
+}
+
+/**
  * Enregistre une tentative de mise à un jeu d'argent (dice/roulette/rps) et applique
  * les garde-fous anti-abus : plafond de mise et nombre de parties par jour (fenêtre glissante 24h).
  * Doit être appelé avant de débiter/créditer la mise.
@@ -1630,12 +1729,7 @@ export async function adminRemoveCoins(guildId: string, userId: string, amount: 
   if (amount <= 0) throw new Error("Le montant doit être supérieur à 0.");
 
   const profile = await getOrCreateRpgProfile(guildId, userId);
-  const newBalance = Math.max(0, profile.balance - amount);
-
-  await prisma.rpgProfile.update({
-    where: { id: profile.id },
-    data: { balance: newBalance }
-  });
+  const newBalance = await removeBalanceFloored(profile.id, amount);
 
   return {
     newBalance

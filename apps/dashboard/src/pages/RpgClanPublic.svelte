@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { FilterPills } from '../lib/components/ui';
   /**
    * Page publique du RPG de clan.
    *
@@ -175,10 +176,10 @@
         {#if raid?.status === 'OPEN'}
           <div class="flex flex-wrap items-baseline justify-between gap-2">
             <h2 class="text-lg font-semibold flex items-center gap-2">
-              <Papicon icon="Crown" size={18} class="text-red-400" />
+              <Papicon icon="Crown" size={18} class="text-error" />
               {raid.bossName}
             </h2>
-            <span class="text-[13px] font-semibold text-red-400">{m.rpg_public_raid_closes({ time: countdown(raid.closesAt) })}</span>
+            <span class="text-body-sm font-semibold text-error">{m.rpg_public_raid_closes({ time: countdown(raid.closesAt) })}</span>
           </div>
           <p class="text-xs text-on-surface-variant/60">
             {raidIsClanWide ? m.rpg_public_raid_open({ level: raid.bossLevel }) : m.rpg_public_raid_guild_mode({ level: raid.bossLevel })}
@@ -189,7 +190,7 @@
               <Papicon icon="Crown" size={18} class="text-primary" />
               {raid.bossName}
             </h2>
-            <span class="text-[13px] font-semibold text-primary">{m.rpg_public_raid_opens({ time: countdown(raid.opensAt) })}</span>
+            <span class="text-body-sm font-semibold text-primary">{m.rpg_public_raid_opens({ time: countdown(raid.opensAt) })}</span>
           </div>
           <p class="text-xs text-on-surface-variant/60">{m.rpg_public_raid_scheduled({ level: raid.bossLevel })}</p>
         {:else}
@@ -199,19 +200,20 @@
       </section>
 
       {#if clansEnabled}
-        <div class="tab-group w-fit">
-          <button onclick={() => mode = 'clans'} class="tab-button {effectiveMode === 'clans' ? 'active' : ''}">
-            {m.rpg_public_mode_clans()}
-          </button>
-          <button onclick={() => mode = 'solo'} class="tab-button {effectiveMode === 'solo' ? 'active' : ''}">
-            {m.rpg_public_mode_solo()}
-          </button>
-        </div>
+        <FilterPills
+          label={m.rpg_public_mode_clans()}
+          options={[
+            { value: 'clans', label: m.rpg_public_mode_clans() },
+            { value: 'solo', label: m.rpg_public_mode_solo() },
+          ]}
+          value={effectiveMode}
+          onchange={(value) => (mode = value)}
+        />
       {/if}
 
       {#if effectiveMode === 'solo'}
         <section class="space-y-3">
-          <h2 class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60 flex items-center gap-1.5">
+          <h2 class="text-xs font-semibold text-on-surface-variant/60 flex items-center gap-1.5">
             <Papicon icon="Grades" size={12} />
             {m.rpg_public_solo_title()}
           </h2>
@@ -222,14 +224,14 @@
             <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-2xl divide-y divide-outline-variant/10 overflow-hidden">
               {#each solo.leaderboard as player (player.userId)}
                 <div class="flex items-center gap-3 px-5 py-3">
-                  <span class="w-7 text-[13px] font-bold text-on-surface-variant/50 tabular-nums">{player.rank}</span>
+                  <span class="w-7 text-body-sm font-bold text-on-surface-variant/50 tabular-nums">{player.rank}</span>
                   {#if player.avatarUrl}
                     <img src={player.avatarUrl} alt="" class="w-8 h-8 rounded-full shrink-0" />
                   {:else}
                     <span class="w-8 h-8 rounded-full bg-outline-variant/15 shrink-0"></span>
                   {/if}
-                  <span class="text-[13px] font-semibold truncate flex-1 min-w-0">{player.displayName}</span>
-                  <span class="text-[11px] text-on-surface-variant/60 shrink-0">
+                  <span class="text-body-sm font-semibold truncate flex-1 min-w-0">{player.displayName}</span>
+                  <span class="text-2xs text-on-surface-variant/60 shrink-0">
                     {m.rpg_public_solo_line({
                       level: player.level,
                       monsters: player.monstersKilled,
@@ -242,7 +244,7 @@
           {/if}
 
           {#if (solo?.quests ?? []).length > 0}
-            <h2 class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60 pt-2 flex items-center gap-1.5">
+            <h2 class="text-xs font-semibold text-on-surface-variant/60 pt-2 flex items-center gap-1.5">
               <Papicon icon="Tasks" size={12} />
               {m.rpg_public_solo_quests()}
             </h2>
@@ -250,14 +252,14 @@
               {#each solo.quests as quest (quest.id)}
                 <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-xl px-5 py-4">
                   <div class="flex flex-wrap items-baseline justify-between gap-2">
-                    <span class="text-[13px] font-semibold flex items-center gap-1.5">
+                    <span class="text-body-sm font-semibold flex items-center gap-1.5">
                       <Papicon icon={questIcon(quest.objective)} size={14} class="text-on-surface-variant/70" />
                       {quest.name}
                     </span>
-                    <span class="text-[11px] text-on-surface-variant/50">{m.rpg_public_quest_resets({ time: countdown(quest.windowEndsAt) })}</span>
+                    <span class="text-2xs text-on-surface-variant/50">{m.rpg_public_quest_resets({ time: countdown(quest.windowEndsAt) })}</span>
                   </div>
-                  <p class="text-[11px] text-on-surface-variant/60 mt-1 leading-relaxed">{quest.description}</p>
-                  <p class="text-[11px] text-on-surface-variant/50 mt-1">
+                  <p class="text-2xs text-on-surface-variant/60 mt-1 leading-relaxed">{quest.description}</p>
+                  <p class="text-2xs text-on-surface-variant/50 mt-1">
                     {m.eco_quest_goal({ target: quest.target, objective: objectiveLabel(quest.objective), hours: quest.windowHours })}
                   </p>
                 </div>
@@ -268,7 +270,7 @@
       {:else}
       {#if quests.length > 0}
         <section class="space-y-2">
-          <h2 class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60 flex items-center gap-1.5">
+          <h2 class="text-xs font-semibold text-on-surface-variant/60 flex items-center gap-1.5">
             <Papicon icon="Tasks" size={12} />
             {m.rpg_public_quests_title()}
           </h2>
@@ -276,14 +278,14 @@
             {#each quests as quest (quest.id)}
               <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-xl px-5 py-4">
                 <div class="flex flex-wrap items-baseline justify-between gap-2">
-                  <span class="text-[13px] font-semibold flex items-center gap-1.5">
+                  <span class="text-body-sm font-semibold flex items-center gap-1.5">
                     <Papicon icon={questIcon(quest.objective)} size={14} class="text-on-surface-variant/70" />
                     {quest.name}
                   </span>
-                  <span class="text-[11px] text-on-surface-variant/50">{m.rpg_public_quest_resets({ time: countdown(quest.windowEndsAt) })}</span>
+                  <span class="text-2xs text-on-surface-variant/50">{m.rpg_public_quest_resets({ time: countdown(quest.windowEndsAt) })}</span>
                 </div>
-                <p class="text-[11px] text-on-surface-variant/60 mt-1 leading-relaxed">{quest.description}</p>
-                <p class="text-[11px] text-on-surface-variant/50 mt-1">
+                <p class="text-2xs text-on-surface-variant/60 mt-1 leading-relaxed">{quest.description}</p>
+                <p class="text-2xs text-on-surface-variant/50 mt-1">
                   {m.eco_quest_goal({ target: quest.target, objective: objectiveLabel(quest.objective), hours: quest.windowHours })}
                 </p>
               </div>
@@ -294,12 +296,12 @@
 
       <section class="space-y-3">
         <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60 flex items-center gap-1.5">
+          <h2 class="text-xs font-semibold text-on-surface-variant/60 flex items-center gap-1.5">
             <Papicon icon="Grades" size={12} />
             {m.rpg_public_clans_title()}
           </h2>
           {#if rankedClans.length > 0}
-            <p class="text-[11px] text-on-surface-variant/50">
+            <p class="text-2xs text-on-surface-variant/50">
               {m.rpg_public_summary({ engaged: clansEngaged, total: rankedClans.length })}
               {#if raid?.status === 'OPEN' && raidIsClanWide && bossesDown > 0}
                 {' · '}{m.rpg_public_summary_bosses({ count: bossesDown })}
@@ -313,16 +315,16 @@
           <article class="bg-surface-container-low/40 border border-outline-variant/10 rounded-2xl p-5 space-y-3">
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-2 min-w-0">
-                <span class="text-[11px] font-bold text-on-surface-variant/40 tabular-nums w-5 shrink-0">{index + 1}</span>
+                <span class="text-2xs font-bold text-on-surface-variant/40 tabular-nums w-5 shrink-0">{index + 1}</span>
                 <span class="w-2.5 h-2.5 rounded-full shrink-0" style={`background:${clan.roleColor ?? 'var(--color-outline-variant)'}`}></span>
                 <h3 class="text-base font-semibold truncate">{clan.name}</h3>
               </div>
-              <span class="text-[11px] text-on-surface-variant/50">{m.rpg_public_members({ count: clan.memberCount })}</span>
+              <span class="text-2xs text-on-surface-variant/50">{m.rpg_public_members({ count: clan.memberCount })}</span>
             </div>
 
             {#if raid?.status === 'OPEN' && raidIsClanWide}
               <div class="space-y-1">
-                <div class="flex flex-wrap items-baseline justify-between gap-2 text-[12px]">
+                <div class="flex flex-wrap items-baseline justify-between gap-2 text-xs">
                   <span class="font-semibold">{m.rpg_public_raid_bar()}</span>
                   <span class="text-on-surface-variant/60">
                     {#if !clan.raid}
@@ -350,14 +352,14 @@
               {@const quest = quests.find((entry: any) => entry.id === progress.questId)}
               {#if quest}
                 <div class="space-y-1">
-                  <div class="flex flex-wrap items-baseline justify-between gap-2 text-[12px]">
+                  <div class="flex flex-wrap items-baseline justify-between gap-2 text-xs">
                     <span class="font-semibold flex items-center gap-1.5">
                       <Papicon icon={questIcon(quest.objective)} size={12} class="text-on-surface-variant/60" />
                       {quest.name}
                     </span>
                     <span class="text-on-surface-variant/60">
                       {progress.current.toLocaleString()} / {progress.target.toLocaleString()}
-                      {#if progress.completed}<span class="text-emerald-400 ml-1">{m.rpg_public_quest_done()}</span>{/if}
+                      {#if progress.completed}<span class="text-success ml-1">{m.rpg_public_quest_done()}</span>{/if}
                     </span>
                   </div>
                   <div class="h-2 rounded-full bg-outline-variant/15 overflow-hidden">
@@ -372,7 +374,7 @@
             </div>
 
             {#if quests.length === 0 && !(raid?.status === 'OPEN' && raidIsClanWide)}
-              <p class="text-[11px] text-on-surface-variant/50 italic">{m.rpg_public_clan_idle()}</p>
+              <p class="text-2xs text-on-surface-variant/50 italic">{m.rpg_public_clan_idle()}</p>
             {/if}
           </article>
         {:else}
@@ -383,7 +385,7 @@
 
       {/if}
 
-      <footer class="flex items-center justify-center gap-1.5 text-[11px] text-on-surface-variant/40 pt-4">
+      <footer class="flex items-center justify-center gap-1.5 text-2xs text-on-surface-variant/40 pt-4">
         <Papicon icon="Clock" size={12} />
         {m.rpg_public_refresh()}
       </footer>

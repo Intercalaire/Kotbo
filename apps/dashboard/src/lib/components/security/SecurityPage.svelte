@@ -74,7 +74,7 @@
     <div class="flex items-center gap-3">
       {#if readOnly}
         <span
-          class="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant/30 bg-surface-container px-2.5 py-1.5 text-[11px] font-medium text-on-surface-variant"
+          class="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant/30 bg-surface-container px-2.5 py-1.5 text-2xs font-medium text-on-surface-variant"
           title="Seuls les administrateurs peuvent modifier la configuration de sécurité."
         >
           <Papicon icon="Eye" size={13} />
@@ -93,7 +93,7 @@
           onclick={() => gotoTab(basePath, tab.key, defaultTab)}
           aria-current={activeTab === tab.key ? 'page' : undefined}
           class="
-            -mb-px flex items-center gap-2 border-b-2 px-3 py-2.5 text-[13px] font-medium
+            -mb-px flex items-center gap-2 border-b-2 px-3 py-2.5 text-body-sm font-medium
             transition-colors duration-150
             {activeTab === tab.key
               ? 'border-primary text-primary'
@@ -104,7 +104,7 @@
           {tab.label}
           {#if tab.count !== undefined && tab.count > 0}
             <span
-              class="rounded-full bg-primary/12 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary"
+              class="rounded-full bg-primary/12 px-1.5 py-0.5 text-2xs font-semibold leading-none text-primary"
             >
               {tab.count > 99 ? '99+' : tab.count}
             </span>

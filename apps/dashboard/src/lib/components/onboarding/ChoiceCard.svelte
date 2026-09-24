@@ -46,7 +46,7 @@
            : 'border-outline-variant/40 hover:border-primary/45 hover:bg-surface-container-low/50'}"
 >
   {#if badge}
-    <span class="absolute top-4 right-4 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary/15 text-primary">
+    <span class="absolute top-4 right-4 text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/15 text-primary">
       {badge}
     </span>
   {/if}
@@ -72,10 +72,10 @@
       </div>
 
       {#if pitch}
-        <p class="mt-0.5 text-[13.5px] font-medium text-on-surface-variant/75">{pitch}</p>
+        <p class="mt-0.5 text-body-sm font-medium text-on-surface-variant/75">{pitch}</p>
       {/if}
       {#if detail}
-        <p class="mt-2 text-[13px] text-on-surface-variant/60 leading-relaxed">{detail}</p>
+        <p class="mt-2 text-body-sm text-on-surface-variant/60 leading-relaxed">{detail}</p>
       {/if}
     </div>
   </div>

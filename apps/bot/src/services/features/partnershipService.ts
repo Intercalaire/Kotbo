@@ -22,6 +22,7 @@ import {
 } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { admitJoiningMember } from '../moderation/joinAdmissionService.js';
 import { buildTicketChannelName } from './ticketService.js';
 import { INVITE_SOURCE, recordBotInvite } from '../analytics/inviteService.js';
 
@@ -327,6 +328,7 @@ export async function handlePartnershipGuildJoin(client: Client, member: GuildMe
 export function registerPartnershipListener(client: Client): void {
   client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
     try {
+      if (!(await admitJoiningMember(member))) return;
       await handlePartnershipGuildJoin(client, member);
     } catch (err) {
       logger.error('Partnership', `Erreur au join de ${member.user.tag}:`, err);

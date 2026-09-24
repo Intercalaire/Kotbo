@@ -255,6 +255,14 @@ export async function handleInvitationsRoutes(ctx: ModuleRouteContext): Promise<
 
       const code = parts[5];
       try {
+        // Un code d'invitation est public : sans ce filtre, le staff d'un autre serveur
+        // pouvait marquer celle d'ici comme suspendue ou supprimée dans les statistiques.
+        const owned = await prisma.guildInvite.findFirst({ where: { code, guildId }, select: { code: true } });
+        if (!owned) {
+          json(res, 404, { error: 'Invitation introuvable' });
+          return true;
+        }
+
         const body = await readJsonBody<{ suspended: boolean }>(req);
         if (!body || typeof body.suspended !== 'boolean') {
           json(res, 400, { error: 'Statut de suspension requis' });
@@ -351,6 +359,14 @@ export async function handleInvitationsRoutes(ctx: ModuleRouteContext): Promise<
 
       const code = parts[5];
       try {
+        // Un code d'invitation est public : sans ce filtre, le staff d'un autre serveur
+        // pouvait marquer celle d'ici comme suspendue ou supprimée dans les statistiques.
+        const owned = await prisma.guildInvite.findFirst({ where: { code, guildId }, select: { code: true } });
+        if (!owned) {
+          json(res, 404, { error: 'Invitation introuvable' });
+          return true;
+        }
+
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
         if (discordGuild) {
           const inviteObj = await discordGuild.invites.fetch(code).catch(() => null);

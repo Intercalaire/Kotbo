@@ -63,7 +63,7 @@
 
     {#if node.responsable && node.responsable.name}
       <div class="mt-4 px-3.5 py-1 rounded-full bg-surface-container-high/40 border border-outline-variant/10 flex items-center gap-1.5 transition-all duration-200 hover:bg-surface-container-high/70 cursor-default">
-        <span class="text-[9px] font-bold uppercase tracking-wider text-on-surface-variant/50">{m.staff_orgchart_resp_badge()}</span>
+        <span class="text-xs font-semibold text-on-surface-variant/50">{m.staff_orgchart_resp_badge()}</span>
         <span class="text-xs font-semibold text-on-surface">{node.responsable.name}</span>
       </div>
     {/if}
@@ -88,10 +88,10 @@
                 <h4 class="text-xs font-bold text-on-surface flex items-center gap-1.5 tracking-tight">
                   {role.name}
                   {#if role.isResponsable}
-                    <span class="px-1.5 py-0.5 rounded-sm bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[8px] font-bold uppercase tracking-wider">{m.staff_orgchart_chef_badge()}</span>
+                    <span class="px-1.5 py-0.5 rounded-sm bg-warning/10 text-warning border border-warning/20 text-xs font-semibold">{m.staff_orgchart_chef_badge()}</span>
                   {/if}
                 </h4>
-                <span class="text-[9px] font-bold text-on-surface-variant bg-surface-container-high/60 px-1.5 py-0.5 rounded-sm">
+                <span class="text-2xs font-bold text-on-surface-variant bg-surface-container-high/60 px-1.5 py-0.5 rounded-sm">
                   {roleMembers.length}
                 </span>
               </div>
@@ -115,7 +115,7 @@
                   {/each}
                 </div>
               {:else}
-                <div class="mt-2 text-center py-2.5 text-[10px] text-on-surface-variant/40 italic bg-surface-container-low/20 rounded-md border border-dashed border-outline-variant/10">
+                <div class="mt-2 text-center py-2.5 text-2xs text-on-surface-variant/40 italic bg-surface-container-low/20 rounded-md border border-dashed border-outline-variant/10">
                   {m.staff_orgchart_no_member()}
                 </div>
               {/if}

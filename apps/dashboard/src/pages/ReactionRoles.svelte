@@ -246,7 +246,7 @@
         {#if canManageSettings}
           <button
             onclick={openCreateModal}
-            class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer"
+            class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary font-medium text-body-sm rounded-lg transition-all cursor-pointer"
           >
             <Papicon icon="Add" size={16} />
             {m.reaction_roles_deploy_panel_btn()}
@@ -263,7 +263,7 @@
                 <!-- Menu info -->
                 <div class="space-y-1.5 flex-1 min-w-0">
                   <h4 class="text-lg font-semibold text-on-surface leading-tight group-hover:text-primary transition-colors duration-300 wrap-break-word">{@html parseDiscordEmojisAndMarkdown(menu.title)}</h4>
-                  <div class="flex flex-wrap gap-2 text-[10px] text-on-surface-variant/60 font-semibold">
+                  <div class="flex flex-wrap gap-2 text-2xs text-on-surface-variant/60 font-semibold">
                     <span class="flex items-center gap-1 bg-surface-container-high/40 px-2 py-0.5 rounded"><Papicon icon="Hash" size={10} />{getChannelName(menu.channelId)}</span>
                     {#if menu.messageId}
                       <span class="flex items-center gap-1 bg-surface-container-high/40 px-2 py-0.5 rounded"><Papicon icon="Link" size={10} />ID : {menu.messageId}</span>
@@ -301,16 +301,16 @@
                     <div class="flex items-center gap-2 px-3 py-2 bg-surface-container-high/60 border border-outline-variant/10 rounded-xl text-xs font-bold text-on-surface hover:bg-surface-container-high transition-all">
                       {#if opt.emoji}<span class="text-base">{@html parseDiscordEmojisAndMarkdown(opt.emoji)}</span>{/if}
                       <span>{opt.label}</span>
-                      <span class="text-[10px] bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded font-semibold">
+                      <span class="text-2xs bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded font-semibold">
                         {getRoleName(opt.roleId)}
                       </span>
                       {#if opt.mode && opt.mode !== menu.buttonMode}
-                        <span class="text-[10px] bg-secondary/10 text-secondary border border-secondary/20 px-1.5 py-0.5 rounded font-semibold">
+                        <span class="text-2xs bg-secondary/10 text-secondary border border-secondary/20 px-1.5 py-0.5 rounded font-semibold">
                           {modeLabel(opt.mode)}
                         </span>
                       {/if}
                       {#if opt.style && opt.style !== 'secondary'}
-                        <span class="text-[10px] border px-1.5 py-0.5 rounded font-semibold {STYLE_BADGE_CLASSES[resolveStyle(opt.style)]}">
+                        <span class="text-2xs border px-1.5 py-0.5 rounded font-semibold {STYLE_BADGE_CLASSES[resolveStyle(opt.style)]}">
                           {styleLabel(opt.style)}
                         </span>
                       {/if}
@@ -349,7 +349,7 @@
       <!-- Close button -->
       <button
         onclick={() => showModal = false}
-        class="absolute top-6 right-6 p-2 rounded-full bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer z-10"
+        class="absolute top-6 right-6 p-2 rounded-full bg-surface-container-high/40 hover:bg-error/15 hover:text-error text-on-surface-variant transition-colors cursor-pointer z-10"
         title={m.reaction_roles_close()}
       >
         <Papicon icon="Cross" size={20} />
@@ -373,7 +373,7 @@
       <form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-6 pt-2">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="space-y-1.5">
-            <label for="modal-title" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.reaction_roles_field_title()}</label>
+            <label for="modal-title" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.reaction_roles_field_title()}</label>
             <input
               id="modal-title"
               type="text"
@@ -386,7 +386,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="modal-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.reaction_roles_field_channel()}</label>
+            <label for="modal-channel" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.reaction_roles_field_channel()}</label>
             <SearchableSelect
               id="modal-channel"
               bind:value={formChannelId}
@@ -399,14 +399,14 @@
         </div>
 
         {#if editedMenu && formChannelId && formChannelId !== editedMenu.channelId}
-          <p class="flex items-center gap-2 text-[11px] text-on-surface-variant/80 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2">
+          <p class="flex items-center gap-2 text-2xs text-on-surface-variant/80 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2">
             <Papicon icon="Info" size={14} />
             {m.reaction_roles_moved_channel_notice()}
           </p>
         {/if}
 
         <div class="space-y-1.5">
-          <label for="modal-mode" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.reaction_roles_field_mode()}</label>
+          <label for="modal-mode" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.reaction_roles_field_mode()}</label>
           <FormSelect
             id="modal-mode"
             bind:value={formButtonMode}
@@ -416,14 +416,14 @@
             <option value="toggle">{m.reaction_roles_mode_toggle_label()}</option>
             <option value="add_only">{m.reaction_roles_mode_add_only_label()}</option>
           </FormSelect>
-          <p class="text-[11px] text-on-surface-variant/60 ml-2">
+          <p class="text-2xs text-on-surface-variant/60 ml-2">
             {formButtonMode === 'add_only' ? m.reaction_roles_mode_add_only_desc() : m.reaction_roles_mode_toggle_desc()}
           </p>
         </div>
 
         <!-- Live Discord Message Preview -->
         <div class="p-5 rounded-xl bg-[#36393f] border border-[#202225] text-[#dcddde] font-sans space-y-3 shadow-inner">
-          <div class="flex items-center gap-1.5 text-[10px] font-semibold uppercase text-[#8e9297] tracking-wider select-none">
+          <div class="flex items-center gap-1.5 text-xs font-semibold text-[#8e9297] select-none">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> {m.reaction_roles_live_preview()}
           </div>
 
@@ -437,7 +437,7 @@
             <div class="space-y-3 flex-1 min-w-0">
               <div class="flex items-center gap-2 select-none">
                 <span class="font-bold text-white text-sm hover:underline cursor-pointer">Kotbo</span>
-                <span class="bg-[#5865f2] text-white text-[11px] font-bold px-1.5 py-0.5 rounded uppercase">Bot</span>
+                <span class="bg-[#5865f2] text-white text-2xs font-bold px-1.5 py-0.5 rounded uppercase">Bot</span>
                 <span class="text-xs text-[#72767d]">{m.announcements_today_at({ time: '12:00' })}</span>
               </div>
 
@@ -472,7 +472,7 @@
         <!-- Options / Boutons -->
         <div class="space-y-3 pt-2">
           <div class="flex items-center justify-between">
-            <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.reaction_roles_buttons_config({ n: formOptions.length })}</span>
+            <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.reaction_roles_buttons_config({ n: formOptions.length })}</span>
             <button
               type="button"
               onclick={addOption}
@@ -505,7 +505,7 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div class="space-y-1">
-                    <label for={`modal-emoji-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_field_emoji()}</label>
+                    <label for={`modal-emoji-${idx}`} class="text-2xs font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_field_emoji()}</label>
                     <div class="flex gap-2 items-center">
                       <input
                         id={`modal-emoji-${idx}`}
@@ -520,7 +520,7 @@
                   </div>
 
                   <div class="space-y-1">
-                    <label for={`modal-label-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_field_label()}</label>
+                    <label for={`modal-label-${idx}`} class="text-2xs font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_field_label()}</label>
                     <input
                       id={`modal-label-${idx}`}
                       type="text"
@@ -535,7 +535,7 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div class="space-y-1">
-                    <label for={`modal-role-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_field_role()}</label>
+                    <label for={`modal-role-${idx}`} class="text-2xs font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_field_role()}</label>
                     <SearchableSelect
                       id={`modal-role-${idx}`}
                       bind:value={opt.roleId}
@@ -547,7 +547,7 @@
                   </div>
 
                   <div class="space-y-1">
-                    <label for={`modal-mode-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_button_mode()}</label>
+                    <label for={`modal-mode-${idx}`} class="text-2xs font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_button_mode()}</label>
                     <FormSelect
                       id={`modal-mode-${idx}`}
                       bind:value={opt.mode}
@@ -561,7 +561,7 @@
                   </div>
 
                   <div class="space-y-1">
-                    <label for={`modal-style-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_button_style()}</label>
+                    <label for={`modal-style-${idx}`} class="text-2xs font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_button_style()}</label>
                     <FormSelect
                       id={`modal-style-${idx}`}
                       bind:value={opt.style}
@@ -584,14 +584,14 @@
           <button
             type="button"
             onclick={() => showModal = false}
-            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-[13px] font-medium rounded-lg transition-all cursor-pointer"
+            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-body-sm font-medium rounded-lg transition-all cursor-pointer"
           >
             {m.reaction_roles_cancel()}
           </button>
           {#if canManageSettings}
             <button
               type="submit"
-              class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer"
+              class="px-8 py-3 bg-primary text-on-primary font-medium text-body-sm rounded-lg transition-all cursor-pointer"
             >
               {editingMenuId ? m.reaction_roles_save_confirm() : m.reaction_roles_deploy_confirm()}
             </button>

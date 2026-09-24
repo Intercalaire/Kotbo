@@ -51,7 +51,7 @@
   async function apply() {
     if (onboardingData.busy) return;
     if (!channelId) {
-      toast.error('Choisissez un salon où publier les drops.');
+      toast.error('Choisis un salon où publier les drops.');
       return;
     }
 
@@ -95,7 +95,7 @@
     />
 
     <div>
-      <p class="text-[13px] font-semibold text-on-surface mb-2.5">{m.onb_drops_rhythm_label()}</p>
+      <p class="text-body-sm font-semibold text-on-surface mb-2.5">{m.onb_drops_rhythm_label()}</p>
       <div class="space-y-2.5">
         {#each DROP_RHYTHMS as entry (entry.key)}
           <ChoiceCard
@@ -122,7 +122,7 @@
       />
     </DiscordPreview>
 
-    <p class="mt-3 flex items-start gap-2 text-[12.5px] text-on-surface-variant/55 leading-relaxed">
+    <p class="mt-3 flex items-start gap-2 text-xs text-on-surface-variant/55 leading-relaxed">
       <Papicon icon="clock" size={13} class="mt-0.5 shrink-0 text-on-surface-variant/35" />
       <span>
         Environ toutes les {interval >= 60 ? `${Math.round(interval / 60)} h` : `${interval} min`},
@@ -135,7 +135,7 @@
     <button
       type="button"
       onclick={skip}
-      class="text-[13px] font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
+      class="text-body-sm font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
     >
       Passer
     </button>
@@ -143,7 +143,7 @@
       type="button"
       onclick={apply}
       disabled={onboardingData.busy}
-      class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[14px] font-semibold text-on-primary
+      class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary
              hover:brightness-110 transition disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
     >
       {onboardingData.busy ? 'Enregistrement…' : 'Continuer'}

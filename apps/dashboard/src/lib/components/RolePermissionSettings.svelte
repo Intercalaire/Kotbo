@@ -69,12 +69,12 @@
 <div class="space-y-6">
   <div class="flex items-center justify-between border-b border-outline-variant/10 pb-4">
     <div>
-      <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">{title}</h3>
+      <h3 class="text-sm font-semibold text-on-surface">{title}</h3>
       <p class="text-xs text-on-surface-variant/70 mt-1">{description}</p>
     </div>
     <button 
       onclick={addRole}
-      class="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-xl text-[13px] font-medium hover:bg-primary/20 transition-all"
+      class="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-xl text-body-sm font-medium hover:bg-primary/20 transition-all"
     >
       <Papicon icon="plus" size={14} />
       {m.rp_add_role()}
@@ -101,14 +101,14 @@
                 class="flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all {entry[perm.key] ? 'bg-primary/10 border-primary/20 text-primary shadow-sm' : 'bg-transparent border-outline-variant/10 text-on-surface-variant/40 hover:border-outline-variant/30'}"
               >
                 <Papicon icon={perm.icon} size={14} />
-                <span class="text-[10px] font-semibold uppercase tracking-wider">{perm.label}</span>
+                <span class="text-xs font-semibold">{perm.label}</span>
               </button>
             {/each}
           </div>
 
           <button 
             onclick={() => removeRole(i)}
-            class="p-2.5 text-on-surface-variant/40 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
+            class="p-2.5 text-on-surface-variant/40 hover:text-error hover:bg-error/10 rounded-xl transition-all"
             title={m.rp_delete_rule_title()}
           >
             <Papicon icon="x" size={18} />
@@ -128,6 +128,6 @@
   </div>
 
   {#if saveAction.state.message}
-    <p class="text-xs font-bold text-emerald-600 text-right">{saveAction.state.message}</p>
+    <p class="text-xs font-bold text-success text-right">{saveAction.state.message}</p>
   {/if}
 </div>

@@ -7,7 +7,7 @@ import prisma from '../../utils/db.js';
 import { getQueryStats, isReadReplicaConfigured, resetQueryStats } from '../../observability/queryMetrics.js';
 import { cache } from '../../utils/cache.js';
 import { logger } from '../../utils/logger.js';
-import { activateGuild, deactivateGuild, reconcileStaffGuildActivation } from '../../utils/activation.js';
+import { activateGuild, deactivateGuild, generateActivationCode, reconcileStaffGuildActivation } from '../../utils/activation.js';
 import { announceAccessRevoked, announceTrialStart, extendAccess, formatDuration, normalizeAccessGrant, MAX_ACCESS_DURATION_MINUTES } from '../../services/system/accessService.js';
 import { E, UNICODE_FALLBACKS } from '../../utils/emojis.js';
 import { isReservedByNicknameModeration } from '../../services/moderation/nicknameModerationService.js';
@@ -1876,7 +1876,7 @@ export async function handleAdminRoutes(
         return true;
       }
 
-      const code = `KB-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+      const code = generateActivationCode();
 
       const newCode = await prisma.activationCode.create({
         data: {
@@ -1999,7 +1999,7 @@ export async function handleAdminRoutes(
         return true;
       }
 
-      const code = `KB-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+      const code = generateActivationCode();
 
       await prisma.activationCode.create({
         data: {

@@ -95,6 +95,7 @@ const PAGE_RULES: PageRule[] = [
       '/quests',
       '/leveling',
       '/economy',
+      '/rpg',
       '/admin',
     ],
   },

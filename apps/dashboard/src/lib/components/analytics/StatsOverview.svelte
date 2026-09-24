@@ -150,7 +150,7 @@
     <!-- Live Snapshots -->
     <div class="premium-card p-8 rounded-xl space-y-8 flex flex-col">
       <div class="flex items-center gap-3">
-        <div class="p-2 rounded-lg bg-amber-500/10 text-amber-500">
+        <div class="p-2 rounded-lg bg-warning/10 text-warning">
           <Papicon icon="Lightning" size={20} />
         </div>
         <h3 class="text-lg font-semibold text-on-surface">{m.d1_so_live()}</h3>
@@ -158,7 +158,7 @@
       
       <div class="space-y-4 flex-grow">
         <div class="p-6 rounded-xl bg-surface-container-high/30 border border-outline-variant/10 hover:border-primary/20 transition-all group">
-          <p class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/40 mb-3">{m.d1_so_most_active_channel()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/40 mb-3">{m.d1_so_most_active_channel()}</p>
           <div class="flex items-center justify-between">
             <span class="text-base font-semibold text-primary group-hover:translate-x-1 transition-transform">
               #{data?.topChannels?.[0]?.channelName || m.d1_so_general()}
@@ -167,7 +167,7 @@
         </div>
         
         <div class="p-6 rounded-xl bg-surface-container-high/30 border border-outline-variant/10 hover:border-secondary/20 transition-all group">
-          <p class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/40 mb-3">{m.d1_so_activity_peak()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant/40 mb-3">{m.d1_so_activity_peak()}</p>
           <div class="flex items-center justify-between">
             <span class="text-base font-semibold text-on-surface group-hover:translate-x-1 transition-transform">
               {(() => {
@@ -175,7 +175,7 @@
                 return max ? max.dateKey : m.d1_so_today();
               })()}
             </span>
-            <span class="text-[10px] font-semibold {data?.summary?.messagesTrend >= 0 ? 'text-emerald-500 bg-emerald-500/10' : 'text-rose-500 bg-rose-500/10'} px-2 py-1 rounded-lg">
+            <span class="text-2xs font-semibold {data?.summary?.messagesTrend >= 0 ? 'text-success bg-success/10' : 'text-error bg-error/10'} px-2 py-1 rounded-lg">
               {data?.summary?.messagesTrend >= 0 ? '+' : ''}{data?.summary?.messagesTrend ?? 0}%
             </span>
           </div>
@@ -191,7 +191,7 @@
                  </div>
                {/each}
             </div>
-            <p class="text-[10px] font-bold text-on-surface-variant/50">
+            <p class="text-2xs font-bold text-on-surface-variant/50">
               {m.d1_so_members_online({ count: fmt(data?.live?.onlineMembers || 0) })}
             </p>
          </div>

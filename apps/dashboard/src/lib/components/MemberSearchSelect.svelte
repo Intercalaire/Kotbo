@@ -118,7 +118,7 @@
   {#if query && !disabled}
     <button
       type="button"
-      class="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center text-on-surface-variant hover:text-rose-500 transition-colors"
+      class="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center text-on-surface-variant hover:text-error transition-colors"
       onmousedown={(e) => { e.preventDefault(); clear(); }}
       aria-label={m.member_search_clear()}
     ><Papicon icon="x" size={14} /></button>
@@ -149,18 +149,18 @@
             {#if member.avatarUrl}
               <img src={member.avatarUrl} alt={member.displayName} class="w-7 h-7 rounded-full shrink-0 object-cover" />
             {:else}
-              <div class="w-7 h-7 rounded-full bg-surface-container-low flex items-center justify-center text-[10px] font-bold text-on-surface-variant uppercase shrink-0">
+              <div class="w-7 h-7 rounded-full bg-surface-container-low flex items-center justify-center text-2xs font-bold text-on-surface-variant uppercase shrink-0">
                 {(member.displayName || member.username || '?').slice(0, 2)}
               </div>
             {/if}
             <div class="min-w-0 flex-1">
               <div class="text-sm font-semibold truncate">{member.displayName || member.username}</div>
               {#if member.username && member.username !== member.displayName}
-                <div class="text-[11px] text-on-surface-variant/70 truncate">@{member.username}</div>
+                <div class="text-2xs text-on-surface-variant/70 truncate">@{member.username}</div>
               {/if}
             </div>
             {#if !member.isOnServer}
-              <span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-surface-container-low text-on-surface-variant/60 shrink-0">{m.member_search_left_badge()}</span>
+              <span class="text-xs font-semibold px-1.5 py-0.5 rounded bg-surface-container-low text-on-surface-variant/60 shrink-0">{m.member_search_left_badge()}</span>
             {/if}
           </button>
         {/each}

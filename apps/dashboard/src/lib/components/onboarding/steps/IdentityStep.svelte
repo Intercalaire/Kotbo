@@ -120,7 +120,7 @@
   </div>
 
   <div class="mt-6">
-    <label for="timezone" class="flex items-center gap-2 text-[13px] font-semibold text-on-surface mb-2">
+    <label for="timezone" class="flex items-center gap-2 text-body-sm font-semibold text-on-surface mb-2">
       <Papicon icon="clock" size={14} class="text-primary" />
       Fuseau horaire
     </label>
@@ -128,7 +128,7 @@
       <select
         id="timezone"
         bind:value={timezone}
-        class="flex-1 min-w-0 rounded-xl border border-outline-variant/40 bg-surface-container-low/40 px-4 py-2.5 text-[14px] text-on-surface focus:outline-none focus:border-primary/50"
+        class="flex-1 min-w-0 rounded-xl border border-outline-variant/40 bg-surface-container-low/40 px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary/50"
       >
         {#each COMMON_TIMEZONES as zone (zone.value)}
           <option value={zone.value}>{zone.label}</option>
@@ -141,12 +141,12 @@
         {/if}
       </select>
       {#if localTime}
-        <span class="shrink-0 text-[13px] font-medium text-on-surface-variant/60 tabular-nums">
+        <span class="shrink-0 text-body-sm font-medium text-on-surface-variant/60 tabular-nums">
           il est {localTime}
         </span>
       {/if}
     </div>
-    <p class="mt-2 text-[12px] text-on-surface-variant/55 leading-relaxed">
+    <p class="mt-2 text-xs text-on-surface-variant/55 leading-relaxed">
       Il décide de l'heure des rapports, des concours programmés et des statistiques quotidiennes.
     </p>
   </div>
@@ -156,13 +156,13 @@
          sont des noms, et c'est la qu'on les lit sur Discord. -->
     <div class="rounded-xl overflow-hidden border border-black/25 shadow-sm bg-[#2b2d31]">
       <div class="px-3.5 py-2.5 border-b border-black/25">
-        <p class="text-[12px] font-semibold uppercase tracking-wide text-[#949ba4]">
+        <p class="text-xs font-semibold text-[#949ba4]">
           {language === 'fr' ? 'Accueil' : 'Welcome'}
         </p>
       </div>
       <div class="px-2 py-2 space-y-0.5">
         {#each samples as sample (sample)}
-          <p class="flex items-center gap-1.5 rounded px-2 py-1 text-[13.5px] text-[#dbdee1]">
+          <p class="flex items-center gap-1.5 rounded px-2 py-1 text-body-sm text-[#dbdee1]">
             <span class="text-[#80848e] text-[15px] leading-none">#</span>
             {sample.replace('#', '')}
           </p>
@@ -170,7 +170,7 @@
       </div>
     </div>
 
-    <p class="mt-3 flex items-start gap-2 text-[12.5px] text-on-surface-variant/55 leading-relaxed">
+    <p class="mt-3 flex items-start gap-2 text-xs text-on-surface-variant/55 leading-relaxed">
       <Papicon icon="info" size={13} class="mt-0.5 shrink-0 text-on-surface-variant/35" />
       <span>{m.onb_shell_preview_hint()} lors de la mise en place.</span>
     </p>

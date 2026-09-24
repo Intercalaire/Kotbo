@@ -1,7 +1,6 @@
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
-import prisma from '../../utils/db.js';
-import { getOrCreateRpgProfile, getOrCreateEconomyConfig, registerGambleAttempt } from '../../services/features/economyService.js';
+import { getOrCreateRpgProfile, getOrCreateEconomyConfig, registerGambleAttempt, takeBet, creditBalance } from '../../services/features/economyService.js';
 import { COLORS_RAW, errorContainer, kotboContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import { separator, v2Message } from '@arcscord/components';
@@ -55,6 +54,16 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     await registerGambleAttempt(guildId, userId, bet);
 
+    // Mise prise d'avance, par une écriture conditionnelle : le solde lu plus haut a pu
+    // bouger depuis, et le gain est ensuite versé par incrément.
+    if (!(await takeBet(profile.id, bet))) {
+      await interaction.reply(v2Message(
+        { flags: MessageFlags.Ephemeral },
+        errorContainer(m.b3_dice_insufficient_title({}, { locale }), m.b3_dice_insufficient_desc({ bet, balance: profile.balance, coins: E.coins }, { locale })),
+      ));
+      return;
+    }
+
     // Roll two dice (1 to 6)
     const d1 = Math.floor(Math.random() * 6) + 1;
     const d2 = Math.floor(Math.random() * 6) + 1;
@@ -77,7 +86,9 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       resultMessage = m.b3_dice_double({ star: E.star, value: d1 }, { locale });
       isWin = true;
     } else if (sum >= 8) {
-      multiplier = 1.5;
+      // ×1,4 et non ×1,5 : à ×1,5 le jeu rendait en moyenne 37/36 de la mise, soit un
+      // gain garanti sur la durée. À ×1,4 il reste légèrement en faveur de la banque.
+      multiplier = 1.4;
       resultMessage = m.b3_dice_win({ success: E.success, sum }, { locale });
       isWin = true;
     } else if (sum === 7) {
@@ -89,13 +100,9 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       resultMessage = m.b3_dice_loss({ error: E.error, sum }, { locale });
     }
 
-    const netGain = Math.floor(bet * multiplier) - bet;
-    const newBalance = profile.balance + netGain;
-
-    await prisma.rpgProfile.update({
-      where: { id: profile.id },
-      data: { balance: newBalance }
-    });
+    const payout = Math.floor(bet * multiplier);
+    const netGain = payout - bet;
+    const newBalance = await creditBalance(profile.id, payout);
 
     let accentColor = COLORS_RAW.danger;
     if (isWin) accentColor = COLORS_RAW.success;

@@ -74,7 +74,7 @@
           {:else}
             <h2 class="text-base font-semibold text-on-surface leading-tight truncate">{title}</h2>
             {#if subtitle}
-              <p class="text-[13px] text-on-surface-variant mt-0.5 truncate">{subtitle}</p>
+              <p class="text-body-sm text-on-surface-variant mt-0.5 truncate">{subtitle}</p>
             {/if}
           {/if}
         </div>

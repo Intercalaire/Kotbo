@@ -119,14 +119,14 @@
   const toneClass: Record<string, string> = {
     neutral: 'bg-surface-container text-on-surface-variant',
     info: 'bg-primary/10 text-primary',
-    success: 'bg-emerald-500/10 text-emerald-500',
-    warning: 'bg-amber-500/10 text-amber-500',
+    success: 'bg-success/10 text-success',
+    warning: 'bg-warning/10 text-warning',
     danger: 'bg-error/10 text-error',
   };
 
   function healthClass(score: number): string {
-    if (score >= 60) return 'text-emerald-500';
-    if (score >= 40) return 'text-amber-500';
+    if (score >= 60) return 'text-success';
+    if (score >= 40) return 'text-warning';
     return 'text-error';
   }
 
@@ -245,23 +245,23 @@
       <div class="text-[18px] font-semibold text-on-surface tabular-nums">
         {partnerships.filter((row) => row.stage === 'ACTIVE' || row.stage === 'RENEWAL').length}
       </div>
-      <div class="text-[11px] text-on-surface-variant">Partenariats actifs</div>
+      <div class="text-2xs text-on-surface-variant">Partenariats actifs</div>
     </div>
     <div class="rounded-xl bg-surface-container px-3 py-2.5">
       <div class="text-[18px] font-semibold text-on-surface tabular-nums">
         {partnerships.reduce((total, row) => total + row.referredJoins, 0)}
       </div>
-      <div class="text-[11px] text-on-surface-variant">Arrivées apportées</div>
+      <div class="text-2xs text-on-surface-variant">Arrivées apportées</div>
     </div>
     <div class="rounded-xl bg-surface-container px-3 py-2.5">
       <div class="text-[18px] font-semibold text-on-surface tabular-nums">{pendingCount}</div>
-      <div class="text-[11px] text-on-surface-variant">Demandes en attente</div>
+      <div class="text-2xs text-on-surface-variant">Demandes en attente</div>
     </div>
     <div class="rounded-xl bg-surface-container px-3 py-2.5">
       <div class="text-[18px] font-semibold text-on-surface tabular-nums">
         {finance ? money(finance.receivedCents, finance.currency) : '-'}
       </div>
-      <div class="text-[11px] text-on-surface-variant">
+      <div class="text-2xs text-on-surface-variant">
         Encaissé{finance && finance.lateCount > 0 ? ` · ${finance.lateCount} en retard` : ''}
       </div>
     </div>
@@ -270,19 +270,19 @@
   <div class="flex flex-wrap items-center gap-2 mb-4">
     <div class="inline-flex rounded-lg bg-surface-container p-0.5">
       <button
-        class="px-3 py-1.5 text-[12px] rounded-md {view === 'pipeline' ? 'bg-surface text-on-surface' : 'text-on-surface-variant'}"
+        class="px-3 py-1.5 text-xs rounded-md {view === 'pipeline' ? 'bg-surface text-on-surface' : 'text-on-surface-variant'}"
         onclick={() => (view = 'pipeline')}
       >
         Pipeline
       </button>
       <button
-        class="px-3 py-1.5 text-[12px] rounded-md {view === 'requests' ? 'bg-surface text-on-surface' : 'text-on-surface-variant'}"
+        class="px-3 py-1.5 text-xs rounded-md {view === 'requests' ? 'bg-surface text-on-surface' : 'text-on-surface-variant'}"
         onclick={() => (view = 'requests')}
       >
         Demandes{pendingCount > 0 ? ` (${pendingCount})` : ''}
       </button>
       <button
-        class="px-3 py-1.5 text-[12px] rounded-md {view === 'settings' ? 'bg-surface text-on-surface' : 'text-on-surface-variant'}"
+        class="px-3 py-1.5 text-xs rounded-md {view === 'settings' ? 'bg-surface text-on-surface' : 'text-on-surface-variant'}"
         onclick={() => (view = 'settings')}
       >
         Réglages
@@ -291,7 +291,7 @@
 
     {#if view === 'pipeline'}
       <input
-        class="flex-1 min-w-[180px] max-w-xs rounded-lg border border-outline-variant/30 bg-surface-container-low px-3 py-1.5 text-[12px] text-on-surface"
+        class="flex-1 min-w-[180px] max-w-xs rounded-lg border border-outline-variant/30 bg-surface-container-low px-3 py-1.5 text-xs text-on-surface"
         placeholder="Rechercher un partenaire"
         bind:value={search}
       />
@@ -316,10 +316,10 @@
         {#each columns as column (column.stage.key)}
           <div class="min-w-[260px] w-[260px] shrink-0">
             <div class="flex items-center justify-between mb-2 px-1">
-              <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full {toneClass[column.stage.tone] ?? toneClass.neutral}">
+              <span class="text-2xs font-semibold px-2 py-0.5 rounded-full {toneClass[column.stage.tone] ?? toneClass.neutral}">
                 {column.stage.label}
               </span>
-              <span class="text-[11px] text-on-surface-variant tabular-nums">{column.rows.length}</span>
+              <span class="text-2xs text-on-surface-variant tabular-nums">{column.rows.length}</span>
             </div>
 
             <div class="space-y-2">
@@ -338,13 +338,13 @@
                       </div>
                     {/if}
                     <div class="min-w-0 flex-1">
-                      <p class="text-[13px] font-medium text-on-surface truncate">{row.partner.displayName}</p>
-                      <p class="text-[11px] text-on-surface-variant truncate">{typeMeta?.label ?? row.type}</p>
+                      <p class="text-body-sm font-medium text-on-surface truncate">{row.partner.displayName}</p>
+                      <p class="text-2xs text-on-surface-variant truncate">{typeMeta?.label ?? row.type}</p>
                     </div>
-                    <span class="text-[11px] font-semibold tabular-nums {healthClass(row.healthScore)}">{row.healthScore}</span>
+                    <span class="text-2xs font-semibold tabular-nums {healthClass(row.healthScore)}">{row.healthScore}</span>
                   </div>
 
-                  <div class="flex items-center gap-3 mt-2 text-[10.5px] text-on-surface-variant">
+                  <div class="flex items-center gap-3 mt-2 text-2xs text-on-surface-variant">
                     <span class="inline-flex items-center gap-1">
                       <Papicon icon="user-plus" size={11} />
                       {row.referredJoins}
@@ -390,17 +390,17 @@
           {@const flags = application.screening?.flags ?? []}
           <SectionCard title={application.projectName} description={application.applicantTag ?? undefined}>
             {#snippet actions()}
-              <span class="text-[11px] px-2 py-0.5 rounded-full font-semibold {application.status === 'PENDING' ? toneClass.info : toneClass.neutral}">
+              <span class="text-2xs px-2 py-0.5 rounded-full font-semibold {application.status === 'PENDING' ? toneClass.info : toneClass.neutral}">
                 {application.status}
               </span>
             {/snippet}
 
             <div class="space-y-3">
               {#if application.description}
-                <p class="text-[12px] text-on-surface-variant whitespace-pre-wrap">{application.description}</p>
+                <p class="text-xs text-on-surface-variant whitespace-pre-wrap">{application.description}</p>
               {/if}
 
-              <div class="flex flex-wrap gap-3 text-[11px] text-on-surface-variant">
+              <div class="flex flex-wrap gap-3 text-2xs text-on-surface-variant">
                 {#if application.memberCount}
                   <span class="inline-flex items-center gap-1"><Papicon icon="users" size={12} />{application.memberCount} membres</span>
                 {/if}
@@ -418,9 +418,9 @@
               {#if flags.length > 0}
                 <!-- Points de vigilance : affichés, jamais bloquants. Le réseau
                      informe, il ne décide pas. -->
-                <div class="rounded-lg bg-amber-500/10 px-3 py-2 space-y-1">
+                <div class="rounded-lg bg-warning/10 px-3 py-2 space-y-1">
                   {#each flags as flag (flag)}
-                    <p class="text-[11px] text-amber-500 flex items-start gap-1.5">
+                    <p class="text-2xs text-warning flex items-start gap-1.5">
                       <Papicon icon="alert-triangle" size={12} class="mt-0.5 shrink-0" />
                       <span>{flag}</span>
                     </p>
@@ -432,11 +432,11 @@
                 {#if rejecting === application.id}
                   <div class="pt-1 border-t border-outline-variant/10 space-y-2">
                     <label class="block">
-                      <span class="text-[11px] font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">
+                      <span class="text-2xs font-bold text-on-surface-variant/80 ml-1 mb-1.5 block">
                         Motif du refus, transmis au demandeur
                       </span>
                       <textarea
-                        class="w-full rounded-lg border border-outline-variant/30 bg-surface-container-low px-3 py-2 text-[12px] text-on-surface"
+                        class="w-full rounded-lg border border-outline-variant/30 bg-surface-container-low px-3 py-2 text-xs text-on-surface"
                         rows="2"
                         placeholder="Facultatif, mais toujours mieux qu'un refus sans explication"
                         bind:value={rejectReason}

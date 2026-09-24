@@ -32,7 +32,7 @@
         <div class="min-w-0">
           <h3 class="text-sm font-semibold text-on-surface leading-tight">{title}</h3>
           {#if description}
-            <p class="text-[13px] text-on-surface-variant mt-0.5 leading-relaxed">{description}</p>
+            <p class="text-body-sm text-on-surface-variant mt-0.5 leading-relaxed">{description}</p>
           {/if}
         </div>
       </div>

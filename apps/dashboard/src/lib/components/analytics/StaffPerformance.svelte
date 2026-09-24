@@ -6,10 +6,10 @@
   const { data = [], onOpenMember = (_id: string, _name: string) => {} } = $props();
 
   const metrics = [
-    { key: 'sanctionsCount', label: m.sp_metric_sanctions(), icon: 'Gavel', color: 'text-amber-500' },
-    { key: 'reportsCount', label: m.sp_metric_reports(), icon: 'Megaphone', color: 'text-rose-500' },
+    { key: 'sanctionsCount', label: m.sp_metric_sanctions(), icon: 'Gavel', color: 'text-warning' },
+    { key: 'reportsCount', label: m.sp_metric_reports(), icon: 'Megaphone', color: 'text-error' },
     { key: 'warns', label: m.sp_metric_warns(), icon: 'Warning', color: 'text-orange-400' },
-    { key: 'bans', label: m.sp_metric_bans(), icon: 'Banning', color: 'text-red-500' },
+    { key: 'bans', label: m.sp_metric_bans(), icon: 'Banning', color: 'text-error' },
   ];
 </script>
 
@@ -21,7 +21,7 @@
           <Papicon icon="TrendUp" size={20} class="text-primary" />
           {m.sp_title()}
         </h3>
-        <p class="text-[10px] text-on-surface-variant/50 mt-1 uppercase tracking-widest font-bold">{m.sp_subtitle()}</p>
+        <p class="text-xs text-on-surface-variant/50 mt-1 font-semibold">{m.sp_subtitle()}</p>
       </div>
     </div>
 
@@ -57,7 +57,7 @@
                   </div>
                   <div class="flex flex-col items-start">
                     <span class="text-sm font-semibold">{staff.displayName || staff.username}</span>
-                    <span class="text-[10px] text-on-surface-variant/40 font-mono">@{staff.username}</span>
+                    <span class="text-2xs text-on-surface-variant/40 font-mono">@{staff.username}</span>
                   </div>
                 </button>
               </td>
@@ -72,7 +72,7 @@
                   <div class="w-16 h-1 bg-surface-container-high rounded-full overflow-hidden">
                     <div class="h-full bg-primary rounded-full" style="width: {staff.reportRate}%"></div>
                   </div>
-                  <span class="text-[10px] font-bold text-on-surface-variant/30 uppercase tracking-tighter">{m.sp_accuracy_label()}</span>
+                  <span class="text-2xs font-bold text-on-surface-variant/30 uppercase tracking-tighter">{m.sp_accuracy_label()}</span>
                 </div>
               </td>
             </tr>

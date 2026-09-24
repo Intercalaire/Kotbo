@@ -5,6 +5,8 @@
   import { updateModuleStatus } from '../api';
   import { createAsyncActionState } from '../asyncAction.svelte';
   import InlineFeedback from './InlineFeedback.svelte';
+  import Button from './ui/Button.svelte';
+  import Callout from './ui/Callout.svelte';
   import { toast } from '../stores/toast.svelte';
   import { m } from '../i18n';
 
@@ -66,39 +68,29 @@
   <InlineFeedback state={saveAction} />
   
   <!-- Header -->
-  <header class="module-page__header flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30 relative group">
-    <div class="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
-      <div class="absolute -top-24 -right-24 w-48 h-48 bg-primary/8 rounded-full blur-[60px] group-hover:bg-primary/15 transition-all duration-700"></div>
-    </div>
-
-    <div class="module-page__identity flex min-w-0 items-center gap-4 relative">
-      <div class="module-page__icon w-11 h-11 shrink-0 bg-linear-to-br from-primary to-primary-container rounded-lg flex items-center justify-center shadow-md shadow-primary/15">
-        <Papicon {icon} size={22} class="text-white" />
+  <header class="module-page__header flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-lowest p-5 rounded-xl border border-outline-variant">
+    <div class="module-page__identity flex min-w-0 items-center gap-4">
+      <div class="module-page__icon w-11 h-11 shrink-0 bg-primary-container text-on-primary-container rounded-lg flex items-center justify-center">
+        <Papicon {icon} size={22} />
       </div>
       <div class="min-w-0">
         <h1 class="text-lg font-semibold tracking-tight text-on-surface font-headline leading-tight">{title}</h1>
-        <p class="text-sm text-on-surface-variant/70 font-medium">{description}</p>
+        <p class="text-sm text-on-surface-variant">{description}</p>
       </div>
     </div>
 
-    <div class="module-page__actions flex items-center flex-wrap justify-end gap-3 relative">
+    <div class="module-page__actions flex items-center flex-wrap justify-end gap-3">
       {#if actions}
         {@render actions()}
       {/if}
 
       {#if module && !isFixed && lockedByPlan}
-        <div class="h-8 w-px bg-outline-variant/20 mx-1 hidden md:block"></div>
-        <a
-          href="/billing"
-          class="flex items-center gap-2 px-3.5 h-9 rounded-lg text-[13px] font-medium text-on-primary bg-primary hover:opacity-90 transition-opacity"
-        >
-          <Papicon icon="Lock" size={14} />
-          Offre {requiredPlanLabel}
-        </a>
+        <div class="h-8 w-px bg-outline-variant mx-1 hidden md:block"></div>
+        <Button href="/billing" variant="primary" icon="Lock">Offre {requiredPlanLabel}</Button>
       {:else if module && !isFixed}
-        <div class="h-8 w-px bg-outline-variant/20 mx-1 hidden md:block"></div>
-        <div class="flex items-center gap-2.5 px-3 py-1.5 bg-surface-container-low/40 rounded-lg border border-outline-variant/10">
-          <span class="text-xs font-medium {isModuleEnabled ? 'text-primary' : 'text-on-surface-variant/40'}">
+        <div class="h-8 w-px bg-outline-variant mx-1 hidden md:block"></div>
+        <div class="flex items-center gap-2.5 px-3 py-1.5 bg-surface-container rounded-lg border border-outline-variant">
+          <span class="text-xs font-medium {isModuleEnabled ? 'text-primary' : 'text-on-surface-variant'}">
             {isModuleEnabled ? m.d7_enabled() : m.d7_disabled()}
           </span>
           <ToggleSwitch
@@ -115,32 +107,21 @@
        enregistrer quoi que ce soit. Le dire ici, une fois, evite que chaque
        appel refuse ne remonte en notification. -->
   {#if module && !isFixed && lockedByPlan}
-    <div class="flex items-start gap-3 px-5 py-4 rounded-xl bg-primary/5 border border-primary/20">
-      <div class="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-        <Papicon icon="Lock" size={18} />
-      </div>
-      <div class="space-y-1 min-w-0">
-        <p class="text-sm font-semibold text-on-surface">
-          « {title} » fait partie de l'offre {requiredPlanLabel}
-        </p>
-        <p class="text-[13px] text-on-surface-variant/70 leading-relaxed">
-          Le serveur peut en voir la page, mais pas l'activer tant que son offre ne le comprend pas.
-        </p>
-        <a href="/billing" class="inline-flex items-center gap-1.5 text-[13px] font-medium text-primary hover:underline pt-1">
-          Voir les offres <Papicon icon="ArrowRight" size={12} />
-        </a>
-      </div>
-    </div>
+    <Callout variant="info" icon="Lock" title="« {title} » fait partie de l'offre {requiredPlanLabel}">
+      Tu peux en voir la page, mais pas l'activer tant que l'offre du serveur ne le comprend pas.
+      {#snippet actions()}
+        <Button href="/billing" variant="secondary" size="sm" iconRight="ArrowRight">Voir les offres</Button>
+      {/snippet}
+    </Callout>
   {:else if module && !isFixed && !isModuleEnabled}
-    <div class="flex items-start gap-3 px-5 py-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
-      <div class="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
-        <Papicon icon="warning" size={18} />
-      </div>
-      <div class="space-y-0.5 min-w-0">
-        <p class="text-sm font-semibold text-on-surface">{m.mp_module_off_title()}</p>
-        <p class="text-[13px] text-on-surface-variant/70 leading-relaxed">{m.mp_module_off_desc()}</p>
-      </div>
-    </div>
+    <Callout variant="warning" title={m.mp_module_off_title()}>
+      {m.mp_module_off_desc()}
+      {#snippet actions()}
+        <Button variant="primary" size="sm" icon="power" loading={saveAction.state.loading} onclick={toggleModule}>
+          {m.mp_module_off_action()}
+        </Button>
+      {/snippet}
+    </Callout>
   {/if}
 
   <main class="module-page__body flex-1 space-y-8 {isModuleEnabled || isFixed || featureKey === 'sanctions' || featureKey === 'channel_links' || featureKey === 'staff_server' ? '' : 'opacity-40 pointer-events-none grayscale-[0.5] transition-all duration-500'}">

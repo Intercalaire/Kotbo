@@ -125,7 +125,7 @@
         {@render section(m.nav_recents(), navigationStore.recentItems)}
       {/if}
 
-      {#each navigationStore.groups as group (group.key)}
+      {#each navigationStore.menuGroups as group (group.key)}
         {@render section(group.label, group.items)}
       {/each}
     {/if}

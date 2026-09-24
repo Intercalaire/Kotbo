@@ -89,6 +89,15 @@ export async function handleEventsRoutes(
   if (parts[5]) {
     const eventId = parts[5];
 
+    // L'événement doit appartenir au serveur ouvert : toutes les routes ci-dessous le
+    // prenaient par son seul identifiant, et le staff d'un autre serveur pouvait le lire,
+    // le modifier, le publier ou le supprimer.
+    const owned = await prisma.event.findFirst({ where: { id: eventId, guildId }, select: { id: true } });
+    if (!owned) {
+      json(res, 404, { error: 'Événement introuvable.' });
+      return true;
+    }
+
     // GET /api/dashboard/guilds/:guildId/events/:eventId
     if (method === 'GET' && !parts[6]) {
       try {

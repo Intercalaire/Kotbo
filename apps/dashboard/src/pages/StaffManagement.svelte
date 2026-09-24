@@ -2,12 +2,14 @@
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { canViewFeature } from '../lib/permissions.svelte';
-  import { fetchMemberCase, fetchGuildState, fetchDiscordChannels, fetchPolls, toggleTutorStatus, fetchStaffWarnings, fetchFeatureConfigurations, updateStaffConfig, deleteStaffRole, updateStaffRole, fetchStaffHierarchies, createStaffHierarchy, updateStaffHierarchy, deleteStaffHierarchy, fetchHierarchySchema, importHierarchyRoleMembers, addMemberHierarchyGrade, removeMemberHierarchyGrade, fetchStaffServerChannels, fetchTutoringItems, upsertTutoringItem, deleteTutoringItem, dashboardFetch } from '../lib/api';
+  import { fetchMemberCase, fetchGuildState, fetchDiscordChannels, fetchPolls, toggleTutorStatus, fetchStaffWarnings, fetchFeatureConfigurations, updateStaffConfig, deleteStaffRole, updateStaffRole, fetchStaffHierarchies, createStaffHierarchy, updateStaffHierarchy, deleteStaffHierarchy, fetchHierarchySchema, importHierarchyRoleMembers, addMemberHierarchyGrade, removeMemberHierarchyGrade, fetchStaffServerChannels, dashboardFetch } from '../lib/api';
   import DiscordMemberLookup from '../lib/components/DiscordMemberLookup.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
@@ -15,7 +17,7 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
-  import type { StaffMember, StaffRole, StaffHierarchy, TutoringItem } from '../lib/types';
+  import type { StaffMember, StaffRole, StaffHierarchy } from '../lib/types';
   import Papicon from '../lib/components/Papicon.svelte';
   import Chart from '../lib/components/charts/Chart.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
@@ -28,8 +30,8 @@
   let accessLevel = $state('none');
   let error = $state('');
   
-  type StaffTab = 'members' | 'roles' | 'warnings' | 'blacklist' | 'polls' | 'leadership' | 'permissions' | 'organigramme' | 'tutoring';
-  const staffTabs: StaffTab[] = ['members', 'roles', 'organigramme', 'warnings', 'blacklist', 'polls', 'leadership', 'tutoring', 'permissions'];
+  type StaffTab = 'members' | 'roles' | 'warnings' | 'blacklist' | 'polls' | 'leadership' | 'permissions' | 'organigramme';
+  const staffTabs: StaffTab[] = ['members', 'roles', 'organigramme', 'warnings', 'blacklist', 'polls', 'leadership', 'permissions'];
 
   function isStaffTab(value: string | null | undefined): value is StaffTab {
     return !!value && staffTabs.includes(value as StaffTab);
@@ -45,12 +47,16 @@
     warnings: false,
     blacklist: false,
     polls: true,
-    leadership: true,
-    tutoring: true
+    leadership: true
   });
 
   $effect(() => {
     const _path = $router.path;
+    // L'onglet Tutorat a ete fondu dans la page du meme nom.
+    if (_path.startsWith('/staff-management/tutoring')) {
+      router.goto('/tutoring');
+      return;
+    }
     const tab = resolveTabFromUrl('/staff-management', staffTabs, 'members');
     if (isStaffTab(tab) && tab !== activeTab) {
       activeTab = tab;
@@ -164,15 +170,6 @@
   let isSavingMemberHierarchyGrade = $state(false);
 
   // Checklists de tutorat (par hiérarchie / grade)
-  let tutoringItems = $state<TutoringItem[]>([]);
-  let showAddTutoringItemForm = $state(false);
-  let editingTutoringItem = $state<TutoringItem | null>(null);
-  let newTutoringItemCategory = $state('');
-  let newTutoringItemTitle = $state('');
-  let newTutoringItemDescription = $state('');
-  let newTutoringItemHierarchyId = $state('');
-  let newTutoringItemGrade = $state('');
-  let isSavingTutoringItem = $state(false);
 
   const isAdmin = $derived(((authStore.guilds as any[]).find(g => g.id === authStore.selectedGuildId))?.accessLevel === 'admin');
   const directoryAccess = $derived((dashboardStore.state.featureAccess as any)?.staff_directory || {});
@@ -180,6 +177,17 @@
   
   const canManageSettings = $derived(isAdmin || !!dashboardStore.state.access?.canManageSettings || !!directoryAccess.canConfigure || !!rolesAccess.canConfigure);
   const canModerate = $derived(canManageSettings || !!directoryAccess.canModerate || !!rolesAccess.canModerate);
+  const staffTabVisible = $derived<Record<StaffTab, boolean>>({
+    members: !!directoryAccess.canView,
+    roles: !!rolesAccess.canView,
+    organigramme: !!directoryAccess.canView,
+    warnings: canModerate,
+    blacklist: canModerate,
+    polls: canModerate,
+    leadership: canModerate,
+    permissions: canManageSettings,
+  });
+
 
   const activeStaffMembers = $derived(staffMembers.filter(sm => !sm.blacklistEntries || sm.blacklistEntries.length === 0));
   const blacklistedStaffMembers = $derived(staffMembers.filter(sm => sm.blacklistEntries && sm.blacklistEntries.length > 0));
@@ -660,7 +668,6 @@
         case 'blacklist': await loadStaffMembers(); break;
         case 'polls': await loadPolls(); break;
         case 'leadership': await loadLeadershipMetrics(); break;
-        case 'tutoring': await Promise.all([loadTutoringItems(), loadHierarchies()]); break;
       }
     } catch (err) {
       loadedTabs.delete(cacheKey as StaffTab);
@@ -734,104 +741,6 @@
       loadingStates.warnings = false;
     }
   }
-
-  async function loadTutoringItems() {
-    if (!guildId || !authStore.token) return;
-    loadingStates.tutoring = true;
-    try {
-      const data = await fetchTutoringItems();
-      tutoringItems = data?.items || [];
-    } catch (err) {
-      console.error('Erreur loading tutoring items:', err);
-    } finally {
-      loadingStates.tutoring = false;
-    }
-  }
-
-  function resetTutoringItemForm() {
-    editingTutoringItem = null;
-    newTutoringItemCategory = '';
-    newTutoringItemTitle = '';
-    newTutoringItemDescription = '';
-    newTutoringItemHierarchyId = '';
-    newTutoringItemGrade = '';
-  }
-
-  function openAddTutoringItemForm() {
-    resetTutoringItemForm();
-    showAddTutoringItemForm = true;
-  }
-
-  function openEditTutoringItem(item: TutoringItem) {
-    editingTutoringItem = item;
-    newTutoringItemCategory = item.category;
-    newTutoringItemTitle = item.title;
-    newTutoringItemDescription = item.description || '';
-    newTutoringItemHierarchyId = item.hierarchyId || '';
-    newTutoringItemGrade = item.grade || '';
-    showAddTutoringItemForm = true;
-  }
-
-  async function saveTutoringItem() {
-    if (!guildId || !newTutoringItemCategory.trim() || !newTutoringItemTitle.trim()) return;
-    isSavingTutoringItem = true;
-    try {
-      await upsertTutoringItem({
-        id: editingTutoringItem?.id,
-        category: newTutoringItemCategory.trim(),
-        title: newTutoringItemTitle.trim(),
-        description: newTutoringItemDescription.trim() || null,
-        sortOrder: editingTutoringItem?.sortOrder ?? tutoringItems.length,
-        hierarchyId: newTutoringItemHierarchyId || null,
-        grade: newTutoringItemGrade.trim() || null
-      });
-      toast.success(editingTutoringItem ? m.sm_toast_tutoring_updated() : m.sm_toast_tutoring_created());
-      showAddTutoringItemForm = false;
-      resetTutoringItemForm();
-      await loadTutoringItems();
-    } catch (err) {
-      console.error('Erreur sauvegarde item tutorat:', err);
-      toast.error(m.sm_err_tutoring_save());
-    } finally {
-      isSavingTutoringItem = false;
-    }
-  }
-
-  async function removeTutoringItem(itemId: string) {
-    if (!guildId) return;
-    try {
-      await deleteTutoringItem(itemId);
-      tutoringItems = tutoringItems.filter((i) => i.id !== itemId);
-      toast.success(m.sm_toast_tutoring_deleted());
-    } catch (err) {
-      console.error('Erreur suppression item tutorat:', err);
-      toast.error(m.sm_err_tutoring_delete());
-    }
-  }
-
-  function tutoringGroupLabel(hierarchyId: string | null, grade: string | null) {
-    const hierarchyLabel = hierarchyId ? (hierarchies.find((h) => h.id === hierarchyId)?.name || m.sm_hierarchy_unknown()) : m.sm_hierarchy_all();
-    const gradeLabel = grade || m.sm_grade_all();
-    return `${hierarchyLabel} · ${gradeLabel}`;
-  }
-
-  const tutoringGroups = $derived((() => {
-    const groups = new Map<string, { key: string; hierarchyId: string | null; grade: string | null; items: TutoringItem[] }>();
-    for (const item of tutoringItems) {
-      const hierarchyId = item.hierarchyId || null;
-      const grade = item.grade || null;
-      const key = `${hierarchyId ?? 'none'}::${grade ?? 'none'}`;
-      if (!groups.has(key)) groups.set(key, { key, hierarchyId, grade, items: [] });
-      groups.get(key)!.items.push(item);
-    }
-    return [...groups.values()].sort((a, b) => {
-      if (!a.hierarchyId && b.hierarchyId) return -1;
-      if (a.hierarchyId && !b.hierarchyId) return 1;
-      if (!a.grade && b.grade) return -1;
-      if (a.grade && !b.grade) return 1;
-      return tutoringGroupLabel(a.hierarchyId, a.grade).localeCompare(tutoringGroupLabel(b.hierarchyId, b.grade));
-    });
-  })());
 
   async function loadStaffConfig() {
     if (!guildId || !authStore.token) return;
@@ -1488,7 +1397,7 @@
       value: staffRoles.length.toString(),
       note: m.sm_stat_roles_note(),
       icon: "shield",
-      color: "bg-emerald-500/10 text-emerald-700",
+      color: "bg-success/10 text-success",
       loading: loadingStates.roles
     },
     {
@@ -1496,7 +1405,7 @@
       value: staffMembers.reduce((acc, member) => acc + (member.warnings?.length || 0), 0).toString(),
       note: m.sm_stat_warnings_note(),
       icon: "alert-triangle",
-      color: "bg-amber-500/10 text-amber-700",
+      color: "bg-warning/10 text-warning",
       loading: loadingStates.members // Depends on staffMembers
     },
     {
@@ -1504,7 +1413,7 @@
       value: polls.filter(p => p.status !== 'CLOSED' && (!p.closesAt || new Date(p.closesAt) > new Date())).length.toString(),
       note: m.sm_stat_polls_note(),
       icon: "bar-chart-2",
-      color: "bg-slate-500/10 text-slate-600",
+      color: "bg-slate-500/10 text-on-surface-variant",
       loading: loadingStates.polls
     },
   ]);
@@ -1523,7 +1432,7 @@
       <Skeleton height="h-[60vh]" rounded="rounded-xl" />
     </div>
   {:else if error}
-    <div class="mt-6 rounded-lg border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-700 text-center max-w-2xl mx-auto">
+    <div class="mt-6 rounded-lg border border-error/20 bg-error/10 px-4 py-3 text-sm font-bold text-error text-center max-w-2xl mx-auto">
       {error}
     </div>
   {:else if guildId}
@@ -1569,28 +1478,12 @@
       {/each}
     </div>
 
-    <!-- TABS -->
-    <div class="flex flex-wrap items-center gap-3">
-      {#each [
-        { id: 'members', label: m.sm_tab_members(), icon: 'users', visible: !!directoryAccess.canView },
-        { id: 'roles', label: m.sm_tab_roles(), icon: 'shield', visible: !!rolesAccess.canView },
-        { id: 'organigramme', label: m.sm_tab_org(), icon: 'git-branch', visible: !!directoryAccess.canView },
-        { id: 'warnings', label: m.sm_tab_warnings(), icon: 'alert-triangle', visible: canModerate },
-        { id: 'blacklist', label: m.sm_tab_blacklist(), icon: 'slash', visible: canModerate },
-        { id: 'polls', label: m.sm_tab_polls(), icon: 'check-square', visible: canModerate },
-        { id: 'leadership', label: m.sm_tab_leadership(), icon: 'bar-chart', visible: canModerate },
-        { id: 'tutoring', label: m.sm_tab_tutoring(), icon: 'clipboard', visible: canModerate && canViewFeature('tutoring') },
-        { id: 'permissions', label: m.sm_tab_permissions(), icon: 'lock', visible: canManageSettings }
-      ].filter(t => t.visible) as tab}
-        <button
-          onclick={() => switchTab(tab.id as StaffTab)}
-          class="tab-button {activeTab === tab.id ? 'active' : ''}"
-        >
-        <Papicon icon={tab.icon} size={16} class="shrink-0" />
-          {tab.label}
-        </button>
-      {/each}
-    </div>
+    <Tabs
+      label={m.nav_group_staff()}
+      tabs={pageTabItems('/staff-management', (id) => staffTabVisible[id as StaffTab])}
+      active={activeTab}
+      onchange={(id) => switchTab(id as StaffTab)}
+    />
 
     <!-- SECTIONS -->
     <div class="premium-card rounded-xl overflow-hidden">
@@ -1603,7 +1496,7 @@
           {#if directoryAccess.canConfigure}
             <button
               onclick={openAddMemberForm}
-              class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+              class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
             >
               <Papicon icon={showAddMemberForm ? 'x' : 'plus'} size={14} />
               {showAddMemberForm ? m.common_cancel() : m.sm_btn_add_member()}
@@ -1616,7 +1509,7 @@
             <div class="flex flex-col gap-4 md:flex-row md:items-end">
               <div class="flex-1">
                 <label>
-                  <span class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_discord_user()}</span>
+                  <span class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_discord_user()}</span>
                   <div class="min-w-0">
                     <DiscordMemberLookup
                       {guildId}
@@ -1633,7 +1526,7 @@
               </div>
               <div class="md:w-64 shrink-0">
                 <label>
-                  <span class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_global_grade()}</span>
+                  <span class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_global_grade()}</span>
                   <select bind:value={newMemberGrade} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
                     {#each orderedStaffRoles as role}
                       <option value={role.name}>{role.name}</option>
@@ -1646,9 +1539,9 @@
                   checked={newMemberCreateTutoring}
                   onToggle={(v: boolean) => newMemberCreateTutoring = v}
                 />
-                <span class="text-[13px] font-medium text-on-surface-variant/70">{m.sm_toggle_create_tutoring()}</span>
+                <span class="text-body-sm font-medium text-on-surface-variant/70">{m.sm_toggle_create_tutoring()}</span>
               </div>
-              <button onclick={addStaffMember} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all active:scale-[0.98]">
+              <button onclick={addStaffMember} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold text-white transition-all active:scale-[0.98]">
                 {m.common_add()}
               </button>
             </div>
@@ -1695,13 +1588,13 @@
                         <a href="/profile/{member.userId}">{member.displayName || member.username || m.sm_unknown_user()}</a>
                       </h4>
                       <div class="flex items-center gap-3 mt-1.5 flex-wrap">
-                        <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
+                        <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
                           {member.grade}
                         </span>
                         {#if member.hierarchyGrades && member.hierarchyGrades.length > 0}
                           {#each member.hierarchyGrades as hGrade}
                             <span 
-                              class="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+                              class="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold"
                               style="border-color: {hGrade.hierarchy?.color ? hGrade.hierarchy.color + '30' : 'rgba(99, 102, 241, 0.2)'}; background-color: {hGrade.hierarchy?.color ? hGrade.hierarchy.color + '15' : 'rgba(99, 102, 241, 0.1)'}; color: {hGrade.hierarchy?.color || 'var(--color-primary)'}"
                             >
                               <span>{hGrade.hierarchy?.icon || '🔵'}</span>
@@ -1710,25 +1603,25 @@
                           {/each}
                         {/if}
                         {#if member.isTutor}
-                          <span class="inline-flex items-center gap-1 item rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-indigo-600 shadow-sm shadow-indigo-500/5 transition-all animate-in zoom-in-95 duration-300">
+                          <span class="inline-flex items-center gap-1 item rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-0.5 text-xs font-semibold text-indigo-600 shadow-sm shadow-indigo-500/5 transition-all animate-in zoom-in-95 duration-300">
                             <Papicon icon="shield" size={12} />
                             {m.sm_tutor_badge()}
                           </span>
                         {/if}
                         {#if member.suspendedAt}
                           <span
-                            class="inline-flex items-center gap-1 rounded-full border border-orange-500/25 bg-orange-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-orange-600"
+                            class="inline-flex items-center gap-1 rounded-full border border-orange-500/25 bg-orange-500/10 px-2.5 py-0.5 text-xs font-semibold text-orange-600"
                             title={member.suspendedReason || m.sm_suspended_since({ date: new Date(member.suspendedAt).toLocaleDateString() })}
                           >
                             <Papicon icon="pause" size={12} />
                             {m.sm_suspended_badge()}
                           </span>
                         {/if}
-                        <span class="text-[11px] font-medium text-on-surface-variant/70">
+                        <span class="text-2xs font-medium text-on-surface-variant/70">
                           {m.sm_member_since({ date: new Date(member.joinedStaffAt).toLocaleDateString() })}
                         </span>
                         {#if (member.warnings?.length || 0) > 0}
-                          <span class="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700">
+                          <span class="inline-flex items-center gap-1 rounded-full border border-warning/20 bg-warning/10 px-2.5 py-0.5 text-xs font-semibold text-warning">
                             <Papicon icon="alert-triangle" size={12} />
                             {member.warnings?.length || 0} {m.sm_warn_count_label()}{(member.warnings?.length || 0) > 1 ? 's' : ''}
                           </span>
@@ -1790,7 +1683,7 @@
                           const idx = orderedStaffRoles.findIndex((r) => r.name === member.grade);
                           return idx <= 0;
                         })()}
-                        class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors disabled:opacity-40 {(orderedStaffRoles.findIndex((r) => r.name === member.grade) <= 0) ? 'text-on-surface-variant/30' : 'text-emerald-600 hover:bg-emerald-500/15 border border-emerald-500/20 bg-emerald-500/5'}"
+                        class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors disabled:opacity-40 {(orderedStaffRoles.findIndex((r) => r.name === member.grade) <= 0) ? 'text-on-surface-variant/30' : 'text-success hover:bg-success/15 border border-success/20 bg-success/5'}"
                         title={m.sm_title_promote()}
                       >
                         <Papicon icon="chevrons-up" size={20} />
@@ -1801,7 +1694,7 @@
                           const idx = orderedStaffRoles.findIndex((r) => r.name === member.grade);
                           return idx === -1 || idx >= orderedStaffRoles.length - 1;
                         })()}
-                        class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors disabled:opacity-40 {(orderedStaffRoles.findIndex((r) => r.name === member.grade) === -1 || orderedStaffRoles.findIndex((r) => r.name === member.grade) >= orderedStaffRoles.length - 1) ? 'text-on-surface-variant/30' : 'text-amber-600 hover:bg-amber-500/15 border border-amber-500/20 bg-amber-500/5'}"
+                        class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors disabled:opacity-40 {(orderedStaffRoles.findIndex((r) => r.name === member.grade) === -1 || orderedStaffRoles.findIndex((r) => r.name === member.grade) >= orderedStaffRoles.length - 1) ? 'text-on-surface-variant/30' : 'text-warning hover:bg-warning/15 border border-warning/20 bg-warning/5'}"
                         title={m.sm_title_demote()}
                       >
                         <Papicon icon="chevrons-down" size={20} />
@@ -1816,7 +1709,7 @@
                       </button>
                       <button
                         onclick={() => removeStaff(member.userId)}
-                        class="inline-flex items-center justify-center rounded-xl p-2.5 text-rose-600 transition-colors hover:bg-rose-500/15 border border-rose-500/20 bg-rose-500/5"
+                        class="inline-flex items-center justify-center rounded-xl p-2.5 text-error transition-colors hover:bg-error/15 border border-error/20 bg-error/5"
                         title={m.sm_title_remove_staff()}
                       >
                         <Papicon icon="user-minus" size={20} />
@@ -1851,14 +1744,14 @@
             {#if rolesAccess.canConfigure}
               <button
                 onclick={openAddHierarchyForm}
-                class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+                class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
               >
                 <Papicon icon="plus" size={14} />
                 {m.sm_btn_new_hierarchy()}
               </button>
               <button
                 onclick={() => showAddRoleForm = !showAddRoleForm}
-                class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+                class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
               >
                 <Papicon icon={showAddRoleForm ? 'x' : 'plus'} size={14} />
                 {showAddRoleForm ? m.sm_aria_close() : m.sm_btn_new_role()}
@@ -1869,15 +1762,15 @@
 
         <div class="p-6 md:p-8 border-b border-outline-variant/20 bg-surface-container-lowest/50">
           <div class="flex items-center justify-between mb-4">
-            <h4 class="text-[13px] font-medium text-on-surface-variant/50">{m.sm_global_config_title()}</h4>
+            <h4 class="text-body-sm font-medium text-on-surface-variant/50">{m.sm_global_config_title()}</h4>
             {#if isSavingConfig}
-              <span class="text-[10px] font-bold uppercase text-primary animate-pulse">{m.sm_saving()}</span>
+              <span class="text-2xs font-bold uppercase text-primary animate-pulse">{m.sm_saving()}</span>
             {/if}
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label>
-                <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">{m.sm_field_base_role()} <span class="text-on-surface-variant/50 normal-case tracking-normal">{m.sm_optional_tag()}</span></span>
+                <span class="block text-xs font-semibold text-on-surface mb-2">{m.sm_field_base_role()} <span class="text-on-surface-variant/50 normal-case tracking-normal">{m.sm_optional_tag()}</span></span>
                 <select bind:value={baseStaffRoleId} onchange={saveStaffConfig} disabled={!rolesAccess.canConfigure} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
                   <option value={null}>{m.sm_none_option()}</option>
                   {#each availableDiscordRoles as dr}
@@ -1888,7 +1781,7 @@
             </div>
             <div>
               <label>
-                <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">{m.sm_field_test_role()} <span class="text-on-surface-variant/50 normal-case tracking-normal">{m.sm_optional_tag()}</span></span>
+                <span class="block text-xs font-semibold text-on-surface mb-2">{m.sm_field_test_role()} <span class="text-on-surface-variant/50 normal-case tracking-normal">{m.sm_optional_tag()}</span></span>
                 <select bind:value={testStaffRoleId} onchange={saveStaffConfig} disabled={!rolesAccess.canConfigure} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
                   <option value={null}>{m.sm_none_option()}</option>
                   {#each availableDiscordRoles as dr}
@@ -1899,19 +1792,19 @@
             </div>
             <div>
               <label>
-                <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">{m.sm_field_meeting_announce_channel()} <span class="text-on-surface-variant/50 normal-case tracking-normal">{m.sm_text_tag()}</span></span>
+                <span class="block text-xs font-semibold text-on-surface mb-2">{m.sm_field_meeting_announce_channel()} <span class="text-on-surface-variant/50 normal-case tracking-normal">{m.sm_text_tag()}</span></span>
                 <SearchableSelect bind:value={meetingAnnouncementChannelId} options={meetingAnnouncementChannelOptions} placeholder={m.sm_none_option()} className="w-full" />
               </label>
             </div>
             <div>
               <label>
-                <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">{m.sm_field_meeting_voice_channel()}</span>
+                <span class="block text-xs font-semibold text-on-surface mb-2">{m.sm_field_meeting_voice_channel()}</span>
                 <SearchableSelect bind:value={meetingVoiceChannelId} options={meetingVoiceChannelOptions} placeholder={m.sm_none_option()} className="w-full" />
               </label>
             </div>
             <div>
               <label>
-                <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">{m.sm_field_staff_announce_channel()} <span class="text-on-surface-variant/50 normal-case tracking-normal">{m.sm_optional_tag()}</span></span>
+                <span class="block text-xs font-semibold text-on-surface mb-2">{m.sm_field_staff_announce_channel()} <span class="text-on-surface-variant/50 normal-case tracking-normal">{m.sm_optional_tag()}</span></span>
                 <SearchableSelect bind:value={staffAnnouncementChannelId} options={availableDiscordChannels.map(dc => ({ id: dc.id, name: `#${dc.name}` }))} placeholder={m.sm_none_option()} className="w-full" />
               </label>
             </div>
@@ -1923,7 +1816,7 @@
             <div class="flex flex-col gap-6">
               <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div class="relative">
-                  <label for="staff-role-search" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_search_discord_role()}</label>
+                  <label for="staff-role-search" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_search_discord_role()}</label>
                   <div class="relative">
                     <Papicon icon="search" size={20} class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/40" />
                     <input
@@ -1958,7 +1851,7 @@
                 </div>
 
                 <div>
-                  <label for="role-hierarchy-select" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_hierarchy_assoc()}</label>
+                  <label for="role-hierarchy-select" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_hierarchy_assoc()}</label>
                   <select
                     id="role-hierarchy-select"
                     bind:value={newRoleHierarchyId}
@@ -1972,7 +1865,7 @@
                 </div>
 
                 <div>
-                  <label for="role-level-input" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_role_weight()}</label>
+                  <label for="role-level-input" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_role_weight()}</label>
                   <input
                     id="role-level-input"
                     type="number"
@@ -1988,12 +1881,12 @@
                     checked={newRoleIsResponsable}
                     onToggle={(v: boolean) => newRoleIsResponsable = v}
                   />
-                  <span class="text-[13px] font-medium text-on-surface-variant/70">{m.sm_toggle_hierarchy_chief()}</span>
+                  <span class="text-body-sm font-medium text-on-surface-variant/70">{m.sm_toggle_hierarchy_chief()}</span>
                 </div>
               </div>
 
               <div class="flex justify-end">
-                <button onclick={createStaffRole} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all active:scale-[0.98]">
+                <button onclick={createStaffRole} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold text-white transition-all active:scale-[0.98]">
                   {m.sm_btn_create_association()}
                 </button>
               </div>
@@ -2002,7 +1895,7 @@
         {/if}
 
         {#if isSavingRoleOrder}
-          <div class="bg-blue-500/10 border-b border-blue-500/20 px-6 py-2.5 flex items-center justify-center gap-2 text-[13px] font-medium text-blue-700">
+          <div class="bg-blue-500/10 border-b border-blue-500/20 px-6 py-2.5 flex items-center justify-center gap-2 text-body-sm font-medium text-blue-700">
              <Papicon icon="refresh-cw" size={14} class="animate-spin" />
              {m.sm_saving_order()}
           </div>
@@ -2039,13 +1932,13 @@
                     </div>
                     <div class="flex items-center gap-2">
                       {#if rolesAccess.canConfigure}
-                        <button onclick={() => openImportModal(h)} class="px-3 py-1.5 rounded-xl bg-primary/8 text-primary hover:bg-primary hover:text-white transition-all text-[13px] font-medium" title={m.sm_title_import_members()}>
+                        <button onclick={() => openImportModal(h)} class="px-3 py-1.5 rounded-xl bg-primary/8 text-primary hover:bg-primary hover:text-white transition-all text-body-sm font-medium" title={m.sm_title_import_members()}>
                           {m.sm_btn_import()}
                         </button>
                         <button onclick={() => openEditHierarchyForm(h)} class="p-2 text-on-surface-variant hover:text-primary transition-colors" title={m.sm_title_edit_hierarchy()}>
                           <Papicon icon="edit" size={18} />
                         </button>
-                        <button onclick={() => deleteHierarchy(h.id)} class="p-2 text-on-surface-variant hover:text-rose-500 transition-colors" title={m.sm_title_delete_hierarchy()}>
+                        <button onclick={() => deleteHierarchy(h.id)} class="p-2 text-on-surface-variant hover:text-error transition-colors" title={m.sm_title_delete_hierarchy()}>
                           <Papicon icon="trash-2" size={18} />
                         </button>
                       {/if}
@@ -2105,9 +1998,9 @@
                               <h5 class="text-sm font-semibold text-on-surface flex items-center gap-2">
                                 {role.name}
                                 {#if role.isResponsable}
-                                  <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-semibold uppercase tracking-wider">{m.sm_role_chief_badge()}</span>
+                                  <span class="px-2 py-0.5 rounded-full bg-warning/10 text-warning border border-warning/20 text-xs font-semibold">{m.sm_role_chief_badge()}</span>
                                 {/if}
-                                <span class="inline-flex items-center rounded-full bg-outline-variant/20 px-2 py-0.5 text-[10px] font-bold text-on-surface-variant">
+                                <span class="inline-flex items-center rounded-full bg-outline-variant/20 px-2 py-0.5 text-2xs font-bold text-on-surface-variant">
                                   {m.sm_role_weight_label({ level: role.level })}
                                 </span>
                               </h5>
@@ -2131,7 +2024,7 @@
                               </button>
                               <button
                                 onclick={() => removeStaffRole(role.id, role.name)}
-                                class="inline-flex items-center justify-center rounded-xl p-2 text-rose-600 transition-colors hover:bg-rose-500/15 border border-rose-500/20 bg-rose-500/5"
+                                class="inline-flex items-center justify-center rounded-xl p-2 text-error transition-colors hover:bg-error/15 border border-error/20 bg-error/5"
                                 title={m.sm_title_delete_role()}
                               >
                                 <Papicon icon="trash-2" size={16} />
@@ -2207,7 +2100,7 @@
                           <div class="min-w-0 flex-1">
                             <h5 class="text-sm font-semibold text-on-surface flex items-center gap-2">
                               {role.name}
-                              <span class="inline-flex items-center rounded-full bg-outline-variant/20 px-2 py-0.5 text-[10px] font-bold text-on-surface-variant">
+                              <span class="inline-flex items-center rounded-full bg-outline-variant/20 px-2 py-0.5 text-2xs font-bold text-on-surface-variant">
                                 {m.sm_role_weight_label({ level: role.level })}
                               </span>
                             </h5>
@@ -2231,7 +2124,7 @@
                             </button>
                             <button
                               onclick={() => removeStaffRole(role.id, role.name)}
-                              class="inline-flex items-center justify-center rounded-xl p-2 text-rose-600 transition-colors hover:bg-rose-500/15 border border-rose-500/20 bg-rose-500/5"
+                              class="inline-flex items-center justify-center rounded-xl p-2 text-error transition-colors hover:bg-error/15 border border-error/20 bg-error/5"
                               title={m.sm_title_delete_role()}
                             >
                               <Papicon icon="trash-2" size={16} />
@@ -2266,7 +2159,7 @@
           </div>
           <button
             onclick={openWarnForm}
-            class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+            class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
           >
             <Papicon icon={showWarnForm ? 'x' : 'plus'} size={14} />
             {showWarnForm ? m.common_cancel() : m.sm_btn_new_warning()}
@@ -2277,7 +2170,7 @@
           <div class="p-6 md:p-8 border-b border-primary/10 bg-primary/5 animate-in slide-in-from-top-4 fade-in duration-300">
             <div class="grid gap-6 md:grid-cols-2">
               <div class="space-y-4 md:col-span-2">
-                <label class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">
+                <label class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">
                   {m.sm_field_target_member()}
                   <DiscordMemberLookup
                     {guildId}
@@ -2292,7 +2185,7 @@
 
               <div class="space-y-4">
                 <label>
-                  <span class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_warn_reason()}</span>
+                  <span class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_warn_reason()}</span>
                   <textarea
                     bind:value={warnReason}
                     placeholder={m.sm_placeholder_warn_reason()}
@@ -2304,7 +2197,7 @@
 
               <div class="space-y-4 flex flex-col justify-between">
                 <div>
-                   <label for="warn-expires-at" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_expires_at()} {m.sm_optional_tag()}</label>
+                   <label for="warn-expires-at" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_expires_at()} {m.sm_optional_tag()}</label>
                    <input
                      id="warn-expires-at"
                      type="datetime-local"
@@ -2313,7 +2206,7 @@
                    />
                 </div>
                 <div class="flex justify-end mt-4">
-                  <button onclick={issueWarning} class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-sm transition-all hover:bg-amber-600 active:scale-[0.98]">
+                  <button onclick={issueWarning} class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-8 py-3 text-xs font-semibold text-white shadow-sm transition-all hover:bg-amber-600 active:scale-[0.98]">
                     <Papicon icon="gavel" size={14} />
                     {m.sm_btn_sanction()}
                   </button>
@@ -2335,7 +2228,7 @@
               <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
                   <thead>
-                    <tr class="bg-surface-container-high/30 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40">
+                    <tr class="bg-surface-container-high/30 text-xs font-semibold text-on-surface-variant/40">
                       <th class="px-6 py-4">{m.sm_col_member()}</th>
                       <th class="px-6 py-4">{m.sm_col_reason()}</th>
                       <th class="px-6 py-4">{m.sm_col_issued_by()}</th>
@@ -2360,7 +2253,7 @@
                             </div>
                             <div>
                               <div class="text-sm font-bold text-on-surface leading-none">{warn.staffDisplayName}</div>
-                              <div class="text-[10px] text-on-surface-variant/40 mt-1 font-mono">{warn.staffUserId}</div>
+                              <div class="text-2xs text-on-surface-variant/40 mt-1 font-mono">{warn.staffUserId}</div>
                             </div>
                           </div>
                         </td>
@@ -2381,18 +2274,18 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-center">
                           {#if warn.isActive}
-                            <span class="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-600 border border-amber-500/20">
+                            <span class="inline-flex items-center gap-1 rounded-full bg-warning/10 px-2.5 py-1 text-xs font-semibold text-warning border border-warning/20">
                               <span class="w-1 h-1 rounded-full bg-amber-600 animate-pulse"></span>
                               {m.sm_status_active()}
                             </span>
                           {:else}
-                            <span class="inline-flex items-center rounded-full bg-outline-variant/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40">{m.sm_status_expired()}</span>
+                            <span class="inline-flex items-center rounded-full bg-outline-variant/10 px-2.5 py-1 text-xs font-semibold text-on-surface-variant/40">{m.sm_status_expired()}</span>
                           {/if}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right">
                           <button
                             onclick={() => deleteWarning(warn.id)}
-                            class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500 transition-all hover:bg-rose-500 hover:text-white"
+                            class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-error/10 text-error transition-all hover:bg-rose-500 hover:text-white"
                             title={m.sm_title_delete_warning()}
                           >
                             <Papicon icon="trash-2" size={14} />
@@ -2407,7 +2300,7 @@
           </div>
         {:else}
           <div class="p-16 flex flex-col items-center justify-center text-center">
-            <div class="w-20 h-20 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shadow-inner">
+            <div class="w-20 h-20 rounded-xl bg-warning/10 text-warning flex items-center justify-center shadow-inner">
               <Papicon icon="alert-triangle" size={40} />
             </div>
             <h3 class="mt-6 text-2xl font-semibold tracking-tighter text-on-surface">
@@ -2427,7 +2320,7 @@
           </div>
           <button
             onclick={openBlacklistForm}
-            class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-rose-500/20 bg-rose-500/10 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-rose-700 transition-colors hover:bg-rose-500 hover:text-white"
+            class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-error/20 bg-error/10 px-6 py-3 text-xs font-semibold text-error transition-colors hover:bg-rose-500 hover:text-white"
           >
             <Papicon icon={showBlacklistForm ? 'x' : 'slash'} size={14} />
             {showBlacklistForm ? m.common_cancel() : m.sm_btn_blacklist()}
@@ -2435,11 +2328,11 @@
         </div>
 
         {#if showBlacklistForm}
-          <div class="p-6 md:p-8 border-b border-rose-500/10 bg-rose-500/5 animate-in slide-in-from-top-4 fade-in duration-300">
+          <div class="p-6 md:p-8 border-b border-error/10 bg-error/5 animate-in slide-in-from-top-4 fade-in duration-300">
             <div class="grid gap-6 md:grid-cols-2">
               <div class="space-y-4 md:col-span-2">
                 <label>
-                  <span class="block text-[13px] font-medium text-rose-700/80 mb-2">{m.sm_field_blacklist_target()}</span>
+                  <span class="block text-body-sm font-medium text-error/80 mb-2">{m.sm_field_blacklist_target()}</span>
                   <DiscordMemberLookup
                     {guildId}
                     bind:query={blacklistLookupQuery}
@@ -2453,28 +2346,28 @@
 
               <div class="space-y-4">
                 <label>
-                  <span class="block text-[13px] font-medium text-rose-700/80 mb-2">{m.sm_field_blacklist_reason()}</span>
+                  <span class="block text-body-sm font-medium text-error/80 mb-2">{m.sm_field_blacklist_reason()}</span>
                   <textarea
                     bind:value={blacklistReason}
                     placeholder={m.sm_placeholder_blacklist_reason()}
                     rows="3"
-                    class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-rose-500/40 focus:ring-4 focus:ring-rose-500/10 resize-none"
+                    class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-error/40 focus:ring-4 focus:ring-error/10 resize-none"
                   ></textarea>
                 </label>
               </div>
 
               <div class="space-y-4 flex flex-col justify-between">
                 <div>
-                   <label for="blacklist-end-date" class="block text-[13px] font-medium text-rose-700/80 mb-2">{m.sm_field_blacklist_end()}</label>
+                   <label for="blacklist-end-date" class="block text-body-sm font-medium text-error/80 mb-2">{m.sm_field_blacklist_end()}</label>
                    <input
                      id="blacklist-end-date"
                      type="date"
                      bind:value={blacklistEndDate}
-                     class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-rose-500/40 focus:ring-4 focus:ring-rose-500/10"
+                     class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-error/40 focus:ring-4 focus:ring-error/10"
                    />
                 </div>
                 <div class="flex justify-end mt-4">
-                  <button onclick={blacklistStaff} class="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-600 px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-sm transition-all hover:bg-rose-700 active:scale-[0.98]">
+                  <button onclick={blacklistStaff} class="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-600 px-8 py-3 text-xs font-semibold text-white shadow-sm transition-all hover:bg-rose-700 active:scale-[0.98]">
                     <Papicon icon="slash" size={14} />
                     {m.sm_btn_apply_blacklist()}
                   </button>
@@ -2486,7 +2379,7 @@
 
         {#if blacklistedStaffMembers.length === 0}
           <div class="p-16 flex flex-col items-center justify-center text-center opacity-40">
-            <div class="w-20 h-20 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shadow-inner mb-6">
+            <div class="w-20 h-20 rounded-xl bg-error/10 text-error flex items-center justify-center shadow-inner mb-6">
               <Papicon icon="user-x" size={40} />
             </div>
             <h3 class="text-2xl font-semibold tracking-tighter text-on-surface">{m.sm_blacklist_empty_title()}</h3>
@@ -2497,7 +2390,7 @@
         {:else}
           <div class="divide-y divide-outline-variant/10">
             {#each blacklistedStaffMembers as member (member.id)}
-              <article class="group bg-transparent px-6 py-6 md:px-8 transition-all hover:bg-rose-500/4">
+              <article class="group bg-transparent px-6 py-6 md:px-8 transition-all hover:bg-error/4">
                 <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                   <div class="flex items-center gap-4 flex-1">
                     <div class="h-12 w-12 shrink-0 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant/70 border border-outline-variant/20 shadow-sm overflow-hidden">
@@ -2512,20 +2405,20 @@
                         {member.displayName || member.username || m.sm_unknown_user()}
                       </h4>
                       <div class="flex items-center gap-3 mt-1.5 flex-wrap">
-                        <span class="inline-flex items-center rounded-full border border-rose-500/20 bg-rose-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-rose-700">
+                        <span class="inline-flex items-center rounded-full border border-error/20 bg-error/10 px-2.5 py-0.5 text-xs font-semibold text-error">
                           {m.sm_blacklisted_badge()}
                         </span>
                         {#if member.blacklistEntries?.[0]?.reason}
-                          <span class="text-xs font-medium text-rose-700/80">
+                          <span class="text-xs font-medium text-error/80">
                             {m.sm_blacklist_reason_prefix({ reason: member.blacklistEntries[0].reason })}
                           </span>
                         {/if}
                         {#if member.blacklistEntries?.[0]?.endDate}
-                          <span class="text-[11px] font-medium text-on-surface-variant/70">
+                          <span class="text-2xs font-medium text-on-surface-variant/70">
                             {m.sm_blacklist_until({ date: new Date(member.blacklistEntries[0].endDate).toLocaleDateString() })}
                           </span>
                         {:else}
-                          <span class="text-[11px] font-medium text-on-surface-variant/70">
+                          <span class="text-2xs font-medium text-on-surface-variant/70">
                             {m.sm_permanent()}
                           </span>
                         {/if}
@@ -2537,7 +2430,7 @@
                     {#if canModerate}
                       <button
                         onclick={() => removeStaffBlacklist(member.userId)}
-                        class="inline-flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-[13px] font-medium text-rose-700 transition-colors hover:bg-rose-600 hover:text-white"
+                        class="inline-flex items-center gap-2 rounded-xl border border-error/30 bg-error/10 px-4 py-2 text-body-sm font-medium text-error transition-colors hover:bg-rose-600 hover:text-white"
                         title={m.sm_title_remove_blacklist()}
                       >
                         <Papicon icon="trash-2" size={16} />
@@ -2559,7 +2452,7 @@
           </div>
           <button
             onclick={() => showPollForm = !showPollForm}
-            class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/10 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+            class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/10 px-6 py-3 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
           >
             <Papicon icon={showPollForm ? 'x' : 'plus'} size={14} />
             {showPollForm ? m.common_cancel() : m.sm_btn_new_poll()}
@@ -2571,38 +2464,38 @@
             <div class="grid gap-6 lg:grid-cols-2">
               <div class="space-y-4">
                 <div>
-                  <label for="poll-title" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_poll_title()}</label>
+                  <label for="poll-title" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_poll_title()}</label>
                   <FormInput id="poll-title" bind:value={newPollTitle} placeholder={m.sm_placeholder_poll_title()} className="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
                 </div>
                 <div>
-                  <label for="poll-description" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_description()}</label>
+                  <label for="poll-description" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_description()}</label>
                   <textarea id="poll-description" bind:value={newPollDescription} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 h-32 resize-none" placeholder={m.sm_placeholder_poll_desc()}></textarea>
                 </div>
                 <div>
-                  <label for="poll-closes-at" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_poll_closes()}</label>
+                  <label for="poll-closes-at" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_poll_closes()}</label>
                   <input id="poll-closes-at" type="datetime-local" bind:value={newPollClosesAt} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
                 </div>
               </div>
               <div class="space-y-4">
-                <div class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_poll_options()}</div>
+                <div class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_poll_options()}</div>
                 <div class="space-y-3">
                   {#each newPollOptions as _option, i}
                     <div class="flex items-center gap-2">
                       <input bind:value={newPollOptions[i]} class="flex-1 rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" placeholder={m.sm_placeholder_option_n({ n: i + 1 })} />
                       {#if newPollOptions.length > 2}
-                        <button onclick={() => removePollOptionInput(i)} class="p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-colors">
+                        <button onclick={() => removePollOptionInput(i)} class="p-2 text-error hover:bg-error/10 rounded-xl transition-colors">
                           <Papicon icon="trash-2" size={20} />
                         </button>
                       {/if}
                     </div>
                   {/each}
                 </div>
-                <button onclick={addPollOptionInput} class="inline-flex items-center gap-2 text-[13px] font-medium text-primary/70 hover:text-primary transition-colors mt-2">
+                <button onclick={addPollOptionInput} class="inline-flex items-center gap-2 text-body-sm font-medium text-primary/70 hover:text-primary transition-colors mt-2">
                   <Papicon icon="plus-circle" size={18} />
                   {m.sm_btn_add_option()}
                 </button>
                 <div class="pt-6 border-t border-outline-variant/10">
-                   <button onclick={createPoll} disabled={isSavingPoll} class="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-8 py-4 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all active:scale-[0.98] disabled:opacity-50">
+                   <button onclick={createPoll} disabled={isSavingPoll} class="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-8 py-4 text-xs font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-50">
                     <Papicon icon={isSavingPoll ? 'refresh-cw' : 'check-square'} size={14} class={isSavingPoll ? 'animate-spin' : ''} />
                     {m.sm_btn_publish_poll()}
                   </button>
@@ -2638,7 +2531,7 @@
           {:else if polls.length === 0}
             <div class="p-16 flex flex-col items-center justify-center text-center opacity-40">
               <Papicon icon="list" size={60} />
-              <p class="mt-4 text-sm font-bold uppercase tracking-widest">{m.sm_empty_polls()}</p>
+              <p class="mt-4 text-sm font-semibold">{m.sm_empty_polls()}</p>
             </div>
           {:else}
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -2654,16 +2547,16 @@
                     <div class="space-y-1">
                       <div class="flex items-center gap-2">
                         {#if isClosed}
-                          <span class="inline-flex items-center rounded-full bg-surface-container-high px-2 py-0.5 text-[11px] font-semibold uppercase text-on-surface-variant/60">{m.sm_poll_closed_badge()}</span>
+                          <span class="inline-flex items-center rounded-full bg-surface-container-high px-2 py-0.5 text-2xs font-semibold uppercase text-on-surface-variant/60">{m.sm_poll_closed_badge()}</span>
                         {:else}
-                          <span class="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold uppercase text-emerald-600 animate-pulse">{m.sm_poll_ongoing_badge()}</span>
+                          <span class="inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-2xs font-semibold uppercase text-success animate-pulse">{m.sm_poll_ongoing_badge()}</span>
                         {/if}
-                        <span class="text-[10px] font-medium text-on-surface-variant/40">{m.sm_poll_by({ author: poll.author?.displayName || poll.author?.username })}</span>
+                        <span class="text-2xs font-medium text-on-surface-variant/40">{m.sm_poll_by({ author: poll.author?.displayName || poll.author?.username })}</span>
                       </div>
                       <h4 class="text-lg font-semibold text-on-surface tracking-tight leading-tight">{poll.title}</h4>
                     </div>
                     {#if !isClosed && (accessLevel === 'admin' || canManageSettings)}
-                       <button onclick={() => closePoll(poll.id)} class="p-2 text-on-surface-variant/40 hover:text-rose-500 transition-colors" title={m.sm_title_close_now()}>
+                       <button onclick={() => closePoll(poll.id)} class="p-2 text-on-surface-variant/40 hover:text-error transition-colors" title={m.sm_title_close_now()}>
                          <Papicon icon="x" size={20} />
                        </button>
                     {/if}
@@ -2701,7 +2594,7 @@
                                   <div class="h-1 w-3 rounded-full bg-primary/30" title={m.sm_poll_weight_title({ weight: vote.weight })}></div>
                                 {/each}
                              </div>
-                             <span class="text-[11px] font-semibold text-on-surface-variant/50">{Math.round(percent)}% ({optWeight.toFixed(1)})</span>
+                             <span class="text-2xs font-semibold text-on-surface-variant/50">{Math.round(percent)}% ({optWeight.toFixed(1)})</span>
                            </div>
                         {/if}
                       </div>
@@ -2709,9 +2602,9 @@
                   </div>
 
                   <div class="mt-6 pt-4 border-t border-outline-variant/10 flex items-center justify-between">
-                    <span class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">{m.sm_poll_total_votes({ total: totalWeight.toFixed(1) })}</span>
+                    <span class="text-xs font-semibold text-on-surface-variant/40">{m.sm_poll_total_votes({ total: totalWeight.toFixed(1) })}</span>
                     {#if poll.closesAt && !isClosed}
-                      <span class="text-[10px] font-medium text-amber-600/70 italic flex items-center gap-1">
+                      <span class="text-2xs font-medium text-warning/70 italic flex items-center gap-1">
                         <Papicon icon="clock" size={12} />
                         {m.sm_poll_ends_on({ date: new Date(poll.closesAt).toLocaleDateString() })}
                       </span>
@@ -2736,7 +2629,7 @@
                 <div class="p-2 rounded-xl bg-primary/10 text-primary">
                   <Papicon icon="BarChart" size={18} />
                 </div>
-                <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">{m.sm_chart_score_distribution()}</h4>
+                <h4 class="text-sm font-semibold text-on-surface">{m.sm_chart_score_distribution()}</h4>
               </div>
               <div class="h-50">
                 <Chart data={progressionChartData} type="bar" height={200} options={{ indexAxis: 'y', scales: { x: { beginAtZero: true, max: 100 } } }} />
@@ -2745,10 +2638,10 @@
 
             <div class="premium-card p-6 rounded-xl space-y-4">
               <div class="flex items-center gap-3 mb-2">
-                <div class="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
+                <div class="p-2 rounded-xl bg-success/10 text-success">
                   <Papicon icon="Activity" size={18} />
                 </div>
-                <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">{m.sm_chart_activity_comparison()}</h4>
+                <h4 class="text-sm font-semibold text-on-surface">{m.sm_chart_activity_comparison()}</h4>
               </div>
               <div class="h-50">
                 <Chart data={activityChartData} type="bar" height={200} options={{ indexAxis: 'y', scales: { x: { beginAtZero: true } } }} />
@@ -2795,7 +2688,7 @@
                         </div>
                         <div>
                           <div class="text-sm font-semibold text-on-surface tracking-tight">{member?.displayName || member?.username}</div>
-                          <div class="text-[10px] font-bold text-on-surface-variant/50 uppercase">{member?.grade}</div>
+                          <div class="text-2xs font-bold text-on-surface-variant/50 uppercase">{member?.grade}</div>
                         </div>
                       </div>
                     </td>
@@ -2809,22 +2702,22 @@
                     </td>
                     <td class="px-8 py-5">
                       <div class="flex flex-col gap-1">
-                        <div class="text-[11px] font-bold">
+                        <div class="text-2xs font-bold">
                           {m.sm_avg_prefix()} <span class="text-on-surface">{metric.avg30d}</span> {m.sm_msg_per_day()}
                         </div>
-                        <div class="text-[10px] font-medium text-on-surface-variant/60">
-                          {m.sm_week_prefix()} <span class={metric.avg7d < metric.avg30d * 0.5 ? 'text-amber-600 font-bold' : ''}>{metric.avg7d}</span> {m.sm_msg_per_day()}
+                        <div class="text-2xs font-medium text-on-surface-variant/60">
+                          {m.sm_week_prefix()} <span class={metric.avg7d < metric.avg30d * 0.5 ? 'text-warning font-bold' : ''}>{metric.avg7d}</span> {m.sm_msg_per_day()}
                         </div>
                       </div>
                     </td>
                     <td class="px-8 py-5 text-right">
                        {#if metric.hasInactivityAlert}
-                         <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 px-3 py-1 text-[10px] font-semibold text-amber-600 animate-pulse">
+                         <span class="inline-flex items-center gap-1.5 rounded-full bg-warning/10 border border-warning/20 px-3 py-1 text-2xs font-semibold text-warning animate-pulse">
                            <Papicon icon="alert-triangle" size={14} />
                            {m.sm_inactivity_detected()}
                          </span>
                        {:else}
-                         <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-[10px] font-semibold text-emerald-600">
+                         <span class="inline-flex items-center gap-1.5 rounded-full bg-success/10 border border-success/20 px-3 py-1 text-2xs font-semibold text-success">
                            <Papicon icon="check-circle" size={14} />
                            {m.sm_active_badge()}
                          </span>
@@ -2837,170 +2730,6 @@
             </table>
           </div>
         </div>
-
-      {:else if activeTab === 'tutoring'}
-        <div class="p-6 md:p-8 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-low/30">
-          <div>
-            <h3 class="text-2xl font-semibold tracking-tighter text-on-surface">{m.sm_tutoring_title()}</h3>
-            <p class="text-sm font-medium text-on-surface-variant/75 mt-1">{m.sm_tutoring_desc()}</p>
-          </div>
-          {#if canManageSettings}
-            <button
-              onclick={() => showAddTutoringItemForm ? (showAddTutoringItemForm = false) : openAddTutoringItemForm()}
-              class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
-            >
-              <Papicon icon={showAddTutoringItemForm ? 'x' : 'plus'} size={14} />
-              {showAddTutoringItemForm ? m.common_cancel() : m.sm_btn_new_item()}
-            </button>
-          {/if}
-        </div>
-
-        {#if showAddTutoringItemForm}
-          <div class="p-6 md:p-8 border-b border-primary/10 bg-primary/5 animate-in slide-in-from-top-4 fade-in duration-300">
-            <div class="flex flex-col gap-4">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label for="tutoring-item-category" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_category()}</label>
-                  <input
-                    id="tutoring-item-category"
-                    type="text"
-                    placeholder={m.sm_placeholder_category()}
-                    bind:value={newTutoringItemCategory}
-                    class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
-                  />
-                </div>
-                <div>
-                  <label for="tutoring-item-title" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_item_title()}</label>
-                  <input
-                    id="tutoring-item-title"
-                    type="text"
-                    placeholder={m.sm_placeholder_item_title()}
-                    bind:value={newTutoringItemTitle}
-                    class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label for="tutoring-item-description" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_description()} <span class="text-on-surface-variant/50 normal-case tracking-normal">{m.sm_optional_tag()}</span></label>
-                <input
-                  id="tutoring-item-description"
-                  type="text"
-                  placeholder={m.sm_placeholder_item_desc()}
-                  bind:value={newTutoringItemDescription}
-                  class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
-                />
-              </div>
-
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label for="tutoring-item-hierarchy" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_target_hierarchy()}</label>
-                  <select
-                    id="tutoring-item-hierarchy"
-                    bind:value={newTutoringItemHierarchyId}
-                    onchange={() => newTutoringItemGrade = ''}
-                    class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
-                  >
-                    <option value="">{m.sm_option_common_all_hierarchies()}</option>
-                    {#each hierarchies as h}
-                      <option value={h.id}>{h.name}</option>
-                    {/each}
-                  </select>
-                </div>
-                <div>
-                  <label for="tutoring-item-grade" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_target_grade()}</label>
-                  {#if newTutoringItemHierarchyId}
-                    <select
-                      id="tutoring-item-grade"
-                      bind:value={newTutoringItemGrade}
-                      class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
-                    >
-                      <option value="">{m.sm_option_common_all_grades()}</option>
-                      {#each getRolesInHierarchy(newTutoringItemHierarchyId) as role}
-                        <option value={role.name}>{role.name}</option>
-                      {/each}
-                    </select>
-                  {:else}
-                    <input
-                      id="tutoring-item-grade"
-                      type="text"
-                      placeholder={m.sm_option_common_all_grades()}
-                      bind:value={newTutoringItemGrade}
-                      class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
-                    />
-                  {/if}
-                </div>
-              </div>
-
-              <div class="flex justify-end">
-                <button
-                  onclick={saveTutoringItem}
-                  disabled={isSavingTutoringItem || !newTutoringItemCategory.trim() || !newTutoringItemTitle.trim()}
-                  class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all active:scale-[0.98] disabled:opacity-50"
-                >
-                  {isSavingTutoringItem ? m.sm_saving() : (editingTutoringItem ? m.sm_btn_update_item() : m.sm_btn_create_item())}
-                </button>
-              </div>
-            </div>
-          </div>
-        {/if}
-
-        {#if loadingStates.tutoring}
-          <div class="p-8 space-y-4">
-            {#each Array(3) as _}
-              <Skeleton width="w-full" height="h-16" rounded="rounded-xl" />
-            {/each}
-          </div>
-        {:else if tutoringGroups.length > 0}
-          <div class="divide-y divide-outline-variant/10">
-            {#each tutoringGroups as group (group.key)}
-              <div class="p-6 md:p-8">
-                <h4 class="text-[13px] font-medium text-primary mb-4">
-                  {tutoringGroupLabel(group.hierarchyId, group.grade)}
-                </h4>
-                <div class="space-y-3">
-                  {#each group.items as item (item.id)}
-                    <div class="flex items-center justify-between gap-4 p-4 rounded-xl bg-surface-container-high/30 border border-outline-variant/5">
-                      <div class="min-w-0">
-                        <div class="flex items-center gap-2">
-                          <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
-                            {item.category}
-                          </span>
-                          <span class="text-sm font-semibold text-on-surface truncate">{item.title}</span>
-                        </div>
-                        {#if item.description}
-                          <p class="text-xs font-medium text-on-surface-variant/60 mt-1 truncate">{item.description}</p>
-                        {/if}
-                      </div>
-                      {#if canManageSettings}
-                        <div class="flex items-center gap-2 shrink-0">
-                          <button
-                            onclick={() => openEditTutoringItem(item)}
-                            class="inline-flex items-center justify-center rounded-xl p-2.5 text-on-surface-variant/70 hover:bg-primary/10 hover:text-primary transition-colors"
-                            aria-label={m.common_edit()}
-                          >
-                            <Papicon icon="edit" size={16} />
-                          </button>
-                          <button
-                            onclick={() => removeTutoringItem(item.id)}
-                            class="inline-flex items-center justify-center rounded-xl p-2.5 text-on-surface-variant/70 hover:bg-rose-500/10 hover:text-rose-500 transition-colors"
-                            aria-label={m.common_delete()}
-                          >
-                            <Papicon icon="trash" size={16} />
-                          </button>
-                        </div>
-                      {/if}
-                    </div>
-                  {/each}
-                </div>
-              </div>
-            {/each}
-          </div>
-        {:else}
-          <div class="p-12 text-center">
-            <p class="text-sm font-medium text-on-surface-variant/60 italic">{m.sm_empty_tutoring()}</p>
-          </div>
-        {/if}
 
       {:else if activeTab === 'permissions'}
         <div class="p-6 md:p-8 space-y-12">
@@ -3081,7 +2810,7 @@
               {m.sm_saving()}
             </span>
           {/if}
-          <button onclick={() => showConfigMenu = false} class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-container text-on-surface-variant hover:bg-rose-500/10 hover:text-rose-500 transition-colors">
+          <button onclick={() => showConfigMenu = false} class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-container text-on-surface-variant hover:bg-error/10 hover:text-error transition-colors">
             <Papicon icon="x" size={20} />
           </button>
         </div>
@@ -3089,11 +2818,11 @@
 
       <div class="grid grid-cols-1 gap-6 p-6 md:p-8 lg:grid-cols-2">
         <!-- Bloc Sanctions / Seuils -->
-        <div class="premium-card relative overflow-hidden rounded-xl border border-rose-500/15 bg-surface-container-low p-6">
-          <div class="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-rose-500/5 blur-none hidden"></div>
+        <div class="premium-card relative overflow-hidden rounded-xl border border-error/15 bg-surface-container-low p-6">
+          <div class="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-error/5 blur-none hidden"></div>
           
           <div class="relative mb-6 flex items-center gap-4">
-            <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-rose-500/10 text-rose-600 shadow-inner">
+            <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-error/10 text-error shadow-inner">
               <Papicon icon="alert-triangle" size={24} />
             </div>
             <div>
@@ -3104,7 +2833,7 @@
 
           <div class="space-y-6">
             <div>
-              <span class="mb-3 block text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">{m.sm_execution_mode()}</span>
+              <span class="mb-3 block text-xs font-semibold text-on-surface-variant/60">{m.sm_execution_mode()}</span>
               <div class="flex gap-2 rounded-lg border border-outline-variant/20 bg-surface p-1">
                 <label class="flex-1 cursor-pointer">
                   <input type="radio" name="actionMode" value="validation" checked={actionMode === 'validation'} onchange={() => { actionMode = 'validation'; saveStaffConfig(); }} class="peer sr-only" />
@@ -3115,7 +2844,7 @@
                 </label>
                 <label class="flex-1 cursor-pointer">
                   <input type="radio" name="actionMode" value="auto" checked={actionMode === 'auto'} onchange={() => { actionMode = 'auto'; saveStaffConfig(); }} class="peer sr-only" />
-                  <div class="rounded-xl px-3 py-2 text-center text-xs font-bold transition-all bg-rose-500/10 peer-checked:text-rose-600 peer-checked:shadow-sm">
+                  <div class="rounded-xl px-3 py-2 text-center text-xs font-bold transition-all bg-error/10 peer-checked:text-error peer-checked:shadow-sm">
                     <Papicon icon="zap" size={14} class="mb-1 mx-auto" />
                     {m.sm_mode_auto()}
                   </div>
@@ -3124,7 +2853,7 @@
             </div>
 
             <div>
-              <span class="mb-3 block text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">{m.sm_warn_thresholds()}</span>
+              <span class="mb-3 block text-xs font-semibold text-on-surface-variant/60">{m.sm_warn_thresholds()}</span>
               <div class="flex gap-4">
                 <div class="flex-1 rounded-lg border border-orange-500/20 bg-orange-500/5 p-4">
                   <div class="flex items-center justify-between mb-2">
@@ -3133,17 +2862,17 @@
                   </div>
                   <div class="flex items-center gap-2">
                     <input type="number" min="0" bind:value={warnsToDemote} onchange={saveStaffConfig} class="w-full rounded-xl border border-outline-variant/30 bg-surface px-3 py-2 text-center text-lg font-semibold text-on-surface outline-none transition focus:border-orange-500/50 focus:ring-2 focus:ring-orange-500/20" />
-                    <span class="text-[10px] font-bold uppercase text-on-surface-variant/60">{m.sm_warn_unit()}</span>
+                    <span class="text-2xs font-bold uppercase text-on-surface-variant/60">{m.sm_warn_unit()}</span>
                   </div>
                 </div>
-                <div class="flex-1 rounded-lg border border-rose-500/20 bg-rose-500/5 p-4">
+                <div class="flex-1 rounded-lg border border-error/20 bg-error/5 p-4">
                   <div class="flex items-center justify-between mb-2">
-                     <span class="text-xs font-bold text-rose-700">{m.sm_threshold_blacklist()}</span>
-                     <Papicon icon="shield-off" size={16} class="text-rose-600/50" />
+                     <span class="text-xs font-bold text-error">{m.sm_threshold_blacklist()}</span>
+                     <Papicon icon="shield-off" size={16} class="text-error/50" />
                   </div>
                    <div class="flex items-center gap-2">
-                    <input type="number" min="0" bind:value={warnsToBlacklist} onchange={saveStaffConfig} class="w-full rounded-xl border border-outline-variant/30 bg-surface px-3 py-2 text-center text-lg font-semibold text-on-surface outline-none transition focus:border-rose-500/50 focus:ring-2 focus:ring-rose-500/20" />
-                    <span class="text-[10px] font-bold uppercase text-on-surface-variant/60">{m.sm_warn_unit()}</span>
+                    <input type="number" min="0" bind:value={warnsToBlacklist} onchange={saveStaffConfig} class="w-full rounded-xl border border-outline-variant/30 bg-surface px-3 py-2 text-center text-lg font-semibold text-on-surface outline-none transition focus:border-error/50 focus:ring-2 focus:ring-error/20" />
+                    <span class="text-2xs font-bold uppercase text-on-surface-variant/60">{m.sm_warn_unit()}</span>
                   </div>
                 </div>
               </div>
@@ -3197,32 +2926,32 @@
         <h3 class="text-2xl font-semibold tracking-tighter text-on-surface">
           {editingHierarchy ? m.sm_modal_edit_hierarchy_title() : m.sm_btn_new_hierarchy()}
         </h3>
-        <button onclick={() => showAddHierarchyForm = false} class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-container text-on-surface-variant hover:bg-rose-500/10 hover:text-rose-500 transition-colors">
+        <button onclick={() => showAddHierarchyForm = false} class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-container text-on-surface-variant hover:bg-error/10 hover:text-error transition-colors">
           <Papicon icon="x" size={20} />
         </button>
       </div>
 
       <div class="space-y-4">
         <div>
-          <label for="hierarchy-name" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_hierarchy_name()}</label>
+          <label for="hierarchy-name" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_hierarchy_name()}</label>
           <input id="hierarchy-name" type="text" bind:value={newHierarchyName} placeholder={m.sm_placeholder_hierarchy_name()} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
         </div>
 
         <div>
-          <label for="hierarchy-desc" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_description()}</label>
+          <label for="hierarchy-desc" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_description()}</label>
           <textarea id="hierarchy-desc" bind:value={newHierarchyDescription} placeholder={m.sm_placeholder_hierarchy_desc()} rows="3" class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 resize-none"></textarea>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label for="hierarchy-color" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_color()}</label>
+            <label for="hierarchy-color" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_color()}</label>
             <div class="flex gap-2">
               <input id="hierarchy-color" type="color" bind:value={newHierarchyColor} class="h-11 w-12 rounded-xl border border-outline-variant/20 bg-surface-container-low p-1 cursor-pointer" />
               <input type="text" bind:value={newHierarchyColor} class="flex-1 rounded-lg border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-sm text-on-surface outline-none transition focus:border-primary/40" />
             </div>
           </div>
           <div>
-            <label for="hierarchy-icon" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_emoji()}</label>
+            <label for="hierarchy-icon" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_emoji()}</label>
             <div class="flex gap-2">
               <input id="hierarchy-icon" type="text" bind:value={newHierarchyIcon} placeholder="🔵, 🛡️, 🎭..." class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
               <EmojiPicker bind:value={newHierarchyIcon} />
@@ -3231,7 +2960,7 @@
         </div>
 
         <div>
-          <label for="hierarchy-role" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_hierarchy_role()} {m.sm_optional_tag()}</label>
+          <label for="hierarchy-role" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_hierarchy_role()} {m.sm_optional_tag()}</label>
           <select id="hierarchy-role" bind:value={newHierarchyDiscordRoleId} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
             <option value="">{m.sm_none_option()}</option>
             {#each availableDiscordRoles as dr}
@@ -3241,7 +2970,7 @@
         </div>
 
         <div>
-          <label for="hierarchy-resp" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_hierarchy_responsible_member()} {m.sm_optional_tag()}</label>
+          <label for="hierarchy-resp" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_hierarchy_responsible_member()} {m.sm_optional_tag()}</label>
           <select id="hierarchy-resp" bind:value={newHierarchyResponsableUserId} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
             <option value="">{m.sm_none_option()}</option>
             {#each staffMembers as sm}
@@ -3251,7 +2980,7 @@
         </div>
 
         <div>
-          <label for="hierarchy-parent" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_hierarchy_parent()} {m.sm_optional_tag()}</label>
+          <label for="hierarchy-parent" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_hierarchy_parent()} {m.sm_optional_tag()}</label>
           <select id="hierarchy-parent" bind:value={newHierarchyParentId} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
             <option value="">{m.sm_none_alt_option()}</option>
             {#each hierarchies.filter((h) => !editingHierarchy || h.id !== editingHierarchy.id) as h}
@@ -3262,10 +2991,10 @@
       </div>
 
       <div class="mt-8 flex justify-end gap-3">
-        <button onclick={() => showAddHierarchyForm = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-[13px] font-medium text-on-surface transition-all">
+        <button onclick={() => showAddHierarchyForm = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-body-sm font-medium text-on-surface transition-all">
           {m.common_cancel()}
         </button>
-        <button onclick={saveHierarchy} disabled={isSavingHierarchy || !newHierarchyName.trim()} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all active:scale-[0.98] disabled:opacity-50">
+        <button onclick={saveHierarchy} disabled={isSavingHierarchy || !newHierarchyName.trim()} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-body-sm font-medium text-white transition-all active:scale-[0.98] disabled:opacity-50">
           {isSavingHierarchy ? m.sm_saving_ellipsis() : m.common_save()}
         </button>
       </div>
@@ -3290,13 +3019,13 @@
         <h3 class="text-2xl font-semibold tracking-tighter text-on-surface">
           {m.sm_modal_import_title({ name: importHierarchyTarget.name })}
         </h3>
-        <button onclick={() => showImportModal = false} class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-container text-on-surface-variant hover:bg-rose-500/10 hover:text-rose-500 transition-colors">
+        <button onclick={() => showImportModal = false} class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-container text-on-surface-variant hover:bg-error/10 hover:text-error transition-colors">
           <Papicon icon="x" size={20} />
         </button>
       </div>
 
       {#if importResult}
-        <div class="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-4 text-emerald-700 space-y-2 mb-6">
+        <div class="bg-success/10 border border-success/20 rounded-lg p-4 text-success space-y-2 mb-6">
           <p class="font-bold">{m.sm_import_success()}</p>
           <ul class="text-xs list-disc list-inside">
             <li>{m.sm_import_total({ n: importResult.total })}</li>
@@ -3308,7 +3037,7 @@
 
       <div class="space-y-4">
         <div>
-          <label for="import-role-select" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_import_role()}</label>
+          <label for="import-role-select" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_import_role()}</label>
           <select id="import-role-select" bind:value={importDiscordRoleId} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
             <option value="">{m.sm_option_choose_role()}</option>
             {#each availableDiscordRoles as dr}
@@ -3318,7 +3047,7 @@
         </div>
 
         <div>
-          <label for="import-grade-select" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_field_import_grade()}</label>
+          <label for="import-grade-select" class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_field_import_grade()}</label>
           <select id="import-grade-select" bind:value={importGradeName} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
             <option value="">{m.sm_option_choose_grade()}</option>
             {#each getOrderedStaffRoles().filter(r => r.hierarchyId === importHierarchyTarget?.id) as r}
@@ -3329,11 +3058,11 @@
       </div>
 
       <div class="mt-8 flex justify-end gap-3">
-        <button onclick={() => showImportModal = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-[13px] font-medium text-on-surface transition-all">
+        <button onclick={() => showImportModal = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-body-sm font-medium text-on-surface transition-all">
           {importResult ? m.common_close() : m.common_cancel()}
         </button>
         {#if !importResult}
-          <button onclick={runImport} disabled={isImporting || !importDiscordRoleId || !importGradeName} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all active:scale-[0.98] disabled:opacity-50">
+          <button onclick={runImport} disabled={isImporting || !importDiscordRoleId || !importGradeName} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-body-sm font-medium text-white transition-all active:scale-[0.98] disabled:opacity-50">
             {isImporting ? m.sm_importing() : m.sm_btn_launch_import()}
           </button>
         {/if}
@@ -3359,14 +3088,14 @@
         <h3 class="text-2xl font-semibold tracking-tighter text-on-surface">
           {m.sm_modal_member_hierarchies_title({ name: memberHierarchyGradeTarget.displayName || memberHierarchyGradeTarget.username })}
         </h3>
-        <button onclick={() => showMemberHierarchyGradeForm = false} class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-container text-on-surface-variant hover:bg-rose-500/10 hover:text-rose-500 transition-colors">
+        <button onclick={() => showMemberHierarchyGradeForm = false} class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-container text-on-surface-variant hover:bg-error/10 hover:text-error transition-colors">
           <Papicon icon="x" size={20} />
         </button>
       </div>
 
       <!-- Existing Hierarchies list -->
       <div class="mb-6 space-y-2">
-        <span class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_current_grades()}</span>
+        <span class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_current_grades()}</span>
         {#if memberHierarchyGradeTarget?.hierarchyGrades && memberHierarchyGradeTarget.hierarchyGrades.length > 0}
           <div class="divide-y divide-outline-variant/10 border border-outline-variant/15 rounded-lg bg-surface-container-low overflow-hidden">
             {#each memberHierarchyGradeTarget.hierarchyGrades as hGrade}
@@ -3376,7 +3105,7 @@
                   <span class="font-bold">{hGrade.hierarchy?.name}</span>
                   <span class="text-on-surface-variant/75">- {hGrade.grade}</span>
                 </div>
-                <button onclick={() => removeMemberHierarchy(memberHierarchyGradeTarget?.userId || '', hGrade.hierarchyId)} class="text-rose-600 hover:text-rose-700 text-[13px] font-medium">
+                <button onclick={() => removeMemberHierarchy(memberHierarchyGradeTarget?.userId || '', hGrade.hierarchyId)} class="text-error hover:text-error text-body-sm font-medium">
                   {m.sm_confirm_remove_btn()}
                 </button>
               </div>
@@ -3389,7 +3118,7 @@
 
       <!-- Form to add new hierarchy grade -->
       <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-        <span class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">{m.sm_associate_new_hierarchy()}</span>
+        <span class="block text-body-sm font-medium text-on-surface-variant/70 mb-2">{m.sm_associate_new_hierarchy()}</span>
 
         <div>
           <label for="member-h-select" class="block text-xs font-bold text-on-surface-variant/60 mb-2">{m.sm_field_hierarchy()}</label>
@@ -3433,10 +3162,10 @@
       </div>
 
       <div class="mt-8 flex justify-end gap-3">
-        <button onclick={() => showMemberHierarchyGradeForm = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-[13px] font-medium text-on-surface transition-all">
+        <button onclick={() => showMemberHierarchyGradeForm = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-body-sm font-medium text-on-surface transition-all">
           {m.common_close()}
         </button>
-        <button onclick={saveMemberHierarchyGrade} disabled={isSavingMemberHierarchyGrade || !selectedMemberHierarchyId || !selectedMemberHierarchyGrade} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all active:scale-[0.98] disabled:opacity-50">
+        <button onclick={saveMemberHierarchyGrade} disabled={isSavingMemberHierarchyGrade || !selectedMemberHierarchyId || !selectedMemberHierarchyGrade} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-body-sm font-medium text-white transition-all active:scale-[0.98] disabled:opacity-50">
           {isSavingMemberHierarchyGrade ? m.sm_adding() : m.common_add()}
         </button>
       </div>
@@ -3461,7 +3190,7 @@
         <h3 class="text-2xl font-semibold tracking-tighter text-on-surface">
           {m.sm_title_edit_role()}
         </h3>
-        <button onclick={() => { showEditRoleModal = false; editingRole = null; }} class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-container text-on-surface-variant hover:bg-rose-500/10 hover:text-rose-500 transition-colors">
+        <button onclick={() => { showEditRoleModal = false; editingRole = null; }} class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-container text-on-surface-variant hover:bg-error/10 hover:text-error transition-colors">
           <Papicon icon="x" size={20} />
         </button>
       </div>
@@ -3533,15 +3262,15 @@
             checked={editRoleIsResponsable}
             onToggle={(v: boolean) => editRoleIsResponsable = v}
           />
-          <span class="text-[13px] font-medium text-on-surface-variant/70">{m.sm_toggle_hierarchy_chief()}</span>
+          <span class="text-body-sm font-medium text-on-surface-variant/70">{m.sm_toggle_hierarchy_chief()}</span>
         </div>
       </div>
 
       <div class="mt-8 flex justify-end gap-3">
-        <button onclick={() => { showEditRoleModal = false; editingRole = null; }} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-[13px] font-medium text-on-surface transition-all">
+        <button onclick={() => { showEditRoleModal = false; editingRole = null; }} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-body-sm font-medium text-on-surface transition-all">
           {m.common_cancel()}
         </button>
-        <button onclick={saveRoleEdit} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all hover:active:scale-[0.98]">
+        <button onclick={saveRoleEdit} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-body-sm font-medium text-white transition-all hover:active:scale-[0.98]">
           {m.common_save()}
         </button>
       </div>

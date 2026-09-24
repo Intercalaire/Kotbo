@@ -561,7 +561,7 @@ export async function handleStaffRoutes(
       if (/^\d+$/.test(parts[5]) && parts[6] === 'notes' && parts[7] && method === 'DELETE') {
         const noteId = parts[7];
         try {
-          await deleteManagerNote(noteId);
+          await deleteManagerNote(guildId, noteId);
 
           await pushAudit(guildId, {
             user: user.username ?? `User${user.userId}`,
@@ -1372,7 +1372,7 @@ export async function handleStaffRoutes(
             return true;
           }
 
-          const vote = await castPollVote(body.pollId, voter.id, body.optionId);
+          const vote = await castPollVote(guildId, body.pollId, voter.id, body.optionId);
           json(res, 200, { vote });
         } catch (err) {
           logger.error('StaffAPI', 'Error casting poll vote:', err);

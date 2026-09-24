@@ -68,8 +68,8 @@
       {@const tracks = TRACKS.filter((track) => track.group === group.key)}
       <section>
         <div class="mb-3 flex items-baseline gap-2.5">
-          <h2 class="text-[13px] font-semibold text-on-surface">{group.label()}</h2>
-          <p class="text-[12px] text-on-surface-variant/45 truncate">{group.hint()}</p>
+          <h2 class="text-body-sm font-semibold text-on-surface">{group.label()}</h2>
+          <p class="text-xs text-on-surface-variant/45 truncate">{group.hint()}</p>
         </div>
 
         <div class="grid gap-2.5 sm:grid-cols-2">
@@ -89,7 +89,7 @@
       </section>
     {/each}
 
-    <p class="text-[12.5px] text-on-surface-variant/50 leading-relaxed">
+    <p class="text-xs text-on-surface-variant/50 leading-relaxed">
       {m.onb_tracks_group_hint()}
     </p>
   </div>
@@ -100,23 +100,23 @@
     <button
       type="button"
       onclick={() => { picked = TRACKS.map((track) => track.key); celebrateStep(); }}
-      class="text-[13px] font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
+      class="text-body-sm font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
     >
       {m.onb_tracks_all()}
     </button>
     <button
       type="button"
       onclick={() => { picked = defaultTracks(kind); celebrateStep(); }}
-      class="text-[13px] font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
+      class="text-body-sm font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
     >
       {m.onb_tracks_essentials()}
     </button>
 
     <div class="hidden sm:flex flex-col items-end leading-tight mr-1">
-      <span class="text-[12px] font-semibold tabular-nums text-on-surface">
+      <span class="text-xs font-semibold tabular-nums text-on-surface">
         {m.onb_tracks_estimate({ minutes })}
       </span>
-      <span class="text-[11px] text-on-surface-variant/40 tabular-nums">
+      <span class="text-2xs text-on-surface-variant/40 tabular-nums">
         {m.onb_tracks_count({ count: selection.length, total: TRACKS.length })}
         {#if screens > 0}
           · {m.onb_tracks_screens({ count: screens })}
@@ -127,7 +127,7 @@
     <button
       type="button"
       onclick={confirm}
-      class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[14px] font-semibold text-on-primary
+      class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary
              hover:brightness-110 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
     >
       Continuer
@@ -140,7 +140,7 @@
   <!-- Rien de coche est un choix legitime - on veut juste le bot - mais il
        merite d'etre dit avant, pas decouvert a l'ecran de paiement. -->
   <div class="fixed inset-x-0 bottom-20 flex justify-center pointer-events-none px-6">
-    <p class="rounded-full bg-surface-container-high/95 backdrop-blur px-4 py-2 text-[12.5px] font-medium text-on-surface-variant/75 shadow-lg">
+    <p class="rounded-full bg-surface-container-high/95 backdrop-blur px-4 py-2 text-xs font-medium text-on-surface-variant/75 shadow-lg">
       {m.onb_tracks_none()}
     </p>
   </div>

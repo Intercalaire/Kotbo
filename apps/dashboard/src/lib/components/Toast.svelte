@@ -14,14 +14,14 @@
 
   /**
    * La teinte se pose sur un fond opaque (degrade plat par-dessus la couleur de
-   * surface) : en sombre, un simple `bg-emerald-500/10` laissait la page
+   * surface) : en sombre, un simple `bg-success/10` laissait la page
    * transparaitre au travers de la bulle, et le texte devenait illisible des
    * qu'un champ passait dessous.
    */
   const colorClass = $derived({
-    success: 'bg-emerald-50 dark:bg-surface-container-high dark:bg-linear-to-r dark:from-emerald-500/12 dark:to-emerald-500/12 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30',
-    error: 'bg-red-50 dark:bg-surface-container-high dark:bg-linear-to-r dark:from-red-500/12 dark:to-red-500/12 text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/30',
-    warning: 'bg-amber-50 dark:bg-surface-container-high dark:bg-linear-to-r dark:from-amber-500/12 dark:to-amber-500/12 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30',
+    success: 'bg-success/10 dark:bg-surface-container-high dark:bg-linear-to-r dark:from-emerald-500/12 dark:to-emerald-500/12 text-success border-success/25',
+    error: 'bg-error/10 dark:bg-surface-container-high dark:bg-linear-to-r dark:from-red-500/12 dark:to-red-500/12 text-error border-error/25',
+    warning: 'bg-warning/10 dark:bg-surface-container-high dark:bg-linear-to-r dark:from-amber-500/12 dark:to-amber-500/12 text-warning border-warning/25',
     info: 'bg-blue-50 dark:bg-surface-container-high dark:bg-linear-to-r dark:from-blue-500/12 dark:to-blue-500/12 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30'
   }[item.type]);
 </script>

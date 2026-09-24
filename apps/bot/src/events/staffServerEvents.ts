@@ -1,5 +1,6 @@
 import { Client, Events, type GuildMember, type PartialGuildMember } from 'discord.js';
 import { logger } from '../utils/logger.js';
+import { admitJoiningMember } from '../services/moderation/joinAdmissionService.js';
 import { syncMemberRoles, syncMemberOnJoin } from '../services/staff/staffServerService.js';
 
 export function registerStaffServerListener(client: Client): void {
@@ -24,6 +25,7 @@ export function registerStaffServerListener(client: Client): void {
     if (member.user.bot) return;
 
     try {
+      if (!(await admitJoiningMember(member))) return;
       await syncMemberOnJoin(member, client);
     } catch (err) {
       logger.error('StaffServer', `Erreur sync à l'arrivée pour ${member.user.tag}`, err);

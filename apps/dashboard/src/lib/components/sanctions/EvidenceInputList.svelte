@@ -147,7 +147,7 @@
         <button
           type="button"
           onclick={() => removeLink(index)}
-          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-on-surface/5 text-on-surface-variant/40 hover:bg-rose-500/10 hover:text-rose-500 transition-all active:scale-95"
+          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-on-surface/5 text-on-surface-variant/40 hover:bg-error/10 hover:text-error transition-all active:scale-95"
           title={m.sei_delete_link()}
         >
           <Papicon icon="trash-2" size={16} />

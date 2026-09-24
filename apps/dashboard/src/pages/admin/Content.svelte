@@ -222,7 +222,7 @@
       .filter((draft) => draft.word.length > 0);
 
     if (payload.length === 0) {
-      globalImportError = 'Ajoutez au moins un mot valide avant d\'enregistrer.';
+      globalImportError = 'Ajoute au moins un mot valide avant d\'enregistrer.';
       return;
     }
 
@@ -355,7 +355,7 @@
       <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-6 space-y-4">
         <div class="space-y-2">
           <p class="text-sm text-on-surface-variant leading-relaxed">
-            Collez un CSV, un JSON ou une liste de mots. Vous choisissez les catégories à la main, puis le système ne fait que nettoyer les doublons.
+            Colle un CSV, un JSON ou une liste de mots. Tu choisis les catégories à la main, puis le système ne fait que nettoyer les doublons.
           </p>
           <p class="text-xs text-on-surface-variant/50">
             Format accepté: <span class="font-mono">mot</span>, <span class="font-mono">mot,catégorie</span>, <span class="font-mono">mot,catégorie,true/false</span> ou JSON avec <span class="font-mono">word</span>, <span class="font-mono">category</span>, <span class="font-mono">enabled</span>.
@@ -379,7 +379,7 @@
         <div class="flex flex-wrap gap-3">
           <button onclick={handleAnalyzeGlobalImport} class="px-5 py-3 rounded-lg bg-primary text-white font-bold text-sm hover:bg-primary/90 transition-colors">Analyser</button>
           <button onclick={resetGlobalImport} class="px-5 py-3 rounded-lg border border-outline-variant/20 text-sm font-bold text-on-surface-variant hover:bg-on-surface/5 transition-colors">Réinitialiser</button>
-          <button onclick={handleSaveGlobalImport} disabled={globalImportLoading || globalImportDrafts.length === 0} class="px-5 py-3 rounded-lg bg-emerald-500 text-white font-bold text-sm hover:bg-emerald-500/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+          <button onclick={handleSaveGlobalImport} disabled={globalImportLoading || globalImportDrafts.length === 0} class="px-5 py-3 rounded-lg bg-emerald-500 text-white font-bold text-sm hover:bg-success/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
             {globalImportLoading ? 'Enregistrement...' : 'Enregistrer les mots'}
           </button>
         </div>
@@ -389,7 +389,7 @@
         {/if}
 
         {#if globalImportError}
-          <div class="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-600">
+          <div class="rounded-lg border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-warning">
             {globalImportError}
           </div>
         {/if}
@@ -399,12 +399,12 @@
         <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-5 space-y-4">
           <div class="flex items-center justify-between gap-4">
             <h3 class="text-lg font-semibold text-on-surface">Prévisualisation ({globalImportDrafts.length})</h3>
-            <p class="text-xs text-on-surface-variant/50">Modifiez les catégories avant validation.</p>
+            <p class="text-xs text-on-surface-variant/50">Modifie les catégories avant validation.</p>
           </div>
 
-          <div class="overflow-hidden rounded-lg border border-outline-variant/10">
+          <div class="overflow-x-auto rounded-lg border border-outline-variant/10">
             <table class="w-full text-sm">
-              <thead class="bg-surface/40 text-left text-[10px] uppercase tracking-wider text-on-surface-variant/50">
+              <thead class="bg-surface/40 text-left text-xs text-on-surface-variant/50">
                 <tr>
                   <th class="px-4 py-3">Mot</th>
                   <th class="px-4 py-3">Catégorie</th>
@@ -498,14 +498,14 @@
           {:else if globalBannedWordsError}
             <div class="rounded-lg border border-error/20 bg-error/10 p-4 text-sm text-error flex items-center justify-between gap-4">
               <span>{globalBannedWordsError}</span>
-              <button onclick={loadGlobalBannedWords} class="rounded-xl bg-error px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-error/90">
+              <button onclick={loadGlobalBannedWords} class="rounded-xl bg-error px-4 py-2 text-xs font-bold text-on-error transition-colors hover:bg-error/90">
                 Réessayer
               </button>
             </div>
           {:else}
-            <div class="overflow-hidden rounded-xl border border-outline-variant/10">
+            <div class="overflow-x-auto rounded-xl border border-outline-variant/10">
               <table class="w-full text-sm">
-                <thead class="bg-on-surface/3 text-left text-[13px] text-on-surface-variant/30 border-b border-outline-variant/10">
+                <thead class="bg-on-surface/3 text-left text-body-sm text-on-surface-variant/30 border-b border-outline-variant/10">
                   <tr>
                     <th class="px-4 py-3">Mot</th>
                     <th class="px-4 py-3">Catégorie</th>
@@ -537,7 +537,7 @@
                         </select>
                       </td>
                       <td class="px-4 py-3 text-center">
-                        <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-bold {entry.enabled ? 'text-emerald-500' : 'text-on-surface-variant/40'}">
+                        <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-bold {entry.enabled ? 'text-success' : 'text-on-surface-variant/40'}">
                           <input
                             type="checkbox"
                             checked={entry.enabled}

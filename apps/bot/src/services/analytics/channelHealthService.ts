@@ -474,14 +474,17 @@ export async function getChannelHealthDashboardData(guildId: string) {
 }
 
 export async function resolveHealthAlert(
+  guildId: string,
   alertId: string,
   action: 'APPLIED' | 'DISMISSED',
   userId: string,
   note?: string,
 ): Promise<boolean> {
   try {
-    await prisma.channelHealthAlert.update({
-      where: { id: alertId },
+    // Le serveur fait partie du filtre : l'alerte d'un autre serveur se résolvait sinon en
+    // connaissant son identifiant.
+    const { count } = await prisma.channelHealthAlert.updateMany({
+      where: { id: alertId, guildId },
       data: {
         status: action,
         resolvedBy: userId,
@@ -489,7 +492,7 @@ export async function resolveHealthAlert(
         resolvedNote: note,
       },
     });
-    return true;
+    return count > 0;
   } catch {
     return false;
   }

@@ -93,7 +93,7 @@
 >
   {#if loading}
     <div class="space-y-3" aria-live="polite">
-      <p class="flex items-center gap-2 text-[13px] text-on-surface-variant/60">
+      <p class="flex items-center gap-2 text-body-sm text-on-surface-variant/60">
         <Papicon icon="radar" size={14} class="text-primary animate-pulse" />
         {m.onb_migration_scanning()}
       </p>
@@ -116,14 +116,14 @@
             {#if finding.entities.length}
               <p class="mt-2 flex flex-wrap gap-1.5">
                 {#each finding.entities.slice(0, 6) as entity (entity.id)}
-                  <span class="rounded-md bg-surface-container/70 px-1.5 py-0.5 text-[11.5px] text-on-surface-variant/60">
+                  <span class="rounded-md bg-surface-container/70 px-1.5 py-0.5 text-2xs text-on-surface-variant/60">
                     {entity.name}
                   </span>
                 {/each}
               </p>
             {/if}
             {#if finding.action}
-              <p class="mt-1.5 text-[12px] text-primary/75">{finding.action}</p>
+              <p class="mt-1.5 text-xs text-primary/75">{finding.action}</p>
             {/if}
           </ToggleCard>
 
@@ -141,18 +141,18 @@
 
   {#if manualSteps.length > 0}
     <section class="mt-8">
-      <h2 class="text-[13px] font-semibold text-on-surface">{m.onb_migration_manual_title()}</h2>
-      <p class="mt-1 text-[12.5px] text-on-surface-variant/50 leading-relaxed">
+      <h2 class="text-body-sm font-semibold text-on-surface">{m.onb_migration_manual_title()}</h2>
+      <p class="mt-1 text-xs text-on-surface-variant/50 leading-relaxed">
         {m.onb_migration_manual_hint()}
       </p>
 
       <ul class="mt-3 space-y-2">
         {#each manualSteps as step (step.feature + step.label)}
           <li class="flex items-start gap-2.5 rounded-xl border border-outline-variant/25 bg-surface-container-lowest/25 px-3.5 py-2.5">
-            <Papicon icon="alert-triangle" size={13} class="mt-0.5 shrink-0 text-amber-500/70" />
+            <Papicon icon="alert-triangle" size={13} class="mt-0.5 shrink-0 text-warning/70" />
             <div class="min-w-0">
-              <p class="text-[13px] font-medium text-on-surface-variant/80">{step.label}</p>
-              <p class="mt-0.5 text-[12.5px] text-on-surface-variant/50 leading-relaxed">{step.why}</p>
+              <p class="text-body-sm font-medium text-on-surface-variant/80">{step.label}</p>
+              <p class="mt-0.5 text-xs text-on-surface-variant/50 leading-relaxed">{step.why}</p>
             </div>
           </li>
         {/each}
@@ -164,7 +164,7 @@
     <button
       type="button"
       onclick={skip}
-      class="text-[13px] font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
+      class="text-body-sm font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
     >
       Passer
     </button>
@@ -172,7 +172,7 @@
       type="button"
       onclick={apply}
       disabled={onboardingData.busy || loading}
-      class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[14px] font-semibold text-on-primary
+      class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary
              hover:brightness-110 transition disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
     >
       {#if onboardingData.busy}

@@ -10,6 +10,18 @@ export const UPGRADE_PRICE_BONUS = 0.25;
 
 export const LISTING_PRICE_RANGE = { min: 1, max: 100_000_000 } as const;
 
+/** Bornes de la taxe du marché, en pourcentage du prix de vente. */
+export const MARKETPLACE_TAX_RANGE = { min: 0, max: 50 } as const;
+
+/**
+ * Part du prix retenue par la taxe, arrondie à l'unité inférieure : sur une petite vente, le
+ * vendeur ne perd jamais plus que le taux affiché. Un taux hors bornes est ramené dedans.
+ */
+export function marketplaceTax(price: number, taxPercent: number): number {
+  const rate = Math.min(MARKETPLACE_TAX_RANGE.max, Math.max(MARKETPLACE_TAX_RANGE.min, Math.floor(taxPercent || 0)));
+  return Math.floor(Math.max(0, price) * rate / 100);
+}
+
 export type PriceSample = { price: number; quantity: number };
 
 export type SuggestedPrice = {

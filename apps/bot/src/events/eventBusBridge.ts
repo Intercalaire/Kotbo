@@ -12,6 +12,7 @@
 import { Events, MessageFlags, type Client, type Message, type PartialMessage, type VoiceState, type GuildMember } from 'discord.js';
 import { kotboEventBus } from '@kotbo/core';
 import { logger } from '../utils/logger.js';
+import { admitJoiningMember, wasRefusedOnArrival } from '../services/moderation/joinAdmissionService.js';
 
 const voiceJoinTimestamps = new Map<string, number>();
 
@@ -137,7 +138,10 @@ export function registerEventBusBridge(client: Client): void {
   });
 
   // ── GuildMemberAdd ────────────────────────────────────────────
-  client.on(Events.GuildMemberAdd, (member: GuildMember) => {
+  // Publiée seulement une fois l'arrivée admise : un compte refoulé (trop récent, raid,
+  // verrouillage) ne doit recevoir ni rôle automatique, ni bienvenue, ni workflow.
+  client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
+    if (!(await admitJoiningMember(member))) return;
     kotboEventBus.publish('member:join', {
       guildId: member.guild.id,
       userId: member.id,
@@ -148,7 +152,10 @@ export function registerEventBusBridge(client: Client): void {
   });
 
   // ── GuildMemberRemove ─────────────────────────────────────────
-  client.on(Events.GuildMemberRemove, (member) => {
+  // Le départ d'un compte refoulé à l'arrivée n'est pas publié, comme son arrivée : sans ça,
+  // l'expulsion d'un compte trop récent déclenchait un message d'au revoir.
+  client.on(Events.GuildMemberRemove, async (member) => {
+    if (await wasRefusedOnArrival(member.guild.id, member.id)) return;
     kotboEventBus.publish('member:leave', {
       guildId: member.guild.id,
       userId: member.id,

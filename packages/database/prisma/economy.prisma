@@ -33,6 +33,10 @@ model EconomyConfig {
   maxTransferAmount    Int   @default(5000) // Montant maximal transférable en une fois via /rpg-pay
   transferCooldownMin  Int   @default(15)   // Temps minimum entre deux transferts (en minutes)
 
+  // Taxe de l'hôtel des ventes : part du prix de vente retenue sur ce que touche le vendeur.
+  // Les pièces retenues disparaissent, ce qui freine l'inflation de la monnaie.
+  marketplaceTaxPercent Int  @default(5)
+
   // ── Marché noir ─────────────────────────────────────────────────────────
   // Une fenêtre d'ouverture courte, à heure imprévisible, où chaque membre se voit
   // proposer sa propre sélection d'objets de la boutique à prix cassé.
@@ -159,6 +163,8 @@ model RpgProfile {
   // Économie de base
   balance   Int      @default(0)
   lastDaily DateTime?
+  // Jours de /daily réclamés d'affilée : chaque jour de série majore la récompense.
+  dailyStreak Int @default(0)
   lastWork  DateTime?
 
   // Statistiques RPG.

@@ -46,7 +46,7 @@
     if (url.startsWith('data:')) {
       return {
         level: 'error' as const,
-        message: "Une image encodée en base64 n'est jamais chargée par Discord. Utilisez le bouton d'upload.",
+        message: "Une image encodée en base64 n'est jamais chargée par Discord. Utilise le bouton d'envoi.",
       };
     }
 
@@ -123,7 +123,7 @@
 
 <div class="space-y-2">
   <div class="flex items-center justify-between gap-2">
-    <label for="img-{label}" class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
+    <label for="img-{label}" class="text-xs font-semibold text-on-surface-variant">
       {label}
     </label>
     {#if value.trim() && diagnosis}
@@ -145,14 +145,14 @@
       class="flex-1 min-w-0 h-10 px-3 rounded-xl bg-surface-container-low/70 border text-sm text-on-surface
         placeholder:text-on-surface-variant focus:outline-none focus:ring-2 focus:ring-primary/15 transition
         {diagnosis?.level === 'error'
-          ? 'border-red-500/50 focus:border-red-500'
+          ? 'border-error/50 focus:border-error'
           : 'border-outline-variant/25 focus:border-primary/60'}"
     />
     <button
       type="button"
       onclick={() => fileInput?.click()}
       disabled={uploading}
-      class="shrink-0 h-10 px-3.5 rounded-xl bg-primary/12 text-primary border border-primary/25 text-[13px] font-semibold
+      class="shrink-0 h-10 px-3.5 rounded-xl bg-primary/12 text-primary border border-primary/25 text-body-sm font-semibold
         hover:bg-primary/18 transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
     >
       {#if uploading}
@@ -168,7 +168,7 @@
         type="button"
         onclick={() => (value = '')}
         aria-label="Retirer l'image"
-        class="shrink-0 w-10 h-10 rounded-xl bg-on-surface/6 text-on-surface-variant hover:bg-red-500/12 hover:text-red-500 transition flex items-center justify-center"
+        class="shrink-0 w-10 h-10 rounded-xl bg-on-surface/6 text-on-surface-variant hover:bg-error/12 hover:text-error transition flex items-center justify-center"
       >
         <Papicon icon="Trash" size={14} />
       </button>
@@ -209,18 +209,18 @@
         <Papicon
           icon={previewFailed || diagnosis?.level === 'error' ? 'AlertTriangle' : 'Image'}
           size={20}
-          class={previewFailed || diagnosis?.level === 'error' ? 'text-red-500' : 'text-on-surface-variant'}
+          class={previewFailed || diagnosis?.level === 'error' ? 'text-error' : 'text-on-surface-variant'}
         />
         {#if previewFailed}
-          <p class="text-[13px] font-semibold text-red-500">Image non chargeable</p>
-          <p class="text-[12px] text-on-surface-variant max-w-xs">
+          <p class="text-body-sm font-semibold text-error">Image non chargeable</p>
+          <p class="text-xs text-on-surface-variant max-w-xs">
             Ce lien ne renvoie pas d’image accessible. Discord affichera « Échec du chargement de l’image ».
           </p>
         {:else if diagnosis?.level === 'error'}
-          <p class="text-[13px] font-semibold text-red-500">Lien incompatible</p>
+          <p class="text-body-sm font-semibold text-error">Lien incompatible</p>
         {:else}
-          <p class="text-[13px] font-semibold text-on-surface">Déposez une image ou cliquez</p>
-          <p class="text-[12px] text-on-surface-variant">
+          <p class="text-body-sm font-semibold text-on-surface">Déposez une image ou cliquez</p>
+          <p class="text-xs text-on-surface-variant">
             PNG, JPEG, GIF, WEBP - {Math.round(BROADCAST_MEDIA_MAX_BYTES / 1024 / 1024)} Mo max
           </p>
         {/if}
@@ -230,8 +230,8 @@
 
   {#if diagnosis}
     <p
-      class="text-[12px] leading-snug flex items-start gap-1.5
-        {diagnosis.level === 'ok' ? 'text-on-surface-variant' : diagnosis.level === 'warning' ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}"
+      class="text-xs leading-snug flex items-start gap-1.5
+        {diagnosis.level === 'ok' ? 'text-on-surface-variant' : diagnosis.level === 'warning' ? 'text-warning' : 'text-error'}"
     >
       <Papicon
         icon={diagnosis.level === 'ok' ? 'CheckCircle' : 'AlertTriangle'}
@@ -241,6 +241,6 @@
       {diagnosis.message}
     </p>
   {:else if hint}
-    <p class="text-[12px] text-on-surface-variant leading-snug">{hint}</p>
+    <p class="text-xs text-on-surface-variant leading-snug">{hint}</p>
   {/if}
 </div>

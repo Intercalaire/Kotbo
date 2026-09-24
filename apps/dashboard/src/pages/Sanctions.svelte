@@ -3,6 +3,8 @@
   import { onMount, onDestroy, untrack } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { pageTabItems } from '../lib/config/pageTabs';
+  import { Tabs } from '../lib/components/ui';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { canModerateFeature, canViewFeature } from '../lib/permissions.svelte';
@@ -1123,26 +1125,16 @@
   {/snippet}
 
   <div class="space-y-8">
-    <div class="tab-group w-fit">
-      <button
-        onclick={() => gotoTab('/security/sanctions', 'sanctions', 'sanctions')}
-        class="tab-button {activeTab === 'sanctions' ? 'active' : ''}"
-      >
-        {m.sc_tab_history()}
-      </button>
-      {#if canManageSettings}
-        <button
-          onclick={() => gotoTab('/security/sanctions', 'settings', 'sanctions')}
-          class="tab-button {activeTab === 'settings' ? 'active' : ''}"
-        >
-          {m.sc_tab_configuration()}
-        </button>
-      {/if}
-    </div>
+    <Tabs
+      label={m.sc_page_title()}
+      tabs={pageTabItems('/security/sanctions', (id) => id !== 'settings' || canManageSettings)}
+      active={activeTab}
+      onchange={(id) => gotoTab('/security/sanctions', id, 'sanctions')}
+    />
 
     {#if activeTab === 'sanctions'}
       <section class="section-card-flush font-inter">
-        <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <div class="px-6 py-5 border-b border-outline-variant flex items-center justify-between">
           <h3 class="text-lg font-semibold">{m.sc_sanctions_list()}</h3>
           <div class="flex items-center gap-3">
             <span class="text-xs font-bold text-on-surface-variant">{m.sc_entries_count({ a: filteredAndSortedSanctions.length, b: sanctions.length })}</span>
@@ -1158,17 +1150,17 @@
         </div>
         <div class="px-6 pb-4">
           <label class="relative block w-full top-1.5 md:max-w-xl">
-            <Papicon icon="search" size={18} class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Papicon icon="search" size={18} class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
             <FormInput
               type="search"
               bind:value={searchQuery}
               placeholder={m.sc_search_ph()}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-2.5 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:border-slate-700 dark:bg-slate-800"
+              className="w-full rounded-xl border border-outline-variant bg-surface-container-low pl-10 pr-4 py-2.5 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
             />
           </label>
         </div>
         {#if deletionMessage}
-          <div class="px-6 pt-4 text-sm font-semibold {deletionMessageIsError ? 'text-red-600' : 'text-emerald-600'}">{deletionMessage}</div>
+          <div class="px-6 pt-4 text-sm font-semibold {deletionMessageIsError ? 'text-error' : 'text-success'}">{deletionMessage}</div>
         {/if}
         {#if selectedCount > 0}
           <div class="px-6 pb-4 flex flex-wrap items-center gap-2">
@@ -1188,7 +1180,7 @@
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
-        <tr class="bg-slate-50 dark:bg-white/5">
+        <tr class="bg-surface-container-low dark:bg-white/5">
           <th class="px-4 py-4 w-10">
             <input type="checkbox" checked={allVisibleSelected} onchange={toggleSelectAllVisible}
               aria-label={m.sc_bulk_select_all()} class="accent-primary w-4 h-4" />
@@ -1255,28 +1247,28 @@
               onToggleValue={(value) => toggleFilter('statuses', value)}
             />
           </th>
-          <th class="px-4 py-4 text-[13px] font-bold text-on-surface-variant">{m.sc_col_report()}</th>
+          <th class="px-4 py-4 text-body-sm font-bold text-on-surface-variant">{m.sc_col_report()}</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-50 dark:divide-slate-800">
         {#if showSanctionsSkeleton}
           {#each Array(6) as _, index (index)}
             <tr class="animate-pulse">
-              <td class="px-4 py-4"><div class="h-3.5 w-4 rounded bg-slate-200 dark:bg-slate-700"></div></td>
-              <td class="px-4 py-4"><div class="h-3.5 w-32 rounded-full bg-slate-200 dark:bg-slate-700"></div></td>
-              <td class="px-4 py-4"><div class="h-3.5 w-28 rounded-full bg-slate-200 dark:bg-slate-700"></div></td>
-              <td class="px-4 py-4"><div class="h-3.5 w-24 rounded-full bg-slate-200 dark:bg-slate-700"></div></td>
-              <td class="px-4 py-4"><div class="h-3.5 w-24 rounded-full bg-slate-200 dark:bg-slate-700"></div></td>
-              <td class="px-4 py-4"><div class="h-3.5 w-16 rounded-full bg-slate-200 dark:bg-slate-700"></div></td>
-              <td class="px-4 py-4"><div class="h-5 w-20 rounded-full bg-slate-200 dark:bg-slate-700"></div></td>
-              <td class="px-4 py-4"><div class="h-8 w-36 rounded-full bg-slate-200 dark:bg-slate-700"></div></td>
+              <td class="px-4 py-4"><div class="h-3.5 w-4 rounded bg-surface-container-high"></div></td>
+              <td class="px-4 py-4"><div class="h-3.5 w-32 rounded-full bg-surface-container-high"></div></td>
+              <td class="px-4 py-4"><div class="h-3.5 w-28 rounded-full bg-surface-container-high"></div></td>
+              <td class="px-4 py-4"><div class="h-3.5 w-24 rounded-full bg-surface-container-high"></div></td>
+              <td class="px-4 py-4"><div class="h-3.5 w-24 rounded-full bg-surface-container-high"></div></td>
+              <td class="px-4 py-4"><div class="h-3.5 w-16 rounded-full bg-surface-container-high"></div></td>
+              <td class="px-4 py-4"><div class="h-5 w-20 rounded-full bg-surface-container-high"></div></td>
+              <td class="px-4 py-4"><div class="h-8 w-36 rounded-full bg-surface-container-high"></div></td>
             </tr>
           {/each}
         {:else}
           {#each filteredAndSortedSanctions as entry}
             {@const linkedReport = sanctionReports.find((report) => report.sanctionId === entry.id)}
             {@const reportAction = getReportActionState(entry, linkedReport)}
-            <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors {entry.archivedAt ? 'opacity-60' : ''}">
+            <tr class="hover:bg-surface-container-low dark:hover:bg-white/5 transition-colors {entry.archivedAt ? 'opacity-60' : ''}">
               <td class="px-4 py-4">
                 <input type="checkbox" checked={selectedIds.includes(entry.id)} onchange={() => toggleSelection(entry.id)}
                   aria-label={m.sc_bulk_select_row()} class="accent-primary w-4 h-4" />
@@ -1285,11 +1277,11 @@
               <td class="px-4 py-4 text-xs font-bold text-primary">
                 {typeLabel(entry.type)}
                 {#if entry.archivedAt}
-                  <span class="ml-1 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold text-emerald-700"
+                  <span class="ml-1 inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-2xs font-bold text-success"
                     title={entry.archiveReason || ''}>{m.sc_badge_archived()}</span>
                 {/if}
                 {#if entry.appealable === false}
-                  <span class="ml-1 inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-bold text-rose-700"
+                  <span class="ml-1 inline-flex items-center rounded-full bg-error/10 px-2 py-0.5 text-2xs font-bold text-error"
                     title={entry.appealLockReason || ''}>{m.sc_badge_locked()}</span>
                 {/if}
               </td>
@@ -1313,7 +1305,7 @@
               </td>
               <td class="px-4 py-4 text-xs">{durationLabel(entry.durationSeconds)}</td>
               <td class="px-4 py-4 text-xs">
-                <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-bold {entry.status === 'ACTIVE' ? 'bg-amber-100 text-amber-700' : entry.status === 'RESOLVED' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}">
+                <span class="inline-flex items-center rounded-full px-3 py-1 text-2xs font-bold {entry.status === 'ACTIVE' ? 'bg-warning/10 text-warning' : entry.status === 'RESOLVED' ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}">
                   {statusLabel(entry.status)}
                 </span>
               </td>
@@ -1340,7 +1332,7 @@
                     />
                   {/if}
                 </div>
-                <p class="mt-2 text-[10px] font-semibold text-on-surface-variant">{reportAction.hint}</p>
+                <p class="mt-2 text-2xs font-semibold text-on-surface-variant">{reportAction.hint}</p>
               </td>
             </tr>
           {/each}
@@ -1448,17 +1440,17 @@
 
           <!-- Save button removed since global bottom bar handles saving -->
           {#if saveAction.state.message}
-            <p class="text-xs font-bold text-emerald-600 text-center">{saveAction.state.message}</p>
+            <p class="text-xs font-bold text-success text-center">{saveAction.state.message}</p>
           {/if}
           {#if saveAction.state.error}
-            <p class="text-xs font-bold text-red-600 text-center">{saveAction.state.error}</p>
+            <p class="text-xs font-bold text-error text-center">{saveAction.state.error}</p>
           {/if}
         </div>
       </section>
 
       <!-- Échelles de Sanctions Progressives -->
       <section class="section-card-flush font-inter mt-8">
-        <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
+        <div class="px-6 py-5 border-b border-outline-variant">
           <h3 class="text-lg font-semibold">{m.sc_scales_title()}</h3>
           <p class="text-xs text-on-surface-variant/70 mt-1">{m.sc_scales_desc()}</p>
         </div>
@@ -1468,11 +1460,11 @@
             <!-- Left panel: scales list -->
             <div class="w-full lg:w-1/3 space-y-4 border-r border-outline-variant/10 lg:pr-8">
               <div class="flex items-center justify-between">
-                <span class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">{m.sc_my_scales()}</span>
+                <span class="text-xs font-semibold text-on-surface-variant/60">{m.sc_my_scales()}</span>
                 {#if !showAddTableField}
                   <button 
                     onclick={() => showAddTableField = true}
-                    class="text-xs font-semibold text-primary hover:text-primary/80 transition uppercase tracking-wider"
+                    class="text-xs font-semibold text-primary hover:text-primary/80 transition"
                   >
                     {m.sc_add()}
                   </button>
@@ -1488,7 +1480,7 @@
                   />
                   <button 
                     onclick={addSanctionTable}
-                    class="px-3 py-1 bg-primary text-on-primary rounded-xl text-[10px] font-semibold uppercase tracking-wider"
+                    class="px-3 py-1 bg-primary text-on-primary rounded-xl text-xs font-semibold"
                   >
                     {m.sc_ok()}
                   </button>
@@ -1510,13 +1502,13 @@
                   >
                     <span class="text-sm font-bold truncate">{table.name}</span>
                     <div class="flex items-center gap-3">
-                      <span class="text-[10px] font-semibold bg-on-surface/5 px-2 py-0.5 rounded-md text-on-surface-variant/80">{m.sc_tier_count({ count: table.tiers.length })}</span>
+                      <span class="text-2xs font-semibold bg-on-surface/5 px-2 py-0.5 rounded-md text-on-surface-variant/80">{m.sc_tier_count({ count: table.tiers.length })}</span>
                       <span
                         role="button"
                         tabindex="0"
                         onclick={(e) => { e.stopPropagation(); deleteSanctionTable(i); }}
                         onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); deleteSanctionTable(i); } }}
-                        class="text-on-surface-variant/40 hover:text-red-500 transition-colors cursor-pointer"
+                        class="text-on-surface-variant/40 hover:text-error transition-colors cursor-pointer"
                       >
                         <Papicon icon="trash" size={14} />
                       </span>
@@ -1548,7 +1540,7 @@
 
                     <!-- Exporter -->
                     <div class="flex items-center gap-2">
-                      <span class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60 mr-2">{m.sc_export_scale()}</span>
+                      <span class="text-xs font-semibold text-on-surface-variant/60 mr-2">{m.sc_export_scale()}</span>
                       <button 
                         onclick={() => exportTableToImage(currentTable)}
                         class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
@@ -1558,14 +1550,14 @@
                       </button>
                       <button 
                         onclick={() => exportTableToXlsx(currentTable)}
-                        class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-emerald-500/10 hover:text-emerald-500 transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
+                        class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-success/10 hover:text-success transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
                         title={m.sc_export_xlsx_title()}
                       >
                         <Papicon icon="file-spreadsheet" size={16} />
                       </button>
                       <button 
                         onclick={() => exportTableToCsv(currentTable)}
-                        class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-amber-500/10 hover:text-amber-500 transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
+                        class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-warning/10 hover:text-warning transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
                         title={m.sc_export_csv_title()}
                       >
                         <Papicon icon="file-text" size={16} />
@@ -1585,7 +1577,7 @@
                     <div class="overflow-x-auto rounded-lg border border-outline-variant/10 bg-surface-container-low/20">
                       <table class="w-full text-left border-collapse font-inter text-xs">
                         <thead>
-                          <tr class="bg-surface-container-high/40 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/70 border-b border-outline-variant/15 select-none">
+                          <tr class="bg-surface-container-high/40 text-xs font-semibold text-on-surface-variant/70 border-b border-outline-variant/15 select-none">
                             <th class="py-3 px-4 w-20 text-center border-r border-outline-variant/10">{m.sc_col_tier()}</th>
                             <th class="py-3 px-4 w-48 border-r border-outline-variant/10">{m.sc_col_action()}</th>
                             <th class="py-3 px-4 w-48 border-r border-outline-variant/10">{m.sc_col_duration()}</th>
@@ -1606,11 +1598,11 @@
                                 <select 
                                   bind:value={tier.action}
                                   class="w-full bg-transparent font-bold py-1.5 px-2 rounded-lg cursor-pointer outline-hidden focus:bg-surface-container-high/40 border border-transparent focus:border-primary/20 transition-all
- {tier.action === 'WARN' ? 'text-amber-500 dark:text-amber-400' : ''}
+ {tier.action === 'WARN' ? 'text-warning' : ''}
                                     {tier.action === 'TIMEOUT' ? 'text-blue-500 dark:text-blue-400' : ''}
-                                    {tier.action === 'KICK' ? 'text-rose-500 dark:text-rose-400' : ''}
-                                    {tier.action === 'TEMP_BAN' ? 'text-red-500 dark:text-red-400 font-semibold' : ''}
-                                    {tier.action === 'BAN' ? 'text-red-600 dark:text-red-500 font-semibold' : ''}
+                                    {tier.action === 'KICK' ? 'text-error' : ''}
+                                    {tier.action === 'TEMP_BAN' ? 'text-error font-semibold' : ''}
+                                    {tier.action === 'BAN' ? 'text-error font-semibold' : ''}
                                     {tier.action === 'SOFTBAN' ? 'text-purple-500 dark:text-purple-400' : ''}"
                                 >
                                   <option value="WARN" class="text-on-surface bg-surface-container-lowest">{m.sc_action_warn()}</option>
@@ -1646,7 +1638,7 @@
                                     </select>
                                   </div>
                                 {:else}
-                                  <div class="h-7 flex items-center justify-center text-[10px] font-semibold tracking-wider text-on-surface-variant/30 select-none bg-linear-to-br from-outline-variant/5 to-transparent rounded-lg">
+                                  <div class="h-7 flex items-center justify-center text-2xs font-semibold tracking-wider text-on-surface-variant/30 select-none bg-linear-to-br from-outline-variant/5 to-transparent rounded-lg">
                                     {m.sc_not_applicable()}
                                   </div>
                                 {/if}
@@ -1667,7 +1659,7 @@
                                 {#if currentTable.tiers.length > 1}
                                   <button 
                                     onclick={() => removeTier(selectedTableIndex, tierIdx)}
-                                    class="text-on-surface-variant/40 hover:text-red-500 active:scale-95 transition-all p-1.5 rounded-lg hover:bg-red-500/10 opacity-0 group-hover:opacity-100 cursor-pointer flex items-center justify-center mx-auto"
+                                    class="text-on-surface-variant/40 hover:text-error active:scale-95 transition-all p-1.5 rounded-lg hover:bg-error/10 opacity-0 group-hover:opacity-100 cursor-pointer flex items-center justify-center mx-auto"
                                     title={m.sc_delete_tier()}
                                   >
                                     <Papicon icon="trash" size={13} />
@@ -1682,7 +1674,7 @@
                             <td colspan="5" class="p-0">
                               <button 
                                 onclick={() => addTier(selectedTableIndex)}
-                                class="w-full py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-primary hover:text-primary/80 hover:bg-primary/5 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                class="w-full py-2.5 text-center text-xs font-semibold text-primary hover:text-primary/80 hover:bg-primary/5 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                               >
                                 <Papicon icon="plus" size={12} />
                                 {m.sc_insert_tier()}
@@ -1722,7 +1714,7 @@
       <div class="relative bg-linear-to-br from-primary/10 via-surface to-surface p-8 border-b border-outline-variant/5">
         <div class="flex items-start justify-between gap-4">
           <div>
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">{m.sc_sanction_file()}</p>
+            <p class="text-xs font-semibold text-primary">{m.sc_sanction_file()}</p>
             <h3 id="modal-title" class="text-2xl font-semibold text-on-surface mt-1">{typeLabel(selectedSanction.type)}</h3>
             <p class="text-xs font-bold text-on-surface-variant/60 mt-1">
               {m.sc_applied_to()}
@@ -1781,7 +1773,7 @@
                 <p class="text-xs font-medium text-on-surface-variant/40 px-1">{m.sc_evidence()}</p>
                 <div class="flex flex-wrap gap-2">
                   {#each selectedReport.evidenceLinks as link}
-                    <a href={link} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-primary/5 px-4 py-2.5 text-[11px] font-semibold text-primary uppercase tracking-widest transition-all hover:bg-primary/10">
+                    <a href={link} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-primary/5 px-4 py-2.5 text-xs font-semibold text-primary transition-all hover:bg-primary/10">
                       <Papicon icon="external-link" size={14} />
                       {m.sc_evidence_link()}
                     </a>
@@ -1798,7 +1790,7 @@
             {/if}
 
             <div class="pt-6 flex flex-col items-center gap-4 border-t border-outline-variant/10">
-              <p class="text-[10px] font-bold text-on-surface-variant/30 text-center">
+              <p class="text-2xs font-bold text-on-surface-variant/30 text-center">
                 {m.sc_report_by()}
                 <button 
                   disabled={!canOpenMemberCase}
@@ -1812,7 +1804,7 @@
               {#if canEditSelectedReport}
                 <button
                   onclick={startEditing}
-                  class="inline-flex items-center gap-2 rounded-lg bg-primary px-8 py-3 text-[11px] font-semibold text-on-primary uppercase tracking-widest transition-all active:scale-95"
+                  class="inline-flex items-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold text-on-primary transition-all active:scale-95"
                 >
                   <Papicon icon="edit-3" size={16} />
                   {m.sc_edit_report()}
@@ -1824,9 +1816,9 @@
           <!-- Create / Edit Form -->
           <div class="space-y-8 animate-in fade-in duration-300">
             {#if !canCreateSelectedReport && !isEditing}
-              <div class="rounded-lg bg-amber-500/10 border border-amber-500/20 p-4 flex items-center gap-4">
-                <Papicon icon="lock" class="text-amber-500" />
-                <p class="text-xs font-bold text-amber-700">{m.sc_report_reserved_hint()}</p>
+              <div class="rounded-lg bg-warning/10 border border-warning/20 p-4 flex items-center gap-4">
+                <Papicon icon="lock" class="text-warning" />
+                <p class="text-xs font-bold text-warning">{m.sc_report_reserved_hint()}</p>
               </div>
             {/if}
 
@@ -1874,7 +1866,7 @@
             </div>
 
             {#if reportMessage}
-              <div class="rounded-xl p-4 text-[13px] font-medium {reportMessageIsError ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
+              <div class="rounded-xl p-4 text-body-sm font-medium {reportMessageIsError ? 'bg-error/10 text-error' : 'bg-success/10 text-success'}">
                 {reportMessage}
               </div>
             {/if}
@@ -1883,14 +1875,14 @@
               {#if isEditing}
                 <button
                   onclick={() => isEditing = false}
-                  class="flex-1 py-4 rounded-lg bg-on-surface/5 text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant transition-all hover:bg-on-surface/10"
+                  class="flex-1 py-4 rounded-lg bg-on-surface/5 text-xs font-semibold text-on-surface-variant transition-all hover:bg-on-surface/10"
                 >
                   {m.common_cancel()}
                 </button>
                 <button
                   onclick={handleUpdateReport}
                   disabled={updateReportBusy}
-                  class="flex-2 py-4 rounded-lg bg-primary text-on-primary text-[11px] font-semibold uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
+                  class="flex-2 py-4 rounded-lg bg-primary text-on-primary text-xs font-semibold transition-all active:scale-95 disabled:opacity-50"
                 >
                   {updateReportBusy ? m.sc_saving() : m.sc_update_report()}
                 </button>
@@ -1898,7 +1890,7 @@
                 <button
                   onclick={submitReport}
                   disabled={creatingReport || !canCreateSelectedReport}
-                  class="w-full py-4 rounded-lg bg-primary text-on-primary text-[11px] font-semibold uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
+                  class="w-full py-4 rounded-lg bg-primary text-on-primary text-xs font-semibold transition-all active:scale-95 disabled:opacity-50"
                 >
                   {creatingReport ? m.sc_creating() : m.sc_finalize_report()}
                 </button>
@@ -1931,7 +1923,7 @@
       tabindex="-1"
     >
       <div>
-        <p class="text-[10px] font-semibold uppercase tracking-wider text-red-500">{m.sc_sensitive_action()}</p>
+        <p class="text-xs font-semibold text-error">{m.sc_sensitive_action()}</p>
         <h3 id="delete-sanction-title" class="mt-1 text-xl font-semibold text-on-surface">{m.sc_confirm_deletion()}</h3>
         <p class="mt-2 text-sm text-on-surface-variant">
           {m.sc_delete_confirm_pre()} <span class="font-bold text-on-surface">{typeLabel(pendingDeletion.type)}</span>
@@ -1946,7 +1938,7 @@
           type="text"
           bind:value={deleteConfirmationText}
           autocomplete="off"
-          className="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-red-400/40 focus:border-red-400 dark:focus:border-red-500 transition-all"
+          className="mt-1 w-full rounded-xl px-3 py-2.5 bg-surface-container-low border border-outline-variant text-sm focus:ring-2 focus:ring-error/40 focus:border-error transition-all"
           placeholder={m.sc_delete_keyword()}
         />
       </div>

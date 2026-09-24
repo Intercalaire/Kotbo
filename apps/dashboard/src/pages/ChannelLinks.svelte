@@ -325,10 +325,10 @@
 
     <div class="flex flex-col gap-6">
       <!-- Mode liaison seule : ce que les autres serveurs acceptent réellement -->
-      <div class="flex gap-4 p-5 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
-        <Papicon icon="shield" size={20} class="text-emerald-500 shrink-0 mt-0.5" />
+      <div class="flex gap-4 p-5 rounded-xl bg-success/5 border border-success/20">
+        <Papicon icon="shield" size={20} class="text-success shrink-0 mt-0.5" />
         <div class="space-y-2 min-w-0">
-          <h3 class="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{m.channel_links_guest_banner_title()}</h3>
+          <h3 class="text-sm font-semibold text-success">{m.channel_links_guest_banner_title()}</h3>
           <p class="text-xs text-on-surface-variant/70 leading-relaxed">{m.channel_links_guest_banner_desc()}</p>
           <ol class="text-xs text-on-surface-variant/60 leading-relaxed list-decimal list-inside space-y-0.5">
             <li>{m.channel_links_guest_step_1()}</li>
@@ -396,13 +396,13 @@
                         <span class="text-xs font-medium text-on-surface">#{member.channelName}</span>
                         <span class="text-xs text-on-surface-variant/40" title={modeLabel(member.mode)}>{modeArrow(member.mode)}</span>
                         {#if !member.enabled}
-                          <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant/60">
+                          <span class="text-2xs px-1.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant/60">
                             {m.channel_links_member_paused()}
                           </span>
                         {/if}
                         {#if member.isLinkOnly}
                           <span
-                            class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                            class="text-2xs px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/20"
                             title={m.channel_links_badge_link_only_tooltip()}
                           >
                             {m.channel_links_badge_link_only()}
@@ -410,7 +410,7 @@
                         {/if}
                         {#if warnings.length > 0}
                           <span
-                            class="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                            class="text-2xs px-2 py-0.5 rounded-full bg-warning/10 text-warning border border-warning/20"
                             title={warnings.join(' ')}
                           >
                             {m.channel_links_perm_badge()}
@@ -421,10 +421,10 @@
                   </div>
 
                   <div class="flex flex-wrap gap-1.5">
-                    {#if group.relayText}<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.channel_links_relay_text()}</span>{/if}
-                    {#if group.relayImages}<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.channel_links_relay_images()}</span>{/if}
-                    {#if group.relayEdits}<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.channel_links_relay_edits()}</span>{/if}
-                    {#if group.relayDeletes}<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.channel_links_relay_deletes()}</span>{/if}
+                    {#if group.relayText}<span class="text-2xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.channel_links_relay_text()}</span>{/if}
+                    {#if group.relayImages}<span class="text-2xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.channel_links_relay_images()}</span>{/if}
+                    {#if group.relayEdits}<span class="text-2xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.channel_links_relay_edits()}</span>{/if}
+                    {#if group.relayDeletes}<span class="text-2xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.channel_links_relay_deletes()}</span>{/if}
                   </div>
                 </div>
 
@@ -443,10 +443,10 @@
                   </button>
                   <button
                     onclick={() => confirmDelete(group.id)}
-                    class="p-2 rounded-lg hover:bg-red-500/10 transition-colors"
+                    class="p-2 rounded-lg hover:bg-error/10 transition-colors"
                     title={m.common_delete()}
                   >
-                    <Papicon icon="trash-2" size={16} class="text-red-400" />
+                    <Papicon icon="trash-2" size={16} class="text-error" />
                   </button>
                 </div>
               </div>
@@ -599,10 +599,10 @@
 
         <!-- Created invite URL result -->
         {#if createdInviteUrl}
-          <div class="flex flex-col gap-2 px-4 py-3 rounded-lg bg-green-500/10 border border-green-500/30">
+          <div class="flex flex-col gap-2 px-4 py-3 rounded-lg bg-success/10 border border-success/30">
             <div class="flex items-center gap-2">
-              <Papicon icon="check-circle" size={16} class="text-green-400" />
-              <span class="text-sm font-semibold text-green-400">{m.channel_links_invite_created_badge()}</span>
+              <Papicon icon="check-circle" size={16} class="text-success" />
+              <span class="text-sm font-semibold text-success">{m.channel_links_invite_created_badge()}</span>
             </div>
             <p class="text-xs text-on-surface-variant/70">{m.channel_links_invite_created_hint()}</p>
             <div class="flex items-center gap-2">
@@ -698,14 +698,14 @@
                   <button
                     type="button"
                     onclick={() => handleRemoveMember(member.id)}
-                    class="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
+                    class="p-1.5 rounded-lg hover:bg-error/10 transition-colors"
                     title={m.channel_links_remove_member_tooltip()}
                   >
-                    <Papicon icon="trash-2" size={14} class="text-red-400" />
+                    <Papicon icon="trash-2" size={14} class="text-error" />
                   </button>
 
                   {#each memberWarnings(member) as warning}
-                    <p class="w-full text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
+                    <p class="w-full text-2xs text-warning leading-relaxed">
                       {warning}
                     </p>
                   {/each}
@@ -716,7 +716,7 @@
             <!-- Un pont réduit à un seul salon n'a plus d'objet : le dire ici évite
                  la surprise d'un pont qui disparaît en retirant l'avant-dernier. -->
             {#if configGroup.members.length <= 2}
-              <p class="mt-2 text-[11px] text-on-surface-variant/50">{m.channel_links_last_members_notice()}</p>
+              <p class="mt-2 text-2xs text-on-surface-variant/50">{m.channel_links_last_members_notice()}</p>
             {/if}
 
             <!-- Ajout d'un salon -->
@@ -788,11 +788,11 @@
                  base : le dire ici, à l'endroit où on les coche, évite d'avoir à
                  le chercher ailleurs. -->
             {#if configGroup.relayEdits || configGroup.relayDeletes || configGroup.relayReactions || configGroup.relayPins}
-              <p class="mt-3 text-[11px] text-on-surface-variant/50 leading-relaxed">
+              <p class="mt-3 text-2xs text-on-surface-variant/50 leading-relaxed">
                 {m.channel_links_storage_notice_on()}
               </p>
             {:else}
-              <p class="mt-3 text-[11px] text-emerald-600/80 dark:text-emerald-400/80 leading-relaxed">
+              <p class="mt-3 text-2xs text-success/80 leading-relaxed">
                 {m.channel_links_storage_notice_off()}
               </p>
             {/if}
@@ -804,10 +804,10 @@
             <p class="text-xs text-on-surface-variant/50 mb-3">{m.channel_links_invite_section_desc()}</p>
 
             {#if configInviteUrl}
-              <div class="flex flex-col gap-2 px-3 py-3 rounded-lg bg-green-500/10 border border-green-500/30">
+              <div class="flex flex-col gap-2 px-3 py-3 rounded-lg bg-success/10 border border-success/30">
                 <div class="flex items-center gap-2">
-                  <Papicon icon="check-circle" size={14} class="text-green-400" />
-                  <span class="text-xs font-semibold text-green-400">
+                  <Papicon icon="check-circle" size={14} class="text-success" />
+                  <span class="text-xs font-semibold text-success">
                     {configInviteTopicUpdated ? m.channel_links_invite_added_topic() : m.channel_links_invite_generated()}
                   </span>
                 </div>

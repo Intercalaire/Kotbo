@@ -177,7 +177,7 @@
                 </div>
                 <div class="flex items-center gap-6">
                   <div class="text-right">
-                    <p class="text-[10px] font-semibold {type === 'messages' ? 'text-primary' : 'text-emerald-500'} uppercase tracking-widest">{type === 'messages' ? m.d7_dam_messages() : m.d7_dam_minutes()}</p>
+                    <p class="text-2xs font-semibold {type === 'messages' ? 'text-primary' : 'text-success'} uppercase tracking-widest">{type === 'messages' ? m.d7_dam_messages() : m.d7_dam_minutes()}</p>
                     <p class="text-base font-semibold text-on-surface">{(type === 'messages' ? item.messageCount : Math.round(item.voiceTimeSeconds / 60)).toLocaleString(dateLocale())}</p>
                   </div>
                   <Papicon icon="ArrowRight" size={16} class="opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -199,7 +199,7 @@
                 </div>
                 <div class="flex items-center gap-6">
                   <div class="text-right">
-                    <p class="text-[10px] font-semibold text-secondary uppercase tracking-widest">{m.d7_dam_volume()}</p>
+                    <p class="text-xs font-semibold text-secondary">{m.d7_dam_volume()}</p>
                     <p class="text-base font-semibold text-on-surface">{(item.messagesCount || item.count).toLocaleString(dateLocale())}</p>
                   </div>
                   <Papicon icon="ArrowRight" size={16} class="opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -218,7 +218,7 @@
                   <p class="text-base font-semibold text-on-surface">@{item.moderatorTag}</p>
                 </div>
                 <div class="text-right">
-                  <p class="text-[10px] font-semibold text-primary uppercase tracking-widest">{m.d7_dam_actions()}</p>
+                  <p class="text-xs font-semibold text-primary">{m.d7_dam_actions()}</p>
                   <p class="text-base font-semibold text-on-surface">{item.count}</p>
                 </div>
               </button>
@@ -235,7 +235,7 @@
                   <p class="text-base font-semibold text-on-surface">@{item.targetTag}</p>
                 </div>
                 <div class="text-right">
-                  <p class="text-[10px] font-semibold text-rose-500 uppercase tracking-widest">{m.d7_dam_sanctions()}</p>
+                  <p class="text-xs font-semibold text-error">{m.d7_dam_sanctions()}</p>
                   <p class="text-base font-semibold text-on-surface">{item.count}</p>
                 </div>
               </button>
@@ -246,7 +246,7 @@
                 onclick={() => onOpenMember?.(item.userId, item.name)}
                 class="w-full flex items-center gap-4 p-4 rounded-lg bg-surface-container-high/20 hover:bg-surface-container-high/50 border border-outline-variant/5 transition-all text-left group"
               >
-                <div class="flex items-center justify-center w-8 h-8 rounded-full font-semibold text-xs {globalIndex <= 3 ? 'bg-amber-500/10 text-amber-500' : 'bg-on-surface/5 text-on-surface-variant/30 shrink-0'}">
+                <div class="flex items-center justify-center w-8 h-8 rounded-full font-semibold text-xs {globalIndex <= 3 ? 'bg-warning/10 text-warning' : 'bg-on-surface/5 text-on-surface-variant/30 shrink-0'}">
                   {globalIndex}
                 </div>
                 <div class="relative shrink-0">
@@ -255,20 +255,20 @@
                 </div>
                 <div class="flex-1 min-w-0">
                   <span class="text-base font-semibold text-on-surface block truncate">{item.name}</span>
-                  <span class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">{item.grade || m.d7_staff()}</span>
+                  <span class="text-xs font-semibold text-on-surface-variant/40">{item.grade || m.d7_staff()}</span>
                 </div>
                 <div class="hidden md:flex items-center gap-6 mr-4 shrink-0">
                   <div class="text-right">
-                    <p class="text-[11px] font-semibold text-on-surface-variant/30 uppercase tracking-widest">{m.d7_dam_messages()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant/30">{m.d7_dam_messages()}</p>
                     <p class="text-xs font-bold text-on-surface">{fmt?.(item.messages)}</p>
                   </div>
                   <div class="text-right">
-                    <p class="text-[11px] font-semibold text-on-surface-variant/30 uppercase tracking-widest">{m.d7_dam_voice()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant/30">{m.d7_dam_voice()}</p>
                     <p class="text-xs font-bold text-on-surface">{fmtH?.(item.voiceMinutes)}</p>
                   </div>
                 </div>
                 <div class="text-right pl-4 border-l border-outline-variant/10 shrink-0">
-                  <p class="text-[11px] font-semibold text-primary uppercase tracking-widest">{m.d7_dam_score()}</p>
+                  <p class="text-xs font-semibold text-primary">{m.d7_dam_score()}</p>
                   <p class="text-lg font-semibold text-primary">{fmt?.(item.score)}</p>
                 </div>
               </button>
@@ -288,16 +288,16 @@
                     <div class="flex items-center gap-2">
                       <p class="text-sm font-semibold text-on-surface">@{item.targetTag}</p>
                       {#if getSanctionColor}
-                        <span class="px-2 py-0.5 rounded-lg text-[11px] font-semibold tracking-widest uppercase" style="background: {getSanctionColor(item.type)}20; color: {getSanctionColor(item.type)}">{item.type}</span>
+                        <span class="px-2 py-0.5 rounded-lg text-xs font-semibold" style="background: {getSanctionColor(item.type)}20; color: {getSanctionColor(item.type)}">{item.type}</span>
                       {/if}
                     </div>
                     <p class="text-xs font-medium text-on-surface-variant/60 mt-0.5 line-clamp-1">{item.reason || m.d7_dam_no_reason()}</p>
-                    <p class="text-[10px] text-on-surface-variant/40 mt-1">{new Date(item.createdAt).toLocaleString(dateLocale())}</p>
+                    <p class="text-2xs text-on-surface-variant/40 mt-1">{new Date(item.createdAt).toLocaleString(dateLocale())}</p>
                   </div>
                 </div>
                 <div class="flex items-center justify-between md:justify-end gap-6 border-t md:border-t-0 border-outline-variant/5 pt-3 md:pt-0 shrink-0">
                   <div class="text-right">
-                    <p class="text-[11px] font-semibold text-on-surface-variant/40 uppercase tracking-widest">{m.d7_dam_moderator()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant/40">{m.d7_dam_moderator()}</p>
                     <div class="flex items-center gap-2 mt-0.5">
                       <img src={getAvatar(item.moderatorAvatarUrl, item.moderatorTag, item.moderatorUserId)} alt="" class="w-5 h-5 rounded-md object-cover" />
                       <p class="text-xs font-bold text-on-surface">@{item.moderatorTag}</p>

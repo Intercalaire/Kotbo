@@ -179,7 +179,7 @@
     if (path.startsWith("/absences")) return "absences";
     if (path.startsWith("/planning")) return "absences";
     if (path.startsWith("/leveling")) return "leveling";
-    if (path.startsWith("/economy")) return "economy";
+    if (path.startsWith("/economy") || path.startsWith("/rpg")) return "economy";
     if (path.startsWith("/giveaways")) return "giveaways";
     if (path.startsWith("/welcome") || path.startsWith("/announcement")) return "welcome_goodbye";
     if (path.startsWith("/reaction-roles")) return "reaction_roles";
@@ -1004,18 +1004,19 @@
               path="/tickets/*"
               load={() => import("./pages/Tickets.svelte")}
             />
-            <LazyRoute
-              path="/transcripts-list"
-              load={() => import("./pages/Transcripts.svelte")}
-            />
+            <!-- Fondue dans l'onglet Transcriptions des Tickets. -->
+            <Route path="/transcripts-list">
+              <div use:navigate={"/tickets/transcripts"}></div>
+            </Route>
             <LazyRoute
               path="/message-search"
               load={() => import("./pages/MessageSearch.svelte")}
             />
-            <LazyRoute
-              path="/meetings"
-              load={() => import("./pages/Meetings.svelte")}
-            />
+            <!-- Fondue dans l'onglet Reunions du Planning, qui fait la meme chose
+                 avec le calendrier en plus. -->
+            <Route path="/meetings">
+              <div use:navigate={"/planning/meeting"}></div>
+            </Route>
             <Route path="/absences">
               <div use:navigate={"/planning"}></div>
             </Route>
@@ -1045,6 +1046,10 @@
             <LazyRoute
               path="/economy/*"
               load={() => import("./pages/Economy.svelte")}
+            />
+            <LazyRoute
+              path="/rpg/*"
+              load={() => import("./pages/Rpg.svelte")}
             />
             <LazyRoute
               path="/giveaways/*"

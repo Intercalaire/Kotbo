@@ -189,7 +189,7 @@ function tabsRow(ownerId: string, state: MarketState, locale: Locale): ActionRow
   );
 }
 
-function navRow(ownerId: string, state: MarketState, pageCount: number, locale: Locale): ActionRowBuilder<ButtonBuilder> {
+function navRow(ownerId: string, state: MarketState, pageCount: number, locale: Locale, rpgEnabled: boolean): ActionRowBuilder<ButtonBuilder> {
   const row = new ActionRowBuilder<ButtonBuilder>();
   if (pageCount > 1) {
     row.addComponents(
@@ -218,6 +218,17 @@ function navRow(ownerId: string, state: MarketState, pageCount: number, locale: 
       .setEmoji(icon('rpgRefresh'))
       .setStyle(ButtonStyle.Secondary),
   );
+  // Ouvert depuis le hub /rpg, le marché remplace le panneau dans le même message : sans ce
+  // bouton, on ne pouvait plus en ressortir. Depuis /market, il mène au hub, ce qui reste utile.
+  if (rpgEnabled) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:nav:${ownerId}:hub`)
+        .setLabel(m.rpg_hub_btn_back({}, { locale }))
+        .setEmoji(icon('rpgBack'))
+        .setStyle(ButtonStyle.Secondary),
+    );
+  }
   return row;
 }
 
@@ -322,7 +333,7 @@ export async function buildMarketView(
         default: category === current.category,
       }))),
   ));
-  components.push(navRow(ownerId, current, pageCount, locale));
+  components.push(navRow(ownerId, current, pageCount, locale, config.rpgEnabled));
 
   return { embeds: [], components, container };
 }
@@ -504,6 +515,12 @@ async function buildSellSetupView(
       ? m.mkt_sell_suggested_market({ price: suggested.unitPrice, emoji: config.currencyEmoji, count: suggested.samples }, { locale })
       : m.mkt_sell_suggested_shop({ price: suggested.unitPrice, emoji: config.currencyEmoji }, { locale }),
   ));
+  // Annoncée avant la mise en vente : le vendeur fixe son prix en sachant ce qu'il touchera.
+  if (config.marketplaceTaxPercent > 0) {
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      `-# ${m.mkt_sell_tax({ percent: config.marketplaceTaxPercent }, { locale })}`,
+    ));
+  }
 
   const copyRef = `${itemId}:${instanceId ?? '-'}`;
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(

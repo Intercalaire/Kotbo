@@ -348,7 +348,7 @@
 
   <!-- Endpoint -->
   <div class="bg-[#1a1d23] border border-white/8 rounded-xl p-4">
-    <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2.5">{m.mcp_endpoint_label()}</p>
+    <p class="text-xs font-medium text-gray-500 mb-2.5">{m.mcp_endpoint_label()}</p>
     <div class="flex items-center gap-2">
       <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2.5 text-sm text-gray-200 font-mono break-all">
         {endpointUrl || m.mcp_endpoint_select_server()}
@@ -416,7 +416,7 @@
                     <!-- Une cle sans proprietaire survit au depart de celui qui
                          s'en sert : rien ne la relie a un compte, seule une
                          revocation a la main l'arrete. -->
-                    <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400" title={m.mcp_key_orphan_hint()}>
+                    <span class="px-1.5 py-0.5 rounded text-2xs font-medium bg-amber-500/15 text-amber-400" title={m.mcp_key_orphan_hint()}>
                       {m.mcp_key_orphan()}
                     </span>
                   {/if}
@@ -429,7 +429,7 @@
               <!-- Permissions -->
               <div class="hidden sm:flex flex-wrap gap-1 max-w-xs">
                 {#each key.permissions as perm}
-                  <span class="px-1.5 py-0.5 rounded text-[10px] font-medium
+                  <span class="px-1.5 py-0.5 rounded text-2xs font-medium
  {perm.startsWith('WRITE_') ? 'bg-red-500/15 text-red-400' : 'bg-primary/12 text-primary/80'}">
                     {permLabel(perm)}
                   </span>
@@ -458,7 +458,7 @@
               <div class="px-4 pb-4 pt-1 border-t border-white/5 bg-black/20 space-y-3">
                 <!-- Client ID -->
                 <div class="space-y-1">
-                  <p class="text-[11px] font-medium text-gray-500 uppercase tracking-wide">{m.mcp_client_id_label()}</p>
+                  <p class="text-xs font-medium text-gray-500">{m.mcp_client_id_label()}</p>
                   <div class="flex items-center gap-2">
                     <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2 text-xs font-mono text-gray-300 break-all">
                       {key.id}
@@ -474,7 +474,7 @@
 
                 <!-- Client Secret (display key) -->
                 <div class="space-y-1">
-                  <p class="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
+                  <p class="text-xs font-medium text-gray-500">
                     {m.mcp_client_secret_label()} <span class="text-gray-700 normal-case font-normal">{m.mcp_client_secret_hint()}</span>
                   </p>
                   <div class="flex items-center gap-2">
@@ -486,7 +486,7 @@
 
                 <!-- Endpoint for this guild -->
                 <div class="space-y-1">
-                  <p class="text-[11px] font-medium text-gray-500 uppercase tracking-wide">{m.mcp_endpoint_url_label()}</p>
+                  <p class="text-xs font-medium text-gray-500">{m.mcp_endpoint_url_label()}</p>
                   <div class="flex items-center gap-2">
                     <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2 text-xs font-mono text-gray-300 break-all">
                       {endpointUrl}
@@ -504,7 +504,7 @@
                 <div class="space-y-1 rounded-lg border border-amber-400/15 bg-amber-400/5 p-3">
                   <div class="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <p class="text-[11px] font-medium text-amber-300 uppercase tracking-wide">{m.mcp_direct_url_title()}</p>
+                      <p class="text-xs font-medium text-amber-300">{m.mcp_direct_url_title()}</p>
                       <p class="mt-0.5 text-xs text-amber-200/70">
                         {m.mcp_direct_url_desc()}
                       </p>
@@ -521,7 +521,7 @@
                     <code class="mt-2 block bg-black/40 border border-white/8 rounded-lg px-3 py-2 text-xs font-mono text-gray-200 break-all">
                       {directUrls[key.id].url}
                     </code>
-                    <p class="mt-1 text-[11px] text-gray-600">
+                    <p class="mt-1 text-2xs text-gray-600">
                       {m.mcp_direct_url_expires({ date: new Date(directUrls[key.id].expiresAt).toLocaleDateString(dateLocale()) })}
                     </p>
                   {/if}
@@ -529,7 +529,7 @@
 
                 <!-- Permissions list -->
                 <div class="space-y-1">
-                  <p class="text-[11px] font-medium text-gray-500 uppercase tracking-wide">{m.mcp_permissions_label()}</p>
+                  <p class="text-xs font-medium text-gray-500">{m.mcp_permissions_label()}</p>
                   <div class="flex flex-wrap gap-1.5">
                     {#each key.permissions as perm}
                       <span class="px-2 py-1 rounded-lg text-xs font-medium
@@ -636,7 +636,7 @@
               {copiedField === 'new-direct-url' ? m.mcp_btn_copied() : m.mcp_btn_copy()}
             </button>
           </div>
-          <p class="text-[11px] leading-relaxed text-amber-200/70">
+          <p class="text-2xs leading-relaxed text-amber-200/70">
             {m.mcp_modal_created_claude_notice()}
           </p>
         </div>
@@ -666,13 +666,13 @@
         <div class="space-y-4 max-h-[380px] overflow-y-auto pr-1">
           <!-- Lecture Section -->
           <div>
-            <h4 class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 border-b border-white/5 pb-1">{m.mcp_perm_read_section()}</h4>
+            <h4 class="text-xs font-semibold text-gray-500 mb-2 border-b border-white/5 pb-1">{m.mcp_perm_read_section()}</h4>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
               {#each readPermissions as perm}
                 <div class="flex items-center justify-between p-2.5 rounded-lg border border-white/5 bg-black/20 hover:border-white/10 hover:bg-white/[0.01] transition-all">
                   <div class="min-w-0 pr-3">
                     <span class="text-xs font-semibold text-white">{perm.label}</span>
-                    <p class="text-[10px] text-gray-500 mt-0.5 leading-normal">{perm.desc}</p>
+                    <p class="text-2xs text-gray-500 mt-0.5 leading-normal">{perm.desc}</p>
                   </div>
                   <button
                     type="button"
@@ -691,13 +691,13 @@
 
           <!-- Ecriture Section -->
           <div>
-            <h4 class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 border-b border-white/5 pb-1">{m.mcp_perm_write_section()}</h4>
+            <h4 class="text-xs font-semibold text-gray-500 mb-2 border-b border-white/5 pb-1">{m.mcp_perm_write_section()}</h4>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
               {#each writePermissions as perm}
                 <div class="flex items-center justify-between p-2.5 rounded-lg border border-white/5 bg-black/20 hover:border-white/10 hover:bg-white/[0.01] transition-all">
                   <div class="min-w-0 pr-3">
                     <span class="text-xs font-semibold text-white">{perm.label}</span>
-                    <p class="text-[10px] text-gray-500 mt-0.5 leading-normal">{perm.desc}</p>
+                    <p class="text-2xs text-gray-500 mt-0.5 leading-normal">{perm.desc}</p>
                   </div>
                   <button
                     type="button"
@@ -767,11 +767,11 @@
     <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
       <div class="space-y-4">
         <div class="space-y-2">
-          <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">{m.mcp_help_tutorial_title({ name: currentGuide.name })}</p>
+          <p class="text-xs font-medium text-gray-500">{m.mcp_help_tutorial_title({ name: currentGuide.name })}</p>
           <ol class="space-y-2">
             {#each currentGuide.steps as step, index}
               <li class="flex gap-2 text-sm text-gray-300">
-                <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/8 text-[11px] text-gray-400">{index + 1}</span>
+                <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/8 text-2xs text-gray-400">{index + 1}</span>
                 <span class="leading-relaxed">{step}</span>
               </li>
             {/each}
@@ -803,7 +803,7 @@
       <div class="space-y-3">
         <div class="rounded-lg border border-white/8 bg-black/20 p-3">
           <div class="mb-2 flex items-center justify-between gap-2">
-            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">{m.mcp_help_mcp_url()}</p>
+            <p class="text-xs font-medium text-gray-500">{m.mcp_help_mcp_url()}</p>
             <button
               disabled={!endpointUrl}
               onclick={() => copy(endpointUrl, 'help-endpoint')}
@@ -818,11 +818,11 @@
         </div>
 
         <div class="rounded-lg border border-white/8 bg-black/20 p-3">
-          <p class="mb-2 text-xs font-medium text-gray-500 uppercase tracking-wide">{m.mcp_help_fields_to_fill()}</p>
+          <p class="mb-2 text-xs font-medium text-gray-500">{m.mcp_help_fields_to_fill()}</p>
           <div class="space-y-2">
             {#each currentGuide.fields as field}
               <div class="rounded-lg border border-white/6 bg-black/25 px-3 py-2">
-                <p class="text-[11px] font-medium text-gray-500">{field.label}</p>
+                <p class="text-2xs font-medium text-gray-500">{field.label}</p>
                 <p class="mt-0.5 text-xs leading-relaxed text-gray-300">{field.value}</p>
               </div>
             {/each}
@@ -832,7 +832,7 @@
         {#if selectedAi === 'gemini'}
           <div class="rounded-lg border border-sky-400/20 bg-sky-400/8 p-3">
             <p class="mb-2 text-xs font-medium text-sky-300">{m.mcp_help_gemini_example()}</p>
-            <pre class="overflow-x-auto rounded-lg border border-white/8 bg-black/40 p-3 text-[11px] leading-relaxed text-gray-300">{`{
+            <pre class="overflow-x-auto rounded-lg border border-white/8 bg-black/40 p-3 text-2xs leading-relaxed text-gray-300">{`{
   "type": "mcp_server",
   "name": "Kotbo",
   "url": "${endpointUrl || 'https://api-kotbo.example/api/mcp/GUILD_ID'}",
@@ -876,10 +876,10 @@
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                   <span class="text-xs text-gray-500">{formatLogTime(log.ts)}</span>
-                  <span class="rounded border px-1.5 py-0.5 text-[10px] uppercase {log.level === 'error' ? 'border-red-400/30 text-red-300' : log.level === 'warn' ? 'border-amber-400/30 text-amber-300' : 'border-white/10 text-gray-400'}">{log.level}</span>
+                  <span class="rounded border px-1.5 py-0.5 text-2xs uppercase {log.level === 'error' ? 'border-red-400/30 text-red-300' : log.level === 'warn' ? 'border-amber-400/30 text-amber-300' : 'border-white/10 text-gray-400'}">{log.level}</span>
                   <span class="text-sm font-semibold {log.level === 'error' ? 'text-red-300' : log.level === 'warn' ? 'text-amber-300' : 'text-gray-200'}">{log.event}</span>
                 </div>
-                <p class="mt-1 break-all font-mono text-[11px] text-gray-600">{log.method} {log.url}</p>
+                <p class="mt-1 break-all font-mono text-2xs text-gray-600">{log.method} {log.url}</p>
               </div>
               <span class="max-w-full truncate text-xs text-gray-500">{log.ua || m.mcp_logs_no_ua()}</span>
             </div>

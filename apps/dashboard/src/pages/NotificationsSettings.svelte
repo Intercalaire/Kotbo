@@ -150,7 +150,7 @@
 
 <div class="mb-12 font-inter">
   <h2 class="text-lg font-semibold text-primary tracking-tight font-headline">Paramètres & Notifications</h2>
-  <p class="text-on-surface-variant mt-2 text-lg">Configurez les alertes système et les préférences globales pour {dashboardStore.state.guildName}.</p>
+  <p class="text-on-surface-variant mt-2 text-lg">Configure les alertes système et les préférences globales de {dashboardStore.state.guildName}.</p>
 </div>
 
 
@@ -169,27 +169,27 @@
 
       <div class="space-y-6">
           <div class="space-y-2">
-          <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="moderator-role">Rôle modérateur dashboard</label>
-          <SearchableSelect id="moderator-role" bind:value={notificationsDraft.moderatorRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Admin uniquement" className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
+          <label class="text-xs font-semibold text-on-surface-variant ml-1" for="moderator-role">Rôle modérateur dashboard</label>
+          <SearchableSelect id="moderator-role" bind:value={notificationsDraft.moderatorRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Admin uniquement" className="w-full px-6 py-4 bg-surface-container-low border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
           
           <p class="text-xs text-on-surface-variant">Les membres de ce rôle peuvent accéder au dashboard avec des permissions limitées.</p>
         </div>
 
           <div class="space-y-2">
-          <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="discord-channel">Salon d'alertes</label>
-          <SearchableSelect id="discord-channel" bind:value={notificationsDraft.discordChannel} options={availableChannels.map(c => ({ id: c.mention, name: channelDisplayName(c) }))} placeholder="Sélectionner un salon" className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
+          <label class="text-xs font-semibold text-on-surface-variant ml-1" for="discord-channel">Salon d'alertes</label>
+          <SearchableSelect id="discord-channel" bind:value={notificationsDraft.discordChannel} options={availableChannels.map(c => ({ id: c.mention, name: channelDisplayName(c) }))} placeholder="Sélectionner un salon" className="w-full px-6 py-4 bg-surface-container-low border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
         </div>
 
           <div class="space-y-2">
-          <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="log-channel">Salon des embeds de logs (optionnel)</label>
-          <SearchableSelect id="log-channel" bind:value={notificationsDraft.logChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Ne pas envoyer d'embed" className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
+          <label class="text-xs font-semibold text-on-surface-variant ml-1" for="log-channel">Salon des embeds de logs (optionnel)</label>
+          <SearchableSelect id="log-channel" bind:value={notificationsDraft.logChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Ne pas envoyer d'embed" className="w-full px-6 py-4 bg-surface-container-low border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
           <p class="text-xs text-on-surface-variant">Les logs restent consultables dans le dashboard même si aucun salon n'est défini.</p>
         </div>
         
         
-        <div class="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
+        <div class="flex items-center justify-between p-4 bg-surface-container-low rounded-lg border border-outline-variant">
           <div>
-            <p class="font-bold text-slate-800 dark:text-slate-200">Kill-Switch de Sécurité</p>
+            <p class="font-bold text-on-surface">Kill-Switch de Sécurité</p>
             <p class="text-xs text-on-surface-variant">Désactive instantanément tous les modules en cas d'urgence.</p>
           </div>
           <ToggleSwitch
@@ -209,13 +209,13 @@
       </h3>
       
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div class="flex items-start gap-4 p-4 rounded-lg hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
-          <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-all">
+        <div class="flex items-start gap-4 p-4 rounded-lg hover:bg-surface-container-low dark:hover:bg-white/5 transition-colors group">
+          <div class="p-3 rounded-xl bg-surface-container text-on-surface-variant group-hover:bg-primary/10 group-hover:text-primary transition-all">
             <Papicon icon="cloud_upload" size={24} />
           </div>
           <div class="flex-1">
             <div class="flex items-center justify-between mb-1">
-              <span class="font-bold text-slate-800 dark:text-slate-200">Backup Cloud</span>
+              <span class="font-bold text-on-surface">Backup Cloud</span>
               <ToggleSwitch
                 size="sm"
                 checked={notificationsDraft.cloudBackup}
@@ -226,13 +226,13 @@
           </div>
         </div>
 
-        <div class="flex items-start gap-4 p-4 rounded-lg hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
-          <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-all">
+        <div class="flex items-start gap-4 p-4 rounded-lg hover:bg-surface-container-low dark:hover:bg-white/5 transition-colors group">
+          <div class="p-3 rounded-xl bg-surface-container text-on-surface-variant group-hover:bg-primary/10 group-hover:text-primary transition-all">
             <Papicon icon="bug_report" size={24} />
           </div>
           <div class="flex-1">
             <div class="flex items-center justify-between mb-1">
-              <span class="font-bold text-slate-800 dark:text-slate-200">Mode Débogage</span>
+              <span class="font-bold text-on-surface">Mode Débogage</span>
               <ToggleSwitch
                 size="sm"
                 checked={notificationsDraft.debugLog}
@@ -243,13 +243,13 @@
           </div>
         </div>
 
-        <div class="flex items-start gap-4 p-4 rounded-lg hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
-          <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-all">
+        <div class="flex items-start gap-4 p-4 rounded-lg hover:bg-surface-container-low dark:hover:bg-white/5 transition-colors group">
+          <div class="p-3 rounded-xl bg-surface-container text-on-surface-variant group-hover:bg-primary/10 group-hover:text-primary transition-all">
             <Papicon icon="mail" size={24} />
           </div>
           <div class="flex-1">
             <div class="flex items-center justify-between mb-1">
-              <span class="font-bold text-slate-800 dark:text-slate-200">Alertes Email</span>
+              <span class="font-bold text-on-surface">Alertes Email</span>
               <ToggleSwitch
                 size="sm"
                 checked={notificationsDraft.emailEnabled}
@@ -262,18 +262,18 @@
                 type="email"
                 bind:value={notificationsDraft.email}
                 placeholder="admin@exemple.fr"
-                className="mt-3 w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 transition-all"
+                className="mt-3 w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 transition-all"
               />
             {/if}
           </div>
         </div>
       </div>
 
-      <div class="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 dark:border-slate-800 pt-6">
+      <div class="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-outline-variant pt-6">
         <InlineFeedback
           message={saveAction.state.message}
           error={saveAction.state.error}
-          idleText="Les changements ne sont pas enregistrés tant que vous ne validez pas."
+          idleText="Les changements ne sont pas enregistrés tant que tu ne valides pas."
         />
         {#if !canManageSettings}
           <p class="text-xs text-on-surface-variant">Accès modérateur: consultation et modération de contenu uniquement.</p>
@@ -286,7 +286,7 @@
   <div class="col-span-12 lg:col-span-4 space-y-8">
     <div class="bg-primary p-8 rounded-xl text-white overflow-hidden relative group">
       <div class="relative z-10">
-        <h4 class="text-[13px] font-medium opacity-60 mb-6">Statut de Connexion</h4>
+        <h4 class="text-body-sm font-medium opacity-60 mb-6">Statut de Connexion</h4>
         <div class="flex items-center gap-6 mb-8">
           <div class="w-16 h-16 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
             <Papicon 
@@ -309,31 +309,31 @@
 
     
     <div class="section-card p-8">
-      <h4 class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider mb-6">Résumé Technique</h4>
+      <h4 class="text-xs font-semibold text-on-surface-variant mb-6">Résumé Technique</h4>
       <div class="space-y-6">
         <div class="flex gap-4">
-          <div class="w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0">
-            <Papicon icon="extension" size={18} class="text-slate-400" />
+          <div class="w-8 h-8 rounded-xl bg-surface-container-low flex items-center justify-center shrink-0">
+            <Papicon icon="extension" size={18} class="text-on-surface-variant" />
           </div>
           <div>
-            <p class="text-xs font-bold text-slate-800 dark:text-slate-200">{dashboardStore.state.modules?.length ?? 0} Modules Détectés</p>
+            <p class="text-xs font-bold text-on-surface">{dashboardStore.state.modules?.length ?? 0} Modules Détectés</p>
           </div>
         </div>
         <div class="flex gap-4">
-          <div class="w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0">
-            <Papicon icon="rss_feed" size={18} class="text-slate-400" />
+          <div class="w-8 h-8 rounded-xl bg-surface-container-low flex items-center justify-center shrink-0">
+            <Papicon icon="rss_feed" size={18} class="text-on-surface-variant" />
           </div>
           <div>
-            <p class="text-xs font-bold text-slate-800 dark:text-slate-200">{(dashboardStore.state as any).feeds?.length ?? 0} Flux RSS Configurés</p>
+            <p class="text-xs font-bold text-on-surface">{(dashboardStore.state as any).feeds?.length ?? 0} Flux RSS Configurés</p>
           </div>
         </div>
       </div>
     </div>
 
     
-    <div class="bg-red-50 dark:bg-red-900/10 p-8 rounded-xl border border-red-100 dark:border-red-900/20">
-      <h4 class="text-[10px] font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider mb-4">Zone Critique</h4>
-      <p class="text-xs text-red-600/70 dark:text-red-400/70 mb-6 leading-relaxed font-medium">Réinitialiser les paramètres globaux désactivera tous les modules actifs et supprimera les flux.</p>
+    <div class="bg-error/10 p-8 rounded-xl border border-red-100">
+      <h4 class="text-xs font-semibold text-error mb-4">Zone Critique</h4>
+      <p class="text-xs text-error/70 mb-6 leading-relaxed font-medium">Réinitialiser les paramètres globaux désactivera tous les modules actifs et supprimera les flux.</p>
       <button onclick={resetAndSaveFactory} class="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold transition-all shadow-sm active:scale-[0.98]">
         Réinitialisation d'usine (UI)
       </button>

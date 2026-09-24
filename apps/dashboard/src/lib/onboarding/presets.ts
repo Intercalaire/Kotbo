@@ -75,7 +75,7 @@ export const MODERATION_LEVELS: {
     label: 'Souple',
     pitch: 'Le strict nécessaire',
     detail:
-      "Liens d'invitation et spam évident sont bloqués, le reste passe. À choisir si votre communauté est petite et se connaît.",
+      "Liens d'invitation et spam évident sont bloqués, le reste passe. À choisir si ta communauté est petite et se connaît.",
     icon: 'smile',
   },
   {
@@ -91,7 +91,7 @@ export const MODERATION_LEVELS: {
     label: 'Strict',
     pitch: 'Pour un serveur exposé',
     detail:
-      "Tous les filtres, seuils anti-raid resserrés, comptes trop récents mis à l'écart. À choisir si vous avez déjà subi des raids.",
+      "Tous les filtres, seuils anti-raid resserrés, comptes trop récents mis à l'écart. À choisir si tu as déjà subi des raids.",
     icon: 'lock',
   },
 ];

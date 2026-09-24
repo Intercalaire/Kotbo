@@ -128,8 +128,9 @@ export async function handleMembersRoutes(
           return true;
         }
 
-        const link = await prisma.linkedAccount.findUnique({
-          where: { id }
+        // Filtré par serveur : le lien d'un autre serveur se validait ou se supprimait sinon.
+        const link = await prisma.linkedAccount.findFirst({
+          where: { id, guildId }
         });
 
         if (!link) {
@@ -183,8 +184,9 @@ export async function handleMembersRoutes(
     if (parts.length === 6 && method === 'DELETE') {
       try {
         const id = parts[5];
-        const link = await prisma.linkedAccount.findUnique({
-          where: { id }
+        // Filtré par serveur : le lien d'un autre serveur se validait ou se supprimait sinon.
+        const link = await prisma.linkedAccount.findFirst({
+          where: { id, guildId }
         });
 
         if (!link) {
@@ -473,8 +475,10 @@ export async function handleMembersRoutes(
     }
     try {
       const searchQuery = (url.searchParams.get('q') ?? '').trim();
-      const limit = Math.min(Number(url.searchParams.get('limit') ?? '24'), 100);
-      const page = Math.max(Number(url.searchParams.get('page') ?? '1'), 1);
+      // Bornés et repliés sur leur défaut : une valeur non numérique donnait NaN (erreur 500)
+      // et une limite négative demandait à la base de lire à rebours.
+      const limit = Math.min(Math.max(Math.trunc(Number(url.searchParams.get('limit') ?? '24')) || 24, 1), 100);
+      const page = Math.max(Math.trunc(Number(url.searchParams.get('page') ?? '1')) || 1, 1);
       const sortBy = url.searchParams.get('sortBy') ?? 'lastSeenAt';
       const sortOrder = url.searchParams.get('sortOrder') ?? 'desc';
       const serverStatus = url.searchParams.get('serverStatus') ?? 'on_server';

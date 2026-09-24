@@ -5,6 +5,9 @@
  * tout un serveur d'un coup. Un message par mouvement dépasserait vite la limite d'envoi
  * du salon, alors ils sont retenus quelques secondes et publiés ensemble : détaillés quand
  * la rafale est courte, résumés par clan dans un seul message quand elle est grosse.
+ *
+ * Les ramassages d'un même drop s'étalent, eux, sur toute sa durée de vie : ils sont
+ * retenus jusqu'à sa clôture pour que tous ses gagnants partent dans le même message.
  */
 
 import { Routes, type Client } from 'discord.js';
@@ -25,37 +28,67 @@ const FLUSH_DELAY_MS = 5_000;
 const MAX_BUFFERED_EVENTS = 2_000;
 
 type Pending = {
+  guildId: string;
   events: ClanPointsFeedEvent[];
   dropped: number;
   timer: ReturnType<typeof setTimeout>;
 };
 
+/** Rafales en attente, par serveur ; et mouvements groupés (un drop), par `serveur:groupe`. */
 const pending = new Map<string, Pending>();
+
+/**
+ * Regroupement d'un mouvement avec d'autres qui arrivent loin les uns des autres : tous les
+ * ramassages d'un même drop, par exemple. `flushAt` borne l'attente si la clôture explicite
+ * (`flushClanPointsFeedGroup`) ne vient jamais.
+ */
+export type ClanPointsFeedGroup = { key: string; flushAt: Date };
+
+/** Attente maximale d'un groupe, quel que soit `flushAt` : rien ne reste en mémoire un jour entier. */
+const MAX_GROUP_DELAY_MS = 6 * 60 * 60 * 1000;
 
 /** Salons déjà signalés comme inutilisables, pour ne pas répéter l'avertissement à chaque rafale. */
 const warnedChannels = new Set<string>();
 
 type FeedSender = (content: string) => Promise<unknown>;
 
-export function queueClanPointsFeed(guildId: string, event: ClanPointsFeedEvent): void {
-  let entry = pending.get(guildId);
+export function queueClanPointsFeed(guildId: string, event: ClanPointsFeedEvent, group?: ClanPointsFeedGroup): void {
+  const key = group ? `${guildId}:${group.key}` : guildId;
+  let entry = pending.get(key);
   if (!entry) {
+    const delay = group
+      ? Math.min(MAX_GROUP_DELAY_MS, Math.max(FLUSH_DELAY_MS, group.flushAt.getTime() - Date.now()))
+      : FLUSH_DELAY_MS;
     entry = {
+      guildId,
       events: [],
       dropped: 0,
-      timer: setTimeout(() => {
-        pending.delete(guildId);
-        void flushClanPointsFeed(guildId, entry!).catch((err) => {
-          logger.error('ClanPointsFeed', `Flux des points de clan non publié pour ${guildId}:`, err);
-        });
-      }, FLUSH_DELAY_MS),
+      timer: setTimeout(() => releasePending(key), delay),
     };
     entry.timer.unref?.();
-    pending.set(guildId, entry);
+    pending.set(key, entry);
   }
 
   if (entry.events.length < MAX_BUFFERED_EVENTS) entry.events.push(event);
   else entry.dropped += 1;
+}
+
+/**
+ * Publie tout de suite un groupe retenu, typiquement à la clôture d'un drop. Sans effet si
+ * le groupe n'a rien reçu ou a déjà été publié.
+ */
+export function flushClanPointsFeedGroup(guildId: string, groupKey: string): void {
+  releasePending(`${guildId}:${groupKey}`);
+}
+
+function releasePending(key: string): void {
+  const entry = pending.get(key);
+  if (!entry) return;
+  pending.delete(key);
+  clearTimeout(entry.timer);
+  void flushClanPointsFeed(entry.guildId, entry).catch((err) => {
+    logger.error('ClanPointsFeed', `Flux des points de clan non publié pour ${entry.guildId}:`, err);
+  });
 }
 
 async function flushClanPointsFeed(guildId: string, entry: Pending): Promise<void> {

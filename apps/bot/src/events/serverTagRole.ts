@@ -22,11 +22,13 @@ import {
   isAutoRoleActive,
   syncMemberAutoRoles,
 } from '../services/features/serverTagRoleService.js';
+import { admitJoiningMember } from '../services/moderation/joinAdmissionService.js';
 
 export function registerServerTagRoleListener(client: Client): void {
   // ── Arrivée : le membre peut déjà porter le tag ou le mot-clé ───────────────
   client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
     try {
+      if (!(await admitJoiningMember(member))) return;
       await syncMemberAutoRoles(member);
     } catch (err) {
       logger.error('ServerTagRole', `Erreur GuildMemberAdd pour ${member.id}`, err);

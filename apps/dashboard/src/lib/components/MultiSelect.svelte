@@ -64,7 +64,7 @@
   >
     <!-- Selected pills -->
     {#each selectedOptions as opt (opt.id)}
-      <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-lg border {accentClass} transition-all">
+      <span class="inline-flex items-center gap-1 text-2xs font-bold px-2 py-0.5 rounded-lg border {accentClass} transition-all">
         {opt.name}
         {#if !disabled}
           <button
@@ -115,7 +115,7 @@
               class="w-full text-left px-3 py-2 rounded-xl hover:bg-surface-container-low/60 text-sm font-semibold text-on-surface transition-colors flex items-center justify-between gap-2 cursor-pointer"
             >
               <span>{opt.name}</span>
-              <span class="text-[10px] text-on-surface-variant/40 font-mono">{opt.id.slice(0, 8)}…</span>
+              <span class="text-2xs text-on-surface-variant/40 font-mono">{opt.id.slice(0, 8)}…</span>
             </button>
           {/each}
         </div>

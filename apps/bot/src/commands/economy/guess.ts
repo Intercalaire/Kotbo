@@ -1,8 +1,7 @@
 import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, type Message, EmbedBuilder, MessageFlags } from 'discord.js';
-import prisma from '../../utils/db.js';
-import { getOrCreateRpgProfile, getOrCreateEconomyConfig } from '../../services/features/economyService.js';
+import { getOrCreateRpgProfile, getOrCreateEconomyConfig, registerGambleAttempt, creditBalance } from '../../services/features/economyService.js';
 import { errorEmbed, COLORS } from '../../utils/embeds.js';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
@@ -29,6 +28,10 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       });
       return;
     }
+
+    // Une partie compte dans le quota quotidien des jeux d'argent : gratuite et toujours
+    // gagnable par dichotomie, elle distribuait sinon des pièces sans aucune limite.
+    await registerGambleAttempt(guildId, userId, 0);
 
     const secret = Math.floor(Math.random() * 100) + 1;
     let attempts = 0;
@@ -86,12 +89,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         if (reason === 'win') {
           // Reward formula: base 200 minus attempts
           const reward = Math.max(20, 200 - (attempts - 1) * 25);
-          const newBalance = profile.balance + reward;
-
-          await prisma.rpgProfile.update({
-            where: { id: profile.id },
-            data: { balance: newBalance }
-          });
+          const newBalance = await creditBalance(profile.id, reward);
 
           const winEmbed = new EmbedBuilder()
             .setTitle(m.b3_guess_win_title({}, { locale }))

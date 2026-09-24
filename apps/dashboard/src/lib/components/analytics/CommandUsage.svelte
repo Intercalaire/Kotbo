@@ -37,7 +37,7 @@
             <div class="flex justify-between items-end">
               <div class="flex items-center gap-2">
                 <span class="text-sm font-bold text-on-surface">/{cmd.name}</span>
-                <span class="text-[10px] font-bold text-on-surface-variant/30">{percent.toFixed(1)}%</span>
+                <span class="text-2xs font-bold text-on-surface-variant/30">{percent.toFixed(1)}%</span>
               </div>
               <span class="text-xs font-semibold text-primary">{cmd.count.toLocaleString(dateLocale())}</span>
             </div>

@@ -6,7 +6,7 @@ import { getClient } from '../../utils/client.js';
 import type { ClanMemberContribution } from '@prisma/client';
 import { MAX_CLAN_SEASON_POINTS } from '@kotbo/shared';
 import { isModuleEnabled } from '../core/moduleGate.js';
-import { queueClanPointsFeed } from './clanPointsFeedService.js';
+import { queueClanPointsFeed, type ClanPointsFeedGroup } from './clanPointsFeedService.js';
 
 export type ClanTaskType = 'distribute' | 'clear' | 'dedupe' | 'rebalance';
 
@@ -189,6 +189,7 @@ export async function logClanContribution(
   source: ClanContributionSource,
   season: number,
   credit?: number,
+  feedGroup?: ClanPointsFeedGroup,
 ): Promise<void> {
   try {
     const creditShare = credit && credit > 0 ? Math.floor(credit) : null;
@@ -196,7 +197,7 @@ export async function logClanContribution(
     await prisma.clanContributionEvent.create({
       data: { guildId, clanId, userId, amount, source, season, credit: creditShare },
     });
-    queueClanPointsFeed(guildId, { clanId, userId, amount, source, credit: creditShare });
+    queueClanPointsFeed(guildId, { clanId, userId, amount, source, credit: creditShare }, feedGroup);
   } catch (err) {
     logger.error('ClanService', `Erreur lors de la journalisation d'un gain de clan (${clanId}, ${userId}):`, err);
   }
@@ -222,6 +223,8 @@ export async function awardClanPointsToMembers(params: {
   /** Montants déjà calculés et arrondis par l'appelant. */
   awards: Array<{ userId: string; amount: number }>;
   reason?: string;
+  /** Regroupe ces gains dans le flux avec d'autres versés plus tard (les gagnants d'un drop). */
+  feedGroup?: ClanPointsFeedGroup;
 }): Promise<Map<string, number>> {
   const granted = new Map<string, number>();
 
@@ -281,6 +284,8 @@ export async function awardClanPointsToMembers(params: {
         award.amount,
         params.source,
         guildConfig.currentClanSeason,
+        undefined,
+        params.feedGroup,
       );
 
       granted.set(award.userId, award.amount);

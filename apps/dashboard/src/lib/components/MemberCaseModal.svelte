@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Tabs } from './ui';
   import type { MemberCaseResponse } from '@kotbo/contracts';
   import FormInput from './FormInput.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte';
@@ -344,9 +345,9 @@
   }
 
   const VERIFICATION_STATUS_STYLES: Record<string, string> = {
-    VERIFIED: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
-    PENDING: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
-    FLAGGED: 'bg-rose-500/10 text-rose-500 border-rose-500/20',
+    VERIFIED: 'bg-success/10 text-success border-success/20',
+    PENDING: 'bg-warning/10 text-warning border-warning/20',
+    FLAGGED: 'bg-error/10 text-error border-error/20',
     EXPIRED: 'bg-on-surface/5 text-on-surface-variant/60 border-outline-variant/20',
   };
 
@@ -590,13 +591,13 @@
   // Icône Papicon + classes de couleur (statiques pour Tailwind) par type de sanction.
   function getSanctionTypeStyle(type: string): { icon: string; tile: string; dot: string } {
     switch (type.toUpperCase()) {
-      case 'WARN': return { icon: 'alert-triangle', tile: 'bg-amber-500/10 text-amber-500', dot: 'bg-amber-500' };
+      case 'WARN': return { icon: 'alert-triangle', tile: 'bg-warning/10 text-warning', dot: 'bg-amber-500' };
       case 'TIMEOUT': return { icon: 'clock', tile: 'bg-sky-500/10 text-sky-500', dot: 'bg-sky-500' };
       case 'KICK': return { icon: 'log-out', tile: 'bg-orange-500/10 text-orange-500', dot: 'bg-orange-500' };
-      case 'TEMP_BAN': return { icon: 'ban', tile: 'bg-rose-500/10 text-rose-500', dot: 'bg-rose-500' };
-      case 'BAN': return { icon: 'gavel', tile: 'bg-rose-600/10 text-rose-600', dot: 'bg-rose-600' };
-      case 'SOFTBAN': return { icon: 'eraser', tile: 'bg-slate-500/10 text-slate-500', dot: 'bg-slate-500' };
-      default: return { icon: 'shield', tile: 'bg-slate-500/10 text-slate-500', dot: 'bg-slate-500' };
+      case 'TEMP_BAN': return { icon: 'ban', tile: 'bg-error/10 text-error', dot: 'bg-rose-500' };
+      case 'BAN': return { icon: 'gavel', tile: 'bg-error/10 text-error', dot: 'bg-rose-600' };
+      case 'SOFTBAN': return { icon: 'eraser', tile: 'bg-slate-500/10 text-on-surface-variant', dot: 'bg-slate-500' };
+      default: return { icon: 'shield', tile: 'bg-slate-500/10 text-on-surface-variant', dot: 'bg-slate-500' };
     }
   }
 
@@ -886,7 +887,7 @@
               </span>
             {/if}
             {#if caseData?.profile?.staffGrade}
-              <span class="badge bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 dark:border-amber-400/20 shadow-sm animate-in zoom-in-95 duration-500">
+              <span class="badge bg-warning/15 text-warning border border-warning/30 shadow-sm animate-in zoom-in-95 duration-500">
                 <Papicon icon="star" size={12} class="mr-1" />
                 {caseData?.profile?.staffGrade}
               </span>
@@ -896,12 +897,12 @@
                 <!-- Un collègue est peut-être déjà passé par là : l'état saute
                      aux yeux avant même d'ouvrir l'onglet Identité. -->
                 {#if verificationPending}
-                  <span class="badge border border-amber-400/30 bg-amber-500/20 text-amber-100 shadow-sm">
+                  <span class="badge border border-warning/30 bg-warning/20 text-amber-100 shadow-sm">
                     <Papicon icon="clock" size={12} class="mr-1" />
                     {m.mcm_verif_badge_pending()}
                   </span>
                 {:else if verifications?.lastVerifiedAt}
-                  <span class="badge border border-emerald-400/30 bg-emerald-500/20 text-emerald-100 shadow-sm">
+                  <span class="badge border border-success/30 bg-success/20 text-emerald-100 shadow-sm">
                     <Papicon icon="check-circle" size={12} class="mr-1" />
                     {m.mcm_verif_badge_done()}
                   </span>
@@ -918,7 +919,7 @@
                       : verifications?.lastRequestedAt
                         ? m.mcm_verif_requested_on({ date: formatVerificationDate(verifications.lastRequestedAt) })
                         : m.mcm_request_verification()}
-                  class="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:bg-amber-800 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 text-[10px] font-semibold text-white uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm cursor-pointer"
+                  class="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:bg-amber-800 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 text-xs font-semibold text-white transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm cursor-pointer"
                 >
                   {#if requestVerificationBusy}
                     <div class="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
@@ -931,7 +932,7 @@
                 {/if}
                 <a
                   href="/profile/{userId}"
-                  class="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-[10px] font-semibold text-white/80 uppercase tracking-widest transition-all hover:bg-white/25 hover:text-white hover:scale-[1.02] active:scale-[0.98] shadow-sm"
+                  class="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-semibold text-white/80 transition-all hover:bg-white/25 hover:text-white hover:scale-[1.02] active:scale-[0.98] shadow-sm"
                 >
                   <Papicon icon="external-link" size={14} />
                   {m.mcm_profile()}
@@ -945,26 +946,16 @@
 
     <!-- ── Tab Navigation ────────────────────────────────────── -->
     <div class="sticky top-0 z-30 flex items-center gap-3 border-b border-outline-variant/10 bg-surface-container-lowest/95 px-6 pt-4 pb-2 backdrop-blur-sm">
-      <div class="tab-group min-w-0 flex-1 overflow-x-auto">
-        {#each tabs as tab}
-          <button
-            type="button"
-            onclick={() => activeTab = tab.id}
-              class="tab-button {activeTab === tab.id ? 'active' : ''}"
-            >
-              <Papicon icon={tab.icon} size={16} />
-              <span>{tab.label}</span>
-              {#if tab.count && caseData}
-                {@const c = tab.count()}
-                {#if c > 0}
-                  <span class="flex h-5 min-w-5 items-center justify-center rounded-full text-[11px] font-semibold {activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}">
-                    {c}
-                  </span>
-                {/if}
-              {/if}
-            </button>
-          {/each}
-        </div>
+      <Tabs
+        label={m.nav_members()}
+        class="min-w-0 flex-1 max-w-full"
+        tabs={tabs.map((tab) => {
+          const count = tab.count && caseData ? tab.count() : 0;
+          return { id: tab.id, label: tab.label, icon: tab.icon, badge: count > 0 ? count : undefined };
+        })}
+        active={activeTab}
+        onchange={(id) => (activeTab = id as typeof activeTab)}
+      />
 
         <button
           type="button"
@@ -979,12 +970,12 @@
       <!-- ── Content Area ──────────────────────────────────────── -->
       <div class="px-6 pb-6 pt-2">
         {#if !userId}
-          <div class="flex flex-col items-center justify-center py-20 text-center bg-amber-500/5 rounded-xl border-2 border-dashed border-amber-500/20">
-            <div class="flex h-16 w-16 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 mb-6">
+          <div class="flex flex-col items-center justify-center py-20 text-center bg-warning/5 rounded-xl border-2 border-dashed border-warning/20">
+            <div class="flex h-16 w-16 items-center justify-center rounded-xl bg-warning/10 text-warning mb-6">
               <Papicon icon="alert-triangle" size={32} />
             </div>
-            <h3 class="text-xl font-semibold text-amber-600 font-headline">{m.mcm_user_not_found()}</h3>
-            <p class="mt-2 text-sm text-amber-700/60 max-w-sm">
+            <h3 class="text-xl font-semibold text-warning font-headline">{m.mcm_user_not_found()}</h3>
+            <p class="mt-2 text-sm text-warning/60 max-w-sm">
               {m.mcm_user_not_found_desc()}
             </p>
           </div>
@@ -997,12 +988,12 @@
             <div class="h-80 bg-surface-container-high/30 rounded-xl"></div>
           </div>
         {:else if error}
-          <div class="flex flex-col items-center justify-center py-20 text-center bg-rose-500/5 rounded-xl border-2 border-dashed border-rose-500/20">
-            <div class="flex h-16 w-16 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500 mb-6">
+          <div class="flex flex-col items-center justify-center py-20 text-center bg-error/5 rounded-xl border-2 border-dashed border-error/20">
+            <div class="flex h-16 w-16 items-center justify-center rounded-xl bg-error/10 text-error mb-6">
               <Papicon icon="alert-circle" size={32} />
             </div>
-            <h3 class="text-xl font-semibold text-rose-600 font-headline">{m.mcm_load_error()}</h3>
-            <p class="mt-2 text-sm text-rose-700/60 max-w-sm">{error}</p>
+            <h3 class="text-xl font-semibold text-error font-headline">{m.mcm_load_error()}</h3>
+            <p class="mt-2 text-sm text-error/60 max-w-sm">{error}</p>
           </div>
         {:else if !caseData}
           <div class="flex flex-col items-center justify-center py-20 text-center bg-surface-container-low rounded-xl border-2 border-dashed border-outline-variant/30">
@@ -1020,18 +1011,18 @@
             <div class="lg:col-span-3 space-y-8">
             
             {#if caseData?.isSuspectedDC}
-              <div class="rounded-xl bg-rose-500/10 border-2 border-rose-500/20 p-6 flex items-center gap-6 animate-in zoom-in-95 duration-500">
-                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-rose-500/20 text-rose-500 shadow-sm">
+              <div class="rounded-xl bg-error/10 border-2 border-error/20 p-6 flex items-center gap-6 animate-in zoom-in-95 duration-500">
+                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-error/20 text-error shadow-sm">
                   <Papicon icon="alert-octagon" size={24} />
                 </div>
                 <div class="min-w-0 flex-1">
-                  <h4 class="text-sm font-semibold text-rose-600 uppercase tracking-widest">{m.mcm_dc_title()}</h4>
-                  <p class="text-xs font-bold text-rose-500/70 mt-1">
+                  <h4 class="text-sm font-semibold text-error">{m.mcm_dc_title()}</h4>
+                  <p class="text-xs font-bold text-error/70 mt-1">
                     {m.mcm_dc_desc()}
                   </p>
                 </div>
                 <div class="flex gap-2">
-                  <span class="badge badge-danger uppercase tracking-widest">{m.mcm_suspect()}</span>
+                  <span class="badge badge-danger">{m.mcm_suspect()}</span>
                 </div>
               </div>
             {/if}
@@ -1048,7 +1039,7 @@
                          <Papicon icon="user" size={24} />
                        </div>
                        <div>
-                         <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">{m.mcm_account_info()}</p>
+                         <p class="text-xs font-semibold text-primary">{m.mcm_account_info()}</p>
                          <p class="text-lg font-semibold text-on-surface">{m.mcm_identity_seniority()}</p>
                        </div>
                      </div>
@@ -1058,12 +1049,12 @@
                      <div class="space-y-1">
                        <p class="text-xs font-medium text-on-surface-variant/40">{m.mcm_account_age()}</p>
                        <p class="text-lg font-semibold text-on-surface">{getDurationSince(caseData?.profile?.accountCreatedAt)}</p>
-                       <p class="text-[10px] font-bold text-on-surface-variant/60">{m.mcm_created_on({ date: formatDateShort(caseData?.profile?.accountCreatedAt) })}</p>
+                       <p class="text-2xs font-bold text-on-surface-variant/60">{m.mcm_created_on({ date: formatDateShort(caseData?.profile?.accountCreatedAt) })}</p>
                      </div>
                      <div class="space-y-1">
                        <p class="text-xs font-medium text-on-surface-variant/40">{m.mcm_server_presence()}</p>
                        <p class="text-lg font-semibold text-on-surface">{getDurationSince(caseData?.profile?.guildJoinedAt)}</p>
-                       <p class="text-[10px] font-bold text-on-surface-variant/60">{m.mcm_joined_on({ date: formatDateShort(caseData?.profile?.guildJoinedAt) })}</p>
+                       <p class="text-2xs font-bold text-on-surface-variant/60">{m.mcm_joined_on({ date: formatDateShort(caseData?.profile?.guildJoinedAt) })}</p>
                      </div>
                      <div class="space-y-1">
                        <p class="text-xs font-medium text-on-surface-variant/40">{m.mcm_invited_by()}</p>
@@ -1127,13 +1118,13 @@
                 </div>
 
                 <!-- Sanctions Status Card -->
-                <div class="rounded-xl {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'bg-rose-500/5 border-rose-500/20 shadow-rose-500/5' : 'bg-surface-container-low/50 border-outline-variant/10 shadow-sm'} p-8 border transition-all hover:shadow-xl duration-500 group">
+                <div class="rounded-xl {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'bg-error/5 border-error/20 shadow-rose-500/5' : 'bg-surface-container-low/50 border-outline-variant/10 shadow-sm'} p-8 border transition-all hover:shadow-xl duration-500 group">
                    <div class="flex items-center gap-3 mb-8">
-                     <div class="flex h-12 w-12 items-center justify-center rounded-lg {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-amber-500/10 text-amber-500'} group-hover:rotate-12 transition-transform">
+                     <div class="flex h-12 w-12 items-center justify-center rounded-lg {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'bg-error/10 text-error' : 'bg-warning/10 text-warning'} group-hover:rotate-12 transition-transform">
                        <Papicon icon="hammer" size={24} />
                      </div>
                      <div>
-                       <p class="text-[10px] font-semibold uppercase tracking-wider {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'text-rose-500' : 'text-amber-500'}">{m.mcm_record()}</p>
+                       <p class="text-2xs font-semibold uppercase tracking-wider {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'text-error' : 'text-warning'}">{m.mcm_record()}</p>
                        <p class="text-lg font-semibold text-on-surface">{m.mcm_sanctions()}</p>
                      </div>
                    </div>
@@ -1146,7 +1137,7 @@
                      <div class="h-2 w-full rounded-full bg-on-surface/5 overflow-hidden">
                         <div class="h-full bg-rose-500 transition-all duration-1000" style="width: {sanctions.length > 0 ? (sanctions.filter(s => s.status === 'ACTIVE').length / sanctions.length) * 100 : 0}%"></div>
                      </div>
-                     <p class="text-xs font-bold {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'text-rose-500' : 'text-on-surface-variant/60'}">
+                     <p class="text-xs font-bold {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'text-error' : 'text-on-surface-variant/60'}">
                         {m.mcm_active_sanctions({ count: sanctions.filter(s => s.status === 'ACTIVE').length })}
                      </p>
                    </div>
@@ -1159,7 +1150,7 @@
                        <Papicon icon="activity" size={24} />
                      </div>
                      <div>
-                       <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary">{m.mcm_activity()}</p>
+                       <p class="text-xs font-semibold text-secondary">{m.mcm_activity()}</p>
                        <p class="text-lg font-semibold text-on-surface">{m.mcm_engagement()}</p>
                      </div>
                    </div>
@@ -1189,7 +1180,7 @@
                            <Papicon icon="trending-up" size={28} />
                          </div>
                          <div>
-                           <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">{m.mcm_statistics()}</p>
+                           <p class="text-xs font-semibold text-primary">{m.mcm_statistics()}</p>
                            <h4 class="text-2xl font-semibold text-on-surface font-headline">{m.mcm_activity_trend()}</h4>
                          </div>
                        </div>
@@ -1249,7 +1240,7 @@
                 {:else if analyticsLoading}
                   <div class="md:col-span-3 rounded-xl bg-surface-container-low/30 p-10 border border-outline-variant/10 shadow-sm animate-pulse flex flex-col justify-center items-center">
                     <Papicon icon="loader" size={32} class="animate-spin text-primary/20 mb-4" />
-                    <p class="text-[13px] font-medium text-on-surface-variant/20">{m.mcm_computing_stats()}</p>
+                    <p class="text-body-sm font-medium text-on-surface-variant/20">{m.mcm_computing_stats()}</p>
                   </div>
                 {:else}
                   <div class="md:col-span-3 rounded-xl bg-surface-container-low/10 p-10 border border-dashed border-outline-variant/20 flex flex-col justify-center items-center text-center">
@@ -1257,7 +1248,7 @@
                       <Papicon icon="bar-chart-2" size={24} />
                     </div>
                     <p class="text-sm font-semibold text-on-surface-variant/40">{m.mcm_stats_unavailable()}</p>
-                    <p class="text-[10px] font-bold text-on-surface-variant/20 mt-1 uppercase tracking-widest">{m.mcm_low_activity()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant/20 mt-1">{m.mcm_low_activity()}</p>
                   </div>
                 {/if}
 
@@ -1267,21 +1258,21 @@
                      <Papicon icon="shield" size={160} />
                    </div>
                    <div class="flex items-center gap-3 mb-8">
-                     <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500 group-hover:scale-110 transition-transform">
+                     <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-success/10 text-success group-hover:scale-110 transition-transform">
                        <Papicon icon="shield" size={24} />
                      </div>
                      <div>
-                       <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-500">{m.mcm_permissions()}</p>
+                       <p class="text-xs font-semibold text-success">{m.mcm_permissions()}</p>
                        <p class="text-lg font-semibold text-on-surface">{m.mcm_roles_access()}</p>
                      </div>
                    </div>
 
                    <div class="space-y-6">
                      <div>
-                        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-3">{m.mcm_main_roles()}</p>
+                        <p class="text-xs font-semibold text-on-surface-variant/40 mb-3">{m.mcm_main_roles()}</p>
                         <div class="flex flex-wrap gap-2">
                           {#each caseData?.roles.slice(0, 4) as role}
-                            <span class="px-3 py-1.5 rounded-xl bg-surface-container-high text-[10px] font-bold text-on-surface border border-outline-variant/20 flex items-center gap-1.5">
+                            <span class="px-3 py-1.5 rounded-xl bg-surface-container-high text-2xs font-bold text-on-surface border border-outline-variant/20 flex items-center gap-1.5">
                               {#if role.color && role.color !== '#000000'}
                                 <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background-color: {role.color}"></span>
                               {/if}
@@ -1289,15 +1280,15 @@
                             </span>
                           {/each}
                           {#if caseData?.roles.length > 4}
-                            <span class="px-3 py-1.5 rounded-xl bg-primary/5 text-[10px] font-semibold text-primary border border-primary/10">+{caseData?.roles.length - 4}</span>
+                            <span class="px-3 py-1.5 rounded-xl bg-primary/5 text-2xs font-semibold text-primary border border-primary/10">+{caseData?.roles.length - 4}</span>
                           {/if}
                         </div>
                      </div>
                      <div>
-                        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-3">{m.mcm_key_permissions()}</p>
+                        <p class="text-xs font-semibold text-on-surface-variant/40 mb-3">{m.mcm_key_permissions()}</p>
                         <div class="flex flex-wrap gap-1.5">
                           {#each caseData?.effectivePermissions.slice(0, 3) as perm}
-                            <span class="text-[10px] font-semibold text-emerald-500 uppercase tracking-tighter flex items-center gap-1.5">
+                            <span class="text-2xs font-semibold text-success uppercase tracking-tighter flex items-center gap-1.5">
                               <Papicon icon="check-circle" size={10} /> {perm}
                             </span>
                           {/each}
@@ -1314,11 +1305,11 @@
                          <Papicon icon="history" size={28} />
                        </div>
                        <div>
-                         <p class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40">{m.mcm_timeline()}</p>
+                         <p class="text-xs font-semibold text-on-surface-variant/40">{m.mcm_timeline()}</p>
                          <h4 class="text-2xl font-semibold text-on-surface font-headline">{m.mcm_recent_activities()}</h4>
                        </div>
                     </div>
-                    <button onclick={() => activeTab = 'logs'} class="group/btn inline-flex items-center gap-2 rounded-lg bg-white/5 px-6 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-widest transition-all hover:bg-white/10 hover:text-on-surface">
+                    <button onclick={() => activeTab = 'logs'} class="group/btn inline-flex items-center gap-2 rounded-lg bg-white/5 px-6 py-3 text-xs font-semibold text-on-surface-variant transition-all hover:bg-white/10 hover:text-on-surface">
                       {m.mcm_see_all_logs()}
                       <Papicon icon="arrow-right" size={14} class="group-hover/btn:translate-x-1 transition-transform" />
                     </button>
@@ -1326,12 +1317,12 @@
 
                   <div class="grid gap-6 md:grid-cols-2">
                     <div class="space-y-4">
-                       <p class="text-[10px] font-semibold uppercase tracking-wider text-primary px-2 mb-4">{m.mcm_last_messages()}</p>
+                       <p class="text-xs font-semibold text-primary px-2 mb-4">{m.mcm_last_messages()}</p>
                        {#each caseData?.messagesByChannel.slice(0, 3).flatMap(c => c.recentMessages.slice(0, 1)) as msg}
                          <div class="rounded-xl bg-surface-container-low/60 p-5 border border-outline-variant/5 transition-all hover:border-primary/20">
                             <div class="flex items-center justify-between mb-2">
-                               <span class="text-[10px] font-bold text-primary">#{msg.channelName}</span>
-                               <span class="text-[10px] font-bold text-on-surface-variant/40">{formatRelative(msg.dateIso)}</span>
+                               <span class="text-2xs font-bold text-primary">#{msg.channelName}</span>
+                               <span class="text-2xs font-bold text-on-surface-variant/40">{formatRelative(msg.dateIso)}</span>
                             </div>
                             <p class="text-sm text-on-surface line-clamp-2 leading-relaxed italic">"{msg.content || m.mcm_empty_content()}"</p>
                          </div>
@@ -1342,13 +1333,13 @@
                     </div>
 
                     <div class="space-y-4">
-                       <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary px-2 mb-4">{m.mcm_last_logs()}</p>
+                       <p class="text-xs font-semibold text-secondary px-2 mb-4">{m.mcm_last_logs()}</p>
                        <div class="space-y-3 relative pl-4 border-l border-outline-variant/20 ml-2">
                          {#each caseData?.logs.slice(0, 3) as log}
                            <div class="relative pb-6">
                               <div class="absolute -left-[calc(1rem+4.5px)] top-1 h-2 w-2 rounded-full bg-secondary border border-surface"></div>
                               <p class="text-xs font-semibold text-on-surface">{log.action}</p>
-                              <p class="text-[10px] font-bold text-on-surface-variant/40 mt-0.5">{log.module} · {formatRelative(log.dateIso)}</p>
+                              <p class="text-2xs font-bold text-on-surface-variant/40 mt-0.5">{log.module} · {formatRelative(log.dateIso)}</p>
                            </div>
                          {/each}
                        </div>
@@ -1359,17 +1350,17 @@
                 <!-- Basic Profile Card -->
                 <div class="md:col-span-4 grid gap-6 md:grid-cols-2">
                   <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
-                    <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-6">{m.mcm_discord_profile()}</p>
+                    <p class="text-xs font-semibold text-primary mb-6">{m.mcm_discord_profile()}</p>
                     <dl class="space-y-4">
                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_username()}</dt><dd class="text-sm font-semibold text-on-surface">@{caseData?.profile?.username ?? m.mcm_unknown()}</dd></div>
                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_global_name()}</dt><dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.globalName ?? m.mcm_unknown()}</dd></div>
                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_server_display()}</dt><dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.displayName ?? m.mcm_unknown()}</dd></div>
-                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_language()}</dt><dd class="text-sm font-semibold text-on-surface uppercase tracking-widest">{caseData?.profile?.locale ?? m.mcm_unknown_f()}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_language()}</dt><dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.locale ?? m.mcm_unknown_f()}</dd></div>
                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_pronouns()}</dt><dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.pronouns ?? m.mcm_not_specified_plural()}</dd></div>
                     </dl>
                   </div>
                   <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10 space-y-6">
-                    <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary mb-6">{m.mcm_visuals()}</p>
+                    <p class="text-xs font-semibold text-secondary mb-6">{m.mcm_visuals()}</p>
                     {#if caseData?.profile?.avatarUrl}
                       <div class="flex items-center gap-4">
                         <img src={caseData?.profile?.avatarUrl} alt={m.mcm_avatar_alt()} class="h-16 w-16 rounded-lg object-cover shadow-lg border-2 border-surface" />
@@ -1398,7 +1389,7 @@
                        <Papicon icon="user" size={24} />
                      </div>
                      <div>
-                       <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">{m.mcm_account_data()}</p>
+                       <p class="text-xs font-semibold text-primary">{m.mcm_account_data()}</p>
                        <p class="text-lg font-semibold text-on-surface">{m.mcm_full_profile()}</p>
                      </div>
                    </div>
@@ -1425,7 +1416,7 @@
                      </div>
                      <div class="flex items-center justify-between">
                        <dt class="text-xs font-medium text-on-surface-variant/40">{m.mcm_language_locale()}</dt>
-                       <dd class="text-sm font-semibold text-on-surface uppercase tracking-widest">{caseData?.profile?.locale ?? m.mcm_unknown_f()}</dd>
+                       <dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.locale ?? m.mcm_unknown_f()}</dd>
                      </div>
                    </dl>
                 </div>
@@ -1438,7 +1429,7 @@
                       <Papicon icon="shield-alert" size={24} />
                     </div>
                     <div class="min-w-0">
-                      <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary">{m.mcm_verif_history_title()}</p>
+                      <p class="text-xs font-semibold text-secondary">{m.mcm_verif_history_title()}</p>
                       <p class="text-lg font-semibold text-on-surface">{m.mcm_verif_history_count({ count: verificationCount })}</p>
                     </div>
                   </div>
@@ -1465,12 +1456,12 @@
                               {m.mcm_verif_requested_on({ date: formatVerificationDate(entry.requestedAt) })}
                             </p>
                             {#if entry.verifiedAt}
-                              <p class="text-[10px] font-medium text-on-surface-variant/50 mt-0.5">
+                              <p class="text-2xs font-medium text-on-surface-variant/50 mt-0.5">
                                 {m.mcm_verif_verified_on({ date: formatVerificationDate(entry.verifiedAt) })}
                               </p>
                             {/if}
                           </div>
-                          <span class="shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest {VERIFICATION_STATUS_STYLES[entry.status] ?? VERIFICATION_STATUS_STYLES.EXPIRED}">
+                          <span class="shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-semibold {VERIFICATION_STATUS_STYLES[entry.status] ?? VERIFICATION_STATUS_STYLES.EXPIRED}">
                             {verificationStatusLabel(entry.status)}
                           </span>
                         </li>
@@ -1481,20 +1472,20 @@
 
                 {#if caseData?.profile?.staffGrade}
                   <!-- Staff Role Section -->
-                  <div class="rounded-xl bg-amber-500/5 dark:bg-amber-500/10 p-8 border border-amber-500/20 dark:border-amber-400/20 shadow-sm hover:bg-amber-500/10 dark:hover:bg-amber-500/15 transition-all duration-500 group">
+                  <div class="rounded-xl bg-warning/5 p-8 border border-warning/20 shadow-sm hover:bg-warning/10 transition-all duration-500 group">
                      <div class="flex items-center gap-3 mb-8">
                        <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-500 text-white group-hover:scale-110 transition-transform shadow-sm">
                          <Papicon icon="star" size={24} />
                        </div>
                        <div>
-                         <p class="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">{m.mcm_administration()}</p>
+                         <p class="text-xs font-semibold text-warning">{m.mcm_administration()}</p>
                          <p class="text-lg font-semibold text-on-surface">{m.mcm_staff_status()}</p>
                        </div>
                      </div>
                      <dl class="space-y-5">
-                       <div class="flex items-center justify-between border-b border-amber-500/15 pb-2">
+                       <div class="flex items-center justify-between border-b border-warning/15 pb-2">
                          <dt class="text-xs font-medium text-on-surface-variant/40">{m.mcm_current_grade()}</dt>
-                         <dd class="text-sm font-semibold text-amber-600 dark:text-amber-400">{caseData?.profile?.staffGrade}</dd>
+                         <dd class="text-sm font-semibold text-warning">{caseData?.profile?.staffGrade}</dd>
                        </div>
                        <div class="flex items-center justify-between">
                          <dt class="text-xs font-medium text-on-surface-variant/40">{m.mcm_tutor_status()}</dt>
@@ -1513,7 +1504,7 @@
                        <Papicon icon="calendar" size={24} />
                      </div>
                      <div>
-                       <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary">{m.mcm_chronology()}</p>
+                       <p class="text-xs font-semibold text-secondary">{m.mcm_chronology()}</p>
                        <p class="text-lg font-semibold text-on-surface">{m.mcm_key_dates()}</p>
                      </div>
                    </div>
@@ -1528,8 +1519,8 @@
                      </div>
                      {#if caseData?.profile?.guildLeftAt}
                        <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                         <dt class="text-xs font-medium text-rose-500/60">{m.mcm_last_leave()}</dt>
-                         <dd class="text-sm font-semibold text-rose-500">{formatDateTime(caseData?.profile?.guildLeftAt)}</dd>
+                         <dt class="text-xs font-medium text-error/60">{m.mcm_last_leave()}</dt>
+                         <dd class="text-sm font-semibold text-error">{formatDateTime(caseData?.profile?.guildLeftAt)}</dd>
                        </div>
                      {/if}
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
@@ -1546,11 +1537,11 @@
                 <!-- Roles Detailed -->
                 <div class="md:col-span-2 rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm hover:bg-surface-container-low transition-all duration-500 group">
                    <div class="flex items-center gap-3 mb-8">
-                     <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500 group-hover:rotate-12 transition-transform">
+                     <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-success/10 text-success group-hover:rotate-12 transition-transform">
                        <Papicon icon="shield" size={24} />
                      </div>
                      <div>
-                       <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-500">{m.mcm_permissions()}</p>
+                       <p class="text-xs font-semibold text-success">{m.mcm_permissions()}</p>
                        <p class="text-lg font-semibold text-on-surface">{m.mcm_roles_count({ count: caseData?.roles.length })}</p>
                      </div>
                    </div>
@@ -1565,7 +1556,7 @@
                      {/each}
                      {#if caseData?.roles.length === 0}
                         <div class="w-full py-10 text-center bg-surface-container-low rounded-xl border border-dashed border-outline-variant/20">
-                          <p class="text-sm font-semibold text-on-surface-variant/40 uppercase tracking-widest">{m.mcm_no_role()}</p>
+                          <p class="text-sm font-semibold text-on-surface-variant/40">{m.mcm_no_role()}</p>
                         </div>
                      {/if}
                    </div>
@@ -1580,26 +1571,26 @@
                         <Papicon icon="message-square" size={20} />
                       </div>
                       <p class="text-2xl font-semibold text-on-surface">{caseData?.profile?.messageCount ?? 0}</p>
-                      <p class="text-[11px] font-semibold uppercase tracking-widest text-primary/60 mt-1">{m.mcm_messages()}</p>
+                      <p class="text-xs font-semibold text-primary/60 mt-1">{m.mcm_messages()}</p>
                     </div>
                     <div class="rounded-xl bg-secondary/5 p-6 border border-secondary/10 text-center">
                       <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary/10 text-secondary mx-auto mb-4">
                         <Papicon icon="mic" size={20} />
                       </div>
                       <p class="text-2xl font-semibold text-on-surface">{formatDurationFromSeconds(caseData?.profile?.voiceTimeSeconds)}</p>
-                      <p class="text-[11px] font-semibold uppercase tracking-widest text-secondary/60 mt-1">{m.mcm_voice_time()}</p>
+                      <p class="text-xs font-semibold text-secondary/60 mt-1">{m.mcm_voice_time()}</p>
                     </div>
-                    <div class="rounded-xl bg-emerald-500/5 p-6 border border-emerald-500/10 text-center">
-                      <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 mx-auto mb-4">
+                    <div class="rounded-xl bg-success/5 p-6 border border-success/10 text-center">
+                      <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-success/10 text-success mx-auto mb-4">
                         <Papicon icon="eye" size={20} />
                       </div>
                       <p class="text-lg font-semibold text-on-surface">{formatDateShort(caseData?.profile?.lastSeenAt)}</p>
-                      <p class="text-[11px] font-semibold uppercase tracking-widest text-emerald-500/60 mt-1">{m.mcm_last_activity()}</p>
+                      <p class="text-xs font-semibold text-success/60 mt-1">{m.mcm_last_activity()}</p>
                     </div>
                   </div>
 
                   <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10">
-                    <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-8 px-2">{m.mcm_by_channel()}</p>
+                    <p class="text-xs font-semibold text-primary mb-8 px-2">{m.mcm_by_channel()}</p>
                     <div class="space-y-6">
                       {#each caseData?.messagesByChannel || [] as channel}
                         {@const max = Math.max(...(caseData?.messagesByChannel || []).map(c => c.count), 1)}
@@ -1625,7 +1616,7 @@
                         <div class="absolute -inset-4 rounded-full bg-primary/10 blur-xl animate-pulse"></div>
                         <Papicon icon="loader" size={48} class="animate-spin text-primary" />
                       </div>
-                      <p class="text-[13px] font-medium text-on-surface-variant/60">{m.mcm_analyzing_behavior()}</p>
+                      <p class="text-body-sm font-medium text-on-surface-variant/60">{m.mcm_analyzing_behavior()}</p>
                     </div>
                   {:else if analyticsData && analyticsData.dailyTrend && analyticsData.dailyTrend.length > 0}
                     <div class="grid gap-6 lg:grid-cols-2">
@@ -1633,9 +1624,9 @@
                          <div class="flex items-center justify-between mb-8">
                             <div>
                               <p class="text-xs font-medium text-primary mb-1">{m.mcm_activity()}</p>
-                              <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">{m.mcm_message_volume()}</h4>
+                              <h4 class="text-sm font-semibold text-on-surface">{m.mcm_message_volume()}</h4>
                             </div>
-                            <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">{m.mcm_last_30_days()}</span>
+                            <span class="text-2xs font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">{m.mcm_last_30_days()}</span>
                          </div>
                           <Chart 
                             data={{
@@ -1663,9 +1654,9 @@
                          <div class="flex items-center justify-between mb-8">
                             <div>
                               <p class="text-xs font-medium text-secondary mb-1">{m.mcm_engagement()}</p>
-                              <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">{m.mcm_voice_activity()}</h4>
+                              <h4 class="text-sm font-semibold text-on-surface">{m.mcm_voice_activity()}</h4>
                             </div>
-                            <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">{m.mcm_minutes_per_day()}</span>
+                            <span class="text-2xs font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">{m.mcm_minutes_per_day()}</span>
                          </div>
                           <Chart 
                             data={{
@@ -1798,20 +1789,20 @@
                   {:else}
                     <div class="space-y-4">
                       {#each messagesList as msg (msg.id)}
-                        <div class="group rounded-xl border p-5 transition-all duration-300 {msg.deletedAt ? 'border-red-500/10 bg-red-500/5' : 'border-outline-variant/10 bg-surface-container-low/50 hover:bg-surface-container-low hover:border-outline-variant/25'}">
+                        <div class="group rounded-xl border p-5 transition-all duration-300 {msg.deletedAt ? 'border-error/10 bg-error/5' : 'border-outline-variant/10 bg-surface-container-low/50 hover:bg-surface-container-low hover:border-outline-variant/25'}">
                           <div class="flex flex-wrap items-center justify-between gap-3 mb-3 pb-2.5 border-b border-outline-variant/5">
                             <div class="flex items-center gap-2.5">
                               <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-lg">
                                 <Papicon icon="tag" size={12} />
                                 #{msg.channelName}
                               </span>
-                              <span class="text-[10px] font-bold text-on-surface-variant/40">{formatDateTime(msg.createdAt)}</span>
+                              <span class="text-2xs font-bold text-on-surface-variant/40">{formatDateTime(msg.createdAt)}</span>
                               
                               {#if msg.editedAt}
-                                <span class="badge bg-amber-500/10 text-amber-500 text-[9px]" title={m.mcm_edited_on({ date: formatDateTime(msg.editedAt) })}>{m.mcm_edited()}</span>
+                                <span class="badge bg-warning/10 text-warning text-2xs" title={m.mcm_edited_on({ date: formatDateTime(msg.editedAt) })}>{m.mcm_edited()}</span>
                               {/if}
                               {#if msg.deletedAt}
-                                <span class="badge bg-red-500/15 text-red-500 text-[9px] border border-red-500/30" title={m.mcm_deleted_on({ date: formatDateTime(msg.deletedAt) })}>{m.mcm_deleted()}</span>
+                                <span class="badge bg-error/15 text-error text-2xs border border-error/30" title={m.mcm_deleted_on({ date: formatDateTime(msg.deletedAt) })}>{m.mcm_deleted()}</span>
                               {/if}
                             </div>
                             
@@ -1820,7 +1811,7 @@
                                 href="https://discord.com/channels/{authStore.selectedGuildId}/{msg.channelId}/{msg.messageId}"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                class="inline-flex items-center gap-1 text-[10px] font-bold text-on-surface-variant/40 hover:text-primary uppercase tracking-wider transition-colors"
+                                class="inline-flex items-center gap-1 text-xs font-semibold text-on-surface-variant/40 hover:text-primary transition-colors"
                               >
                                 Jump
                                 <Papicon icon="arrow-up-right" size={10} />
@@ -1969,7 +1960,7 @@
                       </span>
                     </div>
 
-                    <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">
+                    <span class="text-xs font-semibold text-on-surface-variant/40">
                       {m.mcm_logs_shown({ shown: filteredLogs.length, total: caseData?.logs?.length ?? 0 })}
                     </span>
                   </div>
@@ -1985,7 +1976,7 @@
                             <p class="text-sm font-semibold text-on-surface tracking-tight">{log.action}</p>
                             <p class="text-xs font-medium text-on-surface-variant/40 mt-1">{log.module} · {log.source}</p>
                           </div>
-                          <span class="text-[10px] font-semibold text-on-surface-variant/30 uppercase tracking-widest">{formatDateTime(log.dateIso)}</span>
+                          <span class="text-xs font-semibold text-on-surface-variant/30">{formatDateTime(log.dateIso)}</span>
                         </div>
                         <div class="rounded-lg bg-surface-container-high/30 p-4 text-xs text-on-surface-variant/80 italic leading-relaxed">
                           {@html renderLogSnippet(log.details)}
@@ -1995,7 +1986,7 @@
                     {#if filteredLogs.length === 0}
                       <div class="flex flex-col items-center justify-center py-10 text-on-surface-variant/20">
                          <Papicon icon="history" size={48} />
-                         <p class="mt-4 text-sm font-semibold uppercase tracking-widest">
+                         <p class="mt-4 text-sm font-semibold">
                            {(caseData?.logs?.length ?? 0) === 0 ? m.mcm_no_log() : m.mcm_no_log_match()}
                          </p>
                       </div>
@@ -2008,11 +1999,11 @@
                   <div class="mb-6 rounded-xl bg-surface-container-low/50 border border-outline-variant/10 overflow-hidden shadow-sm">
                     <!-- En-tête -->
                     <div class="flex items-center gap-4 px-6 py-5 border-b border-outline-variant/10">
-                      <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
+                      <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning">
                         <Papicon icon="globe" size={22} />
                       </div>
                       <div class="min-w-0 flex-1">
-                        <p class="text-[10px] font-semibold uppercase tracking-wider text-amber-500">{m.mcm_cross_server_record()}</p>
+                        <p class="text-xs font-semibold text-warning">{m.mcm_cross_server_record()}</p>
                         <p class="text-sm font-semibold text-on-surface">
                           {crossServer.total > 1 ? m.mcm_cross_server_count_other({ count: crossServer.total }) : m.mcm_cross_server_count_one({ count: crossServer.total })}
                           <span class="text-on-surface-variant/50 font-medium">{crossServer.serverCount > 1 ? m.mcm_cross_server_on_other({ count: crossServer.serverCount }) : m.mcm_cross_server_on_one({ count: crossServer.serverCount })}</span>
@@ -2021,7 +2012,7 @@
                       <div class="hidden md:flex flex-wrap items-center justify-end gap-1.5">
                         {#each crossServerBreakdown as [type, count]}
                           {@const style = getSanctionTypeStyle(type)}
-                          <span class="inline-flex items-center gap-1.5 rounded-lg bg-surface-container-high px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant">
+                          <span class="inline-flex items-center gap-1.5 rounded-lg bg-surface-container-high px-2.5 py-1 text-2xs font-semibold text-on-surface-variant">
                             <span class="h-1.5 w-1.5 rounded-full {style.dot}"></span>
                             {formatTypeLabel(type)}
                             <span class="text-on-surface-variant/50">{count}</span>
@@ -2042,34 +2033,34 @@
                             <div class="flex items-center gap-2">
                               <span class="text-sm font-semibold text-on-surface">{formatTypeLabel(entry.type)}</span>
                               {#if entry.durationSeconds}
-                                <span class="text-[11px] font-medium text-on-surface-variant/50">· {formatDurationFromSeconds(entry.durationSeconds)}</span>
+                                <span class="text-2xs font-medium text-on-surface-variant/50">· {formatDurationFromSeconds(entry.durationSeconds)}</span>
                               {/if}
                             </div>
                             {#if entry.reason?.trim()}
                               <p class="mt-0.5 text-xs text-on-surface-variant/80 truncate" title={entry.reason}>{entry.reason}</p>
                             {/if}
-                            <p class="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-on-surface-variant/50 truncate" title={entry.guildName}>
+                            <p class="mt-0.5 flex items-center gap-1 text-2xs font-medium text-on-surface-variant/50 truncate" title={entry.guildName}>
                               <Papicon icon="map-pin" size={11} class="shrink-0 opacity-50" />
                               <span class="truncate">{entry.guildName}</span>
                             </p>
                           </div>
-                          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-widest shrink-0 {entry.status === 'ACTIVE' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
+                          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-2xs font-semibold uppercase tracking-widest shrink-0 {entry.status === 'ACTIVE' ? 'bg-error/10 text-error' : 'bg-success/10 text-success'}">
                             <span class="h-1.5 w-1.5 rounded-full {entry.status === 'ACTIVE' ? 'bg-rose-500' : 'bg-emerald-500'}"></span>
                             {getSanctionStatusLabel(entry.status)}
                           </span>
-                          <span class="text-[11px] font-medium text-on-surface-variant/40 w-24 text-right shrink-0 hidden sm:block">{formatRelative(entry.createdAt)}</span>
+                          <span class="text-2xs font-medium text-on-surface-variant/40 w-24 text-right shrink-0 hidden sm:block">{formatRelative(entry.createdAt)}</span>
                         </li>
                       {/each}
                     </ul>
 
                     <!-- Pied -->
                     <div class="flex items-center justify-between gap-3 px-6 py-3 border-t border-outline-variant/10 bg-surface-container-low/30">
-                      <p class="flex items-center gap-1.5 text-[11px] font-medium text-on-surface-variant/40">
+                      <p class="flex items-center gap-1.5 text-2xs font-medium text-on-surface-variant/40">
                         <Papicon icon="lock" size={12} class="shrink-0" />
                         {m.mcm_same_instance()}
                       </p>
                       {#if crossServer.total > crossServer.recent.length}
-                        <span class="text-[11px] font-semibold text-on-surface-variant/50 shrink-0">{crossServer.total - crossServer.recent.length > 1 ? m.mcm_cross_server_more_other({ count: crossServer.total - crossServer.recent.length }) : m.mcm_cross_server_more_one({ count: crossServer.total - crossServer.recent.length })}</span>
+                        <span class="text-2xs font-semibold text-on-surface-variant/50 shrink-0">{crossServer.total - crossServer.recent.length > 1 ? m.mcm_cross_server_more_other({ count: crossServer.total - crossServer.recent.length }) : m.mcm_cross_server_more_one({ count: crossServer.total - crossServer.recent.length })}</span>
                       {/if}
                     </div>
                   </div>
@@ -2091,11 +2082,11 @@
                         <tr class="hover:bg-surface-container-high/20 transition-colors">
                           <td class="px-6 py-4 text-xs font-bold text-on-surface-variant/60">{formatDateShort(sanction.createdAt)}</td>
                           <td class="px-6 py-4">
-                            <span class="text-xs font-semibold text-primary uppercase tracking-widest">{formatTypeLabel(sanction.type)}</span>
-                            <p class="text-[10px] font-bold text-on-surface-variant/40 mt-0.5">{m.mcm_by_moderator({ moderator: sanction.moderatorTag })}</p>
+                            <span class="text-xs font-semibold text-primary">{formatTypeLabel(sanction.type)}</span>
+                            <p class="text-2xs font-bold text-on-surface-variant/40 mt-0.5">{m.mcm_by_moderator({ moderator: sanction.moderatorTag })}</p>
                           </td>
                           <td class="px-6 py-4">
-                            <span class="px-3 py-1 rounded-lg text-xs font-medium {sanction.status === 'ACTIVE' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
+                            <span class="px-3 py-1 rounded-lg text-xs font-medium {sanction.status === 'ACTIVE' ? 'bg-error/10 text-error' : 'bg-success/10 text-success'}">
                               {getSanctionStatusLabel(sanction.status)}
                             </span>
                           </td>
@@ -2104,13 +2095,13 @@
                             {#if hasReport}
                               <button
                                 onclick={() => viewingReportSanctionId = sanction.id}
-                                class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[10px] font-semibold text-on-primary uppercase tracking-widest transition-all hover:bg-primary-container hover:scale-[1.02] active:scale-[0.98] shadow-xs cursor-pointer"
+                                class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-on-primary transition-all hover:bg-primary-container hover:scale-[1.02] active:scale-[0.98] shadow-xs cursor-pointer"
                               >
                                 <Papicon icon="file-text" size={12} />
                                 {m.mcm_see_more()}
                               </button>
                             {:else}
-                              <span class="text-[10px] font-bold text-on-surface-variant/30 italic">{m.mcm_no_report()}</span>
+                              <span class="text-2xs font-bold text-on-surface-variant/30 italic">{m.mcm_no_report()}</span>
                             {/if}
                           </td>
                         </tr>
@@ -2120,7 +2111,7 @@
                   {#if sanctions.length === 0}
                     <div class="flex flex-col items-center py-20 text-on-surface-variant/30">
                       <Papicon icon="check-circle" size={48} />
-                      <p class="mt-4 text-sm font-semibold uppercase tracking-widest">{m.mcm_clean_record()}</p>
+                      <p class="mt-4 text-sm font-semibold">{m.mcm_clean_record()}</p>
                     </div>
                   {/if}
                 </div>
@@ -2128,7 +2119,7 @@
               {:else if activeTab === 'invites'}
                 <div class="grid gap-6 md:grid-cols-2">
                    <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
-                     <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-6">{m.mcm_invite_source()}</p>
+                     <p class="text-xs font-semibold text-primary mb-6">{m.mcm_invite_source()}</p>
                      <dl class="space-y-4">
                        <div class="flex items-center justify-between">
                          <dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_code_used()}</dt>
@@ -2179,7 +2170,7 @@
                      </dl>
                    </div>
                    <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
-                     <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary mb-6">{m.mcm_server_moves()}</p>
+                     <p class="text-xs font-semibold text-secondary mb-6">{m.mcm_server_moves()}</p>
                      <dl class="space-y-4">
                        <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_last_join()}</dt><dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.guildJoinedAt)}</dd></div>
                        <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_last_leave_row()}</dt><dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.guildLeftAt)}</dd></div>
@@ -2192,11 +2183,11 @@
                 <div class="space-y-6">
                   <div class="flex items-center justify-between px-2">
                     <div>
-                      <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-1">{m.mcm_social_network()}</p>
-                      <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">{m.mcm_interaction_graph()}</h4>
+                      <p class="text-xs font-semibold text-primary mb-1">{m.mcm_social_network()}</p>
+                      <h4 class="text-sm font-semibold text-on-surface">{m.mcm_interaction_graph()}</h4>
                     </div>
                     <div class="flex items-center gap-2">
-                      <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">{m.mcm_top_contacts({ count: (caseData?.interactionGraph?.nodes?.length ?? 1) - 1 })}</span>
+                      <span class="text-2xs font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">{m.mcm_top_contacts({ count: (caseData?.interactionGraph?.nodes?.length ?? 1) - 1 })}</span>
                     </div>
                   </div>
                   
@@ -2216,14 +2207,14 @@
                         </div>
                         <div class="min-w-0">
                           <p class="text-sm font-semibold text-on-surface truncate">{connection.name}</p>
-                          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mt-0.5">{connection.type}</p>
+                          <p class="text-xs font-semibold text-on-surface-variant/40 mt-0.5">{connection.type}</p>
                         </div>
                       </div>
                     {/each}
                     {#if caseData?.connections.length === 0 && (caseData?.interactionGraph?.nodes || []).length === 0}
                       <div class="md:col-span-2 lg:col-span-3 flex flex-col items-center py-20 text-on-surface-variant/30 bg-surface-container-low/30 rounded-xl">
                         <Papicon icon="link-2" size={48} />
-                        <p class="mt-4 text-sm font-semibold uppercase tracking-widest">{m.mcm_no_external_link()}</p>
+                        <p class="mt-4 text-sm font-semibold">{m.mcm_no_external_link()}</p>
                       </div>
                     {/if}
                   </div>
@@ -2236,13 +2227,13 @@
                       <div class="flex items-start justify-between">
                          <div>
                             <span class="text-xs font-medium text-primary mb-2 block">{formatDateShort(cand.createdAt)}</span>
-                            <span class="px-4 py-1.5 rounded-xl text-[13px] font-medium {cand.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}">
+                            <span class="px-4 py-1.5 rounded-xl text-body-sm font-medium {cand.status === 'APPROVED' ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}">
                               {cand.status}
                             </span>
                          </div>
                          {#if cand.oralResult}
                            <div class="flex flex-col items-end">
-                              <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-1">{m.mcm_oral_result()}</span>
+                              <span class="text-xs font-semibold text-on-surface-variant/40 mb-1">{m.mcm_oral_result()}</span>
                               <span class="text-sm font-semibold text-on-surface">{cand.oralResult}</span>
                            </div>
                          {/if}
@@ -2257,7 +2248,7 @@
                   {#if (caseData?.candidatures?.length ?? 0) === 0}
                     <div class="flex flex-col items-center py-20 text-on-surface-variant/30 bg-surface-container-low/30 rounded-xl">
                       <Papicon icon="user-check" size={48} />
-                      <p class="mt-4 text-sm font-semibold uppercase tracking-widest">{m.mcm_no_candidature()}</p>
+                      <p class="mt-4 text-sm font-semibold">{m.mcm_no_candidature()}</p>
                     </div>
                   {/if}
                 </div>
@@ -2267,11 +2258,11 @@
                   <div class="mb-6 rounded-xl bg-surface-container-low/50 border border-outline-variant/10 overflow-hidden shadow-sm">
                     <!-- En-tête -->
                     <div class="flex items-center gap-4 px-6 py-5 border-b border-outline-variant/10">
-                      <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
+                      <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning">
                         <Papicon icon="globe" size={22} />
                       </div>
                       <div class="min-w-0 flex-1">
-                        <p class="text-[10px] font-semibold uppercase tracking-wider text-amber-500">{m.mcm_xlink_title()}</p>
+                        <p class="text-xs font-semibold text-warning">{m.mcm_xlink_title()}</p>
                         <p class="text-sm font-semibold text-on-surface">
                           {crossServerLinkSuggestions.length > 1 ? m.mcm_xlink_count_other({ count: crossServerLinkSuggestions.length }) : m.mcm_xlink_count_one({ count: crossServerLinkSuggestions.length })}
                           <span class="text-on-surface-variant/50 font-medium">{crossServerLinks.serverCount > 1 ? m.mcm_xlink_on_other({ count: crossServerLinks.serverCount }) : m.mcm_xlink_on_one({ count: crossServerLinks.serverCount })}</span>
@@ -2294,20 +2285,20 @@
                           <div class="min-w-0 flex-1">
                             <div class="flex flex-wrap items-center gap-2">
                               <span class="text-sm font-semibold text-on-surface truncate">{suggestion.userTag ?? m.mcm_xlink_unknown_user({ id: suggestion.userId })}</span>
-                              <span class="inline-flex items-center gap-1.5 rounded-lg bg-surface-container-high px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">
+                              <span class="inline-flex items-center gap-1.5 rounded-lg bg-surface-container-high px-2 py-0.5 text-xs font-semibold text-on-surface-variant">
                                 {suggestion.serverCount > 1 ? m.mcm_xlink_servers_other({ count: suggestion.serverCount }) : m.mcm_xlink_servers_one({ count: suggestion.serverCount })}
                               </span>
                               {#if !suggestion.presentOnGuild}
-                                <span class="inline-flex items-center rounded-lg bg-surface-container-high px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">
+                                <span class="inline-flex items-center rounded-lg bg-surface-container-high px-2 py-0.5 text-xs font-semibold text-on-surface-variant/50">
                                   {m.mcm_xlink_absent()}
                                 </span>
                               {/if}
                             </div>
-                            <p class="mt-0.5 text-[10px] font-bold text-on-surface-variant/40">ID: {suggestion.userId}</p>
+                            <p class="mt-0.5 text-2xs font-bold text-on-surface-variant/40">ID: {suggestion.userId}</p>
                             <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
                               {#each suggestion.guilds as guild}
                                 <span
-                                  class="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-medium {guild.status === 'VALIDATED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}"
+                                  class="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-2xs font-medium {guild.status === 'VALIDATED' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}"
                                   title={guild.reason ?? ''}
                                 >
                                   <Papicon icon="map-pin" size={11} class="shrink-0 opacity-60" />
@@ -2319,17 +2310,17 @@
                           </div>
 
                           <div class="flex shrink-0 items-center gap-2">
-                            <span class="inline-flex items-center rounded-lg bg-surface-container-high px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant" title={m.mcm_xlink_score_hint()}>
+                            <span class="inline-flex items-center rounded-lg bg-surface-container-high px-2.5 py-1 text-2xs font-semibold text-on-surface-variant" title={m.mcm_xlink_score_hint()}>
                               {m.mcm_xlink_score({ score: suggestion.score })}
                             </span>
                             {#if suggestion.alreadyLinkedHere}
-                              <span class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-emerald-500">
+                              <span class="inline-flex items-center gap-1.5 rounded-lg bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">
                                 <Papicon icon="check" size={12} />
                                 {m.mcm_xlink_already_linked()}
                               </span>
                             {:else if canModerateMembers}
                               <button
-                                class="px-4 py-2 rounded-xl text-[11px] font-semibold uppercase tracking-widest transition-all duration-300 {applyingSuggestionId !== null ? 'bg-surface-container-high text-on-surface-variant/50 cursor-not-allowed' : 'bg-primary text-on-primary hover:bg-primary/90 hover:scale-[1.02] active:scale-95 cursor-pointer'}"
+                                class="px-4 py-2 rounded-xl text-2xs font-semibold uppercase tracking-widest transition-all duration-300 {applyingSuggestionId !== null ? 'bg-surface-container-high text-on-surface-variant/50 cursor-not-allowed' : 'bg-primary text-on-primary hover:bg-primary/90 hover:scale-[1.02] active:scale-95 cursor-pointer'}"
                                 onclick={() => handleApplySuggestedLink(suggestion)}
                                 disabled={applyingSuggestionId !== null}
                               >
@@ -2347,11 +2338,11 @@
 
                     <!-- Pied -->
                     <div class="flex items-center justify-between gap-3 px-6 py-3 border-t border-outline-variant/10 bg-surface-container-low/30">
-                      <p class="flex items-center gap-1.5 text-[11px] font-medium text-on-surface-variant/40">
+                      <p class="flex items-center gap-1.5 text-2xs font-medium text-on-surface-variant/40">
                         <Papicon icon="lock" size={12} class="shrink-0" />
                         {m.mcm_same_instance()}
                       </p>
-                      <p class="text-[11px] font-medium text-on-surface-variant/40 text-right">{m.mcm_xlink_footer_hint()}</p>
+                      <p class="text-2xs font-medium text-on-surface-variant/40 text-right">{m.mcm_xlink_footer_hint()}</p>
                     </div>
                   </div>
                 {/if}
@@ -2378,7 +2369,7 @@
                   </div>
                   
                   {#if linkFeedback}
-                    <div class="mt-4 p-3 rounded-xl text-sm font-bold {linkIsError ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}">
+                    <div class="mt-4 p-3 rounded-xl text-sm font-bold {linkIsError ? 'bg-error/10 text-error' : 'bg-success/10 text-success'}">
                       {linkFeedback}
                     </div>
                   {/if}
@@ -2416,18 +2407,18 @@
                         <div class="flex items-center justify-between">
                            <p class="text-sm font-semibold text-on-surface truncate">{link.userTag}</p>
                            <div class="flex items-center gap-2">
-                             <span class="px-2 py-0.5 rounded-lg text-[11px] font-semibold uppercase tracking-widest {link.status === 'VALIDATED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}">
+                             <span class="px-2 py-0.5 rounded-lg text-2xs font-semibold uppercase tracking-widest {link.status === 'VALIDATED' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}">
                                {link.status}
                              </span>
                              {#if dashboardStore.state.access.level === 'admin' && canModerateMembers}
                                <button 
-                                 class="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer disabled:opacity-50"
+                                 class="p-1.5 rounded-lg text-error hover:bg-error/10 transition-colors cursor-pointer disabled:opacity-50"
                                  title={m.mcm_unlink_account()}
                                  onclick={() => handleUnlinkAccount(link.userId)}
                                  disabled={unlinkingAccountId === link.userId}
                                >
                                  {#if unlinkingAccountId === link.userId}
-                                   <div class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-500 border-t-transparent"></div>
+                                   <div class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-error border-t-transparent"></div>
                                  {:else}
                                    <Papicon icon="trash-2" size={14} />
                                  {/if}
@@ -2435,8 +2426,8 @@
                              {/if}
                            </div>
                         </div>
-                        <p class="text-[10px] font-bold text-on-surface-variant/40 mt-1">ID: {link.userId}</p>
-                        <p class="text-[10px] font-semibold text-primary uppercase tracking-widest mt-1">{link.type}</p>
+                        <p class="text-2xs font-bold text-on-surface-variant/40 mt-1">ID: {link.userId}</p>
+                        <p class="text-xs font-semibold text-primary mt-1">{link.type}</p>
                       </div>
                     </div>
                   {/each}
@@ -2445,7 +2436,7 @@
                       <div class="flex h-16 w-16 items-center justify-center rounded-xl bg-surface-container-high text-on-surface-variant/20 mb-6">
                         <Papicon icon="user-plus" size={32} />
                       </div>
-                      <p class="mt-4 text-sm font-semibold uppercase tracking-widest">{m.mcm_no_linked_account()}</p>
+                      <p class="mt-4 text-sm font-semibold">{m.mcm_no_linked_account()}</p>
                     </div>
                   {/if}
                 </div>
@@ -2457,7 +2448,7 @@
                         <Papicon icon="edit-3" size={24} />
                       </div>
                       <div>
-                        <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">{m.mcm_moderation()}</p>
+                        <p class="text-xs font-semibold text-primary">{m.mcm_moderation()}</p>
                         <p class="text-lg font-semibold text-on-surface">{m.mcm_mod_notes()}</p>
                       </div>
                     </div>
@@ -2480,7 +2471,7 @@
                     <div class="mt-6 flex items-center justify-between">
                       <div class="flex items-center gap-2">
                         {#if noteFeedback}
-                          <span class="text-xs font-bold {noteFeedback.includes('Erreur') ? 'text-rose-400' : 'text-emerald-400'} animate-in fade-in slide-in-from-left-2">
+                          <span class="text-xs font-bold {noteFeedback.includes('Erreur') ? 'text-error' : 'text-success'} animate-in fade-in slide-in-from-left-2">
                             {noteFeedback}
                           </span>
                         {/if}
@@ -2489,7 +2480,7 @@
                       <button
                         onclick={handleSaveNote}
                         disabled={noteBusy}
-                        class="flex items-center gap-2 px-8 py-3 rounded-lg bg-primary text-on-primary text-sm font-semibold uppercase tracking-widest transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                        class="flex items-center gap-2 px-8 py-3 rounded-lg bg-primary text-on-primary text-sm font-semibold transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                       >
                         {#if noteBusy}
                           <div class="h-4 w-4 animate-spin rounded-full border-2 border-on-primary border-t-transparent"></div>
@@ -2512,7 +2503,7 @@
               <!-- 1. Carte Score de Risque & Ancienneté -->
               <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10 shadow-sm space-y-5">
                 <div class="flex items-center justify-between border-b border-outline-variant/5 pb-3">
-                  <span class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.mcm_risk_score()}</span>
+                  <span class="text-xs font-semibold text-on-surface-variant/60">{m.mcm_risk_score()}</span>
                   <span class="text-xs font-semibold text-primary">{memberSeniority}</span>
                 </div>
 
@@ -2542,7 +2533,7 @@
                         {m.mcm_risk_critical()}
                       {/if}
                     </h5>
-                    <p class="text-[10px] text-on-surface-variant/60 mt-0.5 leading-relaxed">
+                    <p class="text-2xs text-on-surface-variant/60 mt-0.5 leading-relaxed">
                       {m.mcm_risk_desc()}
                     </p>
                   </div>
@@ -2552,7 +2543,7 @@
               <!-- 2. Carte Top Salons d'Activité -->
               {#if topChannels.length > 0}
                 <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10 shadow-sm space-y-4">
-                  <span class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest block border-b border-outline-variant/5 pb-3">{m.mcm_top_channels()}</span>
+                  <span class="text-xs font-semibold text-on-surface-variant/60 block border-b border-outline-variant/5 pb-3">{m.mcm_top_channels()}</span>
                   
                   <div class="space-y-3.5">
                     {#each topChannels as chan}
@@ -2580,11 +2571,11 @@
               <!-- 3. Actions de modération -->
               {#if canModerateMembers}
               <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10 shadow-sm space-y-5">
-                <span class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest block border-b border-outline-variant/5 pb-3">{m.mcm_mod_actions()}</span>
+                <span class="text-xs font-semibold text-on-surface-variant/60 block border-b border-outline-variant/5 pb-3">{m.mcm_mod_actions()}</span>
 
                 <!-- Raison -->
                 <div class="space-y-1.5">
-                  <label for="mod-reason" class="text-[11px] font-bold text-on-surface-variant/50 uppercase tracking-wider">{m.mcm_sanction_reason()}</label>
+                  <label for="mod-reason" class="text-xs font-semibold text-on-surface-variant/50">{m.mcm_sanction_reason()}</label>
                   <textarea
                     id="mod-reason"
                     bind:value={actionReason}
@@ -2596,7 +2587,7 @@
 
                 <!-- Durée (pour Timeout) -->
                 <div class="space-y-1.5">
-                  <label for="mod-duration" class="text-[11px] font-bold text-on-surface-variant/50 uppercase tracking-wider">{m.mcm_duration_timeout()}</label>
+                  <label for="mod-duration" class="text-xs font-semibold text-on-surface-variant/50">{m.mcm_duration_timeout()}</label>
                   <div class="relative">
                     <select
                       id="mod-duration"
@@ -2660,7 +2651,7 @@
 
                 <!-- Feedback / Status box -->
                 {#if actionFeedback}
-                  <div class="rounded-lg border p-3 text-xs font-medium {actionIsError ? 'border-red-500/20 bg-red-500/5 text-red-500' : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-500'} flex items-center gap-2">
+                  <div class="rounded-lg border p-3 text-xs font-medium {actionIsError ? 'border-error/20 bg-error/5 text-error' : 'border-success/20 bg-success/5 text-success'} flex items-center gap-2">
                     <Papicon icon={actionIsError ? 'alert-circle' : 'check-circle'} size={14} />
                     <span>{actionFeedback}</span>
                   </div>
@@ -2695,7 +2686,7 @@
           </button>
 
           <div class="mb-8">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-1">{m.mcm_sanction_report()}</p>
+            <p class="text-xs font-semibold text-primary mb-1">{m.mcm_sanction_report()}</p>
             <h4 class="text-2xl font-semibold text-on-surface font-headline">{formatTypeLabel(selectedSanctionForReport.type)}</h4>
             <p class="text-xs text-on-surface-variant/60 mt-1">{m.mcm_applied_on({ date: formatDateTime(selectedSanctionForReport.createdAt), moderator: selectedSanctionForReport.moderatorTag })}</p>
           </div>
@@ -2769,14 +2760,14 @@
                  <div class="flex gap-3 pt-4">
                    <button
                      onclick={() => isEditingReport = false}
-                     class="flex-1 py-3 rounded-xl bg-on-surface/5 text-[13px] font-medium text-on-surface-variant transition-all hover:bg-on-surface/10"
+                     class="flex-1 py-3 rounded-xl bg-on-surface/5 text-body-sm font-medium text-on-surface-variant transition-all hover:bg-on-surface/10"
                    >
                      {m.common_cancel()}
                    </button>
                    <button
                      onclick={handleUpdateReport}
                      disabled={updateReportBusy}
-                     class="flex-1 py-3 rounded-xl bg-primary text-on-primary text-[13px] font-medium transition-all hover:bg-primary-container hover:text-primary disabled:opacity-50"
+                     class="flex-1 py-3 rounded-xl bg-primary text-on-primary text-body-sm font-medium transition-all hover:bg-primary-container hover:text-primary disabled:opacity-50"
                    >
                      {updateReportBusy ? m.mcm_saving() : m.common_save()}
                    </button>
@@ -2830,12 +2821,12 @@
                 {/if}
 
                 <div class="pt-4 flex flex-col items-center gap-4 border-t border-outline-variant/10">
-                  <p class="text-[10px] font-bold text-on-surface-variant/30 text-center">{m.mcm_report_by({ author: selectedReport.createdByTag || selectedReport.createdByUserId })}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant/30 text-center">{m.mcm_report_by({ author: selectedReport.createdByTag || selectedReport.createdByUserId })}</p>
                   
                   {#if canModerateSanctions && (selectedReport.createdByUserId === authStore.user?.id || authStore.isAdmin)}
                     <button
                       onclick={() => startEditingReport(selectedReport)}
-                      class="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[10px] font-semibold text-on-primary uppercase tracking-widest transition-all hover:bg-primary-container hover:scale-[1.02] active:scale-[0.98] shadow-xs cursor-pointer"
+                      class="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-xs font-semibold text-on-primary transition-all hover:bg-primary-container hover:scale-[1.02] active:scale-[0.98] shadow-xs cursor-pointer"
                     >
                       <Papicon icon="edit-3" size={14} />
                       {m.mcm_edit_report()}
@@ -2847,7 +2838,7 @@
 
           {:else}
             <div class="flex flex-col items-center justify-center py-10 text-center">
-              <div class="h-16 w-16 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mb-4">
+              <div class="h-16 w-16 rounded-full bg-warning/10 text-warning flex items-center justify-center mb-4">
                 <Papicon icon="alert-triangle" size={32} />
               </div>
               <p class="text-sm font-semibold text-on-surface-variant">{m.mcm_report_missing()}</p>
@@ -2857,7 +2848,7 @@
 
           <button
             onclick={() => viewingReportSanctionId = null}
-            class="w-full mt-8 py-4 rounded-lg bg-on-surface/5 text-sm font-semibold uppercase tracking-widest text-on-surface-variant transition-all hover:bg-on-surface/10 hover:text-on-surface"
+            class="w-full mt-8 py-4 rounded-lg bg-on-surface/5 text-sm font-semibold text-on-surface-variant transition-all hover:bg-on-surface/10 hover:text-on-surface"
           >
             {m.mcm_close_details()}
           </button>

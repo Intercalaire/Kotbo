@@ -239,6 +239,7 @@ export function registerRpgTools(ctx: McpToolContext) {
               bosses: entry.bosses,
               crafted: entry.crafted,
               firstKill: entry.firstKill,
+              firstKillClaimed: entry.firstKillClaimed,
               campaign: entry.campaign,
             },
             unique: isUniqueItem(entry),

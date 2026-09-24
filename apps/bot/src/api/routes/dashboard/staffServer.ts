@@ -198,6 +198,19 @@ export async function handleStaffServerRoutes(
     return true;
   }
 
+  /**
+   * Le lien doit relier le serveur ouvert, comme pour sa modification ou sa suppression :
+   * les correspondances de rôles et la synchronisation le prenaient par son seul
+   * identifiant, et le staff d'un autre serveur pouvait décider des rôles distribués ici.
+   */
+  const ownsLink = async (linkId: string): Promise<boolean> => {
+    const link = await prisma.staffServerLink.findUnique({
+      where: { id: linkId },
+      select: { mainGuildId: true, staffGuildId: true },
+    });
+    return Boolean(link && (link.mainGuildId === guildId || link.staffGuildId === guildId));
+  };
+
   // PATCH /api/dashboard/guilds/:guildId/staff-server/:linkId
   if (parts.length === 6 && method === 'PATCH' && parts[5] !== 'mappings') {
     try {
@@ -264,6 +277,10 @@ export async function handleStaffServerRoutes(
   if (parts.length === 7 && parts[6] === 'mappings' && method === 'POST') {
     try {
       const linkId = parts[5];
+      if (!(await ownsLink(linkId))) {
+        json(res, 404, { error: 'Lien introuvable' });
+        return true;
+      }
       const body = await readJsonBody(req);
 
       const mapping = await prisma.staffServerRoleMapping.create({
@@ -286,8 +303,18 @@ export async function handleStaffServerRoutes(
   // DELETE /api/dashboard/guilds/:guildId/staff-server/:linkId/mappings/:mappingId
   if (parts.length === 8 && parts[6] === 'mappings' && method === 'DELETE') {
     try {
+      const linkId = parts[5];
       const mappingId = parts[7];
-      await prisma.staffServerRoleMapping.delete({ where: { id: mappingId } });
+      if (!(await ownsLink(linkId))) {
+        json(res, 404, { error: 'Lien introuvable' });
+        return true;
+      }
+      // La correspondance doit aussi appartenir à ce lien, pas à celui d'un autre serveur.
+      const removed = await prisma.staffServerRoleMapping.deleteMany({ where: { id: mappingId, staffServerLinkId: linkId } });
+      if (removed.count === 0) {
+        json(res, 404, { error: 'Correspondance introuvable' });
+        return true;
+      }
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('StaffServerAPI', 'Erreur DELETE mapping', err);
@@ -300,6 +327,10 @@ export async function handleStaffServerRoutes(
   if (parts.length === 7 && parts[6] === 'sync' && method === 'POST') {
     try {
       const linkId = parts[5];
+      if (!(await ownsLink(linkId))) {
+        json(res, 404, { error: 'Lien introuvable' });
+        return true;
+      }
       const result = await fullSyncStaffRoles(linkId, client);
       json(res, 200, result);
     } catch (err) {

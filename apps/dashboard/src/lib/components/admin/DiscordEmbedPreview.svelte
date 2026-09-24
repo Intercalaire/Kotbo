@@ -76,8 +76,8 @@
     <div class="min-w-0 flex-1">
       <div class="flex items-center gap-2 mb-1">
         <span class="text-[15px] font-medium text-white">{botName}</span>
-        <span class="px-1 py-px rounded bg-[#5865F2] text-[10px] font-semibold text-white uppercase leading-tight">APP</span>
-        <span class="text-[11px] text-[#949BA4]">{now}</span>
+        <span class="px-1 py-px rounded bg-[#5865F2] text-2xs font-semibold text-white uppercase leading-tight">APP</span>
+        <span class="text-2xs text-[#949BA4]">{now}</span>
       </div>
 
       <!-- Embed -->
@@ -91,11 +91,11 @@
             {/if}
 
             {#if message}
-              <div class="text-[14px] text-[#DBDEE1] leading-[1.375] whitespace-pre-wrap break-words">
+              <div class="text-sm text-[#DBDEE1] leading-[1.375] whitespace-pre-wrap break-words">
                 {@html renderEmoji(message)}
               </div>
             {:else}
-              <p class="text-[14px] text-[#949BA4] italic">Le message apparaîtra ici…</p>
+              <p class="text-sm text-[#949BA4] italic">Le message apparaîtra ici…</p>
             {/if}
           </div>
 
@@ -104,7 +104,7 @@
               {#if thumbFails}
                 <div class="w-full h-full rounded bg-[#232428] border border-[#3F4147] flex flex-col items-center justify-center gap-1 px-1 text-center">
                   <Papicon icon="ImageOff" size={14} class="text-[#949BA4]" />
-                  <span class="text-[9px] text-[#949BA4] leading-tight">Échec</span>
+                  <span class="text-2xs text-[#949BA4] leading-tight">Échec</span>
                 </div>
               {:else}
                 <img
@@ -124,7 +124,7 @@
               <!-- Reproduit littéralement ce que Discord affiche -->
               <div class="w-full h-40 rounded bg-[#232428] border border-[#3F4147] flex flex-col items-center justify-center gap-2">
                 <Papicon icon="ImageOff" size={26} class="text-[#949BA4]" />
-                <span class="text-[13px] text-[#949BA4]">Échec du chargement de l’image.</span>
+                <span class="text-body-sm text-[#949BA4]">Échec du chargement de l’image.</span>
               </div>
             {:else}
               <img
@@ -138,7 +138,7 @@
         {/if}
 
         {#if footerText}
-          <div class="px-3.5 pb-3.5 flex items-center gap-2 text-[12px] text-[#949BA4]">
+          <div class="px-3.5 pb-3.5 flex items-center gap-2 text-xs text-[#949BA4]">
             <span class="break-words">{@html renderTitle(footerText)}</span>
             <span>•</span>
             <span>{now}</span>

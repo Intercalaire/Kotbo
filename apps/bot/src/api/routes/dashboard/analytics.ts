@@ -191,7 +191,7 @@ export async function handleAnalyticsRoutes(
       return true;
     }
     try {
-      const periodDays = Math.min(90, Math.max(7, parseInt(url.searchParams.get('period') || '30', 10)));
+      const periodDays = Math.min(90, Math.max(7, parseInt(url.searchParams.get('period') || '30', 10) || 30));
       const now = new Date();
       const startDate = new Date(now);
       startDate.setDate(startDate.getDate() - periodDays);
@@ -228,7 +228,9 @@ export async function handleAnalyticsRoutes(
   // GET /api/dashboard/guilds/:guildId/analytics/correlation - Messages vs Voice correlation
   if (parts.length === 6 && parts[5] === 'correlation') {
     try {
-      const periodDays = parseInt(url.searchParams.get('period') || '30', 10);
+      // Bornée comme les autres périodes : non numérique, elle donnait une date invalide ;
+      // démesurée, elle lançait une lecture de toute l'histoire du serveur.
+      const periodDays = Math.min(365, Math.max(1, parseInt(url.searchParams.get('period') || '30', 10) || 30));
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - periodDays);
       const startDateKey = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
@@ -267,7 +269,7 @@ export async function handleAnalyticsRoutes(
       const activeInvites = await discordGuild.invites.fetch().catch(() => new Map());
       const invitesArray = [...activeInvites.values()];
 
-      const periodDays = parseInt(url.searchParams.get('days') || url.searchParams.get('period') || '30', 10);
+      const periodDays = Math.min(365, Math.max(1, parseInt(url.searchParams.get('days') || url.searchParams.get('period') || '30', 10) || 30));
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - periodDays + 1);
 
@@ -371,7 +373,7 @@ export async function handleAnalyticsRoutes(
   // GET /api/dashboard/guilds/:guildId/analytics/heatmap - Hourly activity heatmap
   if (parts.length === 6 && parts[5] === 'heatmap') {
     try {
-      const days = Math.min(365, Math.max(1, parseInt(url.searchParams.get('days') || '30', 10)));
+      const days = Math.min(365, Math.max(1, parseInt(url.searchParams.get('days') || '30', 10) || 30));
       const startDate = url.searchParams.get('startDate');
       const endDate = url.searchParams.get('endDate');
       const timezone = await resolveViewTimezone(url.searchParams.get('tz'), guildId);
@@ -417,7 +419,7 @@ export async function handleAnalyticsRoutes(
   // GET /api/dashboard/guilds/:guildId/analytics/daily-algo - Daily Algo analytics
   if (parts.length === 6 && parts[5] === 'daily-algo') {
     try {
-      const days = Math.min(365, Math.max(1, parseInt(url.searchParams.get('days') || '30', 10)));
+      const days = Math.min(365, Math.max(1, parseInt(url.searchParams.get('days') || '30', 10) || 30));
       const startDate = url.searchParams.get('startDate');
       const endDate = url.searchParams.get('endDate');
       const algoData = await getDailyAlgoAnalytics(guildId, { days, startDate, endDate });

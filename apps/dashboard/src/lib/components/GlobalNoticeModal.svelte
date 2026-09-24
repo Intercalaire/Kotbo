@@ -35,8 +35,8 @@
       onkeydown={(e) => e.stopPropagation()}
     >
       <div class="flex items-start gap-4">
-        <div class="w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 bg-amber-500/10 border-amber-500/20">
-          <Papicon icon="AlertTriangle" size={20} class="text-amber-400" />
+        <div class="w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 bg-warning/10 border-warning/20">
+          <Papicon icon="AlertTriangle" size={20} class="text-warning" />
         </div>
         <p id="global-notice-title" class="text-sm text-on-surface leading-relaxed pt-1.5">
           {globalNotice.message}

@@ -44,7 +44,7 @@
     <h1 class="text-lg font-semibold text-on-surface">
       {reason === 'guild' ? m.no_guild_access_title() : m.no_feature_access_title()}
     </h1>
-    <p class="text-[13px] text-on-surface-variant leading-relaxed">
+    <p class="text-body-sm text-on-surface-variant leading-relaxed">
       {reason === 'guild' ? m.no_guild_access_desc() : m.no_feature_access_desc()}
     </p>
   </div>

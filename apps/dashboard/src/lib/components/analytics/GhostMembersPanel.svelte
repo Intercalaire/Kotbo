@@ -290,7 +290,7 @@
     <div class="h-64 rounded-2xl bg-surface-container-high/40 animate-pulse"></div>
   </div>
 {:else if error}
-  <div class="p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 flex items-center gap-3">
+  <div class="p-6 rounded-2xl bg-error/10 border border-error/20 text-red-300 flex items-center gap-3">
     <Papicon icon="Warning" size={20} />
     <span>{error}</span>
   </div>
@@ -323,7 +323,7 @@
           </button>
           <button
             onclick={openPrune}
-            class="px-4 py-2.5 rounded-xl text-xs font-semibold bg-red-500/15 text-red-300 border border-red-500/25 hover:bg-red-500/25 transition-all flex items-center gap-2"
+            class="px-4 py-2.5 rounded-xl text-xs font-semibold bg-error/15 text-red-300 border border-error/25 hover:bg-error/25 transition-all flex items-center gap-2"
           >
             <Papicon icon="Trash" size={14} />
             {m.ghost_prune_open()}
@@ -351,7 +351,7 @@
           </div>
           <div class="text-2xl font-bold text-on-surface">{count.toLocaleString(dateLocale())}</div>
           <div class="text-xs font-medium text-on-surface-variant/80 mt-0.5">{meta.label()}</div>
-          <div class="text-[11px] text-on-surface-variant/50 mt-1 leading-snug">{meta.desc()}</div>
+          <div class="text-2xs text-on-surface-variant/50 mt-1 leading-snug">{meta.desc()}</div>
           <div class="mt-3 h-1.5 rounded-full bg-surface-container-highest overflow-hidden">
             <div class="h-full rounded-full transition-all duration-500" style="width: {sharePct(count)}%; background: {meta.color}"></div>
           </div>
@@ -380,7 +380,7 @@
             { key: 'maxPruneBatch' as const, label: m.ghost_max_batch(), help: m.ghost_max_batch_help(), min: 1, max: 500 },
           ] as field}
             <div class="space-y-1.5">
-              <label for="ghost-{field.key}" class="text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-widest">
+              <label for="ghost-{field.key}" class="text-xs font-semibold text-on-surface-variant/70">
                 {field.label}
               </label>
               <input
@@ -391,7 +391,7 @@
                 bind:value={form[field.key]}
                 class="w-full px-3 py-2 rounded-xl bg-surface-container-highest border border-outline-variant/20 text-sm text-on-surface focus:border-primary/50 focus:outline-none"
               />
-              <p class="text-[11px] text-on-surface-variant/50 leading-snug">{field.help}</p>
+              <p class="text-2xs text-on-surface-variant/50 leading-snug">{field.help}</p>
             </div>
           {/each}
         </div>
@@ -409,21 +409,21 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="ghost-protected-roles" class="text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-widest">
+            <label for="ghost-protected-roles" class="text-xs font-semibold text-on-surface-variant/70">
               {m.ghost_protected_roles()}
             </label>
             <MultiSelect
               id="ghost-protected-roles"
               bind:values={form.protectedRoleIds}
               options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
-              accentClass="bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+              accentClass="bg-success/20 text-emerald-300 border-success/40"
             />
-            <p class="text-[11px] text-on-surface-variant/50">{m.ghost_protected_roles_help()}</p>
+            <p class="text-2xs text-on-surface-variant/50">{m.ghost_protected_roles_help()}</p>
           </div>
         </div>
 
         <div class="space-y-1.5">
-          <label for="ghost-prune-reason" class="text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-widest">
+          <label for="ghost-prune-reason" class="text-xs font-semibold text-on-surface-variant/70">
             {m.ghost_prune_reason()}
           </label>
           <input
@@ -490,7 +490,7 @@
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
-              <tr class="text-[10px] uppercase tracking-widest text-on-surface-variant/50 border-b border-outline-variant/10">
+              <tr class="text-xs text-on-surface-variant/50 border-b border-outline-variant/10">
                 <th class="text-left font-bold px-4 py-3">{m.ghost_table_member()}</th>
                 <th class="text-left font-bold px-4 py-3">{m.ghost_table_status()}</th>
                 <th class="text-left font-bold px-4 py-3 whitespace-nowrap">{m.ghost_table_last_message()}</th>
@@ -516,13 +516,13 @@
                       {/if}
                       <div class="min-w-0">
                         <div class="font-medium text-on-surface truncate group-hover/member:text-primary transition-colors">{member.displayName || member.username}</div>
-                        <div class="text-[11px] text-on-surface-variant/40 truncate">{member.userId}</div>
+                        <div class="text-2xs text-on-surface-variant/40 truncate">{member.userId}</div>
                       </div>
                     </button>
                   </td>
                   <td class="px-4 py-3">
                     <span
-                      class="px-2 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap"
+                      class="px-2 py-1 rounded-md text-2xs font-semibold whitespace-nowrap"
                       style="background: {STATUS_META[member.status].color}18; color: {STATUS_META[member.status].color}"
                     >{STATUS_META[member.status].label()}</span>
                   </td>
@@ -533,7 +533,7 @@
                   <td class="px-4 py-3">
                     <div class="flex flex-wrap gap-1">
                       {#each member.protections as protection}
-                        <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/15 text-emerald-300 whitespace-nowrap">
+                        <span class="px-1.5 py-0.5 rounded text-2xs font-medium bg-success/15 text-emerald-300 whitespace-nowrap">
                           {PROTECTION_LABELS[protection]()}
                         </span>
                       {/each}
@@ -578,10 +578,10 @@
               <div class="flex items-center gap-2 min-w-0">
                 <span
                   class="px-2 py-0.5 rounded font-semibold whitespace-nowrap {run.status === 'COMPLETED'
-                    ? 'bg-emerald-500/15 text-emerald-300'
+                    ? 'bg-success/15 text-emerald-300'
                     : run.status === 'PARTIAL'
-                      ? 'bg-amber-500/15 text-amber-300'
-                      : 'bg-red-500/15 text-red-300'}"
+                      ? 'bg-warning/15 text-amber-300'
+                      : 'bg-error/15 text-red-300'}"
                 >{run.status}</span>
                 <span class="text-on-surface truncate">{m.ghost_history_entry({ n: run.successCount, t: run.totalTargeted })}</span>
               </div>
@@ -599,7 +599,7 @@
       <div class="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl bg-surface-container border border-outline-variant/20 shadow-2xl">
         <div class="p-5 border-b border-outline-variant/10 flex items-center justify-between">
           <h3 class="text-base font-bold text-on-surface flex items-center gap-2">
-            <Papicon icon="Trash" size={18} class="text-red-400" />
+            <Papicon icon="Trash" size={18} class="text-error" />
             {m.ghost_prune_title()}
           </h3>
           <button onclick={() => (pruneOpen = false)} class="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant/60">
@@ -610,7 +610,7 @@
         <div class="p-5 space-y-5">
           <!-- Étape 1 : cible + prévisualisation -->
           <div class="space-y-2">
-            <span class="text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-widest">{m.ghost_prune_target()}</span>
+            <span class="text-xs font-semibold text-on-surface-variant/70">{m.ghost_prune_target()}</span>
             <div class="flex gap-2">
               {#each ['INACTIVE', 'SPECTATOR'] as const as status}
                 <button
@@ -643,7 +643,7 @@
               </div>
 
               {#if preview.candidates.length === 0}
-                <p class="px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs">
+                <p class="px-4 py-3 rounded-xl bg-success/10 border border-success/20 text-emerald-300 text-xs">
                   {m.ghost_prune_empty()}
                 </p>
               {:else}
@@ -668,11 +668,11 @@
                     inputmode="numeric"
                     bind:value={confirmInput}
                     class="w-full px-3 py-2 rounded-xl bg-surface-container-highest border text-sm text-on-surface focus:outline-none {confirmInput && !confirmMatches
-                      ? 'border-red-500/50'
+                      ? 'border-error/50'
                       : 'border-outline-variant/20 focus:border-primary/50'}"
                   />
                   {#if confirmInput && !confirmMatches}
-                    <p class="text-[11px] text-red-400">{m.ghost_prune_confirm_mismatch()}</p>
+                    <p class="text-2xs text-error">{m.ghost_prune_confirm_mismatch()}</p>
                   {/if}
                 </div>
               {/if}

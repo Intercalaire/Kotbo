@@ -16,6 +16,7 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import ClanRebalanceModal from '../lib/components/clans/ClanRebalanceModal.svelte';
   import { m, dateLocale } from '../lib/i18n';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import {
     fetchClansData,
     fetchLevelingData,
@@ -290,8 +291,8 @@
 
   function betStatusClass(status: string): string {
     if (status === 'ACTIVE') return 'bg-primary/15 text-primary';
-    if (status === 'RESOLVED') return 'bg-emerald-500/15 text-emerald-500';
-    if (status === 'PENDING' || status === 'LOCKED') return 'bg-amber-500/15 text-amber-600';
+    if (status === 'RESOLVED') return 'bg-success/15 text-success';
+    if (status === 'PENDING' || status === 'LOCKED') return 'bg-warning/15 text-warning';
     return 'bg-surface-container-high/60 text-on-surface-variant/70';
   }
 
@@ -816,7 +817,7 @@ savedBetSettings = {
 
   async function handleClearSeasonPlanning() {
     if (!canManageSettings) return;
-    if (!confirm(m.clan_confirm_cancel_planning())) return;
+    if (!(await confirmDialog.ask({ title: m.clan_confirm_cancel_planning(), variant: 'warning' }))) return;
 
     await actionState.run(async () => {
       const res = await updateClanSettings({
@@ -885,7 +886,7 @@ savedBetSettings = {
 
   async function handleDeleteClan(clan: ClanEntry) {
     if (!canManageSettings) return;
-    if (!confirm(m.clan_confirm_delete({ name: clan.name }))) return;
+    if (!(await confirmDialog.danger(m.clan_confirm_delete({ name: clan.name })))) return;
 
     await actionState.run(async () => {
       const success = await deleteClan(clan.id);
@@ -1052,7 +1053,7 @@ savedBetSettings = {
         </a>
         <button
           onclick={copyPublicClanUrl}
-          class="flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-xs font-semibold transition-all hover:scale-103 w-full sm:w-auto {copySuccess ? 'bg-green-500/15 text-green-400 border border-green-500/20' : 'bg-surface-container-high/40 text-on-surface-variant border border-outline-variant/10 hover:bg-surface-container-high/60'}"
+          class="flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-xs font-semibold transition-all hover:scale-103 w-full sm:w-auto {copySuccess ? 'bg-success/15 text-success border border-success/20' : 'bg-surface-container-high/40 text-on-surface-variant border border-outline-variant/10 hover:bg-surface-container-high/60'}"
         >
           {#if copySuccess}
             <Papicon icon="Check" size={14} />
@@ -1099,8 +1100,8 @@ savedBetSettings = {
             <!-- Le bilan est publie dans le QG : sans salon, un clan n'en recevra jamais,
                  et rien ne le dirait sans ce rappel. -->
             {#if clanWeeklyDigest && clansWithoutHq.length > 0}
-              <div class="flex items-start gap-2.5 rounded-xl bg-amber-500/8 border border-amber-500/25 px-4 py-3">
-                <Papicon icon="Warning" size={14} class="text-amber-500 shrink-0 mt-0.5" />
+              <div class="flex items-start gap-2.5 rounded-xl bg-warning/8 border border-warning/25 px-4 py-3">
+                <Papicon icon="Warning" size={14} class="text-warning shrink-0 mt-0.5" />
                 <p class="text-xs text-on-surface-variant/80 leading-relaxed">
                   {m.clan_digest_missing_hq({ clans: clansWithoutHq.join(', ') })}
                 </p>
@@ -1125,11 +1126,11 @@ savedBetSettings = {
  
         <!-- Season Rewards / Advantages -->
         <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
-          <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-2 flex items-center gap-2"><Papicon icon="Trophy" size={18} class="text-amber-500" /> {m.clan_rewards_heading()}</h3>
+          <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-2 flex items-center gap-2"><Papicon icon="Trophy" size={18} class="text-warning" /> {m.clan_rewards_heading()}</h3>
 
           <div class="space-y-4">
             <div class="space-y-1.5">
-              <label for="clan-announcement-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_announcement_channel_label()}</label>
+              <label for="clan-announcement-channel" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_announcement_channel_label()}</label>
               <SearchableSelect
                 id="clan-announcement-channel"
                 bind:value={clanAnnouncementChannelId}
@@ -1137,7 +1138,7 @@ savedBetSettings = {
                 placeholder={m.clan_select_channel_placeholder()}
                 disabled={!canManageSettings}
               />
-              <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.clan_announcement_channel_desc()}</p>
+              <p class="text-2xs text-on-surface-variant/60 mt-1">{m.clan_announcement_channel_desc()}</p>
             </div>
 
             <div class="space-y-4 pt-2 border-t border-outline-variant/10">
@@ -1164,7 +1165,7 @@ savedBetSettings = {
         <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
           <div class="flex items-center justify-between border-b border-outline-variant/15 pb-2">
             <h3 class="text-lg font-semibold flex items-center gap-2"><Papicon icon="Calendar" size={18} /> {m.clan_current_season_heading()}</h3>
-            <span class="px-3 py-1 bg-amber-500/10 text-amber-500 text-xs font-bold rounded-full">{m.clan_season_badge({ n: currentClanSeason })}</span>
+            <span class="px-3 py-1 bg-warning/10 text-warning text-xs font-bold rounded-full">{m.clan_season_badge({ n: currentClanSeason })}</span>
           </div>
 
           <div class="space-y-4">
@@ -1185,7 +1186,7 @@ savedBetSettings = {
         <!-- Bulk Task Progress Bar -->
         {#if taskInProgress}
           <section class="bg-primary/5 border border-primary/20 p-6 rounded-xl space-y-4 animate-pulse">
-            <h3 class="text-sm font-bold text-primary uppercase tracking-wider flex items-center gap-2">
+            <h3 class="text-sm font-semibold text-primary flex items-center gap-2">
               <svg class="animate-spin h-4 w-4 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -1216,7 +1217,7 @@ savedBetSettings = {
                 <button
                   onclick={() => openConfirmation('clear')}
                   disabled={!!taskInProgress}
-                  class="flex items-center gap-1.5 px-3 py-1.5 border border-rose-500/30 hover:bg-rose-500/10 text-rose-500 font-bold text-xs rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                  class="flex items-center gap-1.5 px-3 py-1.5 border border-error/30 hover:bg-error/10 text-error font-bold text-xs rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                   title={taskInProgress ? m.clan_task_running_hint() : m.clan_clear_all_title()}
                 >
                   <Papicon icon="Trash" size={12} /> {m.clan_clear_all_btn()}
@@ -1259,7 +1260,7 @@ savedBetSettings = {
             <div class="overflow-x-auto">
               <table class="w-full text-left border-collapse">
                 <thead>
-                  <tr class="border-b border-outline-variant/10 text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-wider">
+                  <tr class="border-b border-outline-variant/10 text-xs font-semibold text-on-surface-variant/60">
                     <th class="pb-3">{m.clan_col_name()}</th>
                     <th class="pb-3">{m.clan_col_role()}</th>
                     <th class="pb-3">{m.clan_col_general_channel()}</th>
@@ -1306,7 +1307,7 @@ savedBetSettings = {
                       <td class="py-4 text-center font-medium text-xs text-on-surface">
                         {clan.memberCount ?? 0}
                       </td>
-                      <td class="py-4 text-right font-bold text-xs text-amber-500">
+                      <td class="py-4 text-right font-bold text-xs text-warning">
                         {(clan.totalXp ?? 0).toLocaleString(dateLocale())} XP
                       </td>
                       {#if canManageSettings}
@@ -1320,7 +1321,7 @@ savedBetSettings = {
                           </button>
                           <button
                             onclick={() => handleDeleteClan(clan)}
-                            class="p-1.5 hover:bg-rose-500/10 text-rose-500 rounded-lg transition-colors cursor-pointer inline-flex"
+                            class="p-1.5 hover:bg-error/10 text-error rounded-lg transition-colors cursor-pointer inline-flex"
                             title={m.clan_delete_title()}
                           >
                             <Papicon icon="Trash" size={14} />
@@ -1348,17 +1349,17 @@ savedBetSettings = {
                 <Papicon icon="calendar" size={16} class="text-primary" />
                 {m.clan_current_season_heading()}
               </h3>
-              <span class="px-3 py-1 bg-amber-500/10 text-amber-500 text-xs font-bold rounded-full">{m.clan_season_badge({ n: currentClanSeason })}</span>
+              <span class="px-3 py-1 bg-warning/10 text-warning text-xs font-bold rounded-full">{m.clan_season_badge({ n: currentClanSeason })}</span>
             </div>
 
             <div class="space-y-4">
               <div class="p-4 bg-surface-container-high/20 rounded-xl border border-outline-variant/10 space-y-3">
-                <span class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest block">{m.clan_time_remaining_label()}</span>
+                <span class="text-xs font-semibold text-on-surface-variant/60 block">{m.clan_time_remaining_label()}</span>
                 <div class="flex items-center gap-2">
                   <span class="text-xl font-extrabold text-on-surface">{timeRemaining}</span>
                 </div>
                 {#if clanSeasonStartsAt && clanSeasonEndsAt}
-                  <p class="text-[10px] text-on-surface-variant/50 leading-relaxed">
+                  <p class="text-2xs text-on-surface-variant/50 leading-relaxed">
                     {m.clan_season_start_label({ date: new Date(clanSeasonStartsAt).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) })}
                     <br />
                     {m.clan_season_end_label({ date: new Date(clanSeasonEndsAt).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) })}
@@ -1393,13 +1394,13 @@ savedBetSettings = {
 
             {#if canManageSettings}
               <div class="flex flex-wrap items-center gap-2">
-                <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest mr-1">{m.clan_quick_fill_label()}</span>
-                <button type="button" onclick={() => applyQuickRange(1)} class="px-2.5 py-1 bg-surface-container-high/50 hover:bg-primary/15 hover:text-primary text-on-surface-variant text-[11px] font-semibold rounded-md transition-colors cursor-pointer">{m.clan_month_1()}</button>
-                <button type="button" onclick={() => applyQuickRange(3)} class="px-2.5 py-1 bg-surface-container-high/50 hover:bg-primary/15 hover:text-primary text-on-surface-variant text-[11px] font-semibold rounded-md transition-colors cursor-pointer">{m.clan_quarter()}</button>
-                <button type="button" onclick={() => applyQuickRange(6)} class="px-2.5 py-1 bg-surface-container-high/50 hover:bg-primary/15 hover:text-primary text-on-surface-variant text-[11px] font-semibold rounded-md transition-colors cursor-pointer">{m.clan_month_6()}</button>
-                <button type="button" onclick={() => applyQuickRange(12)} class="px-2.5 py-1 bg-surface-container-high/50 hover:bg-primary/15 hover:text-primary text-on-surface-variant text-[11px] font-semibold rounded-md transition-colors cursor-pointer">{m.clan_year_1()}</button>
+                <span class="text-xs font-semibold text-on-surface-variant/60 mr-1">{m.clan_quick_fill_label()}</span>
+                <button type="button" onclick={() => applyQuickRange(1)} class="px-2.5 py-1 bg-surface-container-high/50 hover:bg-primary/15 hover:text-primary text-on-surface-variant text-2xs font-semibold rounded-md transition-colors cursor-pointer">{m.clan_month_1()}</button>
+                <button type="button" onclick={() => applyQuickRange(3)} class="px-2.5 py-1 bg-surface-container-high/50 hover:bg-primary/15 hover:text-primary text-on-surface-variant text-2xs font-semibold rounded-md transition-colors cursor-pointer">{m.clan_quarter()}</button>
+                <button type="button" onclick={() => applyQuickRange(6)} class="px-2.5 py-1 bg-surface-container-high/50 hover:bg-primary/15 hover:text-primary text-on-surface-variant text-2xs font-semibold rounded-md transition-colors cursor-pointer">{m.clan_month_6()}</button>
+                <button type="button" onclick={() => applyQuickRange(12)} class="px-2.5 py-1 bg-surface-container-high/50 hover:bg-primary/15 hover:text-primary text-on-surface-variant text-2xs font-semibold rounded-md transition-colors cursor-pointer">{m.clan_year_1()}</button>
                 {#if canChainNextSeason}
-                  <button type="button" onclick={applyChainAfterCurrent} class="px-2.5 py-1 bg-secondary/15 hover:bg-secondary/25 text-secondary text-[11px] font-semibold rounded-md transition-colors cursor-pointer flex items-center gap-1" title={m.clan_chain_title()}>
+                  <button type="button" onclick={applyChainAfterCurrent} class="px-2.5 py-1 bg-secondary/15 hover:bg-secondary/25 text-secondary text-2xs font-semibold rounded-md transition-colors cursor-pointer flex items-center gap-1" title={m.clan_chain_title()}>
                     <Papicon icon="Refresh" size={11} /> {m.clan_chain_btn()}
                   </button>
                 {/if}
@@ -1409,7 +1410,7 @@ savedBetSettings = {
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <!-- Début de saison -->
               <div class="space-y-2">
-                <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">{m.clan_start_date_label()}</span>
+                <span class="text-xs font-semibold text-on-surface-variant/60 block ml-1">{m.clan_start_date_label()}</span>
                 <div class="grid grid-cols-3 gap-2">
                   <input
                     type="date"
@@ -1428,7 +1429,7 @@ savedBetSettings = {
 
               <!-- Fin de saison -->
               <div class="space-y-2">
-                <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">{m.clan_end_date_label()}</span>
+                <span class="text-xs font-semibold text-on-surface-variant/60 block ml-1">{m.clan_end_date_label()}</span>
                 <div class="grid grid-cols-3 gap-2">
                   <input
                     type="date"
@@ -1505,7 +1506,7 @@ savedBetSettings = {
 
               {#if clanXpFromLevelUp}
                 <div class="space-y-1.5 pt-2 border-t border-outline-variant/10 animate-in slide-in-from-top-2 duration-200">
-                  <label for="clan-xp-levelup-amount" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">{m.clan_levelup_points_label()}</label>
+                  <label for="clan-xp-levelup-amount" class="text-xs font-semibold text-on-surface-variant/60 block ml-1">{m.clan_levelup_points_label()}</label>
                   <div class="flex items-center gap-2">
                     <input
                       id="clan-xp-levelup-amount"
@@ -1530,7 +1531,7 @@ savedBetSettings = {
                 {#if clanXpLevelUpProportional}
                   <div class="space-y-3 pt-2 animate-in slide-in-from-top-2 duration-200">
                     <div class="space-y-1.5">
-                      <label for="clan-xp-reference-level" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">{m.clan_reference_level_label()}</label>
+                      <label for="clan-xp-reference-level" class="text-xs font-semibold text-on-surface-variant/60 block ml-1">{m.clan_reference_level_label()}</label>
                       <input
                         id="clan-xp-reference-level"
                         type="number"
@@ -1540,15 +1541,15 @@ savedBetSettings = {
                         class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
                         disabled={!canManageSettings}
                       />
-                      <p class="text-[11px] text-on-surface-variant/50 ml-1">{m.clan_reference_level_hint({ level: clanXpReferenceLevel, points: clanXpPerLevelUp })}</p>
+                      <p class="text-2xs text-on-surface-variant/50 ml-1">{m.clan_reference_level_hint({ level: clanXpReferenceLevel, points: clanXpPerLevelUp })}</p>
                     </div>
 
                     <div class="rounded-lg border border-outline-variant/10 bg-surface-container-high/20 overflow-hidden">
                       <table class="w-full text-left">
                         <thead>
                           <tr class="border-b border-outline-variant/10">
-                            <th class="px-4 py-2 text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.clan_preview_level()}</th>
-                            <th class="px-4 py-2 text-right text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.clan_preview_points()}</th>
+                            <th class="px-4 py-2 text-xs font-semibold text-on-surface-variant/60">{m.clan_preview_level()}</th>
+                            <th class="px-4 py-2 text-right text-xs font-semibold text-on-surface-variant/60">{m.clan_preview_points()}</th>
                           </tr>
                         </thead>
                         <tbody class="divide-y divide-outline-variant/5">
@@ -1575,7 +1576,7 @@ savedBetSettings = {
 
               {#if clanXpFromBoost}
                 <div class="space-y-1.5 pt-2 border-t border-outline-variant/10 animate-in slide-in-from-top-2 duration-200">
-                  <label for="clan-xp-boost-amount" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">{m.clan_boost_points_label()}</label>
+                  <label for="clan-xp-boost-amount" class="text-xs font-semibold text-on-surface-variant/60 block ml-1">{m.clan_boost_points_label()}</label>
                   <div class="flex items-center gap-2">
                     <input
                       id="clan-xp-boost-amount"
@@ -1595,7 +1596,7 @@ savedBetSettings = {
           <!-- Lien avec le Daily Algo : verrouillé si le module est inactif -->
           <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
             <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-2 flex items-center gap-2">
-              <Papicon icon="Code" size={16} class="text-amber-500" />
+              <Papicon icon="Code" size={16} class="text-warning" />
               {m.clan_da_bridge_heading()}
             </h3>
 
@@ -1630,7 +1631,7 @@ savedBetSettings = {
                 {#if bridge.clanPointsFromDailyAlgo}
                   <div class="space-y-4 pt-2 border-t border-outline-variant/10 animate-in slide-in-from-top-2 duration-200">
                     <div class="space-y-1.5">
-                      <label for="clan-da-rate" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">{m.clan_da_rate_label()}</label>
+                      <label for="clan-da-rate" class="text-xs font-semibold text-on-surface-variant/60 block ml-1">{m.clan_da_rate_label()}</label>
                       <input
                         id="clan-da-rate"
                         type="number"
@@ -1641,22 +1642,22 @@ savedBetSettings = {
                         class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
                         disabled={!canManageSettings}
                       />
-                      <p class="text-[10px] text-on-surface-variant/50 ml-1">
+                      <p class="text-2xs text-on-surface-variant/50 ml-1">
                         {m.clan_da_rate_hint()}
                       </p>
                     </div>
 
                     <div class="grid grid-cols-3 gap-3">
                       <div class="space-y-1.5">
-                        <label for="clan-da-top1" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">🥇 {m.clan_da_bonus_label()}</label>
+                        <label for="clan-da-top1" class="text-xs font-semibold text-on-surface-variant/60 block ml-1">🥇 {m.clan_da_bonus_label()}</label>
                         <input id="clan-da-top1" type="number" min="0" step="5" bind:value={bridge.clanPointsDailyAlgoTop1} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold" disabled={!canManageSettings} />
                       </div>
                       <div class="space-y-1.5">
-                        <label for="clan-da-top2" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">🥈 {m.clan_da_bonus_label()}</label>
+                        <label for="clan-da-top2" class="text-xs font-semibold text-on-surface-variant/60 block ml-1">🥈 {m.clan_da_bonus_label()}</label>
                         <input id="clan-da-top2" type="number" min="0" step="5" bind:value={bridge.clanPointsDailyAlgoTop2} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold" disabled={!canManageSettings} />
                       </div>
                       <div class="space-y-1.5">
-                        <label for="clan-da-top3" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">🥉 {m.clan_da_bonus_label()}</label>
+                        <label for="clan-da-top3" class="text-xs font-semibold text-on-surface-variant/60 block ml-1">🥉 {m.clan_da_bonus_label()}</label>
                         <input id="clan-da-top3" type="number" min="0" step="5" bind:value={bridge.clanPointsDailyAlgoTop3} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold" disabled={!canManageSettings} />
                       </div>
                     </div>
@@ -1667,7 +1668,7 @@ savedBetSettings = {
                   <button
                     onclick={saveBridgeSettings}
                     disabled={bridgeAction.state.loading}
-                    class="w-full py-3 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 rounded-lg text-[13px] font-medium transition-colors hover:bg-amber-500/20 disabled:opacity-50"
+                    class="w-full py-3 bg-warning/10 text-warning border border-warning/30 rounded-lg text-body-sm font-medium transition-colors hover:bg-warning/20 disabled:opacity-50"
                   >
                     {bridgeAction.state.loading ? m.clan_da_saving_btn() : m.clan_da_save_btn()}
                   </button>
@@ -1683,13 +1684,13 @@ savedBetSettings = {
           <!-- Card 1: Add points to a Clan -->
           <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
             <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-2 flex items-center gap-2">
-              <Papicon icon="Shield" size={16} class="text-amber-500" />
+              <Papicon icon="Shield" size={16} class="text-warning" />
               {m.clan_points_clan_heading()}
             </h3>
 
             <div class="space-y-4">
               <div class="space-y-1.5">
-                <label for="manual-points-clan-select" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">{m.clan_select_clan_label()}</label>
+                <label for="manual-points-clan-select" class="text-xs font-semibold text-on-surface-variant/60 block ml-1">{m.clan_select_clan_label()}</label>
                 <SearchableSelect
                   id="manual-points-clan-select"
                   bind:value={selectedClanIdForPoints}
@@ -1700,7 +1701,7 @@ savedBetSettings = {
               </div>
 
               <div class="space-y-1.5">
-                <label for="manual-points-clan-amount" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">{m.clan_xp_amount_label()}</label>
+                <label for="manual-points-clan-amount" class="text-xs font-semibold text-on-surface-variant/60 block ml-1">{m.clan_xp_amount_label()}</label>
                 <input
                   id="manual-points-clan-amount"
                   type="number"
@@ -1726,7 +1727,7 @@ savedBetSettings = {
                   <button
                     type="button"
                     onclick={() => handleClanPoints(-1)}
-                    class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20 font-semibold text-xs rounded-lg transition-colors cursor-pointer"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-error/10 hover:bg-error/20 text-error border border-error/20 font-semibold text-xs rounded-lg transition-colors cursor-pointer"
                     disabled={!selectedClanIdForPoints}
                   >
                     <Papicon icon="Minus" size={14} /> {m.clan_remove_clan_points_btn()}
@@ -1745,7 +1746,7 @@ savedBetSettings = {
 
             <div class="space-y-4">
               <div class="space-y-1.5">
-                <label for="manual-points-member-user-id" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">{m.clan_member_id_label()}</label>
+                <label for="manual-points-member-user-id" class="text-xs font-semibold text-on-surface-variant/60 block ml-1">{m.clan_member_id_label()}</label>
                 <MemberSearchSelect
                   id="manual-points-member-user-id"
                   bind:value={manualPointsMemberUserId}
@@ -1755,7 +1756,7 @@ savedBetSettings = {
               </div>
 
               <div class="space-y-1.5">
-                <label for="manual-points-member-amount" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">{m.clan_xp_amount_label()}</label>
+                <label for="manual-points-member-amount" class="text-xs font-semibold text-on-surface-variant/60 block ml-1">{m.clan_xp_amount_label()}</label>
                 <input
                   id="manual-points-member-amount"
                   type="number"
@@ -1781,7 +1782,7 @@ savedBetSettings = {
                   <button
                     type="button"
                     onclick={() => handleMemberPoints(-1)}
-                    class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20 font-semibold text-xs rounded-lg transition-colors cursor-pointer"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-error/10 hover:bg-error/20 text-error border border-error/20 font-semibold text-xs rounded-lg transition-colors cursor-pointer"
                     disabled={!manualPointsMemberUserId}
                   >
                     <Papicon icon="Minus" size={14} /> {m.clan_remove_member_points_btn()}
@@ -1807,14 +1808,14 @@ savedBetSettings = {
           </div>
 
           {#if !clansEnabled}
-            <p class="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3">
+            <p class="text-xs text-warning bg-warning/10 border border-warning/20 rounded-lg px-4 py-3">
               {m.clan_bets_requires_clans()}
             </p>
           {/if}
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="space-y-1.5">
-              <label for="bet-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_channel_label()}</label>
+              <label for="bet-channel" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_bets_channel_label()}</label>
               <SearchableSelect
                 id="bet-channel"
                 bind:value={betSettings.betChannelId}
@@ -1822,11 +1823,11 @@ savedBetSettings = {
                 placeholder={m.clan_select_channel_placeholder()}
                 disabled={!canManageSettings}
               />
-              <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.clan_bets_channel_desc()}</p>
+              <p class="text-2xs text-on-surface-variant/60 mt-1">{m.clan_bets_channel_desc()}</p>
             </div>
 
             <div class="space-y-1.5">
-              <label for="bet-announcement-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_announcement_label()}</label>
+              <label for="bet-announcement-channel" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_bets_announcement_label()}</label>
               <SearchableSelect
                 id="bet-announcement-channel"
                 bind:value={betSettings.betAnnouncementChannelId}
@@ -1834,13 +1835,13 @@ savedBetSettings = {
                 placeholder={m.clan_select_channel_placeholder()}
                 disabled={!canManageSettings}
               />
-              <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.clan_bets_announcement_desc()}</p>
+              <p class="text-2xs text-on-surface-variant/60 mt-1">{m.clan_bets_announcement_desc()}</p>
             </div>
           </div>
 
           <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 pt-2 border-t border-outline-variant/10">
             <div class="space-y-1.5">
-              <label for="bet-min-stake" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_min_stake_label()}</label>
+              <label for="bet-min-stake" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_bets_min_stake_label()}</label>
               <input
                 id="bet-min-stake"
                 type="number"
@@ -1852,7 +1853,7 @@ savedBetSettings = {
               />
             </div>
             <div class="space-y-1.5">
-              <label for="bet-max-stake" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_max_stake_label()}</label>
+              <label for="bet-max-stake" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_bets_max_stake_label()}</label>
               <input
                 id="bet-max-stake"
                 type="number"
@@ -1864,7 +1865,7 @@ savedBetSettings = {
               />
             </div>
             <div class="space-y-1.5">
-              <label for="bet-max-open" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_max_open_label()}</label>
+              <label for="bet-max-open" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_bets_max_open_label()}</label>
               <input
                 id="bet-max-open"
                 type="number"
@@ -1876,7 +1877,7 @@ savedBetSettings = {
               />
             </div>
             <div class="space-y-1.5">
-              <label for="bet-window" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_window_label()}</label>
+              <label for="bet-window" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_bets_window_label()}</label>
               <input
                 id="bet-window"
                 type="number"
@@ -1920,13 +1921,13 @@ savedBetSettings = {
               {/each}
             </div>
           {:else}
-            <p class="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3">
+            <p class="text-xs text-warning bg-warning/10 border border-warning/20 rounded-lg px-4 py-3">
               {m.clan_bets_managers_empty()}
             </p>
           {/if}
 
           <div class="space-y-1.5">
-            <label for="bet-manager-add" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_managers_add_label()}</label>
+            <label for="bet-manager-add" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_bets_managers_add_label()}</label>
             <SearchableSelect
               id="bet-manager-add"
               bind:value={roleToAdd}
@@ -1936,7 +1937,7 @@ savedBetSettings = {
               placeholder={m.clan_bets_managers_add_placeholder()}
               disabled={!canManageSettings}
             />
-            <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.clan_bets_managers_admin_note()}</p>
+            <p class="text-2xs text-on-surface-variant/60 mt-1">{m.clan_bets_managers_admin_note()}</p>
           </div>
         </section>
 
@@ -1973,7 +1974,7 @@ savedBetSettings = {
           </div>
 
           <div class="space-y-1.5">
-            <label for="bet-stake-mode" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_stake_mode_label()}</label>
+            <label for="bet-stake-mode" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_bets_stake_mode_label()}</label>
             <select
               id="bet-stake-mode"
               bind:value={betSettings.betStakeMode}
@@ -1983,12 +1984,12 @@ savedBetSettings = {
               <option value="PER_MEMBER">{m.clan_bets_stake_mode_per_member()}</option>
               <option value="PER_SIDE">{m.clan_bets_stake_mode_per_side()}</option>
             </select>
-            <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.clan_bets_stake_mode_desc()}</p>
+            <p class="text-2xs text-on-surface-variant/60 mt-1">{m.clan_bets_stake_mode_desc()}</p>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="space-y-1.5">
-              <label for="bet-max-participants" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_max_participants_label()}</label>
+              <label for="bet-max-participants" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_bets_max_participants_label()}</label>
               <input
                 id="bet-max-participants"
                 type="number"
@@ -1998,11 +1999,11 @@ savedBetSettings = {
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
                 disabled={!canManageSettings}
               />
-              <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.clan_bets_max_participants_desc()}</p>
+              <p class="text-2xs text-on-surface-variant/60 mt-1">{m.clan_bets_max_participants_desc()}</p>
             </div>
 
             <div class="space-y-1.5">
-              <label for="bet-max-sides" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_max_sides_label()}</label>
+              <label for="bet-max-sides" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_bets_max_sides_label()}</label>
               <input
                 id="bet-max-sides"
                 type="number"
@@ -2012,7 +2013,7 @@ savedBetSettings = {
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
                 disabled={!canManageSettings || !betSettings.betAllowTeams}
               />
-              <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.clan_bets_max_sides_desc()}</p>
+              <p class="text-2xs text-on-surface-variant/60 mt-1">{m.clan_bets_max_sides_desc()}</p>
             </div>
           </div>
         </section>
@@ -2027,7 +2028,7 @@ savedBetSettings = {
           </div>
 
           <div class="space-y-1.5">
-            <label for="bet-reward-role" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_reward_role_label()}</label>
+            <label for="bet-reward-role" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_bets_reward_role_label()}</label>
             <SearchableSelect
               id="bet-reward-role"
               bind:value={betSettings.betSeasonRewardRoleId}
@@ -2035,12 +2036,12 @@ savedBetSettings = {
               placeholder={m.clan_bets_reward_role_placeholder()}
               disabled={!canManageSettings || !betSettings.betSeasonRewardEnabled}
             />
-            <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.clan_bets_reward_role_desc()}</p>
+            <p class="text-2xs text-on-surface-variant/60 mt-1">{m.clan_bets_reward_role_desc()}</p>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div class="space-y-1.5">
-              <label for="bet-reward-1" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_reward_top1_label()}</label>
+              <label for="bet-reward-1" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_bets_reward_top1_label()}</label>
               <input
                 id="bet-reward-1"
                 type="number"
@@ -2052,7 +2053,7 @@ savedBetSettings = {
               />
             </div>
             <div class="space-y-1.5">
-              <label for="bet-reward-2" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_reward_top2_label()}</label>
+              <label for="bet-reward-2" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_bets_reward_top2_label()}</label>
               <input
                 id="bet-reward-2"
                 type="number"
@@ -2064,7 +2065,7 @@ savedBetSettings = {
               />
             </div>
             <div class="space-y-1.5">
-              <label for="bet-reward-3" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_reward_top3_label()}</label>
+              <label for="bet-reward-3" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_bets_reward_top3_label()}</label>
               <input
                 id="bet-reward-3"
                 type="number"
@@ -2076,13 +2077,13 @@ savedBetSettings = {
               />
             </div>
           </div>
-          <p class="text-[10px] text-on-surface-variant/60">{m.clan_bets_reward_amounts_desc()}</p>
+          <p class="text-2xs text-on-surface-variant/60">{m.clan_bets_reward_amounts_desc()}</p>
         </section>
 
         <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
           <div class="flex items-start justify-between gap-4 border-b border-outline-variant/15 pb-3">
             <div>
-              <h3 class="text-lg font-semibold flex items-center gap-2"><Papicon icon="AlertTriangle" size={18} class="text-amber-500" /> {m.clan_bets_debt_heading()}</h3>
+              <h3 class="text-lg font-semibold flex items-center gap-2"><Papicon icon="AlertTriangle" size={18} class="text-warning" /> {m.clan_bets_debt_heading()}</h3>
               <p class="text-xs text-on-surface-variant/70 mt-1">{m.clan_bets_debt_desc()}</p>
             </div>
             <ToggleSwitch checked={betSettings.betAllowDebt} onToggle={(v) => betSettings.betAllowDebt = v} disabled={!canManageSettings} />
@@ -2090,7 +2091,7 @@ savedBetSettings = {
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="space-y-1.5">
-              <label for="bet-max-debt" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_bets_max_debt_label()}</label>
+              <label for="bet-max-debt" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_bets_max_debt_label()}</label>
               <input
                 id="bet-max-debt"
                 type="number"
@@ -2100,7 +2101,7 @@ savedBetSettings = {
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
                 disabled={!canManageSettings || !betSettings.betAllowDebt}
               />
-              <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.clan_bets_max_debt_desc()}</p>
+              <p class="text-2xs text-on-surface-variant/60 mt-1">{m.clan_bets_max_debt_desc()}</p>
             </div>
 
             <div class="flex items-center justify-between gap-4">
@@ -2114,22 +2115,22 @@ savedBetSettings = {
 
           {#if debts.length > 0}
             <div class="space-y-2 pt-2 border-t border-outline-variant/10">
-              <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.clan_bets_debt_list_label()}</p>
+              <p class="text-xs font-semibold text-on-surface-variant/60">{m.clan_bets_debt_list_label()}</p>
               {#each debts as debt (debt.userId)}
                 <div class="flex items-center justify-between gap-4 bg-surface-container-high/30 rounded-lg px-4 py-2.5">
                   <span class="text-sm text-on-surface truncate">{debt.displayName ?? debt.userId}</span>
                   <div class="flex items-center gap-3 shrink-0">
-                    <span class="text-sm font-bold text-amber-600 text-right">
+                    <span class="text-sm font-bold text-warning text-right">
                       {debt.amount.toLocaleString(dateLocale())} pts
                       {#if debt.engaged > 0}
-                        <span class="block text-[10px] font-medium text-on-surface-variant/60">
+                        <span class="block text-2xs font-medium text-on-surface-variant/60">
                           {m.clan_bets_debt_engaged_hint({ amount: debt.engaged.toLocaleString(dateLocale()) })}
                         </span>
                       {/if}
                     </span>
                     <button
                       type="button"
-                      class="text-xs font-semibold text-rose-500 hover:underline cursor-pointer disabled:opacity-40"
+                      class="text-xs font-semibold text-error hover:underline cursor-pointer disabled:opacity-40"
                       disabled={!canManageSettings}
                       onclick={() => openDebtClear(debt)}
                     >
@@ -2139,7 +2140,7 @@ savedBetSettings = {
                 </div>
               {/each}
               {#if debtCount > debts.length}
-                <p class="text-[11px] text-on-surface-variant/60 italic pt-1">
+                <p class="text-2xs text-on-surface-variant/60 italic pt-1">
                   {m.clan_bets_list_truncated({ shown: debts.length, total: debtCount })}
                 </p>
               {/if}
@@ -2162,7 +2163,7 @@ savedBetSettings = {
                 <div class="bg-surface-container-high/30 rounded-lg px-4 py-3 space-y-1.5">
                   <div class="flex items-start justify-between gap-4">
                     <span class="text-sm font-medium text-on-surface">{bet.subject}</span>
-                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 {betStatusClass(bet.status)}">
+                    <span class="px-2 py-0.5 rounded-full text-2xs font-bold shrink-0 {betStatusClass(bet.status)}">
                       {betStatusLabels[bet.status] ?? bet.status}
                     </span>
                   </div>
@@ -2180,7 +2181,7 @@ savedBetSettings = {
                       </p>
                     {/each}
                   </div>
-                  <p class="text-[11px] text-on-surface-variant/60">
+                  <p class="text-2xs text-on-surface-variant/60">
                     {m.clan_bets_history_line({
                       stake: bet.stake.toLocaleString(dateLocale()),
                       pot: bet.pot.toLocaleString(dateLocale()),
@@ -2191,7 +2192,7 @@ savedBetSettings = {
                 </div>
               {/each}
               {#if betCount > bets.length}
-                <p class="text-[11px] text-on-surface-variant/60 italic pt-1">
+                <p class="text-2xs text-on-surface-variant/60 italic pt-1">
                   {m.clan_bets_list_truncated({ shown: bets.length, total: betCount })}
                 </p>
               {/if}
@@ -2203,9 +2204,9 @@ savedBetSettings = {
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6" transition:fade={{ duration: 150 }}>
           
           <!-- Card 1: Recommencer à la Saison 1 (Reset All) -->
-          <section class="bg-surface-container-low/40 border border-rose-500/20 p-6 rounded-xl space-y-6 flex flex-col justify-between">
+          <section class="bg-surface-container-low/40 border border-error/20 p-6 rounded-xl space-y-6 flex flex-col justify-between">
             <div class="space-y-4">
-              <h3 class="text-lg font-semibold border-b border-rose-500/10 pb-2 flex items-center gap-2 text-rose-500">
+              <h3 class="text-lg font-semibold border-b border-error/10 pb-2 flex items-center gap-2 text-error">
                 <Papicon icon="AlertTriangle" size={16} />
                 {m.clan_reset_all_heading()}
               </h3>
@@ -2214,7 +2215,7 @@ savedBetSettings = {
                 {m.clan_reset_all_desc()}
               </p>
 
-              <div class="p-3 bg-rose-500/10 rounded-lg border border-rose-500/10 text-rose-500 text-xs flex gap-2">
+              <div class="p-3 bg-error/10 rounded-lg border border-error/10 text-error text-xs flex gap-2">
                 <Papicon icon="Info" size={16} class="shrink-0 mt-0.5" />
                 <span><strong>{m.clan_reset_all_warning_prefix()}</strong> {m.clan_reset_all_warning({ tab: m.clan_tab_seasons() })}</span>
               </div>
@@ -2272,7 +2273,7 @@ savedBetSettings = {
       
       <button
         onclick={() => showModal = false}
-        class="absolute top-6 right-6 p-2 rounded-full bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+        class="absolute top-6 right-6 p-2 rounded-full bg-surface-container-high/40 hover:bg-error/15 hover:text-error text-on-surface-variant transition-colors cursor-pointer"
       >
         <Papicon icon="Cross" size={18} />
       </button>
@@ -2284,7 +2285,7 @@ savedBetSettings = {
 
       <form onsubmit={(e) => { e.preventDefault(); handleSaveClan(); }} class="space-y-4">
         <div class="space-y-1.5">
-          <label for="clan-name" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_name_label()}</label>
+          <label for="clan-name" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_name_label()}</label>
           <input
             id="clan-name"
             type="text"
@@ -2297,7 +2298,7 @@ savedBetSettings = {
         </div>
 
         <div class="space-y-1.5">
-          <label for="clan-desc" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_desc_label()}</label>
+          <label for="clan-desc" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_desc_label()}</label>
           <textarea
             id="clan-desc"
             bind:value={formDescription}
@@ -2308,7 +2309,7 @@ savedBetSettings = {
         </div>
 
         <div class="space-y-1.5">
-          <label for="clan-role" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_role_label()}</label>
+          <label for="clan-role" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_role_label()}</label>
           <SearchableSelect
             id="clan-role"
             bind:value={formRoleId}
@@ -2319,7 +2320,7 @@ savedBetSettings = {
         </div>
 
         <div class="space-y-1.5">
-          <label for="clan-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_general_channel_label()}</label>
+          <label for="clan-channel" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_general_channel_label()}</label>
           <SearchableSelect
             id="clan-channel"
             bind:value={formGeneralChannelId}
@@ -2330,7 +2331,7 @@ savedBetSettings = {
         </div>
 
         <div class="space-y-1.5">
-          <label for="clan-leader-role" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.clan_leader_role_label()}</label>
+          <label for="clan-leader-role" class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.clan_leader_role_label()}</label>
           <SearchableSelect
             id="clan-leader-role"
             bind:value={formLeaderRoleId}
@@ -2377,7 +2378,7 @@ savedBetSettings = {
         <h3 class="text-lg font-semibold text-on-surface">
           {m.clan_bets_debt_clear_title()}
         </h3>
-        <p class="text-sm font-bold text-amber-600 mt-2">
+        <p class="text-sm font-bold text-warning mt-2">
           {target.displayName ?? target.userId} · {target.amount.toLocaleString(dateLocale())} pts
         </p>
         <p class="text-xs text-on-surface-variant/80 mt-2">{m.clan_bets_debt_clear_desc()}</p>
@@ -2423,13 +2424,13 @@ savedBetSettings = {
       
       <button
         onclick={() => showConfirmModal = false}
-        class="absolute top-6 right-6 p-2 rounded-full bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
+        class="absolute top-6 right-6 p-2 rounded-full bg-surface-container-high/40 hover:bg-error/15 hover:text-error text-on-surface-variant transition-colors cursor-pointer"
       >
         <Papicon icon="Cross" size={18} />
       </button>
 
       <div>
-        <h3 class="text-lg font-semibold text-rose-500 flex items-center gap-2">
+        <h3 class="text-lg font-semibold text-error flex items-center gap-2">
           <Papicon icon="AlertTriangle" size={20} />
           {m.clan_validation_required_title()}
         </h3>
@@ -2441,7 +2442,7 @@ savedBetSettings = {
           {:else if confirmActionType === 'distribute'}
             {m.clan_confirm_desc_distribute()}
           {:else if confirmActionType === 'reset-all'}
-            <span class="text-rose-500 font-bold inline-flex items-center gap-1 align-[-2px]"><Papicon icon="AlertTriangle" size={13} /> {m.clan_confirm_desc_resetall_warning()}</span> {m.clan_confirm_desc_resetall()}
+            <span class="text-error font-bold inline-flex items-center gap-1 align-[-2px]"><Papicon icon="AlertTriangle" size={13} /> {m.clan_confirm_desc_resetall_warning()}</span> {m.clan_confirm_desc_resetall()}
           {:else if confirmActionType === 'rollback'}
             {m.clan_confirm_desc_rollback({ prev: currentClanSeason - 1, current: currentClanSeason, prevprev: currentClanSeason - 2 })}
           {/if}
@@ -2450,7 +2451,7 @@ savedBetSettings = {
 
       <div class="space-y-4">
         <div class="space-y-1.5">
-          <label for="confirm-word" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">
+          <label for="confirm-word" class="text-xs font-semibold text-on-surface-variant/60 ml-1">
             {m.clan_type_to_confirm_label({ word: confirmWordFor(confirmActionType) })}
           </label>
           <input
@@ -2458,7 +2459,7 @@ savedBetSettings = {
             type="text"
             bind:value={confirmInput}
             placeholder={confirmWordFor(confirmActionType)}
-            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none font-bold uppercase tracking-wider"
+            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none font-semibold"
           />
         </div>
 

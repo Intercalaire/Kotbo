@@ -31,18 +31,18 @@
       <p class="text-[15px] font-semibold text-[#f2f3f5] leading-snug"><EmojiText value={title} /></p>
     {/if}
     {#if description}
-      <p class="mt-1 text-[13.5px] leading-[1.4] text-[#dbdee1] whitespace-pre-wrap break-words"><EmojiText value={description} /></p>
+      <p class="mt-1 text-body-sm leading-[1.4] text-[#dbdee1] whitespace-pre-wrap break-words"><EmojiText value={description} /></p>
     {/if}
 
     {#if fields.length}
       <div class="mt-2.5 space-y-2">
         {#each fields as field, index (index)}
           <div>
-            <p class="text-[13.5px] font-semibold text-[#f2f3f5]">
+            <p class="text-body-sm font-semibold text-[#f2f3f5]">
               {#if field.emoji}<span class="mr-1"><EmojiText value={field.emoji} /></span>{/if}{field.name}
             </p>
             {#if field.value}
-              <p class="text-[13px] leading-[1.4] text-[#b5bac1] whitespace-pre-wrap break-words"><EmojiText value={field.value} /></p>
+              <p class="text-body-sm leading-[1.4] text-[#b5bac1] whitespace-pre-wrap break-words"><EmojiText value={field.value} /></p>
             {/if}
           </div>
         {/each}
@@ -57,7 +57,7 @@
   <div class="mt-2 flex flex-wrap gap-2 max-w-[440px]">
     {#each buttons as button, index (index)}
       <span
-        class="inline-flex items-center gap-1.5 rounded-[3px] px-3 py-1.5 text-[13px] font-medium text-white"
+        class="inline-flex items-center gap-1.5 rounded-[3px] px-3 py-1.5 text-body-sm font-medium text-white"
         style="background-color: {color}"
       >
         {#if button.emoji}<span><EmojiText value={button.emoji} /></span>{/if}

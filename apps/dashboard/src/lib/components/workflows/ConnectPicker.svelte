@@ -99,7 +99,7 @@
         {#each [{ items: exact, label: '' }, { items: coerced, label: m.wf_connect_coerced() }] as group (group.label)}
           {#if group.items.length > 0}
             {#if group.label}
-              <p class="pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70">{group.label}</p>
+              <p class="pt-3 pb-1 text-xs font-semibold text-on-surface-variant/70">{group.label}</p>
             {/if}
             {#each group.items as entry (entry.def.type)}
               <button
@@ -109,9 +109,9 @@
               >
                 <span class="min-w-0 space-y-0.5">
                   <span class="block text-xs font-semibold text-on-surface">{entry.def.label}</span>
-                  <span class="block text-[11px] text-on-surface-variant/70 leading-snug">{entry.def.description}</span>
+                  <span class="block text-2xs text-on-surface-variant/70 leading-snug">{entry.def.description}</span>
                 </span>
-                <span class="shrink-0 flex items-center gap-1.5 text-[10px] text-on-surface-variant/70">
+                <span class="shrink-0 flex items-center gap-1.5 text-2xs text-on-surface-variant/70">
                   <span class="w-2 h-2 rounded-full" style="background: {PORT_COLORS[entry.port.type]}"></span>
                   {entry.port.label || entry.port.type}
                 </span>

@@ -1,8 +1,7 @@
 import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
-import prisma from '../../utils/db.js';
-import { getOrCreateRpgProfile, getOrCreateEconomyConfig, registerGambleAttempt } from '../../services/features/economyService.js';
+import { getOrCreateRpgProfile, getOrCreateEconomyConfig, registerGambleAttempt, takeBet, creditBalance } from '../../services/features/economyService.js';
 import { errorEmbed, COLORS } from '../../utils/embeds.js';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
@@ -83,6 +82,15 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     await registerGambleAttempt(guildId, userId, bet);
 
+    // Mise prise d'avance par une écriture conditionnelle, gain versé par incrément : voir takeBet.
+    if (!(await takeBet(profile.id, bet))) {
+      await interaction.reply({
+        embeds: [errorEmbed(m.b2_insufficient_balance_title({}, { locale }), m.b2_rps_insufficient_desc({ bet, balance: profile.balance }, { locale }))],
+        flags: [MessageFlags.Ephemeral]
+      });
+      return;
+    }
+
     // Bot choice
     const botChoice = CHOICES[Math.floor(Math.random() * CHOICES.length)]!;
 
@@ -117,13 +125,9 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       embedColor = COLORS.danger;
     }
 
-    const netGain = Math.floor(bet * multiplier) - bet;
-    const newBalance = profile.balance + netGain;
-
-    await prisma.rpgProfile.update({
-      where: { id: profile.id },
-      data: { balance: newBalance }
-    });
+    const payout = Math.floor(bet * multiplier);
+    const netGain = payout - bet;
+    const newBalance = await creditBalance(profile.id, payout);
 
     const embed = new EmbedBuilder()
       .setTitle(m.b2_rps_embed_title({}, { locale }))

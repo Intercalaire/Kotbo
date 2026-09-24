@@ -238,7 +238,7 @@
       <!-- Editor Form -->
       <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 h-fit max-h-[85vh] overflow-y-auto scrollbar-thin pr-3">
         <div class="p-5 rounded-lg bg-surface-container-high/20 border border-outline-variant/10 space-y-4">
-          <h3 class="text-sm font-semibold uppercase tracking-wider text-on-surface-variant/80">{m.embed_builder_templates_title()}</h3>
+          <h3 class="text-sm font-semibold text-on-surface-variant/80">{m.embed_builder_templates_title()}</h3>
           {#if canManageSettings}
             <div class="flex flex-col sm:flex-row gap-2">
               <input
@@ -250,7 +250,7 @@
               <button
                 type="button"
                 onclick={saveCurrentAsTemplate}
-                class="px-4 py-2.5 bg-secondary/20 text-secondary font-semibold uppercase tracking-widest text-[10px] rounded-xl hover:bg-secondary/30 transition-all"
+                class="px-4 py-2.5 bg-secondary/20 text-secondary font-semibold text-xs rounded-xl hover:bg-secondary/30 transition-all"
               >
                 {m.embed_builder_save_template_btn()}
               </button>
@@ -270,7 +270,7 @@
                   >
                     {tpl.name}
                   </button>
-                  <span class="text-[11px] text-on-surface-variant/40 shrink-0">
+                  <span class="text-2xs text-on-surface-variant/40 shrink-0">
                     {new Date(tpl.createdAt).toLocaleDateString()}
                   </span>
                   {#if canManageSettings}
@@ -296,7 +296,7 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="space-y-1.5">
-            <label for="targetChan" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.embed_builder_channel_label()}</label>
+            <label for="targetChan" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.embed_builder_channel_label()}</label>
             <SearchableSelect 
               id="targetChan"
               bind:value={targetChannelId} 
@@ -308,7 +308,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="msgId" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.embed_builder_msg_id_label()}</label>
+            <label for="msgId" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.embed_builder_msg_id_label()}</label>
             <input 
               id="msgId"
               type="text" 
@@ -321,9 +321,9 @@
         </div>
 
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-          <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">{m.embed_builder_msg_text_header()}</h4>
+          <h4 class="text-xs font-semibold text-on-surface-variant/80">{m.embed_builder_msg_text_header()}</h4>
           <div class="space-y-1.5">
-            <label for="msgContent" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_content_label()}</label>
+            <label for="msgContent" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_content_label()}</label>
             <textarea 
               id="msgContent"
               bind:value={content} 
@@ -335,10 +335,10 @@
         </div>
 
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-          <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">{m.embed_builder_author_header()}</h4>
+          <h4 class="text-xs font-semibold text-on-surface-variant/80">{m.embed_builder_author_header()}</h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
-              <label for="authorName" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_author_name_label()}</label>
+              <label for="authorName" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_author_name_label()}</label>
               <input 
                 id="authorName"
                 type="text" 
@@ -349,7 +349,7 @@
               />
             </div>
             <div class="space-y-1.5">
-              <label for="authorIcon" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_author_icon_label()}</label>
+              <label for="authorIcon" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_author_icon_label()}</label>
               <input 
                 id="authorIcon"
                 type="url" 
@@ -360,7 +360,7 @@
               />
             </div>
             <div class="space-y-1.5 sm:col-span-2">
-              <label for="authorUrl" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_author_url_label()}</label>
+              <label for="authorUrl" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_author_url_label()}</label>
               <input 
                 id="authorUrl"
                 type="url" 
@@ -374,9 +374,9 @@
         </div>
 
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-          <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">{m.embed_builder_main_content_header()}</h4>
+          <h4 class="text-xs font-semibold text-on-surface-variant/80">{m.embed_builder_main_content_header()}</h4>
           <div class="space-y-1.5">
-            <label for="embedTitle" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_embed_title_label()}</label>
+            <label for="embedTitle" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_embed_title_label()}</label>
             <input 
               id="embedTitle"
               type="text" 
@@ -388,7 +388,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="embedUrl" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_embed_url_label()}</label>
+            <label for="embedUrl" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_embed_url_label()}</label>
             <input 
               id="embedUrl"
               type="url" 
@@ -400,7 +400,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="embedDesc" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_desc_label()}</label>
+            <label for="embedDesc" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_desc_label()}</label>
             <textarea 
               id="embedDesc"
               bind:value={embed.description} 
@@ -412,7 +412,7 @@
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
-              <label for="embedColor" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_color_label()}</label>
+              <label for="embedColor" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_color_label()}</label>
               <div class="flex gap-2">
                 <input 
                   id="embedColor"
@@ -432,7 +432,7 @@
             </div>
             
             <div class="space-y-1.5">
-              <label for="embedThumbnail" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_thumbnail_label()}</label>
+              <label for="embedThumbnail" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_thumbnail_label()}</label>
               <input 
                 id="embedThumbnail"
                 type="url" 
@@ -445,7 +445,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="embedImage" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_image_label()}</label>
+            <label for="embedImage" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_image_label()}</label>
             <input 
               id="embedImage"
               type="url" 
@@ -460,7 +460,7 @@
         <!-- Fields Builder -->
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
           <div class="flex items-center justify-between">
-            <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">{m.embed_builder_fields_header({ n: embed.fields.length })}</h4>
+            <h4 class="text-xs font-semibold text-on-surface-variant/80">{m.embed_builder_fields_header({ n: embed.fields.length })}</h4>
             <button 
               type="button" 
               onclick={addField} 
@@ -476,7 +476,7 @@
               <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 space-y-3 relative group">
                 <div class="flex gap-2">
                   <div class="flex-1 space-y-1">
-                    <label for={`fldName-${idx}`} class="text-[10px] font-bold text-on-surface-variant/50 ml-1 uppercase">{m.embed_builder_field_title_label()}</label>
+                    <label for={`fldName-${idx}`} class="text-2xs font-bold text-on-surface-variant/50 ml-1 uppercase">{m.embed_builder_field_title_label()}</label>
                     <input 
                       id={`fldName-${idx}`}
                       type="text" 
@@ -500,7 +500,7 @@
                 </div>
 
                 <div class="space-y-1">
-                  <label for={`fldVal-${idx}`} class="text-[10px] font-bold text-on-surface-variant/50 ml-1 uppercase">{m.embed_builder_field_val_label()}</label>
+                  <label for={`fldVal-${idx}`} class="text-2xs font-bold text-on-surface-variant/50 ml-1 uppercase">{m.embed_builder_field_val_label()}</label>
                   <textarea 
                     id={`fldVal-${idx}`}
                     bind:value={fld.value} 
@@ -519,7 +519,7 @@
                     class="rounded border-outline-variant/20 text-primary focus:ring-primary/20"
                     disabled={!canManageSettings}
                   />
-                  <label for={`fldInline-${idx}`} class="text-[11px] font-bold text-on-surface-variant/60 uppercase">{m.embed_builder_field_inline_label()}</label>
+                  <label for={`fldInline-${idx}`} class="text-2xs font-bold text-on-surface-variant/60 uppercase">{m.embed_builder_field_inline_label()}</label>
                 </div>
               </div>
             {/each}
@@ -527,10 +527,10 @@
         </div>
 
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-          <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">{m.embed_builder_footer_header()}</h4>
+          <h4 class="text-xs font-semibold text-on-surface-variant/80">{m.embed_builder_footer_header()}</h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
-              <label for="footerText" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_footer_text_label()}</label>
+              <label for="footerText" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_footer_text_label()}</label>
               <input 
                 id="footerText"
                 type="text" 
@@ -541,7 +541,7 @@
               />
             </div>
             <div class="space-y-1.5">
-              <label for="footerIcon" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_footer_icon_label()}</label>
+              <label for="footerIcon" class="text-2xs font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_footer_icon_label()}</label>
               <input 
                 id="footerIcon"
                 type="url" 
@@ -559,7 +559,7 @@
                 class="rounded border-outline-variant/20 text-primary focus:ring-primary/20"
                 disabled={!canManageSettings}
               />
-              <label for="embedTimestamp" class="text-[11px] font-bold text-on-surface-variant/60 uppercase">{m.embed_builder_timestamp_label()}</label>
+              <label for="embedTimestamp" class="text-2xs font-bold text-on-surface-variant/60 uppercase">{m.embed_builder_timestamp_label()}</label>
             </div>
           </div>
         </div>
@@ -569,7 +569,7 @@
             <button 
               onclick={handleSend}
               disabled={actionState.state.loading || !targetChannelId}
-              class="px-8 py-3.5 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all disabled:opacity-50"
+              class="px-8 py-3.5 bg-primary text-on-primary font-medium text-body-sm rounded-lg transition-all disabled:opacity-50"
             >
               {targetMessageId.trim() ? m.embed_builder_edit_btn() : m.embed_builder_publish_btn()}
             </button>
@@ -592,8 +592,8 @@
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2">
                 <span class="font-bold text-primary">Kotbo</span>
-                <span class="bg-primary/20 text-primary text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase leading-none">BOT</span>
-                <span class="text-[11px] text-on-surface-variant/40">{m.announcements_today_at({ time: '12:10' })}</span>
+                <span class="bg-primary/20 text-primary text-2xs font-semibold px-1.5 py-0.5 rounded uppercase leading-none">BOT</span>
+                <span class="text-2xs text-on-surface-variant/40">{m.announcements_today_at({ time: '12:10' })}</span>
               </div>
               
               <!-- Message content (outside embed) -->
@@ -661,7 +661,7 @@
 
                     <!-- Footer / Timestamp -->
                     {#if embed.footerText || embed.timestamp}
-                      <div class="flex items-center gap-2 text-[10px] text-[#72767d] font-bold pt-1">
+                      <div class="flex items-center gap-2 text-2xs text-[#72767d] font-bold pt-1">
                         {#if embed.footerIconUrl}
                           <img src={embed.footerIconUrl} alt="" class="w-4 h-4 rounded-full object-cover" />
                         {/if}

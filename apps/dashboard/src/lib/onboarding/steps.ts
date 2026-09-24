@@ -84,7 +84,7 @@ export type StepDefinition = {
 
 export const STEPS: StepDefinition[] = [
   { key: 'welcome', label: () => 'Bienvenue', icon: 'sparkles', phase: 'discovery', track: null, requires: null, optional: false, layout: 'centered' },
-  { key: 'kind', label: () => 'Votre serveur', icon: 'search', phase: 'discovery', track: null, requires: null, optional: false, layout: 'centered' },
+  { key: 'kind', label: () => 'Ton serveur', icon: 'search', phase: 'discovery', track: null, requires: null, optional: false, layout: 'centered' },
   { key: 'migration-bots', label: () => m.onb_step_migration_bots(), icon: 'radar', phase: 'discovery', track: null, requires: 'existing', optional: false, layout: 'centered' },
   { key: 'migration-findings', label: () => m.onb_step_migration_findings(), icon: 'download', phase: 'discovery', track: null, requires: 'existing', optional: true, layout: 'centered' },
   { key: 'tracks', label: () => m.onb_step_tracks(), icon: 'list-checks', phase: 'discovery', track: null, requires: null, optional: false, layout: 'centered' },
@@ -146,7 +146,7 @@ export function stepDefinition(step: WizardStep): StepDefinition {
  */
 export const PHASES: { key: PhaseKey; label: () => string }[] = [
   { key: 'discovery', label: () => 'Découverte' },
-  { key: 'setup', label: () => 'Votre serveur' },
+  { key: 'setup', label: () => 'Ton serveur' },
   { key: 'build', label: () => 'Construction' },
   { key: 'polish', label: () => 'Personnalisation' },
   { key: 'launch', label: () => 'Lancement' },

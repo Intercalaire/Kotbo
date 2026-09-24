@@ -25,11 +25,25 @@
   let busyIds = $state<string[]>([]);
   let drafts = $state<Record<string, AdminPlanKey>>({});
   let reasons = $state<Record<string, string>>({});
+  // Les serveurs que le bot a quittés restent en base et encombraient la liste : ils sont
+  // masqués par défaut, accès actif compris. Seuls ceux qui ont encore un abonnement Stripe
+  // restent visibles : ils paient alors que le bot n'y est plus, c'est à surveiller.
+  let showAbsent = $state(false);
+
+  /** Serveur quitté par le bot et sans abonnement Stripe : masqué tant que le bouton est éteint. */
+  function isIdleAbsent(guild: AdminBillingGuild): boolean {
+    return !guild.present && !guild.stripeSubscriptionId;
+  }
 
   const guilds = $derived(billingState?.guilds ?? []);
+  const hiddenAbsentCount = $derived(guilds.filter(isIdleAbsent).length);
+  // Les compteurs des filtres suivent ce qui est affiché, serveurs masqués exclus.
+  const countable = $derived(showAbsent ? guilds : guilds.filter((guild) => !isIdleAbsent(guild)));
   const filtered = $derived.by(() => {
     const needle = search.trim().toLowerCase();
     return guilds
+      // Une recherche les inclut quand même : on doit pouvoir retrouver un serveur par son id.
+      .filter((guild) => showAbsent || needle || !isIdleAbsent(guild))
       .filter((guild) => !needle || (guild.name ?? '').toLowerCase().includes(needle) || guild.id.includes(needle))
       .filter((guild) => filter === 'ALL' || guild.plan === filter || (filter === 'STRIPE' && Boolean(guild.stripeSubscriptionId)))
       .sort((a, b) => (a.name ?? a.id).localeCompare(b.name ?? b.id, 'fr'));
@@ -115,14 +129,14 @@
     </div>
 
     {#if billingState && !billingState.enabled}
-      <div class="flex gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
+      <div class="flex gap-3 rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
         <Papicon icon="TriangleAlert" size={18} class="shrink-0 mt-0.5" />
         <p>Stripe n'est pas configuré sur cette instance. Les offres manuelles restent utilisables, mais la resynchronisation et les achats sont indisponibles.</p>
       </div>
     {/if}
 
     {#if error}
-      <div class="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-500">{error}</div>
+      <div class="rounded-2xl border border-error/30 bg-error/10 p-4 text-sm text-error">{error}</div>
     {/if}
 
     <AdminToolbar
@@ -132,11 +146,25 @@
       resultCount={filtered.length}
       resultLabel="serveur"
       filters={[
-        { value: 'ALL', label: 'Tous', count: guilds.length },
-        ...(billingState?.plans ?? []).map((plan) => ({ value: plan.key, label: plan.name, count: billingState?.counts[plan.key] ?? 0 })),
-        { value: 'STRIPE', label: 'Avec Stripe', count: billingState?.subscriptions ?? 0 },
+        { value: 'ALL', label: 'Tous', count: countable.length },
+        ...(billingState?.plans ?? []).map((plan) => ({ value: plan.key, label: plan.name, count: countable.filter((guild) => guild.plan === plan.key).length })),
+        { value: 'STRIPE', label: 'Avec Stripe', count: countable.filter((guild) => Boolean(guild.stripeSubscriptionId)).length },
       ]}
-    />
+    >
+      {#snippet actions()}
+        <button
+          type="button"
+          onclick={() => (showAbsent = !showAbsent)}
+          aria-pressed={showAbsent}
+          title="Serveurs que le bot a quittés et qui n'ont pas d'abonnement Stripe"
+          class="h-10 px-3 rounded-xl border text-xs font-medium transition {showAbsent
+            ? 'bg-primary/10 border-primary/40 text-primary'
+            : 'bg-surface-container-low/70 border-outline-variant/25 text-on-surface-variant hover:text-on-surface'}"
+        >
+          {showAbsent ? 'Masquer les serveurs hors bot' : `Afficher les serveurs hors bot (${hiddenAbsentCount})`}
+        </button>
+      {/snippet}
+    </AdminToolbar>
 
     {#if loading}
       <div class="h-56 rounded-2xl bg-on-surface/6 animate-pulse"></div>
@@ -150,7 +178,7 @@
               <div class="min-w-0 xl:w-64">
                 <div class="flex items-center gap-2">
                   <h2 class="font-semibold text-on-surface truncate">{guild.name ?? 'Serveur absent'}</h2>
-                  {#if !guild.present}<span class="px-2 py-0.5 rounded-full bg-on-surface/8 text-[10px] text-on-surface-variant">hors bot</span>{/if}
+                  {#if !guild.present}<span class="px-2 py-0.5 rounded-full bg-on-surface/8 text-2xs text-on-surface-variant">hors bot</span>{/if}
                 </div>
                 <p class="text-xs font-mono text-on-surface-variant mt-1 select-all">{guild.id}</p>
                 <p class="text-xs text-on-surface-variant mt-2">Accès : {guild.activated ? 'actif' : 'inactif'}{guild.accessExpiresAt ? ` jusqu'au ${date(guild.accessExpiresAt)}` : ''}</p>
@@ -173,8 +201,8 @@
               </div>
               <div class="flex flex-wrap gap-2">
                 <button onclick={() => resync(guild)} disabled={busyIds.includes(guild.id) || !guild.stripeSubscriptionId || !billingState?.enabled} class="h-9 px-3 rounded-lg bg-on-surface/6 hover:bg-on-surface/10 text-xs font-medium text-on-surface disabled:opacity-40">Resynchroniser</button>
-                <button onclick={() => resetTrial(guild)} disabled={busyIds.includes(guild.id) || !guild.trial} class="h-9 px-3 rounded-lg bg-amber-500/10 hover:bg-amber-500/15 text-xs font-medium text-amber-600 dark:text-amber-400 disabled:opacity-40">Rendre l'essai</button>
-                <button onclick={() => detach(guild)} disabled={busyIds.includes(guild.id) || (!guild.stripeCustomerId && !guild.stripeSubscriptionId)} class="h-9 px-3 rounded-lg bg-red-500/10 hover:bg-red-500/15 text-xs font-medium text-red-500 disabled:opacity-40">Détacher Stripe</button>
+                <button onclick={() => resetTrial(guild)} disabled={busyIds.includes(guild.id) || !guild.trial} class="h-9 px-3 rounded-lg bg-warning/10 hover:bg-warning/15 text-xs font-medium text-warning disabled:opacity-40">Rendre l'essai</button>
+                <button onclick={() => detach(guild)} disabled={busyIds.includes(guild.id) || (!guild.stripeCustomerId && !guild.stripeSubscriptionId)} class="h-9 px-3 rounded-lg bg-error/10 hover:bg-error/15 text-xs font-medium text-error disabled:opacity-40">Détacher Stripe</button>
               </div>
             </div>
           </section>

@@ -2,7 +2,7 @@ import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import prisma from '../../utils/db.js';
-import { getOrCreateRpgProfile, getOrCreateEconomyConfig, registerGambleAttempt } from '../../services/features/economyService.js';
+import { getOrCreateRpgProfile, getOrCreateEconomyConfig, registerGambleAttempt, takeBet, creditBalance } from '../../services/features/economyService.js';
 import { errorEmbed, COLORS } from '../../utils/embeds.js';
 import { getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
@@ -57,6 +57,15 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     await registerGambleAttempt(guildId, userId, bet);
 
+    // Mise prise d'avance par une écriture conditionnelle, gain versé par incrément : voir takeBet.
+    if (!(await takeBet(profile.id, bet))) {
+      await interaction.reply({
+        embeds: [errorEmbed('Solde insuffisant', `Vous n'avez plus assez de pièces pour parier **${bet}** 🪙.`)],
+        flags: [MessageFlags.Ephemeral]
+      });
+      return;
+    }
+
     // Roll chamber (1 to 6)
     const firedChamber = 1;
     const rolledChamber = Math.floor(Math.random() * 6) + 1;
@@ -79,15 +88,19 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       embedColor = COLORS.success;
     }
 
-    const newBalance = profile.balance + netGain;
+    const newBalance = await creditBalance(profile.id, bet + netGain);
 
-    await prisma.rpgProfile.update({
-      where: { id: profile.id },
-      data: {
-        balance: newBalance,
-        health: newHp
+    // Les PV aussi s'écrivent sans repartir d'une lecture périmée : une potion bue pendant
+    // la partie n'est pas effacée. Un reste inférieur aux dégâts tombe à zéro.
+    if (isShot) {
+      const hurt = await prisma.rpgProfile.updateMany({
+        where: { id: profile.id, health: { gte: 50 } },
+        data: { health: { decrement: 50 } },
+      });
+      if (hurt.count === 0) {
+        await prisma.rpgProfile.updateMany({ where: { id: profile.id, health: { lt: 50 } }, data: { health: 0 } });
       }
-    });
+    }
 
     const embed = new EmbedBuilder()
       .setTitle('🔫 Roulette Russe')

@@ -14,6 +14,7 @@ type ProfileState = {
   level: number;
   xp: number;
   lastDaily: Date | null;
+  dailyStreak: number;
   lastWork: Date | null;
   dailyBetCount: number;
   dailyBetWindowStart: Date | null;
@@ -65,6 +66,7 @@ const rpgProfile = {
     if (data.balance?.increment) profile.balance += data.balance.increment;
     if (data.xp?.increment) profile.xp += data.xp.increment;
     if (data.lastDaily) profile.lastDaily = data.lastDaily;
+    if (typeof data.dailyStreak === 'number') profile.dailyStreak = data.dailyStreak;
     if (data.lastWork) profile.lastWork = data.lastWork;
     if (typeof data.dailyBetCount === 'number') profile.dailyBetCount = data.dailyBetCount;
     if (data.dailyBetCount?.increment) profile.dailyBetCount += data.dailyBetCount.increment;
@@ -117,6 +119,7 @@ beforeEach(() => {
     level: 1,
     xp: 0,
     lastDaily: null,
+    dailyStreak: 0,
     lastWork: null,
     dailyBetCount: 0,
     dailyBetWindowStart: null,
@@ -136,6 +139,19 @@ describe('atomic economy cooldowns and quotas', () => {
     expect(results.filter((result) => result.success)).toHaveLength(1);
     expect(results.filter((result) => !result.success)).toHaveLength(1);
     expect(profile.balance).toBe(50);
+  });
+
+  test('a daily claimed the next day extends the streak and raises the reward', async () => {
+    profile.lastDaily = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    profile.dailyStreak = 2;
+
+    const result = await claimDaily('guild-1', 'user-1');
+
+    expect(result.success).toBe(true);
+    expect(result.streak).toBe(3);
+    expect(result.reward).toBe(60);
+    expect(profile.dailyStreak).toBe(3);
+    expect(profile.balance).toBe(60);
   });
 
   test('only one concurrent work action receives salary and XP', async () => {

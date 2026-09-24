@@ -35,6 +35,7 @@ import {
   RAID_WEEKDAY_RANGE,
 } from './rpgRaidPolicy.js';
 import { resyncScheduledRaidBoss } from './rpgRaidService.js';
+import { MARKETPLACE_TAX_RANGE } from '../../economy/marketplacePolicy.js';
 
 export const ANNOUNCE_MODE_VALUES = ['NONE', 'CHANNEL', 'CHANNEL_ROLE'] as const;
 export const ANNOUNCE_MODES = new Set<string>(ANNOUNCE_MODE_VALUES);
@@ -69,6 +70,7 @@ export type EconomySettingsInput = {
   maxDailyBets?: number;
   maxTransferAmount?: number;
   transferCooldownMin?: number;
+  marketplaceTaxPercent?: number;
   blackMarketEnabled?: boolean;
   blackMarketIntervalDays?: number;
   blackMarketDurationMin?: number;
@@ -258,6 +260,7 @@ export async function updateEconomySettings(guildId: string, body: EconomySettin
       maxDailyBets: body.maxDailyBets,
       maxTransferAmount: body.maxTransferAmount,
       transferCooldownMin: body.transferCooldownMin,
+      marketplaceTaxPercent: clampOptional(body.marketplaceTaxPercent, MARKETPLACE_TAX_RANGE),
       blackMarketEnabled: body.blackMarketEnabled,
       // Les bornes sont celles qu'applique le tirage : les faire respecter ici évite
       // qu'une saisie aberrante ne soit silencieusement corrigée à chaque ouverture.

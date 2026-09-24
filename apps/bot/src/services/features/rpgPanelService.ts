@@ -456,6 +456,22 @@ function backRow(ownerId: string, locale: Locale): ActionRowBuilder<ButtonBuilde
   );
 }
 
+/**
+ * Retour de fin de combat : la liste des boss après un boss, le hub sinon. Un joueur qui
+ * enchaîne les boss y retourne dans tous les cas, même quand aucun n'est disponible : la
+ * liste dit alors lequel revient et quand.
+ */
+function fightBackRow(ownerId: string, locale: Locale, isBoss: boolean): ActionRowBuilder<ButtonBuilder> {
+  if (!isBoss) return backRow(ownerId, locale);
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:boss`)
+      .setLabel(m.rpg_fight_back_bosses({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+}
+
 // ─────────────────────────────────────────────────────────────
 // Hub (vue par défaut)
 // ─────────────────────────────────────────────────────────────
@@ -3748,6 +3764,16 @@ async function handleTravelEventChoice(interaction: ButtonInteraction, guildId: 
 // Daily & Pêche (actions instantanées)
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * Ligne de série affichée sous la récompense journalière, ici comme dans `/daily`. Le bonus
+ * n'y est pas chiffré : le joueur sait que sa série paie, le barème reste en coulisses.
+ */
+export function dailyStreakLine(streak: number, locale: Locale): string {
+  return streak <= 1
+    ? m.rpg_daily_streak_start({}, { locale })
+    : m.rpg_daily_streak_value({ streak }, { locale });
+}
+
 async function handleDailyClaim(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
   const config = await getOrCreateEconomyConfig(guildId);
   const result = await claimDaily(guildId, ownerId);
@@ -3763,7 +3789,10 @@ async function handleDailyClaim(interaction: ButtonInteraction, guildId: string,
   await trackQuest(interaction.client, guildId, ownerId, 'DAILY_CLAIMS');
 
   const embed = successEmbed(m.rpg_daily_title({}, { locale }), m.rpg_daily_desc({ reward: result.reward ?? 0, emoji: config.currencyEmoji, currency: config.currencyName }, { locale }))
-    .addFields({ name: m.rpg_daily_new_balance({}, { locale }), value: `**${result.newBalance}** ${config.currencyEmoji}` });
+    .addFields(
+      { name: m.rpg_daily_new_balance({}, { locale }), value: `**${result.newBalance}** ${config.currencyEmoji}` },
+      { name: m.rpg_daily_streak_name({}, { locale }), value: dailyStreakLine(result.streak ?? 1, locale) },
+    );
 
   await respond(interaction, { embeds: [embed], components: [backRow(ownerId, locale)] });
 }
@@ -4195,6 +4224,7 @@ function itemProvenanceLine(entry: ItemCatalogEntry, currencyEmoji: string, loca
     entry.bosses.length > 0 ? `${icon('rpgBoss')} ${shortNameList(entry.bosses)}` : null,
     entry.crafted ? `${icon('rpgCraft')} ${m.rpg_itembook_source_craft({}, { locale })}` : null,
     entry.firstKill.length > 0 ? `🏆 ${m.rpg_itembook_first_kill({ names: shortNameList(entry.firstKill) }, { locale })}` : null,
+    entry.firstKillClaimed.length > 0 ? `🏅 ${m.rpg_itembook_first_kill_claimed({ names: shortNameList(entry.firstKillClaimed) }, { locale })}` : null,
     entry.campaign ? `${icon('rpgKey')} ${m.rpg_itembook_campaign({}, { locale })}` : null,
   ].filter((part): part is string => part !== null);
 
@@ -4386,6 +4416,7 @@ async function buildItemBookEntryView(
   }
   if (drops.length > 12) sources.push(`-# ${m.rpg_itembook_detail_more({ count: drops.length - 12 }, { locale })}`);
   if (entry.firstKill.length > 0) sources.push(`🏆 ${m.rpg_itembook_first_kill({ names: entry.firstKill.join(', ') }, { locale })}`);
+  if (entry.firstKillClaimed.length > 0) sources.push(`🏅 ${m.rpg_itembook_first_kill_claimed({ names: entry.firstKillClaimed.join(', ') }, { locale })}`);
   if (entry.campaign) sources.push(`${icon('rpgKey')} ${m.rpg_itembook_campaign({}, { locale })}`);
 
   if (sources.length > 0) {
@@ -4721,6 +4752,7 @@ async function lootSellRow(
   ownerId: string,
   lootName: string | null,
   locale: Locale,
+  isBoss = false,
 ): Promise<ActionRowBuilder<ButtonBuilder> | null> {
   if (!lootName) return null;
 
@@ -4736,7 +4768,8 @@ async function lootSellRow(
 
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`rpg:sellloot:${ownerId}:${owned.itemId}:${owned.quantity}`)
+      // `b` : le combat était un boss, le retour qui remplace le bouton mène à leur liste.
+      .setCustomId(`rpg:sellloot:${ownerId}:${owned.itemId}:${owned.quantity}${isBoss ? ':b' : ''}`)
       .setLabel(m.rpg_fight_sell_loot_btn({ price }, { locale }))
       .setEmoji(icon('rpgSell'))
       .setStyle(ButtonStyle.Success),
@@ -4756,7 +4789,7 @@ async function handleSellLoot(
   locale: Locale,
   rest: string[],
 ): Promise<void> {
-  const [itemId, ownedAfterFight] = rest;
+  const [itemId, ownedAfterFight, fightKind] = rest;
   const minOwned = Number.parseInt(ownedAfterFight ?? '', 10);
 
   let summary: string;
@@ -4770,7 +4803,7 @@ async function handleSellLoot(
     summary = m.rpg_fight_sell_loot_none({}, { locale });
   }
 
-  await interaction.editReply({ components: [backRow(ownerId, locale)] }).catch(() => null);
+  await interaction.editReply({ components: [fightBackRow(ownerId, locale, fightKind === 'b')] }).catch(() => null);
   await interaction.followUp({
     embeds: [sold
       ? successEmbed(m.rpg_fight_sell_loot_title({}, { locale }), summary)
@@ -5179,7 +5212,8 @@ async function startFightSession(
       // Le combat est terminé : on grise toutes les actions et on ne laisse que le retour.
       const rows = await getActionRows();
       rows.forEach((row) => row.components.forEach((c) => c.setDisabled(true)));
-      const finalComponents = [...rows, backRow(ownerId, locale)];
+      const back = fightBackRow(ownerId, locale, monster.isBoss);
+      const finalComponents = [...rows, back];
 
       if (reason === 'fled' || reason === 'time') {
         await prisma.rpgProfile.update({ where: { guildId_userId: { guildId, userId: ownerId } }, data: { lastBattle: new Date() } });
@@ -5278,7 +5312,7 @@ async function startFightSession(
         const campaign = await trackCombatQuests(interaction.client, guildId, ownerId, monster.isBoss, itemDropped);
         const firstKill = await firstKillField(interaction.client, guildId, ownerId, monster, locale);
         const winTitle = await winTitleField(guildId, ownerId, monster, locale);
-        const sellRow = await lootSellRow(guildId, ownerId, itemDropped, locale);
+        const sellRow = await lootSellRow(guildId, ownerId, itemDropped, locale, monster.isBoss);
 
         if (itemDropped) victoryEmbed.addFields({ name: m.rpg_fight_field_drop({}, { locale }), value: `${itemDropEmoji || '📦'} **${itemDropped}**`, inline: true });
         if (teamPoints.amount > 0) {
@@ -5300,7 +5334,7 @@ async function startFightSession(
 
         await interaction.editReply({
           embeds: [victoryEmbed],
-          components: sellRow ? [...rows, sellRow, backRow(ownerId, locale)] : finalComponents,
+          components: sellRow ? [...rows, sellRow, back] : finalComponents,
         });
         return;
       }
@@ -5620,7 +5654,7 @@ async function runBossFight(
     : null;
   const winTitle = result.won ? await winTitleField(guildId, ownerId, boss, locale) : null;
   const sellRow = result.won
-    ? await lootSellRow(guildId, ownerId, result.itemDropped, locale)
+    ? await lootSellRow(guildId, ownerId, result.itemDropped, locale, true)
     : null;
 
   const turnSummary = result.turns.slice(-8).map((t) => {
@@ -5657,7 +5691,9 @@ async function runBossFight(
   const campaignNote = campaign ? campaignAdvanceNote(campaign, locale) : '';
   if (campaignNote) embed.setFooter({ text: campaignNote });
 
-  await interaction.editReply({ embeds: [embed], components: sellRow ? [sellRow, backRow(ownerId, locale)] : [backRow(ownerId, locale)] });
+  // Un boss se choisit dans leur liste : c'est là que le retour ramène, pas au hub.
+  const back = fightBackRow(ownerId, locale, true);
+  await interaction.editReply({ embeds: [embed], components: sellRow ? [sellRow, back] : [back] });
 }
 
 // ─────────────────────────────────────────────────────────────

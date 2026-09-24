@@ -63,7 +63,7 @@ export const STAFF_STRUCTURES: StaffStructure[] = [
   {
     key: 'founder',
     label: 'Fondateur en tête',
-    pitch: 'Vous êtes Fondateur, vos administrateurs sont en dessous',
+    pitch: 'Tu es Fondateur, tes administrateurs sont en dessous',
     detail:
       "Le plus courant dès qu'une équipe compte plus d'un administrateur : le rôle de tête distingue celui qui a créé le serveur de ceux qui l'administrent avec lui.",
     icon: 'crown',
@@ -82,7 +82,7 @@ export const STAFF_STRUCTURES: StaffStructure[] = [
         color: '#EF4444',
         power: 'admin',
         hoist: true,
-        duty: 'Gère le serveur avec vous : salons, rôles, réglages.',
+        duty: 'Gère le serveur avec toi : salons, rôles, réglages.',
       },
     ],
     ground: [
@@ -107,7 +107,7 @@ export const STAFF_STRUCTURES: StaffStructure[] = [
   {
     key: 'admin',
     label: 'Administrateur en tête',
-    pitch: 'Vous êtes Administrateur, sans échelon au-dessus',
+    pitch: 'Tu es Administrateur, sans échelon au-dessus',
     detail:
       "L'autre convention répandue : pas de rôle de fondateur, et un échelon intermédiaire entre l'administration et la modération de terrain.",
     icon: 'shield',

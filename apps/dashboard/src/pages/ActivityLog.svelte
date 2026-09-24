@@ -128,7 +128,7 @@
 
   const stats = $derived([
     { label: m.act_stat_actions(), val: dashboardLogs.length, sub: m.act_stat_config(), subClass: 'text-primary' },
-    { label: m.act_stat_modules(), val: new Set(dashboardLogs.map(l => l.module)).size, sub: m.act_stat_sources(), subClass: 'text-green-600' },
+    { label: m.act_stat_modules(), val: new Set(dashboardLogs.map(l => l.module)).size, sub: m.act_stat_sources(), subClass: 'text-success' },
     { label: m.act_stat_users(), val: new Set(dashboardLogs.map(l => l.user)).size, sub: m.act_stat_unique(), subClass: 'text-purple-600' }
   ]);
 
@@ -161,15 +161,15 @@
 <div class="section-card p-6 mb-8 font-inter">
   <div class="flex flex-col md:flex-row md:items-center gap-4 justify-between">
     <div class="space-y-2 w-full md:max-w-2xl">
-      <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="search">{m.act_search_label()}</label>
+      <label class="text-xs font-semibold text-on-surface-variant ml-1" for="search">{m.act_search_label()}</label>
       <div class="relative top-1.5">
-        <Papicon icon="search" size={18} class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <Papicon icon="search" size={18} class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
         <FormInput
           id="search"
           type="text"
           bind:value={searchQuery}
           placeholder={m.ctv_action_details_module_user()}
-          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all"
+          className="w-full pl-10 pr-4 py-2.5 bg-surface-container-low border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all"
         />
       </div>
     </div>
@@ -194,7 +194,7 @@
   <div class="overflow-x-auto">
     <table class="w-full text-left border-collapse">
       <thead>
-        <tr class="bg-slate-50 dark:bg-white/5">
+        <tr class="bg-surface-container-low dark:bg-white/5">
           <th class="px-6 py-5">
             <ColumnSortFilter
               label={m.act_col_timestamp()}
@@ -234,7 +234,7 @@
               searchable={true}
             />
           </th>
-          <th class="px-6 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{m.act_col_details()}</th>
+          <th class="px-6 py-5 text-xs font-semibold text-on-surface-variant">{m.act_col_details()}</th>
           <th class="px-6 py-5">
             <div class="flex justify-center">
               <ColumnSortFilter
@@ -252,22 +252,22 @@
       <tbody class="divide-y divide-slate-50 dark:divide-slate-800">
         {#each filteredLogs as entry}
           {@const parsed = parseDetailsStructure(entry.details, logLabels)}
-          <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
+          <tr class="hover:bg-surface-container-low dark:hover:bg-white/5 transition-colors group">
             <td class="px-6 py-6">
               <div class="text-xs">
-                <p class="font-bold text-slate-800 dark:text-slate-200">{new Date(entry.dateIso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
-                <p class="text-[10px] text-slate-400 font-medium">{new Date(entry.dateIso).toLocaleDateString()}</p>
+                <p class="font-bold text-on-surface">{new Date(entry.dateIso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
+                <p class="text-2xs text-on-surface-variant font-medium">{new Date(entry.dateIso).toLocaleDateString()}</p>
               </div>
             </td>
             <td class="px-6 py-6">
-              <span class="inline-flex max-w-40 truncate rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+              <span class="inline-flex max-w-40 truncate rounded-full border border-outline-variant bg-surface-container px-3 py-1 text-2xs font-bold text-on-surface">
                 {entry.user}
               </span>
             </td>
             <td class="px-6 py-6 font-bold text-sm text-primary">
               {entry.module}
             </td>
-            <td class="px-6 py-6 font-medium text-sm text-slate-600 dark:text-slate-200">
+            <td class="px-6 py-6 font-medium text-sm text-on-surface-variant">
               {entry.action}
             </td>
             <td class="px-6 py-6 max-w-md">
@@ -276,12 +276,12 @@
                   <div class="flex flex-wrap gap-1.5">
                     {#each parsed.badges as item}
                       {#if item.key}
-                        <div class="inline-flex items-center gap-1 bg-surface-container-high border border-outline-variant/10 rounded-lg px-2 py-0.5 text-[10px] text-on-surface-variant font-medium">
+                        <div class="inline-flex items-center gap-1 bg-surface-container-high border border-outline-variant/10 rounded-lg px-2 py-0.5 text-2xs text-on-surface-variant font-medium">
                           <span class="text-on-surface-variant/70 font-semibold">{item.key}:</span>
                           <span class="text-on-surface break-all">{@html item.value}</span>
                         </div>
                       {:else}
-                        <div class="inline-flex items-center bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-2 py-0.5 text-[10px] text-on-surface-variant break-all">
+                        <div class="inline-flex items-center bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-2 py-0.5 text-2xs text-on-surface-variant break-all">
                           {@html item.value}
                         </div>
                       {/if}
@@ -290,15 +290,15 @@
                 {/if}
                 {#each parsed.blocks as block}
                   <div class="bg-surface-container-low border-l-2 border-primary/50 rounded-r-lg px-3 py-1.5 text-xs text-on-surface-variant space-y-0.5 max-w-full overflow-hidden">
-                    <p class="text-[11px] font-semibold uppercase tracking-wider text-primary/80">{block.key}</p>
+                    <p class="text-xs font-semibold text-primary/80">{block.key}</p>
                     <p class="break-all whitespace-pre-wrap leading-relaxed text-on-surface">{@html block.value}</p>
                   </div>
                 {/each}
               </div>
             </td>
             <td class="px-6 py-6 text-center">
-              <span class="inline-flex items-center justify-center w-24 px-3 py-1 rounded-full text-[10px] font-bold 
- {entry.eventType === 'Automatique' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}">
+              <span class="inline-flex items-center justify-center w-24 px-3 py-1 rounded-full text-2xs font-bold 
+ {entry.eventType === 'Automatique' ? 'bg-blue-100 text-blue-700' : 'bg-warning/10 text-warning'}">
                 {entry.eventType === 'Automatique' ? m.lg_type_auto() : entry.eventType}
               </span>
             </td>
@@ -322,10 +322,10 @@
 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12 font-inter">
   {#each stats as kpi}
     <div class="bg-surface-container-low p-6 rounded-lg border border-outline-variant/10">
-      <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{kpi.label}</p>
+      <p class="text-xs font-semibold text-on-surface-variant">{kpi.label}</p>
       <div class="flex items-end justify-between mt-2">
         <p class="text-lg font-semibold text-on-surface">{kpi.val}</p>
-        <span class="text-[10px] font-bold {kpi.subClass}">{kpi.sub}</span>
+        <span class="text-2xs font-bold {kpi.subClass}">{kpi.sub}</span>
       </div>
     </div>
   {/each}

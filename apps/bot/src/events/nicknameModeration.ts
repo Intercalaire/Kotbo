@@ -2,6 +2,7 @@ import { EmbedBuilder, Events, PermissionFlagsBits, type Client, type GuildMembe
 import { isNicknameProblematic, isSafeNickname, safeNickname, buildRenameReason, loadBannedWords } from '../services/moderation/nicknameModerationService.js';
 import { invalidateBannedWordsCache, loadGlobalWords, loadCustomWords } from '../services/moderation/bannedWordsService.js';
 import { logger } from '../utils/logger.js';
+import { admitJoiningMember } from '../services/moderation/joinAdmissionService.js';
 import { resolveLogChannel } from '../utils/logChannel.js';
 import { resolveGuildLocale } from '../utils/i18n.js';
 import * as m from '../lib/paraglide/messages.js';
@@ -164,6 +165,7 @@ async function checkAndRename(member: GuildMember): Promise<void> {
 export function registerNicknameModerationListener(client: Client): void {
   client.on(Events.GuildMemberAdd, async (member) => {
     try {
+      if (!(await admitJoiningMember(member))) return;
       const config = await getNicknameModerationConfig(member.guild.id);
       if (!config.enabled || !config.onJoin) return;
       await checkAndRename(member);

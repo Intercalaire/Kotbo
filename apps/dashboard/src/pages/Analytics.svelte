@@ -563,7 +563,7 @@ import { errorMessage } from '@kotbo/shared';
                   bind:value={startDate}
                   class="bg-surface-container-low border border-outline-variant/10 rounded-lg px-3 py-1.5 text-xs text-on-surface focus:outline-none focus:border-primary transition-colors"
                 />
-                <span class="text-[10px] font-bold text-on-surface-variant/40">{m.an_range_to()}</span>
+                <span class="text-2xs font-bold text-on-surface-variant/40">{m.an_range_to()}</span>
                 <input
                   type="datetime-local"
                   bind:value={endDate}
@@ -668,7 +668,7 @@ import { errorMessage } from '@kotbo/shared';
             <div class="absolute inset-2 rounded-full border-4 border-secondary/10 border-t-secondary animate-spin" style="animation-direction: reverse; animation-duration: 1.5s;"></div>
           </div>
           <div class="flex flex-col items-center text-center mt-2">
-            <span class="text-sm font-semibold uppercase tracking-wider text-primary animate-pulse">{m.an_network_loading()}</span>
+            <span class="text-sm font-semibold text-primary animate-pulse">{m.an_network_loading()}</span>
             <LoadingHint context="network" />
           </div>
         </div>
@@ -677,11 +677,11 @@ import { errorMessage } from '@kotbo/shared';
           <div class="w-12 h-12 rounded-full bg-error/10 flex items-center justify-center text-error mb-2">
             <Papicon icon="alert-octagon" size={24} />
           </div>
-          <span class="text-sm font-semibold uppercase tracking-wider">{m.an_network_error()}</span>
+          <span class="text-sm font-semibold">{m.an_network_error()}</span>
           <span class="text-xs text-on-surface-variant/60 max-w-md">{interactionsError}</span>
           <button 
             onclick={loadInteractions}
-            class="mt-2 px-5 py-2.5 bg-error/10 hover:bg-error/20 border border-error/20 hover:border-error/30 rounded-full text-[13px] font-medium transition-all hover:scale-[1.02] active:scale-[0.98]"
+            class="mt-2 px-5 py-2.5 bg-error/10 hover:bg-error/20 border border-error/20 hover:border-error/30 rounded-full text-body-sm font-medium transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
             {m.an_retry()}
           </button>

@@ -125,7 +125,7 @@
               </div>
               <div>
                 <h3 class="text-sm font-semibold text-on-surface leading-none">{m.d4_tc_title()}</h3>
-                <p class="text-[11px] text-on-surface-variant mt-0.5">{m.d4_tc_percent_complete({ pct: overallProgress })}</p>
+                <p class="text-2xs text-on-surface-variant mt-0.5">{m.d4_tc_percent_complete({ pct: overallProgress })}</p>
               </div>
             </div>
 
@@ -162,11 +162,11 @@
               <Compass class="w-3.5 h-3.5" />
               {m.d4_tc_tab_discover()}
               {#if !discoverDone}
-                <span class="px-1.5 py-0.5 rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
+                <span class="px-1.5 py-0.5 rounded-full bg-primary/10 text-2xs font-semibold text-primary">
                   {discoverCompleted}/{discoverTotal}
                 </span>
               {:else}
-                <CheckCircle class="w-3 h-3 text-emerald-500" />
+                <CheckCircle class="w-3 h-3 text-success" />
               {/if}
             </button>
             <button
@@ -182,11 +182,11 @@
               <Wrench class="w-3.5 h-3.5" />
               {m.d4_tc_tab_setup()}
               {#if !setupDone}
-                <span class="px-1.5 py-0.5 rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
+                <span class="px-1.5 py-0.5 rounded-full bg-primary/10 text-2xs font-semibold text-primary">
                   {setupCompletedCount}/{setupTotal}
                 </span>
               {:else}
-                <CheckCircle class="w-3 h-3 text-emerald-500" />
+                <CheckCircle class="w-3 h-3 text-success" />
               {/if}
             </button>
           </div>
@@ -199,8 +199,8 @@
           {#if activeTab === 'discover'}
             {#if discoverDone}
               <div class="p-5 text-center" in:fly={{ y: 10, duration: 300, easing: cubicOut }}>
-                <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
-                  <PartyPopper class="w-7 h-7 text-emerald-500" />
+                <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-success/10 flex items-center justify-center">
+                  <PartyPopper class="w-7 h-7 text-success" />
                 </div>
                 <p class="text-sm font-semibold text-on-surface mb-1">{m.d4_tc_discover_done_title()}</p>
                 <p class="text-xs text-on-surface-variant mb-4">{m.d4_tc_discover_done_desc()}</p>
@@ -237,8 +237,8 @@
                       {/if}
                     </div>
                     <div class="flex-1 min-w-0">
-                      <p class="text-[13px] font-medium text-on-surface leading-tight {completed ? 'line-through text-on-surface-variant' : ''}">{task.title}</p>
-                      <p class="text-[11px] text-on-surface-variant/70 mt-0.5 leading-relaxed">{task.description}</p>
+                      <p class="text-body-sm font-medium text-on-surface leading-tight {completed ? 'line-through text-on-surface-variant' : ''}">{task.title}</p>
+                      <p class="text-2xs text-on-surface-variant/70 mt-0.5 leading-relaxed">{task.description}</p>
                     </div>
                     <div class="shrink-0 mt-0.5">
                       <div class="w-7 h-7 rounded-lg {completed ? 'bg-surface-container' : 'bg-primary/8 group-hover:bg-primary/12'} flex items-center justify-center transition-colors">
@@ -254,8 +254,8 @@
           {:else}
             {#if setupDone}
               <div class="p-5 text-center" in:fly={{ y: 10, duration: 300, easing: cubicOut }}>
-                <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
-                  <PartyPopper class="w-7 h-7 text-emerald-500" />
+                <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-success/10 flex items-center justify-center">
+                  <PartyPopper class="w-7 h-7 text-success" />
                 </div>
                 <p class="text-sm font-semibold text-on-surface mb-1">{m.d4_tc_setup_done_title()}</p>
                 <p class="text-xs text-on-surface-variant mb-4">{m.d4_tc_setup_done_desc()}</p>
@@ -268,14 +268,14 @@
                 <!-- Essential section -->
                 <div class="px-2.5 pt-2 pb-1">
                   <div class="flex items-center gap-2">
-                    <span class="text-xs font-medium text-amber-600 dark:text-amber-400">
+                    <span class="text-xs font-medium text-warning">
                       {m.d4_tc_essential()}
                     </span>
-                    <span class="text-[10px] text-on-surface-variant">
+                    <span class="text-2xs text-on-surface-variant">
                       {essentialCompleted} / {essentialTotal}
                     </span>
                     {#if essentialsDone}
-                      <CheckCircle class="w-3 h-3 text-emerald-500" />
+                      <CheckCircle class="w-3 h-3 text-success" />
                     {/if}
                   </div>
                   <div class="mt-1 h-1 bg-surface-container-high rounded-full overflow-hidden">
@@ -305,16 +305,16 @@
                           <CheckCircle class="w-3.5 h-3.5 text-white" />
                         </div>
                       {:else}
-                        <div class="w-5 h-5 rounded-full border-2 border-amber-400 group-hover:border-amber-500 transition-colors"></div>
+                        <div class="w-5 h-5 rounded-full border-2 border-warning group-hover:border-warning transition-colors"></div>
                       {/if}
                     </div>
                     <div class="flex-1 min-w-0">
-                      <p class="text-[13px] font-medium text-on-surface leading-tight {completed ? 'line-through text-on-surface-variant' : ''}">{task.title}</p>
-                      <p class="text-[11px] text-on-surface-variant/70 mt-0.5 leading-relaxed">{task.description}</p>
+                      <p class="text-body-sm font-medium text-on-surface leading-tight {completed ? 'line-through text-on-surface-variant' : ''}">{task.title}</p>
+                      <p class="text-2xs text-on-surface-variant/70 mt-0.5 leading-relaxed">{task.description}</p>
                     </div>
                     <div class="shrink-0 mt-0.5">
-                      <div class="w-7 h-7 rounded-lg {completed ? 'bg-surface-container' : 'bg-amber-500/10 group-hover:bg-amber-500/15'} flex items-center justify-center transition-colors">
-                        <Icon class="w-3.5 h-3.5 {completed ? 'text-on-surface-variant/50' : 'text-amber-600 dark:text-amber-400'}" />
+                      <div class="w-7 h-7 rounded-lg {completed ? 'bg-surface-container' : 'bg-warning/10 group-hover:bg-warning/15'} flex items-center justify-center transition-colors">
+                        <Icon class="w-3.5 h-3.5 {completed ? 'text-on-surface-variant/50' : 'text-warning'}" />
                       </div>
                     </div>
                   </button>
@@ -333,7 +333,7 @@
                     <span class="text-xs font-medium text-on-surface-variant">
                       {m.d4_tc_customization()}
                     </span>
-                    <span class="text-[10px] text-on-surface-variant/60">
+                    <span class="text-2xs text-on-surface-variant/60">
                       {optionalSetupTasks.filter(t => onboardingStore.isSetupTaskCompleted(t.id)).length} / {optionalSetupTasks.length}
                     </span>
                   </div>
@@ -366,8 +366,8 @@
                         {/if}
                       </div>
                       <div class="flex-1 min-w-0">
-                        <p class="text-[13px] font-medium text-on-surface leading-tight {completed ? 'line-through text-on-surface-variant' : ''}">{task.title}</p>
-                        <p class="text-[11px] text-on-surface-variant/70 mt-0.5 leading-relaxed">{task.description}</p>
+                        <p class="text-body-sm font-medium text-on-surface leading-tight {completed ? 'line-through text-on-surface-variant' : ''}">{task.title}</p>
+                        <p class="text-2xs text-on-surface-variant/70 mt-0.5 leading-relaxed">{task.description}</p>
                       </div>
                       <div class="shrink-0 mt-0.5">
                         <div class="w-7 h-7 rounded-lg {completed ? 'bg-surface-container' : 'bg-primary/8 group-hover:bg-primary/12'} flex items-center justify-center transition-colors">
@@ -391,7 +391,7 @@
               style="width: {overallProgress}%"
             ></div>
           </div>
-          <p class="text-[10px] text-on-surface-variant/60 mt-1 text-center">
+          <p class="text-2xs text-on-surface-variant/60 mt-1 text-center">
             {m.d4_tc_global_progress({ pct: overallProgress })}
           </p>
         </div>
@@ -431,7 +431,7 @@
                 style="width: {overallProgress}%"
               ></div>
             </div>
-            <span class="text-[10px] text-on-surface-variant">{overallProgress}%</span>
+            <span class="text-2xs text-on-surface-variant">{overallProgress}%</span>
           </div>
         </div>
 

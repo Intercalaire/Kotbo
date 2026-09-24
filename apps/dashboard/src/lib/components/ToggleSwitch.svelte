@@ -36,7 +36,7 @@
   {id}
   {disabled}
   onclick={() => { if (!disabled) onToggle(!checked); }}
-  class="relative inline-flex shrink-0 {s.track} rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-surface {disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} {checked ? (activeClass || 'bg-primary') : 'bg-zinc-600'}"
+  class="relative inline-flex shrink-0 {s.track} rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-surface {disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} {checked ? (activeClass || 'bg-primary') : 'bg-on-surface-variant/70'}"
 >
   <span
     class="pointer-events-none absolute {s.offset} {s.knob} rounded-full bg-white shadow-sm transition-transform duration-200 {checked ? s.translate : 'translate-x-0'}"

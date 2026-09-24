@@ -251,11 +251,11 @@
   }
 
   function getRetentionBg(rate: number): string {
-    if (rate >= 85) return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+    if (rate >= 85) return 'bg-success/20 text-success border-success/30';
     if (rate >= 70) return 'bg-teal-500/20 text-teal-400 border-teal-500/30';
-    if (rate >= 50) return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+    if (rate >= 50) return 'bg-warning/20 text-warning border-warning/30';
     if (rate >= 30) return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
-    return 'bg-rose-500/20 text-rose-400 border-rose-500/30';
+    return 'bg-error/20 text-error border-error/30';
   }
 </script>
 
@@ -452,7 +452,7 @@
                   </span>
                   <div class="min-w-0">
                     <span class="text-sm font-bold text-on-surface truncate block">{step.name ?? step.label ?? step.step}</span>
-                    <span class="text-[11px] font-mono text-on-surface-variant">{step.step}</span>
+                    <span class="text-2xs font-mono text-on-surface-variant">{step.step}</span>
                   </div>
                 </div>
 
@@ -463,16 +463,16 @@
                   </div>
                   {#if idx > 0}
                     <div class="w-20 text-right">
-                      <span class="text-xs font-bold {(step.conversionFromPrev ?? step.conversionPrevious ?? 0) >= 50 ? 'text-emerald-400' : 'text-amber-400'}">
+                      <span class="text-xs font-bold {(step.conversionFromPrev ?? step.conversionPrevious ?? 0) >= 50 ? 'text-success' : 'text-warning'}">
                         {formatPercent(step.conversionFromPrev ?? step.conversionPrevious)}
                       </span>
-                      <span class="text-[10px] text-on-surface-variant block">étape préc.</span>
+                      <span class="text-2xs text-on-surface-variant block">étape préc.</span>
                     </div>
                   {/if}
                   {#if step.medianDurationSeconds !== null}
                     <div class="hidden sm:block text-right w-24">
                       <span class="text-xs font-mono text-on-surface-variant">{formatDuration(step.medianDurationSeconds)}</span>
-                      <span class="text-[10px] text-on-surface-variant/80 block">délai médian</span>
+                      <span class="text-2xs text-on-surface-variant/80 block">délai médian</span>
                     </div>
                   {/if}
                 </div>
@@ -495,7 +495,7 @@
         <!-- Sources -->
         <AdminCard title="Provenance du trafic" description="Classification CNIL : Discord, Moteurs de recherche, Direct">
           <div class="divide-y divide-outline-variant/15 text-sm">
-            <div class="grid grid-cols-4 py-2 font-bold text-xs text-on-surface-variant uppercase tracking-wider">
+            <div class="grid grid-cols-4 py-2 font-semibold text-xs text-on-surface-variant">
               <span>Source</span>
               <span class="text-right">Visites</span>
               <span class="text-right">Bots</span>
@@ -506,7 +506,7 @@
                 <span class="font-semibold text-on-surface capitalize">{src}</span>
                 <span class="text-right font-mono text-on-surface-variant">{val.visits}</span>
                 <span class="text-right font-mono text-on-surface-variant">{val.joins}</span>
-                <span class="text-right font-mono font-bold text-amber-400">{val.paid}</span>
+                <span class="text-right font-mono font-bold text-warning">{val.paid}</span>
               </div>
             {/each}
           </div>
@@ -515,7 +515,7 @@
         <!-- Contenus de liens -->
         <AdminCard title="Emplacements des boutons" description="Performance par bouton d'invitation (hero, navbar, pricing...)">
           <div class="divide-y divide-outline-variant/15 text-sm">
-            <div class="grid grid-cols-4 py-2 font-bold text-xs text-on-surface-variant uppercase tracking-wider">
+            <div class="grid grid-cols-4 py-2 font-semibold text-xs text-on-surface-variant">
               <span>Bouton (content)</span>
               <span class="text-right">Clics</span>
               <span class="text-right">Bots</span>
@@ -526,7 +526,7 @@
                 <span class="font-mono text-xs text-on-surface truncate">{cnt}</span>
                 <span class="text-right font-mono text-on-surface-variant">{val.clicks}</span>
                 <span class="text-right font-mono text-on-surface-variant">{val.joins}</span>
-                <span class="text-right font-mono font-bold text-amber-400">{val.paid}</span>
+                <span class="text-right font-mono font-bold text-warning">{val.paid}</span>
               </div>
             {/each}
           </div>
@@ -543,7 +543,7 @@
             </div>
             <div class="p-3 rounded-xl bg-surface-container-high">
               <span class="text-xs text-on-surface-variant">Complétés</span>
-              <p class="text-xl font-black text-emerald-400">{onboardingData.totalCompleted}</p>
+              <p class="text-xl font-black text-success">{onboardingData.totalCompleted}</p>
             </div>
             <div class="p-3 rounded-xl bg-surface-container-high">
               <span class="text-xs text-on-surface-variant">Durée médiane</span>
@@ -552,13 +552,13 @@
           </div>
 
           <div class="space-y-2">
-            <span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider block mb-2">Points d'abandon :</span>
+            <span class="text-xs font-semibold text-on-surface-variant block mb-2">Points d'abandon :</span>
             {#each (onboardingData.stepDropOffs ?? []) as drop}
               <div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low border border-outline-variant/15 text-sm">
                 <span class="font-mono text-xs text-on-surface">{drop.step}</span>
                 <div class="flex items-center gap-3">
                   <span class="font-mono text-xs text-on-surface-variant">{drop.count} abandons</span>
-                  <span class="px-2 py-0.5 rounded text-xs font-bold {drop.dropOffRate > 20 ? 'bg-rose-500/20 text-rose-400' : 'bg-surface-container-highest text-on-surface-variant'}">
+                  <span class="px-2 py-0.5 rounded text-xs font-bold {drop.dropOffRate > 20 ? 'bg-error/20 text-error' : 'bg-surface-container-highest text-on-surface-variant'}">
                     {formatPercent(drop.dropOffRate)}
                   </span>
                 </div>
@@ -612,9 +612,9 @@
             <span class="text-xs font-semibold text-on-surface-variant block mb-1">MRR Début</span>
             <span class="text-base font-black text-on-surface">{formatEuros(revenueData.waterfall.mrrStartCents)}</span>
           </div>
-          <div class="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-center">
-            <span class="text-xs font-semibold text-emerald-400 block mb-1">+ Nouveau</span>
-            <span class="text-base font-black text-emerald-400">+{formatEuros(revenueData.waterfall.newCents)}</span>
+          <div class="p-3 rounded-2xl bg-success/10 border border-success/30 text-center">
+            <span class="text-xs font-semibold text-success block mb-1">+ Nouveau</span>
+            <span class="text-base font-black text-success">+{formatEuros(revenueData.waterfall.newCents)}</span>
           </div>
           <div class="p-3 rounded-2xl bg-teal-500/10 border border-teal-500/30 text-center">
             <span class="text-xs font-semibold text-teal-400 block mb-1">+ Expansion</span>
@@ -624,9 +624,9 @@
             <span class="text-xs font-semibold text-orange-400 block mb-1">- Contraction</span>
             <span class="text-base font-black text-orange-400">-{formatEuros(revenueData.waterfall.contractionCents)}</span>
           </div>
-          <div class="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-center">
-            <span class="text-xs font-semibold text-rose-400 block mb-1">- Churn</span>
-            <span class="text-base font-black text-rose-400">-{formatEuros(revenueData.waterfall.churnCents)}</span>
+          <div class="p-3 rounded-2xl bg-error/10 border border-error/30 text-center">
+            <span class="text-xs font-semibold text-error block mb-1">- Churn</span>
+            <span class="text-base font-black text-error">-{formatEuros(revenueData.waterfall.churnCents)}</span>
           </div>
           <div class="p-3 rounded-2xl bg-primary/15 border border-primary/40 text-center">
             <span class="text-xs font-semibold text-primary block mb-1">MRR Fin</span>
@@ -671,8 +671,8 @@
             </div>
             <div class="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/15 text-center">
               <span class="text-xs font-semibold text-on-surface-variant block mb-1">Annuel (-17%)</span>
-              <p class="text-xl font-black text-emerald-400">{revenueData.byInterval.year.count}</p>
-              <span class="text-xs text-emerald-400 font-mono font-bold block mt-1">
+              <p class="text-xl font-black text-success">{revenueData.byInterval.year.count}</p>
+              <span class="text-xs text-success font-mono font-bold block mt-1">
                 {formatEuros(revenueData.byInterval.year.mrrCents)} / m
               </span>
             </div>
@@ -685,7 +685,7 @@
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm">
             <thead>
-              <tr class="border-b border-outline-variant/20 text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+              <tr class="border-b border-outline-variant/20 text-xs font-semibold text-on-surface-variant">
                 <th class="py-2.5 px-3">Date</th>
                 <th class="py-2.5 px-3">Serveur</th>
                 <th class="py-2.5 px-3">Offre</th>
@@ -709,7 +709,7 @@
                     {formatEuros(inv.amountPaidCents)}
                   </td>
                   <td class="py-2.5 px-3 text-center">
-                    <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-500/20 text-emerald-400">
+                    <span class="px-2 py-0.5 rounded text-2xs font-bold uppercase bg-success/20 text-success">
                       {inv.status}
                     </span>
                   </td>
@@ -727,7 +727,7 @@
     {#if activeTab === 'segments' && segmentsData}
       <!-- Sélecteur de Dimension -->
       <div class="flex items-center gap-2 mb-6 flex-wrap">
-        <span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider mr-2">Axe d'analyse :</span>
+        <span class="text-xs font-semibold text-on-surface-variant mr-2">Axe d'analyse :</span>
         {#each [
           { id: 'size', label: 'Taille du serveur' },
           { id: 'source', label: 'Provenance (CNIL)' },
@@ -747,11 +747,11 @@
       </div>
 
       <!-- Table de Distribution -->
-      <AdminCard title="Distribution des serveurs et conversion" description="Cliquez sur une ligne pour voir les serveurs correspondants" class="mb-6">
+      <AdminCard title="Distribution des serveurs et conversion" description="Clique sur une ligne pour voir les serveurs correspondants" class="mb-6">
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm">
             <thead>
-              <tr class="border-b border-outline-variant/20 text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+              <tr class="border-b border-outline-variant/20 text-xs font-semibold text-on-surface-variant">
                 <th class="py-2.5 px-3">Segment</th>
                 <th class="py-2.5 px-3 text-right">Serveurs</th>
                 <th class="py-2.5 px-3 text-right">Payants</th>
@@ -767,8 +767,8 @@
                 <tr class="hover:bg-surface-container-highest/30 transition">
                   <td class="py-3 px-3 font-semibold text-on-surface">{row.bucket || '(Non renseigné)'}</td>
                   <td class="py-3 px-3 text-right font-mono text-on-surface-variant">{row.totalGuilds}</td>
-                  <td class="py-3 px-3 text-right font-mono font-bold text-emerald-400">{row.payingGuilds}</td>
-                  <td class="py-3 px-3 text-right font-mono text-amber-400">{row.trialGuilds}</td>
+                  <td class="py-3 px-3 text-right font-mono font-bold text-success">{row.payingGuilds}</td>
+                  <td class="py-3 px-3 text-right font-mono text-warning">{row.trialGuilds}</td>
                   <td class="py-3 px-3 text-right font-mono font-bold text-on-surface">{formatPercent(row.conversionRate)}</td>
                   <td class="py-3 px-3 text-right font-mono font-bold text-primary">{formatEuros(row.mrrCents)}</td>
                   <td class="py-3 px-3 text-right font-mono text-on-surface-variant">{formatEuros(row.avgLtvCents)}</td>
@@ -799,14 +799,14 @@
       >
         {#if (segmentsData.outOfTierMatrix ?? []).length === 0}
           <div class="py-8 text-center text-on-surface-variant">
-            <Papicon icon="CheckCircle" size={24} class="mx-auto mb-2 text-emerald-400" />
+            <Papicon icon="CheckCircle" size={24} class="mx-auto mb-2 text-success" />
             <p class="text-sm font-semibold">Tous les serveurs sont actuellement sur une offre adaptée à leur taille.</p>
           </div>
         {:else}
           <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
               <thead>
-                <tr class="border-b border-outline-variant/20 text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+                <tr class="border-b border-outline-variant/20 text-xs font-semibold text-on-surface-variant">
                   <th class="py-2.5 px-3">Serveur</th>
                   <th class="py-2.5 px-3 text-right">Membres</th>
                   <th class="py-2.5 px-3">Offre actuelle</th>
@@ -819,7 +819,7 @@
                 {#each (segmentsData.outOfTierMatrix ?? []) as oot}
                   <tr class="hover:bg-surface-container-highest/30 transition">
                     <td class="py-3 px-3 font-semibold text-on-surface">{oot.guildName}</td>
-                    <td class="py-3 px-3 text-right font-mono font-bold text-amber-400">
+                    <td class="py-3 px-3 text-right font-mono font-bold text-warning">
                       {oot.memberCount.toLocaleString('fr-FR')}
                     </td>
                     <td class="py-3 px-3">
@@ -940,7 +940,7 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <AdminCard title="Adoption des modules (FREE vs Payant)" description="Comparaison des fonctionnalités activées selon l'offre">
             <div class="divide-y divide-outline-variant/15 text-sm">
-              <div class="grid grid-cols-3 py-2 font-bold text-xs text-on-surface-variant uppercase tracking-wider">
+              <div class="grid grid-cols-3 py-2 font-semibold text-xs text-on-surface-variant">
                 <span>Module</span>
                 <span class="text-right">Offre FREE</span>
                 <span class="text-right">Offres Payantes</span>
@@ -949,7 +949,7 @@
                 <div class="grid grid-cols-3 py-2.5 items-center">
                   <span class="font-semibold text-on-surface">{mod.module}</span>
                   <span class="text-right font-mono text-on-surface-variant">{formatPercent(mod.freeAdoptionRate)}</span>
-                  <span class="text-right font-mono font-bold text-emerald-400">{formatPercent(mod.paidAdoptionRate)}</span>
+                  <span class="text-right font-mono font-bold text-success">{formatPercent(mod.paidAdoptionRate)}</span>
                 </div>
               {/each}
             </div>
@@ -957,14 +957,14 @@
 
           <AdminCard title="Modules drop-off avant Churn" description="Dernières fonctionnalités désactivées avant la résiliation">
             <div class="divide-y divide-outline-variant/15 text-sm">
-              <div class="grid grid-cols-2 py-2 font-bold text-xs text-on-surface-variant uppercase tracking-wider">
+              <div class="grid grid-cols-2 py-2 font-semibold text-xs text-on-surface-variant">
                 <span>Module</span>
                 <span class="text-right">Arrêts avant Churn</span>
               </div>
               {#each (modulesData.churnDropOffModules ?? []) as cdo}
                 <div class="grid grid-cols-2 py-2.5 items-center">
                   <span class="font-semibold text-on-surface">{cdo.module}</span>
-                  <span class="text-right font-mono font-bold text-rose-400">{cdo.dropOffCount}</span>
+                  <span class="text-right font-mono font-bold text-error">{cdo.dropOffCount}</span>
                 </div>
               {/each}
             </div>
@@ -992,7 +992,7 @@
                   bind:value={alertThresholds.churnRateWeeklyPercent}
                   class="w-full px-3.5 py-2 rounded-xl bg-surface-container-high border border-outline-variant/30 text-on-surface text-sm focus:outline-none focus:border-primary"
                 />
-                <span class="text-[11px] text-on-surface-variant">Alerte si le churn rate hebdomadaire dépasse ce seuil (défaut : 5%)</span>
+                <span class="text-2xs text-on-surface-variant">Alerte si le churn rate hebdomadaire dépasse ce seuil (défaut : 5%)</span>
               </div>
 
               <div>
@@ -1006,7 +1006,7 @@
                   bind:value={alertThresholds.trialConversionDropPercent}
                   class="w-full px-3.5 py-2 rounded-xl bg-surface-container-high border border-outline-variant/30 text-on-surface text-sm focus:outline-none focus:border-primary"
                 />
-                <span class="text-[11px] text-on-surface-variant">Alerte si la conversion de fin d'essai chute de plus de X% (défaut : 20%)</span>
+                <span class="text-2xs text-on-surface-variant">Alerte si la conversion de fin d'essai chute de plus de X% (défaut : 20%)</span>
               </div>
 
               <div>
@@ -1020,7 +1020,7 @@
                   bind:value={alertThresholds.onboardingCompletionMinPercent}
                   class="w-full px-3.5 py-2 rounded-xl bg-surface-container-high border border-outline-variant/30 text-on-surface text-sm focus:outline-none focus:border-primary"
                 />
-                <span class="text-[11px] text-on-surface-variant">Alerte si la complétion du wizard passe sous ce seuil (défaut : 40%)</span>
+                <span class="text-2xs text-on-surface-variant">Alerte si la complétion du wizard passe sous ce seuil (défaut : 40%)</span>
               </div>
 
               <div>
@@ -1034,7 +1034,7 @@
                   bind:value={alertThresholds.outOfTierMaxCount}
                   class="w-full px-3.5 py-2 rounded-xl bg-surface-container-high border border-outline-variant/30 text-on-surface text-sm focus:outline-none focus:border-primary"
                 />
-                <span class="text-[11px] text-on-surface-variant">Alerte si le nombre de serveurs dépassant leur palier atteint ce niveau (défaut : 10)</span>
+                <span class="text-2xs text-on-surface-variant">Alerte si le nombre de serveurs dépassant leur palier atteint ce niveau (défaut : 10)</span>
               </div>
 
               <div class="pt-3">
@@ -1114,12 +1114,12 @@
                 {/if}
                 <div>
                   <h4 class="text-sm font-bold text-on-surface leading-tight">{g.name}</h4>
-                  <span class="text-[11px] font-mono text-on-surface-variant">{g.guildId}</span>
+                  <span class="text-2xs font-mono text-on-surface-variant">{g.guildId}</span>
                 </div>
               </div>
 
               <div class="text-right">
-                <span class="px-2 py-0.5 rounded text-xs font-bold uppercase {g.plan !== 'FREE' ? 'bg-amber-500/20 text-amber-400' : 'bg-surface-container-highest text-on-surface-variant'}">
+                <span class="px-2 py-0.5 rounded text-xs font-bold uppercase {g.plan !== 'FREE' ? 'bg-warning/20 text-warning' : 'bg-surface-container-highest text-on-surface-variant'}">
                   {g.plan}
                 </span>
                 <span class="text-xs font-bold font-mono text-on-surface block mt-1">
@@ -1140,9 +1140,9 @@
 
             {#if g.riskReasons && g.riskReasons.length > 0}
               <div class="mt-2.5 pt-2 border-t border-error/20 flex items-center gap-2 flex-wrap">
-                <span class="text-[10px] font-bold uppercase text-error">Risque :</span>
+                <span class="text-2xs font-bold uppercase text-error">Risque :</span>
                 {#each g.riskReasons as r}
-                  <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-error/15 text-error border border-error/30">
+                  <span class="px-2 py-0.5 rounded text-2xs font-semibold bg-error/15 text-error border border-error/30">
                     {r}
                   </span>
                 {/each}

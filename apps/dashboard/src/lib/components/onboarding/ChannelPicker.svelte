@@ -61,7 +61,7 @@
       onpick(channel.id);
       toast.success(
         channel.created
-          ? `#${channel.name} a été créé sur votre serveur.`
+          ? `#${channel.name} a été créé sur ton serveur.`
           : `#${channel.name} existait déjà : il a été retenu.`,
       );
     } catch (err) {
@@ -73,14 +73,14 @@
 </script>
 
 <div>
-  <label for={id} class="block text-[13px] font-semibold text-on-surface mb-1.5">{label}</label>
+  <label for={id} class="block text-body-sm font-semibold text-on-surface mb-1.5">{label}</label>
 
   <select
     {id}
     {value}
     onchange={(event) => onpick(event.currentTarget.value || null)}
     class="w-full rounded-xl border border-outline-variant/40 bg-surface-container-lowest/60 px-3.5 py-2.5
-           text-[14px] text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+           text-sm text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
   >
     {#if noneLabel}
       <option value="">{noneLabel}</option>
@@ -91,7 +91,7 @@
   </select>
 
   {#if hint}
-    <p class="mt-1.5 text-[12.5px] text-on-surface-variant/50 leading-relaxed">{hint}</p>
+    <p class="mt-1.5 text-xs text-on-surface-variant/50 leading-relaxed">{hint}</p>
   {/if}
 
   {#if !value}
@@ -102,7 +102,7 @@
       onclick={create}
       disabled={creating || onboardingData.busy}
       class="mt-2.5 inline-flex items-center gap-2 rounded-xl border border-primary/40 bg-primary/[0.06] px-3.5 py-2
-             text-[13px] font-semibold text-primary transition hover:bg-primary/[0.11]
+             text-body-sm font-semibold text-primary transition hover:bg-primary/[0.11]
              disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
     >
       <Papicon icon={creating ? 'loader' : 'plus'} size={14} class={creating ? 'animate-spin' : ''} />
@@ -115,7 +115,7 @@
       type="button"
       onclick={create}
       disabled={creating || onboardingData.busy}
-      class="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-medium text-on-surface-variant/55
+      class="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-on-surface-variant/55
              hover:text-primary transition-colors disabled:opacity-50"
     >
       <Papicon icon={creating ? 'loader' : 'plus'} size={12} class={creating ? 'animate-spin' : ''} />

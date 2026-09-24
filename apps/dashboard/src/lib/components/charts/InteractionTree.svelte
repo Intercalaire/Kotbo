@@ -395,7 +395,7 @@
   {#if nodes.length === 0}
     <div class="absolute inset-0 flex flex-col items-center justify-center graph-empty">
       <Papicon icon="share-2" size={48} />
-      <p class="mt-4 text-[13px] font-medium">{m.d6_it_no_interaction()}</p>
+      <p class="mt-4 text-body-sm font-medium">{m.d6_it_no_interaction()}</p>
     </div>
   {:else}
     <!-- Header -->
@@ -408,7 +408,7 @@
           {m.d6_it_network_title()}
         </h3>
       </div>
-      <span class="text-[10px] graph-subtitle mt-0.5">
+      <span class="text-2xs graph-subtitle mt-0.5">
         {m.d6_it_members_connections({ members: nodes.length, connections: groupedEdges.length })}
       </span>
     </div>
@@ -442,15 +442,15 @@
     <div class="absolute bottom-4 right-5 z-10 flex items-center gap-3 pointer-events-none">
       <div class="flex items-center gap-1">
         <div class="w-2 h-2 rounded-full legend-mention"></div>
-        <span class="text-[8px] font-semibold uppercase tracking-wider graph-legend-text">{m.d6_it_mentions()}</span>
+        <span class="text-xs font-semibold graph-legend-text">{m.d6_it_mentions()}</span>
       </div>
       <div class="flex items-center gap-1">
         <div class="w-2 h-2 rounded-full legend-reply"></div>
-        <span class="text-[8px] font-semibold uppercase tracking-wider graph-legend-text">{m.d6_it_replies()}</span>
+        <span class="text-xs font-semibold graph-legend-text">{m.d6_it_replies()}</span>
       </div>
       <div class="flex items-center gap-1">
         <div class="w-2 h-2 rounded-full legend-reaction"></div>
-        <span class="text-[8px] font-semibold uppercase tracking-wider graph-legend-text">{m.d6_it_reactions()}</span>
+        <span class="text-xs font-semibold graph-legend-text">{m.d6_it_reactions()}</span>
       </div>
     </div>
 
@@ -651,7 +651,7 @@
           {/if}
           <div class="flex flex-col min-w-0">
             <span class="text-xs font-semibold detail-name truncate">{selectedNode.label}</span>
-            <span class="text-[10px] detail-role">
+            <span class="text-2xs detail-role">
               {selectedNode.isCenter ? m.d6_it_main_user() : m.d6_it_connections_count({ count: selectedNodeStats.connections })}
             </span>
           </div>
@@ -665,20 +665,20 @@
 
         <div class="grid grid-cols-3 gap-1.5 mt-3 text-center">
           <div class="detail-stat-card">
-            <span class="text-[9px] font-medium detail-stat-label">{m.d6_it_mentions()}</span>
+            <span class="text-2xs font-medium detail-stat-label">{m.d6_it_mentions()}</span>
             <span class="text-sm font-bold detail-stat-value">{selectedNodeStats.mentions}</span>
           </div>
           <div class="detail-stat-card">
-            <span class="text-[9px] font-medium detail-stat-label">{m.d6_it_replies()}</span>
+            <span class="text-2xs font-medium detail-stat-label">{m.d6_it_replies()}</span>
             <span class="text-sm font-bold detail-stat-value">{selectedNodeStats.replies}</span>
           </div>
           <div class="detail-stat-card">
-            <span class="text-[9px] font-medium detail-stat-label">{m.d6_it_reactions()}</span>
+            <span class="text-2xs font-medium detail-stat-label">{m.d6_it_reactions()}</span>
             <span class="text-sm font-bold detail-stat-value">{selectedNodeStats.reactions}</span>
           </div>
         </div>
 
-        <div class="flex justify-between items-center text-[10px] mt-2.5 pt-2 detail-total-row">
+        <div class="flex justify-between items-center text-2xs mt-2.5 pt-2 detail-total-row">
           <span class="font-medium detail-total-label">{m.d6_it_total_interactions()}</span>
           <span class="font-bold detail-total-value">{selectedNodeStats.total}</span>
         </div>
@@ -691,8 +691,8 @@
       {@const targetNode = nodes.find(n => n.id === hoveredEdge.to)}
       <div class="absolute bottom-4 left-4 right-4 z-10 graph-edge-tooltip animate-fade-in">
         <div class="flex items-center justify-between pb-1.5 mb-1.5 edge-tooltip-header">
-          <span class="text-[10px] font-semibold uppercase tracking-wider edge-tooltip-title">{m.d6_it_interaction()}</span>
-          <span class="text-[9px] font-semibold truncate edge-tooltip-path">
+          <span class="text-xs font-semibold edge-tooltip-title">{m.d6_it_interaction()}</span>
+          <span class="text-2xs font-semibold truncate edge-tooltip-path">
             {sourceNode?.label ?? '?'} → {targetNode?.label ?? '?'}
           </span>
         </div>
@@ -700,19 +700,19 @@
           {#if hoveredEdge.mentionCount > 0}
             <div class="flex items-center gap-1">
               <div class="w-1.5 h-1.5 rounded-full legend-mention"></div>
-              <span class="text-[8px] font-semibold uppercase tracking-wider edge-tooltip-count">@ {hoveredEdge.mentionCount}</span>
+              <span class="text-xs font-semibold edge-tooltip-count">@ {hoveredEdge.mentionCount}</span>
             </div>
           {/if}
           {#if hoveredEdge.replyCount > 0}
             <div class="flex items-center gap-1">
               <div class="w-1.5 h-1.5 rounded-full legend-reply"></div>
-              <span class="flex items-center gap-1 text-[8px] font-semibold uppercase tracking-wider edge-tooltip-count"><Papicon icon="text-bubble" size={9} />{hoveredEdge.replyCount}</span>
+              <span class="flex items-center gap-1 text-xs font-semibold edge-tooltip-count"><Papicon icon="text-bubble" size={9} />{hoveredEdge.replyCount}</span>
             </div>
           {/if}
           {#if hoveredEdge.reactionCount > 0}
             <div class="flex items-center gap-1">
               <div class="w-1.5 h-1.5 rounded-full legend-reaction"></div>
-              <span class="flex items-center gap-1 text-[8px] font-semibold uppercase tracking-wider edge-tooltip-count"><Papicon icon="heart" size={9} />{hoveredEdge.reactionCount}</span>
+              <span class="flex items-center gap-1 text-xs font-semibold edge-tooltip-count"><Papicon icon="heart" size={9} />{hoveredEdge.reactionCount}</span>
             </div>
           {/if}
         </div>

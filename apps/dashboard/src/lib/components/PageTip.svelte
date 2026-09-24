@@ -83,7 +83,7 @@
             <div class="flex items-start justify-between gap-3 mb-2">
               <div class="page-tip__heading min-w-0">
                 <div class="page-tip__badge flex items-center gap-2 mb-1">
-                  <span class="text-[10px] font-semibold uppercase tracking-wider text-primary/80 bg-primary/8 px-2 py-0.5 rounded-full">
+                  <span class="text-xs font-semibold text-primary/80 bg-primary/8 px-2 py-0.5 rounded-full">
                     {m.tip_badge()}
                   </span>
                 </div>

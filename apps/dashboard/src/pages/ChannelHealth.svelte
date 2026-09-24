@@ -1,8 +1,11 @@
 <script lang="ts">
 import { m } from '../lib/i18n';
-import { onMount } from 'svelte';
+import { onMount, onDestroy, untrack } from 'svelte';
+import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
 import { router } from 'tinro';
 import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+import { pageTabItems } from '../lib/config/pageTabs';
+import { Tabs } from '../lib/components/ui';
 import Papicon from '../lib/components/Papicon.svelte';
 import {
   fetchChannelHealth,
@@ -86,6 +89,33 @@ function applyPreset(preset: ChannelHealthPreset) {
   }
   Object.assign(configDraft, preset.values);
 }
+
+// Les reglages passent par la barre d'enregistrement commune, comme sur les
+// autres pages : l'onglet detaille avait son propre bouton, et l'on quittait la
+// page sans savoir qu'une modification restait en attente.
+const SAVE_OWNER = 'channel-health';
+
+$effect(() => {
+  if (configDirty) {
+    untrack(() => unsavedChanges.register({
+      id: SAVE_OWNER,
+      label: m.channel_health_page_title(),
+      onSave: async () => {
+        await saveConfig();
+        return !configDirty;
+      },
+      onReset: () => {
+        configDraft = savedConfig
+          ? { ...savedConfig, excludedChannelIds: [...(savedConfig.excludedChannelIds ?? [])] }
+          : null;
+      },
+    }));
+  } else {
+    untrack(() => unsavedChanges.release(SAVE_OWNER));
+  }
+});
+
+onDestroy(() => unsavedChanges.release(SAVE_OWNER));
 
 function openPresetDetail() {
   gotoTab('/channel-health', 'config', DEFAULT_TAB);
@@ -223,35 +253,13 @@ onMount(async () => {
   {/snippet}
 
 <!-- ======================== TABS ======================== -->
-<div class="tab-group w-fit mb-6">
-  <button
-    class="tab-button {activeTab === 'accueil' ? 'active' : ''}"
-    onclick={() => gotoTab('/channel-health', 'accueil', DEFAULT_TAB)}
-  >
-    <Papicon icon="sliders-horizontal" size={15} /> {m.channel_health_tab_presets()}
-  </button>
-  <button
-    class="tab-button {activeTab === 'overview' ? 'active' : ''}"
-    onclick={() => gotoTab('/channel-health', 'overview', DEFAULT_TAB)}
-  >
-    <Papicon icon="pie-chart" size={15} /> {m.channel_health_tab_overview()}
-  </button>
-  <button
-    class="tab-button {activeTab === 'alerts' ? 'active' : ''}"
-    onclick={() => gotoTab('/channel-health', 'alerts', DEFAULT_TAB)}
-  >
-    <Papicon icon="bell" size={15} /> {m.channel_health_tab_alerts()}
-    {#if data?.pendingAlerts?.length > 0}
-      <span class="px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full leading-none">{data.pendingAlerts.length}</span>
-    {/if}
-  </button>
-  <button
-    class="tab-button {activeTab === 'config' ? 'active' : ''}"
-    onclick={() => gotoTab('/channel-health', 'config', DEFAULT_TAB)}
-  >
-    <Papicon icon="settings" size={15} /> {m.channel_health_tab_config()}
-  </button>
-</div>
+<Tabs
+  label={m.channel_health_page_title()}
+  class="mb-6"
+  tabs={pageTabItems('/channel-health').map((item) => item.id === 'alerts' && data?.pendingAlerts?.length ? { ...item, badge: data.pendingAlerts.length } : item)}
+  active={activeTab}
+  onchange={(id) => gotoTab('/channel-health', id, DEFAULT_TAB)}
+/>
 
 <!-- ======================== CONTENT ======================== -->
 {#if loading}
@@ -263,7 +271,7 @@ onMount(async () => {
   <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
     <Papicon icon="alert-circle" size={32} />
     <p class="text-sm">{error}</p>
-    <button class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2" onclick={load}>{m.common_retry()}</button>
+    <button class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2" onclick={load}>{m.common_retry()}</button>
   </div>
 {:else}
 
@@ -291,7 +299,7 @@ onMount(async () => {
         <h3 class="text-base font-semibold text-on-surface">{m.channel_health_monitor_disabled_title()}</h3>
         <p class="text-sm text-on-surface-variant/60 max-w-md">{m.channel_health_monitor_disabled_desc()}</p>
         <button
-          class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
+          class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
           onclick={() => { gotoTab('/channel-health', 'config', DEFAULT_TAB); if (configDraft) configDraft.enabled = true; }}
         >
           {m.channel_health_enable_monitor_btn()}
@@ -353,7 +361,7 @@ onMount(async () => {
                   <td class="px-3 py-2.5 text-sm">{ch.uniqueUsersAvg.toFixed(0)}</td>
                   <td class="px-3 py-2.5 text-sm">{ch.totalMessages.toLocaleString()}</td>
                   <td class="px-3 py-2.5 text-sm">
-                    {#if ch.trend === 'UP'}<Papicon icon="trendup" size={16} class="text-emerald-500" />
+                    {#if ch.trend === 'UP'}<Papicon icon="trendup" size={16} class="text-success" />
                     {:else if ch.trend === 'DOWN'}<Papicon icon="trenddown" size={16} class="text-error" />
                     {:else}<Papicon icon="arrow-right" size={16} class="text-on-surface-variant/60" />
                     {/if}
@@ -361,7 +369,7 @@ onMount(async () => {
                   <td class="px-3 py-2.5 text-sm">{ch.confidence}%</td>
                   <td class="px-3 py-2.5 text-sm whitespace-nowrap">
                     {#if ch.status === 'OVERLOADED'}
-                      <button class="px-3 py-1.5 bg-amber-500/10 text-amber-500 rounded-lg text-xs font-bold hover:bg-amber-500/20 transition-all" onclick={() => handleSplit(ch.channelId)}>{m.channel_health_action_split()}</button>
+                      <button class="px-3 py-1.5 bg-warning/10 text-warning rounded-lg text-xs font-bold hover:bg-warning/20 transition-all" onclick={() => handleSplit(ch.channelId)}>{m.channel_health_action_split()}</button>
                     {:else if ch.status === 'DEAD'}
                       <button class="px-3 py-1.5 bg-surface-container-high/40 text-on-surface-variant rounded-lg text-xs font-bold hover:bg-surface-container-high/60 transition-all" onclick={() => handleArchive(ch.channelId)}>{m.channel_health_action_archive()}</button>
                     {/if}
@@ -400,7 +408,7 @@ onMount(async () => {
           {#each data.pendingAlerts as alert}
             <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 space-y-3 border-l-[3px]" style="border-left-color: #fee75c">
               <div class="flex justify-between items-center">
-                <span class="text-xs font-medium text-amber-400">{alertTypeLabels[alert.type]?.() ?? alert.type}</span>
+                <span class="text-xs font-medium text-warning">{alertTypeLabels[alert.type]?.() ?? alert.type}</span>
                 <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/15 text-primary">{alert.confidence}%</span>
               </div>
               <h4 class="text-sm font-semibold text-on-surface">
@@ -418,7 +426,7 @@ onMount(async () => {
                 <span>{m.channel_health_analysis_period({ days: alert.analysisPeriod })}</span>
               </div>
               <div class="flex gap-2 pt-1">
-                <button class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2" onclick={() => handleResolve(alert.id, 'APPLIED')}>
+                <button class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2" onclick={() => handleResolve(alert.id, 'APPLIED')}>
                   {m.channel_health_alert_apply()}
                 </button>
                 <button class="px-4 py-2 bg-surface-container-high/40 text-on-surface-variant rounded-xl text-xs font-bold hover:bg-surface-container-high/60 transition-all flex items-center gap-2" onclick={() => handleResolve(alert.id, 'DISMISSED')}>
@@ -525,9 +533,9 @@ onMount(async () => {
             id="excluded-channels"
             bind:values={configDraft.excludedChannelIds}
             options={availableChannels.map((c) => ({ id: c.id, name: `#${c.name}` }))}
-            accentClass="bg-rose-500/20 text-rose-300 border-rose-500/40"
+            accentClass="bg-error/20 text-rose-300 border-error/40"
           />
-          <p class="text-[11px] text-on-surface-variant/50">{m.channel_health_field_excluded_channels_help()}</p>
+          <p class="text-2xs text-on-surface-variant/50">{m.channel_health_field_excluded_channels_help()}</p>
         </div>
 
         <!-- Divider: Overload thresholds -->
@@ -598,11 +606,6 @@ onMount(async () => {
         </div>
       </div>
 
-      <div class="flex justify-end pt-2">
-        <button class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2" onclick={saveConfig} disabled={savingConfig}>
-          {savingConfig ? m.channel_health_saving() : m.common_save()}
-        </button>
-      </div>
     </div>
   {:else if activeTab === 'config' && !configDraft}
     <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-4">
@@ -612,7 +615,7 @@ onMount(async () => {
       </h3>
       <p class="text-sm text-on-surface-variant/60">{m.channel_health_not_configured_desc()}</p>
       <button
-        class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
+        class="px-4 py-2 bg-primary text-on-primary text-body-sm font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
         onclick={() => { configDraft = { ...CHANNEL_HEALTH_DEFAULT_CONFIG, excludedChannelIds: [] }; }}
       >
         {m.channel_health_init_config_btn()}

@@ -202,7 +202,7 @@
       type="button"
       onclick={exportCsv}
       disabled={entries.length === 0}
-      class="h-9 px-3.5 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 border border-outline-variant/25 text-[13px] font-semibold text-on-surface-variant hover:text-on-surface transition disabled:opacity-40 inline-flex items-center gap-2"
+      class="h-9 px-3.5 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 border border-outline-variant/25 text-body-sm font-semibold text-on-surface-variant hover:text-on-surface transition disabled:opacity-40 inline-flex items-center gap-2"
     >
       <Papicon icon="Download" size={13} />
       Exporter en CSV
@@ -210,7 +210,7 @@
     <button
       type="button"
       onclick={load}
-      class="h-9 px-3.5 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 border border-outline-variant/25 text-[13px] font-semibold text-on-surface-variant hover:text-on-surface transition inline-flex items-center gap-2"
+      class="h-9 px-3.5 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 border border-outline-variant/25 text-body-sm font-semibold text-on-surface-variant hover:text-on-surface transition inline-flex items-center gap-2"
     >
       <Papicon icon="RefreshCw" size={13} />
       Actualiser
@@ -232,7 +232,7 @@
             <button
               type="button"
               onclick={() => applyWindow(option.value)}
-              class="h-8 px-2.5 rounded-md text-[12px] font-semibold transition
+              class="h-8 px-2.5 rounded-md text-xs font-semibold transition
                 {windowHours === option.value ? 'bg-surface-container-lowest text-on-surface shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}"
             >
               {option.label}
@@ -248,7 +248,7 @@
             <button
               type="button"
               onclick={() => applyOutcome(option.value)}
-              class="h-8 px-2.5 rounded-md text-[12px] font-semibold transition
+              class="h-8 px-2.5 rounded-md text-xs font-semibold transition
                 {outcomeFilter === option.value ? 'bg-surface-container-lowest text-on-surface shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}"
             >
               {option.label}
@@ -265,13 +265,13 @@
             type="button"
             onclick={() => applyFilter(entry.action)}
             aria-pressed={actionFilter === entry.action}
-            class="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[12px] font-mono font-medium transition
+            class="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-mono font-medium transition
               {actionFilter === entry.action
                 ? 'bg-primary/12 text-primary border border-primary/30'
                 : 'bg-on-surface/5 text-on-surface-variant border border-transparent hover:bg-on-surface/8 hover:text-on-surface'}"
           >
             {entry.action}
-            <span class="tabular-nums text-[10.5px] opacity-70">{entry.count}</span>
+            <span class="tabular-nums text-2xs opacity-70">{entry.count}</span>
           </button>
         {/each}
       </div>
@@ -291,9 +291,9 @@
           <Papicon icon="ClipboardList" size={20} />
         </div>
         <p class="text-sm font-semibold text-on-surface">Aucune entrée</p>
-        <p class="text-[13px] text-on-surface-variant max-w-md">
+        <p class="text-body-sm text-on-surface-variant max-w-md">
           Le journal est alimenté à partir de cette mise à jour : les actions antérieures n’y figurent pas.
-          Élargissez la fenêtre ou retirez les filtres si vous cherchez une action précise.
+          Élargis la fenêtre ou retire les filtres si tu cherches une action précise.
         </p>
       </div>
     </AdminCard>
@@ -302,9 +302,9 @@
       {#each grouped as [day, dayEntries] (day)}
         <div class="space-y-2">
           <div class="flex items-center gap-3">
-            <p class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">{day}</p>
+            <p class="text-xs font-semibold text-on-surface-variant">{day}</p>
             <div class="flex-1 h-px bg-outline-variant/25"></div>
-            <span class="text-[11px] text-on-surface-variant tabular-nums">{dayEntries.length}</span>
+            <span class="text-2xs text-on-surface-variant tabular-nums">{dayEntries.length}</span>
           </div>
 
           <ul class="space-y-1.5">
@@ -319,8 +319,8 @@
                 >
                   <div
                     class="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center
-                      {visual.tone === 'danger' ? 'bg-red-500/12 text-red-500'
-                        : visual.tone === 'warning' ? 'bg-amber-500/12 text-amber-500'
+                      {visual.tone === 'danger' ? 'bg-error/12 text-error'
+                        : visual.tone === 'warning' ? 'bg-warning/12 text-warning'
                           : visual.tone === 'info' ? 'bg-sky-500/12 text-sky-500'
                             : visual.tone === 'primary' ? 'bg-primary/12 text-primary'
                               : 'bg-on-surface/8 text-on-surface-variant'}"
@@ -329,20 +329,20 @@
                   </div>
 
                   <div class="min-w-0 flex-1">
-                    <p class="text-[13.5px] text-on-surface leading-snug">{entry.summary}</p>
+                    <p class="text-body-sm text-on-surface leading-snug">{entry.summary}</p>
                     <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-1">
-                      <span class="text-[11px] font-mono text-on-surface-variant">{entry.action}</span>
-                      <span class="text-[11px] text-on-surface-variant">·</span>
-                      <span class="text-[11px] text-on-surface-variant">{entry.actorName ?? entry.actorId}</span>
+                      <span class="text-2xs font-mono text-on-surface-variant">{entry.action}</span>
+                      <span class="text-2xs text-on-surface-variant">·</span>
+                      <span class="text-2xs text-on-surface-variant">{entry.actorName ?? entry.actorId}</span>
                       {#if entry.targetId}
-                        <span class="text-[11px] text-on-surface-variant">·</span>
-                        <span class="text-[11px] font-mono text-on-surface-variant truncate max-w-40">{entry.targetId}</span>
+                        <span class="text-2xs text-on-surface-variant">·</span>
+                        <span class="text-2xs font-mono text-on-surface-variant truncate max-w-40">{entry.targetId}</span>
                       {/if}
                     </div>
                   </div>
 
                   <div class="shrink-0 flex flex-col items-end gap-1">
-                    <span class="text-[11.5px] text-on-surface-variant tabular-nums">{formatTime(entry.createdAt)}</span>
+                    <span class="text-2xs text-on-surface-variant tabular-nums">{formatTime(entry.createdAt)}</span>
                     {#if entry.outcome === 'FAILED'}
                       <AdminBadge size="sm" label="Échec" tone="danger" />
                     {/if}
@@ -359,7 +359,7 @@
           type="button"
           onclick={loadMore}
           disabled={loadingMore}
-          class="w-full h-11 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 border border-outline-variant/25 text-[13px] font-semibold text-on-surface-variant hover:text-on-surface transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
+          class="w-full h-11 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 border border-outline-variant/25 text-body-sm font-semibold text-on-surface-variant hover:text-on-surface transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
         >
           {#if loadingMore}
             <span class="w-3.5 h-3.5 rounded-full border-2 border-on-surface-variant/30 border-t-on-surface-variant animate-spin"></span>
@@ -378,7 +378,7 @@
     {@const entry = selected}
     <div class="space-y-4">
       <div class="rounded-xl border border-outline-variant/25 bg-surface-container-low/40 p-3.5">
-        <p class="text-[13.5px] text-on-surface leading-relaxed">{entry.summary}</p>
+        <p class="text-body-sm text-on-surface leading-relaxed">{entry.summary}</p>
       </div>
 
       <dl class="space-y-2.5">
@@ -393,8 +393,8 @@
           { label: 'Horodatage', value: formatFull(entry.createdAt), mono: false },
         ] as field (field.label)}
           <div class="flex items-start justify-between gap-3">
-            <dt class="text-[12.5px] text-on-surface-variant shrink-0">{field.label}</dt>
-            <dd class="text-[12.5px] text-on-surface text-right break-all {field.mono ? 'font-mono' : 'font-medium'}">
+            <dt class="text-xs text-on-surface-variant shrink-0">{field.label}</dt>
+            <dd class="text-xs text-on-surface text-right break-all {field.mono ? 'font-mono' : 'font-medium'}">
               {field.value}
             </dd>
           </div>
@@ -403,8 +403,8 @@
 
       {#if entry.metadata}
         <div>
-          <p class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Métadonnées</p>
-          <pre class="text-[11.5px] font-mono text-on-surface-variant bg-surface-container-low/60 border border-outline-variant/25 rounded-xl p-3 overflow-x-auto">{JSON.stringify(entry.metadata, null, 2)}</pre>
+          <p class="text-xs font-semibold text-on-surface-variant mb-1.5">Métadonnées</p>
+          <pre class="text-2xs font-mono text-on-surface-variant bg-surface-container-low/60 border border-outline-variant/25 rounded-xl p-3 overflow-x-auto">{JSON.stringify(entry.metadata, null, 2)}</pre>
         </div>
       {/if}
     </div>

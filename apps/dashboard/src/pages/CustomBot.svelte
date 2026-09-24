@@ -67,7 +67,7 @@
 
   async function handleValidateToken() {
     if (!tokenInput.trim()) {
-      toast.error('Entrez un token bot');
+      toast.error('Saisis un token de bot');
       return;
     }
     validating = true;
@@ -175,18 +175,18 @@
       </div>
       <div>
         <h2 class="text-xl font-semibold text-on-surface">Custom Bot</h2>
-        <p class="text-sm text-on-surface-variant">Lancez votre propre bot avec les fonctionnalites Kotbo</p>
+        <p class="text-sm text-on-surface-variant">Lance ton propre bot avec les fonctionnalités Kotbo</p>
       </div>
     </div>
 
     {#if config}
       <div class="flex items-center gap-3">
         {#if config.isRunning}
-          <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+          <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-success/10 border border-success/20">
             <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span class="text-xs font-medium text-emerald-600 dark:text-emerald-400">En ligne</span>
+            <span class="text-xs font-medium text-success">En ligne</span>
           </div>
-          <button onclick={handleStop} class="px-3 py-1.5 bg-red-500/10 text-red-500 rounded-lg text-sm font-medium hover:bg-red-500/20 transition-colors">
+          <button onclick={handleStop} class="px-3 py-1.5 bg-error/10 text-error rounded-lg text-sm font-medium hover:bg-error/20 transition-colors">
             Arreter
           </button>
         {:else}
@@ -212,11 +212,11 @@
     </div>
   {:else if !allowed}
     <div class="section-card p-5 text-sm text-on-surface-variant">
-      Le Custom Bot est reserve a l'offre sur mesure. Contactez l'equipe Kotbo pour l'activer sur ce serveur.
+      Le bot personnalisé est réservé à l'offre sur mesure. Contacte l'équipe Kotbo pour l'activer sur ce serveur.
       {#if runningWithoutPlan}
         <div class="flex items-center justify-between gap-3 mt-3">
           <span>Un bot personnalise lance auparavant tourne encore.</span>
-          <button onclick={handleStop} class="px-3 py-1.5 bg-red-500/10 text-red-500 rounded-lg text-sm font-medium hover:bg-red-500/20 transition-colors">
+          <button onclick={handleStop} class="px-3 py-1.5 bg-error/10 text-error rounded-lg text-sm font-medium hover:bg-error/20 transition-colors">
             Arreter
           </button>
         </div>
@@ -224,7 +224,7 @@
     </div>
   {:else}
     {#if config?.secretsUnreadable}
-      <div class="section-card p-4 border-amber-500/30 bg-amber-500/5 text-xs text-amber-700 dark:text-amber-300">
+      <div class="section-card p-4 border-warning/30 bg-warning/5 text-xs text-warning">
         Un secret enregistre est illisible (cle de chiffrement changee). Ressaisissez le token et le client secret.
       </div>
     {/if}
@@ -233,7 +233,7 @@
       <div class="flex items-center justify-between">
         <div>
           <span class="font-medium text-on-surface">Activer le Custom Bot</span>
-          <p class="text-xs text-on-surface-variant mt-0.5">Lancez votre propre instance de bot Discord avec vos credentials</p>
+          <p class="text-xs text-on-surface-variant mt-0.5">Lance ta propre instance de bot Discord avec tes identifiants</p>
         </div>
         <label class="relative inline-flex items-center cursor-pointer">
           <input type="checkbox" bind:checked={enabled} onchange={() => updateCustomBotConfig({ enabled })} class="sr-only peer" />
@@ -244,16 +244,16 @@
 
     <!-- Bot Token -->
     <div class="section-card p-5 space-y-4">
-      <h3 class="text-sm font-semibold text-on-surface uppercase tracking-wider flex items-center gap-2">
+      <h3 class="text-sm font-semibold text-on-surface flex items-center gap-2">
         <Papicon icon="key" size={14} class="text-primary" />
         Token du Bot
       </h3>
 
       {#if config?.botToken}
-        <div class="flex items-center gap-3 px-4 py-3 bg-emerald-500/5 border border-emerald-500/20 rounded-lg">
+        <div class="flex items-center gap-3 px-4 py-3 bg-success/5 border border-success/20 rounded-lg">
           <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
           <span class="text-sm text-on-surface font-mono">{config.botToken}</span>
-          <span class="text-xs text-emerald-600 dark:text-emerald-400 ml-auto">Configure</span>
+          <span class="text-xs text-success ml-auto">Configure</span>
         </div>
       {/if}
 
@@ -262,7 +262,7 @@
           <input
             bind:value={tokenInput}
             type={showToken ? 'text' : 'password'}
-            placeholder="Collez votre token bot Discord ici..."
+            placeholder="Colle le token de ton bot Discord ici..."
             class="w-full px-4 py-2.5 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface font-mono pr-10"
           />
           <button
@@ -307,14 +307,14 @@
 
     <!-- Bot Profile Customization -->
     <div class="section-card p-5 space-y-4">
-      <h3 class="text-sm font-semibold text-on-surface uppercase tracking-wider flex items-center gap-2">
+      <h3 class="text-sm font-semibold text-on-surface flex items-center gap-2">
         <Papicon icon="user" size={14} class="text-primary" />
         Profil du Bot
       </h3>
 
       <!-- Banner -->
       <div>
-        <label for="bot-banner-url" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Banniere</label>
+        <label for="bot-banner-url" class="text-xs text-on-surface-variant block mb-1.5 font-medium">Banniere</label>
         {#if botBannerUrl}
           <div class="relative rounded-xl overflow-hidden mb-2">
             <img src={botBannerUrl} alt="Banner" class="w-full h-32 object-cover" />
@@ -331,7 +331,7 @@
       <div class="grid grid-cols-[auto_1fr] gap-4">
         <!-- Avatar -->
         <div>
-          <label for="bot-avatar-url" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Avatar</label>
+          <label for="bot-avatar-url" class="text-xs text-on-surface-variant block mb-1.5 font-medium">Avatar</label>
           <div class="w-24 h-24 rounded-xl bg-surface-container border-2 border-dashed border-outline-variant flex items-center justify-center overflow-hidden">
             {#if botAvatarUrl}
               <img src={botAvatarUrl} alt="Avatar" class="w-full h-full object-cover" />
@@ -343,14 +343,14 @@
             id="bot-avatar-url"
             bind:value={botAvatarUrl}
             placeholder="URL..."
-            class="w-24 mt-1.5 px-2 py-1 bg-surface-container border border-outline-variant rounded text-[10px] text-on-surface truncate"
+            class="w-24 mt-1.5 px-2 py-1 bg-surface-container border border-outline-variant rounded text-2xs text-on-surface truncate"
           />
         </div>
 
         <!-- Name + Bio -->
         <div class="space-y-3">
           <div>
-            <label for="bot-name" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Nom</label>
+            <label for="bot-name" class="text-xs text-on-surface-variant block mb-1.5 font-medium">Nom</label>
             <input
               id="bot-name"
               bind:value={botName}
@@ -359,16 +359,16 @@
             />
           </div>
           <div>
-            <label for="bot-bio" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Bio</label>
+            <label for="bot-bio" class="text-xs text-on-surface-variant block mb-1.5 font-medium">Bio</label>
             <textarea
               id="bot-bio"
               bind:value={botBio}
-              placeholder="Entrez la bio..."
+              placeholder="Saisis la bio..."
               maxlength={190}
               rows={3}
               class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface resize-none"
             ></textarea>
-            <span class="text-[10px] text-on-surface-variant">{botBio.length}/190 caracteres</span>
+            <span class="text-2xs text-on-surface-variant">{botBio.length}/190 caracteres</span>
           </div>
         </div>
       </div>
@@ -376,14 +376,14 @@
 
     <!-- Status & Activity -->
     <div class="section-card p-5 space-y-4">
-      <h3 class="text-sm font-semibold text-on-surface uppercase tracking-wider flex items-center gap-2">
+      <h3 class="text-sm font-semibold text-on-surface flex items-center gap-2">
         <Papicon icon="activity" size={14} class="text-primary" />
         Statut & Activite
       </h3>
 
       <!-- Status -->
       <div>
-        <label for="bot-status" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Statut</label>
+        <label for="bot-status" class="text-xs text-on-surface-variant block mb-1.5 font-medium">Statut</label>
         <div class="relative">
           <select
             id="bot-status"
@@ -403,7 +403,7 @@
       <!-- Activity -->
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label for="activity-type" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Type d'activite</label>
+          <label for="activity-type" class="text-xs text-on-surface-variant block mb-1.5 font-medium">Type d'activite</label>
           <select
             id="activity-type"
             bind:value={activityType}
@@ -415,7 +415,7 @@
           </select>
         </div>
         <div>
-          <label for="activity-text" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Texte d'activite</label>
+          <label for="activity-text" class="text-xs text-on-surface-variant block mb-1.5 font-medium">Texte d'activite</label>
           <input
             id="activity-text"
             bind:value={activityText}
@@ -428,7 +428,7 @@
 
       {#if activityType === 'STREAMING'}
         <div>
-          <label for="activity-url" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">URL du stream</label>
+          <label for="activity-url" class="text-xs text-on-surface-variant block mb-1.5 font-medium">URL du stream</label>
           <input
             id="activity-url"
             bind:value={activityUrl}
@@ -441,11 +441,11 @@
 
     <!-- Custom Dashboard URL -->
     <div class="section-card p-5 space-y-3">
-      <h3 class="text-sm font-semibold text-on-surface uppercase tracking-wider flex items-center gap-2">
+      <h3 class="text-sm font-semibold text-on-surface flex items-center gap-2">
         <Papicon icon="globe" size={14} class="text-primary" />
         Dashboard Personnalise
       </h3>
-      <p class="text-xs text-on-surface-variant">Redirigez votre dashboard vers une URL personnalisee</p>
+      <p class="text-xs text-on-surface-variant">Redirige ton dashboard vers une URL personnalisée</p>
       <input
         bind:value={customDashboardUrl}
         placeholder="https://panel.monserveur.fr"
@@ -455,11 +455,11 @@
 
     <!-- OAuth Credentials (optional) -->
     <div class="section-card p-5 space-y-3">
-      <h3 class="text-sm font-semibold text-on-surface uppercase tracking-wider flex items-center gap-2">
+      <h3 class="text-sm font-semibold text-on-surface flex items-center gap-2">
         <Papicon icon="shield" size={14} class="text-primary" />
         OAuth (optionnel)
       </h3>
-      <p class="text-xs text-on-surface-variant">Necessaire uniquement si vous utilisez un dashboard personnalise avec login</p>
+      <p class="text-xs text-on-surface-variant">Nécessaire uniquement si tu utilises un dashboard personnalisé avec connexion</p>
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label for="bot-client-id" class="text-xs text-on-surface-variant block mb-1">Client ID</label>
@@ -499,12 +499,12 @@
 
     <!-- Error display -->
     {#if config?.lastError}
-      <div class="section-card p-4 border-red-500/30 bg-red-500/5">
+      <div class="section-card p-4 border-error/30 bg-error/5">
         <div class="flex items-center gap-2 mb-1">
-          <Papicon icon="alert-triangle" size={14} class="text-red-500" />
-          <span class="text-sm font-medium text-red-600 dark:text-red-400">Derniere erreur</span>
+          <Papicon icon="alert-triangle" size={14} class="text-error" />
+          <span class="text-sm font-medium text-error">Derniere erreur</span>
         </div>
-        <p class="text-xs text-red-500/80 font-mono">{config.lastError}</p>
+        <p class="text-xs text-error/80 font-mono">{config.lastError}</p>
       </div>
     {/if}
   {/if}

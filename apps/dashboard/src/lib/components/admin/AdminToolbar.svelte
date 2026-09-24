@@ -83,14 +83,14 @@
           type="button"
           onclick={() => (activeFilter = filter.value)}
           aria-pressed={activeFilter === filter.value}
-          class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-primary
+          class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-body-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-primary
             {activeFilter === filter.value
               ? 'bg-primary/12 text-primary border border-primary/30'
               : 'bg-on-surface/5 text-on-surface-variant border border-transparent hover:bg-on-surface/8 hover:text-on-surface'}"
         >
           {filter.label}
           {#if typeof filter.count === 'number'}
-            <span class="tabular-nums text-[11px] font-semibold px-1.5 py-0.5 rounded {activeFilter === filter.value ? 'bg-primary/15' : 'bg-on-surface/8'}">
+            <span class="tabular-nums text-2xs font-semibold px-1.5 py-0.5 rounded {activeFilter === filter.value ? 'bg-primary/15' : 'bg-on-surface/8'}">
               {filter.count}
             </span>
           {/if}
@@ -98,7 +98,7 @@
       {/each}
 
       {#if resultCount !== null}
-        <span class="ml-auto text-[12px] text-on-surface-variant tabular-nums">
+        <span class="ml-auto text-xs text-on-surface-variant tabular-nums">
           {resultCount} {resultLabel}{resultCount > 1 ? 's' : ''}
         </span>
       {/if}

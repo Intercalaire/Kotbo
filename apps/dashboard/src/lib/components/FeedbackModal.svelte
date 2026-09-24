@@ -137,7 +137,7 @@
   {#if successResult}
     <!-- Success screen -->
     <div class="p-6 space-y-6 text-center max-w-md mx-auto relative z-10">
-      <div class="w-16 h-16 bg-emerald-500/10 text-emerald-500 dark:bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-2 border border-emerald-500/20">
+      <div class="w-16 h-16 bg-success/10 text-success rounded-full flex items-center justify-center mx-auto mb-2 border border-success/20">
         <Papicon icon="check_circle" size={32} />
       </div>
       
@@ -153,8 +153,8 @@
           </p>
         {/if}
       {:else}
-        <div class="p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl space-y-2 text-left">
-          <p class="text-sm font-semibold text-amber-500 flex items-center gap-1.5">
+        <div class="p-4 bg-warning/5 border border-warning/20 rounded-xl space-y-2 text-left">
+          <p class="text-sm font-semibold text-warning flex items-center gap-1.5">
             {m.d1_fb_action_required()}
           </p>
           <p class="text-xs text-on-surface-variant leading-relaxed">
@@ -204,7 +204,7 @@
     <form onsubmit={handleSubmit} class="p-6 space-y-5 relative z-10">
       <!-- Type Selection -->
       <div class="space-y-2">
-        <label for="feedback-type" class="text-[13px] font-medium text-on-surface-variant/70">{m.d1_fb_type_label()}</label>
+        <label for="feedback-type" class="text-body-sm font-medium text-on-surface-variant/70">{m.d1_fb_type_label()}</label>
         <FormSelect id="feedback-type" bind:value={type} className="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-hidden focus:border-primary/40 focus:ring-4 focus:ring-primary/10 transition-all duration-300">
           <option value="retour">{m.d1_fb_opt_feedback()}</option>
           <option value="bloquage">{m.d1_fb_opt_bug()}</option>
@@ -219,7 +219,7 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <!-- Nom du projet -->
           <div class="space-y-1.5">
-            <label for="p-name" class="text-[13px] font-medium text-on-surface-variant/70">{m.d1_fb_field_project_name()}</label>
+            <label for="p-name" class="text-body-sm font-medium text-on-surface-variant/70">{m.d1_fb_field_project_name()}</label>
             <FormInput
               id="p-name"
               bind:value={projectName}
@@ -231,7 +231,7 @@
 
           <!-- Lien du projet -->
           <div class="space-y-1.5">
-            <label for="p-url" class="text-[13px] font-medium text-on-surface-variant/70">{m.d1_fb_field_project_url()}</label>
+            <label for="p-url" class="text-body-sm font-medium text-on-surface-variant/70">{m.d1_fb_field_project_url()}</label>
             <FormInput
               id="p-url"
               bind:value={projectUrl}
@@ -243,7 +243,7 @@
 
           <!-- Nombre de membres -->
           <div class="space-y-1.5">
-            <label for="p-members" class="text-[13px] font-medium text-on-surface-variant/70">{m.d1_fb_field_members()}</label>
+            <label for="p-members" class="text-body-sm font-medium text-on-surface-variant/70">{m.d1_fb_field_members()}</label>
             <FormInput
               id="p-members"
               bind:value={memberCount}
@@ -255,7 +255,7 @@
 
           <!-- Disponibilités -->
           <div class="space-y-1.5">
-            <label for="p-avail" class="text-[13px] font-medium text-on-surface-variant/70">{m.d1_fb_field_availability()}</label>
+            <label for="p-avail" class="text-body-sm font-medium text-on-surface-variant/70">{m.d1_fb_field_availability()}</label>
             <FormInput
               id="p-avail"
               bind:value={availability}
@@ -268,7 +268,7 @@
 
         <!-- Autre contact -->
         <div class="space-y-1.5">
-          <label for="p-contact" class="text-[13px] font-medium text-on-surface-variant/70">{m.d1_fb_field_contact()}</label>
+          <label for="p-contact" class="text-body-sm font-medium text-on-surface-variant/70">{m.d1_fb_field_contact()}</label>
           <FormInput
             id="p-contact"
             bind:value={contact}
@@ -281,8 +281,8 @@
         <!-- Description -->
         <div class="space-y-1.5">
           <div class="flex items-center justify-between">
-            <label for="p-desc" class="text-[13px] font-medium text-on-surface-variant/70">{m.d1_fb_field_description()}</label>
-            <span class="text-[10px] font-bold {description.length > 1900 ? 'text-error' : 'text-on-surface-variant/50'}">
+            <label for="p-desc" class="text-body-sm font-medium text-on-surface-variant/70">{m.d1_fb_field_description()}</label>
+            <span class="text-2xs font-bold {description.length > 1900 ? 'text-error' : 'text-on-surface-variant/50'}">
               {description.length} / 2000
             </span>
           </div>
@@ -299,8 +299,8 @@
         <!-- Motivation -->
         <div class="space-y-1.5">
           <div class="flex items-center justify-between">
-            <label for="p-motiv" class="text-[13px] font-medium text-on-surface-variant/70">{m.d1_fb_field_motivation()}</label>
-            <span class="text-[10px] font-bold {motivation.length > 1900 ? 'text-error' : 'text-on-surface-variant/50'}">
+            <label for="p-motiv" class="text-body-sm font-medium text-on-surface-variant/70">{m.d1_fb_field_motivation()}</label>
+            <span class="text-2xs font-bold {motivation.length > 1900 ? 'text-error' : 'text-on-surface-variant/50'}">
               {motivation.length} / 2000
             </span>
           </div>
@@ -317,8 +317,8 @@
         <!-- Expérience -->
         <div class="space-y-1.5">
           <div class="flex items-center justify-between">
-            <label for="p-exp" class="text-[13px] font-medium text-on-surface-variant/70">{m.d1_fb_field_experience()}</label>
-            <span class="text-[10px] font-bold {experience.length > 1900 ? 'text-error' : 'text-on-surface-variant/50'}">
+            <label for="p-exp" class="text-body-sm font-medium text-on-surface-variant/70">{m.d1_fb_field_experience()}</label>
+            <span class="text-2xs font-bold {experience.length > 1900 ? 'text-error' : 'text-on-surface-variant/50'}">
               {experience.length} / 2000
             </span>
           </div>
@@ -335,8 +335,8 @@
         <!-- Description Textarea (original) -->
         <div class="space-y-2">
           <div class="flex items-center justify-between">
-            <label for="feedback-message" class="text-[13px] font-medium text-on-surface-variant/70">{m.d1_fb_field_message()}</label>
-            <span class="text-[10px] font-bold {message.length > 1900 ? 'text-error' : 'text-on-surface-variant/50'}">
+            <label for="feedback-message" class="text-body-sm font-medium text-on-surface-variant/70">{m.d1_fb_field_message()}</label>
+            <span class="text-2xs font-bold {message.length > 1900 ? 'text-error' : 'text-on-surface-variant/50'}">
               {message.length} / 2000
             </span>
           </div>
@@ -363,7 +363,7 @@
         <button
           type="submit"
           disabled={isSending || (type !== 'partenariat' && type !== 'beta' ? !message.trim() : (!projectName.trim() || !description.trim() || !motivation.trim()))}
-          class="px-5 py-2.5 text-xs rounded-xl font-semibold uppercase tracking-wide bg-primary text-on-primary border border-primary hover:bg-primary-container active:scale-95 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 flex items-center gap-2"
+          class="px-5 py-2.5 text-xs rounded-xl font-semibold bg-primary text-on-primary border border-primary hover:bg-primary-container active:scale-95 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 flex items-center gap-2"
         >
           {#if isSending}
             <div class="w-4 h-4 border-2 border-on-primary border-t-transparent rounded-full animate-spin"></div>
