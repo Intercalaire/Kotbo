@@ -1,12 +1,7 @@
 import { type Client, Events, type GuildMember, type Invite, type Message, type PartialGuildMember, type Typing, type VoiceState } from 'discord.js';
 import { logger } from '../utils/logger.js';
-import {
-  getRaidProtectionConfig,
-  trackJoinAndDetectRaid,
-  handleJoinDuringLock,
-  handleJoinDuringRaidKick,
-} from '../services/moderation/raidProtectionService.js';
-import { handleJoinAccountAgeGuard } from '../services/moderation/accountAgeGuardService.js';
+import { getRaidProtectionConfig } from '../services/moderation/raidProtectionService.js';
+import { admitJoiningMember } from '../services/moderation/joinAdmissionService.js';
 import { startCaptchaChallenge, handleCaptchaMessage, hasPendingCaptchaSession } from '../services/moderation/captchaService.js';
 import { restorePersistedRoles, snapshotDepartingMemberRoles } from '../services/moderation/rolePersistenceService.js';
 import { handleScamMessage } from '../services/moderation/scamFilterService.js';
@@ -19,21 +14,12 @@ export function registerRaidProtectionListener(client: Client): void {
   // ── Arrivées : join lock → raid kick → détection de raid → ancienneté → captcha → rôles rendus → tag role
   client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
     try {
+      // 1 à 4. Join lock, raid kick, détection de raid, ancienneté du compte : partagés
+      //        avec les autres écouteurs d'arrivée, qui attendent ce verdict avant d'agir.
+      if (!(await admitJoiningMember(member))) return;
+
       const config = await getRaidProtectionConfig(member.guild.id);
       if (!config) return;
-
-      // 1. Join lock actif : kick immédiat (filet au-delà de la pause des invitations)
-      if (await handleJoinDuringLock(member, config)) return;
-
-      // 2. Raid mode en action KICK
-      if (await handleJoinDuringRaidKick(member, config)) return;
-
-      // 3. Détection de raid (fenêtre glissante)
-      await trackJoinAndDetectRaid(member, config);
-
-      // 4. Ancienneté du compte Discord : après la détection de raid, pour que
-      //    les comptes refoulés comptent quand même dans la vague d'arrivées
-      if (await handleJoinAccountAgeGuard(member, config)) return;
 
       // 5. Captcha : activé en permanence, ou forcé par le raid mode (action CAPTCHA)
       const captchaForced = config.raidModeActive && config.antiRaidAction === 'CAPTCHA';

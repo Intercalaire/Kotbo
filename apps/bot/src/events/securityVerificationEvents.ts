@@ -1,6 +1,7 @@
 import { Client, Events, type GuildMember } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
+import { admitJoiningMember } from '../services/moderation/joinAdmissionService.js';
 import { sendVerificationDM, cleanupExpiredVerifications } from '../services/moderation/securityVerificationService.js';
 
 const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
@@ -8,6 +9,7 @@ const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
 export function registerSecurityVerificationListener(client: Client) {
   client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
     if (member.user.bot) return;
+    if (!(await admitJoiningMember(member))) return;
 
     try {
       const guildConfig = await prisma.guild.findUnique({
