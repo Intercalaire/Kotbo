@@ -25,11 +25,32 @@
   let busyIds = $state<string[]>([]);
   let drafts = $state<Record<string, AdminPlanKey>>({});
   let reasons = $state<Record<string, string>>({});
+  // Les serveurs que le bot a quittés restent en base, mais la plupart n'ont plus rien à
+  // facturer : masqués par défaut, ils encombraient la liste. Ceux qui paient ou ont encore
+  // un accès restent visibles, ce sont justement ceux à surveiller.
+  let showAbsent = $state(false);
+
+  function stillBillable(guild: AdminBillingGuild): boolean {
+    return Boolean(guild.stripeSubscriptionId)
+      || guild.activated
+      || guild.plan !== 'FREE'
+      || (guild.trial !== null && !guild.trial.consumed);
+  }
+
+  /** Serveur quitté par le bot et sans rien de facturable : masqué tant que la case est décochée. */
+  function isIdleAbsent(guild: AdminBillingGuild): boolean {
+    return !guild.present && !stillBillable(guild);
+  }
 
   const guilds = $derived(billingState?.guilds ?? []);
+  const hiddenAbsentCount = $derived(guilds.filter(isIdleAbsent).length);
+  // Les compteurs des filtres suivent ce qui est affiché, serveurs masqués exclus.
+  const countable = $derived(showAbsent ? guilds : guilds.filter((guild) => !isIdleAbsent(guild)));
   const filtered = $derived.by(() => {
     const needle = search.trim().toLowerCase();
     return guilds
+      // Une recherche les inclut quand même : on doit pouvoir retrouver un serveur par son id.
+      .filter((guild) => showAbsent || needle || !isIdleAbsent(guild))
       .filter((guild) => !needle || (guild.name ?? '').toLowerCase().includes(needle) || guild.id.includes(needle))
       .filter((guild) => filter === 'ALL' || guild.plan === filter || (filter === 'STRIPE' && Boolean(guild.stripeSubscriptionId)))
       .sort((a, b) => (a.name ?? a.id).localeCompare(b.name ?? b.id, 'fr'));
@@ -132,11 +153,25 @@
       resultCount={filtered.length}
       resultLabel="serveur"
       filters={[
-        { value: 'ALL', label: 'Tous', count: guilds.length },
-        ...(billingState?.plans ?? []).map((plan) => ({ value: plan.key, label: plan.name, count: billingState?.counts[plan.key] ?? 0 })),
-        { value: 'STRIPE', label: 'Avec Stripe', count: billingState?.subscriptions ?? 0 },
+        { value: 'ALL', label: 'Tous', count: countable.length },
+        ...(billingState?.plans ?? []).map((plan) => ({ value: plan.key, label: plan.name, count: countable.filter((guild) => guild.plan === plan.key).length })),
+        { value: 'STRIPE', label: 'Avec Stripe', count: countable.filter((guild) => Boolean(guild.stripeSubscriptionId)).length },
       ]}
-    />
+    >
+      {#snippet actions()}
+        <button
+          type="button"
+          onclick={() => (showAbsent = !showAbsent)}
+          aria-pressed={showAbsent}
+          title="Serveurs que le bot a quittés, sans abonnement, accès ni essai en cours"
+          class="h-10 px-3 rounded-xl border text-xs font-medium transition {showAbsent
+            ? 'bg-primary/10 border-primary/40 text-primary'
+            : 'bg-surface-container-low/70 border-outline-variant/25 text-on-surface-variant hover:text-on-surface'}"
+        >
+          {showAbsent ? 'Masquer les serveurs hors bot' : `Afficher les serveurs hors bot (${hiddenAbsentCount})`}
+        </button>
+      {/snippet}
+    </AdminToolbar>
 
     {#if loading}
       <div class="h-56 rounded-2xl bg-on-surface/6 animate-pulse"></div>
