@@ -106,7 +106,7 @@
   "rpg_daily_desc": "You received **{reward}** {emoji} **{currency}**!",
   "rpg_daily_new_balance": "New balance",
   "rpg_daily_streak_name": "Streak",
-  "rpg_daily_streak_value": "🔥 **{streak}** day(s) in a row · **+{bonus}%** bonus",
+  "rpg_daily_streak_value": "🔥 **{streak}** day(s) in a row: keep going to earn more!",
   "rpg_daily_streak_start": "🔥 Day **1**: come back tomorrow to start your streak!",
   "rpg_travel_disabled_title": "RPG disabled",
   "rpg_travel_disabled_desc": "The RPG adventure system is disabled on this server.",

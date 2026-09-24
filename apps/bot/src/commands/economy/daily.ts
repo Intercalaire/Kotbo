@@ -42,7 +42,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       .setDescription(m.b2_daily_reward_desc({ reward: result.reward ?? 0, emoji: config.currencyEmoji, name: config.currencyName }, { locale }))
       .addFields(
         { name: m.b2_daily_new_balance({}, { locale }), value: `**${result.newBalance}** ${config.currencyEmoji}` },
-        { name: m.rpg_daily_streak_name({}, { locale }), value: dailyStreakLine(result.streak ?? 1, result.streakBonusPercent ?? 0, locale) },
+        { name: m.rpg_daily_streak_name({}, { locale }), value: dailyStreakLine(result.streak ?? 1, locale) },
       )
       .setColor(COLORS.success)
       .setTimestamp();

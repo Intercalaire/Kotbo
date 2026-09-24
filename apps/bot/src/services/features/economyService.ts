@@ -7,7 +7,7 @@ import { STAT_POINTS_PER_LEVEL } from './rpg/rpgProgressionService.js';
 import { SKILL_POINTS_PER_LEVEL } from './rpg/rpgSkillTree.js';
 import { loadGuildPerksForMember } from './rpg/rpgGuildBuildingService.js';
 import { discountedPrice } from './rpg/rpgGuildBuildings.js';
-import { applyDailyStreak, dailyStreakBonus, nextDailyStreak } from './rpg/rpgDailyStreakPolicy.js';
+import { applyDailyStreak, nextDailyStreak } from './rpg/rpgDailyStreakPolicy.js';
 import {
   ALL_EQUIPMENT_SLOTS,
   SLOT_ITEM_FIELD,
@@ -374,7 +374,6 @@ export async function claimDaily(guildId: string, userId: string) {
     reward,
     baseReward,
     streak,
-    streakBonusPercent: Math.round(dailyStreakBonus(streak) * 100),
     newBalance: updated?.balance ?? profile.balance + reward
   };
 }

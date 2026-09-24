@@ -31,21 +31,26 @@ describe('série du daily', () => {
 });
 
 describe('bonus de série', () => {
-  test('rien le premier jour, +10 % par jour ensuite', () => {
+  test('rien le premier jour, +10 % par jour jusqu\'au 6e', () => {
     expect(dailyStreakBonus(1)).toBe(0);
     expect(dailyStreakBonus(2)).toBe(0.1);
-    expect(dailyStreakBonus(5)).toBe(0.4);
+    expect(dailyStreakBonus(6)).toBe(0.5);
+  });
+
+  test('puis +1 % par jour', () => {
+    expect(dailyStreakBonus(7)).toBe(0.51);
+    expect(dailyStreakBonus(16)).toBe(0.6);
   });
 
   test('plafonne à +100 %', () => {
-    expect(dailyStreakBonus(11)).toBe(1);
+    expect(dailyStreakBonus(56)).toBe(1);
     expect(dailyStreakBonus(365)).toBe(1);
   });
 
   test('majore la récompense et arrondit à l\'unité inférieure', () => {
     expect(applyDailyStreak(100, 1)).toBe(100);
     expect(applyDailyStreak(100, 4)).toBe(130);
-    expect(applyDailyStreak(55, 2)).toBe(60);
-    expect(applyDailyStreak(100, 50)).toBe(200);
+    expect(applyDailyStreak(100, 10)).toBe(154);
+    expect(applyDailyStreak(100, 500)).toBe(200);
   });
 });

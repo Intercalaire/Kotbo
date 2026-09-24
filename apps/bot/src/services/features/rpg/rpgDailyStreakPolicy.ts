@@ -5,10 +5,16 @@
  * tous les jours rapporte davantage, sans qu'une très longue série fasse exploser l'économie.
  */
 
-/** Majoration gagnée par jour de série au-delà du premier. */
-export const DAILY_STREAK_STEP = 0.1;
+/**
+ * Barème de la série : de gros paliers les premiers jours pour accrocher le joueur, puis de
+ * petits gains qui récompensent la constance sans faire exploser l'économie.
+ */
+export const DAILY_STREAK_EARLY_STEP = 0.1;
+/** Nombre de jours (après le premier) qui rapportent le gros palier : jours 2 à 6. */
+export const DAILY_STREAK_EARLY_DAYS = 5;
+export const DAILY_STREAK_LATE_STEP = 0.01;
 
-/** Majoration maximale : +100 %, atteinte au onzième jour d'affilée. */
+/** Majoration maximale : +100 %. */
 export const DAILY_STREAK_MAX_BONUS = 1;
 
 /**
@@ -30,10 +36,17 @@ export function nextDailyStreak(lastDaily: Date | null, previousStreak: number, 
   return Math.max(0, previousStreak) + 1;
 }
 
-/** Majoration de la série, entre 0 (premier jour) et `DAILY_STREAK_MAX_BONUS`. */
+/**
+ * Majoration de la série, entre 0 (premier jour) et `DAILY_STREAK_MAX_BONUS` : +10 % par jour
+ * du 2ᵉ au 6ᵉ jour (+50 %), puis +1 % par jour, jusqu'au plafond.
+ */
 export function dailyStreakBonus(streak: number): number {
   if (streak <= 1) return 0;
-  return Math.min(DAILY_STREAK_MAX_BONUS, Math.round((streak - 1) * DAILY_STREAK_STEP * 100) / 100);
+  const days = streak - 1;
+  const early = Math.min(days, DAILY_STREAK_EARLY_DAYS);
+  const late = days - early;
+  const bonus = early * DAILY_STREAK_EARLY_STEP + late * DAILY_STREAK_LATE_STEP;
+  return Math.min(DAILY_STREAK_MAX_BONUS, Math.round(bonus * 100) / 100);
 }
 
 /** Récompense majorée de la série, arrondie à l'unité inférieure comme le tirage de base. */

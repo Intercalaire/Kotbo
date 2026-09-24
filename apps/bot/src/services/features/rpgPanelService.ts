@@ -3764,11 +3764,14 @@ async function handleTravelEventChoice(interaction: ButtonInteraction, guildId: 
 // Daily & Pêche (actions instantanées)
 // ─────────────────────────────────────────────────────────────
 
-/** Ligne de série affichée sous la récompense journalière, ici comme dans `/daily`. */
-export function dailyStreakLine(streak: number, bonusPercent: number, locale: Locale): string {
+/**
+ * Ligne de série affichée sous la récompense journalière, ici comme dans `/daily`. Le bonus
+ * n'y est pas chiffré : le joueur sait que sa série paie, le barème reste en coulisses.
+ */
+export function dailyStreakLine(streak: number, locale: Locale): string {
   return streak <= 1
     ? m.rpg_daily_streak_start({}, { locale })
-    : m.rpg_daily_streak_value({ streak, bonus: bonusPercent }, { locale });
+    : m.rpg_daily_streak_value({ streak }, { locale });
 }
 
 async function handleDailyClaim(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale): Promise<void> {
@@ -3788,7 +3791,7 @@ async function handleDailyClaim(interaction: ButtonInteraction, guildId: string,
   const embed = successEmbed(m.rpg_daily_title({}, { locale }), m.rpg_daily_desc({ reward: result.reward ?? 0, emoji: config.currencyEmoji, currency: config.currencyName }, { locale }))
     .addFields(
       { name: m.rpg_daily_new_balance({}, { locale }), value: `**${result.newBalance}** ${config.currencyEmoji}` },
-      { name: m.rpg_daily_streak_name({}, { locale }), value: dailyStreakLine(result.streak ?? 1, result.streakBonusPercent ?? 0, locale) },
+      { name: m.rpg_daily_streak_name({}, { locale }), value: dailyStreakLine(result.streak ?? 1, locale) },
     );
 
   await respond(interaction, { embeds: [embed], components: [backRow(ownerId, locale)] });
