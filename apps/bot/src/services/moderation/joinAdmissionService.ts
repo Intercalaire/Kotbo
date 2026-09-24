@@ -24,6 +24,8 @@ import { handleJoinAccountAgeGuard } from './accountAgeGuardService.js';
 const VERDICT_TTL_MS = 60_000;
 
 const verdicts = new Map<string, Promise<boolean>>();
+/** Dernier verdict par membre, sans l'heure d'arrivée : c'est ce que voit un départ. */
+const latestByMember = new Map<string, Promise<boolean>>();
 
 /**
  * Vrai si le membre reste sur le serveur, faux s'il vient d'être expulsé ou banni.
@@ -45,11 +47,26 @@ export function admitJoiningMember(member: GuildMember): Promise<boolean> {
     return true;
   });
   verdicts.set(key, verdict);
+  const memberKey = `${member.guild.id}:${member.id}`;
+  latestByMember.set(memberKey, verdict);
   const timer = setTimeout(() => {
     if (verdicts.get(key) === verdict) verdicts.delete(key);
+    if (latestByMember.get(memberKey) === verdict) latestByMember.delete(memberKey);
   }, VERDICT_TTL_MS);
   timer.unref?.();
   return verdict;
+}
+
+/**
+ * Vrai si ce départ est celui d'un membre que l'admission vient de refouler.
+ *
+ * Un compte expulsé ou banni à l'arrivée n'a eu ni bienvenue ni workflow : son départ ne doit
+ * pas davantage déclencher d'au revoir. Le départ peut survenir pendant les contrôles (c'est
+ * l'expulsion elle-même qui le provoque) : le verdict est alors attendu.
+ */
+export async function wasRefusedOnArrival(guildId: string, userId: string): Promise<boolean> {
+  const verdict = latestByMember.get(`${guildId}:${userId}`);
+  return verdict ? !(await verdict) : false;
 }
 
 async function runAdmissionChecks(member: GuildMember): Promise<boolean> {

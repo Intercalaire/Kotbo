@@ -18,7 +18,7 @@ for (const ext of ['ts', 'js']) {
   mock.module(path.resolve(import.meta.dir, `../../services/moderation/accountAgeGuardService.${ext}`), () => ageGuard);
 }
 
-const { admitJoiningMember } = await import('../../services/moderation/joinAdmissionService.js');
+const { admitJoiningMember, wasRefusedOnArrival } = await import('../../services/moderation/joinAdmissionService.js');
 
 let counter = 0;
 function member(id?: string, joinedTimestamp = Date.now()) {
@@ -63,5 +63,20 @@ describe('admission des arrivées', () => {
     // Il revient : cette fois il est refoulé à nouveau, et non laissé sans contrôle.
     expect(await admitJoiningMember(member('revenant', 2_000))).toBe(false);
     expect(tracked.filter((id) => id === 'revenant')).toHaveLength(2);
+  });
+
+  test('le départ d\'un compte refoulé est reconnu, même pendant les contrôles', async () => {
+    youngAccount = true;
+    const newcomer = member('refoule');
+    const verdict = admitJoiningMember(newcomer);
+    // L'expulsion provoque le départ avant que le verdict ne soit rendu.
+    expect(await wasRefusedOnArrival('guild-1', 'refoule')).toBe(true);
+    await verdict;
+  });
+
+  test('le départ d\'un membre admis, ou inconnu, reste un départ ordinaire', async () => {
+    await admitJoiningMember(member('admis'));
+    expect(await wasRefusedOnArrival('guild-1', 'admis')).toBe(false);
+    expect(await wasRefusedOnArrival('guild-1', 'jamais-vu')).toBe(false);
   });
 });
