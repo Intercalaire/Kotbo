@@ -33,6 +33,7 @@ import {
   planForMemberCount,
   type PlanKey,
 } from '@kotbo/contracts';
+import crypto from 'node:crypto';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { getDashboardOrigin } from '../../api/shared/core.js';
@@ -87,7 +88,8 @@ const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRTUVWXYZ2346789';
 function randomBlock(length: number): string {
   let out = '';
   for (let i = 0; i < length; i += 1) {
-    out += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+    // `crypto` et non `Math.random` : un code cadeau se paie, il ne doit pas se deviner.
+    out += CODE_ALPHABET[crypto.randomInt(CODE_ALPHABET.length)];
   }
   return out;
 }

@@ -5,6 +5,23 @@ import { getClient } from './client.js';
 import { buildAccessFields, type AccessType } from '../services/system/accessService.js';
 import { invalidateLevelConfigCache } from '../services/progression/levelingService.js';
 
+const ACTIVATION_CODE_ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+/**
+ * Code d'activation `KB-XXXX-XXXX-XXXX`, tiré par `crypto`.
+ *
+ * Il était tiré par `Math.random`, qui n'est pas fait pour des secrets, et chaque bloc
+ * prenait quatre chiffres d'un nombre en base 36 : un nombre court en donnait moins, et
+ * le code sortait mal formé. Même alphabet et même format qu'avant.
+ */
+export function generateActivationCode(): string {
+  const block = () => Array.from(
+    { length: 4 },
+    () => ACTIVATION_CODE_ALPHABET[crypto.randomInt(ACTIVATION_CODE_ALPHABET.length)],
+  ).join('');
+  return `KB-${block()}-${block()}-${block()}`;
+}
+
 function hashActivationCode(code: string): string {
   return crypto.createHash('sha256').update(code).digest('hex');
 }
