@@ -1027,11 +1027,14 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
       return true;
     }
 
+    // Chaque action sur un ticket le cherche par son identifiant ET son serveur : un membre
+    // du staff d'un autre serveur pouvait sinon fermer, supprimer ou écrire dans un ticket
+    // d'ici en connaissant son identifiant, visible dans les boutons du salon du ticket.
     // POST /api/dashboard/guilds/:guildId/tickets/:ticketId/message
     if (parts.length === 7 && parts[6] === 'message' && method === 'POST') {
       const ticketId = parts[5];
       try {
-        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+        const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, guildId } });
         if (!ticket || !ticket.channelId) {
           json(res, 404, { error: 'Ticket introuvable ou salon inactif' });
           return true;
@@ -1077,7 +1080,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
     if (parts.length === 7 && parts[6] === 'claim' && method === 'POST') {
       const ticketId = parts[5];
       try {
-        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+        const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, guildId } });
         if (!ticket) {
           json(res, 404, { error: 'Ticket introuvable' });
           return true;
@@ -1198,7 +1201,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
     if (parts.length === 7 && parts[6] === 'close' && method === 'POST') {
       const ticketId = parts[5];
       try {
-        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+        const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, guildId } });
         if (!ticket) {
           json(res, 404, { error: 'Ticket introuvable' });
           return true;
@@ -1219,7 +1222,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
     if (parts.length === 7 && parts[6] === 'reopen' && method === 'POST') {
       const ticketId = parts[5];
       try {
-        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+        const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, guildId } });
         if (!ticket) {
           json(res, 404, { error: 'Ticket introuvable' });
           return true;
@@ -1278,7 +1281,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
     if (parts.length === 7 && parts[6] === 'rename' && method === 'POST') {
       const ticketId = parts[5];
       try {
-        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+        const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, guildId } });
         if (!ticket) {
           json(res, 404, { error: 'Ticket introuvable' });
           return true;
@@ -1319,7 +1322,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
     if (parts.length === 7 && parts[6] === 'restore' && method === 'POST') {
       const ticketId = parts[5];
       try {
-        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+        const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, guildId } });
         if (!ticket) {
           json(res, 404, { error: 'Ticket introuvable' });
           return true;
@@ -1364,7 +1367,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
       const ticketId = parts[5];
       const archiving = parts[6] === 'archive';
       try {
-        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+        const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, guildId } });
         if (!ticket) {
           json(res, 404, { error: 'Ticket introuvable' });
           return true;
@@ -1402,7 +1405,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
       const ticketId = parts[5];
       const locking = parts[6] === 'lock';
       try {
-        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+        const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, guildId } });
         if (!ticket) {
           json(res, 404, { error: 'Ticket introuvable' });
           return true;
@@ -1443,7 +1446,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
     if (parts.length === 7 && parts[6] === 'delete' && method === 'POST') {
       const ticketId = parts[5];
       try {
-        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+        const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, guildId } });
         if (!ticket) {
           json(res, 404, { error: 'Ticket introuvable' });
           return true;
