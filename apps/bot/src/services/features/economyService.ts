@@ -600,6 +600,8 @@ export async function chooseAdventureOutcome(guildId: string, userId: string, ev
   // Une dépense faite entre la lecture et l'écriture a pu faire passer la perte sous zéro :
   // le plancher d'avant est rétabli.
   await prisma.rpgProfile.updateMany({ where: { id: profile.id, balance: { lt: 0 } }, data: { balance: 0 } });
+  // Même plancher pour l'XP : une montée de niveau réglée entre-temps a pu la consommer.
+  await prisma.rpgProfile.updateMany({ where: { id: profile.id, xp: { lt: 0 } }, data: { xp: 0 } });
   const after = await prisma.rpgProfile.findUnique({ where: { id: profile.id }, select: { balance: true, xp: true } });
   const newBalance = after?.balance ?? Math.max(0, profile.balance + coinDelta);
   const newXp = after?.xp ?? Math.max(0, profile.xp + xpDelta);
@@ -1562,11 +1564,6 @@ export async function transferCoins(guildId: string, senderId: string, receiverI
 }
 
 /**
- * Enregistre une tentative de mise à un jeu d'argent (dice/roulette/rps) et applique
- * les garde-fous anti-abus : plafond de mise et nombre de parties par jour (fenêtre glissante 24h).
- * Doit être appelé avant de débiter/créditer la mise.
- */
-/**
  * Débite une mise si le solde la couvre encore, en une seule écriture conditionnelle.
  *
  * Les jeux lisaient le solde au début puis réécrivaient « ancien solde + gain » à la fin :
@@ -1619,6 +1616,11 @@ export async function removeBalanceFloored(profileId: string, amount: number): P
   return current?.balance ?? 0;
 }
 
+/**
+ * Enregistre une tentative de mise à un jeu d'argent (dice/roulette/rps) et applique
+ * les garde-fous anti-abus : plafond de mise et nombre de parties par jour (fenêtre glissante 24h).
+ * Doit être appelé avant de débiter/créditer la mise.
+ */
 export async function registerGambleAttempt(guildId: string, userId: string, betAmount: number) {
   const config = await getOrCreateEconomyConfig(guildId);
 
