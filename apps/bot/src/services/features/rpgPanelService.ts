@@ -5654,7 +5654,7 @@ async function runBossFight(
     : null;
   const winTitle = result.won ? await winTitleField(guildId, ownerId, boss, locale) : null;
   const sellRow = result.won
-    ? await lootSellRow(guildId, ownerId, result.itemDropped, locale)
+    ? await lootSellRow(guildId, ownerId, result.itemDropped, locale, true)
     : null;
 
   const turnSummary = result.turns.slice(-8).map((t) => {
@@ -5691,7 +5691,9 @@ async function runBossFight(
   const campaignNote = campaign ? campaignAdvanceNote(campaign, locale) : '';
   if (campaignNote) embed.setFooter({ text: campaignNote });
 
-  await interaction.editReply({ embeds: [embed], components: sellRow ? [sellRow, backRow(ownerId, locale)] : [backRow(ownerId, locale)] });
+  // Un boss se choisit dans leur liste : c'est là que le retour ramène, pas au hub.
+  const back = fightBackRow(ownerId, locale, true);
+  await interaction.editReply({ embeds: [embed], components: sellRow ? [sellRow, back] : [back] });
 }
 
 // ─────────────────────────────────────────────────────────────
