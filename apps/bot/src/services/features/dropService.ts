@@ -45,9 +45,15 @@ import * as m from '../../lib/paraglide/messages.js';
 import { addXp } from '../progression/levelingService.js';
 import { checkLevelUp, getOrCreateRpgProfile, getShopModuleState } from './economyService.js';
 import { awardClanPointsToMembers } from '../community/clanService.js';
+import { flushClanPointsFeedGroup } from '../community/clanPointsFeedService.js';
 import { isModuleEnabled } from '../core/moduleGate.js';
 
 export const DROP_CLAIM_PREFIX = 'drop_claim:';
+
+/** Groupe du flux des points de clan qui rassemble les gagnants d'un drop. */
+function dropFeedGroupKey(dropId: string): string {
+  return `drop:${dropId}`;
+}
 
 /** Gagnants nommés dans le récapitulatif de clôture ; au-delà, ils sont comptés. */
 const RECAP_WINNERS_LIMIT = 20;
@@ -524,6 +530,7 @@ async function closeExpiredDrops(client: Client): Promise<void> {
       data: { closedAt: new Date() },
     });
     if (closed.count === 0) continue;
+    flushClanPointsFeedGroup(drop.guildId, dropFeedGroupKey(drop.id));
 
     await closeDropMessage(client, drop).catch((error: unknown) => {
       logger.error('Drops', `Clôture du message du drop ${drop.id} impossible:`, error);
@@ -589,6 +596,8 @@ async function creditDrop(client: Client, drop: DropRow, userId: string): Promis
         source: 'DROP',
         awards: [{ userId, amount: drop.amount }],
         reason: 'drop',
+        // Tous les gagnants du drop partent dans un seul message du flux, publié à sa clôture.
+        feedGroup: { key: dropFeedGroupKey(drop.id), flushAt: drop.expiresAt },
       });
       return granted.get(userId) ?? 0;
     }
@@ -720,6 +729,7 @@ export async function handleDropClaim(interaction: ButtonInteraction, dropId: st
       data: { closedAt: new Date() },
     });
     if (closed.count > 0) {
+      flushClanPointsFeedGroup(drop.guildId, dropFeedGroupKey(drop.id));
       const refreshed = await prisma.drop.findUnique({ where: { id: drop.id } });
       if (refreshed) await closeDropMessage(interaction.client, refreshed);
     }
