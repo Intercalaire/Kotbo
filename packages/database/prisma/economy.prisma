@@ -255,6 +255,7 @@ model RpgProfile {
   battles    RpgBattle[]
   fishCatches RpgFishCatch[]
   fishBookClaims RpgFishBookClaim[]
+  dungeonRuns RpgDungeonRun[]
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1143,4 +1144,69 @@ model RpgFishBookClaim {
 
   @@unique([guildId, userId, tier])
   @@map("rpg_fishbook_claims")
+}
+
+/// Donjon du serveur : une suite de boss du bestiaire à enchaîner sans repos.
+model RpgDungeon {
+  id            String  @id @default(cuid())
+  guildId       String
+  name          String
+  description   String  @default("")
+  emoji         String  @default("🏰")
+  levelRequired Int     @default(1)
+  energyCost    Int     @default(40)
+  /// Attente entre deux entrées dans ce donjon, comptée depuis la dernière entrée. 0 = aucune.
+  cooldownHours Int     @default(24)
+  /// Boss des étages, dans l'ordre, désignés par leur nom comme le reste du bestiaire : un
+  /// boss global personnalisé par le serveur garde ainsi sa place. Les boss désactivés dans
+  /// le bestiaire restent jouables ici, ce qui permet des boss propres aux donjons.
+  bossNames     String[] @default([])
+
+  /// Coffre versé à qui franchit le dernier étage, en plus du butin des boss.
+  completionCoins    Int     @default(0)
+  completionXp       Int     @default(0)
+  /// Objet désigné par son nom, comme les butins.
+  completionItemName String?
+
+  enabled Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild           @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  runs  RpgDungeonRun[]
+
+  @@unique([guildId, name])
+  @@map("rpg_dungeons")
+}
+
+/// Partie de donjon d'un joueur. Le butin reste en attente ici tant que le joueur n'est pas
+/// sorti : une défaite le fait perdre en entier.
+model RpgDungeonRun {
+  id        String @id @default(cuid())
+  guildId   String
+  userId    String
+  dungeonId String
+
+  /// ACTIVE | COMPLETED | LEFT | DEFEATED
+  status        String @default("ACTIVE")
+  /// Étages copiés à l'entrée : modifier le donjon ne touche pas aux parties déjà lancées.
+  bossNames     String[] @default([])
+  floorsCleared Int    @default(0)
+  xpEarned      Int    @default(0)
+  coinsEarned   Int    @default(0)
+  /// Butin en attente : [{ itemName, emoji }].
+  loot          Json   @default("[]")
+
+  startedAt    DateTime  @default(now())
+  /// Dernière action du joueur. Au-delà du délai d'inactivité, la partie compte comme perdue.
+  lastActionAt DateTime  @default(now())
+  endedAt      DateTime?
+
+  dungeon RpgDungeon @relation(fields: [dungeonId], references: [id], onDelete: Cascade)
+  profile RpgProfile @relation(fields: [guildId, userId], references: [guildId, userId], onDelete: Cascade)
+
+  @@index([guildId, userId, status])
+  @@index([dungeonId, userId, startedAt])
+  @@map("rpg_dungeon_runs")
 }

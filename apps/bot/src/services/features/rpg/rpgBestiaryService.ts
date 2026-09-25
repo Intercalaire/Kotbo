@@ -223,6 +223,15 @@ export async function saveGuildMonster(
   }
 
   const monster = await prisma.rpgMonster.update({ where: { id: existing.id }, data: payload });
+  // Les étages de donjon désignent leur boss par son nom : sans ce report, renommer un boss
+  // du serveur couperait chaque donjon qui le contient.
+  if (data.name !== existing.name) {
+    await prisma.$executeRaw`
+      UPDATE "rpg_dungeons"
+      SET "bossNames" = array_replace("bossNames", ${existing.name}, ${data.name})
+      WHERE "guildId" = ${guildId}
+    `;
+  }
   return { monster, created: false, overrode: globalTwin !== null };
 }
 
@@ -322,6 +331,11 @@ export async function syncDropReferences(
   replacement: string | null,
 ): Promise<number> {
   if (replacement === itemName) return 0;
+
+  await prisma.rpgDungeon.updateMany({
+    where: { guildId, completionItemName: itemName },
+    data: { completionItemName: replacement },
+  });
 
   const monsters = await prisma.rpgMonster.findMany({ where: { guildId } });
   let touched = 0;
