@@ -35,6 +35,8 @@ const economySettingsSchema = z.object({
   adventureCooldownMin: nonNegative,
   fightCooldownSec: nonNegative.describe('Délai entre deux combats de monstres, en secondes (0 = aucun)'),
   bossCooldownMin: nonNegative.describe('Délai entre deux boss, même différents, en minutes (0 = enchaînement libre)'),
+  huntEnergyPercent: z.number().int().min(100).max(500).describe("Énergie d'une traque, en % d'un combat ordinaire (100 = même coût)"),
+  huntCooldownPercent: z.number().int().min(100).max(1000).describe("Délai après une traque, en % du délai de combat (100 = même délai)"),
   firstKillAnnounce: z.enum(FIRST_KILL_ANNOUNCE_MODES).describe('Annonce du premier vainqueur : NONE, BOSSES (boss seulement) ou ALL'),
   firstKillChannelId: z.string().nullable().describe("Salon d'annonce du premier vainqueur"),
   maxEnergy: z.number().int().min(1),

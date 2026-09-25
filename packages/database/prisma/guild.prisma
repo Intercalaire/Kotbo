@@ -651,6 +651,7 @@ model Guild {
   rpgFishCatches           RpgFishCatch[]
   rpgFish                  RpgFish[]
   rpgFishBookRewards       RpgFishBookReward[]
+  rpgDungeons              RpgDungeon[]
   rpgBlackMarketSessions   RpgBlackMarketSession[]
   rpgRaidBosses            RpgRaidBoss[]
   rpgRaids                 RpgRaid[]

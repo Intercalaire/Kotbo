@@ -23,6 +23,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
   import MultiSelect from '../lib/components/MultiSelect.svelte';
   import RpgEventsPanel from '../lib/components/economy/RpgEventsPanel.svelte';
   import RpgFishPanel from '../lib/components/economy/RpgFishPanel.svelte';
+  import RpgDungeonsPanel from '../lib/components/economy/RpgDungeonsPanel.svelte';
   import RpgGuildsPanel from '../lib/components/economy/RpgGuildsPanel.svelte';
   import RpgPlayerInventoryModal from '../lib/components/economy/RpgPlayerInventoryModal.svelte';
   import { channelDisplayName } from '../lib/channelUtils';
@@ -106,7 +107,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
   // une seule barre ne laissaient plus voir ce que la page contenait.
   const { section = 'economy' }: { section?: 'economy' | 'rpg' } = $props();
   const ECONOMY_TABS = ['config', 'items', 'blackmarket', 'players'] as const;
-  const RPG_TABS = ['recettes', 'bestiaire', 'peche', 'raid', 'quetes', 'titres', 'aventures', 'guildes'] as const;
+  const RPG_TABS = ['recettes', 'bestiaire', 'donjons', 'peche', 'raid', 'quetes', 'titres', 'aventures', 'guildes'] as const;
   const BASE = $derived(section === 'rpg' ? '/rpg' : '/economy');
   const DEFAULT_TAB = $derived(section === 'rpg' ? RPG_TABS[0] : ECONOMY_TABS[0]);
   // Pose par l'effet ci-dessous, avant le premier rendu.
@@ -146,6 +147,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     adventureCooldownMin: 30,
     fightCooldownSec: 120,
     bossCooldownMin: 2,
+    huntEnergyPercent: 150,
+    huntCooldownPercent: 200,
     firstKillAnnounce: 'NONE',
     firstKillChannelId: null as string | null,
     maxEnergy: 100,
@@ -1838,6 +1841,18 @@ import EmojiText from '../lib/components/EmojiText.svelte';
               <input id="bossCd" type="number" min="0" max="1440" bind:value={config.bossCooldownMin} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
               <p class="text-2xs text-on-surface-variant/40">{m.eco_boss_cd_hint()}</p>
             </div>
+
+            <div class="space-y-1.5">
+              <label for="huntEnergy" class="text-xs font-semibold text-on-surface-variant/60">{m.eco_hunt_energy()}</label>
+              <input id="huntEnergy" type="number" min="100" max="500" bind:value={config.huntEnergyPercent} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <p class="text-2xs text-on-surface-variant/40">{m.eco_hunt_energy_hint()}</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="huntCd" class="text-xs font-semibold text-on-surface-variant/60">{m.eco_hunt_cd()}</label>
+              <input id="huntCd" type="number" min="100" max="1000" bind:value={config.huntCooldownPercent} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <p class="text-2xs text-on-surface-variant/40">{m.eco_hunt_cd_hint()}</p>
+            </div>
           </div>
 
           <div class="space-y-4 pt-4 border-t border-outline-variant/10">
@@ -3193,6 +3208,10 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     <!-- Tab 4: Players list & Leaderboard -->
     {#if activeTab === 'peche'}
       <RpgFishPanel canManage={canManageSettings} disabled={!config.enabled} currencyName={config.currencyName} />
+    {/if}
+
+    {#if activeTab === 'donjons'}
+      <RpgDungeonsPanel canManage={canManageSettings} disabled={!config.enabled} currencyName={config.currencyName} />
     {/if}
 
     {#if activeTab === 'aventures'}

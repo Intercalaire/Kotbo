@@ -183,7 +183,14 @@ import { lockRpgProfile, takeInventoryQuantity } from './rpg/rpgInventoryWrites.
 import { attackRaid, checkRaidAssaultGrant, getRaidPanelState, getRaidState, grantRaidAssaults, RaidError } from './rpg/rpgRaidService.js';
 import { buildAssaultEmbed, buildRaidEmbed, healthBar } from './rpg/rpgRaidPanel.js';
 import { computeAttack } from './rpg/rpgCombatMath.js';
-import { bossCooldownMs, fightCooldownMs, formatCooldown, remainingCooldownMs } from './rpg/rpgCombatCooldownPolicy.js';
+import {
+  bossCooldownMs,
+  fightCooldownMs,
+  formatCooldown,
+  huntCooldownExtraMs,
+  huntEnergyCost,
+  remainingCooldownMs,
+} from './rpg/rpgCombatCooldownPolicy.js';
 import { claimFirstKill, formatFirstKillBounty, formatFirstKillReward, getFirstKill, type FirstKillMonster } from './rpg/rpgFirstKillService.js';
 import { grantWinTitle, listOwnedTitles, setActiveTitle } from './rpg/rpgTitleService.js';
 import { titleBonusParts } from './rpg/rpgTitlePolicy.js';
@@ -204,6 +211,20 @@ import {
   type ItemCatalogEntry,
   type ItemSourceFilter,
 } from './rpg/rpgItemCatalogService.js';
+import {
+  DungeonRefused,
+  enterDungeon,
+  fightDungeonFloor,
+  getActiveDungeonRun,
+  getDungeonHall,
+  leaveDungeon,
+  type DungeonFloorResult,
+  type DungeonHallEntry,
+  type DungeonRefusal,
+  type DungeonRunState,
+  type DungeonSettlement,
+} from './rpg/rpgDungeonService.js';
+import { DUNGEON_IDLE_TIMEOUT_MINUTES, groupDungeonLoot, type DungeonLoot } from './rpg/rpgDungeonPolicy.js';
 import {
   buyBlackMarketOffer,
   getBlackMarketState,
@@ -717,6 +738,7 @@ function hubNavOptions(locale: Locale, isAdmin: boolean): { label: string; value
   const options = [
     { label: m.rpg_hub_btn_quests({}, { locale }), value: 'quests', description: m.rpg_hub_nav_quests_desc({}, { locale }), emoji: icon('rpgMap') },
     { label: m.rpg_hub_btn_campaign({}, { locale }), value: 'campaign', description: m.rpg_hub_nav_campaign_desc({}, { locale }), emoji: icon('rpgKey') },
+    { label: m.rpg_hub_btn_dungeon({}, { locale }), value: 'dungeon', description: m.rpg_hub_nav_dungeon_desc({}, { locale }), emoji: '🏰' },
     { label: m.rpg_hub_btn_character({}, { locale }), value: 'character', description: m.rpg_hub_nav_character_desc({}, { locale }), emoji: icon('rpgCharacter') },
     { label: m.rpg_hub_btn_skilltree({}, { locale }), value: 'skilltree', description: m.rpg_hub_nav_skilltree_desc({}, { locale }), emoji: icon('rpgEnchant') },
     { label: m.rpg_hub_btn_craft({}, { locale }), value: 'craft', description: m.rpg_hub_nav_craft_desc({}, { locale }), emoji: icon('rpgCraft') },
@@ -783,6 +805,7 @@ function buildHubButtons(
   isAdmin: boolean,
   blackMarketOpen: boolean,
   raidOpen: boolean,
+  tracked: { id: string; name: string } | null,
 ): PanelRow[] {
   // Ce qui se joue : le tour de jeu, dans l'ordre où on l'enchaîne.
   const played = [
@@ -792,6 +815,16 @@ function buildHubButtons(
     new ButtonBuilder().setCustomId(`rpg:daily:${ownerId}`).setLabel(m.rpg_hub_btn_daily({}, { locale })).setEmoji(icon('rpgDaily')).setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(`rpg:fish:${ownerId}`).setLabel(m.rpg_hub_btn_fish({}, { locale })).setEmoji(icon('rpgFish')).setStyle(ButtonStyle.Success),
   ];
+
+  // La traque se place à côté du combat au hasard, qu'elle double sans le remplacer : le
+  // joueur choisit à chaque clic s'il paie le surcoût. Elle n'existe que le temps d'une
+  // traque, et repousse le dernier geste de la rangée vers la suivante.
+  if (tracked) {
+    played.splice(1, 0, new ButtonBuilder()
+      .setCustomId(`rpg:hunt:${ownerId}:${tracked.id}`)
+      .setLabel(truncate(m.rpg_track_hub_btn({ name: tracked.name }, { locale }), 80))
+      .setStyle(ButtonStyle.Danger));
+  }
 
   // Ce qui se ramasse et ce qui se porte. `work` ouvre la rangée : il appartient au même
   // tour de jeu que la quotidienne, mais la première rangée est déjà pleine.
@@ -825,6 +858,8 @@ function buildHubButtons(
     );
   }
 
+  carried.unshift(...played.splice(BUTTONS_PER_ROW));
+
   return [...buttonRows(played), ...buttonRows(carried), hubNavRow(ownerId, locale, isAdmin)];
 }
 
@@ -840,15 +875,17 @@ export async function buildHubView(
   if (viewer.id !== target.id) {
     return { embeds: [], components: [], container, files };
   }
-  const [blackMarket, raid, potions] = await Promise.all([
+  const [blackMarket, raid, potions, hunter] = await Promise.all([
     getBlackMarketState(guildId),
     getRaidState(guildId),
     quickDrinkRow(guildId, viewer.id, locale, 'hub'),
+    prisma.rpgProfile.findUnique({ where: { guildId_userId: { guildId, userId: viewer.id } }, select: { trackedMonsterId: true, level: true } }),
   ]);
+  const tracked = hunter ? await loadTrackedMonster(guildId, viewer.id, hunter.trackedMonsterId, hunter.level) : null;
   return {
     embeds: [],
     components: [
-      ...buildHubButtons(viewer.id, locale, viewerIsAdmin, Boolean(blackMarket.session), raid.enabled && raid.open !== null),
+      ...buildHubButtons(viewer.id, locale, viewerIsAdmin, Boolean(blackMarket.session), raid.enabled && raid.open !== null, tracked),
       ...(potions ? [potions] : []),
     ],
     container,
@@ -1569,7 +1606,7 @@ async function handleInventoryDrink(
  * `need` ne garde que les potions qui règlent le refus affiché.
  */
 type QuickDrinkNeed = 'any' | 'hp' | 'energy';
-type QuickDrinkOrigin = 'hub' | 'alert' | 'travel';
+type QuickDrinkOrigin = 'hub' | 'alert' | 'travel' | 'dungeon';
 
 async function quickDrinkRow(
   guildId: string,
@@ -1654,7 +1691,7 @@ async function handleQuickDrink(
   rest: string[],
 ): Promise<void> {
   const rawOrigin = rest[0];
-  const origin: QuickDrinkOrigin = rawOrigin === 'alert' || rawOrigin === 'travel' ? rawOrigin : 'hub';
+  const origin: QuickDrinkOrigin = rawOrigin === 'alert' || rawOrigin === 'travel' || rawOrigin === 'dungeon' ? rawOrigin : 'hub';
   const requested = rest[1];
   const need: QuickDrinkNeed = requested === 'hp' || requested === 'energy' ? requested : 'any';
 
@@ -1669,6 +1706,11 @@ async function handleQuickDrink(
 
   if (origin === 'travel') {
     await respond(interaction, withNote(await buildTravelView(guildId, ownerId, locale), feedback));
+    return;
+  }
+
+  if (origin === 'dungeon') {
+    await respond(interaction, withNote(await buildDungeonCurrentView(guildId, ownerId, locale), feedback));
     return;
   }
 
@@ -4036,12 +4078,89 @@ function bestiaryLine(entry: BestiaryEntry, locale: Locale): string {
   return `${monster.emoji} **${monster.name}**${bossTag}\n${sheet}\n-# ${tally}`;
 }
 
-function huntButton(ownerId: string, monsterId: string, locale: Locale): ButtonBuilder {
+/**
+ * Suivre ou lâcher la trace d'une créature. `origin` dit quel écran redessiner ensuite :
+ * la liste du bestiaire ou la fiche, avec le filtre et la page d'où l'on vient.
+ */
+function trackButton(
+  ownerId: string,
+  monsterId: string,
+  tracked: boolean,
+  origin: 'list' | 'entry',
+  state: BestiaryState,
+  locale: Locale,
+): ButtonBuilder {
+  return new ButtonBuilder()
+    .setCustomId(`rpg:${tracked ? 'untrack' : 'track'}:${ownerId}:${monsterId}:${origin}:${state.filter}:${state.page}`)
+    .setLabel(tracked ? m.rpg_track_stop_btn({}, { locale }) : m.rpg_track_start_btn({}, { locale }))
+    .setStyle(tracked ? ButtonStyle.Secondary : ButtonStyle.Danger);
+}
+
+function huntAgainButton(ownerId: string, monsterId: string, locale: Locale): ButtonBuilder {
   return new ButtonBuilder()
     .setCustomId(`rpg:hunt:${ownerId}:${monsterId}`)
-    .setLabel(m.rpg_hunt_btn({}, { locale }))
-    .setEmoji(icon('rpgFight'))
+    .setLabel(m.rpg_track_again_btn({}, { locale }))
     .setStyle(ButtonStyle.Danger);
+}
+
+async function setTrackedMonster(guildId: string, userId: string, monsterId: string | null): Promise<void> {
+  await prisma.rpgProfile.updateMany({ where: { guildId, userId }, data: { trackedMonsterId: monsterId } });
+}
+
+/**
+ * Créature traquée, si elle se traque encore. Une cible disparue, désactivée ou devenue boss
+ * est oubliée au passage ; une cible passée au-dessus du niveau du joueur, elle, reste : elle
+ * redeviendra traquable quand il la rattrapera.
+ */
+async function loadTrackedMonster(guildId: string, userId: string, trackedMonsterId: string | null, playerLevel: number) {
+  if (!trackedMonsterId) return null;
+  const monster = await findGuildMonsterById(guildId, trackedMonsterId);
+  if (!monster || monster.isBoss) {
+    await setTrackedMonster(guildId, userId, null);
+    return null;
+  }
+  // Un monstre global personnalisé depuis a changé de ligne : la cible suit la copie du
+  // serveur, pour que le bestiaire la reconnaisse comme traquée.
+  if (monster.id !== trackedMonsterId) await setTrackedMonster(guildId, userId, monster.id);
+  return canHunt(monster, playerLevel) ? monster : null;
+}
+
+async function handleTrackToggle(
+  interaction: ButtonInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  rest: string[],
+  track: boolean,
+): Promise<void> {
+  const [monsterId, origin] = rest;
+  const state = parseBestiaryState(rest.slice(2));
+  let note = '';
+
+  if (track) {
+    const [monster, profile] = await Promise.all([findGuildMonsterById(guildId, monsterId), getOrCreateRpgProfile(guildId, ownerId)]);
+    if (!monster || !canHunt(monster, profile.level)) {
+      note = m.rpg_hunt_refused_desc({}, { locale });
+    } else {
+      await setTrackedMonster(guildId, ownerId, monster.id);
+      const config = await getOrCreateEconomyConfig(guildId);
+      // `formatCooldown` ne descend pas sous la seconde : sans délai de combat, il dirait « 1s ».
+      const waitMs = fightCooldownMs(config) + huntCooldownExtraMs(config);
+      note = m.rpg_track_started_note({
+        name: monster.name,
+        energy: huntEnergyCost(FIGHT_ENERGY_COST, config),
+        cooldown: waitMs > 0 ? formatCooldown(waitMs) : '0s',
+      }, { locale });
+    }
+  } else {
+    await setTrackedMonster(guildId, ownerId, null);
+    note = m.rpg_track_stopped_note({}, { locale });
+  }
+
+  const view = origin === 'entry'
+    ? await buildBestiaryEntryView(guildId, ownerId, monsterId, locale, state)
+    : await buildBestiaryView(guildId, ownerId, interaction.user, locale, state);
+  await respond(interaction, withNote(view, note));
 }
 
 async function buildBestiaryView(
@@ -4106,10 +4225,11 @@ async function buildBestiaryView(
     // chercher, si elle n'est pas au-dessus du niveau du joueur.
     if (!entry.discovered) {
       if (canHunt(entry.monster, profile.level)) {
+        const tracked = profile.trackedMonsterId === entry.monster.id;
         container.addSectionComponents(
           new SectionBuilder()
             .addTextDisplayComponents(line)
-            .setButtonAccessory(huntButton(ownerId, entry.monster.id, locale)),
+            .setButtonAccessory(trackButton(ownerId, entry.monster.id, tracked, 'list', state, locale)),
         );
       } else {
         container.addTextDisplayComponents(line);
@@ -4607,7 +4727,9 @@ async function buildBestiaryEntryView(
 
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
   const row = new ActionRowBuilder<ButtonBuilder>();
-  if (canHunt(monster, profile.level)) row.addComponents(huntButton(ownerId, monster.id, locale));
+  if (canHunt(monster, profile.level)) {
+    row.addComponents(trackButton(ownerId, monster.id, profile.trackedMonsterId === monster.id, 'entry', back, locale));
+  }
   row.addComponents(
     new ButtonBuilder()
       .setCustomId(`rpg:nav:${ownerId}:bestiary:${back.filter}:${back.page}`)
@@ -4923,9 +5045,19 @@ async function startFightSession(
   // Résolue avant tout débit d'énergie : une cible refusée ne doit rien coûter.
   const target = targetMonsterId ? await findGuildMonsterById(guildId, targetMonsterId) : null;
   if (targetMonsterId && (!target || !canHunt(target, profile.level))) {
+    // Une cible devenue introuvable ou boss ne se traquera plus jamais : la garder ferait
+    // réapparaître au hub un bouton qui ne mène qu'à ce refus.
+    if (profile.trackedMonsterId === targetMonsterId && (!target || target.isBoss)) await setTrackedMonster(guildId, ownerId, null);
     await interaction.reply({ embeds: [errorEmbed(m.rpg_hunt_refused_title({}, { locale }), m.rpg_hunt_refused_desc({}, { locale }))], flags: [MessageFlags.Ephemeral] });
     return;
   }
+
+  // Une traque coûte plus qu'une rencontre au hasard, et repousse le verrou commun des
+  // combats : `lastBattle` est alors posé dans le futur, et chaque écriture du verrou,
+  // jusqu'à la fin du combat, doit reprendre ce report.
+  const energyCost = target ? huntEnergyCost(FIGHT_ENERGY_COST, config) : FIGHT_ENERGY_COST;
+  const lockExtraMs = target ? huntCooldownExtraMs(config) : 0;
+  const lockRelease = () => new Date(Date.now() + lockExtraMs);
 
   const remainingMs = remainingCooldownMs(profile.lastBattle, cooldownMs);
   if (remainingMs > 0) {
@@ -4933,8 +5065,8 @@ async function startFightSession(
     return;
   }
 
-  if (profile.energy < FIGHT_ENERGY_COST) {
-    await replyVitalsAlert(interaction, guildId, ownerId, locale, errorEmbed(m.rpg_fight_low_energy_title({}, { locale }), m.rpg_fight_low_energy_desc({ energy: profile.energy }, { locale })), 'energy');
+  if (profile.energy < energyCost) {
+    await replyVitalsAlert(interaction, guildId, ownerId, locale, errorEmbed(m.rpg_fight_low_energy_title({}, { locale }), m.rpg_fight_low_energy_desc({ energy: profile.energy, cost: energyCost }, { locale })), 'energy');
     return;
   }
 
@@ -4952,24 +5084,24 @@ async function startFightSession(
     where: {
       guildId,
       userId: ownerId,
-      energy: { gte: FIGHT_ENERGY_COST },
+      energy: { gte: energyCost },
       OR: [
         { lastBattle: null },
         { lastBattle: { lte: new Date(battleLockedAt.getTime() - cooldownMs) } },
       ],
     },
-    data: { energy: { decrement: FIGHT_ENERGY_COST }, lastBattle: battleLockedAt },
+    data: { energy: { decrement: energyCost }, lastBattle: new Date(battleLockedAt.getTime() + lockExtraMs) },
   });
 
   if (energySpent.count === 0) {
-    await interaction.reply({ embeds: [errorEmbed(m.rpg_fight_low_energy_title({}, { locale }), m.rpg_fight_low_energy_desc({ energy: profile.energy }, { locale }))], flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({ embeds: [errorEmbed(m.rpg_fight_low_energy_title({}, { locale }), m.rpg_fight_low_energy_desc({ energy: profile.energy, cost: energyCost }, { locale }))], flags: [MessageFlags.Ephemeral] });
     return;
   }
 
   /** Rend l'énergie (et libère le verrou) quand le combat ne peut pas démarrer. */
   const refundFightCost = () => prisma.rpgProfile.update({
     where: { guildId_userId: { guildId, userId: ownerId } },
-    data: { energy: { increment: FIGHT_ENERGY_COST }, lastBattle: profile.lastBattle },
+    data: { energy: { increment: energyCost }, lastBattle: profile.lastBattle },
   }).catch(() => null);
 
   await interaction.deferUpdate();
@@ -5213,10 +5345,12 @@ async function startFightSession(
       const rows = await getActionRows();
       rows.forEach((row) => row.components.forEach((c) => c.setDisabled(true)));
       const back = fightBackRow(ownerId, locale, monster.isBoss);
+      // Une traque s'enchaîne depuis son compte rendu, sans repasser par le hub.
+      if (target) back.addComponents(huntAgainButton(ownerId, target.id, locale));
       const finalComponents = [...rows, back];
 
       if (reason === 'fled' || reason === 'time') {
-        await prisma.rpgProfile.update({ where: { guildId_userId: { guildId, userId: ownerId } }, data: { lastBattle: new Date() } });
+        await prisma.rpgProfile.update({ where: { guildId_userId: { guildId, userId: ownerId } }, data: { lastBattle: lockRelease() } });
         await settleFightHealth(profile.id, playerHp - startHp, playerMaxHp);
 
         const embed = reason === 'fled'
@@ -5281,7 +5415,7 @@ async function startFightSession(
             xp: { increment: xpEarned },
             totalMonstersKilled: !monster.isBoss ? { increment: 1 } : undefined,
             totalBossesKilled: monster.isBoss ? { increment: 1 } : undefined,
-            lastBattle: new Date(),
+            lastBattle: lockRelease(),
           },
         });
 
@@ -5342,7 +5476,7 @@ async function startFightSession(
       if (reason === 'defeat') {
         const xpEarned = Math.floor(monster.xpReward * 0.15);
 
-        await prisma.rpgProfile.update({ where: { guildId_userId: { guildId, userId: ownerId } }, data: { health: 1, xp: { increment: xpEarned }, lastBattle: new Date() } });
+        await prisma.rpgProfile.update({ where: { guildId_userId: { guildId, userId: ownerId } }, data: { health: 1, xp: { increment: xpEarned }, lastBattle: lockRelease() } });
         await prisma.rpgBattle.create({ data: { guildId, userId: ownerId, monsterId: monster.id, monsterName: monster.name, won: false, damageDealt: totalDamageDealt, damageTaken: totalDamageTaken, xpEarned, coinsEarned: 0, itemDropped: null } });
 
         const defeatEmbed = new EmbedBuilder()
@@ -5694,6 +5828,413 @@ async function runBossFight(
   // Un boss se choisit dans leur liste : c'est là que le retour ramène, pas au hub.
   const back = fightBackRow(ownerId, locale, true);
   await interaction.editReply({ embeds: [embed], components: sellRow ? [sellRow, back] : [back] });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Donjons
+// ─────────────────────────────────────────────────────────────
+
+function dungeonRefusalText(refusal: DungeonRefusal, locale: Locale): string {
+  switch (refusal.kind) {
+    case 'not_found': return m.rpg_dungeon_refused_not_found({}, { locale });
+    case 'disabled': return m.rpg_dungeon_refused_disabled({}, { locale });
+    case 'broken': return m.rpg_dungeon_refused_broken({}, { locale });
+    case 'level': return m.rpg_dungeon_refused_level({ level: refusal.level }, { locale });
+    case 'cooldown': return m.rpg_dungeon_refused_cooldown({ when: discordTimestamp(refusal.readyAt) }, { locale });
+    case 'energy': return m.rpg_dungeon_refused_energy({ cost: refusal.cost, energy: refusal.energy }, { locale });
+    case 'health': return m.rpg_dungeon_refused_health({}, { locale });
+    case 'active_run': return m.rpg_dungeon_refused_active({}, { locale });
+    case 'expired': return m.rpg_dungeon_refused_expired({ minutes: DUNGEON_IDLE_TIMEOUT_MINUTES }, { locale });
+    case 'stale': return m.rpg_dungeon_refused_stale({}, { locale });
+  }
+}
+
+/**
+ * Refus d'entrer ou de combattre. Le manque de PV ou d'énergie ouvre le menu des potions,
+ * comme pour les boss.
+ */
+async function replyDungeonRefusal(
+  interaction: ButtonInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  refusal: DungeonRefusal,
+): Promise<void> {
+  const text = dungeonRefusalText(refusal, locale);
+
+  // L'écran est redessiné dans son état réel : la partie si elle se joue encore, la salle
+  // sinon. Passer par la salle clorait une partie en cours, ce qu'un double clic ne doit pas faire.
+  if (refusal.kind === 'stale' || refusal.kind === 'active_run' || refusal.kind === 'expired') {
+    await respond(interaction, withNote(await buildDungeonCurrentView(guildId, ownerId, locale), text));
+    return;
+  }
+  if (refusal.kind === 'energy' || refusal.kind === 'health') {
+    const title = refusal.kind === 'energy' ? m.rpg_dungeon_low_energy_title({}, { locale }) : m.rpg_dungeon_low_hp_title({}, { locale });
+    await replyVitalsAlert(interaction, guildId, ownerId, locale, errorEmbed(title, text), refusal.kind === 'energy' ? 'energy' : 'hp');
+    return;
+  }
+  await interaction.followUp({ embeds: [errorEmbed(m.rpg_dungeon_refused_title({}, { locale }), text)], flags: [MessageFlags.Ephemeral] });
+}
+
+function dungeonStatusLine(entry: DungeonHallEntry, playerLevel: number, locale: Locale): string {
+  if (!entry.playable) return `${icon('lock')} ${m.rpg_dungeon_status_broken({}, { locale })}`;
+  if (playerLevel < entry.dungeon.levelRequired) return `${icon('lock')} ${m.rpg_dungeon_status_locked({ level: entry.dungeon.levelRequired }, { locale })}`;
+  if (entry.readyAt) return `${icon('rpgRest')} ${m.rpg_dungeon_status_cooldown({ when: discordTimestamp(entry.readyAt) }, { locale })}`;
+  return `${icon('success')} ${m.rpg_dungeon_status_ready({}, { locale })}`;
+}
+
+function dungeonHallLine(entry: DungeonHallEntry, playerLevel: number, locale: Locale): string {
+  const { dungeon } = entry;
+  const meta = m.rpg_dungeon_meta({ floors: entry.floors.length, level: dungeon.levelRequired, energy: dungeon.energyCost }, { locale })
+    + (entry.clears > 0 ? ` · ${m.rpg_dungeon_clears({ count: entry.clears }, { locale })}` : '');
+  const bosses = entry.floors.map((floor) => floor.boss?.emoji ?? icon('lock')).join(' ');
+  return [
+    `${dungeon.emoji} **${dungeon.name}**`,
+    dungeon.description || null,
+    dungeonStatusLine(entry, playerLevel, locale),
+    `-# ${meta}`,
+    `-# ${bosses}`,
+  ].filter((line): line is string => line !== null).join('\n');
+}
+
+/** Donjons par page. Une section chacun, comme la salle des boss. */
+const DUNGEON_PAGE_SIZE = 6;
+
+/**
+ * Salle des donjons.
+ *
+ * Une partie ne se reprend pas : arriver ici alors qu'elle est ouverte, c'est avoir quitté
+ * le donjon, et elle est soldée comme une sortie avec le butin. L'écran de la partie n'a pas
+ * de bouton de retour, si bien qu'on n'y arrive que par un autre message ou par le menu.
+ */
+async function buildDungeonHallView(guildId: string, ownerId: string, locale: Locale, page = 0): Promise<PanelView> {
+  const config = await getOrCreateEconomyConfig(guildId);
+  if (!config.rpgEnabled) {
+    const embed = errorEmbed(m.rpg_travel_disabled_title({}, { locale }), m.rpg_boss_disabled_desc({}, { locale }));
+    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  }
+
+  let note = '';
+  const active = await getActiveDungeonRun(guildId, ownerId);
+  if (active) {
+    try {
+      const settlement = await leaveDungeon(guildId, ownerId, active.run.id);
+      return withNote(
+        buildDungeonSettlementView(ownerId, locale, config.currencyEmoji, settlement, null),
+        m.rpg_dungeon_left_by_navigation({}, { locale }),
+      );
+    } catch (err) {
+      if (!(err instanceof DungeonRefused)) throw err;
+      if (err.refusal.kind === 'expired') note = dungeonRefusalText(err.refusal, locale);
+    }
+  }
+
+  const view = await buildDungeonHallPage(guildId, ownerId, locale, page);
+  return note ? withNote(view, note) : view;
+}
+
+/** Partie en cours si elle se joue encore, salle des donjons sinon. */
+async function buildDungeonCurrentView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  const active = await getActiveDungeonRun(guildId, ownerId);
+  if (active && !active.expired) return buildDungeonRunView(guildId, ownerId, locale, active);
+  return buildDungeonHallView(guildId, ownerId, locale);
+}
+
+async function buildDungeonHallPage(guildId: string, ownerId: string, locale: Locale, page: number): Promise<PanelView> {
+  const [hall, profile] = await Promise.all([getDungeonHall(guildId, ownerId), getOrCreateRpgProfile(guildId, ownerId)]);
+  if (hall.length === 0) {
+    const embed = errorEmbed(m.rpg_dungeon_none_title({}, { locale }), m.rpg_dungeon_none_desc({}, { locale }));
+    return { embeds: [embed], components: [backRow(ownerId, locale)] };
+  }
+
+  const container = new ContainerBuilder().setAccentColor(RPG_COLORS.combat);
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    `## ${icon('rpgBoss')} ${m.rpg_dungeon_hall_title({}, { locale })}\n`
+    + `${m.rpg_dungeon_hall_intro({ minutes: DUNGEON_IDLE_TIMEOUT_MINUTES }, { locale })}\n`
+    + `${icon('rpgEnergy')} ${m.rpg_dungeon_hall_energy({ energy: profile.energy }, { locale })}`
+    + `  ·  ${icon('rpgHp')} ${profile.health}`,
+  ));
+  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+
+  const pageCount = Math.max(1, Math.ceil(hall.length / DUNGEON_PAGE_SIZE));
+  const current = Math.min(Math.max(0, page), pageCount - 1);
+  for (const entry of hall.slice(current * DUNGEON_PAGE_SIZE, current * DUNGEON_PAGE_SIZE + DUNGEON_PAGE_SIZE)) {
+    const open = entry.playable && !entry.readyAt && profile.level >= entry.dungeon.levelRequired;
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(truncate(dungeonHallLine(entry, profile.level, locale), 900)))
+        .setButtonAccessory(
+          new ButtonBuilder()
+            .setCustomId(`rpg:dgenter:${ownerId}:${entry.dungeon.id}`)
+            .setLabel(m.rpg_dungeon_enter_btn({}, { locale }))
+            .setStyle(ButtonStyle.Danger)
+            // Le manque d'énergie ou de PV ne désactive rien : le clic ouvre alors le menu
+            // des potions, qui règle le problème sur place.
+            .setDisabled(!open),
+        ),
+    );
+  }
+
+  const navRow = new ActionRowBuilder<ButtonBuilder>();
+  if (pageCount > 1) {
+    navRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rpg:nav:${ownerId}:dungeon:${current - 1}`)
+        .setLabel(m.rpg_shop_prev({}, { locale }))
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(current <= 0),
+      new ButtonBuilder()
+        .setCustomId(`rpg:noop:${ownerId}`)
+        .setLabel(`${current + 1} / ${pageCount}`)
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId(`rpg:nav:${ownerId}:dungeon:${current + 1}`)
+        .setLabel(m.rpg_shop_next({}, { locale }))
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(current >= pageCount - 1),
+    );
+  }
+  navRow.addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:dungeon:${current}`)
+      .setLabel(m.rpg_boss_refresh_btn({}, { locale }))
+      .setEmoji(icon('rpgRefresh'))
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  return { embeds: [], components: [navRow], container };
+}
+
+function dungeonFloorLines(state: DungeonRunState, locale: Locale): string {
+  return state.floors.map((floor, index) => {
+    const mark = index < state.run.floorsCleared
+      ? icon('success')
+      : index === state.run.floorsCleared ? icon('rpgFight') : icon('lock');
+    return floor.boss
+      ? m.rpg_dungeon_floor_line({ mark, index: index + 1, emoji: floor.boss.emoji, name: floor.boss.name, level: floor.boss.level }, { locale })
+      : m.rpg_dungeon_floor_missing({ mark, index: index + 1, name: floor.bossName }, { locale });
+  }).join('\n');
+}
+
+function dungeonLootText(loot: DungeonLoot[]): string {
+  return groupDungeonLoot(loot)
+    .map((entry) => `${entry.emoji ?? '📦'} ${entry.itemName}${entry.quantity > 1 ? ` ×${entry.quantity}` : ''}`)
+    .join(', ');
+}
+
+function duelLog(result: DungeonFloorResult, locale: Locale): string {
+  const turns = result.duel.turns.slice(-6).map((turn) => {
+    const who = turn.attacker === 'player' ? m.rpg_boss_you_label({}, { locale }) : `${result.boss.emoji} ${result.boss.name}`;
+    const crit = turn.critical ? m.rpg_fight_critical_suffix({}, { locale }) : '';
+    return m.rpg_boss_turn_log({ who, dmg: turn.damage, crit }, { locale });
+  });
+  return `${m.rpg_boss_combat_summary_label({ turns: result.duel.turns.length }, { locale })}\n${turns.join('\n')}`;
+}
+
+/** Écran d'une partie en cours, avec le compte rendu de l'étage qui vient de tomber. */
+async function buildDungeonRunView(
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  state: DungeonRunState,
+  lastFight: DungeonFloorResult | null = null,
+): Promise<PanelView> {
+  const [config, profile] = await Promise.all([getOrCreateEconomyConfig(guildId), getOrCreateRpgProfile(guildId, ownerId)]);
+  const stats = await loadEffectiveStats(profile);
+  const { run, dungeon } = state;
+  const total = state.floors.length;
+  const nextFloor = Math.min(run.floorsCleared + 1, total);
+
+  const parts: string[] = [];
+  if (lastFight?.gains) {
+    const gains = m.rpg_dungeon_pending_value({ xp: lastFight.gains.xp, coins: lastFight.gains.coins, currency: config.currencyEmoji }, { locale });
+    const drop = lastFight.gains.drop ? ` · ${m.rpg_dungeon_floor_drop({ item: `${lastFight.gains.drop.emoji ?? '📦'} ${lastFight.gains.drop.itemName}` }, { locale })}` : '';
+    parts.push(`${m.rpg_dungeon_floor_won({ floor: lastFight.floorIndex + 1, emoji: lastFight.boss.emoji, name: lastFight.boss.name }, { locale })}\n-# ${gains}${drop}`);
+    parts.push(duelLog(lastFight, locale));
+  } else if (dungeon.description) {
+    parts.push(dungeon.description);
+  }
+
+  parts.push(`${m.rpg_dungeon_floors_label({}, { locale })}\n${dungeonFloorLines(state, locale)}`);
+  parts.push(`${m.rpg_dungeon_hp_label({}, { locale })}\n${buildHpBar(Math.min(profile.health, stats.maxHealth), stats.maxHealth)}`);
+
+  const pending = m.rpg_dungeon_pending_value({ xp: run.xpEarned, coins: run.coinsEarned, currency: config.currencyEmoji }, { locale });
+  const items = dungeonLootText(state.loot);
+  parts.push(`${m.rpg_dungeon_pending_label({}, { locale })}\n${pending}${items ? `\n${items}` : ''}`);
+  parts.push(`-# ${m.rpg_dungeon_run_rules({ minutes: DUNGEON_IDLE_TIMEOUT_MINUTES }, { locale })}`);
+
+  const embed = new EmbedBuilder()
+    .setTitle(m.rpg_dungeon_run_title({ emoji: dungeon.emoji, name: dungeon.name, floor: nextFloor, total }, { locale }))
+    .setDescription(truncate(parts.join('\n\n'), 4000))
+    .setColor(RPG_COLORS.combat);
+
+  const actions = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:dgfight:${ownerId}:${run.id}:${run.floorsCleared}`)
+      .setLabel(m.rpg_dungeon_fight_btn({ floor: nextFloor }, { locale }))
+      .setEmoji(icon('rpgFight'))
+      .setStyle(ButtonStyle.Danger)
+      .setDisabled(!state.floors[run.floorsCleared]?.boss),
+    new ButtonBuilder()
+      .setCustomId(`rpg:dgleave:${ownerId}:${run.id}`)
+      .setLabel(m.rpg_dungeon_leave_btn({}, { locale }))
+      .setEmoji(icon('rpgBag'))
+      .setStyle(ButtonStyle.Success),
+  );
+
+  // Pas de retour au hub : quitter l'écran ne mettrait pas la partie en pause, et le seul
+  // chemin de sortie doit être celui qui dit ce qu'il coûte.
+  const potions = await quickDrinkRow(guildId, ownerId, locale, 'dungeon', 'hp');
+  return {
+    embeds: [embed],
+    components: [actions, ...(potions ? [potions] : [])],
+  };
+}
+
+function buildDungeonSettlementView(
+  ownerId: string,
+  locale: Locale,
+  currencyEmoji: string,
+  settlement: DungeonSettlement,
+  lastFight: DungeonFloorResult | null,
+): PanelView {
+  const { dungeon } = settlement;
+  const total = settlement.totalFloors;
+
+  const title = settlement.outcome === 'COMPLETED'
+    ? m.rpg_dungeon_completed_title({ emoji: dungeon.emoji, name: dungeon.name }, { locale })
+    : settlement.outcome === 'LEFT'
+      ? m.rpg_dungeon_left_title({ emoji: dungeon.emoji, name: dungeon.name }, { locale })
+      : m.rpg_dungeon_defeat_title({ emoji: dungeon.emoji, name: dungeon.name }, { locale });
+
+  const summary = settlement.outcome === 'COMPLETED'
+    ? m.rpg_dungeon_completed_desc({ floors: total }, { locale })
+    : settlement.outcome === 'LEFT'
+      ? m.rpg_dungeon_left_desc({ floors: settlement.floorsCleared, total }, { locale })
+      : m.rpg_dungeon_defeat_desc({
+        boss: lastFight ? `${lastFight.boss.emoji} ${lastFight.boss.name}` : '',
+        floor: (lastFight?.floorIndex ?? settlement.floorsCleared) + 1,
+      }, { locale });
+
+  const description = [summary, lastFight ? duelLog(lastFight, locale) : null]
+    .filter((part): part is NonNullable<typeof part> => part !== null)
+    .join('\n\n');
+
+  const embed = new EmbedBuilder()
+    .setTitle(title)
+    .setDescription(truncate(description, 4000))
+    .setColor(settlement.outcome === 'DEFEATED' ? COLORS.danger : COLORS.success);
+
+  if (settlement.outcome !== 'DEFEATED') {
+    embed.addFields(
+      { name: m.rpg_fight_field_xp_earned({}, { locale }), value: `+${settlement.xp}`, inline: true },
+      { name: m.rpg_fight_field_coins_earned({ emoji: currencyEmoji }, { locale }), value: `+${settlement.coins}`, inline: true },
+    );
+    if (settlement.items.length > 0) {
+      const lines = settlement.items.map((entry) => {
+        const label = `${entry.emoji ?? '📦'} ${entry.itemName}${entry.quantity > 1 ? ` ×${entry.quantity}` : ''}`;
+        return entry.granted ? label : m.rpg_dungeon_item_missing({ item: label }, { locale });
+      });
+      embed.addFields({ name: m.rpg_dungeon_field_items({}, { locale }), value: truncate(lines.join('\n'), 1024) });
+    }
+  }
+  if (settlement.levelUp) {
+    embed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: settlement.levelUp }, { locale }) });
+  }
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:dungeon`)
+      .setLabel(m.rpg_dungeon_back_btn({}, { locale }))
+      .setEmoji(icon('rpgBoss'))
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(`rpg:nav:${ownerId}:hub`)
+      .setLabel(m.rpg_hub_btn_back({}, { locale }))
+      .setEmoji(icon('rpgBack'))
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  return { embeds: [embed], components: [row] };
+}
+
+async function handleDungeonEnter(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale, dungeonId: string): Promise<void> {
+  try {
+    await enterDungeon(guildId, ownerId, dungeonId);
+  } catch (err) {
+    if (err instanceof DungeonRefused) {
+      await replyDungeonRefusal(interaction, guildId, ownerId, locale, err.refusal);
+      return;
+    }
+    throw err;
+  }
+
+  await respond(interaction, await buildDungeonCurrentView(guildId, ownerId, locale));
+}
+
+async function handleDungeonFight(
+  interaction: ButtonInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  runId: string,
+  floorRaw: string,
+): Promise<void> {
+  const floor = Number.parseInt(floorRaw ?? '', 10);
+  let result: DungeonFloorResult;
+  try {
+    if (!Number.isInteger(floor) || floor < 0) throw new DungeonRefused({ kind: 'stale' });
+    result = await fightDungeonFloor(guildId, ownerId, runId, floor);
+  } catch (err) {
+    if (err instanceof DungeonRefused) {
+      await replyDungeonRefusal(interaction, guildId, ownerId, locale, err.refusal);
+      return;
+    }
+    throw err;
+  }
+
+  if (result.duel.won) {
+    // La campagne et les quêtes comptent le boss abattu, même si la partie finit mal : il
+    // est bien tombé. Un incident ici ne doit pas masquer le compte rendu de l'étage.
+    await trackCombatQuests(interaction.client, guildId, ownerId, true, null).catch((err) => {
+      logger.warn('RpgPanel', `Suivi des quêtes après un étage de donjon en échec pour ${ownerId} :`, err);
+    });
+  }
+
+  if (result.settlement) {
+    const config = await getOrCreateEconomyConfig(guildId);
+    await respond(interaction, buildDungeonSettlementView(ownerId, locale, config.currencyEmoji, result.settlement, result));
+    return;
+  }
+
+  const state = await getActiveDungeonRun(guildId, ownerId);
+  if (!state) {
+    await respond(interaction, await buildDungeonCurrentView(guildId, ownerId, locale));
+    return;
+  }
+  await respond(interaction, await buildDungeonRunView(guildId, ownerId, locale, state, result));
+}
+
+async function handleDungeonLeave(interaction: ButtonInteraction, guildId: string, ownerId: string, locale: Locale, runId: string): Promise<void> {
+  let settlement: DungeonSettlement;
+  try {
+    settlement = await leaveDungeon(guildId, ownerId, runId);
+  } catch (err) {
+    if (err instanceof DungeonRefused) {
+      await replyDungeonRefusal(interaction, guildId, ownerId, locale, err.refusal);
+      return;
+    }
+    throw err;
+  }
+
+  const config = await getOrCreateEconomyConfig(guildId);
+  await respond(interaction, buildDungeonSettlementView(ownerId, locale, config.currencyEmoji, settlement, null));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -6916,6 +7457,7 @@ async function renderSection(
     case 'bestiary': return buildBestiaryView(guildId, ownerId, interaction.user, locale, parseBestiaryState(rest));
     case 'itembook': return buildItemBookView(guildId, ownerId, locale, parseItemBookState(rest));
     case 'boss': return buildBossSelectView(guildId, ownerId, locale, Number.parseInt(rest[0] ?? '0', 10) || 0);
+    case 'dungeon': return buildDungeonHallView(guildId, ownerId, locale, Number.parseInt(rest[0] ?? '0', 10) || 0);
     case 'character': return buildCharacterView(guildId, ownerId, locale);
     case 'skilltree': return buildSkillTreeView(guildId, ownerId, locale);
     case 'craft': return buildCraftView(guildId, ownerId, locale);
@@ -6947,7 +7489,7 @@ async function renderSection(
  */
 const DEFERRED_BUTTON_ACTIONS = new Set([
   'nav', 'shopbuy', 'shopopen', 'invopen', 'bestopen', 'itemopen', 'invtoggle', 'invuse2', 'invsell', 'invsalvage', 'invfav', 'sellloot',
-  'work', 'upgrade', 'enchantapply', 'dest', 'choice',
+  'work', 'upgrade', 'enchantapply', 'dest', 'choice', 'dgenter', 'dgfight', 'dgleave', 'track', 'untrack',
 ]);
 
 const DEFERRED_SELECT_ACTIONS = new Set([
@@ -7003,7 +7545,12 @@ export async function handleRpgButton(client: Client, customId: string, interact
       case 'enchantapply': await handleEnchantApply(interaction, guildId, ownerId, locale, rest[0], rest[1]); return;
       case 'fight': await startFightSession(interaction, guildId, ownerId, locale); return;
       case 'hunt': await startFightSession(interaction, guildId, ownerId, locale, rest[0]); return;
+      case 'track': await handleTrackToggle(interaction, guildId, ownerId, locale, rest, true); return;
+      case 'untrack': await handleTrackToggle(interaction, guildId, ownerId, locale, rest, false); return;
       case 'bossfight': await handleBossSelect(interaction, guildId, ownerId, locale, rest[0]); return;
+      case 'dgenter': await handleDungeonEnter(interaction, guildId, ownerId, locale, rest[0]); return;
+      case 'dgfight': await handleDungeonFight(interaction, guildId, ownerId, locale, rest[0], rest[1]); return;
+      case 'dgleave': await handleDungeonLeave(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'raidattack': await handleRaidAttack(interaction, guildId, ownerId, locale); return;
       case 'dest': await handleTravelDestinationChoice(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'choice': await handleTravelEventChoice(interaction, guildId, ownerId, locale, rest[0], rest[1]); return;

@@ -124,6 +124,15 @@ import { FISH_RARITY_WEIGHTS, type FishInput } from '../../../services/features/
 import { isFishBookTier, type FishBookRewardInput } from '../../../services/features/rpg/rpgFishBook.js';
 import { getFishBookRewards, resetFishBookReward, saveFishBookReward } from '../../../services/features/rpg/rpgFishBookRewardService.js';
 import {
+  DungeonError,
+  deleteGuildDungeon,
+  listDungeonBossChoices,
+  listGuildDungeons,
+  saveGuildDungeon,
+  setGuildDungeonEnabled,
+} from '../../../services/features/rpg/rpgDungeonService.js';
+import { DUNGEON_FLOORS_MAX, DUNGEONS_PER_GUILD_MAX, type DungeonInput } from '../../../services/features/rpg/rpgDungeonPolicy.js';
+import {
   normalizeCommandRestrictions,
   readCommandChannels,
   RPG_CHANNEL_COMMANDS,
@@ -839,6 +848,83 @@ export async function handleEconomyRoutes(
         json(res, 200, { success: true, restoredDefault });
       } catch (err) {
         fishFailure(err, 'Erreur lors de la mise à jour du poisson.');
+      }
+      return true;
+    }
+  }
+
+  // Donjons du RPG : suites de boss du bestiaire, désactivés compris.
+  if (subAction === 'dungeons') {
+    const dungeonFailure = (err: unknown, fallback: string) => {
+      if (err instanceof DungeonError) {
+        json(res, err.status, { error: err.message });
+        return;
+      }
+      logger.error('EconomyAPI', fallback, err);
+      jsonFailure(res, err, fallback, 'EconomyAPI');
+    };
+    const dungeonAudit = (action: string, details: string) => pushAudit(guildId, {
+      user: auditUser,
+      action,
+      context: getGuildName(client, guildId),
+      module: 'Économie',
+      eventType: 'Manuel',
+      details,
+      channelId: null
+    });
+
+    // GET /api/dashboard/guilds/:guildId/economy/dungeons
+    if (parts.length === 6 && method === 'GET') {
+      try {
+        const [dungeons, bosses] = await Promise.all([listGuildDungeons(guildId), listDungeonBossChoices(guildId)]);
+        json(res, 200, { dungeons, bosses, limits: { floorsMax: DUNGEON_FLOORS_MAX, dungeonsMax: DUNGEONS_PER_GUILD_MAX } });
+      } catch (err) {
+        dungeonFailure(err, 'Erreur lors de la récupération des donjons.');
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/dungeons (création, ou modification avec `id`)
+    if (parts.length === 6 && method === 'POST') {
+      try {
+        const body = await readJsonBody<DungeonInput & { id?: string }>(req);
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant.' });
+          return true;
+        }
+        const { dungeon, created } = await saveGuildDungeon(guildId, body, body.id || undefined);
+        await dungeonAudit(created ? 'Création donjon RPG' : 'Modification donjon RPG', `${dungeon.name} (${dungeon.bossNames.length} étages)`);
+        json(res, 200, { dungeon });
+      } catch (err) {
+        dungeonFailure(err, 'Erreur lors de la sauvegarde du donjon.');
+      }
+      return true;
+    }
+
+    // PATCH  /api/dashboard/guilds/:guildId/economy/dungeons/:id (activation)
+    // DELETE /api/dashboard/guilds/:guildId/economy/dungeons/:id
+    if (parts.length === 7 && (method === 'PATCH' || method === 'DELETE')) {
+      try {
+        const dungeonId = parts[6];
+        if (method === 'PATCH') {
+          const body = await readJsonBody<{ enabled?: boolean }>(req);
+          if (!body || typeof body.enabled !== 'boolean') {
+            json(res, 400, { error: "Champ « enabled » manquant." });
+            return true;
+          }
+          const dungeon = await setGuildDungeonEnabled(guildId, dungeonId, body.enabled);
+          await dungeonAudit(body.enabled ? 'Ouverture donjon RPG' : 'Fermeture donjon RPG', dungeon.name);
+          json(res, 200, { dungeon });
+          return true;
+        }
+        const { dungeon, settledRuns } = await deleteGuildDungeon(guildId, dungeonId);
+        await dungeonAudit(
+          'Suppression donjon RPG',
+          settledRuns > 0 ? `${dungeon.name} (${settledRuns} partie(s) en cours soldée(s))` : dungeon.name,
+        );
+        json(res, 200, { success: true, settledRuns });
+      } catch (err) {
+        dungeonFailure(err, 'Erreur lors de la mise à jour du donjon.');
       }
       return true;
     }
