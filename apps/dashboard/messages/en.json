@@ -11012,5 +11012,15 @@
   "eco_dungeon_first_clear_reset_btn": "Put back in play",
   "eco_dungeon_first_clear_reset_confirm": "Put the first clear bounty back in play?",
   "eco_dungeon_first_clear_reset_confirm_desc": "The next player to clear the dungeon becomes the first to clear it and receives the bounty. What the previous winner received stays theirs.",
-  "api_ok_reset_rpg_dungeon_first_clear": "First clear bounty put back in play"
+  "api_ok_reset_rpg_dungeon_first_clear": "First clear bounty put back in play",
+  "eco_gambling_title": "Open gambling games",
+  "eco_gambling_desc": "A closed game is refused to everyone, administrators included. /games only lists open games, and closes with the last one. The same setting shows up on the Command access page.",
+  "eco_gambling_all_aria": "Open or close all gambling games",
+  "eco_gambling_dice": "Dice",
+  "eco_gambling_roulette": "Roulette",
+  "eco_gambling_rps": "Rock paper scissors",
+  "eco_gambling_guess": "Guess the number",
+  "commands_bulk_shown": "{count} command(s) shown, {disabled} disabled",
+  "commands_bulk_enable": "Enable all",
+  "commands_bulk_disable": "Disable all"
 }

@@ -11012,5 +11012,15 @@
   "eco_dungeon_first_clear_reset_btn": "Remettre en jeu",
   "eco_dungeon_first_clear_reset_confirm": "Remettre la prime du premier vainqueur en jeu ?",
   "eco_dungeon_first_clear_reset_confirm_desc": "Le prochain joueur à terminer le donjon deviendra le premier vainqueur et touchera la prime. Ce que l'ancien vainqueur a reçu lui reste acquis.",
-  "api_ok_reset_rpg_dungeon_first_clear": "Prime du premier vainqueur remise en jeu"
+  "api_ok_reset_rpg_dungeon_first_clear": "Prime du premier vainqueur remise en jeu",
+  "eco_gambling_title": "Jeux d'argent ouverts",
+  "eco_gambling_desc": "Un jeu fermé est refusé à tout le monde, administrateurs compris. /games ne présente que les jeux ouverts, et se ferme avec le dernier. Le même réglage apparaît dans la page Accès aux commandes.",
+  "eco_gambling_all_aria": "Ouvrir ou fermer tous les jeux d'argent",
+  "eco_gambling_dice": "Dés",
+  "eco_gambling_roulette": "Roulette",
+  "eco_gambling_rps": "Pierre-feuille-ciseaux",
+  "eco_gambling_guess": "Devine le nombre",
+  "commands_bulk_shown": "{count} commande(s) affichée(s), dont {disabled} désactivée(s)",
+  "commands_bulk_enable": "Tout activer",
+  "commands_bulk_disable": "Tout désactiver"
 }

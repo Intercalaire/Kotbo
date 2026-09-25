@@ -134,11 +134,14 @@ import {
 } from '../../../services/features/rpg/rpgDungeonService.js';
 import { DUNGEON_FLOORS_MAX, DUNGEONS_PER_GUILD_MAX, type DungeonInput } from '../../../services/features/rpg/rpgDungeonPolicy.js';
 import {
+  isGamblingCommand,
   normalizeCommandRestrictions,
   readCommandChannels,
   RPG_CHANNEL_COMMANDS,
   withCommandChannels,
+  type GamblingCommand,
 } from '../../../utils/commandAccess.js';
+import { getGamblingState, setGamblingState } from '../../../services/features/gamblingCommandsService.js';
 import type { Prisma } from '@prisma/client';
 
 /** Le type du corps de requête ne vaut qu'à la compilation : la valeur reçue est vérifiée. */
@@ -257,6 +260,51 @@ export async function handleEconomyRoutes(
       } catch (err) {
         logger.error('EconomyAPI', 'Error updating RPG channels:', err);
         jsonFailure(res, err, 'Erreur lors de la mise à jour des salons RPG.', 'EconomyAPI');
+      }
+      return true;
+    }
+  }
+
+  // Jeux d'argent : ouverts ou fermés un par un, sur les restrictions de commandes.
+  if (subAction === 'gambling' && parts.length === 6) {
+    if (method === 'GET') {
+      try {
+        json(res, 200, { games: await getGamblingState(guildId) });
+      } catch (err) {
+        logger.error('EconomyAPI', 'Error fetching gambling state:', err);
+        jsonFailure(res, err, 'Erreur lors de la récupération des jeux.', 'EconomyAPI');
+      }
+      return true;
+    }
+
+    if (method === 'PUT') {
+      try {
+        const body = await readJsonBody<{ games?: Record<string, unknown> }>(req);
+        if (!body?.games || typeof body.games !== 'object') {
+          json(res, 400, { error: 'Liste de jeux invalide.' });
+          return true;
+        }
+        const patch: Partial<Record<GamblingCommand, boolean>> = {};
+        for (const [name, enabled] of Object.entries(body.games)) {
+          if (isGamblingCommand(name) && typeof enabled === 'boolean') patch[name] = enabled;
+        }
+
+        const games = await setGamblingState(guildId, patch);
+        const closed = Object.entries(games).filter(([, open]) => !open).map(([name]) => `/${name}`);
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Mise à jour jeux d\'argent',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: closed.length > 0 ? `Jeux fermés : ${closed.join(', ')}.` : 'Tous les jeux sont ouverts.',
+          channelId: null
+        });
+
+        json(res, 200, { games });
+      } catch (err) {
+        logger.error('EconomyAPI', 'Error updating gambling state:', err);
+        jsonFailure(res, err, 'Erreur lors de la mise à jour des jeux.', 'EconomyAPI');
       }
       return true;
     }

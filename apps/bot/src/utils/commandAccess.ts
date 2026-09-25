@@ -210,3 +210,82 @@ export function withCommandChannels(
   }
   return updated;
 }
+
+/** Jeux d'argent, coupés ou rallumés ensemble depuis la page Économie. */
+export const GAMBLING_COMMANDS = ['dice', 'roulette', 'rps', 'guess'] as const;
+export type GamblingCommand = (typeof GAMBLING_COMMANDS)[number];
+
+/** Menu qui présente les jeux d'argent : il n'a plus rien à montrer quand ils sont tous coupés. */
+export const GAMES_HUB_COMMAND = 'games';
+
+export function isGamblingCommand(value: string): value is GamblingCommand {
+  return (GAMBLING_COMMANDS as readonly string[]).includes(value);
+}
+
+/** État activé de plusieurs commandes. Une commande sans règle est activée. */
+export function readCommandsEnabled(
+  rules: CommandRestrictionRule[],
+  commandNames: readonly string[],
+): Record<string, boolean> {
+  return Object.fromEntries(commandNames.map((name) => [
+    name,
+    rules.find((rule) => rule.commandName === name)?.enabled !== false,
+  ]));
+}
+
+/**
+ * Active ou coupe plusieurs commandes d'un coup.
+ *
+ * Seul `enabled` est touché : salons, rôles et comptes réglés depuis la page d'accès aux
+ * commandes restent en place, et reprennent effet quand la commande est rallumée. Une règle
+ * revenue à l'état neutre est retirée plutôt que gardée à vide.
+ */
+export function withCommandsEnabled(
+  rules: CommandRestrictionRule[],
+  patch: Record<string, boolean>,
+): CommandRestrictionRule[] {
+  const targets = new Set(Object.keys(patch));
+
+  const updated = rules
+    .map((rule) => (targets.has(rule.commandName) ? { ...rule, enabled: patch[rule.commandName] } : rule))
+    .filter((rule) => !(targets.has(rule.commandName) && isBlankRule(rule)));
+
+  const present = new Set(updated.map((rule) => rule.commandName));
+  for (const [commandName, enabled] of Object.entries(patch)) {
+    if (enabled || present.has(commandName)) continue;
+    updated.push({
+      commandName,
+      enabled: false,
+      allowedChannelIds: [],
+      blockedChannelIds: [],
+      allowedRoleIds: [],
+      blockedRoleIds: [],
+      allowedUserIds: [],
+      blockedUserIds: [],
+    });
+  }
+  return updated;
+}
+
+/**
+ * Réglage des jeux d'argent, avec le menu `/games` qui suit : coupé avec le dernier jeu,
+ * rouvert avec le premier. Entre les deux, il n'est pas touché : un menu coupé à la main
+ * depuis la page d'accès aux commandes le reste quand on ouvre ou ferme un jeu.
+ */
+export function withGamblingEnabled(
+  rules: CommandRestrictionRule[],
+  games: Partial<Record<GamblingCommand, boolean>>,
+): CommandRestrictionRule[] {
+  const current = readCommandsEnabled(rules, GAMBLING_COMMANDS);
+  const next = { ...current };
+  // Une clé présente mais indéfinie ne doit pas écraser l'état actuel du jeu.
+  for (const name of GAMBLING_COMMANDS) {
+    const wanted = games[name];
+    if (typeof wanted === 'boolean') next[name] = wanted;
+  }
+
+  const wasAnyOpen = GAMBLING_COMMANDS.some((name) => current[name]);
+  const anyOpen = GAMBLING_COMMANDS.some((name) => next[name]);
+  const hub = !anyOpen ? { [GAMES_HUB_COMMAND]: false } : !wasAnyOpen ? { [GAMES_HUB_COMMAND]: true } : {};
+  return withCommandsEnabled(rules, { ...next, ...hub });
+}

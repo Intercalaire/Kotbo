@@ -19,6 +19,14 @@ export async function fetchRpgChannels(guildId = authStore.selectedGuildId) {
   return dashboardRequest<{ channelIds: string[]; diverged: boolean }>('/economy/rpg-channels', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Channels):' });
 }
 
+export async function fetchGamblingGames(guildId = authStore.selectedGuildId) {
+  return dashboardRequest<{ games: Record<string, boolean> }>('/economy/gambling', { method: 'GET', guildId, errorContext: 'API Error (Fetch Gambling Games):' });
+}
+
+export async function updateGamblingGames(games: Record<string, boolean>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest<{ games: Record<string, boolean> }>('/economy/gambling', { method: 'PUT', payload: { games }, guildId, errorContext: 'API Error (Update Gambling Games):' });
+}
+
 export async function updateRpgChannels(channelIds: string[], guildId = authStore.selectedGuildId) {
   return dashboardRequest<{ channelIds: string[]; diverged: boolean }>('/economy/rpg-channels', { method: 'PUT', payload: { channelIds }, guildId, errorContext: 'API Error (Update RPG Channels):' });
 }

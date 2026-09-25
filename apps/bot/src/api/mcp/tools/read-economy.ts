@@ -4,6 +4,9 @@ import { z } from 'zod';
 import { type McpToolContext, err, ok, resolveMember } from '../toolkit.js';
 import { withModuleFlags } from '../../../services/features/rpg/rpgEconomyConfigService.js';
 import { listOwnedTitles } from '../../../services/features/rpg/rpgTitleService.js';
+import { findGuildMonsterById } from '../../../services/features/rpg/rpgBestiaryService.js';
+import { getActiveDungeonRun } from '../../../services/features/rpg/rpgDungeonService.js';
+import { getGamblingState } from '../../../services/features/gamblingCommandsService.js';
 
 export function registerReadEconomyTools(ctx: McpToolContext) {
   const { server, guildId, shouldRegister, guard, toolMeta } = ctx;
@@ -12,7 +15,7 @@ export function registerReadEconomyTools(ctx: McpToolContext) {
     server.registerTool(
       'get_economy_config',
       {
-        description: "Récupère la configuration complète de l'économie et du RPG (monnaie, modules, boutique, marché noir, raid, difficultés).",
+        description: "Récupère la configuration complète de l'économie et du RPG (monnaie, modules, boutique, marché noir, raid, difficultés, surcoûts de la traque), et les jeux d'argent ouverts (gamblingGames).",
         inputSchema: {},
         _meta: toolMeta,
       },
@@ -24,14 +27,14 @@ export function registerReadEconomyTools(ctx: McpToolContext) {
         // six champs, et un agent ne pouvait rien dire du RPG, de la boutique, du marché
         // noir ni du raid.
         const { guildId: _guildId, ...settings } = await withModuleFlags(guildId, config);
-        return ok(settings);
+        return ok({ ...settings, gamblingGames: await getGamblingState(guildId) });
       })
     );
 
     server.registerTool(
       'get_rpg_profile',
       {
-        description: "Récupère le profil RPG d'un membre (solde, niveau, stats de base, classe, points, équipement complet, inventaire, titres, premiers vainqueurs).",
+        description: "Récupère le profil RPG d'un membre (solde, niveau et XP du RPG, stats de base, classe, points, équipement complet, inventaire, titres, premiers vainqueurs, créature traquée, donjon en cours). L'XP est celle du RPG, distincte du niveau du serveur.",
         inputSchema: {
           member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre'),
         },
@@ -72,13 +75,15 @@ export function registerReadEconomyTools(ctx: McpToolContext) {
           })
           : [];
         const equipOf = new Map(equipItems.map((i) => [i.id, i]));
-        const [titles, firstKills] = await Promise.all([
+        const [titles, firstKills, tracked, dungeonRun] = await Promise.all([
           listOwnedTitles(profile.id),
           prisma.rpgMonsterFirstKill.findMany({
             where: { guildId, userId: resolved.userId },
             orderBy: { createdAt: 'asc' },
             select: { monsterName: true, createdAt: true },
           }),
+          profile.trackedMonsterId ? findGuildMonsterById(guildId, profile.trackedMonsterId) : Promise.resolve(null),
+          getActiveDungeonRun(guildId, resolved.userId),
         ]);
         const equipment = Object.fromEntries(
           Object.entries(slots).map(([slot, id]) => [slot, id ? equipOf.get(id) ?? null : null]),
@@ -116,6 +121,21 @@ export function registerReadEconomyTools(ctx: McpToolContext) {
             obtainedAt: title.obtainedAt,
           })),
           firstKills: firstKills.map((kill) => ({ monsterName: kill.monsterName, at: kill.createdAt })),
+          trackedMonster: tracked ? { id: tracked.id, name: tracked.name, level: tracked.level } : null,
+          activeDungeonRun: dungeonRun
+            ? {
+              dungeonId: dungeonRun.dungeon.id,
+              dungeonName: dungeonRun.dungeon.name,
+              floorsCleared: dungeonRun.run.floorsCleared,
+              totalFloors: dungeonRun.floors.length,
+              pendingXp: dungeonRun.run.xpEarned,
+              pendingCoins: dungeonRun.run.coinsEarned,
+              pendingItems: dungeonRun.loot.map((entry) => entry.itemName),
+              startedAt: dungeonRun.run.startedAt,
+              lastActionAt: dungeonRun.run.lastActionAt,
+              expired: dungeonRun.expired,
+            }
+            : null,
           favoriteItemIds: profile.favoriteItemIds,
           inventory: profile.inventory.map((i) => ({
             itemId: i.item.id,
