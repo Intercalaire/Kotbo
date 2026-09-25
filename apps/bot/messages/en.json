@@ -343,7 +343,7 @@
   "rpg_fight_cooldown_title": "Cooldown",
   "rpg_fight_cooldown_desc": "You must wait **{wait}** before fighting again.",
   "rpg_fight_low_energy_title": "Not enough energy",
-  "rpg_fight_low_energy_desc": "You need **15 energy** to fight. You have **{energy}**.",
+  "rpg_fight_low_energy_desc": "You need **{cost} energy** to fight. You have **{energy}**.",
   "rpg_fight_low_hp_title": "HP too low",
   "rpg_fight_low_hp_desc": "Your HP is too low to fight. Rest or use a potion!",
   "rpg_fight_no_monster_title": "No monster",
@@ -2682,7 +2682,6 @@
   "rpg_bestiary_unknown_hint": "Reported around level {level}. Fight it to record it.",
   "rpg_bestiary_tally": "⚔️ {kills} slain · 💀 {defeats} loss(es)",
   "rpg_bestiary_open_btn": "Entry",
-  "rpg_hunt_btn": "Hunt",
   "rpg_hunt_refused_title": "Can't hunt this",
   "rpg_hunt_refused_desc": "This creature can't be hunted: you can only hunt regular creatures at or below your level.",
   "rpg_bestiary_back_btn": "Bestiary",
@@ -2779,5 +2778,11 @@
   "rpg_dungeon_low_energy_title": "Not enough energy",
   "rpg_dungeon_run_rules": "Leaving this screen any other way than \"Leave with the loot\" ends the run. {minutes} min without fighting count as a defeat.",
   "rpg_dungeon_left_by_navigation": "You left the dungeon partway through: the run is over and the loot you gathered is granted.",
-  "rpg_dungeon_refused_expired": "More than {minutes} min without fighting: the dungeon closed in on you and the pending loot is lost."
+  "rpg_dungeon_refused_expired": "More than {minutes} min without fighting: the dungeon closed in on you and the pending loot is lost.",
+  "rpg_track_start_btn": "Track it",
+  "rpg_track_stop_btn": "Stop tracking",
+  "rpg_track_again_btn": "Track again",
+  "rpg_track_hub_btn": "Track: {name}",
+  "rpg_track_started_note": "You are tracking {name}. The tracking button appears on your profile, next to Fight: {energy} energy per hunt, then {cooldown} before the next fight.",
+  "rpg_track_stopped_note": "You are no longer tracking any creature."
 }

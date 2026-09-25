@@ -21,6 +21,32 @@ export function fightCooldownMs(config: { fightCooldownSec?: number | null }): n
   return bounded(config.fightCooldownSec, FIGHT_COOLDOWN_SEC_RANGE, 120) * MS_PER_SECOND;
 }
 
+/**
+ * Traque : combat contre une créature choisie, plus cher qu'une rencontre au hasard.
+ *
+ * Les surcoûts sont des pourcentages entiers du combat ordinaire, réglés par serveur. À
+ * 100 %, traquer ne coûte pas plus que combattre : c'était le cas avant, et choisir sa
+ * cible valait alors toujours mieux que de s'en remettre au hasard.
+ */
+export const HUNT_ENERGY_PERCENT_RANGE = { min: 100, max: 500 } as const;
+export const HUNT_COOLDOWN_PERCENT_RANGE = { min: 100, max: 1000 } as const;
+
+export function huntEnergyCost(baseCost: number, config: { huntEnergyPercent?: number | null }): number {
+  const percent = bounded(config.huntEnergyPercent, HUNT_ENERGY_PERCENT_RANGE, 150);
+  return Math.ceil((baseCost * percent) / 100);
+}
+
+/**
+ * Temps que la traque ajoute au verrou des combats ordinaires.
+ *
+ * Le verrou est commun : sans ce report, il suffirait d'alterner une traque et un combat
+ * au hasard pour ne jamais payer le délai allongé.
+ */
+export function huntCooldownExtraMs(config: { fightCooldownSec?: number | null; huntCooldownPercent?: number | null }): number {
+  const percent = bounded(config.huntCooldownPercent, HUNT_COOLDOWN_PERCENT_RANGE, 200);
+  return Math.round((fightCooldownMs(config) * (percent - 100)) / 100);
+}
+
 export function bossCooldownMs(config: { bossCooldownMin?: number | null }): number {
   return bounded(config.bossCooldownMin, BOSS_COOLDOWN_MIN_RANGE, 2) * MS_PER_MINUTE;
 }

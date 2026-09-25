@@ -343,7 +343,7 @@
   "rpg_fight_cooldown_title": "Cooldown",
   "rpg_fight_cooldown_desc": "Vous devez attendre encore **{wait}** avant de combattre à nouveau.",
   "rpg_fight_low_energy_title": "Énergie insuffisante",
-  "rpg_fight_low_energy_desc": "Il vous faut **15 énergie** pour combattre. Vous avez **{energy}**.",
+  "rpg_fight_low_energy_desc": "Il vous faut **{cost} énergie** pour combattre. Vous avez **{energy}**.",
   "rpg_fight_low_hp_title": "PV trop bas",
   "rpg_fight_low_hp_desc": "Vos PV sont trop bas pour combattre. Reposez-vous ou utilisez une potion !",
   "rpg_fight_no_monster_title": "Aucun monstre",
@@ -2682,7 +2682,6 @@
   "rpg_bestiary_unknown_hint": "Signalée aux alentours du niveau {level}. Affrontez-la pour la répertorier.",
   "rpg_bestiary_tally": "⚔️ {kills} vaincue(s) · 💀 {defeats} défaite(s)",
   "rpg_bestiary_open_btn": "Fiche",
-  "rpg_hunt_btn": "Traquer",
   "rpg_hunt_refused_title": "Traque impossible",
   "rpg_hunt_refused_desc": "Cette créature n'est plus traquable : on ne traque que les créatures ordinaires de votre niveau ou en dessous.",
   "rpg_bestiary_back_btn": "Bestiaire",
@@ -2779,5 +2778,11 @@
   "rpg_dungeon_low_energy_title": "Pas assez d’énergie",
   "rpg_dungeon_run_rules": "Quitter cet écran par un autre chemin que « Partir avec le butin » termine la partie. {minutes} min sans combattre comptent comme une défaite.",
   "rpg_dungeon_left_by_navigation": "Vous avez quitté le donjon en cours de route : la partie est terminée, le butin amassé vous est versé.",
-  "rpg_dungeon_refused_expired": "Plus de {minutes} min sans combattre : le donjon s’est refermé sur vous et le butin en attente est perdu."
+  "rpg_dungeon_refused_expired": "Plus de {minutes} min sans combattre : le donjon s’est refermé sur vous et le butin en attente est perdu.",
+  "rpg_track_start_btn": "Suivre sa trace",
+  "rpg_track_stop_btn": "Arrêter la traque",
+  "rpg_track_again_btn": "Traquer à nouveau",
+  "rpg_track_hub_btn": "Traquer : {name}",
+  "rpg_track_started_note": "Vous suivez la trace de {name}. Le bouton de traque apparaît sur votre fiche, à côté de Combattre : {energy} d’énergie par traque, puis {cooldown} avant le combat suivant.",
+  "rpg_track_stopped_note": "Vous ne traquez plus aucune créature."
 }

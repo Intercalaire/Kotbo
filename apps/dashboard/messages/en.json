@@ -11000,5 +11000,9 @@
   "eco_dungeon_enabled_desc": "When closed, it disappears from the dungeon hall. Runs already started can still be finished.",
   "api_ok_save_rpg_dungeon": "Dungeon saved",
   "api_ok_set_rpg_dungeon_enabled": "Dungeon updated",
-  "api_ok_delete_rpg_dungeon": "Dungeon deleted"
+  "api_ok_delete_rpg_dungeon": "Dungeon deleted",
+  "eco_hunt_energy": "Hunt energy (%)",
+  "eco_hunt_energy_hint": "As a percentage of an ordinary fight. 100: same cost, 150: half as much again.",
+  "eco_hunt_cd": "Delay after a hunt (%)",
+  "eco_hunt_cd_hint": "As a percentage of the fight delay, which also applies to the next fight. 200: doubled delay."
 }

@@ -183,7 +183,14 @@ import { lockRpgProfile, takeInventoryQuantity } from './rpg/rpgInventoryWrites.
 import { attackRaid, checkRaidAssaultGrant, getRaidPanelState, getRaidState, grantRaidAssaults, RaidError } from './rpg/rpgRaidService.js';
 import { buildAssaultEmbed, buildRaidEmbed, healthBar } from './rpg/rpgRaidPanel.js';
 import { computeAttack } from './rpg/rpgCombatMath.js';
-import { bossCooldownMs, fightCooldownMs, formatCooldown, remainingCooldownMs } from './rpg/rpgCombatCooldownPolicy.js';
+import {
+  bossCooldownMs,
+  fightCooldownMs,
+  formatCooldown,
+  huntCooldownExtraMs,
+  huntEnergyCost,
+  remainingCooldownMs,
+} from './rpg/rpgCombatCooldownPolicy.js';
 import { claimFirstKill, formatFirstKillBounty, formatFirstKillReward, getFirstKill, type FirstKillMonster } from './rpg/rpgFirstKillService.js';
 import { grantWinTitle, listOwnedTitles, setActiveTitle } from './rpg/rpgTitleService.js';
 import { titleBonusParts } from './rpg/rpgTitlePolicy.js';
@@ -798,6 +805,7 @@ function buildHubButtons(
   isAdmin: boolean,
   blackMarketOpen: boolean,
   raidOpen: boolean,
+  tracked: { id: string; name: string } | null,
 ): PanelRow[] {
   // Ce qui se joue : le tour de jeu, dans l'ordre où on l'enchaîne.
   const played = [
@@ -807,6 +815,16 @@ function buildHubButtons(
     new ButtonBuilder().setCustomId(`rpg:daily:${ownerId}`).setLabel(m.rpg_hub_btn_daily({}, { locale })).setEmoji(icon('rpgDaily')).setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(`rpg:fish:${ownerId}`).setLabel(m.rpg_hub_btn_fish({}, { locale })).setEmoji(icon('rpgFish')).setStyle(ButtonStyle.Success),
   ];
+
+  // La traque se place à côté du combat au hasard, qu'elle double sans le remplacer : le
+  // joueur choisit à chaque clic s'il paie le surcoût. Elle n'existe que le temps d'une
+  // traque, et repousse le dernier geste de la rangée vers la suivante.
+  if (tracked) {
+    played.splice(1, 0, new ButtonBuilder()
+      .setCustomId(`rpg:hunt:${ownerId}:${tracked.id}`)
+      .setLabel(truncate(m.rpg_track_hub_btn({ name: tracked.name }, { locale }), 80))
+      .setStyle(ButtonStyle.Danger));
+  }
 
   // Ce qui se ramasse et ce qui se porte. `work` ouvre la rangée : il appartient au même
   // tour de jeu que la quotidienne, mais la première rangée est déjà pleine.
@@ -840,6 +858,8 @@ function buildHubButtons(
     );
   }
 
+  carried.unshift(...played.splice(BUTTONS_PER_ROW));
+
   return [...buttonRows(played), ...buttonRows(carried), hubNavRow(ownerId, locale, isAdmin)];
 }
 
@@ -855,15 +875,17 @@ export async function buildHubView(
   if (viewer.id !== target.id) {
     return { embeds: [], components: [], container, files };
   }
-  const [blackMarket, raid, potions] = await Promise.all([
+  const [blackMarket, raid, potions, hunter] = await Promise.all([
     getBlackMarketState(guildId),
     getRaidState(guildId),
     quickDrinkRow(guildId, viewer.id, locale, 'hub'),
+    prisma.rpgProfile.findUnique({ where: { guildId_userId: { guildId, userId: viewer.id } }, select: { trackedMonsterId: true, level: true } }),
   ]);
+  const tracked = hunter ? await loadTrackedMonster(guildId, viewer.id, hunter.trackedMonsterId, hunter.level) : null;
   return {
     embeds: [],
     components: [
-      ...buildHubButtons(viewer.id, locale, viewerIsAdmin, Boolean(blackMarket.session), raid.enabled && raid.open !== null),
+      ...buildHubButtons(viewer.id, locale, viewerIsAdmin, Boolean(blackMarket.session), raid.enabled && raid.open !== null, tracked),
       ...(potions ? [potions] : []),
     ],
     container,
@@ -4056,12 +4078,89 @@ function bestiaryLine(entry: BestiaryEntry, locale: Locale): string {
   return `${monster.emoji} **${monster.name}**${bossTag}\n${sheet}\n-# ${tally}`;
 }
 
-function huntButton(ownerId: string, monsterId: string, locale: Locale): ButtonBuilder {
+/**
+ * Suivre ou lâcher la trace d'une créature. `origin` dit quel écran redessiner ensuite :
+ * la liste du bestiaire ou la fiche, avec le filtre et la page d'où l'on vient.
+ */
+function trackButton(
+  ownerId: string,
+  monsterId: string,
+  tracked: boolean,
+  origin: 'list' | 'entry',
+  state: BestiaryState,
+  locale: Locale,
+): ButtonBuilder {
+  return new ButtonBuilder()
+    .setCustomId(`rpg:${tracked ? 'untrack' : 'track'}:${ownerId}:${monsterId}:${origin}:${state.filter}:${state.page}`)
+    .setLabel(tracked ? m.rpg_track_stop_btn({}, { locale }) : m.rpg_track_start_btn({}, { locale }))
+    .setStyle(tracked ? ButtonStyle.Secondary : ButtonStyle.Danger);
+}
+
+function huntAgainButton(ownerId: string, monsterId: string, locale: Locale): ButtonBuilder {
   return new ButtonBuilder()
     .setCustomId(`rpg:hunt:${ownerId}:${monsterId}`)
-    .setLabel(m.rpg_hunt_btn({}, { locale }))
-    .setEmoji(icon('rpgFight'))
+    .setLabel(m.rpg_track_again_btn({}, { locale }))
     .setStyle(ButtonStyle.Danger);
+}
+
+async function setTrackedMonster(guildId: string, userId: string, monsterId: string | null): Promise<void> {
+  await prisma.rpgProfile.updateMany({ where: { guildId, userId }, data: { trackedMonsterId: monsterId } });
+}
+
+/**
+ * Créature traquée, si elle se traque encore. Une cible disparue, désactivée ou devenue boss
+ * est oubliée au passage ; une cible passée au-dessus du niveau du joueur, elle, reste : elle
+ * redeviendra traquable quand il la rattrapera.
+ */
+async function loadTrackedMonster(guildId: string, userId: string, trackedMonsterId: string | null, playerLevel: number) {
+  if (!trackedMonsterId) return null;
+  const monster = await findGuildMonsterById(guildId, trackedMonsterId);
+  if (!monster || monster.isBoss) {
+    await setTrackedMonster(guildId, userId, null);
+    return null;
+  }
+  // Un monstre global personnalisé depuis a changé de ligne : la cible suit la copie du
+  // serveur, pour que le bestiaire la reconnaisse comme traquée.
+  if (monster.id !== trackedMonsterId) await setTrackedMonster(guildId, userId, monster.id);
+  return canHunt(monster, playerLevel) ? monster : null;
+}
+
+async function handleTrackToggle(
+  interaction: ButtonInteraction,
+  guildId: string,
+  ownerId: string,
+  locale: Locale,
+  rest: string[],
+  track: boolean,
+): Promise<void> {
+  const [monsterId, origin] = rest;
+  const state = parseBestiaryState(rest.slice(2));
+  let note = '';
+
+  if (track) {
+    const [monster, profile] = await Promise.all([findGuildMonsterById(guildId, monsterId), getOrCreateRpgProfile(guildId, ownerId)]);
+    if (!monster || !canHunt(monster, profile.level)) {
+      note = m.rpg_hunt_refused_desc({}, { locale });
+    } else {
+      await setTrackedMonster(guildId, ownerId, monster.id);
+      const config = await getOrCreateEconomyConfig(guildId);
+      // `formatCooldown` ne descend pas sous la seconde : sans délai de combat, il dirait « 1s ».
+      const waitMs = fightCooldownMs(config) + huntCooldownExtraMs(config);
+      note = m.rpg_track_started_note({
+        name: monster.name,
+        energy: huntEnergyCost(FIGHT_ENERGY_COST, config),
+        cooldown: waitMs > 0 ? formatCooldown(waitMs) : '0s',
+      }, { locale });
+    }
+  } else {
+    await setTrackedMonster(guildId, ownerId, null);
+    note = m.rpg_track_stopped_note({}, { locale });
+  }
+
+  const view = origin === 'entry'
+    ? await buildBestiaryEntryView(guildId, ownerId, monsterId, locale, state)
+    : await buildBestiaryView(guildId, ownerId, interaction.user, locale, state);
+  await respond(interaction, withNote(view, note));
 }
 
 async function buildBestiaryView(
@@ -4126,10 +4225,11 @@ async function buildBestiaryView(
     // chercher, si elle n'est pas au-dessus du niveau du joueur.
     if (!entry.discovered) {
       if (canHunt(entry.monster, profile.level)) {
+        const tracked = profile.trackedMonsterId === entry.monster.id;
         container.addSectionComponents(
           new SectionBuilder()
             .addTextDisplayComponents(line)
-            .setButtonAccessory(huntButton(ownerId, entry.monster.id, locale)),
+            .setButtonAccessory(trackButton(ownerId, entry.monster.id, tracked, 'list', state, locale)),
         );
       } else {
         container.addTextDisplayComponents(line);
@@ -4627,7 +4727,9 @@ async function buildBestiaryEntryView(
 
   const profile = await getOrCreateRpgProfile(guildId, ownerId);
   const row = new ActionRowBuilder<ButtonBuilder>();
-  if (canHunt(monster, profile.level)) row.addComponents(huntButton(ownerId, monster.id, locale));
+  if (canHunt(monster, profile.level)) {
+    row.addComponents(trackButton(ownerId, monster.id, profile.trackedMonsterId === monster.id, 'entry', back, locale));
+  }
   row.addComponents(
     new ButtonBuilder()
       .setCustomId(`rpg:nav:${ownerId}:bestiary:${back.filter}:${back.page}`)
@@ -4943,9 +5045,19 @@ async function startFightSession(
   // Résolue avant tout débit d'énergie : une cible refusée ne doit rien coûter.
   const target = targetMonsterId ? await findGuildMonsterById(guildId, targetMonsterId) : null;
   if (targetMonsterId && (!target || !canHunt(target, profile.level))) {
+    // Une cible devenue introuvable ou boss ne se traquera plus jamais : la garder ferait
+    // réapparaître au hub un bouton qui ne mène qu'à ce refus.
+    if (profile.trackedMonsterId === targetMonsterId && (!target || target.isBoss)) await setTrackedMonster(guildId, ownerId, null);
     await interaction.reply({ embeds: [errorEmbed(m.rpg_hunt_refused_title({}, { locale }), m.rpg_hunt_refused_desc({}, { locale }))], flags: [MessageFlags.Ephemeral] });
     return;
   }
+
+  // Une traque coûte plus qu'une rencontre au hasard, et repousse le verrou commun des
+  // combats : `lastBattle` est alors posé dans le futur, et chaque écriture du verrou,
+  // jusqu'à la fin du combat, doit reprendre ce report.
+  const energyCost = target ? huntEnergyCost(FIGHT_ENERGY_COST, config) : FIGHT_ENERGY_COST;
+  const lockExtraMs = target ? huntCooldownExtraMs(config) : 0;
+  const lockRelease = () => new Date(Date.now() + lockExtraMs);
 
   const remainingMs = remainingCooldownMs(profile.lastBattle, cooldownMs);
   if (remainingMs > 0) {
@@ -4953,8 +5065,8 @@ async function startFightSession(
     return;
   }
 
-  if (profile.energy < FIGHT_ENERGY_COST) {
-    await replyVitalsAlert(interaction, guildId, ownerId, locale, errorEmbed(m.rpg_fight_low_energy_title({}, { locale }), m.rpg_fight_low_energy_desc({ energy: profile.energy }, { locale })), 'energy');
+  if (profile.energy < energyCost) {
+    await replyVitalsAlert(interaction, guildId, ownerId, locale, errorEmbed(m.rpg_fight_low_energy_title({}, { locale }), m.rpg_fight_low_energy_desc({ energy: profile.energy, cost: energyCost }, { locale })), 'energy');
     return;
   }
 
@@ -4972,24 +5084,24 @@ async function startFightSession(
     where: {
       guildId,
       userId: ownerId,
-      energy: { gte: FIGHT_ENERGY_COST },
+      energy: { gte: energyCost },
       OR: [
         { lastBattle: null },
         { lastBattle: { lte: new Date(battleLockedAt.getTime() - cooldownMs) } },
       ],
     },
-    data: { energy: { decrement: FIGHT_ENERGY_COST }, lastBattle: battleLockedAt },
+    data: { energy: { decrement: energyCost }, lastBattle: new Date(battleLockedAt.getTime() + lockExtraMs) },
   });
 
   if (energySpent.count === 0) {
-    await interaction.reply({ embeds: [errorEmbed(m.rpg_fight_low_energy_title({}, { locale }), m.rpg_fight_low_energy_desc({ energy: profile.energy }, { locale }))], flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({ embeds: [errorEmbed(m.rpg_fight_low_energy_title({}, { locale }), m.rpg_fight_low_energy_desc({ energy: profile.energy, cost: energyCost }, { locale }))], flags: [MessageFlags.Ephemeral] });
     return;
   }
 
   /** Rend l'énergie (et libère le verrou) quand le combat ne peut pas démarrer. */
   const refundFightCost = () => prisma.rpgProfile.update({
     where: { guildId_userId: { guildId, userId: ownerId } },
-    data: { energy: { increment: FIGHT_ENERGY_COST }, lastBattle: profile.lastBattle },
+    data: { energy: { increment: energyCost }, lastBattle: profile.lastBattle },
   }).catch(() => null);
 
   await interaction.deferUpdate();
@@ -5233,10 +5345,12 @@ async function startFightSession(
       const rows = await getActionRows();
       rows.forEach((row) => row.components.forEach((c) => c.setDisabled(true)));
       const back = fightBackRow(ownerId, locale, monster.isBoss);
+      // Une traque s'enchaîne depuis son compte rendu, sans repasser par le hub.
+      if (target) back.addComponents(huntAgainButton(ownerId, target.id, locale));
       const finalComponents = [...rows, back];
 
       if (reason === 'fled' || reason === 'time') {
-        await prisma.rpgProfile.update({ where: { guildId_userId: { guildId, userId: ownerId } }, data: { lastBattle: new Date() } });
+        await prisma.rpgProfile.update({ where: { guildId_userId: { guildId, userId: ownerId } }, data: { lastBattle: lockRelease() } });
         await settleFightHealth(profile.id, playerHp - startHp, playerMaxHp);
 
         const embed = reason === 'fled'
@@ -5301,7 +5415,7 @@ async function startFightSession(
             xp: { increment: xpEarned },
             totalMonstersKilled: !monster.isBoss ? { increment: 1 } : undefined,
             totalBossesKilled: monster.isBoss ? { increment: 1 } : undefined,
-            lastBattle: new Date(),
+            lastBattle: lockRelease(),
           },
         });
 
@@ -5362,7 +5476,7 @@ async function startFightSession(
       if (reason === 'defeat') {
         const xpEarned = Math.floor(monster.xpReward * 0.15);
 
-        await prisma.rpgProfile.update({ where: { guildId_userId: { guildId, userId: ownerId } }, data: { health: 1, xp: { increment: xpEarned }, lastBattle: new Date() } });
+        await prisma.rpgProfile.update({ where: { guildId_userId: { guildId, userId: ownerId } }, data: { health: 1, xp: { increment: xpEarned }, lastBattle: lockRelease() } });
         await prisma.rpgBattle.create({ data: { guildId, userId: ownerId, monsterId: monster.id, monsterName: monster.name, won: false, damageDealt: totalDamageDealt, damageTaken: totalDamageTaken, xpEarned, coinsEarned: 0, itemDropped: null } });
 
         const defeatEmbed = new EmbedBuilder()
@@ -7375,7 +7489,7 @@ async function renderSection(
  */
 const DEFERRED_BUTTON_ACTIONS = new Set([
   'nav', 'shopbuy', 'shopopen', 'invopen', 'bestopen', 'itemopen', 'invtoggle', 'invuse2', 'invsell', 'invsalvage', 'invfav', 'sellloot',
-  'work', 'upgrade', 'enchantapply', 'dest', 'choice', 'dgenter', 'dgfight', 'dgleave',
+  'work', 'upgrade', 'enchantapply', 'dest', 'choice', 'dgenter', 'dgfight', 'dgleave', 'track', 'untrack',
 ]);
 
 const DEFERRED_SELECT_ACTIONS = new Set([
@@ -7431,6 +7545,8 @@ export async function handleRpgButton(client: Client, customId: string, interact
       case 'enchantapply': await handleEnchantApply(interaction, guildId, ownerId, locale, rest[0], rest[1]); return;
       case 'fight': await startFightSession(interaction, guildId, ownerId, locale); return;
       case 'hunt': await startFightSession(interaction, guildId, ownerId, locale, rest[0]); return;
+      case 'track': await handleTrackToggle(interaction, guildId, ownerId, locale, rest, true); return;
+      case 'untrack': await handleTrackToggle(interaction, guildId, ownerId, locale, rest, false); return;
       case 'bossfight': await handleBossSelect(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'dgenter': await handleDungeonEnter(interaction, guildId, ownerId, locale, rest[0]); return;
       case 'dgfight': await handleDungeonFight(interaction, guildId, ownerId, locale, rest[0], rest[1]); return;

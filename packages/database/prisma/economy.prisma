@@ -22,6 +22,11 @@ model EconomyConfig {
   fightCooldownSec     Int   @default(120)
   bossCooldownMin      Int   @default(2)
 
+  // Surcoût de la traque d'une créature choisie, en pourcentage du combat ordinaire :
+  // énergie dépensée et délai avant le combat suivant.
+  huntEnergyPercent    Int   @default(150)
+  huntCooldownPercent  Int   @default(200)
+
   // Annonce du premier joueur à vaincre une créature : NONE, BOSSES (boss seulement,
   // pour ne pas inonder le salon des dizaines de monstres ordinaires) ou ALL.
   firstKillAnnounce    String  @default("NONE")
@@ -217,6 +222,9 @@ model RpgProfile {
   // profil et non par la ligne d'inventaire : celle-ci disparaît avec le dernier
   // exemplaire, et la potion rachetée perdrait son étoile.
   favoriteItemIds     String[] @default([])
+  /// Créature traquée, choisie dans le bestiaire. Pas de clé étrangère : un monstre global
+  /// personnalisé change de ligne, et la cible est relue par `findGuildMonsterById`.
+  trackedMonsterId    String?
   firstKills          RpgMonsterFirstKill[]
 
   // Titre porté : affiché en haut de la carte, et seul titre dont les bonus comptent.

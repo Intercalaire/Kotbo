@@ -11000,5 +11000,9 @@
   "eco_dungeon_enabled_desc": "Fermé, il disparaît de la salle des donjons. Les parties déjà lancées peuvent se terminer.",
   "api_ok_save_rpg_dungeon": "Donjon enregistré",
   "api_ok_set_rpg_dungeon_enabled": "Donjon mis à jour",
-  "api_ok_delete_rpg_dungeon": "Donjon supprimé"
+  "api_ok_delete_rpg_dungeon": "Donjon supprimé",
+  "eco_hunt_energy": "Énergie d'une traque (%)",
+  "eco_hunt_energy_hint": "En pourcentage d'un combat ordinaire. 100 : même coût, 150 : moitié plus.",
+  "eco_hunt_cd": "Délai après une traque (%)",
+  "eco_hunt_cd_hint": "En pourcentage du délai de combat, qui s'applique aussi au combat suivant. 200 : délai doublé."
 }

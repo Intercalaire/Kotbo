@@ -147,6 +147,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     adventureCooldownMin: 30,
     fightCooldownSec: 120,
     bossCooldownMin: 2,
+    huntEnergyPercent: 150,
+    huntCooldownPercent: 200,
     firstKillAnnounce: 'NONE',
     firstKillChannelId: null as string | null,
     maxEnergy: 100,
@@ -1838,6 +1840,18 @@ import EmojiText from '../lib/components/EmojiText.svelte';
               <label for="bossCd" class="text-xs font-semibold text-on-surface-variant/60">{m.eco_boss_cd()}</label>
               <input id="bossCd" type="number" min="0" max="1440" bind:value={config.bossCooldownMin} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
               <p class="text-2xs text-on-surface-variant/40">{m.eco_boss_cd_hint()}</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="huntEnergy" class="text-xs font-semibold text-on-surface-variant/60">{m.eco_hunt_energy()}</label>
+              <input id="huntEnergy" type="number" min="100" max="500" bind:value={config.huntEnergyPercent} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <p class="text-2xs text-on-surface-variant/40">{m.eco_hunt_energy_hint()}</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="huntCd" class="text-xs font-semibold text-on-surface-variant/60">{m.eco_hunt_cd()}</label>
+              <input id="huntCd" type="number" min="100" max="1000" bind:value={config.huntCooldownPercent} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <p class="text-2xs text-on-surface-variant/40">{m.eco_hunt_cd_hint()}</p>
             </div>
           </div>
 
