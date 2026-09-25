@@ -172,6 +172,10 @@ export async function setRpgDungeonEnabled(dungeonId: string, enabled: boolean, 
   return dashboardRequest(`/economy/dungeons/${dungeonId}`, { method: 'PATCH', successMessage: m.api_ok_set_rpg_dungeon_enabled(), payload: { enabled }, guildId, errorContext: 'API Error (Toggle RPG Dungeon):' });
 }
 
+export async function resetRpgDungeonFirstClear(dungeonId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/economy/dungeons/${dungeonId}/first-clear`, { method: 'DELETE', successMessage: m.api_ok_reset_rpg_dungeon_first_clear(), guildId, errorContext: 'API Error (Reset RPG Dungeon First Clear):' });
+}
+
 export async function deleteRpgDungeon(dungeonId: string, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/economy/dungeons/${dungeonId}`, { method: 'DELETE', successMessage: m.api_ok_delete_rpg_dungeon(), guildId, errorContext: 'API Error (Delete RPG Dungeon):' });
 }

@@ -10,8 +10,17 @@
   import { onMount } from 'svelte';
   import { m } from '../../i18n';
   import { confirmDialog } from '../../stores/confirmDialog.svelte';
+  import { dashboardStore } from '../../stores/dashboard.svelte';
   import { createAsyncActionState } from '../../asyncAction.svelte';
-  import { deleteRpgDungeon, fetchRpgDungeons, fetchRpgItems, saveRpgDungeon, setRpgDungeonEnabled } from '../../api';
+  import {
+    deleteRpgDungeon,
+    fetchRpgDungeons,
+    fetchRpgItems,
+    fetchRpgTitles,
+    resetRpgDungeonFirstClear,
+    saveRpgDungeon,
+    setRpgDungeonEnabled,
+  } from '../../api';
   import Papicon from '../Papicon.svelte';
   import EmojiPicker from '../EmojiPicker.svelte';
   import EmojiText from '../EmojiText.svelte';
@@ -34,11 +43,21 @@
     completionCoins: number;
     completionXp: number;
     completionItemName: string | null;
+    completionTitleId: string | null;
+    completionRoleId: string | null;
+    firstClearCoins: number;
+    firstClearXp: number;
+    firstClearItemName: string | null;
+    firstClearTitleId: string | null;
+    firstClearRoleId: string | null;
     enabled: boolean;
     floors: Floor[];
     runs: number;
     completions: number;
     defeats: number;
+    completionTitle: { name: string } | null;
+    firstClearTitle: { name: string } | null;
+    firstClear: { userId: string; displayName: string | null; at: string | null } | null;
   };
   type Boss = {
     name: string;
@@ -64,6 +83,13 @@
     completionCoins: number;
     completionXp: number;
     completionItemName: string | null;
+    completionTitleId: string | null;
+    completionRoleId: string | null;
+    firstClearCoins: number;
+    firstClearXp: number;
+    firstClearItemName: string | null;
+    firstClearTitleId: string | null;
+    firstClearRoleId: string | null;
     enabled: boolean;
   };
 
@@ -73,6 +99,7 @@
   let limits = $state({ floorsMax: 10, dungeonsMax: 20 });
   let loading = $state(true);
   let items = $state<{ name: string; emoji: string; guildId: string | null }[]>([]);
+  let titles = $state<{ id: string; name: string }[]>([]);
   let editing = $state<Draft | null>(null);
   // Le sélecteur d'ajout garde sa dernière valeur : le recréer le remet à vide.
   let addFloorKey = $state(0);
@@ -82,6 +109,8 @@
     id: boss.name,
     name: `${boss.emoji} ${boss.name} · ${m.eco_dungeon_level_short({ level: boss.level })}${boss.enabled ? '' : ` · ${m.eco_dungeon_boss_exclusive()}`}`,
   })));
+  const roles = $derived((dashboardStore.state.discordRoles || []).map((role: any) => ({ id: role.id, name: `@${role.name}` })));
+  const titleOptions = $derived(titles.map((title) => ({ id: title.id, name: title.name })));
   const itemOptions = $derived.by(() => {
     const byName = new Map<string, { name: string; emoji: string; guildId: string | null }>();
     for (const item of items) {
@@ -119,18 +148,23 @@
     }
   }
 
-  async function loadItems() {
+  async function loadReferences() {
     try {
-      const res = await fetchRpgItems();
-      if (res?.items) items = res.items;
+      const [itemRes, titleRes] = await Promise.all([fetchRpgItems(), fetchRpgTitles()]);
+      if (itemRes?.items) items = itemRes.items;
+      if (titleRes?.titles) titles = titleRes.titles;
     } catch (err) {
       console.error(err);
     }
   }
 
+  function roleName(roleId: string | null): string | null {
+    return roleId ? roles.find((role) => role.id === roleId)?.name ?? roleId : null;
+  }
+
   onMount(() => {
     void load();
-    void loadItems();
+    void loadReferences();
   });
 
   function openNew() {
@@ -145,6 +179,13 @@
       completionCoins: 0,
       completionXp: 0,
       completionItemName: null,
+      completionTitleId: null,
+      completionRoleId: null,
+      firstClearCoins: 0,
+      firstClearXp: 0,
+      firstClearItemName: null,
+      firstClearTitleId: null,
+      firstClearRoleId: null,
       enabled: true,
     };
   }
@@ -162,6 +203,13 @@
       completionCoins: dungeon.completionCoins,
       completionXp: dungeon.completionXp,
       completionItemName: dungeon.completionItemName,
+      completionTitleId: dungeon.completionTitleId,
+      completionRoleId: dungeon.completionRoleId,
+      firstClearCoins: dungeon.firstClearCoins,
+      firstClearXp: dungeon.firstClearXp,
+      firstClearItemName: dungeon.firstClearItemName,
+      firstClearTitleId: dungeon.firstClearTitleId,
+      firstClearRoleId: dungeon.firstClearRoleId,
       enabled: dungeon.enabled,
     };
   }
@@ -202,6 +250,13 @@
         completionCoins: Number(draft.completionCoins) || 0,
         completionXp: Number(draft.completionXp) || 0,
         completionItemName: draft.completionItemName || null,
+        completionTitleId: draft.completionTitleId || null,
+        completionRoleId: draft.completionRoleId || null,
+        firstClearCoins: Number(draft.firstClearCoins) || 0,
+        firstClearXp: Number(draft.firstClearXp) || 0,
+        firstClearItemName: draft.firstClearItemName || null,
+        firstClearTitleId: draft.firstClearTitleId || null,
+        firstClearRoleId: draft.firstClearRoleId || null,
         enabled: draft.enabled,
       });
       editing = null;
@@ -213,6 +268,21 @@
   async function toggle(dungeon: Dungeon, enabled: boolean) {
     await actionState.run(async () => {
       await setRpgDungeonEnabled(dungeon.id, enabled);
+      await load();
+      return true;
+    });
+  }
+
+  async function resetFirstClear(dungeon: Dungeon) {
+    const confirmed = await confirmDialog.ask({
+      title: m.eco_dungeon_first_clear_reset_confirm(),
+      description: m.eco_dungeon_first_clear_reset_confirm_desc(),
+      confirmLabel: m.eco_dungeon_first_clear_reset_btn(),
+      variant: 'warning',
+    });
+    if (!confirmed) return;
+    await actionState.run(async () => {
+      await resetRpgDungeonFirstClear(dungeon.id);
       await load();
       return true;
     });
@@ -316,10 +386,38 @@
             <div class="flex flex-wrap gap-x-3 gap-y-1 text-2xs">
               <span class="text-on-surface-variant/60">{m.eco_dungeon_chest()}</span>
               {#if dungeon.completionCoins > 0}<span class="text-warning font-bold">+{dungeon.completionCoins} {currencyName}</span>{/if}
-              {#if dungeon.completionXp > 0}<span class="text-sky-400 font-bold">+{dungeon.completionXp} XP</span>{/if}
+              {#if dungeon.completionXp > 0}<span class="text-sky-400 font-bold">+{dungeon.completionXp} {m.eco_dungeon_rpg_xp()}</span>{/if}
               {#if dungeon.completionItemName}<span class="font-semibold flex items-center gap-1"><Papicon icon="package" size={11} /> {dungeon.completionItemName}</span>{/if}
-              {#if !dungeon.completionCoins && !dungeon.completionXp && !dungeon.completionItemName}
+              {#if dungeon.completionTitle}<span class="font-semibold text-amber-300 flex items-center gap-1"><Papicon icon="award" size={11} /> {dungeon.completionTitle.name}</span>{/if}
+              {#if dungeon.completionRoleId}<span class="font-semibold text-primary">{roleName(dungeon.completionRoleId)}</span>{/if}
+              {#if !dungeon.completionCoins && !dungeon.completionXp && !dungeon.completionItemName && !dungeon.completionTitle && !dungeon.completionRoleId}
                 <span class="text-on-surface-variant/50 italic">{m.eco_dungeon_chest_empty()}</span>
+              {/if}
+            </div>
+
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs">
+              <span class="text-on-surface-variant/60">{m.eco_dungeon_first_clear()}</span>
+              {#if dungeon.firstClear}
+                <span class="font-semibold flex items-center gap-1"><Papicon icon="Trophy" size={11} /> {dungeon.firstClear.displayName ?? dungeon.firstClear.userId}</span>
+                {#if canManage}
+                  <button
+                    type="button"
+                    onclick={() => resetFirstClear(dungeon)}
+                    disabled={disabled}
+                    class="px-2 py-0.5 bg-outline-variant/10 hover:bg-outline-variant/25 rounded-md font-bold transition-all flex items-center gap-1 disabled:opacity-50"
+                  >
+                    <Papicon icon="RotateCcw" size={10} /> {m.eco_dungeon_first_clear_reset_btn()}
+                  </button>
+                {/if}
+              {:else}
+                {#if dungeon.firstClearCoins > 0}<span class="text-warning font-bold">+{dungeon.firstClearCoins} {currencyName}</span>{/if}
+                {#if dungeon.firstClearXp > 0}<span class="text-sky-400 font-bold">+{dungeon.firstClearXp} {m.eco_dungeon_rpg_xp()}</span>{/if}
+                {#if dungeon.firstClearItemName}<span class="font-semibold flex items-center gap-1"><Papicon icon="package" size={11} /> {dungeon.firstClearItemName}</span>{/if}
+                {#if dungeon.firstClearTitle}<span class="font-semibold text-amber-300 flex items-center gap-1"><Papicon icon="award" size={11} /> {dungeon.firstClearTitle.name}</span>{/if}
+                {#if dungeon.firstClearRoleId}<span class="font-semibold text-primary">{roleName(dungeon.firstClearRoleId)}</span>{/if}
+                {#if !dungeon.firstClearCoins && !dungeon.firstClearXp && !dungeon.firstClearItemName && !dungeon.firstClearTitle && !dungeon.firstClearRoleId}
+                  <span class="text-on-surface-variant/50 italic">{m.eco_dungeon_first_clear_none()}</span>
+                {/if}
               {/if}
             </div>
 
@@ -465,7 +563,7 @@
             <input id="dungeonCoins" type="number" min="0" bind:value={editing.completionCoins} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-xs focus:outline-none" />
           </div>
           <div class="space-y-1">
-            <label for="dungeonXp" class="text-xs font-semibold text-on-surface-variant/60 ml-2">XP</label>
+            <label for="dungeonXp" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_dungeon_rpg_xp()}</label>
             <input id="dungeonXp" type="number" min="0" bind:value={editing.completionXp} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-xs focus:outline-none" />
           </div>
           <div class="col-span-2 space-y-1">
@@ -480,7 +578,83 @@
               on:change={(e: any) => { if (editing) editing.completionItemName = e.detail?.value ?? null; }}
             />
           </div>
+          <div class="space-y-1">
+            <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_fish_reward_title()}</span>
+            <SearchableSelect
+              value={editing.completionTitleId || null}
+              options={titleOptions}
+              placeholder={titles.length > 0 ? m.eco_bestiary_title_none() : m.eco_bestiary_title_empty()}
+              clearable={true}
+              showId={false}
+              className="w-full"
+              on:change={(e: any) => { if (editing) editing.completionTitleId = e.detail?.value ?? null; }}
+            />
+          </div>
+          <div class="space-y-1">
+            <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_fish_reward_role()}</span>
+            <SearchableSelect
+              value={editing.completionRoleId || null}
+              options={roles}
+              placeholder={m.eco_fish_reward_role_none()}
+              clearable={true}
+              className="w-full"
+              on:change={(e: any) => { if (editing) editing.completionRoleId = e.detail?.value ?? null; }}
+            />
+          </div>
         </div>
+      </div>
+
+      <div class="space-y-3 pt-2 border-t border-outline-variant/5">
+        <div>
+          <h4 class="text-sm font-bold">{m.eco_dungeon_first_clear()}</h4>
+          <p class="text-xs text-on-surface-variant/60 mt-0.5 leading-relaxed">{m.eco_dungeon_first_clear_hint()}</p>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="space-y-1">
+            <label for="firstClearCoins" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{currencyName || m.eco_fish_field_value()}</label>
+            <input id="firstClearCoins" type="number" min="0" bind:value={editing.firstClearCoins} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-xs focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label for="firstClearXp" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_dungeon_rpg_xp()}</label>
+            <input id="firstClearXp" type="number" min="0" bind:value={editing.firstClearXp} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-xs focus:outline-none" />
+          </div>
+          <div class="col-span-2 space-y-1">
+            <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_fish_reward_item()}</span>
+            <SearchableSelect
+              value={editing.firstClearItemName || null}
+              options={itemOptions}
+              placeholder={m.eco_fish_reward_item_none()}
+              clearable={true}
+              showId={false}
+              className="w-full"
+              on:change={(e: any) => { if (editing) editing.firstClearItemName = e.detail?.value ?? null; }}
+            />
+          </div>
+          <div class="space-y-1">
+            <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_fish_reward_title()}</span>
+            <SearchableSelect
+              value={editing.firstClearTitleId || null}
+              options={titleOptions}
+              placeholder={titles.length > 0 ? m.eco_bestiary_title_none() : m.eco_bestiary_title_empty()}
+              clearable={true}
+              showId={false}
+              className="w-full"
+              on:change={(e: any) => { if (editing) editing.firstClearTitleId = e.detail?.value ?? null; }}
+            />
+          </div>
+          <div class="space-y-1">
+            <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_fish_reward_role()}</span>
+            <SearchableSelect
+              value={editing.firstClearRoleId || null}
+              options={roles}
+              placeholder={m.eco_fish_reward_role_none()}
+              clearable={true}
+              className="w-full"
+              on:change={(e: any) => { if (editing) editing.firstClearRoleId = e.detail?.value ?? null; }}
+            />
+          </div>
+        </div>
+        <p class="text-2xs text-on-surface-variant/50 leading-relaxed">{m.eco_bestiary_first_kill_role_hint()}</p>
       </div>
 
       <div class="flex items-center justify-between pt-2 border-t border-outline-variant/5">

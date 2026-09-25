@@ -592,6 +592,8 @@ model RpgTitle {
   firstKillMonsters RpgMonster[]      @relation("FirstKillTitle")
   winMonsters       RpgMonster[]      @relation("WinTitle")
   fishBookRewards   RpgFishBookReward[]
+  dungeonCompletions RpgDungeon[]     @relation("DungeonCompletionTitle")
+  dungeonFirstClears RpgDungeon[]     @relation("DungeonFirstClearTitle")
 
   @@unique([guildId, name])
   @@map("rpg_titles")
@@ -1170,19 +1172,34 @@ model RpgDungeon {
   /// le bestiaire restent jouables ici, ce qui permet des boss propres aux donjons.
   bossNames     String[] @default([])
 
-  /// Coffre versé à qui franchit le dernier étage, en plus du butin des boss.
+  /// Coffre versé à qui franchit le dernier étage, en plus du butin des boss. L'XP est
+  /// celle du RPG (`RpgProfile.xp`), jamais celle du module de niveaux du serveur.
   completionCoins    Int     @default(0)
   completionXp       Int     @default(0)
   /// Objet désigné par son nom, comme les butins.
   completionItemName String?
+  completionTitleId  String?
+  completionRoleId   String?
+
+  /// Prime du premier joueur du serveur à terminer le donjon, en plus du coffre.
+  firstClearCoins    Int     @default(0)
+  firstClearXp       Int     @default(0)
+  firstClearItemName String?
+  firstClearTitleId  String?
+  firstClearRoleId   String?
+  /// Premier vainqueur. Le dashboard peut l'effacer pour remettre la prime en jeu.
+  firstClearUserId   String?
+  firstClearAt       DateTime?
 
   enabled Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  guild Guild           @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  runs  RpgDungeonRun[]
+  guild           Guild           @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  completionTitle RpgTitle?       @relation("DungeonCompletionTitle", fields: [completionTitleId], references: [id], onDelete: SetNull)
+  firstClearTitle RpgTitle?       @relation("DungeonFirstClearTitle", fields: [firstClearTitleId], references: [id], onDelete: SetNull)
+  runs            RpgDungeonRun[]
 
   @@unique([guildId, name])
   @@map("rpg_dungeons")

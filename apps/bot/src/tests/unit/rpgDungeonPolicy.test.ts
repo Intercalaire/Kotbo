@@ -5,6 +5,7 @@ import {
   dungeonPayout,
   dungeonReadyAt,
   groupDungeonLoot,
+  hasFirstClearReward,
   isDungeonRunExpired,
   normalizeDungeonInput,
   parseDungeonLoot,
@@ -106,5 +107,37 @@ describe('butin d\'une partie', () => {
   test('un butin mal formé en base est ignoré plutôt que de planter', () => {
     expect(parseDungeonLoot(null)).toEqual([]);
     expect(parseDungeonLoot([{ itemName: 'Os' }, { foo: 1 }, { itemName: '' }, 'x'])).toEqual([{ itemName: 'Os', emoji: null }]);
+  });
+});
+
+describe('récompenses du coffre et du premier vainqueur', () => {
+  test('titres, rôles et prime sont relus, et vides deviennent null', () => {
+    const result = normalizeDungeonInput({
+      name: 'Crypte',
+      bossNames: ['Liche'],
+      completionTitleId: ' title-1 ',
+      completionRoleId: '',
+      firstClearCoins: '250',
+      firstClearXp: -10,
+      firstClearRoleId: 'role-1',
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toMatchObject({
+      completionTitleId: 'title-1',
+      completionRoleId: null,
+      firstClearCoins: 250,
+      firstClearXp: 0,
+      firstClearItemName: null,
+      firstClearTitleId: null,
+      firstClearRoleId: 'role-1',
+    });
+  });
+
+  test('une prime ne compte que si elle verse quelque chose', () => {
+    const none = { firstClearCoins: 0, firstClearXp: 0, firstClearItemName: null, firstClearTitleId: null, firstClearRoleId: null };
+    expect(hasFirstClearReward(none)).toBe(false);
+    expect(hasFirstClearReward({ ...none, firstClearRoleId: 'role-1' })).toBe(true);
+    expect(hasFirstClearReward({ ...none, firstClearXp: 50 })).toBe(true);
   });
 });

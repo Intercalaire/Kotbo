@@ -336,6 +336,10 @@ export async function syncDropReferences(
     where: { guildId, completionItemName: itemName },
     data: { completionItemName: replacement },
   });
+  await prisma.rpgDungeon.updateMany({
+    where: { guildId, firstClearItemName: itemName },
+    data: { firstClearItemName: replacement },
+  });
 
   const monsters = await prisma.rpgMonster.findMany({ where: { guildId } });
   let touched = 0;
