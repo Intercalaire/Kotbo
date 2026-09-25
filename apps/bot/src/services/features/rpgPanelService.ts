@@ -6198,6 +6198,9 @@ function buildDungeonSettlementView(
   }, currencyEmoji, locale);
   if (chestExtras) embed.addFields({ name: m.rpg_dungeon_field_chest({}, { locale }), value: chestExtras });
 
+  // Le compte rendu met à jour l'écran de la partie, il n'ajoute aucun message au salon :
+  // le joueur apprend qu'il est le premier même sans prime, comme au bestiaire. Seule
+  // l'annonce dans le salon des premiers vainqueurs se tait dans ce cas.
   if (settlement.firstClear) {
     const bounty = formatFirstKillReward(settlement.firstClear, currencyEmoji, locale);
     embed.addFields({
