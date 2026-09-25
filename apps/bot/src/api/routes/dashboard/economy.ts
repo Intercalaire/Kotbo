@@ -125,6 +125,7 @@ import { isFishBookTier, type FishBookRewardInput } from '../../../services/feat
 import { getFishBookRewards, resetFishBookReward, saveFishBookReward } from '../../../services/features/rpg/rpgFishBookRewardService.js';
 import {
   DungeonError,
+  clearDungeonFirstClear,
   deleteGuildDungeon,
   listDungeonBossChoices,
   listGuildDungeons,
@@ -133,11 +134,14 @@ import {
 } from '../../../services/features/rpg/rpgDungeonService.js';
 import { DUNGEON_FLOORS_MAX, DUNGEONS_PER_GUILD_MAX, type DungeonInput } from '../../../services/features/rpg/rpgDungeonPolicy.js';
 import {
+  isGamblingCommand,
   normalizeCommandRestrictions,
   readCommandChannels,
   RPG_CHANNEL_COMMANDS,
   withCommandChannels,
+  type GamblingCommand,
 } from '../../../utils/commandAccess.js';
+import { getGamblingState, setGamblingState } from '../../../services/features/gamblingCommandsService.js';
 import type { Prisma } from '@prisma/client';
 
 /** Le type du corps de requête ne vaut qu'à la compilation : la valeur reçue est vérifiée. */
@@ -256,6 +260,51 @@ export async function handleEconomyRoutes(
       } catch (err) {
         logger.error('EconomyAPI', 'Error updating RPG channels:', err);
         jsonFailure(res, err, 'Erreur lors de la mise à jour des salons RPG.', 'EconomyAPI');
+      }
+      return true;
+    }
+  }
+
+  // Jeux d'argent : ouverts ou fermés un par un, sur les restrictions de commandes.
+  if (subAction === 'gambling' && parts.length === 6) {
+    if (method === 'GET') {
+      try {
+        json(res, 200, { games: await getGamblingState(guildId) });
+      } catch (err) {
+        logger.error('EconomyAPI', 'Error fetching gambling state:', err);
+        jsonFailure(res, err, 'Erreur lors de la récupération des jeux.', 'EconomyAPI');
+      }
+      return true;
+    }
+
+    if (method === 'PUT') {
+      try {
+        const body = await readJsonBody<{ games?: Record<string, unknown> }>(req);
+        if (!body?.games || typeof body.games !== 'object') {
+          json(res, 400, { error: 'Liste de jeux invalide.' });
+          return true;
+        }
+        const patch: Partial<Record<GamblingCommand, boolean>> = {};
+        for (const [name, enabled] of Object.entries(body.games)) {
+          if (isGamblingCommand(name) && typeof enabled === 'boolean') patch[name] = enabled;
+        }
+
+        const games = await setGamblingState(guildId, patch);
+        const closed = Object.entries(games).filter(([, open]) => !open).map(([name]) => `/${name}`);
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Mise à jour jeux d\'argent',
+          context: getGuildName(client, guildId),
+          module: 'Économie',
+          eventType: 'Manuel',
+          details: closed.length > 0 ? `Jeux fermés : ${closed.join(', ')}.` : 'Tous les jeux sont ouverts.',
+          channelId: null
+        });
+
+        json(res, 200, { games });
+      } catch (err) {
+        logger.error('EconomyAPI', 'Error updating gambling state:', err);
+        jsonFailure(res, err, 'Erreur lors de la mise à jour des jeux.', 'EconomyAPI');
       }
       return true;
     }
@@ -877,7 +926,20 @@ export async function handleEconomyRoutes(
     if (parts.length === 6 && method === 'GET') {
       try {
         const [dungeons, bosses] = await Promise.all([listGuildDungeons(guildId), listDungeonBossChoices(guildId)]);
-        json(res, 200, { dungeons, bosses, limits: { floorsMax: DUNGEON_FLOORS_MAX, dungeonsMax: DUNGEONS_PER_GUILD_MAX } });
+        const discordGuild = client.guilds.cache.get(guildId);
+        const withFirstClear = dungeons.map((dungeon) => ({
+          ...dungeon,
+          firstClear: dungeon.firstClearUserId
+            ? {
+              userId: dungeon.firstClearUserId,
+              displayName: discordGuild?.members.cache.get(dungeon.firstClearUserId)?.displayName
+                ?? client.users.cache.get(dungeon.firstClearUserId)?.username
+                ?? null,
+              at: dungeon.firstClearAt,
+            }
+            : null,
+        }));
+        json(res, 200, { dungeons: withFirstClear, bosses, limits: { floorsMax: DUNGEON_FLOORS_MAX, dungeonsMax: DUNGEONS_PER_GUILD_MAX } });
       } catch (err) {
         dungeonFailure(err, 'Erreur lors de la récupération des donjons.');
       }
@@ -892,11 +954,23 @@ export async function handleEconomyRoutes(
           json(res, 400, { error: 'Corps de requête manquant.' });
           return true;
         }
-        const { dungeon, created } = await saveGuildDungeon(guildId, body, body.id || undefined);
+        const { dungeon, created } = await saveGuildDungeon(client, guildId, body, body.id || undefined);
         await dungeonAudit(created ? 'Création donjon RPG' : 'Modification donjon RPG', `${dungeon.name} (${dungeon.bossNames.length} étages)`);
         json(res, 200, { dungeon });
       } catch (err) {
         dungeonFailure(err, 'Erreur lors de la sauvegarde du donjon.');
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/economy/dungeons/:id/first-clear
+    if (parts.length === 8 && parts[7] === 'first-clear' && method === 'DELETE') {
+      try {
+        const dungeon = await clearDungeonFirstClear(guildId, parts[6]);
+        await dungeonAudit('Remise en jeu du premier vainqueur de donjon', dungeon.name);
+        json(res, 200, { success: true });
+      } catch (err) {
+        dungeonFailure(err, 'Erreur lors de la remise en jeu du premier vainqueur.');
       }
       return true;
     }

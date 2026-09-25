@@ -224,7 +224,7 @@ import {
   type DungeonRunState,
   type DungeonSettlement,
 } from './rpg/rpgDungeonService.js';
-import { DUNGEON_IDLE_TIMEOUT_MINUTES, groupDungeonLoot, type DungeonLoot } from './rpg/rpgDungeonPolicy.js';
+import { DUNGEON_IDLE_TIMEOUT_MINUTES, groupDungeonLoot, hasFirstClearReward, type DungeonLoot } from './rpg/rpgDungeonPolicy.js';
 import {
   buyBlackMarketOffer,
   getBlackMarketState,
@@ -778,6 +778,13 @@ function hubNavRow(ownerId: string, locale: Locale, isAdmin: boolean): ActionRow
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
 }
 
+/**
+ * Longueur du nom de la cible sur le bouton de traque. Discord accepte 80 caractères, mais
+ * un bouton aussi large pousse ses voisins à la ligne sur mobile, et la rangée du tour de
+ * jeu se disloque.
+ */
+const TRACK_LABEL_NAME_MAX = 16;
+
 /** Nombre maximal de boutons que Discord accepte dans une rangée. */
 const BUTTONS_PER_ROW = 5;
 
@@ -822,7 +829,7 @@ function buildHubButtons(
   if (tracked) {
     played.splice(1, 0, new ButtonBuilder()
       .setCustomId(`rpg:hunt:${ownerId}:${tracked.id}`)
-      .setLabel(truncate(m.rpg_track_hub_btn({ name: tracked.name }, { locale }), 80))
+      .setLabel(m.rpg_track_hub_btn({ name: truncate(tracked.name, TRACK_LABEL_NAME_MAX) }, { locale }))
       .setStyle(ButtonStyle.Danger));
   }
 
@@ -4096,13 +4103,6 @@ function trackButton(
     .setStyle(tracked ? ButtonStyle.Secondary : ButtonStyle.Danger);
 }
 
-function huntAgainButton(ownerId: string, monsterId: string, locale: Locale): ButtonBuilder {
-  return new ButtonBuilder()
-    .setCustomId(`rpg:hunt:${ownerId}:${monsterId}`)
-    .setLabel(m.rpg_track_again_btn({}, { locale }))
-    .setStyle(ButtonStyle.Danger);
-}
-
 async function setTrackedMonster(guildId: string, userId: string, monsterId: string | null): Promise<void> {
   await prisma.rpgProfile.updateMany({ where: { guildId, userId }, data: { trackedMonsterId: monsterId } });
 }
@@ -5345,8 +5345,6 @@ async function startFightSession(
       const rows = await getActionRows();
       rows.forEach((row) => row.components.forEach((c) => c.setDisabled(true)));
       const back = fightBackRow(ownerId, locale, monster.isBoss);
-      // Une traque s'enchaîne depuis son compte rendu, sans repasser par le hub.
-      if (target) back.addComponents(huntAgainButton(ownerId, target.id, locale));
       const finalComponents = [...rows, back];
 
       if (reason === 'fled' || reason === 'time') {
@@ -5883,22 +5881,59 @@ function dungeonStatusLine(entry: DungeonHallEntry, playerLevel: number, locale:
   return `${icon('success')} ${m.rpg_dungeon_status_ready({}, { locale })}`;
 }
 
-function dungeonHallLine(entry: DungeonHallEntry, playerLevel: number, locale: Locale): string {
+/** Coffre, et premier vainqueur ou prime qui l'attend encore : ce qui donne envie d'y aller. */
+function dungeonRewardLines(dungeon: DungeonHallEntry['dungeon'], currencyEmoji: string, locale: Locale): string[] {
+  const chest = formatFirstKillReward({
+    coins: dungeon.completionCoins,
+    xp: dungeon.completionXp,
+    itemName: dungeon.completionItemName,
+    teamPoints: 0,
+    toGuild: false,
+    roleId: dungeon.completionRoleId,
+    titleName: dungeon.completionTitle?.name ?? null,
+  }, currencyEmoji, locale);
+
+  const lines = chest ? [`-# ${m.rpg_dungeon_chest_line({ reward: chest }, { locale })}`] : [];
+  if (dungeon.firstClearUserId) {
+    lines.push(`-# ${m.rpg_dungeon_first_clear_line({ user: `<@${dungeon.firstClearUserId}>` }, { locale })}`);
+  } else if (hasFirstClearReward(dungeon)) {
+    const bounty = formatFirstKillReward({
+      coins: dungeon.firstClearCoins,
+      xp: dungeon.firstClearXp,
+      itemName: dungeon.firstClearItemName,
+      teamPoints: 0,
+      toGuild: false,
+      roleId: dungeon.firstClearRoleId,
+      titleName: dungeon.firstClearTitle?.name ?? null,
+    }, currencyEmoji, locale);
+    lines.push(`-# ${m.rpg_dungeon_first_clear_bounty_line({ reward: bounty }, { locale })}`);
+  }
+  return lines;
+}
+
+function dungeonHallLine(entry: DungeonHallEntry, playerLevel: number, currencyEmoji: string, locale: Locale): string {
   const { dungeon } = entry;
   const meta = m.rpg_dungeon_meta({ floors: entry.floors.length, level: dungeon.levelRequired, energy: dungeon.energyCost }, { locale })
     + (entry.clears > 0 ? ` · ${m.rpg_dungeon_clears({ count: entry.clears }, { locale })}` : '');
   const bosses = entry.floors.map((floor) => floor.boss?.emoji ?? icon('lock')).join(' ');
   return [
     `${dungeon.emoji} **${dungeon.name}**`,
-    dungeon.description || null,
+    dungeon.description ? truncate(dungeon.description, DUNGEON_DESCRIPTION_SHOWN) : null,
     dungeonStatusLine(entry, playerLevel, locale),
     `-# ${meta}`,
     `-# ${bosses}`,
+    ...dungeonRewardLines(dungeon, currencyEmoji, locale),
   ].filter((line): line is string => line !== null).join('\n');
 }
 
-/** Donjons par page. Une section chacun, comme la salle des boss. */
-const DUNGEON_PAGE_SIZE = 6;
+/**
+ * Donjons par page, et place de chacun. Un message en Components V2 ne porte que 4000
+ * caractères de texte en tout : quatre fiches de 750, plus l'en-tête, y tiennent même avec
+ * un coffre, une prime et des emojis de boss personnalisés.
+ */
+const DUNGEON_PAGE_SIZE = 4;
+const DUNGEON_LINE_MAX = 750;
+const DUNGEON_DESCRIPTION_SHOWN = 150;
 
 /**
  * Salle des donjons.
@@ -5941,7 +5976,11 @@ async function buildDungeonCurrentView(guildId: string, ownerId: string, locale:
 }
 
 async function buildDungeonHallPage(guildId: string, ownerId: string, locale: Locale, page: number): Promise<PanelView> {
-  const [hall, profile] = await Promise.all([getDungeonHall(guildId, ownerId), getOrCreateRpgProfile(guildId, ownerId)]);
+  const [hall, profile, config] = await Promise.all([
+    getDungeonHall(guildId, ownerId),
+    getOrCreateRpgProfile(guildId, ownerId),
+    getOrCreateEconomyConfig(guildId),
+  ]);
   if (hall.length === 0) {
     const embed = errorEmbed(m.rpg_dungeon_none_title({}, { locale }), m.rpg_dungeon_none_desc({}, { locale }));
     return { embeds: [embed], components: [backRow(ownerId, locale)] };
@@ -5962,7 +6001,7 @@ async function buildDungeonHallPage(guildId: string, ownerId: string, locale: Lo
     const open = entry.playable && !entry.readyAt && profile.level >= entry.dungeon.levelRequired;
     container.addSectionComponents(
       new SectionBuilder()
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent(truncate(dungeonHallLine(entry, profile.level, locale), 900)))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(truncate(dungeonHallLine(entry, profile.level, config.currencyEmoji, locale), DUNGEON_LINE_MAX)))
         .setButtonAccessory(
           new ButtonBuilder()
             .setCustomId(`rpg:dgenter:${ownerId}:${entry.dungeon.id}`)
@@ -6071,7 +6110,8 @@ async function buildDungeonRunView(
 
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_dungeon_run_title({ emoji: dungeon.emoji, name: dungeon.name, floor: nextFloor, total }, { locale }))
-    .setDescription(truncate(parts.join('\n\n'), 4000))
+    // L'écran passe en Components V2, où tout le texte du message tient en 4000 caractères.
+    .setDescription(truncate(parts.join('\n\n'), 3500))
     .setColor(RPG_COLORS.combat);
 
   const actions = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -6128,7 +6168,9 @@ function buildDungeonSettlementView(
 
   const embed = new EmbedBuilder()
     .setTitle(title)
-    .setDescription(truncate(description, 4000))
+    // Les champs du coffre, du butin et de la prime s'ajoutent à ce texte dans les 4000
+    // caractères d'un message en Components V2.
+    .setDescription(truncate(description, 2500))
     .setColor(settlement.outcome === 'DEFEATED' ? COLORS.danger : COLORS.success);
 
   if (settlement.outcome !== 'DEFEATED') {
@@ -6144,6 +6186,26 @@ function buildDungeonSettlementView(
       embed.addFields({ name: m.rpg_dungeon_field_items({}, { locale }), value: truncate(lines.join('\n'), 1024) });
     }
   }
+  // Titre et rôle du coffre : les pièces, l'XP et les objets ont déjà leurs champs.
+  const chestExtras = formatFirstKillReward({
+    coins: 0,
+    xp: 0,
+    itemName: null,
+    teamPoints: 0,
+    toGuild: false,
+    roleId: settlement.chestRoleId,
+    titleName: settlement.chestTitleName,
+  }, currencyEmoji, locale);
+  if (chestExtras) embed.addFields({ name: m.rpg_dungeon_field_chest({}, { locale }), value: chestExtras });
+
+  if (settlement.firstClear) {
+    const bounty = formatFirstKillReward(settlement.firstClear, currencyEmoji, locale);
+    embed.addFields({
+      name: m.rpg_dungeon_field_first_clear({}, { locale }),
+      value: bounty || m.rpg_dungeon_first_clear_no_bounty({}, { locale }),
+    });
+  }
+
   if (settlement.levelUp) {
     embed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: settlement.levelUp }, { locale }) });
   }
@@ -6190,7 +6252,7 @@ async function handleDungeonFight(
   let result: DungeonFloorResult;
   try {
     if (!Number.isInteger(floor) || floor < 0) throw new DungeonRefused({ kind: 'stale' });
-    result = await fightDungeonFloor(guildId, ownerId, runId, floor);
+    result = await fightDungeonFloor(interaction.client, guildId, ownerId, runId, floor);
   } catch (err) {
     if (err instanceof DungeonRefused) {
       await replyDungeonRefusal(interaction, guildId, ownerId, locale, err.refusal);

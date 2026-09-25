@@ -190,26 +190,37 @@ export async function assertFirstKillRole(client: Client, guildId: string, roleI
 }
 
 /**
- * Donne le rôle au vainqueur.
+ * Donne un rôle offert en récompense du RPG.
  *
  * Le contrôle est refait ici : entre le réglage et la victoire, le rôle a pu recevoir la
  * permission Administrateur, être supprimé ou passer au-dessus du bot.
  */
-async function grantFirstKillRole(client: Client, guildId: string, userId: string, monster: FirstKillMonster): Promise<string | null> {
+export async function grantRpgRewardRole(
+  client: Client,
+  guildId: string,
+  userId: string,
+  roleId: string,
+  reason: string,
+): Promise<string | null> {
   const guild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
-  if (!guild || !monster.firstKillRoleId) return null;
+  if (!guild) return null;
 
-  const role = guild.roles.cache.get(monster.firstKillRoleId) ?? await guild.roles.fetch(monster.firstKillRoleId).catch(() => null);
+  const role = guild.roles.cache.get(roleId) ?? await guild.roles.fetch(roleId).catch(() => null);
   const problem = firstKillRoleProblem(guild, role);
   if (problem || !role) {
-    logger.warn('RpgFirstKill', `Rôle ${monster.firstKillRoleId} non offert pour ${monster.name} sur ${guildId} : ${problem}`);
+    logger.warn('RpgFirstKill', `Rôle ${roleId} non offert (${reason}) sur ${guildId} : ${problem}`);
     return null;
   }
 
   const member = await guild.members.fetch(userId).catch(() => null);
   if (!member) return null;
-  await member.roles.add(role, `Premier vainqueur : ${monster.name}`);
+  await member.roles.add(role, reason);
   return role.id;
+}
+
+async function grantFirstKillRole(client: Client, guildId: string, userId: string, monster: FirstKillMonster): Promise<string | null> {
+  if (!monster.firstKillRoleId) return null;
+  return grantRpgRewardRole(client, guildId, userId, monster.firstKillRoleId, `Premier vainqueur : ${monster.name}`);
 }
 
 async function announceFirstKill(

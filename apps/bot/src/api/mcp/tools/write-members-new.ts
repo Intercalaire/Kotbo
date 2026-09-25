@@ -16,6 +16,8 @@ import { saveGuildShopItem } from '../../../services/features/rpg/rpgShopItemSer
 import { ANNOUNCE_MODE_VALUES, updateEconomySettings } from '../../../services/features/rpg/rpgEconomyConfigService.js';
 import { RAID_TEAM_MODES } from '../../../services/features/rpg/rpgRaidPolicy.js';
 import { FIRST_KILL_ANNOUNCE_MODES } from '../../../services/features/rpg/rpgBestiaryPolicy.js';
+import { setGamblingState } from '../../../services/features/gamblingCommandsService.js';
+import { GAMBLING_COMMANDS, type GamblingCommand } from '../../../utils/commandAccess.js';
 
 const nonNegative = z.number().int().min(0);
 const announceMode = z.enum(ANNOUNCE_MODE_VALUES);
@@ -757,6 +759,37 @@ export function registerWriteMembersNewTools(ctx: McpToolContext) {
 
           await audit(key_name, 'Configuration économie MCP', 'Mise à jour des paramètres d\'économie', `Économie active: ${config.enabled}, RPG: ${config.rpgEnabled}`);
           return ok({ ok: true });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'set_gambling_games',
+      {
+        description: "Ouvre ou ferme les jeux d'argent (/dice, /roulette, /rps, /guess). Un jeu fermé est refusé à tout le monde, administrateurs compris ; /games ne présente que les jeux ouverts et se ferme avec le dernier. Un jeu omis garde son état. Les salons, rôles et membres réglés sur ces commandes sont conservés. Requiert WRITE_MEMBERS.",
+        inputSchema: {
+          dice: z.boolean().optional(),
+          roulette: z.boolean().optional(),
+          rps: z.boolean().optional(),
+          guess: z.boolean().optional(),
+          all: z.boolean().optional().describe('Ouvre ou ferme tous les jeux d\'un coup, avant les réglages jeu par jeu'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ all, key_name, ...games }) => {
+        try {
+          const patch: Partial<Record<GamblingCommand, boolean>> = {};
+          for (const name of GAMBLING_COMMANDS) {
+            const wanted = games[name] ?? all;
+            if (typeof wanted === 'boolean') patch[name] = wanted;
+          }
+          const state = await setGamblingState(guildId, patch);
+          const closed = Object.entries(state).filter(([, open]) => !open).map(([name]) => `/${name}`);
+          await audit(key_name, 'Jeux d\'argent MCP', 'Mise à jour des jeux d\'argent', closed.length > 0 ? `Fermés : ${closed.join(', ')}` : 'Tous ouverts');
+          return ok({ ok: true, games: state });
         } catch (e) {
           return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
         }

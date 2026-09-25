@@ -19,6 +19,14 @@ export async function fetchRpgChannels(guildId = authStore.selectedGuildId) {
   return dashboardRequest<{ channelIds: string[]; diverged: boolean }>('/economy/rpg-channels', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Channels):' });
 }
 
+export async function fetchGamblingGames(guildId = authStore.selectedGuildId) {
+  return dashboardRequest<{ games: Record<string, boolean> }>('/economy/gambling', { method: 'GET', guildId, errorContext: 'API Error (Fetch Gambling Games):' });
+}
+
+export async function updateGamblingGames(games: Record<string, boolean>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest<{ games: Record<string, boolean> }>('/economy/gambling', { method: 'PUT', payload: { games }, guildId, errorContext: 'API Error (Update Gambling Games):' });
+}
+
 export async function updateRpgChannels(channelIds: string[], guildId = authStore.selectedGuildId) {
   return dashboardRequest<{ channelIds: string[]; diverged: boolean }>('/economy/rpg-channels', { method: 'PUT', payload: { channelIds }, guildId, errorContext: 'API Error (Update RPG Channels):' });
 }
@@ -170,6 +178,10 @@ export async function saveRpgDungeon(dungeon: Record<string, unknown>, guildId =
 
 export async function setRpgDungeonEnabled(dungeonId: string, enabled: boolean, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/economy/dungeons/${dungeonId}`, { method: 'PATCH', successMessage: m.api_ok_set_rpg_dungeon_enabled(), payload: { enabled }, guildId, errorContext: 'API Error (Toggle RPG Dungeon):' });
+}
+
+export async function resetRpgDungeonFirstClear(dungeonId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/economy/dungeons/${dungeonId}/first-clear`, { method: 'DELETE', successMessage: m.api_ok_reset_rpg_dungeon_first_clear(), guildId, errorContext: 'API Error (Reset RPG Dungeon First Clear):' });
 }
 
 export async function deleteRpgDungeon(dungeonId: string, guildId = authStore.selectedGuildId) {

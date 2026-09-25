@@ -70,6 +70,15 @@ import {
   listRpgGuildsForAdmin,
 } from '../../../services/features/rpg/rpgGuildAdminService.js';
 import {
+  clearDungeonFirstClear,
+  deleteGuildDungeon,
+  listDungeonBossChoices,
+  listGuildDungeons,
+  saveGuildDungeon,
+  setGuildDungeonEnabled,
+} from '../../../services/features/rpg/rpgDungeonService.js';
+import { DUNGEON_FLOORS_MAX, DUNGEON_IDLE_TIMEOUT_MINUTES, DUNGEONS_PER_GUILD_MAX } from '../../../services/features/rpg/rpgDungeonPolicy.js';
+import {
   adminGrantItem,
   adminTakeItem,
   adminUpdatePlayerStats,
@@ -271,6 +280,53 @@ export function registerRpgTools(ctx: McpToolContext) {
             overridesDefault: fish.overridesDefault,
           })),
           fishBookRewards: rewards,
+        });
+      })
+    );
+
+    server.registerTool(
+      'get_rpg_dungeons',
+      {
+        description: "Liste les donjons du serveur : étages (boss du bestiaire, désactivés compris), niveau requis, coût en énergie, attente entre deux entrées, coffre final, prime et record du premier vainqueur, statistiques des parties. Donne aussi les boss utilisables comme étages. L'XP versée est celle du RPG, jamais celle du niveau du serveur.",
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_ECONOMY', async () => {
+        const [dungeons, bosses] = await Promise.all([listGuildDungeons(guildId), listDungeonBossChoices(guildId)]);
+        return ok({
+          limits: { floorsMax: DUNGEON_FLOORS_MAX, dungeonsMax: DUNGEONS_PER_GUILD_MAX, idleTimeoutMinutes: DUNGEON_IDLE_TIMEOUT_MINUTES },
+          dungeons: dungeons.map((dungeon) => ({
+            id: dungeon.id,
+            name: dungeon.name,
+            emoji: dungeon.emoji,
+            description: dungeon.description,
+            enabled: dungeon.enabled,
+            levelRequired: dungeon.levelRequired,
+            energyCost: dungeon.energyCost,
+            cooldownHours: dungeon.cooldownHours,
+            floors: dungeon.floors,
+            chest: {
+              coins: dungeon.completionCoins,
+              rpgXp: dungeon.completionXp,
+              itemName: dungeon.completionItemName,
+              titleId: dungeon.completionTitleId,
+              titleName: dungeon.completionTitle?.name ?? null,
+              roleId: dungeon.completionRoleId,
+            },
+            firstClearBounty: {
+              coins: dungeon.firstClearCoins,
+              rpgXp: dungeon.firstClearXp,
+              itemName: dungeon.firstClearItemName,
+              titleId: dungeon.firstClearTitleId,
+              titleName: dungeon.firstClearTitle?.name ?? null,
+              roleId: dungeon.firstClearRoleId,
+            },
+            firstClear: dungeon.firstClearUserId ? { userId: dungeon.firstClearUserId, at: dungeon.firstClearAt } : null,
+            runs: dungeon.runs,
+            completions: dungeon.completions,
+            defeats: dungeon.defeats,
+          })),
+          bossChoices: bosses,
         });
       })
     );
@@ -654,6 +710,133 @@ export function registerRpgTools(ctx: McpToolContext) {
           const { fish, restoredDefault } = await deleteGuildFish(guildId, key);
           await audit(key_name, restoredDefault ? 'Restauration poisson RPG MCP' : 'Suppression poisson RPG MCP', fish.name, '');
           return ok({ ok: true, restoredDefault });
+        } catch (e) {
+          return fail(e);
+        }
+      })
+    );
+
+    server.registerTool(
+      'save_rpg_dungeon',
+      {
+        description: "Crée un donjon, ou modifie celui désigné par `id` (voir get_rpg_dungeons). Les étages sont des boss du bestiaire désignés par leur nom exact, dans l'ordre, désactivés compris ; un même boss peut revenir. Les parties déjà lancées gardent leurs étages. Le coffre est versé à chaque joueur qui termine, la prime du premier vainqueur une seule fois. L'XP est celle du RPG. Un champ omis garde sa valeur. Requiert WRITE_MEMBERS.",
+        inputSchema: {
+          id: z.string().optional().describe('ID du donjon à modifier. Absent : création.'),
+          name: z.string().optional().describe(creationOnly('Nom')),
+          emoji: z.string().optional(),
+          description: z.string().optional(),
+          bossNames: z.array(z.string()).min(1).max(DUNGEON_FLOORS_MAX).optional().describe(creationOnly('Noms des boss, un par étage, dans l\'ordre')),
+          levelRequired: z.number().int().min(1).optional(),
+          energyCost: z.number().int().min(0).optional(),
+          cooldownHours: z.number().int().min(0).max(720).optional().describe('Attente entre deux entrées d\'un même joueur, 0 pour aucune'),
+          completionCoins: z.number().int().min(0).optional(),
+          completionXp: z.number().int().min(0).optional().describe('XP RPG du coffre'),
+          completionItemName: z.string().nullable().optional().describe('Objet du coffre (nom exact), null pour aucun'),
+          completionTitleId: z.string().nullable().optional().describe('Titre du coffre (voir get_rpg_titles), null pour aucun'),
+          completionRoleId: z.string().nullable().optional().describe('Rôle Discord du coffre, null pour aucun'),
+          firstClearCoins: z.number().int().min(0).optional(),
+          firstClearXp: z.number().int().min(0).optional().describe('XP RPG de la prime du premier vainqueur'),
+          firstClearItemName: z.string().nullable().optional(),
+          firstClearTitleId: z.string().nullable().optional(),
+          firstClearRoleId: z.string().nullable().optional(),
+          enabled: z.boolean().optional(),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ id, key_name, ...input }) => {
+        try {
+          const existing = id ? (await listGuildDungeons(guildId)).find((dungeon) => dungeon.id === id) : null;
+          if (id && !existing) return err('Donjon introuvable.');
+          const base = existing
+            ? {
+              name: existing.name,
+              emoji: existing.emoji,
+              description: existing.description,
+              bossNames: existing.bossNames,
+              levelRequired: existing.levelRequired,
+              energyCost: existing.energyCost,
+              cooldownHours: existing.cooldownHours,
+              completionCoins: existing.completionCoins,
+              completionXp: existing.completionXp,
+              completionItemName: existing.completionItemName,
+              completionTitleId: existing.completionTitleId,
+              completionRoleId: existing.completionRoleId,
+              firstClearCoins: existing.firstClearCoins,
+              firstClearXp: existing.firstClearXp,
+              firstClearItemName: existing.firstClearItemName,
+              firstClearTitleId: existing.firstClearTitleId,
+              firstClearRoleId: existing.firstClearRoleId,
+              enabled: existing.enabled,
+            }
+            : null;
+          const { dungeon, created } = await saveGuildDungeon(client, guildId, mergeDefined(base, input), id);
+          await audit(key_name, created ? 'Création donjon RPG MCP' : 'Modification donjon RPG MCP', dungeon.name, `${dungeon.bossNames.length} étages${dungeon.enabled ? '' : ' - fermé'}`);
+          return ok({ ok: true, id: dungeon.id, created });
+        } catch (e) {
+          return fail(e);
+        }
+      })
+    );
+
+    server.registerTool(
+      'set_rpg_dungeon_enabled',
+      {
+        description: "Ouvre ou ferme un donjon. Fermé, il disparaît de la salle des donjons ; les parties déjà lancées peuvent se terminer. Requiert WRITE_MEMBERS.",
+        inputSchema: {
+          id: z.string().describe('ID du donjon (voir get_rpg_dungeons)'),
+          enabled: z.boolean(),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ id, enabled, key_name }) => {
+        try {
+          const dungeon = await setGuildDungeonEnabled(guildId, id, enabled);
+          await audit(key_name, enabled ? 'Ouverture donjon RPG MCP' : 'Fermeture donjon RPG MCP', dungeon.name, '');
+          return ok({ ok: true });
+        } catch (e) {
+          return fail(e);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_rpg_dungeon',
+      {
+        description: "Supprime un donjon. Les joueurs en pleine partie repartent avec le butin déjà gagné, comme s'ils étaient sortis d'eux-mêmes. Requiert WRITE_MEMBERS.",
+        inputSchema: {
+          id: z.string().describe('ID du donjon (voir get_rpg_dungeons)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ id, key_name }) => {
+        try {
+          const { dungeon, settledRuns } = await deleteGuildDungeon(guildId, id);
+          await audit(key_name, 'Suppression donjon RPG MCP', dungeon.name, settledRuns > 0 ? `${settledRuns} partie(s) en cours soldée(s)` : '');
+          return ok({ ok: true, settledRuns });
+        } catch (e) {
+          return fail(e);
+        }
+      })
+    );
+
+    server.registerTool(
+      'reset_rpg_dungeon_first_clear',
+      {
+        description: "Efface le premier vainqueur d'un donjon : le prochain joueur à le terminer touchera la prime. Ce que l'ancien vainqueur a reçu lui reste acquis. Requiert WRITE_MEMBERS.",
+        inputSchema: {
+          id: z.string().describe('ID du donjon (voir get_rpg_dungeons)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ id, key_name }) => {
+        try {
+          const dungeon = await clearDungeonFirstClear(guildId, id);
+          await audit(key_name, 'Remise en jeu premier vainqueur donjon MCP', dungeon.name, '');
+          return ok({ ok: true });
         } catch (e) {
           return fail(e);
         }

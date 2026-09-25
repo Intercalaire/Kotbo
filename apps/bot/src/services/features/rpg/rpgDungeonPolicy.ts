@@ -46,6 +46,13 @@ export interface DungeonInput {
   completionCoins?: unknown;
   completionXp?: unknown;
   completionItemName?: unknown;
+  completionTitleId?: unknown;
+  completionRoleId?: unknown;
+  firstClearCoins?: unknown;
+  firstClearXp?: unknown;
+  firstClearItemName?: unknown;
+  firstClearTitleId?: unknown;
+  firstClearRoleId?: unknown;
   enabled?: unknown;
 }
 
@@ -60,6 +67,13 @@ export type NormalizedDungeon = {
   completionCoins: number;
   completionXp: number;
   completionItemName: string | null;
+  completionTitleId: string | null;
+  completionRoleId: string | null;
+  firstClearCoins: number;
+  firstClearXp: number;
+  firstClearItemName: string | null;
+  firstClearTitleId: string | null;
+  firstClearRoleId: string | null;
   enabled: boolean;
 };
 
@@ -109,9 +123,30 @@ export function normalizeDungeonInput(input: DungeonInput): DungeonNormalizeResu
       completionCoins: clampInt(input.completionCoins, DUNGEON_REWARD_RANGE, 0),
       completionXp: clampInt(input.completionXp, DUNGEON_REWARD_RANGE, 0),
       completionItemName: text(input.completionItemName) || null,
+      completionTitleId: text(input.completionTitleId) || null,
+      completionRoleId: text(input.completionRoleId) || null,
+      firstClearCoins: clampInt(input.firstClearCoins, DUNGEON_REWARD_RANGE, 0),
+      firstClearXp: clampInt(input.firstClearXp, DUNGEON_REWARD_RANGE, 0),
+      firstClearItemName: text(input.firstClearItemName) || null,
+      firstClearTitleId: text(input.firstClearTitleId) || null,
+      firstClearRoleId: text(input.firstClearRoleId) || null,
       enabled: input.enabled !== false,
     },
   };
+}
+
+export function hasFirstClearReward(dungeon: {
+  firstClearCoins: number;
+  firstClearXp: number;
+  firstClearItemName: string | null;
+  firstClearTitleId: string | null;
+  firstClearRoleId: string | null;
+}): boolean {
+  return dungeon.firstClearCoins > 0
+    || dungeon.firstClearXp > 0
+    || dungeon.firstClearItemName !== null
+    || dungeon.firstClearTitleId !== null
+    || dungeon.firstClearRoleId !== null;
 }
 
 /** Instant où le joueur pourra rentrer dans le donjon, `null` s'il le peut déjà. */

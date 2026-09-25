@@ -4,7 +4,10 @@ import {
   evaluateCommandRestriction,
   normalizeCommandRestrictions,
   readCommandChannels,
+  readCommandsEnabled,
   withCommandChannels,
+  withCommandsEnabled,
+  withGamblingEnabled,
   type CommandRestrictionRule,
 } from '../../utils/commandAccess.js';
 
@@ -157,5 +160,53 @@ describe('salons partages entre commandes', () => {
   test('des listes identiques ne divergent pas', () => {
     const rules = withCommandChannels([], commands, [channelId, other]);
     expect(readCommandChannels(rules, commands)).toEqual({ channelIds: [channelId, other], diverged: false });
+  });
+});
+
+describe('activation de plusieurs commandes', () => {
+  test('couper une commande sans règle en crée une, désactivée', () => {
+    const rules = withCommandsEnabled([], { dice: false });
+    expect(rules).toHaveLength(1);
+    expect(rules[0]).toMatchObject({ commandName: 'dice', enabled: false });
+  });
+
+  test('rallumer une commande garde ses salons et rôles', () => {
+    const rules = withCommandsEnabled([rule({ commandName: 'dice', enabled: false, allowedRoleIds: [roleId] })], { dice: true });
+    expect(rules[0]).toMatchObject({ commandName: 'dice', enabled: true, allowedRoleIds: [roleId] });
+  });
+
+  test('une règle revenue à neutre est retirée', () => {
+    expect(withCommandsEnabled([rule({ commandName: 'dice', enabled: false })], { dice: true })).toHaveLength(0);
+  });
+
+  test('les autres commandes ne bougent pas', () => {
+    const other = rule({ commandName: 'rpg', allowedChannelIds: [channelId] });
+    expect(withCommandsEnabled([other], { dice: false })).toContainEqual(other);
+  });
+});
+
+describe('jeux d\'argent', () => {
+  test('le menu /games reste ouvert tant qu\'un jeu l\'est', () => {
+    const rules = withGamblingEnabled([], { dice: false, roulette: false });
+    expect(readCommandsEnabled(rules, ['dice', 'roulette', 'rps', 'guess', 'games'])).toEqual({
+      dice: false, roulette: false, rps: true, guess: true, games: true,
+    });
+  });
+
+  test('couper le dernier jeu coupe aussi /games, en rallumer un le rouvre', () => {
+    const closed = withGamblingEnabled([], { dice: false, roulette: false, rps: false, guess: false });
+    expect(readCommandsEnabled(closed, ['games'])).toEqual({ games: false });
+    const reopened = withGamblingEnabled(closed, { rps: true });
+    expect(readCommandsEnabled(reopened, ['games', 'rps', 'dice'])).toEqual({ games: true, rps: true, dice: false });
+  });
+
+  test('un /games coupé à la main reste coupé quand un jeu change', () => {
+    const rules = withGamblingEnabled([rule({ commandName: 'games', enabled: false })], { dice: false });
+    expect(readCommandsEnabled(rules, ['games', 'dice', 'rps'])).toEqual({ games: false, dice: false, rps: true });
+  });
+
+  test('un jeu absent du réglage garde son état', () => {
+    const closed = withGamblingEnabled([], { dice: false });
+    expect(readCommandsEnabled(withGamblingEnabled(closed, { roulette: false }), ['dice'])).toEqual({ dice: false });
   });
 });

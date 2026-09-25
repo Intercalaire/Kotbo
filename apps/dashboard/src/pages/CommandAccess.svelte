@@ -186,6 +186,24 @@
       .sort((a: any, b: any) => a.name.localeCompare(b.name, 'fr'));
   });
 
+  // L'action groupée ne vise que ce que le filtre ou la recherche a retenu : sans filtre, un
+  // clic couperait tout le serveur, /config compris.
+  const bulkAvailable = $derived(
+    canManageSettings
+      && filteredCommands.length > 0
+      && (commandSearch.trim().length > 0 || (catalogFilter !== 'all' && catalogFilter !== 'active')),
+  );
+  const shownDisabledCount = $derived(filteredCommands.filter((command: any) => rules[command.name]?.enabled === false).length);
+
+  function setShownCommandsEnabled(enabled: boolean) {
+    if (!canManageSettings) return;
+    const next = { ...rules };
+    for (const command of filteredCommands) {
+      next[command.name] = { ...ruleFor(command.name), enabled };
+    }
+    rules = next;
+  }
+
   const subcommandsOf = (command: any) =>
     (command.options || []).filter((opt: any) => opt.type === 1 || opt.type === 2);
 
@@ -313,6 +331,30 @@
         />
       </div>
     </div>
+
+    {#if bulkAvailable}
+      <div class="flex flex-wrap items-center justify-between gap-3 text-xs text-on-surface-variant/70">
+        <span>{m.commands_bulk_shown({ count: filteredCommands.length, disabled: shownDisabledCount })}</span>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            onclick={() => setShownCommandsEnabled(true)}
+            disabled={shownDisabledCount === 0}
+            class="cmd-chip disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {m.commands_bulk_enable()}
+          </button>
+          <button
+            type="button"
+            onclick={() => setShownCommandsEnabled(false)}
+            disabled={shownDisabledCount === filteredCommands.length}
+            class="cmd-chip disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {m.commands_bulk_disable()}
+          </button>
+        </div>
+      </div>
+    {/if}
 
     <!-- Liste des commandes -->
     {#if filteredCommands.length === 0}
