@@ -5061,8 +5061,12 @@ async function startFightSession(
   // changé de ligne, et l'ancien identifiant la désigne encore.
   if (target) {
     const tracked = profile.trackedMonsterId ? await findGuildMonsterById(guildId, profile.trackedMonsterId) : null;
-    if (!tracked || tracked.id !== target.id) {
-      await interaction.reply({ embeds: [errorEmbed(m.rpg_hunt_not_tracked_title({}, { locale }), m.rpg_hunt_not_tracked_desc({}, { locale }))], flags: [MessageFlags.Ephemeral] });
+    if (!tracked) {
+      await interaction.reply({ embeds: [errorEmbed(m.rpg_hunt_no_track_title({}, { locale }), m.rpg_hunt_no_track_desc({}, { locale }))], flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+    if (tracked.id !== target.id) {
+      await interaction.reply({ embeds: [errorEmbed(m.rpg_hunt_not_tracked_title({}, { locale }), m.rpg_hunt_not_tracked_desc({ name: `${tracked.emoji} ${tracked.name}` }, { locale }))], flags: [MessageFlags.Ephemeral] });
       return;
     }
   }
