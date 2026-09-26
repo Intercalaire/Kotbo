@@ -2614,7 +2614,31 @@ export async function handleAdminRoutes(
         };
       });
 
-      json(res, 200, { instances: result });
+      // Une instance coupee en SHUTDOWN ne pingue plus : sa ligne de stats est
+      // purgee au bout de 48 h (cleanUpStaleStats) alors que le ban, lui, reste
+      // actif. Sans cette liste, elle deviendrait invisible et impossible a
+      // debannir depuis la console.
+      const matchedBanIds = new Set(result.flatMap(inst => {
+        const ids: string[] = [];
+        const byId = byClientId.get(inst.botClientId);
+        if (byId) ids.push(byId.id);
+        const byFp = inst.machineFingerprint ? byFingerprint.get(inst.machineFingerprint) : undefined;
+        if (byFp) ids.push(byFp.id);
+        return ids;
+      }));
+      const orphanBans = activeBans
+        .filter(b => !matchedBanIds.has(b.id))
+        .map(b => ({
+          id: b.id,
+          botClientId: b.botClientId,
+          machineFingerprint: b.machineFingerprint,
+          reason: b.reason,
+          mode: b.mode,
+          bannedBy: b.bannedBy,
+          createdAt: b.createdAt,
+        }));
+
+      json(res, 200, { instances: result, orphanBans });
     } catch (err) {
       logger.error('AdminAPI', 'GET instances error:', err);
       jsonFailure(res, err, 'Erreur lors de la récupération des instances', 'AdminAPI');
