@@ -3,6 +3,8 @@ import {
   bossCooldownMs,
   fightCooldownMs,
   formatCooldown,
+  huntCooldownExtraMs,
+  huntEnergyCost,
   remainingCooldownMs,
 } from '../../services/features/rpg/rpgCombatCooldownPolicy.js';
 
@@ -47,5 +49,32 @@ describe('affichage de l\'attente', () => {
 
   test('arrondit une fraction de seconde à la seconde supérieure', () => {
     expect(formatCooldown(200)).toBe('1s');
+  });
+});
+
+describe('surcoût de la traque', () => {
+  test('par défaut, une traque coûte moitié plus d\'énergie et double le délai', () => {
+    expect(huntEnergyCost(15, {})).toBe(23);
+    expect(huntCooldownExtraMs({ fightCooldownSec: 120 })).toBe(120_000);
+  });
+
+  test('à 100 %, traquer ne coûte rien de plus', () => {
+    expect(huntEnergyCost(15, { huntEnergyPercent: 100 })).toBe(15);
+    expect(huntCooldownExtraMs({ fightCooldownSec: 120, huntCooldownPercent: 100 })).toBe(0);
+  });
+
+  test('un réglage hors plage est borné, jamais sous le coût d\'un combat ordinaire', () => {
+    expect(huntEnergyCost(15, { huntEnergyPercent: 20 })).toBe(15);
+    expect(huntCooldownExtraMs({ fightCooldownSec: 60, huntCooldownPercent: 5000 })).toBe(540_000);
+  });
+
+  test('sans délai de combat, la traque n\'en ajoute pas', () => {
+    expect(huntCooldownExtraMs({ fightCooldownSec: 0 })).toBe(0);
+  });
+
+  test('le verrou reporté compte dans l\'attente d\'un combat ordinaire', () => {
+    const now = Date.now();
+    const lockedUntil = new Date(now + huntCooldownExtraMs({ fightCooldownSec: 120 }));
+    expect(remainingCooldownMs(lockedUntil, fightCooldownMs({ fightCooldownSec: 120 }), now)).toBe(240_000);
   });
 });

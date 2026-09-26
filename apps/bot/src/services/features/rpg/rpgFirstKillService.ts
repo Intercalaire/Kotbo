@@ -190,26 +190,37 @@ export async function assertFirstKillRole(client: Client, guildId: string, roleI
 }
 
 /**
- * Donne le rôle au vainqueur.
+ * Donne un rôle offert en récompense du RPG.
  *
  * Le contrôle est refait ici : entre le réglage et la victoire, le rôle a pu recevoir la
  * permission Administrateur, être supprimé ou passer au-dessus du bot.
  */
-async function grantFirstKillRole(client: Client, guildId: string, userId: string, monster: FirstKillMonster): Promise<string | null> {
+export async function grantRpgRewardRole(
+  client: Client,
+  guildId: string,
+  userId: string,
+  roleId: string,
+  reason: string,
+): Promise<string | null> {
   const guild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
-  if (!guild || !monster.firstKillRoleId) return null;
+  if (!guild) return null;
 
-  const role = guild.roles.cache.get(monster.firstKillRoleId) ?? await guild.roles.fetch(monster.firstKillRoleId).catch(() => null);
+  const role = guild.roles.cache.get(roleId) ?? await guild.roles.fetch(roleId).catch(() => null);
   const problem = firstKillRoleProblem(guild, role);
   if (problem || !role) {
-    logger.warn('RpgFirstKill', `Rôle ${monster.firstKillRoleId} non offert pour ${monster.name} sur ${guildId} : ${problem}`);
+    logger.warn('RpgFirstKill', `Rôle ${roleId} non offert (${reason}) sur ${guildId} : ${problem}`);
     return null;
   }
 
   const member = await guild.members.fetch(userId).catch(() => null);
   if (!member) return null;
-  await member.roles.add(role, `Premier vainqueur : ${monster.name}`);
+  await member.roles.add(role, reason);
   return role.id;
+}
+
+async function grantFirstKillRole(client: Client, guildId: string, userId: string, monster: FirstKillMonster): Promise<string | null> {
+  if (!monster.firstKillRoleId) return null;
+  return grantRpgRewardRole(client, guildId, userId, monster.firstKillRoleId, `Premier vainqueur : ${monster.name}`);
 }
 
 async function announceFirstKill(
@@ -219,8 +230,17 @@ async function announceFirstKill(
   monster: FirstKillMonster,
   result: FirstKillResult,
 ): Promise<void> {
+  // Sans prime, le record s'inscrit sans bruit : annoncer chaque créature battue pour la
+  // première fois inondait le salon sans rien à célébrer. Ce qui compte est ce qui a été
+  // versé : une prime réduite à un objet retiré du catalogue ou à un rôle refusé se tait aussi.
+  if (!hasFirstKillReward(monster)) return;
+
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.firstKillChannelId || !shouldAnnounceFirstKill(config.firstKillAnnounce, monster.isBoss)) return;
+
+  const locale: BotLocale = await resolveGuildLocale(guildId);
+  const reward = formatFirstKillReward(result, config.currencyEmoji, locale);
+  if (!reward) return;
 
   const channel = await client.channels.fetch(config.firstKillChannelId).catch(() => null);
   if (!channel?.isTextBased() || !channel.isSendable()) {
@@ -228,14 +248,11 @@ async function announceFirstKill(
     return;
   }
 
-  const locale: BotLocale = await resolveGuildLocale(guildId);
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_first_kill_announce_title({}, { locale }))
     .setDescription(m.rpg_first_kill_announce_desc({ user: `<@${userId}>`, monster: `${monster.emoji} ${monster.name}` }, { locale }))
-    .setColor(COLORS.warning);
-
-  const reward = formatFirstKillReward(result, config.currencyEmoji, locale);
-  if (reward) embed.addFields({ name: m.rpg_first_kill_field_reward({}, { locale }), value: reward });
+    .setColor(COLORS.warning)
+    .addFields({ name: m.rpg_first_kill_field_reward({}, { locale }), value: reward });
 
   // Le vainqueur est nommé, pas notifié : une annonce ne doit sonner chez personne.
   await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });

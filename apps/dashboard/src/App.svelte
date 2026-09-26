@@ -770,6 +770,10 @@
                 load={() => import("./pages/admin/WhiteLabel.svelte")}
               />
               <LazyRoute
+                path="/admin/instances"
+                load={() => import("./pages/admin/Instances.svelte")}
+              />
+              <LazyRoute
                 path="/admin/broadcast"
                 load={() => import("./pages/admin/Broadcast.svelte")}
               />

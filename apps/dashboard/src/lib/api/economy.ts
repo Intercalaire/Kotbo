@@ -19,6 +19,14 @@ export async function fetchRpgChannels(guildId = authStore.selectedGuildId) {
   return dashboardRequest<{ channelIds: string[]; diverged: boolean }>('/economy/rpg-channels', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Channels):' });
 }
 
+export async function fetchGamblingGames(guildId = authStore.selectedGuildId) {
+  return dashboardRequest<{ games: Record<string, boolean> }>('/economy/gambling', { method: 'GET', guildId, errorContext: 'API Error (Fetch Gambling Games):' });
+}
+
+export async function updateGamblingGames(games: Record<string, boolean>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest<{ games: Record<string, boolean> }>('/economy/gambling', { method: 'PUT', payload: { games }, guildId, errorContext: 'API Error (Update Gambling Games):' });
+}
+
 export async function updateRpgChannels(channelIds: string[], guildId = authStore.selectedGuildId) {
   return dashboardRequest<{ channelIds: string[]; diverged: boolean }>('/economy/rpg-channels', { method: 'PUT', payload: { channelIds }, guildId, errorContext: 'API Error (Update RPG Channels):' });
 }
@@ -158,6 +166,26 @@ export async function saveRpgFishBookReward(tier: string, reward: Record<string,
 
 export async function resetRpgFishBookReward(tier: string, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/economy/fish/rewards/${tier}`, { method: 'DELETE', successMessage: m.api_ok_reset_rpg_fishbook_reward(), guildId, errorContext: 'API Error (Reset RPG Fish Book Reward):' });
+}
+
+export async function fetchRpgDungeons(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/dungeons', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Dungeons):' });
+}
+
+export async function saveRpgDungeon(dungeon: Record<string, unknown>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/dungeons', { method: 'POST', successMessage: m.api_ok_save_rpg_dungeon(), payload: dungeon, guildId, errorContext: 'API Error (Save RPG Dungeon):' });
+}
+
+export async function setRpgDungeonEnabled(dungeonId: string, enabled: boolean, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/economy/dungeons/${dungeonId}`, { method: 'PATCH', successMessage: m.api_ok_set_rpg_dungeon_enabled(), payload: { enabled }, guildId, errorContext: 'API Error (Toggle RPG Dungeon):' });
+}
+
+export async function resetRpgDungeonFirstClear(dungeonId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/economy/dungeons/${dungeonId}/first-clear`, { method: 'DELETE', successMessage: m.api_ok_reset_rpg_dungeon_first_clear(), guildId, errorContext: 'API Error (Reset RPG Dungeon First Clear):' });
+}
+
+export async function deleteRpgDungeon(dungeonId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/economy/dungeons/${dungeonId}`, { method: 'DELETE', successMessage: m.api_ok_delete_rpg_dungeon(), guildId, errorContext: 'API Error (Delete RPG Dungeon):' });
 }
 
 export async function fetchRpgTitles(guildId = authStore.selectedGuildId) {

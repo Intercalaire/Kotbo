@@ -144,6 +144,7 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
   '/rpg': [
     { id: 'recettes', label: () => m.eco_tab_recipes(), icon: 'Hammer' },
     { id: 'bestiaire', label: () => m.eco_tab_bestiary(), icon: 'ghost' },
+    { id: 'donjons', label: () => m.eco_tab_dungeons(), icon: 'DoorOpen' },
     { id: 'peche', label: () => m.eco_tab_fish(), icon: 'Fish' },
     { id: 'raid', label: () => m.eco_tab_raid(), icon: 'crown' },
     { id: 'quetes', label: () => m.eco_tab_quests(), icon: 'Tasks' },

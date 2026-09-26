@@ -181,7 +181,7 @@ mock.module(mcpToolsPath, () => mockMcpTools);
 mock.module(mcpToolsJsPath, () => mockMcpTools);
 
 // Import router modules and helpers after mocks are set up
-import { JWT_SECRET, splitPath } from '../../api/shared.js';
+import { JWT_SECRET, splitPath, resolveDashboardAccess } from '../../api/shared.js';
 import { handlePublicRoutes } from '../../api/routes/public.js';
 import { handleAuthRoutes } from '../../api/routes/auth.js';
 import { handleReportErrorRoute } from '../../api/routes/error.js';
@@ -1266,5 +1266,46 @@ describe('Modular Routers Unit Tests', () => {
       expect(data.ok).toBeTrue();
       expect(data.messageId).toBe('sent-msg-id');
     });
+  });
+});
+
+describe('Accès dashboard des admins globaux', () => {
+  const guildWithoutMember = (guildId: string) => ({
+    id: guildId,
+    name: 'Serveur client',
+    members: { fetch: () => Promise.resolve(null) },
+  });
+  const getGuild = mockClient.guilds.cache.get as unknown as ReturnType<typeof mock>;
+
+  test('un admin global non membre obtient un accès admin marqué', async () => {
+    mockDb.guild.findUnique.mockResolvedValueOnce({ moderatorRoleId: null });
+    mockDb.globalAdmin.findUnique.mockResolvedValueOnce({ userId: 'global-admin-1' } as never);
+    getGuild.mockImplementationOnce(guildWithoutMember);
+
+    const access = await resolveDashboardAccess(mockClient, 'guild-ga-1', 'global-admin-1');
+
+    expect(access.level).toBe('admin');
+    expect(access.canManageSettings).toBeTrue();
+    expect(access.viaGlobalAdmin).toBeTrue();
+  });
+
+  test('un utilisateur ordinaire non membre reste sans accès', async () => {
+    mockDb.guild.findUnique.mockResolvedValueOnce({ moderatorRoleId: null });
+    mockDb.globalAdmin.findUnique.mockResolvedValueOnce(null);
+    getGuild.mockImplementationOnce(guildWithoutMember);
+
+    const access = await resolveDashboardAccess(mockClient, 'guild-ga-2', 'plain-user-1');
+
+    expect(access.canViewDashboard).toBeFalse();
+    expect(access.viaGlobalAdmin).toBeUndefined();
+  });
+
+  test('un admin Discord du serveur garde son accès, sans marque admin global', async () => {
+    mockDb.guild.findUnique.mockResolvedValueOnce({ moderatorRoleId: null });
+
+    const access = await resolveDashboardAccess(mockClient, 'guild-ga-3', 'server-admin-1');
+
+    expect(access.level).toBe('admin');
+    expect(access.viaGlobalAdmin).toBeUndefined();
   });
 });

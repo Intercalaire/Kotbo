@@ -5,7 +5,7 @@ import { getAvailableSkills, type RpgSkill } from './rpg/rpgClasses.js';
 import { loadSkillTreeEffects } from './rpg/rpgSkillTreeService.js';
 import { loadActiveTitleBonuses } from './rpg/rpgTitleService.js';
 import { listGuildMonsters } from './rpg/rpgBestiaryService.js';
-import { computeAttack } from './rpg/rpgCombatMath.js';
+import { pickDuelSkill, rollMonsterLoot, simulateDuel, type DuelTurn } from './rpg/rpgDuel.js';
 import { applyFirstWinBonus } from './rpg/rpgDailyBonusPolicy.js';
 import { isFirstWinToday } from './rpg/rpgDailyBonusService.js';
 import { getEffectiveStats, type EffectiveStats, type EquippedPiece, type Equipment, type PermanentBonuses, type StatItem } from './rpg/rpgStats.js';
@@ -23,13 +23,6 @@ import {
 // TYPES
 // ============================================================================
 
-type MonsterDrop = {
-  itemName: string;
-  emoji: string;
-  chance: number;
-  coinBonus?: number;
-};
-
 export type BattleResult = {
   won: boolean;
   turns: BattleTurn[];
@@ -46,15 +39,7 @@ export type BattleResult = {
   levelUp: number | null;
 };
 
-type BattleTurn = {
-  attacker: 'player' | 'monster';
-  damage: number;
-  critical: boolean;
-  playerHp: number;
-  monsterHp: number;
-  /** Nom de la compétence employée, `null` pour une attaque normale. */
-  skillName: string | null;
-};
+type BattleTurn = DuelTurn;
 
 /** Profil minimal nécessaire au calcul des statistiques effectives. */
 type EquippableProfile = SlottedProfile & {
@@ -315,63 +300,14 @@ export async function simulateBattle(
   monster: MonsterForCombat
 ): Promise<BattleResult> {
   const stats = await loadEffectiveStats(profile);
+  const duel = simulateDuel({
+    stats,
+    skill: pickDuelSkill(await loadAvailableSkills(profile)),
+    playerHp: profile.health,
+    monster,
+  });
 
-  // Le combat automatique de boss alterne attaque normale et meilleure compétence
-  // disponible, pour que la classe et son passif pèsent autant qu'en combat interactif.
-  const skills = (await loadAvailableSkills(profile))
-    .filter((skill) => skill.effect.damageMultiplier > 0)
-    .sort((a, b) => b.effect.damageMultiplier - a.effect.damageMultiplier);
-  const bestSkill = skills[0] ?? null;
-
-  let playerHp = profile.health;
-  let monsterHp = monster.health;
-  const turns: BattleTurn[] = [];
-
-  const playerFirst = stats.speed >= monster.speed;
-  const maxTurns = 40;
-  let skillCooldown = 0;
-
-  for (let i = 0; i < maxTurns && playerHp > 0 && monsterHp > 0; i++) {
-    if ((playerFirst && i % 2 === 0) || (!playerFirst && i % 2 === 1)) {
-      const useSkill = bestSkill !== null && skillCooldown === 0;
-      const skill = useSkill ? bestSkill : null;
-
-      const { damage, critical, healed } = computeAttack({
-        attack: stats.attack,
-        targetDefense: monster.defense,
-        speed: stats.speed,
-        critChance: stats.critChance,
-        armorPiercing: Math.max(stats.armorPiercing, skill?.effect.armorPiercing ?? 0),
-        skillMultiplier: skill?.effect.damageMultiplier ?? 1,
-        // Le vol de vie de la compétence et celui des enchantements se cumulent : ce sont
-        // deux sources distinctes, et une compétence ne doit pas annuler un enchantement.
-        lifesteal: stats.lifesteal + (skill?.effect.lifesteal ?? 0),
-      });
-
-      monsterHp = Math.max(0, monsterHp - damage);
-      if (healed > 0) playerHp = Math.min(stats.maxHealth, playerHp + healed);
-      skillCooldown = useSkill ? (bestSkill?.cooldownTurns ?? 0) : Math.max(0, skillCooldown - 1);
-
-      turns.push({ attacker: 'player', damage, critical, playerHp, monsterHp, skillName: skill?.name ?? null });
-    } else {
-      const { damage, critical, reflected } = computeAttack({
-        attack: monster.attack,
-        targetDefense: stats.defense,
-        speed: monster.speed,
-        critChance: 0.08,
-        targetDamageReduction: stats.damageReduction,
-        targetThorns: stats.thorns,
-      });
-      playerHp = Math.max(0, playerHp - damage);
-      // Les épines frappent même si le coup est mortel : l'armure réagit à l'impact.
-      if (reflected > 0) monsterHp = Math.max(0, monsterHp - reflected);
-      turns.push({ attacker: 'monster', damage, critical, playerHp, monsterHp, skillName: null });
-    }
-  }
-
-  const won = monsterHp <= 0;
-  const totalDamageDealt = turns.filter(t => t.attacker === 'player').reduce((s, t) => s + t.damage, 0);
-  const totalDamageTaken = turns.filter(t => t.attacker === 'monster').reduce((s, t) => s + t.damage, 0);
+  const { won, turns, totalDamageDealt, totalDamageTaken, playerHp, monsterHp } = duel;
 
   let xpEarned = 0;
   let coinsEarned = 0;
@@ -379,30 +315,26 @@ export async function simulateBattle(
   let itemDropEmoji: string | null = null;
 
   if (won) {
-    xpEarned = monster.xpReward + Math.floor(Math.random() * Math.floor(monster.xpReward * 0.3));
-    coinsEarned = monster.coinReward + Math.floor(Math.random() * Math.floor(monster.coinReward * 0.3));
+    const loot = rollMonsterLoot(monster);
+    xpEarned = loot.xp;
+    coinsEarned = loot.coins;
 
-    const drops = (Array.isArray(monster.drops) ? monster.drops : JSON.parse(String(monster.drops || '[]'))) as MonsterDrop[];
-    for (const drop of drops) {
-      if (Math.random() < drop.chance) {
-        itemDropped = drop.itemName;
-        itemDropEmoji = drop.emoji;
-        if (drop.coinBonus) coinsEarned += drop.coinBonus;
+    if (loot.drop) {
+      itemDropped = loot.drop.itemName;
+      itemDropEmoji = loot.drop.emoji ?? null;
 
-        // Le butin était annoncé dans l'embed mais jamais versé : les boss, qui passent
-        // tous par cette simulation, ne rapportaient donc aucun objet.
-        const dropItem = await prisma.rpgItem.findFirst({
-          where: { OR: [{ guildId: null }, { guildId: profile.guildId }], name: drop.itemName },
-          select: { id: true },
+      // Le butin était annoncé dans l'embed mais jamais versé : les boss, qui passent
+      // tous par cette simulation, ne rapportaient donc aucun objet.
+      const dropItem = await prisma.rpgItem.findFirst({
+        where: { OR: [{ guildId: null }, { guildId: profile.guildId }], name: loot.drop.itemName },
+        select: { id: true },
+      });
+      if (dropItem) {
+        await prisma.rpgInventoryItem.upsert({
+          where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: dropItem.id } },
+          update: { quantity: { increment: 1 } },
+          create: { rpgProfileId: profile.id, itemId: dropItem.id, quantity: 1 },
         });
-        if (dropItem) {
-          await prisma.rpgInventoryItem.upsert({
-            where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: dropItem.id } },
-            update: { quantity: { increment: 1 } },
-            create: { rpgProfileId: profile.id, itemId: dropItem.id, quantity: 1 },
-          });
-        }
-        break;
       }
     }
   } else {

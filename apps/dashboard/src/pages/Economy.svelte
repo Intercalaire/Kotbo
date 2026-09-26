@@ -23,6 +23,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
   import MultiSelect from '../lib/components/MultiSelect.svelte';
   import RpgEventsPanel from '../lib/components/economy/RpgEventsPanel.svelte';
   import RpgFishPanel from '../lib/components/economy/RpgFishPanel.svelte';
+  import RpgDungeonsPanel from '../lib/components/economy/RpgDungeonsPanel.svelte';
   import RpgGuildsPanel from '../lib/components/economy/RpgGuildsPanel.svelte';
   import RpgPlayerInventoryModal from '../lib/components/economy/RpgPlayerInventoryModal.svelte';
   import { channelDisplayName } from '../lib/channelUtils';
@@ -60,6 +61,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     updateEconomyConfig,
     fetchRpgChannels,
     updateRpgChannels,
+    fetchGamblingGames,
+    updateGamblingGames,
     fetchRpgItems,
     saveRpgItem,
     deleteRpgItem,
@@ -106,7 +109,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
   // une seule barre ne laissaient plus voir ce que la page contenait.
   const { section = 'economy' }: { section?: 'economy' | 'rpg' } = $props();
   const ECONOMY_TABS = ['config', 'items', 'blackmarket', 'players'] as const;
-  const RPG_TABS = ['recettes', 'bestiaire', 'peche', 'raid', 'quetes', 'titres', 'aventures', 'guildes'] as const;
+  const RPG_TABS = ['recettes', 'bestiaire', 'donjons', 'peche', 'raid', 'quetes', 'titres', 'aventures', 'guildes'] as const;
   const BASE = $derived(section === 'rpg' ? '/rpg' : '/economy');
   const DEFAULT_TAB = $derived(section === 'rpg' ? RPG_TABS[0] : ECONOMY_TABS[0]);
   // Pose par l'effet ci-dessous, avant le premier rendu.
@@ -146,6 +149,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     adventureCooldownMin: 30,
     fightCooldownSec: 120,
     bossCooldownMin: 2,
+    huntEnergyPercent: 150,
+    huntCooldownPercent: 200,
     firstKillAnnounce: 'NONE',
     firstKillChannelId: null as string | null,
     maxEnergy: 100,
@@ -360,7 +365,26 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     rpgChannelsDiverged = res.diverged;
   }
 
-  const configDirty = $derived(JSON.stringify(config) !== JSON.stringify(savedConfig) || rpgChannelsDirty);
+  // Jeux d'argent : eux aussi sur les restrictions de commandes, enregistrés sous la même barre.
+  const GAMBLING_GAMES = ['dice', 'roulette', 'rps', 'guess'] as const;
+  const allGamesOpen = () => Object.fromEntries(GAMBLING_GAMES.map((game) => [game, true])) as Record<string, boolean>;
+  let gamblingGames = $state<Record<string, boolean>>(allGamesOpen());
+  let savedGamblingGames = $state<Record<string, boolean>>(allGamesOpen());
+  const gamblingDirty = $derived(GAMBLING_GAMES.some((game) => gamblingGames[game] !== savedGamblingGames[game]));
+  const allGamblingOpen = $derived(GAMBLING_GAMES.every((game) => gamblingGames[game]));
+
+  async function loadGamblingGames() {
+    const res = await fetchGamblingGames().catch(() => null);
+    if (!res?.games) return;
+    gamblingGames = { ...res.games };
+    savedGamblingGames = { ...res.games };
+  }
+
+  function setAllGambling(open: boolean) {
+    gamblingGames = Object.fromEntries(GAMBLING_GAMES.map((game) => [game, open]));
+  }
+
+  const configDirty = $derived(JSON.stringify(config) !== JSON.stringify(savedConfig) || rpgChannelsDirty || gamblingDirty);
 
   // Unsaved changes tracker
   $effect(() => {
@@ -374,6 +398,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
           onReset: () => {
             config = JSON.parse(JSON.stringify(savedConfig));
             rpgChannelIds = [...savedRpgChannelIds];
+            gamblingGames = { ...savedGamblingGames };
           }
         });
       });
@@ -392,7 +417,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     loading = true;
     try {
       await dashboardStore.refresh();
-      const [res] = await Promise.all([fetchEconomyConfig(), loadRpgChannels()]);
+      const [res] = await Promise.all([fetchEconomyConfig(), loadRpgChannels(), loadGamblingGames()]);
       if (res && res.config) {
         config = res.config;
         savedConfig = JSON.parse(JSON.stringify(res.config));
@@ -1026,6 +1051,12 @@ import EmojiText from '../lib/components/EmojiText.svelte';
         rpgChannelIds = [...res.channelIds];
         savedRpgChannelIds = [...res.channelIds];
         rpgChannelsDiverged = res.diverged;
+      }
+      if (gamblingDirty) {
+        const res = await updateGamblingGames(gamblingGames);
+        if (!res?.games) throw new Error("Erreur de sauvegarde des jeux d'argent.");
+        gamblingGames = { ...res.games };
+        savedGamblingGames = { ...res.games };
       }
       success = true;
       return true;
@@ -1788,6 +1819,42 @@ import EmojiText from '../lib/components/EmojiText.svelte';
             <p class="text-xs text-on-surface-variant/60 mt-1">{m.eco_limits_desc()}</p>
           </div>
 
+          <div class="space-y-3">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <h4 class="text-sm font-bold">{m.eco_gambling_title()}</h4>
+                <p class="text-xs text-on-surface-variant/60 mt-0.5 leading-relaxed">{m.eco_gambling_desc()}</p>
+              </div>
+              <ToggleSwitch
+                checked={allGamblingOpen}
+                ariaLabel={m.eco_gambling_all_aria()}
+                onToggle={(open: boolean) => setAllGambling(open)}
+                disabled={!canManageSettings || !config.enabled}
+              />
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {#each GAMBLING_GAMES as game (game)}
+                <div class="flex items-center justify-between gap-3 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg px-3 py-2">
+                  <div class="min-w-0">
+                    <code class="text-xs font-semibold">/{game}</code>
+                    <span class="text-2xs text-on-surface-variant/60 ml-1.5">{
+                      game === 'dice' ? m.eco_gambling_dice()
+                        : game === 'roulette' ? m.eco_gambling_roulette()
+                          : game === 'rps' ? m.eco_gambling_rps()
+                            : m.eco_gambling_guess()
+                    }</span>
+                  </div>
+                  <ToggleSwitch
+                    checked={gamblingGames[game]}
+                    ariaLabel={`/${game}`}
+                    onToggle={(open: boolean) => { gamblingGames = { ...gamblingGames, [game]: open }; }}
+                    disabled={!canManageSettings || !config.enabled}
+                  />
+                </div>
+              {/each}
+            </div>
+          </div>
+
           <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div class="space-y-1.5">
               <label for="maxBet" class="text-xs font-semibold text-on-surface-variant/60">{m.eco_max_bet()}</label>
@@ -1837,6 +1904,18 @@ import EmojiText from '../lib/components/EmojiText.svelte';
               <label for="bossCd" class="text-xs font-semibold text-on-surface-variant/60">{m.eco_boss_cd()}</label>
               <input id="bossCd" type="number" min="0" max="1440" bind:value={config.bossCooldownMin} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
               <p class="text-2xs text-on-surface-variant/40">{m.eco_boss_cd_hint()}</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="huntEnergy" class="text-xs font-semibold text-on-surface-variant/60">{m.eco_hunt_energy()}</label>
+              <input id="huntEnergy" type="number" min="100" max="500" bind:value={config.huntEnergyPercent} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <p class="text-2xs text-on-surface-variant/40">{m.eco_hunt_energy_hint()}</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="huntCd" class="text-xs font-semibold text-on-surface-variant/60">{m.eco_hunt_cd()}</label>
+              <input id="huntCd" type="number" min="100" max="1000" bind:value={config.huntCooldownPercent} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <p class="text-2xs text-on-surface-variant/40">{m.eco_hunt_cd_hint()}</p>
             </div>
           </div>
 
@@ -3193,6 +3272,10 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     <!-- Tab 4: Players list & Leaderboard -->
     {#if activeTab === 'peche'}
       <RpgFishPanel canManage={canManageSettings} disabled={!config.enabled} currencyName={config.currencyName} />
+    {/if}
+
+    {#if activeTab === 'donjons'}
+      <RpgDungeonsPanel canManage={canManageSettings} disabled={!config.enabled} currencyName={config.currencyName} />
     {/if}
 
     {#if activeTab === 'aventures'}

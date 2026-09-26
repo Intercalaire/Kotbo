@@ -446,6 +446,8 @@ export type DashboardAccess = {
   canModerateDailyAlgo: boolean;
   canManageSettings: boolean;
   canManageTutoring: boolean;
+  /** Acces obtenu uniquement parce que l'utilisateur est admin global Kotbo : ses ecritures sont journalisees. */
+  viaGlobalAdmin?: boolean;
 };
 
 export type FeatureAccess = {
@@ -1197,22 +1199,13 @@ export const DASHBOARD_ACCESS_ADMIN: DashboardAccess = {
 };
 
 /**
- * Ce qu'un admin global voit d'un serveur dont il n'est pas membre.
- *
- * `level` reste 'none' volontairement : la quasi-totalite des gardes
- * d'ecriture testent `level`/`canManageSettings`, pas `canViewDashboard`
- * (cf. `access.level !== 'admin'` dans server-template.ts, tickets.ts,
- * sanctions.ts, staff.ts...). Un admin global absent du serveur garde de
- * quoi diagnostiquer un ticket de support ; il ne peut plus rien poser ni
- * modifier a la place d'un client qui ne l'a jamais autorise a le faire.
+ * Admin global Kotbo sur un serveur ou il n'est pas deja admin : acces
+ * complet, y compris sans etre membre. En contrepartie, chaque ecriture faite
+ * avec cet acces part au journal d'audit admin (voir dashboard.ts).
  */
-export const DASHBOARD_ACCESS_SUPPORT_READONLY: DashboardAccess = {
-  level: 'none',
-  canViewDashboard: true,
-  canModerateContent: false,
-  canModerateDailyAlgo: false,
-  canManageSettings: false,
-  canManageTutoring: false,
+export const DASHBOARD_ACCESS_GLOBAL_ADMIN: DashboardAccess = {
+  ...DASHBOARD_ACCESS_ADMIN,
+  viaGlobalAdmin: true,
 };
 
 /**
@@ -1258,14 +1251,11 @@ const computeDashboardAccess = async (
   knownPermissions?: bigint | null,
 ): Promise<DashboardAccess> => {
   const memberAccess = await computeMemberDashboardAccess(client, guildId, userId, knownPermissions);
-  if (memberAccess.level !== 'none') return memberAccess;
+  if (memberAccess.level === 'admin') return memberAccess;
 
-  // Aucun lien reel avec ce serveur (ni membre, ni role modo, ni fiche
-  // staff) : seul le repli lecture seule reste ouvert a un admin global.
-  // Voir DASHBOARD_ACCESS_SUPPORT_READONLY pour la raison de ce choix.
-  if (await resolveAdminAccess(client, userId)) return DASHBOARD_ACCESS_SUPPORT_READONLY;
+  if (await resolveAdminAccess(client, userId)) return DASHBOARD_ACCESS_GLOBAL_ADMIN;
 
-  return DASHBOARD_ACCESS_NONE;
+  return memberAccess;
 };
 
 const computeMemberDashboardAccess = async (

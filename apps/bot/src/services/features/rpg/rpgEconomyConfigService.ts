@@ -17,7 +17,12 @@ import {
   MAX_QUANTITY_RANGE,
   OFFER_COUNT_RANGE,
 } from './rpgBlackMarketPolicy.js';
-import { BOSS_COOLDOWN_MIN_RANGE, FIGHT_COOLDOWN_SEC_RANGE } from './rpgCombatCooldownPolicy.js';
+import {
+  BOSS_COOLDOWN_MIN_RANGE,
+  FIGHT_COOLDOWN_SEC_RANGE,
+  HUNT_COOLDOWN_PERCENT_RANGE,
+  HUNT_ENERGY_PERCENT_RANGE,
+} from './rpgCombatCooldownPolicy.js';
 import { isFirstKillAnnounceMode } from './rpgBestiaryPolicy.js';
 import {
   asRaidTeamMode,
@@ -62,6 +67,8 @@ export type EconomySettingsInput = {
   adventureCooldownMin?: number;
   fightCooldownSec?: number;
   bossCooldownMin?: number;
+  huntEnergyPercent?: number;
+  huntCooldownPercent?: number;
   firstKillAnnounce?: string;
   firstKillChannelId?: string | null;
   maxEnergy?: number;
@@ -252,6 +259,8 @@ export async function updateEconomySettings(guildId: string, body: EconomySettin
       adventureCooldownMin: body.adventureCooldownMin,
       fightCooldownSec: clampOptional(body.fightCooldownSec, FIGHT_COOLDOWN_SEC_RANGE),
       bossCooldownMin: clampOptional(body.bossCooldownMin, BOSS_COOLDOWN_MIN_RANGE),
+      huntEnergyPercent: clampOptional(body.huntEnergyPercent, HUNT_ENERGY_PERCENT_RANGE),
+      huntCooldownPercent: clampOptional(body.huntCooldownPercent, HUNT_COOLDOWN_PERCENT_RANGE),
       firstKillAnnounce: body.firstKillAnnounce,
       firstKillChannelId: body.firstKillChannelId,
       maxEnergy: body.maxEnergy,
