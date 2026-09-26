@@ -286,6 +286,11 @@ export function withGamblingEnabled(
 
   const wasAnyOpen = GAMBLING_COMMANDS.some((name) => current[name]);
   const anyOpen = GAMBLING_COMMANDS.some((name) => next[name]);
-  const hub = !anyOpen ? { [GAMES_HUB_COMMAND]: false } : !wasAnyOpen ? { [GAMES_HUB_COMMAND]: true } : {};
-  return withCommandsEnabled(rules, { ...next, ...hub });
+  const patch: Record<string, boolean> = { ...next };
+  if (!anyOpen) {
+    patch[GAMES_HUB_COMMAND] = false;
+  } else if (!wasAnyOpen) {
+    patch[GAMES_HUB_COMMAND] = true;
+  }
+  return withCommandsEnabled(rules, patch);
 }

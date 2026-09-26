@@ -101,6 +101,7 @@
       items.push({ id: 'admin-activation', label: "Codes d'activation", sublabel: 'Admin · Licences', icon: 'Key', group: 'Administration', action: () => router.goto('/admin/activation') });
       items.push({ id: 'admin-audit',    label: "Journal d'audit", sublabel: 'Admin · Traçabilité', icon: 'ClipboardList', group: 'Administration', action: () => router.goto('/admin/audit') });
       items.push({ id: 'admin-whitelabel', label: 'Marque blanche', sublabel: 'Admin · Instances', icon: 'Layers', group: 'Administration', action: () => router.goto('/admin/whitelabel') });
+      items.push({ id: 'admin-instances', label: 'Instances self-host', sublabel: 'Admin · Télémétrie et bannissement', icon: 'Server', group: 'Administration', action: () => router.goto('/admin/instances') });
       items.push({ id: 'admin-gdpr',     label: 'Export RGPD', sublabel: 'Admin · Conformité', icon: 'ShieldCheck', group: 'Administration', action: () => router.goto('/admin/gdpr') });
       items.push({ id: 'admin-config',   label: 'Configuration avancée', sublabel: 'Admin · Système', icon: 'Settings', group: 'Administration', action: () => router.goto('/admin/config') });
     }

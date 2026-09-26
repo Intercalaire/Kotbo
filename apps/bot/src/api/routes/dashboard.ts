@@ -15,6 +15,9 @@ import { isGuildActivated } from '../../utils/activation.js';
 import { isModuleEnabled } from '../../services/core/moduleGate.js';
 import { trackDashboardVisit } from '../../services/analytics/ghostActivityTracker.js';
 import { cache } from '../../utils/cache.js';
+import { recordAdminAudit, resolveRequestIp } from '../../services/system/adminAuditService.js';
+
+const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 // Sub-routers imports
 import { handleGeneralRoutes, handleGuildGeneralRoutes } from './dashboard/general.js';
@@ -128,6 +131,29 @@ export async function handleDashboardRoutes(
   if (!user) {
     json(res, 401, { error: 'Non authentifié' });
     return true;
+  }
+
+  // 3bis. Un admin global a un acces complet aux serveurs qu'il n'administre
+  // pas lui-meme (DASHBOARD_ACCESS_GLOBAL_ADMIN) : chacune de ses ecritures y
+  // est tracee, avant tout sous-routeur pour n'en manquer aucune.
+  if (parts[2] === 'guilds' && parts.length >= 4 && !READ_METHODS.has(method ?? 'GET')
+    && await resolveAdminAccess(client, user.userId)) {
+    const guildId = parts[3];
+    const access = await resolveDashboardAccess(client, guildId, user.userId);
+    if (access.viaGlobalAdmin) {
+      const route = `/${parts.join('/')}`;
+      const guildName = client.guilds.cache.get(guildId)?.name ?? guildId;
+      void recordAdminAudit({
+        actorId: user.userId,
+        actorName: user.username,
+        action: 'dashboard.global_admin_write',
+        targetType: 'guild',
+        targetId: guildId,
+        summary: `${method} ${route} sur ${guildName}`,
+        metadata: { method, route },
+        ip: resolveRequestIp(req),
+      });
+    }
   }
 
   // 4. Try general, non-guild-specific routes first (translate, list guilds, staff profile snapshots)

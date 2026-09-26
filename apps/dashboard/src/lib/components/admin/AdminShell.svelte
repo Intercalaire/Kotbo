@@ -68,6 +68,7 @@
         { path: '/admin/content', label: m.d4_nav_global_words(), icon: 'filter' },
         { path: '/admin/activation', label: m.d4_nav_activation_codes(), icon: 'Key' },
         { path: '/admin/whitelabel', label: m.d4_nav_whitelabel(), icon: 'Layers' },
+        { path: '/admin/instances', label: 'Instances self-host', icon: 'Server' },
       ],
     },
     {
