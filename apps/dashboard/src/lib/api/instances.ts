@@ -26,7 +26,18 @@ export interface BotInstance {
   } | null;
 }
 
-export async function fetchBotInstances(): Promise<{ instances: BotInstance[] }> {
+/** Ban toujours actif dont l'instance ne pingue plus depuis plus de 48 h. */
+export interface OrphanInstanceBan {
+  id: string;
+  botClientId: string | null;
+  machineFingerprint: string | null;
+  reason: string | null;
+  mode: InstanceBanMode;
+  bannedBy: string;
+  createdAt: string;
+}
+
+export async function fetchBotInstances(): Promise<{ instances: BotInstance[]; orphanBans: OrphanInstanceBan[] }> {
   const res = await authorizedFetch(`${API_BASE_URL}/api/admin/instances`);
   if (!res.ok) throw new Error('Erreur lors de la récupération des instances');
   return res.json();
