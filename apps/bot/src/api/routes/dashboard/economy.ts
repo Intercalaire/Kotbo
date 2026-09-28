@@ -134,6 +134,15 @@ import {
 } from '../../../services/features/rpg/rpgDungeonService.js';
 import { DUNGEON_FLOORS_MAX, DUNGEONS_PER_GUILD_MAX, type DungeonInput } from '../../../services/features/rpg/rpgDungeonPolicy.js';
 import {
+  TowerError,
+  deleteTowerReward,
+  getTowerDashboard,
+  saveTowerLayout,
+  saveTowerReward,
+  saveTowerSettings,
+  startTowerSeason,
+} from '../../../services/features/rpg/rpgTowerService.js';
+import {
   isGamblingCommand,
   normalizeCommandRestrictions,
   readCommandChannels,
@@ -999,6 +1008,123 @@ export async function handleEconomyRoutes(
         json(res, 200, { success: true, settledRuns });
       } catch (err) {
         dungeonFailure(err, 'Erreur lors de la mise à jour du donjon.');
+      }
+      return true;
+    }
+  }
+
+  // La Tour : réglages du mode roguelite, récompenses et saisons du classement.
+  if (subAction === 'tower') {
+    const towerFailure = (err: unknown, fallback: string) => {
+      if (err instanceof TowerError) {
+        json(res, err.status, { error: err.message });
+        return;
+      }
+      logger.error('EconomyAPI', fallback, err);
+      jsonFailure(res, err, fallback, 'EconomyAPI');
+    };
+    const towerAudit = (action: string, details: string) => pushAudit(guildId, {
+      user: auditUser,
+      action,
+      context: getGuildName(client, guildId),
+      module: 'Économie',
+      eventType: 'Manuel',
+      details,
+      channelId: null
+    });
+
+    // GET /api/dashboard/guilds/:guildId/economy/tower
+    if (parts.length === 6 && method === 'GET') {
+      try {
+        const dashboard = await getTowerDashboard(guildId);
+        const discordGuild = client.guilds.cache.get(guildId);
+        const leaderboard = dashboard.leaderboard.map((entry) => ({
+          ...entry,
+          displayName: discordGuild?.members.cache.get(entry.userId)?.displayName
+            ?? client.users.cache.get(entry.userId)?.username
+            ?? entry.userId,
+        }));
+        json(res, 200, { ...dashboard, leaderboard });
+      } catch (err) {
+        towerFailure(err, 'Erreur lors de la récupération de la Tour.');
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/tower (réglages)
+    if (parts.length === 6 && method === 'POST') {
+      try {
+        const body = await readJsonBody<Record<string, unknown>>(req);
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant.' });
+          return true;
+        }
+        const settings = await saveTowerSettings(guildId, body);
+        await towerAudit('Réglages de la Tour', `${settings.name} (${settings.enabled ? 'ouverte' : 'fermée'}, mode ${settings.entryMode})`);
+        json(res, 200, { settings });
+      } catch (err) {
+        towerFailure(err, 'Erreur lors de la sauvegarde de la Tour.');
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/tower/layout
+    if (parts.length === 7 && parts[6] === 'layout' && method === 'POST') {
+      try {
+        const body = await readJsonBody<{ layoutEnabled?: unknown; layout?: unknown }>(req);
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant.' });
+          return true;
+        }
+        const settings = await saveTowerLayout(guildId, body);
+        await towerAudit('Carte de la Tour', settings.layout
+          ? `${settings.layout.rooms.length} salles, ${settings.layoutEnabled ? 'jouée' : 'inactive'}`
+          : 'Carte retirée');
+        json(res, 200, { settings });
+      } catch (err) {
+        towerFailure(err, 'Erreur lors de la sauvegarde de la carte.');
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/tower/season
+    if (parts.length === 7 && parts[6] === 'season' && method === 'POST') {
+      try {
+        const reset = await startTowerSeason(guildId);
+        await towerAudit('Nouvelle saison de la Tour', `${reset} profil(s) remis à zéro au classement`);
+        json(res, 200, { success: true, reset });
+      } catch (err) {
+        towerFailure(err, 'Erreur lors du changement de saison.');
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/tower/rewards (création, ou modification avec `id`)
+    if (parts.length === 7 && parts[6] === 'rewards' && method === 'POST') {
+      try {
+        const body = await readJsonBody<Record<string, unknown> & { id?: string }>(req);
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant.' });
+          return true;
+        }
+        const id = typeof body.id === 'string' && body.id ? body.id : undefined;
+        const { reward, created } = await saveTowerReward(client, guildId, body, id);
+        await towerAudit(created ? 'Création récompense de Tour' : 'Modification récompense de Tour', reward.name);
+        json(res, 200, { reward });
+      } catch (err) {
+        towerFailure(err, 'Erreur lors de la sauvegarde de la récompense.');
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/economy/tower/rewards/:id
+    if (parts.length === 8 && parts[6] === 'rewards' && method === 'DELETE') {
+      try {
+        const reward = await deleteTowerReward(guildId, parts[7]);
+        await towerAudit('Suppression récompense de Tour', reward.name);
+        json(res, 200, { success: true });
+      } catch (err) {
+        towerFailure(err, 'Erreur lors de la suppression de la récompense.');
       }
       return true;
     }

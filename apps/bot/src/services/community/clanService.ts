@@ -56,7 +56,9 @@ export type ClanContributionSource =
   // met en avant plutôt que de le noyer parmi les boss et les monstres ordinaires.
   | 'RPG_FIRST_KILL'
   // Une série du carnet de pêche terminée : un palier atteint une fois par joueur.
-  | 'RPG_FISHBOOK';
+  | 'RPG_FISHBOOK'
+  // Un palier ou un article de la Tour, le mode roguelite du RPG.
+  | 'RPG_TOWER';
 
 /**
  * Crédite des points de clan pour une saison et renvoie le montant réellement
