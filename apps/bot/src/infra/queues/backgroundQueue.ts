@@ -46,6 +46,7 @@ export type BackgroundJobName =
   | 'billing-renewal-notice'
   | 'analytics-daily-snapshot'
   | 'acquisition-events-prune'
+  | 'dashboard-telemetry-prune'
   | 'acquisition-abandon-scan'
   | 'acquisition-alerts-check'
   | 'acquisition-weekly-recap'
