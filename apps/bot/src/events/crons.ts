@@ -388,6 +388,10 @@ export async function registerCrons(client: Client): Promise<void> {
       await pruneAcquisitionEvents();
       await anonymiseDepartedGuilds();
     },
+    'dashboard-telemetry-prune': async () => {
+      const { pruneDashboardTelemetry } = await import('../services/analytics/dashboardTelemetryService.js');
+      await pruneDashboardTelemetry();
+    },
     'acquisition-abandon-scan': async () => {
       const { scanAbandonedOnboardings } = await import('../services/analytics/acquisitionMaintenance.js');
       await scanAbandonedOnboardings();
@@ -627,6 +631,14 @@ export async function registerCrons(client: Client): Promise<void> {
       );
       await pruneAcquisitionEvents();
       await anonymiseDepartedGuilds();
+    }, 2000);
+  });
+
+  // 🧭 Telemetrie du dashboard : purge au-dela de 180 jours (03:55).
+  cron.schedule('55 3 * * *', async () => {
+    await runCronJob('dashboard-telemetry-prune', async () => {
+      const { pruneDashboardTelemetry } = await import('../services/analytics/dashboardTelemetryService.js');
+      await pruneDashboardTelemetry();
     }, 2000);
   });
 
