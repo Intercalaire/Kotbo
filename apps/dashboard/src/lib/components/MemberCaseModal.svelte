@@ -11,7 +11,7 @@
   import Chart from './charts/Chart.svelte';
   import { inviteDetailsModal } from '../stores/inviteDetailsModal.svelte';
   import { channelDetailsModal } from '../stores/channelDetailsModal.svelte';
-  import { fetchMemberCase, fetchMemberDetailedAnalytics, updateSanctionReport, linkMemberAccount, unlinkMemberAccount, updateMemberNote, runMemberCaseAction, searchMessages, fetchMessageLogChannels } from '../api';
+  import { fetchMemberCase, fetchMemberDetailedAnalytics, updateSanctionReport, linkMemberAccount, unlinkMemberAccount, updateMemberNote, runMemberCaseAction, searchMessages, formatMessageSearchTotal, fetchMessageLogChannels } from '../api';
   import { toDateTimeLocal, typeLabel as formatTypeLabel } from '../sanctions/formatters';
   import { buildReportRuleOptions, getRuleIdsFromBrokenRules, getRulesFromBrokenRules, buildBrokenRulesPayload } from '../sanctions/reportRules';
   import SelectedRuleChips from './sanctions/SelectedRuleChips.svelte';
@@ -80,6 +80,8 @@
 
   let messagesList = $state<any[]>([]);
   let messagesTotalCount = $state(0);
+  let messagesTotalCapped = $state(false);
+  let messagesHasMore = $state(false);
   let messagesLoading = $state(false);
   let messagesChannels = $state<any[]>([]);
 
@@ -183,6 +185,8 @@
       });
       messagesList = data.messages || [];
       messagesTotalCount = data.total || 0;
+      messagesTotalCapped = data.totalCapped;
+      messagesHasMore = data.hasMore;
     } catch (e) {
       console.error('Failed to load member messages:', e);
     } finally {
@@ -781,6 +785,8 @@
       messageTo = '';
       messagesList = [];
       messagesTotalCount = 0;
+      messagesTotalCapped = false;
+      messagesHasMore = false;
       void loadMemberAnalytics();
     }
   });
@@ -1855,10 +1861,10 @@
                     </div>
 
                     <!-- Pagination -->
-                    {#if messagesTotalCount > messageLimit}
+                    {#if messageOffset > 0 || messagesHasMore}
                       <div class="flex items-center justify-between border-t border-outline-variant/10 pt-6">
                         <span class="text-xs font-bold text-on-surface-variant/40">
-                          {m.mcm_pagination_range({ from: messageOffset + 1, to: Math.min(messageOffset + messageLimit, messagesTotalCount), total: messagesTotalCount })}
+                          {m.mcm_pagination_range({ from: messageOffset + 1, to: messageOffset + messagesList.length, total: formatMessageSearchTotal({ total: messagesTotalCount, totalCapped: messagesTotalCapped }) })}
                         </span>
 
                         <div class="flex items-center gap-2">
@@ -1874,7 +1880,7 @@
                           <button
                             type="button"
                             onclick={() => { messageOffset = messageOffset + messageLimit; }}
-                            disabled={messageOffset + messageLimit >= messagesTotalCount}
+                            disabled={!messagesHasMore}
                             class="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-container-high text-on-surface-variant hover:bg-surface-container-high-hover transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                           >
                             <Papicon icon="chevron-right" size={14} />
