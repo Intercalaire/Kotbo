@@ -19,17 +19,18 @@ import {
 } from './rpgTowerContent.js';
 
 export const TOWER_ROOM_TYPES = [
-  'START', 'MONSTER', 'ELITE', 'BOSS', 'STAIRS', 'TRIAL', 'GATE', 'SEAL',
-  'CHEST', 'MIMIC', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'MENTOR', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY',
+  'START', 'WELL', 'ENTRANCE', 'MONSTER', 'ELITE', 'AMBUSH', 'BOSS', 'STAIRS', 'EXIT', 'COLLAPSE', 'TOLL', 'TRIAL', 'GATE', 'SEAL',
+  'CHEST', 'MIMIC', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'MENTOR', 'FOUNTAIN', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY',
 ] as const;
 export type TowerRoomType = (typeof TOWER_ROOM_TYPES)[number];
 
 /**
- * Sorties d'un étage : le gardien à abattre, l'escalier scellé qu'ouvrent les clés de l'étage
- * ou le portail qu'ouvrent les sceaux allumés. Un étage en a exactement une : cumuler les
- * mécanismes rendrait l'étage illisible.
+ * Sorties d'un étage : le gardien à abattre, l'escalier scellé qu'ouvrent les clés de l'étage,
+ * le portail qu'ouvrent les sceaux allumés, un simple escalier ouvert, un escalier qui
+ * s'effondre passé un nombre de pas (un gardien garde alors le passage), ou un péage à payer
+ * ou à forcer. Un étage en a exactement une : cumuler les mécanismes le rendrait illisible.
  */
-export const TOWER_EXIT_TYPES = ['BOSS', 'STAIRS', 'GATE'] as const;
+export const TOWER_EXIT_TYPES = ['BOSS', 'STAIRS', 'GATE', 'EXIT', 'COLLAPSE', 'TOLL'] as const;
 export type TowerExitType = (typeof TOWER_EXIT_TYPES)[number];
 
 export function isExitRoom(type: TowerRoomType): type is TowerExitType {
@@ -74,8 +75,28 @@ export const TOWER_TRIAL_WAVES = { min: 2, max: 5, default: 3 } as const;
 
 /** Salles dont la puissance se règle : celles qui opposent un adversaire, épreuve comprise. */
 export function hasTowerPower(type: TowerRoomType): boolean {
-  return type === 'MONSTER' || type === 'ELITE' || type === 'BOSS' || type === 'TRIAL';
+  return type === 'MONSTER' || type === 'ELITE' || type === 'BOSS' || type === 'TRIAL' || type === 'AMBUSH' || type === 'COLLAPSE';
 }
+
+/**
+ * Entrées d'un étage, d'une seule sorte à la fois : un départ fixe, des puits (on tombe dans
+ * l'un d'eux au hasard) ou des entrées entre lesquelles le joueur choisit en arrivant.
+ */
+export const TOWER_ENTRY_TYPES = ['START', 'WELL', 'ENTRANCE'] as const;
+export const TOWER_WELLS = { min: 2, max: 4 } as const;
+export const TOWER_ENTRANCES = { min: 2, max: 3 } as const;
+
+export function isEntryRoom(type: TowerRoomType): boolean {
+  return (TOWER_ENTRY_TYPES as readonly string[]).includes(type);
+}
+
+export function entryRooms(layout: Pick<TowerLayout, 'rooms'>): TowerRoom[] {
+  return layout.rooms.filter((room) => isEntryRoom(room.type));
+}
+
+/** Pas permis avant qu'un escalier ne s'effondre, et prix d'un péage. */
+export const TOWER_COLLAPSE_STEPS = { min: 3, max: 40, default: 10 } as const;
+export const TOWER_TOLL_GOLD = { min: 1, max: 10_000, default: 60 } as const;
 const FOE_NAME_MAX = 100;
 
 export type TowerRoom = {
@@ -101,6 +122,10 @@ export type TowerRoom = {
   powerReward: boolean;
   /** Nombre de vagues d'une épreuve. */
   waves: number;
+  /** Escalier qui s'effondre : pas permis sur l'étage avant l'effondrement. */
+  collapseSteps: number;
+  /** Péage : or à payer pour passer, sans quoi il faut forcer le passage. */
+  tollGold: number;
   /** Une épreuve réussie paie comme un gardien : soin de victoire et chance d'objet du gardien. Oui par défaut. */
   trialReward: boolean;
   /** Mécanique d'un gardien. */
@@ -172,18 +197,23 @@ export function roomNeighbors(layout: TowerLayout, id: string, cells = occupancy
   return [...found.values()];
 }
 
+/** Salle de départ, ou à défaut la première entrée : puits ou entrée au choix. */
 export function startRoom(layout: TowerLayout): TowerRoom | null {
-  return layout.rooms.find((room) => room.type === 'START') ?? null;
+  return layout.rooms.find((room) => room.type === 'START') ?? entryRooms(layout)[0] ?? null;
 }
 
-/** Distance en salles de chaque salle depuis le départ ; les salles injoignables sont absentes. */
+/**
+ * Distance en salles de chaque salle depuis l'entrée la plus proche ; les salles injoignables
+ * sont absentes. Toutes les entrées partent ensemble : un étage à puits se mesure depuis le
+ * plus proche.
+ */
 export function distancesFromStart(layout: TowerLayout): Map<string, number> {
-  const start = startRoom(layout);
+  const entries = entryRooms(layout);
   const distances = new Map<string, number>();
-  if (!start) return distances;
+  if (entries.length === 0) return distances;
   const cells = occupancy(layout);
-  const queue = [start.id];
-  distances.set(start.id, 0);
+  const queue = entries.map((room) => room.id);
+  for (const room of entries) distances.set(room.id, 0);
   while (queue.length > 0) {
     const current = queue.shift()!;
     for (const { room } of roomNeighbors(layout, current, cells)) {
@@ -193,6 +223,23 @@ export function distancesFromStart(layout: TowerLayout): Map<string, number> {
     }
   }
   return distances;
+}
+
+/** Salles à franchir d'une salle à une autre, en passant par l'étage ; `null` si injoignable. */
+export function roomDistance(layout: TowerLayout, fromId: string, toId: string): number | null {
+  const cells = occupancy(layout);
+  const distances = new Map<string, number>([[fromId, 0]]);
+  const queue = [fromId];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (current === toId) return distances.get(current)!;
+    for (const { room } of roomNeighbors(layout, current, cells)) {
+      if (distances.has(room.id)) continue;
+      distances.set(room.id, distances.get(current)! + 1);
+      queue.push(room.id);
+    }
+  }
+  return null;
 }
 
 /** Plus court chemin du départ jusqu'à la sortie de l'étage, en salles franchies. */
@@ -261,7 +308,7 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
       x,
       y,
       type,
-      foe: (type === 'MONSTER' || type === 'ELITE' || type === 'BOSS') && typeof cell.foe === 'string' && cell.foe.trim()
+      foe: (type === 'MONSTER' || type === 'ELITE' || type === 'BOSS' || type === 'COLLAPSE') && typeof cell.foe === 'string' && cell.foe.trim()
         ? cell.foe.trim().slice(0, FOE_NAME_MAX)
         : null,
       chest: TOWER_CHEST_KINDS.includes(cell.chest as TowerChestKind) ? (cell.chest as TowerChestKind) : 'BOTH',
@@ -270,13 +317,15 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
         ? cell.offers.filter((offer): offer is TowerOfferKind => TOWER_OFFER_KINDS.includes(offer as TowerOfferKind)).slice(0, TOWER_MERCHANT_OFFERS_MAX)
         : [...TOWER_OFFER_KINDS],
       pricePercent: clampInt(cell.pricePercent, TOWER_PRICE_PERCENT_RANGE, 100),
-      traits: (type === 'MONSTER' || type === 'ELITE' || type === 'BOSS') && Array.isArray(cell.traits)
+      traits: (type === 'MONSTER' || type === 'ELITE' || type === 'BOSS' || type === 'COLLAPSE' || type === 'AMBUSH') && Array.isArray(cell.traits)
         ? [...new Set(cell.traits.filter((trait): trait is TowerTrait => TOWER_TRAITS.includes(trait as TowerTrait)))].slice(0, TOWER_ROOM_TRAITS_MAX)
         : [],
       powerPercent: hasTowerPower(type) ? clampInt(cell.powerPercent, TOWER_POWER_PERCENT_RANGE, 100) : 100,
       powerReward: hasTowerPower(type) && cell.powerReward === true,
       waves: type === 'TRIAL' ? clampInt(cell.waves, TOWER_TRIAL_WAVES, TOWER_TRIAL_WAVES.default) : TOWER_TRIAL_WAVES.default,
       trialReward: type === 'TRIAL' && cell.trialReward !== false,
+      collapseSteps: clampInt(cell.collapseSteps, TOWER_COLLAPSE_STEPS, TOWER_COLLAPSE_STEPS.default),
+      tollGold: clampInt(cell.tollGold, TOWER_TOLL_GOLD, TOWER_TOLL_GOLD.default),
       mechanic: TOWER_MECHANIC_CHOICES.includes(cell.mechanic as TowerMechanicChoice) ? (cell.mechanic as TowerMechanicChoice) : 'RANDOM',
       event: TOWER_EVENT_CHOICES.includes(cell.event as TowerEventChoice) ? (cell.event as TowerEventChoice) : 'RANDOM',
       key: canHoldKey(type) && cell.key === true,
@@ -295,12 +344,24 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
   }
 
   const starts = rooms.filter((room) => room.type === 'START').length;
-  if (starts !== 1) return { ok: false, error: 'La carte doit avoir exactement une salle de départ.' };
+  const wells = rooms.filter((room) => room.type === 'WELL').length;
+  const entrances = rooms.filter((room) => room.type === 'ENTRANCE').length;
+  const entryKinds = [starts, wells, entrances].filter((count) => count > 0).length;
+  if (entryKinds !== 1) {
+    return { ok: false, error: 'Un étage a une seule sorte d\'entrée : un départ, des puits ou des entrées au choix, sans les mélanger.' };
+  }
+  if (starts > 1) return { ok: false, error: 'La carte doit avoir exactement une salle de départ.' };
+  if (wells > 0 && (wells < TOWER_WELLS.min || wells > TOWER_WELLS.max)) {
+    return { ok: false, error: `Un étage à puits en compte de ${TOWER_WELLS.min} à ${TOWER_WELLS.max} : le joueur tombe dans l'un d'eux au hasard.` };
+  }
+  if (entrances > 0 && (entrances < TOWER_ENTRANCES.min || entrances > TOWER_ENTRANCES.max)) {
+    return { ok: false, error: `Un étage à entrées au choix en compte de ${TOWER_ENTRANCES.min} à ${TOWER_ENTRANCES.max}.` };
+  }
   // Un étage a exactement une sortie : sans elle on ne pourrait pas monter, et avec deux on
   // mélangerait des mécanismes qui n'ont pas été pensés ensemble.
   const exits = rooms.filter((room) => isExitRoom(room.type));
   if (exits.length === 0) {
-    return { ok: false, error: 'Chaque étage doit avoir une sortie : un gardien, un escalier scellé ou un portail.' };
+    return { ok: false, error: 'Chaque étage doit avoir une sortie : un gardien, un escalier scellé, un portail, un escalier ouvert, un escalier qui s\'effondre ou un péage.' };
   }
   if (exits.length > 1) return { ok: false, error: 'Un étage n\'a qu\'une seule sortie : retirez les sorties en trop.' };
   const exit = exits[0].type;
@@ -384,7 +445,8 @@ export function towerLayoutKey(layout: Pick<TowerLayout, 'width' | 'height' | 'r
 export function newTowerRoom(x: number, y: number, type: TowerRoomType, extra: Partial<TowerRoom> = {}): TowerRoom {
   return {
     id: roomId(x, y), x, y, type, foe: null, chest: 'BOTH', healPercent: 35, offers: [...TOWER_OFFER_KINDS], pricePercent: 100,
-    traits: [], powerPercent: 100, powerReward: false, waves: TOWER_TRIAL_WAVES.default, trialReward: true, mechanic: 'RANDOM', event: 'RANDOM', key: false, ...extra,
+    traits: [], powerPercent: 100, powerReward: false, waves: TOWER_TRIAL_WAVES.default, trialReward: true,
+    collapseSteps: TOWER_COLLAPSE_STEPS.default, tollGold: TOWER_TOLL_GOLD.default, mechanic: 'RANDOM', event: 'RANDOM', key: false, ...extra,
   };
 }
 

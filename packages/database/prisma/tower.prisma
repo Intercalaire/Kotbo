@@ -59,6 +59,8 @@ model RpgTowerConfig {
 
   /// Prix en éclats d'une compétence du RPG, achetée pour une seule ascension.
   skillPrice    Int     @default(10)
+  /// Réserve d'or de la source commune, remplie et bue par tous les joueurs du serveur.
+  fountainGold  Int     @default(0)
 
   /// Ascension du jour : même graine pour tous, stats égales, une tentative par jour.
   dailyEnabled      Boolean @default(false)
@@ -185,6 +187,10 @@ model RpgTowerRun {
   /// dashboard ne compte que les morts d'un étage resté tel quel depuis.
   deathRoom     String?
   deathFloorKey String?
+  /// Fantôme : la meilleure pièce portée à la mort, que le premier joueur à vaincre la même
+  /// salle récupère. `ghostClaimedBy` : qui l'a prise.
+  ghostGear      Json?
+  ghostClaimedBy String?
 
   startedAt    DateTime  @default(now())
   lastActionAt DateTime  @default(now())

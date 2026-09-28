@@ -740,6 +740,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     COINS_SPENT: m.eco_quest_obj_coins_spent,
     ADVENTURES_COMPLETED: m.eco_quest_obj_adventures,
     DAILY_CLAIMS: m.eco_quest_obj_daily,
+    TOWER_FLOORS: m.eco_quest_obj_tower_floors,
   };
 
   function questObjectiveLabel(objective: string): string {

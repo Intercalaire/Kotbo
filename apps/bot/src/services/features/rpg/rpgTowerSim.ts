@@ -130,6 +130,9 @@ function chooseAction(state: TowerState, rng: TowerRng): TowerAction {
     case 'EVENT': return { type: 'event', index: 1 };
     case 'MERCENARY': return { type: 'hire' };
     case 'MENTOR': return { type: 'learn', index: 0 };
+    case 'ENTRY': return { type: 'door', index: rng.int(Math.max(1, state.map?.entryChoices?.length ?? 1)) };
+    case 'TOLL': return { type: 'pay' };
+    case 'FOUNTAIN': return state.hp < max * 0.6 ? { type: 'drink' } : { type: 'leave_shop' };
     default: return { type: 'leave_shop' };
   }
 }
@@ -143,6 +146,9 @@ function fallback(state: TowerState): TowerAction {
     // L'option prudente peut être impossible (potions pleines à la source) : l'autre, alors.
     case 'EVENT': return { type: 'event', index: 0 };
     case 'DOORS': return { type: 'door', index: 0 };
+    case 'ENTRY': return { type: 'door', index: 0 };
+    // Trop pauvre pour le péage : on force le passage.
+    case 'TOLL': return { type: 'force' };
     default: return { type: 'leave_shop' };
   }
 }

@@ -13,7 +13,7 @@
 import { createCanvas, type SKRSContext2D } from '@napi-rs/canvas';
 import { logger } from '../../../utils/logger.js';
 import { canvasFont, ensureCanvasFonts } from '../../../utils/canvasFonts.js';
-import { hasTowerPower, occupancy, roomCells, type TowerLayout, type TowerRoomType } from './rpgTowerMap.js';
+import { hasTowerPower, isEntryRoom, occupancy, roomCells, type TowerLayout, type TowerRoomType } from './rpgTowerMap.js';
 
 export const TOWER_IMAGE_FILENAME = 'tour.png';
 
@@ -37,10 +37,17 @@ const C = {
 
 const ROOM_COLOR: Record<TowerRoomType, string> = {
   START: '#94a3b8',
+  WELL: '#64748b',
+  ENTRANCE: '#94a3b8',
+  COLLAPSE: '#fb923c',
+  TOLL: '#facc15',
+  FOUNTAIN: '#38bdf8',
+  AMBUSH: '#94a3b8',
   MONSTER: '#ef4444',
   ELITE: '#a855f7',
   BOSS: '#f59e0b',
   STAIRS: '#22d3ee',
+  EXIT: '#34d399',
   TRIAL: '#f43f5e',
   GATE: '#c084fc',
   SEAL: '#a78bfa',
@@ -230,6 +237,83 @@ function glyph(ctx: SKRSContext2D, type: TowerRoomType, cx: number, cy: number, 
       ctx.stroke();
       break;
     }
+    case 'WELL': {
+      // Un trou : deux cercles, le fond plus sombre.
+      ctx.beginPath();
+      ctx.arc(cx, cy, s * 0.75, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, s * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'ENTRANCE': {
+      // Une porte et la flèche qui y entre.
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.6, cy + s * 0.8);
+      ctx.lineTo(cx - s * 0.6, cy - s * 0.1);
+      ctx.arc(cx, cy - s * 0.1, s * 0.6, Math.PI, 0);
+      ctx.lineTo(cx + s * 0.6, cy + s * 0.8);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - s * 0.4);
+      ctx.lineTo(cx, cy + s * 0.4);
+      ctx.moveTo(cx - s * 0.25, cy + s * 0.15);
+      ctx.lineTo(cx, cy + s * 0.4);
+      ctx.lineTo(cx + s * 0.25, cy + s * 0.15);
+      ctx.stroke();
+      break;
+    }
+    case 'COLLAPSE': {
+      // Des marches fendues.
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.8, cy + s * 0.7);
+      ctx.lineTo(cx - s * 0.8, cy + s * 0.2);
+      ctx.lineTo(cx - s * 0.25, cy + s * 0.2);
+      ctx.lineTo(cx - s * 0.25, cy - s * 0.25);
+      ctx.lineTo(cx + s * 0.3, cy - s * 0.25);
+      ctx.lineTo(cx + s * 0.3, cy - s * 0.7);
+      ctx.lineTo(cx + s * 0.8, cy - s * 0.7);
+      ctx.lineTo(cx + s * 0.8, cy + s * 0.7);
+      ctx.closePath();
+      ctx.fill();
+      ctx.save();
+      ctx.strokeStyle = C.floor;
+      ctx.lineWidth = Math.max(1.5, s * 0.12);
+      ctx.beginPath();
+      ctx.moveTo(cx + s * 0.1, cy - s * 0.9);
+      ctx.lineTo(cx - s * 0.1, cy - s * 0.2);
+      ctx.lineTo(cx + s * 0.15, cy + s * 0.2);
+      ctx.lineTo(cx - s * 0.05, cy + s * 0.8);
+      ctx.stroke();
+      ctx.restore();
+      break;
+    }
+    case 'TOLL': {
+      // Une pièce.
+      ctx.beginPath();
+      ctx.arc(cx, cy, s * 0.7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.save();
+      ctx.strokeStyle = C.floor;
+      ctx.lineWidth = Math.max(1.5, s * 0.14);
+      ctx.beginPath();
+      ctx.arc(cx, cy, s * 0.4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+      break;
+    }
+    case 'FOUNTAIN': {
+      // Une goutte.
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - s * 0.85);
+      ctx.quadraticCurveTo(cx + s * 0.75, cy + s * 0.05, cx + s * 0.55, cy + s * 0.45);
+      ctx.arc(cx, cy + s * 0.3, s * 0.58, 0.25, Math.PI - 0.25);
+      ctx.quadraticCurveTo(cx - s * 0.75, cy + s * 0.05, cx, cy - s * 0.85);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    }
     case 'MONSTER': {
       for (const dir of [1, -1]) {
         ctx.beginPath();
@@ -298,6 +382,20 @@ function glyph(ctx: SKRSContext2D, type: TowerRoomType, cx: number, cy: number, 
       ctx.stroke();
       ctx.beginPath();
       ctx.arc(cx, cy, s * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'EXIT': {
+      // Flèche qui monte : on passe sans rien avoir à ouvrir.
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - s * 0.8);
+      ctx.lineTo(cx + s * 0.7, cy);
+      ctx.lineTo(cx + s * 0.25, cy);
+      ctx.lineTo(cx + s * 0.25, cy + s * 0.75);
+      ctx.lineTo(cx - s * 0.25, cy + s * 0.75);
+      ctx.lineTo(cx - s * 0.25, cy);
+      ctx.lineTo(cx - s * 0.7, cy);
+      ctx.closePath();
       ctx.fill();
       break;
     }
@@ -628,19 +726,19 @@ function renderMap(input: TowerMapImage): Buffer {
   for (const room of layout.rooms) {
     if (!seen(room.id)) continue;
     const span = room.type === 'BOSS' ? 2 : 1;
-    // Une mimique se dessine en coffre : rien ne la trahit avant qu'on l'ouvre.
-    const shown: TowerRoomType = room.type === 'MIMIC' ? 'CHEST' : room.type;
+    // Une mimique se dessine en coffre, une embuscade en couloir : rien ne les trahit avant.
+    const shown: TowerRoomType = room.type === 'MIMIC' ? 'CHEST' : room.type === 'AMBUSH' ? 'EMPTY' : room.type;
     const x = gx + room.x * tile + inset;
     const y = gy + room.y * tile + inset;
     const size = span * tile - inset * 2;
     const color = ROOM_COLOR[shown];
-    const cleared = input.cleared.includes(room.id) && room.type !== 'START';
+    const cleared = input.cleared.includes(room.id) && !isEntryRoom(room.type);
 
     roundRect(ctx, x, y, size, size, span === 2 ? 12 : 7);
     ctx.fillStyle = C.floor;
     ctx.fill();
     ctx.save();
-    ctx.globalAlpha = cleared ? 0.12 : room.type === 'EMPTY' ? 0.14 : 0.3;
+    ctx.globalAlpha = cleared ? 0.12 : shown === 'EMPTY' ? 0.14 : 0.3;
     ctx.fillStyle = color;
     ctx.fill();
     ctx.restore();
@@ -666,14 +764,15 @@ function renderMap(input: TowerMapImage): Buffer {
       checkMark(ctx, cx, cy, size * 0.42);
     } else {
       ctx.save();
-      ctx.globalAlpha = room.type === 'EMPTY' ? 0.5 : 1;
+      ctx.globalAlpha = shown === 'EMPTY' ? 0.5 : 1;
       glyph(ctx, shown, cx, cy, size * (span === 2 ? 0.42 : 0.55), color);
       ctx.restore();
       const badge = input.badges?.[room.id] ?? 0;
       if (badge > 0) drawBadge(ctx, x + size - 2, y + 2, Math.max(7, tile * 0.16), badge);
       if (input.keys?.includes(room.id)) drawKey(ctx, x + 3, y + size - 3, Math.max(8, tile * 0.2));
       const power = room.powerPercent ?? 100;
-      if (power !== 100 && hasTowerPower(room.type)) {
+      // Une embuscade renforcée ne s'annonce pas plus qu'une autre.
+      if (power !== 100 && hasTowerPower(room.type) && room.type !== 'AMBUSH') {
         drawPower(ctx, x + size - 2, y + size - 2, Math.max(9, Math.round(tile * 0.2)), power);
       }
     }
@@ -690,7 +789,8 @@ function renderMap(input: TowerMapImage): Buffer {
     }
   }
 
-  const here = layout.rooms.find((room) => room.id === input.pos);
+  // Pas de pion tant que le joueur n'est pas entré : devant les entrées au choix, il n'est nulle part.
+  const here = layout.rooms.find((room) => room.id === input.pos && input.cleared.includes(room.id));
   if (here) {
     const span = here.type === 'BOSS' ? 2 : 1;
     pawn(ctx, gx + (here.x + span / 2) * tile, gy + (here.y + span / 2) * tile, tile * 0.55);

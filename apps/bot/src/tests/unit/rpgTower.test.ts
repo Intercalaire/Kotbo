@@ -812,6 +812,13 @@ describe('sorties d\'étage', () => {
     expect(step.floor).toBe(2);
   });
 
+  test('l\'escalier ouvert fait monter sans clé, sceau ni gardien', () => {
+    expect(normalizeTowerLayout({ width: 4, height: 4, rooms: [room(0, 0, 'START'), room(1, 0, 'EXIT'), room(0, 1, 'ELITE', { key: true })] }).ok).toBe(false);
+    const step = go(begin([room(0, 0, 'START'), room(1, 0, 'EXIT')]), 'EXIT');
+    expect(step.floor).toBe(2);
+    expect(step.state.notice).toMatchObject({ k: 'exit', exit: 'EXIT' });
+  });
+
   // Une épreuve au bout d'un embranchement, le gardien plus loin.
   const WITH_TRIAL = (extra: Record<string, unknown> = {}) => [room(0, 0, 'START'), room(1, 0, 'TRIAL', extra), room(0, 1, 'EMPTY'), room(0, 2, 'BOSS')];
 
@@ -974,6 +981,90 @@ describe('achats, chaleur, mentor et combat automatique', () => {
     expect(learned.state.skills.map((skill) => skill.id)).toEqual(['bolt']);
     expect(learned.state.skillPool).toEqual([]);
     expect(learned.state.gold).toBeLessThan(500);
+  });
+
+  test('un fantôme laisse son équipement au premier qui remporte la salle', () => {
+    const state = start([room(0, 0, 'START'), room(1, 0, 'MONSTER'), room(0, 1, 'EMPTY'), room(0, 2, 'BOSS')]);
+    const gear = { slot: 'weapon' as const, name: 'Lame du disparu', emoji: '', rarity: 'EPIC' as const, attack: 40, defense: 0, speed: 0, maxHealth: 0, critChance: 0, lifesteal: 0, thorns: 0, armorPiercing: 0 };
+    state.map!.ghosts = [{ roomId: '1-0', userId: '42', runId: 'run-1', gear }];
+    let step = move(state, 'MONSTER');
+    for (let turn = 0; turn < 50 && step.state.phase === 'COMBAT'; turn++) step = applyTowerAction(step.state, 1, { type: 'attack' }, RULES, FOES);
+    expect(step.state.pendingLoot?.name).toBe('Lame du disparu');
+    expect(step.state.ghostTaken).toBe('run-1');
+    expect(step.state.map?.ghosts).toEqual([]);
+    expect(step.state.notice).toMatchObject({ k: 'victory', ghost: '42' });
+  });
+
+  test('une seule sorte d\'entrée par étage, en nombre permis', () => {
+    const ok = (rooms: ReturnType<typeof room>[]) => normalizeTowerLayout({ width: 4, height: 4, rooms }).ok;
+    expect(ok([room(0, 0, 'WELL'), room(1, 0, 'WELL'), room(2, 0, 'EXIT')])).toBe(true);
+    expect(ok([room(0, 0, 'WELL'), room(1, 0, 'EXIT')])).toBe(false);
+    expect(ok([room(0, 0, 'START'), room(1, 0, 'WELL'), room(2, 0, 'WELL'), room(3, 0, 'EXIT')])).toBe(false);
+    expect(ok([room(0, 0, 'ENTRANCE'), room(1, 0, 'ENTRANCE'), room(2, 0, 'EXIT')])).toBe(true);
+  });
+
+  test('on tombe dans l\'un des puits', () => {
+    const state = start([room(0, 0, 'WELL'), room(1, 0, 'EMPTY'), room(2, 0, 'WELL'), room(3, 0, 'EXIT')]);
+    expect(['0-0', '2-0']).toContain(state.map!.pos);
+    expect(state.map!.cleared).toEqual([state.map!.pos]);
+  });
+
+  test('devant les entrées au choix, le joueur choisit avant d\'entrer', () => {
+    const state = start([room(0, 0, 'ENTRANCE'), room(1, 0, 'EMPTY'), room(2, 0, 'ENTRANCE'), room(3, 0, 'EXIT')]);
+    expect(state.phase).toBe('ENTRY');
+    expect(state.map!.cleared).toEqual([]);
+    const chosen = applyTowerAction(state, 1, { type: 'door', index: 1 }, RULES, FOES);
+    expect(chosen.state.phase).toBe('DOORS');
+    expect(chosen.state.map!.pos).toBe('2-0');
+    expect(chosen.state.moves.some((candidate) => candidate.type === 'EXIT')).toBe(true);
+  });
+
+  test('une embuscade frappe avant le combat, sans achever', () => {
+    const step = move(start([room(0, 0, 'START'), room(1, 0, 'AMBUSH'), room(2, 0, 'EXIT')]), 'AMBUSH');
+    expect(step.state.phase).toBe('COMBAT');
+    expect(step.state.notice).toMatchObject({ k: 'ambush' });
+    expect(step.state.hp).toBeLessThan(STRONG.maxHealth);
+  });
+
+  test('l\'escalier fragile fait monter à temps, puis cède la place à un gardien', () => {
+    const rooms = [room(0, 0, 'START'), room(1, 0, 'EMPTY'), room(0, 1, 'COLLAPSE', { collapseSteps: 3 })];
+    expect(move(start(rooms), 'COLLAPSE').floor).toBe(2);
+    let state = start(rooms);
+    for (let index = 0; index < 4; index++) state = move(move(state, 'EMPTY').state, 'START').state;
+    const late = move(state, 'COLLAPSE');
+    expect(late.floor).toBe(1);
+    expect(late.state.encounter?.kind).toBe('BOSS');
+    expect(late.state.notice).toMatchObject({ k: 'collapsed' });
+  });
+
+  test('le péage se paie, ou se force contre une élite', () => {
+    const rooms = [room(0, 0, 'START'), room(1, 0, 'TOLL', { tollGold: 50 })];
+    const rich = move(start(rooms, { gold: 80 }), 'TOLL');
+    expect(rich.state.phase).toBe('TOLL');
+    const paid = applyTowerAction(rich.state, 1, { type: 'pay' }, RULES, FOES);
+    expect(paid.floor).toBe(2);
+    expect(paid.state.gold).toBe(30);
+    const poor = move(start(rooms), 'TOLL');
+    expect(() => applyTowerAction(poor.state, 1, { type: 'pay' }, RULES, FOES)).toThrow(TowerActionRefused);
+    let forced = applyTowerAction(poor.state, 1, { type: 'force' }, RULES, FOES);
+    expect(forced.state.encounter?.opensExit).toBe(true);
+    for (let turn = 0; turn < 60 && forced.state.phase === 'COMBAT'; turn++) forced = applyTowerAction(forced.state, 1, { type: 'attack' }, RULES, FOES);
+    expect(forced.floor).toBe(2);
+  });
+
+  test('la source commune soigne en puisant dans la réserve, et reçoit l\'or versé', () => {
+    const rooms = [room(0, 0, 'START'), room(1, 0, 'FOUNTAIN'), room(2, 0, 'EXIT')];
+    const hurt = start(rooms, { gold: 100 });
+    hurt.hp = 10;
+    const visit = move(hurt, 'FOUNTAIN');
+    expect(visit.state.phase).toBe('FOUNTAIN');
+    expect(() => applyTowerAction({ ...visit.state, fountainPool: 0 }, 1, { type: 'drink' }, RULES, FOES)).toThrow(TowerActionRefused);
+    const drank = applyTowerAction({ ...visit.state, fountainPool: 500 }, 1, { type: 'drink' }, RULES, FOES);
+    expect(drank.state.hp).toBeGreaterThan(10);
+    expect(drank.state.fountainDelta).toBeLessThan(0);
+    const gave = applyTowerAction(visit.state, 1, { type: 'donate' }, RULES, FOES);
+    expect(gave.state.fountainDelta).toBeGreaterThan(0);
+    expect(gave.state.gold).toBeLessThan(100);
   });
 
   test('le simulateur joue des ascensions complètes sans planter', async () => {
