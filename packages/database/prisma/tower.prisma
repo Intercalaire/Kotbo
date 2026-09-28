@@ -181,6 +181,10 @@ model RpgTowerRun {
   roomsExplored Int     @default(0)
   /// Monstre qui a fait tomber le joueur.
   killedBy      String?
+  /// Salle de la mort et empreinte de son étage (voir `towerLayoutKey`) : la carte des morts du
+  /// dashboard ne compte que les morts d'un étage resté tel quel depuis.
+  deathRoom     String?
+  deathFloorKey String?
 
   startedAt    DateTime  @default(now())
   lastActionAt DateTime  @default(now())
@@ -191,5 +195,6 @@ model RpgTowerRun {
   @@index([profileId, status])
   @@index([guildId, userId, status])
   @@index([guildId, mode, dailyKey])
+  @@index([guildId, deathFloorKey])
   @@map("rpg_tower_runs")
 }

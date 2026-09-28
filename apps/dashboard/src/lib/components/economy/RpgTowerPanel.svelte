@@ -20,7 +20,9 @@
     resetRpgTower,
     saveRpgTowerReward,
     saveRpgTowerSettings,
+    simulateRpgTower,
     startRpgTowerSeason,
+    type RpgTowerSimResult,
   } from '../../api';
   import Papicon from '../Papicon.svelte';
   import EmojiPicker from '../EmojiPicker.svelte';
@@ -118,7 +120,7 @@
     topKillers: { name: string; deaths: number }[];
     deadliestFloor: { floor: number; deaths: number } | null;
   };
-  type Tab = 'general' | 'map' | 'shop' | 'merchant' | 'milestones' | 'leaderboard';
+  type Tab = 'general' | 'map' | 'shop' | 'merchant' | 'milestones' | 'leaderboard' | 'simulation';
 
   // Mêmes valeurs que `rpgTowerPolicy.ts` côté bot.
   const UPGRADE_EFFECTS: UpgradeEffect[] = ['POTION', 'HEALTH', 'ATTACK', 'DEFENSE', 'SPEED', 'CRIT', 'GOLD'];
@@ -197,6 +199,8 @@
   // Barre de progression du classement : chacun rapporté au premier.
   const topFloor = $derived(Math.max(1, leaderboard[0]?.bestFloor ?? 1));
   let foes = $state<{ name: string; emoji: string; isBoss: boolean; enabled: boolean }[]>([]);
+  // Morts par salle, pour chaque étage enregistré (clé : empreinte de l'étage).
+  let deathMap = $state<Record<string, Record<string, number>>>({});
   // Recrée l'éditeur après chaque chargement, pour qu'il reparte de la carte enregistrée.
   let mapVersion = $state(0);
   let titles = $state<{ id: string; name: string }[]>([]);
@@ -223,7 +227,43 @@
     { id: 'merchant', label: m.eco_tower_tab_merchant(), icon: 'ShoppingCart' },
     { id: 'milestones', label: m.eco_tower_tab_milestones(), icon: 'Trophy', badge: milestones.length || undefined },
     { id: 'leaderboard', label: m.eco_tower_tab_leaderboard(), icon: 'Medal' },
+    { id: 'simulation', label: m.eco_tower_tab_simulation(), icon: 'FlaskConical' },
   ]);
+
+  // ── Simulation d'équilibrage ────────────────────────────────────
+  const SIM_CLASSES = [
+    { id: 'WARRIOR', label: () => m.eco_tower_sim_class_warrior() },
+    { id: 'RANGER', label: () => m.eco_tower_sim_class_ranger() },
+    { id: 'MAGE', label: () => m.eco_tower_sim_class_mage() },
+  ];
+  // Mêmes malédictions et dans le même ordre que `TOWER_HEATS` côté bot.
+  const SIM_HEATS = [
+    { label: () => m.eco_tower_sim_heat_ferocious() },
+    { label: () => m.eco_tower_sim_heat_famine() },
+    { label: () => m.eco_tower_sim_heat_greed() },
+    { label: () => m.eco_tower_sim_heat_dry() },
+  ];
+  let simClass = $state('WARRIOR');
+  let simRuns = $state(50);
+  let simSkills = $state(false);
+  let simHeat = $state(0);
+  let simLoading = $state(false);
+  let simResult = $state<RpgTowerSimResult | null>(null);
+  let simError = $state<string | null>(null);
+  const simDeathsMax = $derived(Math.max(1, ...(simResult?.deathsByFloor ?? []).map((entry) => entry.deaths)));
+
+  async function runSimulation() {
+    simLoading = true;
+    simError = null;
+    try {
+      simResult = await simulateRpgTower({ className: simClass, runs: simRuns, skills: simSkills, heatMask: simHeat });
+    } catch (err) {
+      // Refus du serveur (simulation déjà en cours, délai entre deux) : son message dit pourquoi.
+      simError = err instanceof Error && err.message ? err.message : m.eco_tower_sim_failed();
+    } finally {
+      simLoading = false;
+    }
+  }
 
   function towerAttack(mainAttack: number): number {
     const inherited = settings.entryMode === 'COMPRESSED'
@@ -323,6 +363,7 @@
         if (res.stats) stats = res.stats;
         if (res.limits) limits = res.limits;
         foes = res.foes ?? [];
+        deathMap = res.deathMap ?? {};
         insights = res.insights ?? null;
         dailyBoard = res.daily?.leaderboard ?? [];
         mapVersion += 1;
@@ -831,6 +872,7 @@
           growthPercent={Number(settings.floorGrowthPercent) || 8}
           floorsAfter={settings.floorsAfter}
           {foes}
+          {deathMap}
           sizeLimits={limits.mapSize ?? { min: 3, max: 12 }}
           roomsMax={limits.mapRoomsMax ?? 100}
           onSaved={load}
@@ -1090,6 +1132,98 @@
               </ol>
             {/if}
           </div>
+        {/if}
+      </div>
+    {:else if tab === 'simulation'}
+      <div class={cardClass}>
+        <div class="border-b border-outline-variant/15 pb-4">
+          <h3 class="text-lg font-semibold flex items-center gap-2"><Papicon icon="FlaskConical" size={18} /> {m.eco_tower_sim_title()}</h3>
+          <p class="text-xs text-on-surface-variant/60 mt-1 leading-relaxed max-w-3xl">{m.eco_tower_sim_desc()}</p>
+        </div>
+
+        <div class="flex flex-wrap items-end gap-4">
+          <div class="space-y-1">
+            <span class={labelClass}>{m.eco_tower_sim_class()}</span>
+            <div class="flex gap-1.5">
+              {#each SIM_CLASSES as entry}
+                <button type="button" onclick={() => { simClass = entry.id; }}
+                  class="px-3 py-2 rounded-lg text-xs font-bold border {simClass === entry.id ? 'border-primary bg-primary/15' : 'border-outline-variant/15 hover:bg-outline-variant/10'}">{entry.label()}</button>
+              {/each}
+            </div>
+          </div>
+          <div class="space-y-1">
+            <span class={labelClass}>{m.eco_tower_sim_runs()}</span>
+            <div class="flex gap-1.5">
+              {#each [25, 50, 100, 200] as count}
+                <button type="button" onclick={() => { simRuns = count; }}
+                  class="px-3 py-2 rounded-lg text-xs font-bold border font-mono {simRuns === count ? 'border-primary bg-primary/15' : 'border-outline-variant/15 hover:bg-outline-variant/10'}">{count}</button>
+              {/each}
+            </div>
+          </div>
+          <div class="flex items-center gap-2 pb-2" title={m.eco_tower_sim_skills_tip()}>
+            <ToggleSwitch checked={simSkills} ariaLabel={m.eco_tower_sim_skills()} onToggle={(value: boolean) => { simSkills = value; }} />
+            <span class="text-xs font-semibold">{m.eco_tower_sim_skills()}</span>
+          </div>
+        </div>
+        <div class="space-y-1">
+          <span class={labelClass}>{m.eco_tower_sim_heat()}</span>
+          <div class="flex flex-wrap gap-1.5">
+            {#each SIM_HEATS as heat, index}
+              <button type="button" onclick={() => { simHeat ^= 1 << index; }}
+                class="px-3 py-1.5 rounded-lg text-xs font-bold border {(simHeat & (1 << index)) !== 0 ? 'border-error bg-error/15 text-error' : 'border-outline-variant/15 hover:bg-outline-variant/10'}">{heat.label()}</button>
+            {/each}
+          </div>
+        </div>
+        <button type="button" onclick={runSimulation} disabled={simLoading}
+          class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50">
+          <Papicon icon="FlaskConical" size={13} /> {simLoading ? m.eco_tower_sim_running() : m.eco_tower_sim_run()}
+        </button>
+        {#if simError}
+          <p class="text-xs text-error flex items-center gap-1.5"><Papicon icon="AlertTriangle" size={12} /> {simError}</p>
+        {/if}
+
+        {#if simResult}
+          <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {#each [
+              { label: m.eco_tower_sim_average(), value: simResult.averageFloor },
+              { label: m.eco_tower_sim_median(), value: simResult.medianFloor },
+              { label: m.eco_tower_sim_best(), value: simResult.bestFloor },
+              { label: m.eco_tower_sim_rooms(), value: simResult.averageRooms },
+              { label: m.eco_tower_sim_shards({ currency: settings.currencyName }), value: simResult.averageShards },
+            ] as stat}
+              <div class="bg-surface-container-high/30 border border-outline-variant/10 rounded-xl p-4">
+                <p class="text-2xs text-on-surface-variant/60">{stat.label}</p>
+                <p class="text-xl font-bold mt-1">{stat.value}</p>
+              </div>
+            {/each}
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div class="lg:col-span-2 bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-4 space-y-1.5">
+              <p class="text-xs font-semibold flex items-center gap-1.5"><Papicon icon="Skull" size={12} /> {m.eco_tower_sim_deaths_by_floor()}</p>
+              {#each simResult.deathsByFloor as entry}
+                <div class="flex items-center gap-2 text-2xs">
+                  <span class="w-16 shrink-0 text-on-surface-variant/70">{m.eco_tower_milestone_floor({ floor: entry.floor })}</span>
+                  <div class="flex-1 h-2.5 rounded-full bg-outline-variant/10 overflow-hidden"><div class="h-full bg-error/70" style="width: {(entry.deaths / simDeathsMax) * 100}%"></div></div>
+                  <span class="w-8 text-right font-mono">{entry.deaths}</span>
+                </div>
+              {:else}
+                <p class="text-2xs text-on-surface-variant/50">—</p>
+              {/each}
+            </div>
+            <div class="bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-4">
+              <p class="text-xs font-semibold flex items-center gap-1.5"><Papicon icon="Swords" size={12} /> {m.eco_tower_insight_killers()}</p>
+              <ol class="mt-2 space-y-0.5 text-xs">
+                {#each simResult.topKillers as killer}
+                  <li class="flex justify-between gap-2"><span class="truncate font-semibold">{killer.name}</span><span class="text-on-surface-variant/60">{killer.deaths}</span></li>
+                {:else}
+                  <li class="text-on-surface-variant/50">—</li>
+                {/each}
+              </ol>
+            </div>
+          </div>
+          {#if simResult.capped > 0}
+            <p class="text-2xs text-on-surface-variant/60 flex items-start gap-1.5"><Papicon icon="Info" size={11} /> {m.eco_tower_sim_capped({ count: simResult.capped })}</p>
+          {/if}
         {/if}
       </div>
     {/if}

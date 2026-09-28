@@ -37,8 +37,10 @@ import {
   type PanelView,
 } from '../rpgPanelService.js';
 import {
+  AUTO_STOP_HEALTH,
   TRIAL_WAVES,
   combatStats,
+  heatShardBonus,
   floorModifier,
   towerLevel,
   towerStats,
@@ -65,10 +67,18 @@ import {
   type TowerRoomType,
 } from './rpgTowerMap.js';
 import {
+  HEAT_FAMINE_HEAL,
+  HEAT_FOE_BOOST,
+  HEAT_GREED_PRICE,
+  HEAT_SHARD_BONUS,
+  TOWER_HEATS,
   blacksmithPrice,
+  heatsFromMask,
+  mentorPrice,
   mercenaryPrice,
   type TowerBossMechanic,
   type TowerEventId,
+  type TowerHeat,
   type TowerRelicPerk,
   type TowerTrait,
 } from './rpgTowerContent.js';
@@ -80,6 +90,7 @@ import {
   scrapValue,
   settleShards,
   towerRerollPrice,
+  towerSkillPrice,
   towerUpgradeCost,
   type TowerDoor,
   type TowerGear,
@@ -234,6 +245,7 @@ const ROOM_ICON: Record<TowerRoomType, string> = {
   // Une mimique se présente comme un coffre : rien ne la trahit avant qu'on l'ouvre.
   MIMIC: 'rpgChest',
   MERCENARY: 'rpgClan',
+  MENTOR: 'rpgXp',
   TRAP: 'warning',
   WARP_A: 'rpgTravel',
   WARP_B: 'rpgTravel',
@@ -261,6 +273,7 @@ const MINIMAP_GLYPH: Record<Exclude<TowerRoomType, 'MIMIC'>, string> = {
   WARP_A: 'Ａ',
   WARP_B: 'Ｂ',
   MERCENARY: 'Ｍ',
+  MENTOR: 'Ｌ',
   TRAP: '▲',
   EMPTY: '⬜',
 };
@@ -290,6 +303,7 @@ function roomLabel(type: TowerRoomType, locale: Locale): string {
     case 'WARP_A': return m.tower_room_warp_a({}, { locale });
     case 'WARP_B': return m.tower_room_warp_b({}, { locale });
     case 'MERCENARY': return m.tower_room_mercenary({}, { locale });
+    case 'MENTOR': return m.tower_room_mentor({}, { locale });
     case 'TRAP': return m.tower_room_trap({}, { locale });
     default: return m.tower_room_empty({}, { locale });
   }
@@ -313,6 +327,7 @@ function roomDescription(type: TowerRoomType, locale: Locale, waves: number = TR
     case 'WARP_A':
     case 'WARP_B': return m.tower_room_warp_desc({}, { locale });
     case 'MERCENARY': return m.tower_room_mercenary_desc({}, { locale });
+    case 'MENTOR': return m.tower_room_mentor_desc({}, { locale });
     case 'TRAP': return m.tower_room_trap_desc({}, { locale });
     default: return m.tower_room_empty_desc({}, { locale });
   }
@@ -785,6 +800,8 @@ function noticeLine(notice: TowerNotice | null, locale: Locale): string | null {
       ? m.tower_notice_trap_dodged({}, { locale })
       : m.tower_notice_trap({ hp: notice.dmg }, { locale })}`;
     case 'hired': return `${icon('rpgClan')} ${m.tower_notice_hired({ gold: notice.gold, coin: gold }, { locale })}`;
+    case 'learned': return `${icon('rpgXp')} ${m.tower_notice_learned({ emoji: notice.emoji, name: notice.name, gold: notice.gold, coin: gold }, { locale })}`;
+    case 'mentor_empty': return `${icon('rpgXp')} ${m.tower_notice_mentor_empty({}, { locale })}`;
     case 'event': return `${icon('rpgMap')} ${eventOutcome(notice, locale)}`;
   }
 }
@@ -815,6 +832,7 @@ export function towerRefusalText(refusal: TowerRefusal, config: TowerConfigView,
         case 'no_gear': return m.tower_refused_no_gear({}, { locale });
         case 'stairs_locked': return m.tower_refused_stairs_locked({}, { locale });
         case 'gate_locked': return m.tower_refused_gate_locked({}, { locale });
+        case 'no_auto': return m.tower_refused_no_auto({}, { locale });
         default: return m.tower_refused_stale({}, { locale });
       }
     }
@@ -951,7 +969,7 @@ export async function buildTowerHomeView(client: Client | null, guildId: string,
     [preview.className, preview.titleName ? m.tower_home_title({ title: preview.titleName }, { locale }) : null]
       .filter(Boolean).join(' · ') || null,
     m.tower_home_skills({ skills }, { locale }),
-    preview.skills.length > 0 ? `-# ${m.tower_home_skills_price({ price: config.skillPrice, emoji: shardIcon(config) }, { locale })}` : null,
+    preview.skills.length > 0 ? `-# ${m.tower_home_skills_price({ price: Math.min(...preview.skills.map((skill) => towerSkillPrice(config.skillPrice, skill))), emoji: shardIcon(config) }, { locale })}` : null,
     `${icon('rpgPotion')} ${m.tower_home_potions({ count: preview.potions }, { locale })}`,
     preview.gold > 0 ? `${icon('coins')} ${m.tower_home_gold({ count: preview.gold }, { locale })}` : null,
   ].filter((line): line is string => Boolean(line)).join('\n'));
@@ -1001,43 +1019,83 @@ function skillSummary(skill: TowerSkill, locale: Locale): string {
   ].filter(Boolean).join(' · ');
 }
 
+function heatName(heat: TowerHeat, locale: Locale): string {
+  switch (heat) {
+    case 'FEROCIOUS': return m.tower_heat_ferocious({}, { locale });
+    case 'FAMINE': return m.tower_heat_famine({}, { locale });
+    case 'GREED': return m.tower_heat_greed({}, { locale });
+    default: return m.tower_heat_dry({}, { locale });
+  }
+}
+
+function heatDescription(heat: TowerHeat, locale: Locale): string {
+  switch (heat) {
+    case 'FEROCIOUS': return m.tower_heat_ferocious_desc({ percent: Math.round((HEAT_FOE_BOOST - 1) * 100) }, { locale });
+    case 'FAMINE': return m.tower_heat_famine_desc({ percent: Math.round((1 - HEAT_FAMINE_HEAL) * 100) }, { locale });
+    case 'GREED': return m.tower_heat_greed_desc({ percent: Math.round((HEAT_GREED_PRICE - 1) * 100) }, { locale });
+    default: return m.tower_heat_dry_desc({}, { locale });
+  }
+}
+
 /**
  * Préparation d'une ascension : les compétences du RPG s'achètent en éclats, pour cette
- * ascension seulement. `mask` : compétences cochées (bit `i` pour la i-ème).
+ * ascension seulement, et la chaleur se choisit contre plus d'éclats. Les deux masques
+ * cochent une compétence ou une malédiction par bit.
  */
-export async function buildTowerPrepView(guildId: string, ownerId: string, locale: Locale, mask: number): Promise<PanelView> {
+export async function buildTowerPrepView(guildId: string, ownerId: string, locale: Locale, skillMask: number, heatMask: number): Promise<PanelView> {
   const [config, profile, preview] = await Promise.all([
     getTowerConfig(guildId),
     getOrCreateTowerProfile(guildId, ownerId),
     previewTowerEntry(guildId, ownerId),
   ]);
   const skills = preview.skills.slice(0, 10);
-  const valid = mask & ((1 << skills.length) - 1);
+  const valid = skillMask & ((1 << skills.length) - 1);
+  const heats = heatMask & ((1 << TOWER_HEATS.length) - 1);
   const chosen = skills.filter((_, index) => (valid & (1 << index)) !== 0);
-  const cost = chosen.length * config.skillPrice;
+  const cost = chosen.reduce((sum, skill) => sum + towerSkillPrice(config.skillPrice, skill), 0);
   const emoji = shardIcon(config);
+  const bonus = Math.round(HEAT_SHARD_BONUS * heatsFromMask(heats).length * 100);
 
   const container = new ContainerBuilder().setAccentColor(COLOR);
   textBlock(container, [
     header(config, m.tower_prep_title({}, { locale })),
-    m.tower_prep_desc({ price: config.skillPrice, emoji }, { locale }),
     `-# ${m.tower_prep_balance({ shards: profile.shards, emoji }, { locale })}`,
-    '',
-    ...skills.map((skill, index) => {
-      const on = (valid & (1 << index)) !== 0;
-      return `${on ? `${icon('success')} ` : ''}${skill.emoji} **${skill.name}**\n-# ${skillSummary(skill, locale)}`;
-    }),
   ].join('\n'));
+  if (skills.length > 0) {
+    textBlock(container, [
+      `### ${m.tower_prep_skills_title({}, { locale })}`,
+      m.tower_prep_desc({}, { locale }),
+      ...skills.map((skill, index) => {
+        const on = (valid & (1 << index)) !== 0;
+        const price = m.tower_prep_skill_price({ price: towerSkillPrice(config.skillPrice, skill), emoji, tier: skill.tier ?? 1 }, { locale });
+        return `${on ? `${icon('success')} ` : ''}${skill.emoji} **${skill.name}** · ${price}\n-# ${skillSummary(skill, locale)}`;
+      }),
+    ].join('\n'));
+  }
+  textBlock(container, [
+    `### ${m.tower_prep_heat_title({}, { locale })}`,
+    m.tower_prep_heat_desc({ percent: Math.round(HEAT_SHARD_BONUS * 100) }, { locale }),
+    ...TOWER_HEATS.map((heat, index) => {
+      const on = (heats & (1 << index)) !== 0;
+      return `${on ? `${icon('warning')} ` : ''}**${heatName(heat, locale)}** — ${heatDescription(heat, locale)}`;
+    }),
+    bonus > 0 ? `-# ${m.tower_prep_heat_bonus({ percent: bonus }, { locale })}` : null,
+  ].filter((line): line is string => line !== null).join('\n'));
 
+  const prep = (nextSkills: number, nextHeats: number) => `twr:prep:${ownerId}:${nextSkills}:${nextHeats}`;
   const toggles = skills.map((skill, index) => {
     const on = (valid & (1 << index)) !== 0;
-    return button(`twr:prep:${ownerId}:${valid ^ (1 << index)}`, skill.name, on ? ButtonStyle.Success : ButtonStyle.Secondary, skill.emoji || undefined);
+    return button(prep(valid ^ (1 << index), heats), skill.name, on ? ButtonStyle.Success : ButtonStyle.Secondary, skill.emoji || undefined);
   });
   const components: PanelRow[] = [];
   for (let index = 0; index < toggles.length; index += 5) components.push(row(...toggles.slice(index, index + 5)));
+  components.push(row(...TOWER_HEATS.map((heat, index) => {
+    const on = (heats & (1 << index)) !== 0;
+    return button(prep(valid, heats ^ (1 << index)), heatName(heat, locale), on ? ButtonStyle.Danger : ButtonStyle.Secondary, icon('warning'));
+  })));
   components.push(row(
     button(
-      `twr:go:${ownerId}:${valid}`,
+      `twr:go:${ownerId}:${valid}:${heats}`,
       cost > 0 ? m.tower_btn_enter_paid({ cost, currency: config.currencyName }, { locale }) : m.tower_btn_enter({}, { locale }),
       ButtonStyle.Primary,
       icon('rpgDoor'),
@@ -1085,6 +1143,9 @@ function statusBlock(state: TowerState, floor: number, config: TowerConfigView, 
     `${icon('coins')} ${state.gold} · ${icon('rpgPotion')} ${state.potions} · ${m.tower_run_shards({ shards: state.shards, emoji: shardIcon(config) }, { locale })}`,
     ...TOWER_GEAR_SLOTS.map((slot) => `-# ${icon(SLOT_ICON[slot])} ${slotLabel(slot, locale)} : ${state.gear[slot]?.name ?? '—'}`),
     blessings ? `-# ${m.tower_run_blessings({ list: blessings }, { locale })}` : null,
+    (state.heat ?? []).length > 0
+      ? `-# ${icon('warning')} ${m.tower_run_heat({ list: (state.heat ?? []).map((heat) => heatName(heat, locale)).join(', '), percent: Math.round((heatShardBonus(state) - 1) * 100) }, { locale })}`
+      : null,
     state.safeLeave ? `-# ${icon('success')} ${m.tower_run_safe({}, { locale })}` : null,
     floorModifier(state) !== 'NONE'
       ? `-# ${icon('rpgMap')} **${modifierName(floorModifier(state), locale)}** : ${modifierDescription(floorModifier(state), locale)}`
@@ -1198,6 +1259,10 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
       const maxHealth = towerStats(state).maxHealth;
       components.push(row(
         button(actId(ownerId, version, 'atk'), m.rpg_fight_btn_attack({}, { locale }), ButtonStyle.Primary, icon('rpgAtk')),
+        // Combat automatique : seulement contre un monstre ordinaire, et pas à PV bas.
+        ...(foe.kind === 'COMBAT'
+          ? [button(actId(ownerId, version, 'au'), m.tower_btn_auto({}, { locale }), ButtonStyle.Primary, icon('rpgNext'), state.hp < maxHealth * AUTO_STOP_HEALTH)]
+          : []),
         button(actId(ownerId, version, 'def'), m.rpg_fight_btn_defend({}, { locale }), foe.charging ? ButtonStyle.Success : ButtonStyle.Secondary, icon('rpgDef')),
         button(actId(ownerId, version, 'pot'), m.rpg_fight_btn_potion({ count: state.potions }, { locale }), ButtonStyle.Success, icon('rpgPotion'), state.potions === 0 || state.hp >= maxHealth),
         // On ne fuit ni un gardien ni une épreuve.
@@ -1231,6 +1296,7 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
         button(actId(ownerId, version, 'eq'), m.tower_btn_equip({}, { locale }), ButtonStyle.Success, icon('success')),
         button(actId(ownerId, version, 'ds'), m.tower_btn_scrap({ gold: scrapValue(level) }, { locale }), ButtonStyle.Secondary, icon('coins')),
       ));
+      components.push(runControls(ownerId, state, version, locale));
       break;
     }
 
@@ -1247,6 +1313,7 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
       ].join('\n'));
       components.push(row(...choices.map((blessing, index) =>
         button(actId(ownerId, version, `b${index}`), blessingName(blessing.id, locale), ButtonStyle.Primary, icon(blessing.icon)))));
+      components.push(runControls(ownerId, state, version, locale));
       break;
     }
 
@@ -1278,6 +1345,25 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
       ].join('\n'));
       components.push(row(
         button(actId(ownerId, version, 'hi'), m.tower_btn_hire({ price }, { locale }), ButtonStyle.Success, icon('rpgClan'), state.gold < price || state.ally === true),
+        button(actId(ownerId, version, 'ml'), m.tower_btn_leave_shop({}, { locale }), ButtonStyle.Secondary, icon('rpgDoor')),
+      ));
+      components.push(runControls(ownerId, state, version, locale));
+      break;
+    }
+
+    case 'MENTOR': {
+      const price = mentorPrice(level);
+      const offered = (state.mentor ?? [])
+        .map((id) => (state.skillPool ?? []).find((skill) => skill.id === id))
+        .filter((skill): skill is TowerSkill => Boolean(skill));
+      textBlock(container, [
+        `### ${icon('rpgXp')} ${m.tower_room_mentor({}, { locale })}`,
+        m.tower_mentor_desc({ price, coin: icon('coins') }, { locale }),
+        '',
+        ...offered.map((skill) => `${skill.emoji} **${skill.name}**\n-# ${skillSummary(skill, locale)}`),
+      ].join('\n'));
+      components.push(row(
+        ...offered.map((skill, index) => button(actId(ownerId, version, `l${index}`), skill.name, ButtonStyle.Success, skill.emoji || undefined, state.gold < price)),
         button(actId(ownerId, version, 'ml'), m.tower_btn_leave_shop({}, { locale }), ButtonStyle.Secondary, icon('rpgDoor')),
       ));
       components.push(runControls(ownerId, state, version, locale));
@@ -1565,6 +1651,7 @@ function parseActionCode(code: string): TowerAction | null {
   if (code === 'fl') return { type: 'flee' };
   if (code === 'rr') return { type: 'reroll' };
   if (code === 'hi') return { type: 'hire' };
+  if (code === 'au') return { type: 'auto' };
   if (code.startsWith('s-')) return { type: 'skill', id: code.slice(2) };
   const index = Number.parseInt(code.slice(1), 10);
   if (!Number.isInteger(index) || index < 0 || index > 4) return null;
@@ -1572,7 +1659,14 @@ function parseActionCode(code: string): TowerAction | null {
   if (code.startsWith('b')) return { type: 'bless', index };
   if (code.startsWith('m')) return { type: 'buy', index };
   if (code.startsWith('e')) return { type: 'event', index };
+  if (code.startsWith('l')) return { type: 'learn', index };
   return null;
+}
+
+/** Masque de choix lu dans un identifiant de bouton ; absent ou illisible : rien de coché. */
+function mask(value: string | undefined): number {
+  const parsed = Number.parseInt(value ?? '0', 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
 }
 
 /** Écran courant : la partie en cours s'il y en a une, sinon l'accueil. */
@@ -1609,20 +1703,11 @@ export async function handleTowerButton(client: Client, customId: string, intera
     switch (action) {
       case 'home': await respond(interaction, await buildTowerHomeView(client, guildId, ownerId, locale)); return;
       case 'run': await respond(interaction, await currentView(client, guildId, ownerId, locale)); return;
-      case 'enter': {
-        // Des compétences à acheter : on passe par la préparation, sinon on entre tout de suite.
-        const preview = await previewTowerEntry(guildId, ownerId);
-        if (preview.skills.length > 0) {
-          await respond(interaction, await buildTowerPrepView(guildId, ownerId, locale, 0));
-          return;
-        }
-        const active = await startTowerRun(client, guildId, ownerId);
-        await respond(interaction, await buildTowerRunView(guildId, ownerId, locale, active));
-        return;
-      }
-      case 'prep': await respond(interaction, await buildTowerPrepView(guildId, ownerId, locale, Number.parseInt(rest[0] ?? '0', 10) || 0)); return;
+      // Toute ascension passe par la préparation : compétences à acheter et chaleur à choisir.
+      case 'enter': await respond(interaction, await buildTowerPrepView(guildId, ownerId, locale, 0, 0)); return;
+      case 'prep': await respond(interaction, await buildTowerPrepView(guildId, ownerId, locale, mask(rest[0]), mask(rest[1]))); return;
       case 'go': {
-        const active = await startTowerRun(client, guildId, ownerId, { skillMask: Number.parseInt(rest[0] ?? '0', 10) || 0 });
+        const active = await startTowerRun(client, guildId, ownerId, { skillMask: mask(rest[0]), heatMask: mask(rest[1]) });
         await respond(interaction, await buildTowerRunView(guildId, ownerId, locale, active));
         return;
       }

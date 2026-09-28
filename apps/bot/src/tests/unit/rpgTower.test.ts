@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { simulateTowerRuns } from '../../services/features/rpg/rpgTowerSim.js';
 import {
   TOWER_BASE_STATS,
   TowerRng,
@@ -18,6 +19,8 @@ import {
   TOWER_GROWTH_KNEE,
   towerDailySeed,
   towerSkill,
+  towerSkillPrice,
+  towerSkillTier,
   towerDayKey,
   towerDodgeChance,
   towerFloorGrowth,
@@ -929,5 +932,56 @@ describe('mimiques, mercenaires, pièges et ambiances', () => {
     blessed.hp = 1000;
     const potion = applyTowerAction(blessed, 1, { type: 'potion' }, RULES, FOES);
     expect(potion.state.hp).toBe(1000 + Math.floor(STRONG.maxHealth * 0.35 * 1.25));
+  });
+});
+
+describe('achats, chaleur, mentor et combat automatique', () => {
+  const room = (x: number, y: number, type: string, extra: Record<string, unknown> = {}) => ({ x, y, type, ...extra });
+  const SKILL = { id: 'bolt', name: 'Éclair', emoji: '', cooldownTurns: 3, effect: { damageMultiplier: 1.5 }, tier: 1 };
+  const start = (rooms: ReturnType<typeof room>[], extra: { gold?: number; heat?: ('FEROCIOUS' | 'FAMINE' | 'GREED' | 'DRY')[]; skillPool?: typeof SKILL[] } = {}) => {
+    const layout = normalizeTowerLayout({ width: 4, height: 4, rooms });
+    if (!layout.ok) throw new Error(layout.error);
+    return createTowerState({ base: { ...STRONG, speed: 100 }, skills: [], potions: 2, seed: 7, rules: RULES, layout: layout.value, ...extra });
+  };
+  const move = (state: ReturnType<typeof start>, type: string) =>
+    applyTowerAction(state, 1, { type: 'door', index: state.moves.findIndex((candidate) => candidate.type === type) }, RULES, FOES);
+
+  test('une compétence coûte plus cher au bout de l\'arbre', () => {
+    expect(towerSkillTier({ id: 'mag_hemorrhage', levelRequired: 23 })).toBe(4);
+    expect(towerSkillTier({ id: 'fireball', levelRequired: 5 })).toBe(1);
+    expect(towerSkillTier({ id: 'second', levelRequired: 12 })).toBe(2);
+    expect(towerSkillPrice(10, { ...SKILL, tier: 4 })).toBe(30);
+    expect(towerSkillPrice(10, { ...SKILL, tier: 1 })).toBe(10);
+  });
+
+  test('la sécheresse fait partir sans potion', () => {
+    expect(start([room(0, 0, 'START'), room(1, 0, 'BOSS')], { heat: ['DRY'] }).potions).toBe(0);
+  });
+
+  test('le combat automatique vainc un monstre ordinaire, jamais une élite', () => {
+    const fighting = move(start([room(0, 0, 'START'), room(1, 0, 'MONSTER'), room(0, 1, 'ELITE'), room(2, 2, 'BOSS'), room(1, 1, 'EMPTY'), room(1, 2, 'EMPTY')]), 'MONSTER');
+    const done = applyTowerAction(fighting.state, 1, { type: 'auto' }, RULES, FOES);
+    expect(done.state.phase).not.toBe('COMBAT');
+    const elite = move(start([room(0, 0, 'START'), room(0, 1, 'ELITE'), room(1, 0, 'EMPTY'), room(2, 0, 'BOSS')]), 'ELITE');
+    expect(() => applyTowerAction(elite.state, 1, { type: 'auto' }, RULES, FOES)).toThrow(TowerActionRefused);
+  });
+
+  test('le mentor enseigne contre de l\'or une compétence laissée au départ', () => {
+    const state = start([room(0, 0, 'START'), room(1, 0, 'MENTOR'), room(0, 1, 'EMPTY'), room(0, 2, 'BOSS')], { gold: 500, skillPool: [SKILL] });
+    const visit = move(state, 'MENTOR');
+    expect(visit.state.phase).toBe('MENTOR');
+    const learned = applyTowerAction(visit.state, 1, { type: 'learn', index: 0 }, RULES, FOES);
+    expect(learned.state.skills.map((skill) => skill.id)).toEqual(['bolt']);
+    expect(learned.state.skillPool).toEqual([]);
+    expect(learned.state.gold).toBeLessThan(500);
+  });
+
+  test('le simulateur joue des ascensions complètes sans planter', async () => {
+    const result = await simulateTowerRuns({
+      base: STRONG, skills: [], potions: 2, rules: RULES, foes: FOES, floors: [], floorsAfter: 'GENERATE',
+      generatedFog: true, heat: [], deathShardPercent: 50, runs: 3, seed: 42,
+    });
+    expect(result.runs).toBe(3);
+    expect(result.averageFloor).toBeGreaterThanOrEqual(0);
   });
 });

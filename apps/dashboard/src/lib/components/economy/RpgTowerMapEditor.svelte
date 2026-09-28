@@ -19,7 +19,7 @@
   import ToggleSwitch from '../ToggleSwitch.svelte';
 
   type RoomType = 'START' | 'MONSTER' | 'ELITE' | 'BOSS' | 'STAIRS' | 'TRIAL' | 'GATE' | 'SEAL'
-    | 'CHEST' | 'MIMIC' | 'CAMPFIRE' | 'MERCHANT' | 'MERCENARY' | 'SHRINE' | 'EVENT' | 'TRAP' | 'WARP_A' | 'WARP_B' | 'EMPTY';
+    | 'CHEST' | 'MIMIC' | 'CAMPFIRE' | 'MERCHANT' | 'MERCENARY' | 'MENTOR' | 'SHRINE' | 'EVENT' | 'TRAP' | 'WARP_A' | 'WARP_B' | 'EMPTY';
   type Modifier = 'NONE' | 'FLOODED' | 'BURNING' | 'BLESSED';
   type Category = 'ENTRY' | 'MONSTERS' | 'EXITS' | 'OTHER';
   type Trait = 'ARMORED' | 'VAMPIRIC' | 'SWIFT' | 'THORNY' | 'BERSERK' | 'REGENERATING';
@@ -55,6 +55,7 @@
     disabled = false,
     initialFloors = [],
     foes = [],
+    deathMap = {},
     sizeLimits = { min: 3, max: 12 },
     roomsMax = 100,
     floorsMax = 12,
@@ -66,6 +67,7 @@
     disabled?: boolean;
     initialFloors?: Layout[];
     foes?: Foe[];
+    deathMap?: Record<string, Record<string, number>>;
     sizeLimits?: { min: number; max: number };
     roomsMax?: number;
     floorsMax?: number;
@@ -80,7 +82,7 @@
   const CRENEL = 22;
   const ROOM_TYPES: RoomType[] = [
     'START', 'MONSTER', 'ELITE', 'MIMIC', 'BOSS', 'STAIRS', 'TRIAL', 'GATE', 'SEAL',
-    'CHEST', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY',
+    'CHEST', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'MENTOR', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY',
   ];
   // Ambiances d'étage (miroir de `TOWER_FLOOR_MODIFIERS`).
   const MODIFIERS: Modifier[] = ['NONE', 'FLOODED', 'BURNING', 'BLESSED'];
@@ -94,7 +96,7 @@
     { id: 'ENTRY', icon: 'LogIn', types: ['START'] },
     { id: 'MONSTERS', icon: 'Swords', types: ['MONSTER', 'ELITE', 'TRIAL', 'MIMIC'] },
     { id: 'EXITS', icon: 'Flag', types: ['BOSS', 'STAIRS', 'GATE', 'SEAL'] },
-    { id: 'OTHER', icon: 'LayoutGrid', types: ['CHEST', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY'] },
+    { id: 'OTHER', icon: 'LayoutGrid', types: ['CHEST', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'MENTOR', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY'] },
   ];
   // Mêmes valeurs que `rpgTowerContent.ts` côté bot.
   const TRAITS: Trait[] = ['ARMORED', 'VAMPIRIC', 'SWIFT', 'THORNY', 'BERSERK', 'REGENERATING'];
@@ -109,13 +111,13 @@
     START: 'DoorOpen', MONSTER: 'Swords', ELITE: 'Skull', BOSS: 'Crown', CHEST: 'PackageOpen',
     CAMPFIRE: 'Flame', MERCHANT: 'ShoppingCart', SHRINE: 'Sparkles', EVENT: 'HelpCircle', EMPTY: 'Square',
     STAIRS: 'ArrowUpCircle', TRIAL: 'Hourglass', GATE: 'Flag', SEAL: 'Target', WARP_A: 'Zap', WARP_B: 'Zap',
-    MIMIC: 'Ghost', MERCENARY: 'UserPlus', TRAP: 'AlertTriangle',
+    MIMIC: 'Ghost', MERCENARY: 'UserPlus', MENTOR: 'BookOpen', TRAP: 'AlertTriangle',
   };
   const COLOR: Record<RoomType, string> = {
     START: '#64748b', MONSTER: '#ef4444', ELITE: '#a855f7', BOSS: '#f59e0b', CHEST: '#eab308',
     CAMPFIRE: '#f97316', MERCHANT: '#10b981', SHRINE: '#38bdf8', EVENT: '#e879f9', EMPTY: '#94a3b8',
     STAIRS: '#22d3ee', TRIAL: '#f43f5e', GATE: '#c084fc', SEAL: '#a78bfa', WARP_A: '#2dd4bf', WARP_B: '#14b8a6',
-    MIMIC: '#ca8a04', MERCENARY: '#84cc16', TRAP: '#dc2626',
+    MIMIC: '#ca8a04', MERCENARY: '#84cc16', MENTOR: '#f472b6', TRAP: '#dc2626',
   };
   const OFFERS: OfferKind[] = ['POTION', 'HEAL', 'GEAR'];
 
@@ -138,6 +140,7 @@
       case 'WARP_B': return m.eco_tower_room_warp_b();
       case 'MIMIC': return m.eco_tower_room_mimic();
       case 'MERCENARY': return m.eco_tower_room_mercenary();
+      case 'MENTOR': return m.eco_tower_room_mentor();
       case 'TRAP': return m.eco_tower_room_trap();
       default: return m.eco_tower_room_empty();
     }
@@ -162,6 +165,7 @@
       case 'WARP_B': return m.eco_tower_room_warp_tip();
       case 'MIMIC': return m.eco_tower_room_mimic_tip();
       case 'MERCENARY': return m.eco_tower_room_mercenary_tip();
+      case 'MENTOR': return m.eco_tower_room_mentor_tip();
       case 'TRAP': return m.eco_tower_room_trap_tip();
       default: return m.eco_tower_room_empty_tip();
     }
@@ -746,6 +750,24 @@
     }
   }
 
+  // ── Carte des morts ─────────────────────────────────────────────
+  /** Même empreinte que `towerLayoutKey` côté bot : taille et salles (position et type). */
+  function layoutKey(floor: Pick<Layout, 'width' | 'height' | 'rooms'>): string {
+    const text = `${floor.width}x${floor.height}|${floor.rooms.map((room) => `${room.x},${room.y}:${room.type}`).sort().join(';')}`;
+    let hash = 0x811c9dc5;
+    for (let index = 0; index < text.length; index++) {
+      hash ^= text.charCodeAt(index);
+      hash = Math.imul(hash, 0x01000193);
+    }
+    return (hash >>> 0).toString(36);
+  }
+
+  let showDeaths = $state(false);
+  // Morts de l'étage ouvert tel qu'il est : une salle déplacée ou retypée repart de zéro.
+  const floorDeaths = $derived(deathMap[layoutKey(layout)] ?? {});
+  const deathsTotal = $derived(Object.values(floorDeaths).reduce((sum, count) => sum + count, 0));
+  const deathsMax = $derived(Math.max(1, ...Object.values(floorDeaths)));
+
   /** Salles dont la puissance est réglée, et ce que ça donne sur la plus forte d'entre elles. */
   const powered = $derived.by(() => {
     const rooms = layout.rooms.filter((room) => hasPower(room.type) && room.powerPercent !== 100);
@@ -1105,6 +1127,10 @@
           {#each MODIFIERS as modifier}<option value={modifier}>{modifierLabel(modifier)}</option>{/each}
         </select>
       </div>
+      <button type="button" onclick={() => { showDeaths = !showDeaths; }} disabled={deathsTotal === 0} title={m.eco_tower_death_map_tip()}
+        class="px-3 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50 {showDeaths ? 'bg-error/20 text-error' : 'bg-outline-variant/10 hover:bg-outline-variant/25'}">
+        <Papicon icon="Skull" size={12} /> {m.eco_tower_death_map({ count: deathsTotal })}
+      </button>
       <button type="button" onclick={openPreview} disabled={previewing || problems.length > 0 || layout.rooms.length === 0} title={m.eco_tower_preview_tip()}
         class="px-3 py-2 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50">
         <Papicon icon="Image" size={12} /> {m.eco_tower_preview_btn()}
@@ -1328,6 +1354,14 @@
               <g transform="translate({room.x * CELL + CELL - 22} {room.y * CELL + CELL - 22})" style="color: #fbbf24" pointer-events="none">
                 <Papicon icon="Lock" size={14} />
               </g>
+            {/if}
+            {#if showDeaths && (floorDeaths[room.id] ?? 0) > 0}
+              {@const deaths = floorDeaths[room.id]}
+              <rect x={room.x * CELL + 5} y={room.y * CELL + 5} width={span * CELL - 10} height={span * CELL - 10} rx={room.type === 'BOSS' ? 18 : 10}
+                fill="#ef4444" fill-opacity={0.15 + 0.55 * (deaths / deathsMax)} pointer-events="none" />
+              <text x={(room.x + span / 2) * CELL} y={(room.y + span) * CELL - 10} text-anchor="middle" font-size="11" font-weight="800" fill="#fecaca" pointer-events="none">
+                {m.eco_tower_death_count({ count: deaths })}
+              </text>
             {/if}
             {#if hasPower(room.type) && room.powerPercent !== 100}
               <text x={(room.x + span) * CELL - 10} y={room.y * CELL + 17} text-anchor="end" font-size="10" font-weight="800" fill={room.powerPercent > 100 ? '#ef4444' : '#22c55e'} pointer-events="none">

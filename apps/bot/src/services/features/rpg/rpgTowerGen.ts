@@ -28,13 +28,13 @@ const HEIGHT = 9;
 const GUARD_ROW = 2;
 
 const PATH_WEIGHTS: Partial<Record<TowerRoomType, number>> = { MONSTER: 64, EMPTY: 17, ELITE: 8, EVENT: 6, TRAP: 5 };
-const BRANCH_END_WEIGHTS: Partial<Record<TowerRoomType, number>> = { MONSTER: 28, ELITE: 23, EVENT: 14, CHEST: 12, MERCHANT: 8, MERCENARY: 6, TRIAL: 5, CAMPFIRE: 5, SHRINE: 4 };
+const BRANCH_END_WEIGHTS: Partial<Record<TowerRoomType, number>> = { MONSTER: 28, ELITE: 23, EVENT: 14, CHEST: 12, MERCHANT: 8, MERCENARY: 6, TRIAL: 5, CAMPFIRE: 5, SHRINE: 4, MENTOR: 4 };
 const BRANCH_WEIGHTS: Partial<Record<TowerRoomType, number>> = { MONSTER: 75, EMPTY: 25 };
 /**
  * Plafond de chaque salle de récompense par étage généré. Sans plafond, un étage pouvait
  * aligner trois autels et trois coffres : bénédictions et objets pleuvaient.
  */
-const ROOM_CAPS: Partial<Record<TowerRoomType, number>> = { SHRINE: 1, CHEST: 2, MERCHANT: 1, MERCENARY: 1, CAMPFIRE: 1, EVENT: 2, ELITE: 2, TRAP: 2, TRIAL: 1 };
+const ROOM_CAPS: Partial<Record<TowerRoomType, number>> = { SHRINE: 1, CHEST: 2, MERCHANT: 1, MERCENARY: 1, CAMPFIRE: 1, EVENT: 2, ELITE: 2, TRAP: 2, TRIAL: 1, MENTOR: 1 };
 const CAP_FALLBACK: Partial<Record<TowerRoomType, TowerRoomType>> = { ELITE: 'MONSTER', EVENT: 'MONSTER', TRAP: 'MONSTER', TRIAL: 'MONSTER' };
 /** Ambiance d'un étage généré : la plupart n'en ont pas. */
 const MODIFIER_WEIGHTS: Record<TowerFloorModifier, number> = { NONE: 70, FLOODED: 10, BURNING: 10, BLESSED: 10 };

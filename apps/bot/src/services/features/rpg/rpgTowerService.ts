@@ -16,6 +16,8 @@ import * as m from '../../../lib/paraglide/messages.js';
 import { checkLevelUp, getOrCreateEconomyConfig, getOrCreateRpgProfile } from '../economyService.js';
 import { loadAvailableSkills, loadEffectiveStats, seedDefaultMonsters } from '../combatService.js';
 import { getRpgClass } from './rpgClasses.js';
+import { nodesForClass } from './rpgSkillTree.js';
+import { TOWER_SIM_RUNS_MAX, simulateTowerRuns, type TowerSimResult } from './rpgTowerSim.js';
 import { listGuildMonsters } from './rpgBestiaryService.js';
 import { assertGuildTitle, grantTitle } from './rpgTitleService.js';
 import { assertFirstKillRole, grantRpgRewardRole } from './rpgFirstKillService.js';
@@ -49,6 +51,8 @@ import {
   towerDayKey,
   towerFoeShape,
   towerSkill,
+  towerSkillPrice,
+  towerSkillTier,
   towerUpgradeCost,
   towerWeekStart,
   type TowerCoreStats,
@@ -64,8 +68,10 @@ import {
   TOWER_MAP_SIZE,
   normalizeTowerFloors,
   normalizeTowerLayout,
+  towerLayoutKey,
   type TowerLayout,
 } from './rpgTowerMap.js';
+import { heatsFromMask } from './rpgTowerContent.js';
 import { towerFloorLayout } from './rpgTowerGen.js';
 import { renderTowerImage } from './rpgTowerRender.js';
 
@@ -309,6 +315,7 @@ export async function previewTowerEntry(guildId: string, userId: string, options
       emoji: skill.emoji,
       cooldownTurns: skill.cooldownTurns,
       effect: skill.effect,
+      tier: towerSkillTier(skill),
     })),
     potions: STARTING_POTIONS + (bonus?.potions ?? 0),
     gold: bonus?.gold ?? 0,
@@ -354,13 +361,14 @@ export function pickTowerSkills(skills: readonly TowerSkill[], mask: number): To
  * Ouvre une ascension. `daily` : l'ascension du jour, même graine pour tout le serveur et une
  * seule tentative par joueur et par jour ; elle a son propre classement et ne compte ni pour
  * la saison ni pour les paliers. `skillMask` : compétences achetées pour cette ascension,
- * payées en éclats à l'entrée.
+ * payées en éclats à l'entrée. `heatMask` : malédictions choisies, chacune contre plus
+ * d'éclats ; l'ascension du jour s'en passe, pour rester la même pour tous.
  */
 export async function startTowerRun(
   client: Client | null,
   guildId: string,
   userId: string,
-  options: { daily?: boolean; skillMask?: number } = {},
+  options: { daily?: boolean; skillMask?: number; heatMask?: number } = {},
 ): Promise<ActiveTowerRun> {
   if (!(await isTowerOpen(guildId))) throw new TowerRefused({ kind: 'disabled' });
   const daily = options.daily === true;
@@ -378,10 +386,13 @@ export async function startTowerRun(
   const dayKey = towerDayKey(new Date());
   const seed = daily ? towerDailySeed(guildId, dayKey) : newTowerSeed();
   const skills = pickTowerSkills(preview.skills, options.skillMask ?? 0);
-  const skillCost = skills.length * settings.skillPrice;
+  const skillCost = skills.reduce((sum, skill) => sum + towerSkillPrice(settings.skillPrice, skill), 0);
   const state = createTowerState({
     base: preview.stats,
     skills,
+    // Les compétences laissées au départ restent à la portée d'un mentor, contre de l'or.
+    skillPool: preview.skills.filter((skill) => !skills.includes(skill)),
+    heat: daily ? [] : heatsFromMask(options.heatMask ?? 0),
     potions: preview.potions,
     gold: preview.gold,
     seed,
@@ -572,6 +583,9 @@ async function settleRun(
   const daily = run.mode === 'DAILY';
   const rooms = towerRoomsExplored(state);
   const killedBy = outcome === 'DEAD' ? state.encounter?.name ?? null : null;
+  const death = outcome === 'DEAD' && state.map
+    ? { deathRoom: state.map.pos, deathFloorKey: towerLayoutKey(state.map.layout) }
+    : {};
   const gear = (['weapon', 'armor', 'relic'] as const)
     .map((slot) => state.gear[slot]?.name)
     .filter((name): name is string => Boolean(name));
@@ -579,7 +593,7 @@ async function settleRun(
   const result = await prisma.$transaction(async (tx) => {
     const closed = await tx.rpgTowerRun.updateMany({
       where: { id: run.id, status: 'ACTIVE' },
-      data: { status: outcome, endedAt: now, shardsEarned: kept, floorsCleared: state.floorsCleared, roomsExplored: rooms, killedBy },
+      data: { status: outcome, endedAt: now, shardsEarned: kept, floorsCleared: state.floorsCleared, roomsExplored: rooms, killedBy, ...death },
     });
     if (closed.count === 0) return null;
 
@@ -900,6 +914,95 @@ export async function getTowerInsights(guildId: string) {
   };
 }
 
+/**
+ * Carte des morts : pour chaque étage dessiné, par son empreinte, le nombre de morts par salle.
+ * Seules comptent les morts d'un étage identique à celui enregistré.
+ */
+export async function getTowerDeathMap(guildId: string, floors: readonly TowerLayout[]): Promise<Record<string, Record<string, number>>> {
+  const keys = [...new Set(floors.map((floor) => towerLayoutKey(floor)))];
+  if (keys.length === 0) return {};
+  const rows = await prisma.rpgTowerRun.groupBy({
+    by: ['deathFloorKey', 'deathRoom'],
+    where: { guildId, status: 'DEAD', deathFloorKey: { in: keys }, deathRoom: { not: null } },
+    _count: { _all: true },
+  });
+  const map: Record<string, Record<string, number>> = {};
+  for (const row of rows) {
+    if (!row.deathFloorKey || !row.deathRoom) continue;
+    (map[row.deathFloorKey] ??= {})[row.deathRoom] = row._count._all;
+  }
+  return map;
+}
+
+/**
+ * Garde-fous de la simulation : elle ne touche pas la base, mais occupe le processeur du bot.
+ * Une seule à la fois par serveur, un délai entre deux, et deux au plus sur tout le bot.
+ */
+const SIM_COOLDOWN_MS = 30_000;
+const SIM_CONCURRENT_MAX = 2;
+const simRunning = new Set<string>();
+const simLastStart = new Map<string, number>();
+
+/**
+ * Simulation d'équilibrage pour le dashboard : un joueur automatique de la classe donnée, aux
+ * stats d'entrée sans héritage du RPG ni amélioration (comme l'ascension du jour), joue
+ * `runs` ascensions sur la Tour telle qu'enregistrée. `skills` : il emporte toutes les
+ * compétences de sa classe et de son arbre, ramenées à la Tour.
+ */
+export async function simulateTower(guildId: string, input: { className?: unknown; runs?: unknown; skills?: unknown; heatMask?: unknown }): Promise<TowerSimResult> {
+  if (simRunning.has(guildId)) throw new TowerError('Une simulation est déjà en cours pour ce serveur.', 429);
+  const wait = (simLastStart.get(guildId) ?? 0) + SIM_COOLDOWN_MS - Date.now();
+  if (wait > 0) throw new TowerError(`Patientez ${Math.ceil(wait / 1000)} s avant une nouvelle simulation.`, 429);
+  if (simRunning.size >= SIM_CONCURRENT_MAX) throw new TowerError('Le bot fait déjà tourner des simulations : réessayez dans un instant.', 429);
+  simRunning.add(guildId);
+  simLastStart.set(guildId, Date.now());
+  try {
+    return await runSimulation(guildId, input);
+  } finally {
+    simRunning.delete(guildId);
+  }
+}
+
+async function runSimulation(guildId: string, input: { className?: unknown; runs?: unknown; skills?: unknown; heatMask?: unknown }): Promise<TowerSimResult> {
+  const rpgClass = getRpgClass(typeof input.className === 'string' ? input.className : null);
+  const [settings, foes] = await Promise.all([getTowerConfig(guildId), loadFoes(guildId)]);
+  const stats = computeTowerEntryStats({
+    mode: 'RESET',
+    inheritCapPercent: 0,
+    titleCapPercent: 0,
+    main: { attack: 0, defense: 0, speed: 0, maxHealth: 0 },
+    title: { attack: 0, defense: 0, speed: 0, maxHealth: 0, critPercent: 0 },
+    classModifiers: rpgClass?.modifiers ?? { attack: 1, defense: 1, speed: 1, maxHealth: 1 },
+    classPassive: rpgClass?.passive ?? {},
+  });
+  const rpgSkills = input.skills === true && rpgClass
+    ? [...rpgClass.skills, ...nodesForClass(rpgClass.id).flatMap((node) => (node.grantsSkill ? [node.grantsSkill] : []))]
+    : [];
+  const skills = rpgSkills.map((skill) => towerSkill({
+    id: skill.id,
+    name: skill.name,
+    emoji: skill.emoji,
+    cooldownTurns: skill.cooldownTurns,
+    effect: skill.effect,
+    tier: towerSkillTier(skill),
+  }));
+  const runs = Math.min(TOWER_SIM_RUNS_MAX, Math.max(1, Math.trunc(Number(input.runs) || 50)));
+  return simulateTowerRuns({
+    base: stats,
+    skills,
+    potions: STARTING_POTIONS,
+    rules: rulesOf(settings),
+    foes,
+    floors: settings.floors,
+    floorsAfter: settings.floorsAfter,
+    generatedFog: settings.generatedFog,
+    heat: heatsFromMask(Math.trunc(Number(input.heatMask) || 0)),
+    deathShardPercent: settings.deathShardPercent,
+    runs,
+    seed: newTowerSeed(),
+  });
+}
+
 // ─────────────────────────────────────────────────────────────
 // Dashboard
 // ─────────────────────────────────────────────────────────────
@@ -916,8 +1019,10 @@ export async function getTowerDashboard(guildId: string) {
     getTowerInsights(guildId),
     getTowerDailyLeaderboard(guildId),
   ]);
+  const deathMap = await getTowerDeathMap(guildId, settings.floors);
   return {
     settings,
+    deathMap,
     rewards,
     foes,
     stats: { players, runs, activeRuns, bestFloor: leaderboard[0]?.bestFloor ?? 0 },
