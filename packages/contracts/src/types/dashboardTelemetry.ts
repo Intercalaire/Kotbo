@@ -56,6 +56,7 @@ export const DASHBOARD_NAV_SOURCES = [
   'favorite',
   'history', // précédent / suivant du navigateur
   'redirect',
+  'reload', // rechargement dans la même session
   'link', // tout autre lien interne
 ] as const;
 
