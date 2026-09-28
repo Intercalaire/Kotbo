@@ -13,7 +13,7 @@ import pLimit from 'p-limit';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { isGuildActivated, activateGuild } from '../../../utils/activation.js';
-import { isOnboardingBacktrack } from '@kotbo/contracts';
+import { isOnboardingBacktrack, normalizeHomeTodoPrefs } from '@kotbo/contracts';
 import {
   trackAcquisitionStep,
   trackDashboardOpen,
@@ -765,7 +765,8 @@ export async function handleGuildGeneralRoutes(
           compactMode: false,
           // Nul = suivre le fuseau du navigateur, ce que le dashboard resout
           // lui-meme : le serveur n'a pas a deviner d'ou on le consulte.
-          timezone: null
+          timezone: null,
+          homeTodoPrefs: normalizeHomeTodoPrefs(null)
         });
         return true;
       }
@@ -777,7 +778,8 @@ export async function handleGuildGeneralRoutes(
         accentColor: settings.accentColor,
         sidebarBehavior: settings.sidebarBehavior,
         compactMode: settings.compactMode,
-        timezone: settings.timezone
+        timezone: settings.timezone,
+        homeTodoPrefs: normalizeHomeTodoPrefs(settings.homeTodoPrefs)
       });
     } catch (err) {
       logger.error('GeneralAPI', `Error fetching user-settings for ${guildId} / ${user.userId}:`, err);
@@ -790,6 +792,11 @@ export async function handleGuildGeneralRoutes(
   if (parts.length === 5 && parts[4] === 'user-settings' && method === 'PUT') {
     try {
       const body = await readJsonBody<any>(req);
+      // JSON libre cote base : on n'ecrit que la forme reconnue, jamais le
+      // corps tel qu'il arrive.
+      const homeTodoPrefs = body?.homeTodoPrefs !== undefined
+        ? normalizeHomeTodoPrefs(body.homeTodoPrefs) as unknown as Prisma.InputJsonValue
+        : undefined;
       const settings = await prisma.dashboardUserSettings.upsert({
         where: {
           guildId_userId: {
@@ -806,7 +813,8 @@ export async function handleGuildGeneralRoutes(
           accentColor: body?.accentColor ?? 'violet',
           sidebarBehavior: body?.sidebarBehavior ?? 'auto',
           compactMode: body?.compactMode ?? false,
-          timezone: normalizeStoredTimezone(body?.timezone)
+          timezone: normalizeStoredTimezone(body?.timezone),
+          homeTodoPrefs
         },
         update: {
           bentoLayout: body?.bentoLayout !== undefined ? body.bentoLayout : undefined,
@@ -815,7 +823,8 @@ export async function handleGuildGeneralRoutes(
           accentColor: body?.accentColor !== undefined ? body.accentColor : undefined,
           sidebarBehavior: body?.sidebarBehavior !== undefined ? body.sidebarBehavior : undefined,
           compactMode: body?.compactMode !== undefined ? body.compactMode : undefined,
-          timezone: body?.timezone !== undefined ? normalizeStoredTimezone(body.timezone) : undefined
+          timezone: body?.timezone !== undefined ? normalizeStoredTimezone(body.timezone) : undefined,
+          homeTodoPrefs
         }
       });
       
@@ -828,7 +837,8 @@ export async function handleGuildGeneralRoutes(
           accentColor: settings.accentColor,
           sidebarBehavior: settings.sidebarBehavior,
           compactMode: settings.compactMode,
-          timezone: settings.timezone
+          timezone: settings.timezone,
+          homeTodoPrefs: normalizeHomeTodoPrefs(settings.homeTodoPrefs)
         }
       });
     } catch (err) {
