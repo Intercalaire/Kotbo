@@ -10,6 +10,7 @@
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
+  import HomeTodo from '../lib/components/home/HomeTodo.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { m, dateLocale } from '../lib/i18n';
   import { isMobile } from '../lib/stores/media.svelte';
@@ -867,10 +868,16 @@
     return m.home_greeting_morning({ name });
   });
 
+  // Alimentes par le bloc « A traiter » : son compteur nourrit le sous-titre,
+  // et le bouton Actualiser de la page le recharge avec le reste.
+  let todoCount = $state(0);
+  let todoRefreshKey = $state(0);
+
   const dynamicSubtitle = $derived.by(() => {
     const guildName = dashboardStore.state.guildName || m.home_your_server();
     const parts: string[] = [];
     if (errorModulesCount > 0) parts.push(m.home_modules_error_count({ n: errorModulesCount }));
+    if (todoCount > 0) parts.push(m.home_tasks_count({ n: todoCount }));
     if (notificationsStore.unreadCount > 0) parts.push(m.home_notifications_count({ n: notificationsStore.unreadCount }));
     if (parts.length > 0) return m.home_subtitle_issues({ parts: parts.join(' · '), guild: guildName });
     return m.home_all_good({ guild: guildName });
@@ -958,6 +965,7 @@
   };
 
   const handleRefresh = () => {
+    todoRefreshKey += 1;
     dashboardStore.refresh();
     notificationsStore.fetchNotifications(true);
 
@@ -1046,6 +1054,8 @@
       </button>
     </div>
   {/if}
+
+  <HomeTodo refreshKey={todoRefreshKey} bind:count={todoCount} />
 
   <!-- Live Stats Row -->
   {#if isEditing}
