@@ -32,6 +32,8 @@ export type TowerSettings = {
   blessingEvery: number;
   maxBlessings: number;
   shardsPerFloor: number;
+  /** Éclats en plus pour chaque salle résolue ; 0 pour ne récompenser que l'étage gravi. */
+  shardsPerRoom: number;
   deathShardPercent: number;
   /** Part des éclats gardée en quittant hors palier sûr (juste après un boss, tout est gardé). */
   leaveShardPercent: number;
@@ -66,7 +68,8 @@ export const TOWER_DEFAULTS: TowerSettings = {
   bossEvery: 10,
   blessingEvery: 5,
   maxBlessings: 6,
-  shardsPerFloor: 2,
+  shardsPerFloor: 10,
+  shardsPerRoom: 0,
   deathShardPercent: 50,
   leaveShardPercent: 80,
   weeklyShardCap: 0,
@@ -91,6 +94,7 @@ export const TOWER_RANGES = {
   blessingEvery: { min: 0, max: 20 },
   maxBlessings: { min: 1, max: 12 },
   shardsPerFloor: { min: 0, max: 1000 },
+  shardsPerRoom: { min: 0, max: 1000 },
   deathShardPercent: { min: 0, max: 100 },
   leaveShardPercent: { min: 0, max: 100 },
   weeklyShardCap: { min: 0, max: 1_000_000 },
@@ -148,6 +152,7 @@ export function normalizeTowerSettings(input: Record<string, unknown>): TowerNor
       blessingEvery: int('blessingEvery'),
       maxBlessings: int('maxBlessings'),
       shardsPerFloor: int('shardsPerFloor'),
+      shardsPerRoom: int('shardsPerRoom'),
       deathShardPercent: int('deathShardPercent'),
       leaveShardPercent: int('leaveShardPercent'),
       weeklyShardCap: int('weeklyShardCap'),
@@ -977,8 +982,12 @@ export function effectiveCooldown(cooldownTurns: number, reduction: number): num
 // ─────────────────────────────────────────────────────────────
 
 /** Éclats d'un étage franchi : la valeur croît par tranche de dix, un boss en vaut cinq de plus. */
+/**
+ * Éclats d'un étage gravi : la valeur de base, qui augmente tous les 10 étages, doublée quand
+ * l'étage se termine sur un gardien vaincu.
+ */
 export function floorShards(floor: number, shardsPerFloor: number, boss: boolean): number {
-  return shardsPerFloor * (1 + Math.floor(floor / 10)) + (boss ? shardsPerFloor * 5 : 0);
+  return shardsPerFloor * (1 + Math.floor(floor / 10)) * (boss ? 2 : 1);
 }
 
 export type TowerOutcome = 'DEAD' | 'LEFT';

@@ -386,6 +386,8 @@ export type TowerRules = {
   blessingEvery: number;
   maxBlessings: number;
   shardsPerFloor: number;
+  /** Éclats par salle résolue ; absent des parties d'avant ce réglage. */
+  shardsPerRoom?: number;
   /** Absent : réglages par défaut du marchand. */
   merchant?: TowerMerchantSettings;
   /** Absent : la tour reprend au premier étage dessiné. */
@@ -831,7 +833,7 @@ function advance(state: TowerState, floor: number, rules: TowerRules, rng: Tower
  * difficulté, mais seul le gardien fait monter d'un étage ; une bénédiction tombe tous les
  * `blessingEvery` étages gravis, en plus de celles des autels.
  */
-function progress(state: TowerState, floor: number, rules: TowerRules, boss: boolean): number {
+function progress(state: TowerState, floor: number, rules: TowerRules, boss: boolean, guardian = false): number {
   const bonus = (hasPerk(state, 'SHARD_SEEKER') ? 1 + SHARD_SEEKER_BONUS : 1) * heatShardBonus(state);
   const map = state.map;
   if (!map) {
@@ -840,10 +842,16 @@ function progress(state: TowerState, floor: number, rules: TowerRules, boss: boo
     if (rules.blessingEvery > 0 && floor % rules.blessingEvery === 0) state.blessingDue = true;
     return floor + 1;
   }
+  // Chaque salle résolue approfondit la difficulté ; les éclats, eux, ne tombent qu'à l'étage
+  // gravi, doublés quand un gardien le fermait.
   const depth = map.depth ?? floor;
-  state.shards += Math.round(floorShards(depth, rules.shardsPerFloor, boss) * bonus);
   map.depth = depth + 1;
-  if (!boss) return floor;
+  if (!boss) {
+    // L'exploration peut rapporter aussi, si le serveur le règle : chaque salle résolue.
+    if ((rules.shardsPerRoom ?? 0) > 0) state.shards += Math.round(rules.shardsPerRoom! * bonus);
+    return floor;
+  }
+  state.shards += Math.round(floorShards(floor, rules.shardsPerFloor, guardian) * bonus);
   state.floorsCleared += 1;
   if (rules.blessingEvery > 0 && state.floorsCleared % rules.blessingEvery === 0) state.blessingDue = true;
   return floor + 1;
@@ -1082,8 +1090,16 @@ function lockProgress(state: TowerState): TowerLockProgress | null {
  * Sortie franchie : l'étage est gravi, la carte suivante chargée et le palier est sûr.
  * Sert au gardien, à l'escalier et au portail (et à l'épreuve des étages d'avant).
  */
-function exitFloor(state: TowerState, floor: number, rules: TowerRules, floors: readonly TowerLayout[], rng: TowerRng): { next: number; climbed: TowerClimb | null } {
-  const next = progress(state, floor, rules, true);
+function exitFloor(
+  state: TowerState,
+  floor: number,
+  rules: TowerRules,
+  floors: readonly TowerLayout[],
+  rng: TowerRng,
+  /** L'étage se ferme sur un gardien vaincu : ses éclats sont doublés. */
+  guardian = false,
+): { next: number; climbed: TowerClimb | null } {
+  const next = progress(state, floor, rules, true, guardian);
   markRoomCleared(state);
   const climbed = state.map ? climb(state, next, rules, floors, rng) : null;
   state.safeLeave = true;
@@ -1155,7 +1171,7 @@ function winEncounter(
     : isBossStep(state, floor, rules, encounter.kind);
   state.trial = null;
   if (closesFloor && state.map) {
-    const { next, climbed } = exitFloor(state, floor, rules, floors, rng);
+    const { next, climbed } = exitFloor(state, floor, rules, floors, rng, encounter.kind === 'BOSS');
     state.notice = { k: 'victory', name: encounter.name, emoji: encounter.emoji, gold, healed, climbed, ghost: ghost?.userId ?? null, captive };
     advance(state, next, rules, rng);
     return next;
