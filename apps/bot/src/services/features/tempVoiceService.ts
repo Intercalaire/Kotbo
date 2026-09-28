@@ -438,8 +438,10 @@ export const CHANNEL_PATCHES = {
   clearReservation: { Connect: null, SendMessages: null },
   /** @deprecated Ancien nom de `ownerOnly`, gardé le temps que les panneaux en place migrent. */
   closeChat: { SendMessages: false },
-  /** @deprecated Ancien nom de `everyone`, gardé le temps que les panneaux en place migrent. */
-  openChat: { SendMessages: null },
+  /** @deprecated Ancien nom de `everyone`, gardé le temps que les panneaux en place
+   *  migrent. Il suit `everyone` : l'ancien bouton « Chat » et le nouveau mode doivent
+   *  ouvrir le chat de la même façon. (repris de la PR #533) */
+  openChat: { SendMessages: true },
   /** Bannissement : couper la seule connexion laisse lire et écrire dans le chat. */
   ban: { Connect: false, ViewChannel: false, SendMessages: false },
 
@@ -448,8 +450,9 @@ export const CHANNEL_PATCHES = {
   // rendue par `surchargesModeEcriture()`. Deux modes portaient déjà ces bits
   // sans porter de nom ; les deux autres sont neufs.
 
-  /** « Tout le monde » — l'ancien `openChat`. Rendre le droit à la catégorie, jamais l'accorder. */
-  everyone: { SendMessages: null },
+  /** « Everyone » — le droit d'écrire est ACCORDÉ, pas rendu à la catégorie : le libellé
+   *  le promet, et une catégorie qui le refusait fermait le chat. (repris de la PR #533) */
+  everyone: { SendMessages: true },
   /** « Ceux qui sont en vocal » — @everyone est refusé, la présence pose une surcharge nominative. */
   inVoice: { SendMessages: false },
   /** « Moi seul » — l'ancien `closeChat`, complété par `ownerChatPatch(true, …)`. */
@@ -721,9 +724,12 @@ export function surchargesModeEcriture(
 ): SurchargesModeEcriture {
   switch (mode) {
     case 'everyone':
+      // « Everyone » ACCORDE le droit d'ecrire des deux cotes. Le rendre a la
+      // categorie le retirait des qu'elle le refusait — le mode promettait
+      // l'inverse de ce qu'il faisait. (repris de la PR #533)
       return {
-        everyone: restoreFromCategory(CHANNEL_PATCHES.everyone, categorieEveryone),
-        proprietaire: ownerChatPatch(false, categorieProprietaire),
+        everyone: { SendMessages: true },
+        proprietaire: ownerChatPatch(true, categorieProprietaire),
         suitLaPresence: false,
       };
     case 'ownerOnly':

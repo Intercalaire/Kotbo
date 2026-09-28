@@ -1710,11 +1710,11 @@ describe('chat textuel du salon', () => {
     await listeners.get(Events.InteractionCreate)?.(interaction);
 
     expect(guild.channels.fetch).toHaveBeenCalled();
-    expect(edits[0]?.patch.SendMessages).toBeNull();
+    expect(edits[0]?.patch.SendMessages).toBe(true);
     tempChannels.delete(CHANNEL);
   });
 
-  test('rouvre le chat en rendant le droit à la catégorie', async () => {
+  test('ouvrir le chat accorde le droit d ecrire a tout le monde', async () => {
     // Rouvrir en `true` ferait d'un salon temporaire le seul endroit où écrire
     // sur un serveur dont la catégorie réserve la parole : on rend le droit à
     // l'héritage, jamais on ne l'accorde.
@@ -1733,12 +1733,12 @@ describe('chat textuel du salon', () => {
     // la surcharge posée à la fermeture ferait du salon rouvert un endroit où
     // lui seul garde un droit explicite.
     expect(edits.map((entry) => entry.id)).toEqual([GUILD, OWNER]);
-    expect(edits[0]?.patch.SendMessages).toBeNull();
-    expect(edits[1]?.patch.SendMessages).toBeNull();
+    expect(edits[0]?.patch.SendMessages).toBe(true);
+    expect(edits[1]?.patch.SendMessages).toBe(true);
     tempChannels.delete(CHANNEL);
   });
 
-  test('ne rouvre pas un chat que la catégorie ferme à @everyone', async () => {
+  test('ouvrir le chat passe outre un refus de la categorie', async () => {
     // Le salon a recopié ce refus à sa création : le bouton le lit comme un
     // chat fermé, et `null` l'aurait effacé en un clic.
     guildConfig = { tempVoiceEnabled: true };
@@ -1756,7 +1756,7 @@ describe('chat textuel du salon', () => {
     const { interaction } = fakeButtonInteraction('chat', { channel, guild, member: fakeTarget(OWNER, false) });
     await listeners.get(Events.InteractionCreate)?.(interaction);
 
-    expect(edits[0]?.patch.SendMessages).toBe(false);
+    expect(edits[0]?.patch.SendMessages).toBe(true);
     tempChannels.delete(CHANNEL);
   });
 });

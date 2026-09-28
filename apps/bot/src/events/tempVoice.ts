@@ -3887,15 +3887,15 @@ async function handleTempVoiceAction(ctx: ActionContext): Promise<void> {
           await channel.permissionOverwrites.edit(guildId, CHANNEL_PATCHES.closeChat);
           await reply('💬 The channel text chat is closed: only you and the allowed members can post in it.');
         } else {
-          await channel.permissionOverwrites.edit(
-            guildId,
-            restoreFromCategory(CHANNEL_PATCHES.openChat, categoryOverwriteFor(channel, guildId)),
-          );
+          // Ouvrir le chat ACCORDE le droit d'écrire. Le repasser par la catégorie
+          // l'annulait dès qu'elle le refusait : le bouton disait « ouvert » et
+          // personne ne pouvait écrire, propriétaire compris. (repris de la PR #533)
+          await channel.permissionOverwrites.edit(guildId, CHANNEL_PATCHES.openChat);
           await channel.permissionOverwrites.edit(
             cache.creatorId,
-            ownerChatPatch(false, categoryOverwriteFor(channel, cache.creatorId)),
+            ownerChatPatch(true, categoryOverwriteFor(channel, cache.creatorId)),
           );
-          await reply(`${I.msg} The channel text chat goes back to the access its category defines.`);
+          await reply(`${I.msg} The channel text chat is open: anyone can post in it.`);
         }
         planifierRafraichissementPanneau(channel);
         return;

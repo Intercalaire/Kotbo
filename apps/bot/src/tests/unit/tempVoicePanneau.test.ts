@@ -98,12 +98,14 @@ describe('modes d’écriture — CHANNEL_PATCHES', () => {
     expect(CHANNEL_PATCHES.ownerOnly).toEqual(CHANNEL_PATCHES.closeChat);
   });
 
-  test('les quatre modes existent et aucun n’autorise explicitement @everyone', () => {
+  test('seul « Everyone » autorise @everyone ; les trois autres le refusent', () => {
+    // Regle inversee par la PR #533 : « Everyone » ACCORDE le droit d'ecrire.
+    // Le rendre a la categorie fermait le chat des qu'elle le refusait, alors
+    // que le libelle promettait l'inverse. Les trois autres modes refusent.
     for (const mode of MODES_ECRITURE) {
       const patch = CHANNEL_PATCHES[mode] as Record<string, boolean | null>;
       expect(patch).toBeDefined();
-      // Rien de ce qui rouvre un salon n'accorde : on rend le droit à la catégorie.
-      expect(patch.SendMessages).not.toBe(true);
+      expect(patch.SendMessages).toBe(mode === 'everyone' ? true : false);
     }
   });
 
@@ -118,20 +120,25 @@ describe('modes d’écriture — CHANNEL_PATCHES', () => {
 });
 
 describe('surchargesModeEcriture', () => {
-  test('« Tout le monde » rend le droit à la catégorie des deux côtés', () => {
+  test('« Everyone » accorde le droit d ecrire, des deux cotes', () => {
+    // Ce test affirmait `{ SendMessages: null }` des deux cotes et defendait
+    // la regle inverse ; la PR #533 la renverse, pour que le mode tienne ce
+    // que son libelle promet.
     const surcharges = surchargesModeEcriture('everyone');
-    expect(surcharges.everyone).toEqual({ SendMessages: null });
-    expect(surcharges.proprietaire).toEqual({ SendMessages: null });
+    expect(surcharges.everyone).toEqual({ SendMessages: true });
+    expect(surcharges.proprietaire).toEqual({ SendMessages: true });
     expect(surcharges.suitLaPresence).toBe(false);
   });
 
-  test('« Tout le monde » n’écrase pas un refus nommé de la catégorie', () => {
-    // Sinon le bouton d'un propriétaire rouvrirait un salon que la catégorie ferme.
+  test('« Everyone » passe outre un refus de la categorie — c est le but', () => {
+    // L'inverse de ce que ce test defendait avant la PR #533 : une categorie
+    // qui refuse `SendMessages` ne doit plus museler un salon dont le
+    // proprietaire a choisi « Everyone ».
     const surcharges = surchargesModeEcriture('everyone', {
       allow: 0n,
       deny: PermissionFlagsBits.SendMessages,
     });
-    expect(surcharges.everyone).toEqual({ SendMessages: false });
+    expect(surcharges.everyone).toEqual({ SendMessages: true });
   });
 
   test('« Moi seul » coupe @everyone et rend l’écriture au propriétaire', () => {
