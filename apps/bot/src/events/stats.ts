@@ -147,22 +147,22 @@ export async function updateGuildStats(client: Client, guildId: string): Promise
 
   // 3. Rename active stats channels
   if ((config.memberEnabled ?? !!config.memberChannelId) && config.memberChannelId) {
-    await renameChannelIfNeeded(config.memberChannelId, config.memberTemplate || '👤 Membres : {count}', membersCount);
+    await renameChannelIfNeeded(config.memberChannelId, config.memberTemplate || '👤 Members: {count}', membersCount);
   }
   if ((config.botEnabled ?? !!config.botChannelId) && config.botChannelId) {
-    await renameChannelIfNeeded(config.botChannelId, config.botTemplate || '🤖 Bots : {count}', botsCount);
+    await renameChannelIfNeeded(config.botChannelId, config.botTemplate || '🤖 Bots: {count}', botsCount);
   }
   if ((config.roleEnabled ?? !!config.roleChannelId) && config.roleChannelId && config.roleTargetId) {
-    await renameChannelIfNeeded(config.roleChannelId, config.roleTemplate || '👑 Staff : {count}', roleCount);
+    await renameChannelIfNeeded(config.roleChannelId, config.roleTemplate || '👑 Staff: {count}', roleCount);
   }
   if ((config.channelEnabled ?? !!config.channelChannelId) && config.channelChannelId) {
-    await renameChannelIfNeeded(config.channelChannelId, config.channelTemplate || '💬 Salons : {count}', channelsCount);
+    await renameChannelIfNeeded(config.channelChannelId, config.channelTemplate || '💬 Channels: {count}', channelsCount);
   }
   if ((config.categoryEnabled ?? !!config.categoryChannelId) && config.categoryChannelId) {
-    await renameChannelIfNeeded(config.categoryChannelId, config.categoryTemplate || '📁 Catégories : {count}', categoriesCount);
+    await renameChannelIfNeeded(config.categoryChannelId, config.categoryTemplate || '📁 Categories: {count}', categoriesCount);
   }
   if ((config.activityEnabled ?? !!config.activityChannelId) && config.activityChannelId) {
-    await renameChannelIfNeeded(config.activityChannelId, config.activityTemplate || '📈 Actifs 24h : {count}', activityCount);
+    await renameChannelIfNeeded(config.activityChannelId, config.activityTemplate || '📈 Active 24h: {count}', activityCount);
   }
 
   // 4. Update custom stats channels (voice or category)

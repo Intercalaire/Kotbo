@@ -100,6 +100,69 @@ model TempVoiceModPermissionsConfig {
   /// déplacement se rabat sur une déconnexion — annoncée comme telle.
   reservationFallbackChannelId String?
 
+  /// Organisation du panneau de gestion du salon temporaire.
+  ///
+  /// `CLASSIC` (défaut) — les trois portes actuelles (Salon / Membres /
+  /// Propriété), chacune un éphémère séparé, avec recherche de n'importe qui
+  /// du serveur. C'est le comportement livré aujourd'hui, donc le défaut :
+  /// un déploiement ne doit rien changer tant qu'un administrateur n'a pas
+  /// ouvert l'onglet.
+  /// `FLAT` — tout sur un seul écran, actions limitées aux seuls membres
+  /// déjà présents en vocal, pas de recherche.
+  panelMode String @default("CLASSIC") // CLASSIC | FLAT
+
+  /// Mise en page des six valeurs d'état du salon (État / Places / Écriture /
+  /// Autorisés / Bannis / Réservé).
+  ///
+  /// `GRID3` (défaut) reproduit les six champs inline actuels : rien ne
+  /// change tant que l'administrateur n'a pas choisi une autre disposition.
+  stateLayout String @default("GRID3") // GRID3 | GRID2 | TABLE | CARDS
+
+  /// Palette utilisée uniquement pour les rendus image du panneau (aucun
+  /// effet sur les embeds ou les Components V2, qui suivent le thème Discord
+  /// du client). `NEUTRAL` (défaut) reproduit le rendu actuel.
+  stateColors String @default("NEUTRAL") // NEUTRAL | DARK | LIGHT
+
+  /// Format d'affichage du panneau de gestion.
+  ///
+  /// `V1` — embed classique à champs inline.
+  /// `V2` (défaut) — Container Components V2. Le défaut vaut V2 et non V1
+  /// parce que c'est déjà le comportement livré aujourd'hui : le patch qui
+  /// convertit tout en V2 s'applique sans bascule, avant même cette colonne.
+  panelComponents String @default("V2") // V1 | V2
+
+  /// Ce que fait le bouton « Réserver » quand la personne n'a AUCUN des
+  /// rôles listés dans `reservableRoleIds`.
+  ///
+  /// `MEMBERS` — un UserSelect multiple verrouille le salon et autorise les
+  /// personnes choisies individuellement.
+  /// `ANY_ROLE` (défaut) — le menu propose n'importe quel rôle du serveur :
+  /// c'est le comportement livré aujourd'hui, donc le défaut qui ne change
+  /// rien tant que l'administrateur n'a pas ouvert l'onglet.
+  /// `FORBIDDEN` — refus motivé, aucune réservation possible dans ce cas.
+  reservationFallbackMode String @default("ANY_ROLE") // MEMBERS | ANY_ROLE | FORBIDDEN
+
+  /// ⚠️ L'INTERRUPTEUR de la personnalisation par générateur — et c'est d'abord
+  /// une SORTIE DE SECOURS, pas un confort.
+  ///
+  /// `false` (défaut) — les cinq réglages ci-dessus valent pour TOUS les salons
+  /// du serveur, générateur principal comme additionnels. Les surcharges posées
+  /// sur les générateurs ne sont même pas lues.
+  /// `true` — chaque salon suit d'abord la surcharge de SON générateur
+  /// (`Guild.tempVoiceGenerators`), et retombe champ par champ sur le réglage du
+  /// serveur pour tout ce que ce générateur ne surcharge pas.
+  ///
+  /// Le défaut est FAUX délibérément : au déploiement, aucun serveur existant ne
+  /// change de comportement, et on allume quand on veut. Si la personnalisation
+  /// par générateur pose le moindre problème en production, la couper depuis le
+  /// dashboard suffit à revenir au comportement actuel — sans redéploiement.
+  ///
+  /// Couper l'interrupteur IGNORE les surcharges, il ne les EFFACE PAS : elles
+  /// restent dans `Guild.tempVoiceGenerators` et reviennent telles quelles au
+  /// rallumage. Les effacer serait une perte de données silencieuse, et rien ne
+  /// distinguerait plus « éteint » de « jamais réglé ».
+  perGeneratorPresentation Boolean @default(false)
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())

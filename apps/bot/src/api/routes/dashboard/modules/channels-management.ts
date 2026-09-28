@@ -18,6 +18,7 @@ import {
   restoreFromCategory,
   categoryTrustPatch,
   normalizeTempVoicePolicy,
+  dispositionNative,
 } from '../../../../services/features/tempVoiceService.js';
 import { readWordStatsEnabled, startWordStatsBackfillIfTurnedOn, type ModuleRouteContext } from './_shared.js';
 import type { Prisma } from '@prisma/client';
@@ -65,10 +66,27 @@ const CHANNEL_FEATURE_SELECT = Object.fromEntries(
 type TempVoiceAccessResponders = 'OWNER' | 'OWNER_AND_STAFF';
 type TempVoiceAccessNotifyVia = 'VOICE' | 'DM' | 'CHANNEL';
 type TempVoiceReservationOverflow = 'ASK' | 'NOTHING' | 'MOVE' | 'DISCONNECT';
+/**
+ * Présentation du panneau de gestion, configurable par serveur. Mêmes
+ * valeurs que `MODES_PANNEAU`/`DISPOSITIONS_ETAT`/`TEINTES_ETAT`/
+ * `JEUX_COMPOSANTS`/`REPLIS_RESERVATION` dans `tempVoiceService.ts` — ce
+ * fichier suit l'habitude déjà prise ci-dessus de déclarer ses types en
+ * local plutôt que de les importer.
+ */
+type TempVoicePanelMode = 'CLASSIC' | 'FLAT';
+type TempVoiceStateLayout = 'GRID3' | 'GRID2' | 'TABLE' | 'CARDS';
+type TempVoiceStateColors = 'NEUTRAL' | 'DARK' | 'LIGHT';
+type TempVoicePanelComponents = 'V1' | 'V2';
+type TempVoiceReservationFallbackMode = 'MEMBERS' | 'ANY_ROLE' | 'FORBIDDEN';
 
 const TEMP_VOICE_ACCESS_RESPONDERS: readonly TempVoiceAccessResponders[] = ['OWNER', 'OWNER_AND_STAFF'];
 const TEMP_VOICE_ACCESS_NOTIFY_VIA: readonly TempVoiceAccessNotifyVia[] = ['VOICE', 'DM', 'CHANNEL'];
 const TEMP_VOICE_RESERVATION_OVERFLOW: readonly TempVoiceReservationOverflow[] = ['ASK', 'NOTHING', 'MOVE', 'DISCONNECT'];
+const TEMP_VOICE_PANEL_MODE: readonly TempVoicePanelMode[] = ['CLASSIC', 'FLAT'];
+const TEMP_VOICE_STATE_LAYOUT: readonly TempVoiceStateLayout[] = ['GRID3', 'GRID2', 'TABLE', 'CARDS'];
+const TEMP_VOICE_STATE_COLORS: readonly TempVoiceStateColors[] = ['NEUTRAL', 'DARK', 'LIGHT'];
+const TEMP_VOICE_PANEL_COMPONENTS: readonly TempVoicePanelComponents[] = ['V1', 'V2'];
+const TEMP_VOICE_RESERVATION_FALLBACK_MODE: readonly TempVoiceReservationFallbackMode[] = ['MEMBERS', 'ANY_ROLE', 'FORBIDDEN'];
 /** Plafond d'un menu de sélection de rôle Discord : au-delà, le bot ne pourrait pas les afficher. */
 const MAX_RESERVABLE_ROLES = 25;
 
@@ -108,6 +126,29 @@ interface TempVoiceModPermissionsConfigView {
   reservationOverflow: TempVoiceReservationOverflow;
   /** Salon vers lequel déplacer quand la décision est `MOVE`. */
   reservationFallbackChannelId: string | null;
+  /** Portes séparées (CLASSIC) ou tout sur un écran (FLAT). Défaut `CLASSIC`. */
+  panelMode: TempVoicePanelMode;
+  /** Mise en page des six valeurs d'état. Seule GRID3 en V1 est native. Défaut `GRID3`. */
+  stateLayout: TempVoiceStateLayout;
+  /** Palette de l'image d'état ; sans effet pour GRID3 en V1. Défaut `NEUTRAL`. */
+  stateColors: TempVoiceStateColors;
+  /** Embed classique (V1) ou Components V2 (V2, rendu actuel). Défaut `V2`. */
+  panelComponents: TempVoicePanelComponents;
+  /**
+   * Bouton « Réserver » pour qui n'a aucun rôle réservable. Défaut `ANY_ROLE`.
+   * Même nom que la colonne Prisma `reservationFallbackMode` et que le champ
+   * envoyé/lu par le dashboard (moderation.ts, ChannelsManagement.svelte) :
+   * aucune traduction de nom entre la vue et la base.
+   */
+  reservationFallbackMode: TempVoiceReservationFallbackMode;
+  /**
+   * L'interrupteur de secours de la personnalisation par générateur, lu par
+   * `presentationParGenerateurActive` (tempVoiceService.ts). Défaut `false` :
+   * au déploiement, aucun serveur existant ne change de comportement. Le
+   * couper IGNORE les surcharges des générateurs (`Guild.tempVoiceGenerators`),
+   * il ne les EFFACE PAS.
+   */
+  perGeneratorPresentation: boolean;
 }
 
 /** `@default` du modèle Prisma `TempVoiceAccessRequestConfig`. */
@@ -120,7 +161,37 @@ const TEMP_VOICE_ACCESS_REQUEST_DEFAULTS: TempVoiceAccessRequestConfigView = {
   denyCooldownMinutes: 10,
 };
 
-/** `@default` du modèle Prisma `TempVoiceModPermissionsConfig`. */
+/**
+ * `@default` du modèle Prisma `TempVoiceModPermissionsConfig`.
+ *
+ * ATTENTION — QUATRE AUTRES COPIES de ces valeurs existent, et rien ne les compare
+ * automatiquement — ajouter un réglage ou une valeur ici SEUL ne donne pas une
+ * fonctionnalité à moitié livrée, ça donne un 400 à l'autre bout :
+ *
+ *  1. `packages/database/prisma/temp-voice-access.prisma` — les `@default(...)`
+ *     du modèle et le commentaire qui liste les valeurs admises (colonnes
+ *     `String`, sans enum : la base accepte n'importe quoi, elle n'arbitre pas).
+ *  2. `apps/bot/src/services/features/tempVoiceService.ts` — `PRESENTATION_PAR_DEFAUT`
+ *     et les listes `MODES_PANNEAU`/`DISPOSITIONS_ETAT`/`TEINTES_ETAT`/
+ *     `JEUX_COMPOSANTS`/`REPLIS_RESERVATION` lues par
+ *     `normaliserReglagesPresentation` : une valeur qu'elles ne connaissent pas
+ *     retombe sur le défaut, le panneau rend autre chose que ce qui est écrit
+ *     en base, et rien ne le signale.
+ *  3. `apps/dashboard/src/lib/api/moderation.ts` — les unions littérales du type
+ *     `tempVoiceModPermissions` : seul garde-fou de typage entre la page et
+ *     cette route.
+ *  4. `apps/dashboard/src/pages/ChannelsManagement.svelte` — les `<option>` des
+ *     sélecteurs et les défauts de `config` : ce qu'un administrateur peut
+ *     réellement choisir.
+ *
+ * Et dans CE fichier : les cinq listes `TEMP_VOICE_*` juste au-dessus, qui
+ * décident du rejet 400 dans `normalizeTempVoiceModPermissionsInput`. Une
+ * sixième valeur (ou un sixième réglage) ajoutée ici et nulle part ailleurs se
+ * paie donc deux fois : la page ne la propose jamais, et si un appel API la
+ * porte quand même, elle est écrite puis rendue au défaut par le bot. Dans le
+ * sens inverse — proposée par la page, absente des listes `TEMP_VOICE_*` — la
+ * page entière échoue en 400 au moment d'enregistrer.
+ */
 const TEMP_VOICE_MOD_PERMISSIONS_DEFAULTS: TempVoiceModPermissionsConfigView = {
   canRename: true,
   canChangeLimit: true,
@@ -135,6 +206,12 @@ const TEMP_VOICE_MOD_PERMISSIONS_DEFAULTS: TempVoiceModPermissionsConfigView = {
   reservableRoleIds: [],
   reservationOverflow: 'ASK',
   reservationFallbackChannelId: null,
+  panelMode: 'CLASSIC',
+  stateLayout: 'GRID3',
+  stateColors: 'NEUTRAL',
+  panelComponents: 'V2',
+  reservationFallbackMode: 'ANY_ROLE',
+  perGeneratorPresentation: false,
 };
 
 /**
@@ -181,6 +258,12 @@ function viewTempVoiceModPermissionsConfig(
     reservableRoleIds: string[];
     reservationOverflow: string;
     reservationFallbackChannelId: string | null;
+    panelMode: string;
+    stateLayout: string;
+    stateColors: string;
+    panelComponents: string;
+    reservationFallbackMode: string;
+    perGeneratorPresentation: boolean;
   } | null,
 ): TempVoiceModPermissionsConfigView {
   if (!row) return { ...TEMP_VOICE_MOD_PERMISSIONS_DEFAULTS };
@@ -198,6 +281,22 @@ function viewTempVoiceModPermissionsConfig(
       ? (row.reservationOverflow as TempVoiceReservationOverflow)
       : TEMP_VOICE_MOD_PERMISSIONS_DEFAULTS.reservationOverflow,
     reservationFallbackChannelId: row.reservationFallbackChannelId,
+    panelMode: TEMP_VOICE_PANEL_MODE.includes(row.panelMode as TempVoicePanelMode)
+      ? (row.panelMode as TempVoicePanelMode)
+      : TEMP_VOICE_MOD_PERMISSIONS_DEFAULTS.panelMode,
+    stateLayout: TEMP_VOICE_STATE_LAYOUT.includes(row.stateLayout as TempVoiceStateLayout)
+      ? (row.stateLayout as TempVoiceStateLayout)
+      : TEMP_VOICE_MOD_PERMISSIONS_DEFAULTS.stateLayout,
+    stateColors: TEMP_VOICE_STATE_COLORS.includes(row.stateColors as TempVoiceStateColors)
+      ? (row.stateColors as TempVoiceStateColors)
+      : TEMP_VOICE_MOD_PERMISSIONS_DEFAULTS.stateColors,
+    panelComponents: TEMP_VOICE_PANEL_COMPONENTS.includes(row.panelComponents as TempVoicePanelComponents)
+      ? (row.panelComponents as TempVoicePanelComponents)
+      : TEMP_VOICE_MOD_PERMISSIONS_DEFAULTS.panelComponents,
+    reservationFallbackMode: TEMP_VOICE_RESERVATION_FALLBACK_MODE.includes(row.reservationFallbackMode as TempVoiceReservationFallbackMode)
+      ? (row.reservationFallbackMode as TempVoiceReservationFallbackMode)
+      : TEMP_VOICE_MOD_PERMISSIONS_DEFAULTS.reservationFallbackMode,
+    perGeneratorPresentation: row.perGeneratorPresentation === true,
   };
 }
 
@@ -211,7 +310,10 @@ function normalizeTempVoiceAccessRequestInput(
   raw: unknown,
 ): { data: Partial<TempVoiceAccessRequestConfigView> } | { error: string } {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return { error: "Configuration des demandes d'accès invalide" };
+    // Anglais comme tous les messages de cette route : c'est ce texte que la
+    // page affiche tel quel (`res.error`). `panelSettingError` est déclarée
+    // plus bas dans le fichier — une déclaration de fonction, donc hissée.
+    return { error: 'tempVoiceAccessRequest: expected an object. Nothing was saved.' };
   }
   const body = raw as Record<string, unknown>;
   const data: Partial<TempVoiceAccessRequestConfigView> = {};
@@ -221,13 +323,13 @@ function normalizeTempVoiceAccessRequestInput(
   }
   if (Object.prototype.hasOwnProperty.call(body, 'responders')) {
     if (!TEMP_VOICE_ACCESS_RESPONDERS.includes(body.responders as TempVoiceAccessResponders)) {
-      return { error: 'Type de répondant invalide' };
+      return { error: panelSettingError('Responders', 'responders', body.responders, TEMP_VOICE_ACCESS_RESPONDERS.join(' | ')) };
     }
     data.responders = body.responders as TempVoiceAccessResponders;
   }
   if (Object.prototype.hasOwnProperty.call(body, 'notifyVia')) {
     if (!TEMP_VOICE_ACCESS_NOTIFY_VIA.includes(body.notifyVia as TempVoiceAccessNotifyVia)) {
-      return { error: 'Canal de notification invalide' };
+      return { error: panelSettingError('Notification target', 'notifyVia', body.notifyVia, TEMP_VOICE_ACCESS_NOTIFY_VIA.join(' | ')) };
     }
     data.notifyVia = body.notifyVia as TempVoiceAccessNotifyVia;
   }
@@ -238,14 +340,14 @@ function normalizeTempVoiceAccessRequestInput(
   if (Object.prototype.hasOwnProperty.call(body, 'requestExpiresMinutes')) {
     const n = Math.floor(Number(body.requestExpiresMinutes));
     if (!Number.isFinite(n) || n < 1 || n > 1440) {
-      return { error: "Délai d'expiration de la demande invalide (1 à 1440 minutes)" };
+      return { error: panelSettingError('Request expiry', 'requestExpiresMinutes', body.requestExpiresMinutes, 'a whole number of minutes, 1 to 1440') };
     }
     data.requestExpiresMinutes = n;
   }
   if (Object.prototype.hasOwnProperty.call(body, 'denyCooldownMinutes')) {
     const n = Math.floor(Number(body.denyCooldownMinutes));
     if (!Number.isFinite(n) || n < 0 || n > 1440) {
-      return { error: 'Délai de blocage après refus invalide (0 à 1440 minutes)' };
+      return { error: panelSettingError('Deny cooldown', 'denyCooldownMinutes', body.denyCooldownMinutes, 'a whole number of minutes, 0 to 1440') };
     }
     data.denyCooldownMinutes = n;
   }
@@ -263,17 +365,65 @@ function isPlausibleSnowflake(value: unknown): value is string {
 }
 
 /**
- * Valide le payload entrant pour `tempVoiceModPermissions` : les sept
- * permissions et `panelCompactMode` sont des booléens ; les trois champs de
- * réservation (`reservableRoleIds`, `reservationOverflow`,
- * `reservationFallbackChannelId`) sont sanitisés plutôt que de laisser
- * remonter une valeur venue du navigateur jusqu'à la base ou jusqu'au bot.
+ * Message de refus d'un réglage à valeur imposée : les cinq réglages de
+ * présentation du panneau, et les champs à liste fermée ou à bornes de
+ * `tempVoiceAccessRequest`. Il nomme le champ, la valeur refusée et le fait que
+ * rien n'a été enregistré : ces champs voyagent dans le même PATCH que toute la
+ * page (autoThread, stats, honeypot), donc un refus annule aussi leur
+ * enregistrement. Sans la valeur dans le message, un dashboard plus récent que
+ * le bot ferait échouer la page sur une cause illisible.
+ *
+ * Rédigé en ANGLAIS, contrairement aux commentaires : le dashboard affiche
+ * `res.error` tel quel (`handleSave`) et la langue de référence de l'interface
+ * est l'anglais (`en.json` fait foi). Les messages que le bot envoie dans
+ * Discord restent français, ils ne passent pas par ici.
+ *
+ * `expected` borne la valeur attendue quand la liste n'est pas fermée (un
+ * nombre dans un intervalle). La valeur reçue est tronquée à 40 caractères :
+ * elle vient du corps de la requête, donc d'un appelant qui peut y mettre
+ * n'importe quelle longueur.
  */
-function normalizeTempVoiceModPermissionsInput(
+function panelSettingError(label: string, key: string, value: unknown, expected?: string): string {
+  const seen = typeof value === 'string' ? value : String(value);
+  const suffix = expected ? ` (expected: ${expected})` : '';
+  return `${label} (${key}): "${seen.slice(0, 40)}" is not a valid value${suffix}. Nothing was saved.`;
+}
+
+/**
+ * Valide le payload entrant pour `tempVoiceModPermissions`. Trois régimes,
+ * volontairement différents, parce que ce qu'une valeur invalide coûte n'est
+ * pas le même selon le champ :
+ *
+ *  - les sept permissions et `panelCompactMode` — booléens, `!== true` vaut
+ *    `false` ;
+ *  - `reservableRoleIds`, `reservationOverflow`, `reservationFallbackChannelId`
+ *    — SANITISÉS : une valeur hors liste retombe sur un défaut sûr, jamais sur
+ *    une valeur qui agit (pas de déplacement ni de déconnexion que personne
+ *    n'a choisis), plutôt que de rejeter tout le PATCH pour un champ optionnel ;
+ *  - `panelMode`, `stateLayout`, `stateColors`, `panelComponents`,
+ *    `reservationFallbackMode` — REJETÉS : une valeur hors union renvoie
+ *    `{ error }`, donc un 400, donc AUCUNE écriture. Divergence assumée avec
+ *    le régime précédent : ces cinq champs ne décident d'aucune action, ils
+ *    décident de l'apparence du panneau. Les rabattre en silence sur le défaut
+ *    se lirait comme un réglage qui ne s'enregistre pas — l'administrateur
+ *    choisit `FLAT`, la page annonce « enregistré », le panneau reste
+ *    `CLASSIC`, et rien ne le signale. Le message nomme le champ ET la valeur
+ *    refusée (`panelSettingError`).
+ *
+ * La vue, la colonne Prisma et le dashboard nomment tous le cinquième champ
+ * `reservationFallbackMode` — c'est ce nom que le spread `create:` de l'upsert
+ * envoie à Prisma, un alias dans la vue ferait écrire une colonne inconnue.
+ * L'ancien nom `reservationFallback` est accepté ici, et ici seulement, puis
+ * traduit vers la colonne : sans ça une requête qui le porte serait ignorée en
+ * silence.
+ *
+ * Exportée : un test unitaire l'appelle directement.
+ */
+export function normalizeTempVoiceModPermissionsInput(
   raw: unknown,
 ): { data: Partial<TempVoiceModPermissionsConfigView> } | { error: string } {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return { error: 'Configuration des permissions modérateur invalide' };
+    return { error: 'tempVoiceModPermissions: expected an object. Nothing was saved.' };
   }
   const body = raw as Record<string, unknown>;
   const data: Partial<TempVoiceModPermissionsConfigView> = {};
@@ -282,7 +432,15 @@ function normalizeTempVoiceModPermissionsInput(
   // depuis leur ajout, et écrire via une clé union dont les types de valeur
   // divergent (boolean vs string[] vs string|null) fait échouer le typecheck.
   const boolKeys: Array<
-    'canRename' | 'canChangeLimit' | 'canLock' | 'canChangeWriteMode' | 'canKickOrBan' | 'canReserve' | 'canTransfer' | 'panelCompactMode'
+    | 'canRename'
+    | 'canChangeLimit'
+    | 'canLock'
+    | 'canChangeWriteMode'
+    | 'canKickOrBan'
+    | 'canReserve'
+    | 'canTransfer'
+    | 'panelCompactMode'
+    | 'perGeneratorPresentation'
   > = [
     'canRename',
     'canChangeLimit',
@@ -292,6 +450,10 @@ function normalizeTempVoiceModPermissionsInput(
     'canReserve',
     'canTransfer',
     'panelCompactMode',
+    // Interrupteur de secours : régime booléen comme `panelCompactMode`
+    // au-dessus, pas régime REJET comme les cinq réglages de présentation
+    // ci-dessous — une valeur qui n'est pas `true` vaut `false`, jamais un 400.
+    'perGeneratorPresentation',
   ];
   for (const key of boolKeys) {
     if (Object.prototype.hasOwnProperty.call(body, key)) {
@@ -324,7 +486,118 @@ function normalizeTempVoiceModPermissionsInput(
     data.reservationFallbackChannelId = typeof value === 'string' && value.trim() ? value.trim() : null;
   }
 
+  // Cinq réglages de présentation du panneau, régime REJET — le pourquoi est
+  // au-dessus de la fonction, avec la divergence assumée face aux champs
+  // sanitisés juste ci-dessus. Cinq blocs explicites plutôt qu'une table :
+  // c'est la forme déjà tenue par tout ce fichier, et écrire dans `data` par
+  // une clé union dont les types de valeur divergent casse le typecheck (même
+  // piège que `boolKeys`).
+  if (Object.prototype.hasOwnProperty.call(body, 'panelMode')) {
+    if (!TEMP_VOICE_PANEL_MODE.includes(body.panelMode as TempVoicePanelMode)) {
+      return { error: panelSettingError('Panel mode', 'panelMode', body.panelMode, TEMP_VOICE_PANEL_MODE.join(' | ')) };
+    }
+    data.panelMode = body.panelMode as TempVoicePanelMode;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'stateLayout')) {
+    if (!TEMP_VOICE_STATE_LAYOUT.includes(body.stateLayout as TempVoiceStateLayout)) {
+      return { error: panelSettingError('State layout', 'stateLayout', body.stateLayout, TEMP_VOICE_STATE_LAYOUT.join(' | ')) };
+    }
+    data.stateLayout = body.stateLayout as TempVoiceStateLayout;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'stateColors')) {
+    if (!TEMP_VOICE_STATE_COLORS.includes(body.stateColors as TempVoiceStateColors)) {
+      return { error: panelSettingError('State palette', 'stateColors', body.stateColors, TEMP_VOICE_STATE_COLORS.join(' | ')) };
+    }
+    data.stateColors = body.stateColors as TempVoiceStateColors;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'panelComponents')) {
+    if (!TEMP_VOICE_PANEL_COMPONENTS.includes(body.panelComponents as TempVoicePanelComponents)) {
+      return { error: panelSettingError('Panel components', 'panelComponents', body.panelComponents, TEMP_VOICE_PANEL_COMPONENTS.join(' | ')) };
+    }
+    data.panelComponents = body.panelComponents as TempVoicePanelComponents;
+  }
+  // Seul endroit où `reservationFallback` (ancien nom) est traduit vers la
+  // colonne `reservationFallbackMode`. Le nom canonique gagne s'il est présent.
+  const fallbackKey = Object.prototype.hasOwnProperty.call(body, 'reservationFallbackMode')
+    ? 'reservationFallbackMode'
+    : 'reservationFallback';
+  if (Object.prototype.hasOwnProperty.call(body, fallbackKey)) {
+    const value = body[fallbackKey];
+    if (!TEMP_VOICE_RESERVATION_FALLBACK_MODE.includes(value as TempVoiceReservationFallbackMode)) {
+      return { error: panelSettingError('Reservation fallback', fallbackKey, value, TEMP_VOICE_RESERVATION_FALLBACK_MODE.join(' | ')) };
+    }
+    data.reservationFallbackMode = value as TempVoiceReservationFallbackMode;
+  }
+
   return { data };
+}
+
+/**
+ * Valide les surcharges de présentation portées par CHAQUE générateur
+ * (`tempVoiceGenerators[i].panelMode`/`stateLayout`/`stateColors`/
+ * `panelComponents`/`reservationFallbackMode`), AVANT
+ * `normalizeTempVoiceGeneratorsInput` (tempVoiceService.ts).
+ *
+ * Ce dernier les lit avec `lireSurchargesPresentation`, qui traite une valeur
+ * hors énumération comme ABSENTE plutôt que comme une erreur — le bon choix
+ * pour le RENDU d'un salon existant (un réglage fautif ne doit jamais
+ * empêcher un panneau de sortir), le mauvais choix pour l'ÉCRITURE depuis le
+ * dashboard : un administrateur qui choisit une valeur invalide croirait
+ * l'avoir enregistrée alors qu'elle a été silencieusement ignorée — exactement
+ * le bug que `panelSettingError` existe pour éviter au niveau serveur.
+ *
+ * Donc deux régimes différents pour la même donnée selon le sens : tolérant
+ * en lecture (tempVoiceService.ts), REJETÉ ici en écriture. `null` et absent
+ * valent tous deux « hérite du serveur » et ne sont jamais rejetés — seule une
+ * valeur PRÉSENTE et hors énumération l'est.
+ */
+function validateGeneratorPresentationOverrides(raw: unknown): string | null {
+  if (!Array.isArray(raw)) return null;
+
+  for (let i = 0; i < raw.length; i++) {
+    const entry = raw[i];
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    const body = entry as Record<string, unknown>;
+    const prefix = `Generator #${i + 1}`;
+
+    if (
+      Object.prototype.hasOwnProperty.call(body, 'panelMode') && body.panelMode != null
+      && !TEMP_VOICE_PANEL_MODE.includes(body.panelMode as TempVoicePanelMode)
+    ) {
+      return panelSettingError(`${prefix} panel mode`, 'panelMode', body.panelMode, TEMP_VOICE_PANEL_MODE.join(' | '));
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(body, 'stateLayout') && body.stateLayout != null
+      && !TEMP_VOICE_STATE_LAYOUT.includes(body.stateLayout as TempVoiceStateLayout)
+    ) {
+      return panelSettingError(`${prefix} state layout`, 'stateLayout', body.stateLayout, TEMP_VOICE_STATE_LAYOUT.join(' | '));
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(body, 'stateColors') && body.stateColors != null
+      && !TEMP_VOICE_STATE_COLORS.includes(body.stateColors as TempVoiceStateColors)
+    ) {
+      return panelSettingError(`${prefix} state palette`, 'stateColors', body.stateColors, TEMP_VOICE_STATE_COLORS.join(' | '));
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(body, 'panelComponents') && body.panelComponents != null
+      && !TEMP_VOICE_PANEL_COMPONENTS.includes(body.panelComponents as TempVoicePanelComponents)
+    ) {
+      return panelSettingError(`${prefix} panel components`, 'panelComponents', body.panelComponents, TEMP_VOICE_PANEL_COMPONENTS.join(' | '));
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(body, 'reservationFallbackMode') && body.reservationFallbackMode != null
+      && !TEMP_VOICE_RESERVATION_FALLBACK_MODE.includes(body.reservationFallbackMode as TempVoiceReservationFallbackMode)
+    ) {
+      return panelSettingError(
+        `${prefix} reservation fallback`,
+        'reservationFallbackMode',
+        body.reservationFallbackMode,
+        TEMP_VOICE_RESERVATION_FALLBACK_MODE.join(' | '),
+      );
+    }
+  }
+
+  return null;
 }
 
 export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): Promise<boolean> {
@@ -1128,6 +1401,17 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
           data.tempVoiceDefaults = normalizeTempVoicePolicy(body.tempVoiceDefaults, guildId) as unknown as Prisma.InputJsonValue;
         }
         if (Object.prototype.hasOwnProperty.call(body, 'tempVoiceGenerators')) {
+          // Rejet AVANT normalisation : `normalizeTempVoiceGeneratorsInput`
+          // (tempVoiceService.ts) traite une surcharge de présentation hors
+          // énumération comme absente, ce qui écrirait « enregistré » côté page
+          // sans que rien n'ait changé. Voir la doc de
+          // `validateGeneratorPresentationOverrides` pour la divergence assumée
+          // avec la lecture (rendu du panneau), qui reste tolérante.
+          const presentationError = validateGeneratorPresentationOverrides(body.tempVoiceGenerators);
+          if (presentationError) {
+            json(res, 400, { error: presentationError });
+            return true;
+          }
           // La page n'est qu'un client parmi d'autres (outils MCP, appels
           // directs) : sans validation ici, une limite de places aberrante ou un
           // identifiant de rôle invente descendrait jusqu'à l'appel Discord.
@@ -1151,6 +1435,16 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
           }
           tempVoiceAccessRequestData = parsed.data;
         }
+
+        /**
+         * Réglages acceptés ET enregistrés, mais dont l'effet est nul dans la
+         * combinaison obtenue. Ni une erreur (rien à corriger, la valeur est
+         * valide) ni un silence (sinon le réglage paraît perdu) : la réponse les
+         * porte, en anglais comme les erreurs, à côté de `ok: true`. Champ absent
+         * quand il n'y a rien à dire, pour ne pas changer la forme de la réponse
+         * dans le cas courant.
+         */
+        const notices: string[] = [];
 
         let tempVoiceModPermissionsData: Partial<TempVoiceModPermissionsConfigView> | null = null;
         if (Object.prototype.hasOwnProperty.call(body, 'tempVoiceModPermissions')) {
@@ -1369,27 +1663,27 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
               }
 
               if (needsMember) {
-                const tpl = sc.memberTemplate || '👤 Membres : {count}';
+                const tpl = sc.memberTemplate || '👤 Members: {count}';
                 newSc.memberChannelId = await createStatChannel(tpl.replace('{count}', '…')) ?? sc.memberChannelId;
               }
               if (needsBot) {
-                const tpl = sc.botTemplate || '🤖 Bots : {count}';
+                const tpl = sc.botTemplate || '🤖 Bots: {count}';
                 newSc.botChannelId = await createStatChannel(tpl.replace('{count}', '…')) ?? sc.botChannelId;
               }
               if (needsRole) {
-                const tpl = sc.roleTemplate || '👑 Staff : {count}';
+                const tpl = sc.roleTemplate || '👑 Staff: {count}';
                 newSc.roleChannelId = await createStatChannel(tpl.replace('{count}', '…')) ?? sc.roleChannelId;
               }
               if (needsChannel) {
-                const tpl = sc.channelTemplate || '💬 Salons : {count}';
+                const tpl = sc.channelTemplate || '💬 Channels: {count}';
                 newSc.channelChannelId = await createStatChannel(tpl.replace('{count}', '…')) ?? sc.channelChannelId;
               }
               if (needsCategory) {
-                const tpl = sc.categoryTemplate || '📁 Catégories : {count}';
+                const tpl = sc.categoryTemplate || '📁 Categories: {count}';
                 newSc.categoryChannelId = await createStatChannel(tpl.replace('{count}', '…')) ?? sc.categoryChannelId;
               }
               if (needsActivity) {
-                const tpl = sc.activityTemplate || '📈 Actifs 24h : {count}';
+                const tpl = sc.activityTemplate || '📈 Active 24h: {count}';
                 newSc.activityChannelId = await createStatChannel(tpl.replace('{count}', '…')) ?? sc.activityChannelId;
               }
 
@@ -1433,11 +1727,39 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
           });
         }
         if (tempVoiceModPermissionsData) {
-          await prisma.tempVoiceModPermissionsConfig.upsert({
+          const savedModPermissions = await prisma.tempVoiceModPermissionsConfig.upsert({
             where: { guildId },
             create: { guildId, ...TEMP_VOICE_MOD_PERMISSIONS_DEFAULTS, ...tempVoiceModPermissionsData },
             update: tempVoiceModPermissionsData,
           });
+          // `stateColors` ne teinte que l'image d'état, et GRID3 en V1 n'en
+          // produit aucune (embed natif Discord). La valeur est enregistrée
+          // quand même — la refuser en 400 casserait les appels API déjà en
+          // place, et ce n'est pas une valeur invalide — mais la réponse le dit.
+          // La protection n'existait que dans la page (le sélecteur est grisé
+          // sur cette combinaison), donc tout autre appelant l'enregistrait en
+          // silence et croyait avoir changé la teinte.
+          //
+          // Comparé au DÉFAUT, pas à `NEUTRAL` en dur : c'est ce qui distingue
+          // une teinte CHOISIE d'une teinte jamais touchée. Sans ça, tout
+          // enregistrement en GRID3 + V1 porterait le message, y compris celui
+          // d'un serveur qui n'a jamais ouvert ce sélecteur.
+          //
+          // L'état LU est celui que l'upsert renvoie, pas le payload : un PATCH
+          // partiel (juste `panelComponents: 'V1'`, par exemple) rend une teinte
+          // inerte sans jamais nommer `stateColors`. Même règle que le rendu
+          // (`dispositionNative`) et même normalisation que le GET
+          // (`viewTempVoiceModPermissionsConfig`), pour qu'un message ne puisse
+          // pas contredire ce que le panneau affiche.
+          const effectif = viewTempVoiceModPermissionsConfig(savedModPermissions);
+          if (
+            dispositionNative({ disposition: effectif.stateLayout, composants: effectif.panelComponents })
+            && effectif.stateColors !== TEMP_VOICE_MOD_PERMISSIONS_DEFAULTS.stateColors
+          ) {
+            notices.push(
+              `stateColors="${effectif.stateColors}" was saved but has no visible effect: stateLayout=GRID3 with panelComponents=V1 renders Discord's native embed, which has no state image to tint. Switch panelComponents to V2, or pick another stateLayout, for the palette to apply.`,
+            );
+          }
         }
 
         // Purge les caches préfixés guild:<id>: - config du bot (getCachedGuild)
@@ -1485,6 +1807,7 @@ export async function handleChannelsManagementRoutes(ctx: ModuleRouteContext): P
 
         json(res, 200, {
           ok: true,
+          ...(notices.length ? { notices } : {}),
           resolved: {
             tempVoiceChannelId: data.tempVoiceChannelId,
             tempVoiceCategoryId: data.tempVoiceCategoryId,

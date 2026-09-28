@@ -803,13 +803,13 @@ describe('autorisation d\'un membre', () => {
     // Le nombre de droits d'un accès complet était écrit en dur ici alors qu'il
     // vit dans le service : le jour où la liste s'est allongée, toute réussite
     // s'est annoncée comme partielle, et le message de succès est devenu mort.
-    expect((await trust(trustCategory(FULL_ACCESS)))[0]).toContain('autorisé à rejoindre');
+    expect((await trust(trustCategory(FULL_ACCESS)))[0]).toContain('allowed to join');
     // Et la surcharge est réellement posée : annoncer sans écrire passerait
     // sinon pour une réussite.
     expect(dernieresEcritures.some((entry) => entry.id === OTHER)).toBe(true);
 
     const partial = FULL_ACCESS & ~PermissionFlagsBits.SendMessages;
-    expect((await trust(trustCategory(partial)))[0]).toContain('accès partiel');
+    expect((await trust(trustCategory(partial)))[0]).toContain('partial access');
   });
 
   test('ne fait pas entrer dans une catégorie qui refuse la vue à la cible', async () => {
@@ -1536,18 +1536,18 @@ describe('limite de places', () => {
     // part vers Discord. Et une limite négative n'a pas de sens.
     const texte = await submitLimit('abc');
     expect(texte.setUserLimit).not.toHaveBeenCalled();
-    expect(texte.messages[0]).toContain('invalide');
+    expect(texte.messages[0]).toContain('Invalid number');
 
     const negatif = await submitLimit('-3');
     expect(negatif.setUserLimit).not.toHaveBeenCalled();
-    expect(negatif.messages[0]).toContain('invalide');
+    expect(negatif.messages[0]).toContain('Invalid number');
   });
 
   test('zéro s\'annonce comme une absence de limite', async () => {
     const { messages, setUserLimit } = await submitLimit('0');
 
     expect(setUserLimit).toHaveBeenCalledWith(0);
-    expect(messages[0]).toContain('Limite de places retirée');
+    expect(messages[0]).toContain('Slot limit removed');
   });
 
   test('refuse une valeur au-delà de ce que Discord accepte', async () => {
@@ -1556,7 +1556,7 @@ describe('limite de places', () => {
     const { messages, setUserLimit } = await submitLimit(String(MAX_USER_LIMIT + 1));
 
     expect(setUserLimit).not.toHaveBeenCalled();
-    expect(messages[0]).toContain('invalide');
+    expect(messages[0]).toContain('Invalid number');
   });
 });
 
@@ -1899,8 +1899,8 @@ describe('renommage refusé', () => {
     await listeners.get(Events.InteractionCreate)?.(interaction);
 
     expect(messages).toHaveLength(1);
-    expect(messages[0]).toContain('refusé');
-    expect(messages[0]).not.toContain("n'a pas confirmé");
+    expect(messages[0]).toContain('rejected');
+    expect(messages[0]).not.toContain('did not confirm');
   });
 });
 
@@ -2041,7 +2041,7 @@ describe('renommage', () => {
     expect(messages).toHaveLength(1);
     // Ni « renommé » (faux), ni « échoue » (faux aussi : la requête suit son
     // cours) - le message doit dire que Discord n'a pas confirmé.
-    expect(messages[0]).toContain("n'a pas confirmé");
+    expect(messages[0]).toContain('did not confirm');
   });
 });
 
@@ -3519,8 +3519,8 @@ describe('Verrouiller met a jour le panneau de base', () => {
     // ...et il dit l'etat REEL, pas celui d'avant le clic.
     const appels = panneau.edit.mock.calls as unknown as unknown[][];
     const rendu = JSON.stringify(appels.at(-1)?.[0] ?? {});
-    expect(rendu).toContain('Verrouill');
-    expect(rendu).not.toContain('Ouvert');
+    expect(rendu).toContain('Locked');
+    expect(rendu).not.toContain('Open');
 
     tempChannels.delete(channel.id);
     guildConfig = null;
@@ -3647,8 +3647,8 @@ describe('Reactivite du panneau : chaque changement, tout de suite, et vrai', ()
   test('verrouiller : le panneau dit « Verrouille » tout de suite', async () => {
     const sc = scene('950000000000000001');
     const rendu = await panneauApres(sc, 'bascule_verrou');
-    expect(rendu).toContain('Verrouill');
-    expect(rendu).not.toContain('Ouvert');
+    expect(rendu).toContain('Locked');
+    expect(rendu).not.toContain('Open');
     sc.ranger();
   }, 10_000);
 
@@ -3658,23 +3658,23 @@ describe('Reactivite du panneau : chaque changement, tout de suite, et vrai', ()
     const sc = scene('950000000000000002');
     await panneauApres(sc, 'bascule_verrou');
     const rendu = await panneauApres(sc, 'bascule_verrou', undefined, 1_100);
-    expect(rendu).toContain('Ouvert');
-    expect(rendu).not.toContain('Verrouill');
+    expect(rendu).toContain('Open');
+    expect(rendu).not.toContain('Locked');
     sc.ranger();
   }, 15_000);
 
   test('mode d ecriture : le champ « Ecriture » suit le choix', async () => {
     const sc = scene('950000000000000003');
     const rendu = await panneauApres(sc, 'mode_select', ['ownerOnly']);
-    expect(rendu).toContain('Moi seul');
-    expect(rendu).not.toContain('Tout le monde');
+    expect(rendu).toContain('Me only');
+    expect(rendu).not.toContain('Everyone');
     sc.ranger();
   }, 10_000);
 
-  test('« Personne » se lit aussi dans le panneau', async () => {
+  test('« No one » se lit aussi dans le panneau', async () => {
     const sc = scene('950000000000000004');
     const rendu = await panneauApres(sc, 'mode_select', ['nobody']);
-    expect(rendu).toContain('Personne');
+    expect(rendu).toContain('No one');
     sc.ranger();
   }, 10_000);
 
@@ -3744,7 +3744,7 @@ describe('Reactivite du panneau : chaque changement, tout de suite, et vrai', ()
     // qu'un seul - le panneau reste fige sur « Verrouille ».
     const appels = sc.panneau.edit.mock.calls as unknown as unknown[][];
     expect(appels).toHaveLength(2);
-    expect(JSON.stringify(appels.at(-1)?.[0] ?? {})).toContain('Ouvert');
+    expect(JSON.stringify(appels.at(-1)?.[0] ?? {})).toContain('Open');
     sc.ranger();
   }, 20_000);
 

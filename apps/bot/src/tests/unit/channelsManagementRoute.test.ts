@@ -41,6 +41,16 @@ const mockDb = {
   },
   dashboardAuditLog: { create: mock(async () => ({})) },
   guild: { findUnique: mock(async () => null), update: mock(async () => ({})) },
+  // Tables separees, une ligne par serveur : la route les lit en `Promise.all`
+  // avec la guilde, donc leur absence du mock faisait echouer tout `GET`.
+  tempVoiceAccessRequestConfig: {
+    findUnique: mock(async () => null),
+    upsert: mock(async () => ({})),
+  },
+  tempVoiceModPermissionsConfig: {
+    findUnique: mock(async () => null),
+    upsert: mock(async () => ({})),
+  },
 };
 
 for (const dbPath of ['../../utils/db.ts', '../../utils/db.js']) {
@@ -448,5 +458,155 @@ describe('création des générateurs additionnels depuis le dashboard', () => {
     expect(res.statusCode).toBe(200);
     const generators = created.filter((channel) => channel.name === '➕ Créer un salon');
     expect(generators).toHaveLength(MAX_ADDITIONAL_GENERATORS);
+  });
+});
+
+describe('reglages de presentation du panneau des salons temporaires', () => {
+  /**
+   * Cinq reglages d'affichage stockes en base sous forme de chaines libres
+   * (`String @default(...)`), lus et ecrits par la route. Rien dans le schema
+   * n'empeche une chaine hors union d'y arriver : un renommage cote dashboard,
+   * une migration a moitie jouee, un appel direct a l'API. Les deux sens sont
+   * donc bornes, et ces deux tests mesurent ce bornage — sans eux, une valeur
+   * invalide serait rendue telle quelle au panneau et le reglage deviendrait
+   * fantome sans que rien ne le signale.
+   */
+  const PANEL_DEFAULTS = {
+    panelMode: 'CLASSIC',
+    stateLayout: 'GRID3',
+    stateColors: 'NEUTRAL',
+    panelComponents: 'V2',
+    reservationFallbackMode: 'ANY_ROLE',
+  } as const;
+
+  const GUILD_CONFIG_ROW = {
+    autoThreadEnabled: false,
+    autoThreadChannels: [],
+    autoThreadBotsEnabled: false,
+    statsEnabled: false,
+    statsConfig: null,
+    tempVoiceEnabled: true,
+    tempVoiceChannelId: null,
+    tempVoiceCategoryId: null,
+    tempVoiceNameTemplate: 'Salon de {user}',
+    tempVoiceRequiredRoleId: null,
+    tempVoiceDefaults: null,
+    tempVoiceGenerators: null,
+    honeypotEnabled: false,
+    honeypotChannelId: null,
+    honeypotSanction: 'WARN',
+    honeypotReinvite: false,
+    wordStatsEnabled: false,
+  };
+
+  /** Ligne complete de `TempVoiceModPermissionsConfig`, surchargeable champ par champ. */
+  function modPermissionsRow(overrides: Record<string, unknown>) {
+    return {
+      guildId: GUILD,
+      canRename: true,
+      canChangeLimit: true,
+      canLock: true,
+      canChangeWriteMode: true,
+      canKickOrBan: true,
+      canReserve: true,
+      canTransfer: true,
+      panelCompactMode: false,
+      reservableRoleIds: [],
+      reservationOverflow: 'ASK',
+      reservationFallbackChannelId: null,
+      ...PANEL_DEFAULTS,
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    mockDb.guild.findUnique = mock(async () => GUILD_CONFIG_ROW as never);
+    mockDb.guild.update = mock(async () => ({}));
+    mockDb.tempVoiceAccessRequestConfig.findUnique = mock(async () => null);
+    mockDb.tempVoiceModPermissionsConfig.findUnique = mock(async () => null);
+    mockDb.tempVoiceModPermissionsConfig.upsert = mock(async () => ({}));
+  });
+
+  const emptyClient = () => ({
+    guilds: {
+      cache: new Map<string, unknown>([[GUILD, {
+        id: GUILD,
+        name: 'Serveur test',
+        preferredLocale: 'fr',
+        channels: { cache: new Map<string, unknown>() },
+        roles: { cache: new Map<string, unknown>() },
+        members: { cache: new Map<string, unknown>(), fetch: mock(async () => null) },
+      }]]),
+    },
+  } as unknown as Client);
+
+  async function callRoute(method: 'GET' | 'PATCH', body: Record<string, unknown>) {
+    const res = createMockResponse();
+    await handleChannelsManagementRoutes({
+      req: createMockRequest(body),
+      res,
+      parts: ['api', 'dashboard', 'guilds', GUILD, 'channels-management'],
+      url: new URL(`http://localhost/api/dashboard/guilds/${GUILD}/channels-management`),
+      client: emptyClient(),
+      user: { userId: 'user-1', username: 'Admin' } as AuthClaims,
+      guildId: GUILD,
+      access: DASHBOARD_ACCESS_ADMIN as DashboardAccess,
+      method,
+      auditUser: 'Admin',
+      moduleKey: 'channels-management',
+    });
+    return res;
+  }
+
+  /**
+   * Une valeur hors union est REJETÉE, elle ne retombe pas sur le défaut.
+   *
+   * Les cinq réglages de présentation ne décident d'aucune action : ils
+   * décident de l'apparence du panneau. Les rabattre en silence donnerait un
+   * réglage qui ne s'enregistre pas — la page annonce « enregistré », et le
+   * panneau ne change pas. Un 400 est plus honnête. C'est une divergence
+   * assumée avec `reservationOverflow`, qui retombe sur `ASK` parce qu'une
+   * valeur inconnue y déclencherait sinon un déplacement ou une déconnexion
+   * que personne n'a choisis.
+   */
+  test('une valeur hors union est rejetee, et rien n est ecrit', async () => {
+    const avant = (mockDb.tempVoiceModPermissionsConfig.upsert.mock.calls as unknown[][]).length;
+
+    const res = await callRoute('PATCH', {
+      tempVoiceModPermissions: modPermissionsRow({
+        panelMode: 'PLEIN_ECRAN',
+        stateLayout: 'GRID9',
+        stateColors: 'RAINBOW',
+        panelComponents: 'V3',
+        reservationFallbackMode: 'WHATEVER',
+      }),
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).error).toBeTruthy();
+    // Le rejet doit être total : pas d'écriture partielle des champs valides.
+    expect((mockDb.tempVoiceModPermissionsConfig.upsert.mock.calls as unknown[][]).length).toBe(avant);
+  });
+
+  test("une ligne en base porteuse d'une valeur invalide est relue au defaut", async () => {
+    mockDb.tempVoiceModPermissionsConfig.findUnique = mock(async () => modPermissionsRow({
+      panelMode: '',
+      stateLayout: 'grid3',
+      stateColors: 'DARK_MODE',
+      panelComponents: 'v2',
+      reservationFallbackMode: 'MEMBER',
+    }) as never);
+
+    const res = await callRoute('GET', {});
+
+    expect(res.statusCode).toBe(200);
+    const served = JSON.parse(res.body).tempVoiceModPermissions as Record<string, unknown>;
+    expect({
+      panelMode: served.panelMode,
+      stateLayout: served.stateLayout,
+      stateColors: served.stateColors,
+      panelComponents: served.panelComponents,
+      reservationFallbackMode: served.reservationFallbackMode,
+    }).toEqual({ ...PANEL_DEFAULTS });
   });
 });
