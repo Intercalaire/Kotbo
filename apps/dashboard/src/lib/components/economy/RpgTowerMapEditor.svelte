@@ -38,6 +38,8 @@
     offers: OfferKind[];
     pricePercent: number;
     traits: Trait[];
+    powerPercent: number;
+    powerReward: boolean;
     mechanic: Mechanic;
     event: EventChoice;
     key: boolean;
@@ -165,6 +167,9 @@
 
   function roomTitle(room: Room): string {
     const parts = [`${label(room.type)}${room.foe ? ` : ${room.foe}` : ''}`, tip(room.type)];
+    if (hasFoe(room.type) && room.powerPercent !== 100) {
+      parts.push(room.powerReward ? m.eco_tower_map_power_value_reward({ percent: room.powerPercent }) : m.eco_tower_map_power_value({ percent: room.powerPercent }));
+    }
     const distance = distances.get(room.id);
     if (distance === undefined) parts.push(m.eco_tower_map_unreachable_tip());
     else if (room.type !== 'START') parts.push(m.eco_tower_map_distance_tip({ rooms: distance }));
@@ -271,7 +276,7 @@
   function newRoom(x: number, y: number, type: RoomType): Room {
     return {
       id: `${x}-${y}`, x, y, type, foe: null, chest: 'BOTH', healPercent: 35, offers: [...OFFERS], pricePercent: 100,
-      traits: [], mechanic: 'RANDOM', event: 'RANDOM', key: false,
+      traits: [], powerPercent: 100, powerReward: false, mechanic: 'RANDOM', event: 'RANDOM', key: false,
     };
   }
 
@@ -304,6 +309,8 @@
         ...room,
         offers: [...room.offers],
         traits: [...(room.traits ?? [])],
+        powerPercent: room.powerPercent ?? 100,
+        powerReward: room.powerReward === true,
         mechanic: room.mechanic ?? 'RANDOM',
         event: room.event ?? 'RANDOM',
         key: room.key === true,
@@ -325,6 +332,117 @@
   let dirty = $state(false);
   let preview = $state<string | null>(null);
   let previewing = $state(false);
+
+  /** Puissances proposées pour un adversaire, en % de la force normale à sa profondeur. */
+  const POWERS = [50, 75, 100, 125, 150, 200, 250, 300];
+
+  function hasFoe(type: RoomType): boolean {
+    return type === 'MONSTER' || type === 'ELITE' || type === 'BOSS';
+  }
+
+  // ── Pipette : peindre des salles avec les réglages d'une salle existante ──
+  let template = $state<Room | null>(null);
+
+  function copyRoom(room: Room, x: number, y: number): Room {
+    return { ...room, id: `${x}-${y}`, x, y, offers: [...room.offers], traits: [...room.traits] };
+  }
+
+  function pickTool(next: Tool) {
+    tool = next;
+    template = null;
+  }
+
+  function pickTemplate(room: Room) {
+    template = copyRoom(room, room.x, room.y);
+    tool = room.type;
+    category = CATEGORIES.find((entry) => entry.types.includes(room.type))?.id ?? category;
+  }
+
+  function templateSummary(room: Room): string {
+    const parts = [label(room.type)];
+    if (room.foe) parts.push(room.foe);
+    if (hasFoe(room.type) && room.powerPercent !== 100) parts.push(`×${room.powerPercent / 100}`);
+    if (room.traits.length > 0) parts.push(room.traits.map(traitLabel).join(', '));
+    return parts.join(' · ');
+  }
+
+  // ── Annuler / rétablir (étage ouvert) ───────────────────────────
+  const HISTORY_MAX = 50;
+  let past = $state<Layout[]>([]);
+  let future = $state<Layout[]>([]);
+  /** État d'avant un coup de pinceau : il n'entre dans l'historique que si le coup change la carte. */
+  let stroke: Layout | null = null;
+  /** Coup de pinceau au clic droit : il efface, quel que soit l'outil. */
+  let erasing = false;
+
+  function capture(): Layout {
+    return cloneLayout($state.snapshot(layout) as Layout);
+  }
+
+  function pushPast(entry: Layout) {
+    past = [...past.slice(1 - HISTORY_MAX), entry];
+    future = [];
+  }
+
+  /** À appeler juste avant de modifier l'étage ouvert. */
+  function remember() {
+    pushPast(capture());
+  }
+
+  function restore(entry: Layout) {
+    layout = entry;
+    if (selectedId && !layout.rooms.some((room) => room.id === selectedId)) selectedId = null;
+    dirty = true;
+  }
+
+  function undo() {
+    const entry = past.at(-1);
+    if (!entry) return;
+    future = [capture(), ...future];
+    past = past.slice(0, -1);
+    restore(entry);
+  }
+
+  function redo() {
+    const [entry, ...rest] = future;
+    if (!entry) return;
+    past = [...past, capture()];
+    future = rest;
+    restore(entry);
+  }
+
+  function resetHistory() {
+    past = [];
+    future = [];
+  }
+
+  function removeSelected() {
+    if (!selected || !canManage || disabled) return;
+    remember();
+    removeAt([[selected.x, selected.y]]);
+    dirty = true;
+  }
+
+  function onKeydown(event: KeyboardEvent) {
+    if (!canManage || disabled) return;
+    const target = event.target as HTMLElement | null;
+    if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
+    const mod = event.ctrlKey || event.metaKey;
+    const key = event.key.toLowerCase();
+    if (mod && key === 'z') {
+      event.preventDefault();
+      if (event.shiftKey) redo();
+      else undo();
+    } else if (mod && key === 'y') {
+      event.preventDefault();
+      redo();
+    } else if ((event.key === 'Delete' || event.key === 'Backspace') && selected) {
+      event.preventDefault();
+      removeSelected();
+    } else if (event.key === 'Escape') {
+      selectedId = null;
+    }
+  }
 
   // ── Géométrie (même règles que le bot) ──────────────────────────
   function cellsOf(room: Pick<Room, 'x' | 'y' | 'type'>): [number, number][] {
@@ -519,6 +637,21 @@
     return { from: low, to: high + own.rooms, healthFrom: monsterHealth(low), healthTo: monsterHealth(high + own.rooms) };
   });
 
+  /** Salles dont la puissance est réglée, et ce que ça donne sur la plus forte d'entre elles. */
+  const powered = $derived.by(() => {
+    const rooms = layout.rooms.filter((room) => hasFoe(room.type) && room.powerPercent !== 100);
+    if (rooms.length === 0) return null;
+    const max = Math.max(...rooms.map((room) => room.powerPercent));
+    const min = Math.min(...rooms.map((room) => room.powerPercent));
+    const top = max > 100 ? max : min;
+    return {
+      count: rooms.length,
+      factor: `×${top / 100}`,
+      hpFrom: Math.round(difficulty.healthFrom * top / 100),
+      hpTo: Math.round(difficulty.healthTo * top / 100),
+    };
+  });
+
   async function openPreview() {
     previewing = true;
     try {
@@ -548,6 +681,7 @@
     current = index;
     layout = cloneLayout(floors[index]);
     selectedId = null;
+    resetHistory();
   }
 
   function addFloor() {
@@ -557,6 +691,7 @@
     current = floors.length - 1;
     layout = cloneLayout(floors[current]);
     selectedId = null;
+    resetHistory();
     dirty = true;
   }
 
@@ -568,6 +703,7 @@
     current += 1;
     layout = cloneLayout(copy);
     selectedId = null;
+    resetHistory();
     dirty = true;
   }
 
@@ -596,6 +732,7 @@
     current = Math.min(current, floors.length - 1);
     layout = cloneLayout(floors[current]);
     selectedId = null;
+    resetHistory();
     dirty = true;
   }
 
@@ -625,47 +762,66 @@
     if (selectedId && doomed.has(selectedId)) selectedId = null;
   }
 
-  function apply(x: number, y: number) {
-    if (!canManage || disabled) return;
-    const existing = occupied.get(`${x},${y}`);
-
-    if (tool === 'SELECT') {
-      selectedId = existing?.id ?? null;
-      return;
+  /** Première modification d'un coup de pinceau : l'état d'avant entre dans l'historique. */
+  function changed() {
+    if (stroke) {
+      pushPast(stroke);
+      stroke = null;
     }
-    if (tool === 'ERASE') {
-      if (existing) {
-        removeAt([[x, y]]);
-        dirty = true;
-      }
-      return;
-    }
-    if (existing && existing.type === tool && existing.x === x && existing.y === y) {
-      selectedId = existing.id;
-      return;
-    }
-    if (tool === 'BOSS' && (x + 1 >= layout.width || y + 1 >= layout.height)) return;
-    if (layout.rooms.length >= roomsMax && !existing) return;
-
-    const room = newRoom(x, y, tool);
-    removeAt(cellsOf(room));
-    // Un seul départ et une seule sortie par étage : en poser une nouvelle remplace l'ancienne.
-    if (tool === 'START') layout.rooms = layout.rooms.filter((candidate) => candidate.type !== 'START');
-    if (isExit(tool)) layout.rooms = layout.rooms.filter((candidate) => !isExit(candidate.type));
-    // Une seule paire de portails : poser un portail A (ou B) déplace l'ancien.
-    if (isWarp(tool)) layout.rooms = layout.rooms.filter((candidate) => candidate.type !== tool);
-    layout.rooms = [...layout.rooms, room];
-    selectedId = room.id;
     dirty = true;
   }
 
+  function apply(x: number, y: number) {
+    if (!canManage || disabled) return;
+    const existing = occupied.get(`${x},${y}`);
+    const brush: Tool = erasing ? 'ERASE' : tool;
+
+    if (brush === 'SELECT') {
+      selectedId = existing?.id ?? null;
+      return;
+    }
+    if (brush === 'ERASE') {
+      if (existing) {
+        removeAt([[x, y]]);
+        changed();
+      }
+      return;
+    }
+    if (existing && existing.type === brush && existing.x === x && existing.y === y) {
+      selectedId = existing.id;
+      return;
+    }
+    if (brush === 'BOSS' && (x + 1 >= layout.width || y + 1 >= layout.height)) return;
+    if (layout.rooms.length >= roomsMax && !existing) return;
+
+    const room = template && template.type === brush ? copyRoom(template, x, y) : newRoom(x, y, brush);
+    removeAt(cellsOf(room));
+    // Un seul départ et une seule sortie par étage : en poser une nouvelle remplace l'ancienne.
+    if (brush === 'START') layout.rooms = layout.rooms.filter((candidate) => candidate.type !== 'START');
+    if (isExit(brush)) layout.rooms = layout.rooms.filter((candidate) => !isExit(candidate.type));
+    // Une seule paire de portails : poser un portail A (ou B) déplace l'ancien.
+    if (isWarp(brush)) layout.rooms = layout.rooms.filter((candidate) => candidate.type !== brush);
+    layout.rooms = [...layout.rooms, room];
+    selectedId = room.id;
+    changed();
+  }
+
   function pointerDown(event: PointerEvent, x: number, y: number) {
+    if (event.button !== 0 && event.button !== 2) return;
+    // Alt+clic : pipette sur la salle visée.
+    if (event.button === 0 && event.altKey) {
+      const existing = occupied.get(`${x},${y}`);
+      if (existing && canManage && !disabled) pickTemplate(existing);
+      return;
+    }
     // Au toucher, le navigateur capture le pointeur sur la première case : sans ce relâchement,
     // glisser le doigt ne peindrait jamais les cases suivantes.
     const target = event.target as Element | null;
     if (target?.hasPointerCapture?.(event.pointerId)) target.releasePointerCapture(event.pointerId);
+    erasing = event.button === 2;
+    stroke = capture();
     // Départ et sortie se posent une fois : glisser ne les répète pas.
-    painting = tool !== 'SELECT' && tool !== 'START' && !(tool !== 'ERASE' && (isExit(tool) || isWarp(tool)));
+    painting = erasing || (tool !== 'SELECT' && tool !== 'START' && !(tool !== 'ERASE' && (isExit(tool) || isWarp(tool))));
     apply(x, y);
   }
 
@@ -674,6 +830,7 @@
   }
 
   function resize(width: number, height: number) {
+    remember();
     const w = Math.min(sizeLimits.max, Math.max(sizeLimits.min, Math.trunc(width) || sizeLimits.min));
     const h = Math.min(sizeLimits.max, Math.max(sizeLimits.min, Math.trunc(height) || sizeLimits.min));
     layout = {
@@ -690,6 +847,7 @@
 
   function updateSelected(patch: Partial<Room>) {
     if (!selected) return;
+    remember();
     const id = selected.id;
     layout.rooms = layout.rooms.map((room) => (room.id === id ? { ...room, ...patch } : room));
     dirty = true;
@@ -704,12 +862,14 @@
   }
 
   function loadExample() {
+    remember();
     layout = { ...exampleLayout(), name: layout.name, fog: layout.fog, modifier: layout.modifier };
     selectedId = null;
     dirty = true;
   }
 
   function clearMap() {
+    remember();
     layout = { name: layout.name, fog: layout.fog, modifier: layout.modifier, width: layout.width, height: layout.height, rooms: [] };
     selectedId = null;
     dirty = true;
@@ -727,7 +887,7 @@
   }
 </script>
 
-<svelte:window onpointerup={() => { painting = false; }} />
+<svelte:window onpointerup={() => { painting = false; erasing = false; stroke = null; }} onkeydown={onKeydown} />
 
 <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
   <InlineFeedback state={actionState} />
@@ -776,13 +936,13 @@
         <Papicon icon="trash" size={12} /> {m.eco_tower_map_clear()}
       </button>
       <div class="flex items-center gap-2 px-2" title={m.eco_tower_fog_tip()}>
-        <ToggleSwitch checked={layout.fog} disabled={disabled} ariaLabel={m.eco_tower_fog()} onToggle={(value: boolean) => { layout.fog = value; dirty = true; }} />
+        <ToggleSwitch checked={layout.fog} disabled={disabled} ariaLabel={m.eco_tower_fog()} onToggle={(value: boolean) => { remember(); layout.fog = value; dirty = true; }} />
         <span class="text-xs font-semibold flex items-center gap-1"><Papicon icon="Eye" size={12} /> {m.eco_tower_fog()}</span>
       </div>
       <div class="space-y-1" title={m.eco_tower_modifier_tip()}>
         <label for="floorModifier" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_tower_modifier()}</label>
         <select id="floorModifier" value={layout.modifier} disabled={disabled}
-          onchange={(e) => { layout.modifier = (e.currentTarget as HTMLSelectElement).value as Modifier; dirty = true; }}
+          onchange={(e) => { remember(); layout.modifier = (e.currentTarget as HTMLSelectElement).value as Modifier; dirty = true; }}
           class="bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none">
           {#each MODIFIERS as modifier}<option value={modifier}>{modifierLabel(modifier)}</option>{/each}
         </select>
@@ -796,12 +956,26 @@
     <!-- Palette : les outils toujours à portée, puis les salles rangées par famille. -->
     <div class="rounded-xl border border-outline-variant/15 bg-surface-container-high/20 overflow-hidden">
       <div class="flex flex-wrap items-center gap-2 p-2 border-b border-outline-variant/10">
-        <button type="button" onclick={() => tool = 'SELECT'} title={m.eco_tower_map_tool_select_tip()} class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 {tool === 'SELECT' ? 'border-primary bg-primary/15' : 'border-transparent hover:bg-outline-variant/10'}">
+        <button type="button" onclick={() => pickTool('SELECT')} title={m.eco_tower_map_tool_select_tip()} class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 {tool === 'SELECT' ? 'border-primary bg-primary/15' : 'border-transparent hover:bg-outline-variant/10'}">
           <Papicon icon="MousePointer" size={12} /> {m.eco_tower_map_tool_select()}
         </button>
-        <button type="button" onclick={() => tool = 'ERASE'} title={m.eco_tower_map_tool_erase_tip()} class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 {tool === 'ERASE' ? 'border-error bg-error/15 text-error' : 'border-transparent hover:bg-outline-variant/10'}">
+        <button type="button" onclick={() => pickTool('ERASE')} title={m.eco_tower_map_tool_erase_tip()} class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 {tool === 'ERASE' ? 'border-error bg-error/15 text-error' : 'border-transparent hover:bg-outline-variant/10'}">
           <Papicon icon="Eraser" size={12} /> {m.eco_tower_map_tool_erase()}
         </button>
+        <button type="button" onclick={undo} disabled={disabled || past.length === 0} title={m.eco_tower_map_undo_tip()} aria-label={m.eco_tower_map_undo()}
+          class="p-1.5 rounded-lg border border-transparent hover:bg-outline-variant/10 transition-all flex items-center disabled:opacity-35">
+          <Papicon icon="RotateCcw" size={13} />
+        </button>
+        <button type="button" onclick={redo} disabled={disabled || future.length === 0} title={m.eco_tower_map_redo_tip()} aria-label={m.eco_tower_map_redo()}
+          class="p-1.5 rounded-lg border border-transparent hover:bg-outline-variant/10 transition-all flex items-center disabled:opacity-35">
+          <span class="flex -scale-x-100"><Papicon icon="RotateCcw" size={13} /></span>
+        </button>
+        {#if template && tool === template.type}
+          <span class="px-2 py-1 rounded-lg text-2xs font-bold border flex items-center gap-1.5" style="border-color: {COLOR[template.type]}; color: {COLOR[template.type]}" title={m.eco_tower_map_pipette_tip()}>
+            <Papicon icon="Copy" size={11} /> {templateSummary(template)}
+            <button type="button" onclick={() => { template = null; }} aria-label={m.eco_tower_map_pipette_clear()} class="flex opacity-70 hover:opacity-100"><Papicon icon="X" size={11} /></button>
+          </span>
+        {/if}
         <span class="w-px h-6 bg-outline-variant/20 mx-1" aria-hidden="true"></span>
         <div class="flex flex-wrap gap-1" role="tablist" aria-label={m.eco_tower_categories_aria()}>
           {#each CATEGORIES as entry (entry.id)}
@@ -817,7 +991,7 @@
       {#each CATEGORIES.filter((entry) => entry.id === category) as entry (entry.id)}
         <div class="p-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
           {#each entry.types as type}
-            <button type="button" onclick={() => tool = type} title={tip(type)}
+            <button type="button" onclick={() => pickTool(type)} title={tip(type)}
               class="group text-left p-2 rounded-lg border transition-all flex items-start gap-2 {tool === type ? 'bg-surface-container-high/60' : 'border-outline-variant/10 hover:border-outline-variant/30'}"
               style={tool === type ? `border-color: ${COLOR[type]}; box-shadow: inset 3px 0 0 ${COLOR[type]}` : ''}>
               <span class="shrink-0 w-7 h-7 rounded-md flex items-center justify-center" style="background: {COLOR[type]}26; color: {COLOR[type]}">
@@ -834,6 +1008,7 @@
           <p class="px-3 pb-2 text-2xs text-on-surface-variant/60 flex items-start gap-1.5"><Papicon icon="Info" size={11} /> {m.eco_tower_category_exits_rule()}</p>
         {/if}
       {/each}
+      <p class="px-3 py-1.5 border-t border-outline-variant/10 text-2xs text-on-surface-variant/55 flex items-center gap-1.5"><Papicon icon="Keyboard" size={11} /> {m.eco_tower_map_shortcuts()}</p>
     </div>
     <p class="text-2xs text-on-surface-variant/50">{m.eco_tower_map_hint()}</p>
   {/if}
@@ -910,6 +1085,7 @@
         class="w-full max-w-[720px] mx-auto select-none touch-none"
         role="grid"
         aria-label={m.eco_tower_map_title()}
+        oncontextmenu={(event) => event.preventDefault()}
       >
         <!-- La tour en pierre : créneaux, maçonnerie, puis l'étage dans son cadre. -->
         <defs>
@@ -995,6 +1171,11 @@
                 <Papicon icon="Lock" size={14} />
               </g>
             {/if}
+            {#if hasFoe(room.type) && room.powerPercent !== 100}
+              <text x={(room.x + span) * CELL - 10} y={room.y * CELL + 17} text-anchor="end" font-size="10" font-weight="800" fill={room.powerPercent > 100 ? '#ef4444' : '#22c55e'} pointer-events="none">
+                ×{room.powerPercent / 100}
+              </text>
+            {/if}
           </g>
         {/each}
         </g>
@@ -1024,6 +1205,12 @@
           <Papicon icon="Skull" size={11} />
           {m.eco_tower_difficulty_estimate({ from: difficulty.from, to: difficulty.to, hpFrom: difficulty.healthFrom, hpTo: difficulty.healthTo })}
         </p>
+        {#if powered}
+          <p class="text-2xs text-on-surface-variant/70 flex items-start gap-1.5" title={m.eco_tower_map_power_tip()}>
+            <Papicon icon="Zap" size={11} />
+            {m.eco_tower_difficulty_power({ count: powered.count, factor: powered.factor, hpFrom: powered.hpFrom, hpTo: powered.hpTo })}
+          </p>
+        {/if}
         <p class="text-2xs text-on-surface-variant/50 leading-relaxed pt-1">{m.eco_tower_map_rules()}</p>
       </div>
 
@@ -1034,6 +1221,12 @@
             <p class="text-sm font-bold flex items-center gap-2" title={tip(selected.type)}><span style="color: {COLOR[selected.type]}" class="flex"><Papicon icon={ICON[selected.type]} size={16} /></span> {label(selected.type)}</p>
             <span class="text-2xs text-on-surface-variant/50 font-mono">{selected.x},{selected.y}</span>
           </div>
+          {#if canManage && selected.type !== 'START' && !isExit(selected.type) && !isWarp(selected.type)}
+            <button type="button" onclick={() => pickTemplate(selected!)} disabled={disabled} title={m.eco_tower_map_pipette_tip()}
+              class="w-full px-3 py-1.5 rounded-lg text-2xs font-bold border border-outline-variant/15 hover:bg-outline-variant/10 flex items-center justify-center gap-1.5 disabled:opacity-50">
+              <Papicon icon="Copy" size={11} /> {m.eco_tower_map_pipette_use()}
+            </button>
+          {/if}
 
           {#if selected.type === 'MONSTER' || selected.type === 'ELITE' || selected.type === 'BOSS'}
             <div class="space-y-1">
@@ -1047,6 +1240,23 @@
                 className="w-full"
                 on:change={(e: any) => updateSelected({ foe: e.detail?.value ?? null })}
               />
+            </div>
+            <div class="space-y-1">
+              <span class="text-xs font-semibold text-on-surface-variant/60" title={m.eco_tower_map_power_tip()}>{m.eco_tower_map_power()} · <span class="font-mono">×{selected.powerPercent / 100}</span></span>
+              <div class="flex flex-wrap gap-1.5">
+                {#each POWERS as power}
+                  <button type="button" disabled={!canManage || disabled} onclick={() => updateSelected({ powerPercent: power })}
+                    class="px-2 py-1 rounded-lg text-2xs font-bold border font-mono {selected.powerPercent === power ? (power > 100 ? 'border-error bg-error/15 text-error' : power < 100 ? 'border-success bg-success/15 text-success' : 'border-primary bg-primary/15') : 'border-outline-variant/15'}">×{power / 100}</button>
+                {/each}
+              </div>
+              <p class="text-2xs text-on-surface-variant/50">{m.eco_tower_map_power_hint()}</p>
+              {#if selected.powerPercent !== 100}
+                <label class="flex items-start gap-2 text-xs pt-1" title={m.eco_tower_map_power_reward_tip()}>
+                  <input type="checkbox" class="mt-0.5" checked={selected.powerReward} disabled={!canManage || disabled}
+                    onchange={(e) => updateSelected({ powerReward: (e.currentTarget as HTMLInputElement).checked })} />
+                  {m.eco_tower_map_power_reward({ factor: `×${selected.powerPercent / 100}` })}
+                </label>
+              {/if}
             </div>
             <div class="space-y-1">
               <span class="text-xs font-semibold text-on-surface-variant/60" title={m.eco_tower_map_traits_tip()}>{m.eco_tower_map_traits({ max: TRAITS_MAX })}</span>

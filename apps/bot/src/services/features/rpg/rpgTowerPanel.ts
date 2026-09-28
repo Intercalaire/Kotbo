@@ -369,6 +369,7 @@ function moveLine(move: TowerMove, info: TowerRoomInfo | undefined, map: TowerMa
     move.type === 'MIMIC' ? '' : roomInfoLine(info, locale),
     exitStatus(move.type, map.layout, map.cleared, locale),
     room?.key ? `${icon('rpgKey')} ${m.tower_room_holds_key({}, { locale })}` : '',
+    room ? powerLine((room.powerPercent ?? 100) / 100, room.powerReward === true, locale) : '',
   ].filter(Boolean);
   return `${icon(DIRECTION_ICON[move.direction])} ${icon(ROOM_ICON[disguised(move.type)])} **${roomLabel(move.type, locale)}** — ${status}${extras.length > 0 ? `\n-# ${extras.join(' · ')}` : ''}`;
 }
@@ -521,6 +522,16 @@ function eventOutcome(notice: Extract<TowerNotice, { k: 'event' }>, locale: Loca
     case 'BLACKSMITH': return m.tower_event_result_blacksmith({ name: notice.item ?? '', gold: notice.amount, coin }, { locale });
     default: return m.tower_event_result_cursed_pact({ gold: notice.amount, coin }, { locale });
   }
+}
+
+/** Adversaire renforcé ou affaibli par la carte, et si ses récompenses suivent. */
+function powerLine(power: number, reward: boolean, locale: Locale): string {
+  if (power === 1) return '';
+  const factor = `×${power}`;
+  const line = power > 1
+    ? `${icon('warning')} ${m.tower_room_power_up({ factor }, { locale })}`
+    : m.tower_room_power_down({ factor }, { locale });
+  return reward ? `${line} · ${m.tower_room_power_reward({ factor }, { locale })}` : line;
 }
 
 /** Ce qu'on sait d'une salle ou d'une porte avant d'y entrer : traits, mécanique, événement. */
@@ -1113,7 +1124,7 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
         `### ${foeIcon(foe)} ${foe.name}${kind}`,
         combatHpBar(foe.health, foe.maxHealth),
         `-# ${icon('rpgAtk')} ${foe.attack} · ${icon('rpgDef')} ${foe.defense} · ${icon('rpgSpd')} ${foe.speed}${enraged}`,
-        ...[...traits, mechanic, shield, minions].filter((line): line is string => line !== null).map((line) => `-# ${line}`),
+        ...[...traits, mechanic, shield, minions, powerLine(foe.power ?? 1, (foe.bounty ?? 1) !== 1, locale) || null].filter((line): line is string => line !== null).map((line) => `-# ${line}`),
         '',
         log.length > 0 ? log.join('\n') : m.rpg_fight_combat_start_log({}, { locale }),
         foe.charging ? `\n${icon('warning')} **${m.tower_combat_charging({ name: foe.name }, { locale })}**` : null,
