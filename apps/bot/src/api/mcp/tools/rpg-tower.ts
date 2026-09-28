@@ -21,8 +21,12 @@ import {
   TOWER_BLESSINGS,
   TOWER_ENTRY_MODES,
   TOWER_RANGES,
+  TOWER_MERCHANT_RANGES,
   TOWER_REWARD_KINDS,
-  TOWER_UPGRADES,
+  TOWER_UPGRADES_MAX,
+  TOWER_UPGRADE_EFFECTS,
+  TOWER_UPGRADE_PER_LEVEL_RANGES,
+  TOWER_UPGRADE_RANGES,
 } from '../../../services/features/rpg/rpgTowerPolicy.js';
 import {
   TOWER_CHEST_KINDS,
@@ -44,6 +48,32 @@ const roomSchema = z.object({
   pricePercent: z.number().int().min(10).max(500).optional().describe('MERCHANT : prix en % du prix normal'),
 });
 
+const upgradeSchema = z.object({
+  id: z.string().regex(/^[a-z0-9_-]{1,24}$/).describe('Identifiant stable : les niveaux achetés par les joueurs y sont rattachés. Le changer revient à créer une nouvelle amélioration.'),
+  enabled: z.boolean().optional().describe('Désactivée : ne se vend plus, les niveaux déjà achetés restent actifs'),
+  name: z.string().optional().describe("Vide : nom de l'effet dans la langue du joueur"),
+  emoji: z.string().optional().describe("Vide : icône du bot selon l'effet"),
+  description: z.string().optional(),
+  effect: z.enum(TOWER_UPGRADE_EFFECTS).describe('POTION potions de départ, HEALTH/ATTACK/DEFENSE/SPEED % de la stat, CRIT points de % de critique, GOLD or de départ'),
+  perLevel: z.number().int().min(1).describe('Gain par niveau, dans l\'unité de l\'effet'),
+  maxLevel: z.number().int().min(TOWER_UPGRADE_RANGES.maxLevel.min).max(TOWER_UPGRADE_RANGES.maxLevel.max),
+  baseCost: z.number().int().min(TOWER_UPGRADE_RANGES.baseCost.min).max(TOWER_UPGRADE_RANGES.baseCost.max).describe('Prix du premier niveau, en éclats'),
+  costGrowthPercent: z.number().int().min(TOWER_UPGRADE_RANGES.costGrowthPercent.min).max(TOWER_UPGRADE_RANGES.costGrowthPercent.max).optional().describe('Hausse du prix à chaque niveau, en % (100 double le prix)'),
+});
+
+const merchantRange = (key: keyof typeof TOWER_MERCHANT_RANGES) => z.number().int().min(TOWER_MERCHANT_RANGES[key].min).max(TOWER_MERCHANT_RANGES[key].max).optional();
+const merchantSchema = z.object({
+  offers: z.array(z.enum(TOWER_OFFER_KINDS)).min(1).optional().describe('Articles du marchand en mode aléatoire (une salle de carte choisit les siens)'),
+  potionPrice: merchantRange('potionPrice'),
+  potionPricePerFloor: merchantRange('potionPricePerFloor'),
+  healPrice: merchantRange('healPrice'),
+  healPricePerFloor: merchantRange('healPricePerFloor'),
+  healPercent: merchantRange('healPercent').describe('Soin vendu, en % des PV max'),
+  gearPrice: merchantRange('gearPrice'),
+  gearPricePerFloor: merchantRange('gearPricePerFloor'),
+  potionHealPercent: merchantRange('potionHealPercent').describe('Soin de toutes les potions, en % des PV max'),
+});
+
 const fail = (e: unknown) => err(e instanceof Error ? e.message : String(e));
 
 function mergeDefined(base: Record<string, unknown>, sent: Record<string, unknown>): Record<string, unknown> {
@@ -63,7 +93,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
     server.registerTool(
       'get_rpg_tower',
       {
-        description: "Lit la Tour (mode roguelite du RPG) : carte dessinée (layout, layoutEnabled) et créatures proposables pour ses salles (foes), réglages (ouverture, mode d'entrée COMPRESSED ou RESET, plafonds d'héritage et de titre, croissance des monstres par étage, boss et bénédictions, éclats par étage, part gardée à la mort, plafond hebdomadaire, monnaie), récompenses (boutique d'éclats et paliers d'étage), statistiques, classement de la saison, et le catalogue fixe des bénédictions et améliorations.",
+        description: "Lit la Tour (mode roguelite du RPG). Un « étage » est une salle résolue (carte dessinée) ou une porte franchie (mode aléatoire) ; battre le boss d'une carte ouvre la section suivante, plus dure. Contient : carte dessinée (layout, layoutEnabled) et créatures proposables pour ses salles (foes), réglages (ouverture, mode d'entrée COMPRESSED ou RESET, plafonds d'héritage et de titre, croissance des monstres par étage, boss et bénédictions, éclats par étage, part gardée à la mort, plafond hebdomadaire, monnaie), récompenses (boutique d'éclats et paliers d'étage), statistiques, classement de la saison, améliorations permanentes (settings.upgrades) et marchand (settings.merchant) réglables, et le catalogue fixe des bénédictions.",
         inputSchema: {},
         _meta: toolMeta,
       },
@@ -76,7 +106,9 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
             rewardKinds: TOWER_REWARD_KINDS,
             ranges: TOWER_RANGES,
             blessings: TOWER_BLESSINGS.map((blessing) => ({ id: blessing.id, name: blessing.name, description: blessing.description, maxRank: blessing.maxRank })),
-            upgrades: Object.entries(TOWER_UPGRADES).map(([key, upgrade]) => ({ key, name: upgrade.name, description: upgrade.description, maxLevel: upgrade.maxLevel })),
+            upgradeEffects: TOWER_UPGRADE_EFFECTS.map((effect) => ({ effect, perLevel: TOWER_UPGRADE_PER_LEVEL_RANGES[effect] })),
+            upgradesMax: TOWER_UPGRADES_MAX,
+            merchantRanges: TOWER_MERCHANT_RANGES,
           },
         });
       })
@@ -122,6 +154,8 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
           idleTimeoutMinutes: range('idleTimeoutMinutes'),
           currencyName: z.string().optional(),
           currencyEmoji: z.string().optional(),
+          upgrades: z.array(upgradeSchema).max(TOWER_UPGRADES_MAX).optional().describe('Remplace la liste complète des améliorations permanentes (lire get_rpg_tower avant de modifier)'),
+          merchant: merchantSchema.optional().describe('Champs du marchand à modifier ; les autres gardent leur valeur'),
           key_name: z.string().optional(),
         },
         _meta: toolMeta,
@@ -130,7 +164,9 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
         try {
           const base: Record<string, unknown> = { ...(await getTowerConfig(guildId)) };
           delete base.seasonStartedAt;
-          const settings = await saveTowerSettings(guildId, mergeDefined(base, input));
+          const merged = mergeDefined(base, { ...input, merchant: undefined });
+          if (input.merchant) merged.merchant = mergeDefined(base.merchant as Record<string, unknown>, input.merchant);
+          const settings = await saveTowerSettings(guildId, merged);
           await audit(key_name, 'Réglages de la Tour MCP', settings.name, `${settings.enabled ? 'ouverte' : 'fermée'}, mode ${settings.entryMode}`);
           return ok({ ok: true, settings });
         } catch (e) {

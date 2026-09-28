@@ -7,10 +7,15 @@ import {
   floorShards,
   normalizeTowerReward,
   normalizeTowerSettings,
+  normalizeTowerUpgrades,
+  parseTowerUpgrades,
   rollBlessingChoices,
+  rollMerchantOffers,
   rollDoors,
   settleShards,
   towerMonsterStats,
+  towerUpgradeBonus,
+  towerUpgradeCost,
   towerWeekStart,
   type TowerCoreStats,
   type TowerEntryInput,
@@ -36,7 +41,6 @@ function entry(main: number, overrides: Partial<TowerEntryInput> = {}): TowerEnt
     title: { attack: 0, defense: 0, speed: 0, maxHealth: 0, critPercent: 0 },
     classModifiers: { attack: 1, defense: 1, speed: 1, maxHealth: 1 },
     classPassive: {},
-    vigorLevel: 0,
     ...overrides,
   };
 }
@@ -141,6 +145,40 @@ describe('réglages et récompenses', () => {
     expect(result.value.floorGrowthPercent).toBe(30);
     expect(result.value.deathShardPercent).toBe(0);
     expect(result.value.entryMode).toBe('COMPRESSED');
+    expect(result.value.upgrades.map((upgrade) => upgrade.id)).toEqual(['potion', 'vigor']);
+    expect(result.value.merchant.healPercent).toBe(40);
+  });
+
+  test('les améliorations se règlent et gardent les niveaux sous leur identifiant', () => {
+    const upgrades = normalizeTowerUpgrades([
+      { id: 'vigor', effect: 'HEALTH', perLevel: 10, maxLevel: 2, baseCost: 30, costGrowthPercent: 50 },
+      { id: 'might', effect: 'ATTACK', perLevel: 500, maxLevel: 3, baseCost: 10 },
+    ]);
+    expect(upgrades.ok).toBe(true);
+    if (!upgrades.ok) return;
+    expect(upgrades.value[1].perLevel).toBe(100);
+    const levels = parseTowerUpgrades({ vigor: 7, potion: 3 }, upgrades.value);
+    expect(levels).toEqual({ vigor: 2, might: 0 });
+    expect(towerUpgradeCost(upgrades.value[0], 2)).toBe(Math.round(30 * 1.5 * 1.5));
+    const bonus = towerUpgradeBonus(upgrades.value, levels);
+    expect(bonus.maxHealth).toBeCloseTo(0.2);
+    const boosted = computeTowerEntryStats(entry(0, { mode: 'RESET', upgradeBonus: bonus }));
+    expect(boosted.maxHealth).toBe(Math.round(TOWER_BASE_STATS.maxHealth * 1.2));
+  });
+
+  test('deux améliorations au même identifiant sont refusées', () => {
+    expect(normalizeTowerUpgrades([
+      { id: 'a', effect: 'GOLD', perLevel: 5, maxLevel: 1, baseCost: 1 },
+      { id: 'a', effect: 'CRIT', perLevel: 5, maxLevel: 1, baseCost: 1 },
+    ]).ok).toBe(false);
+  });
+
+  test('le marchand suit ses réglages de prix', () => {
+    const settings = normalizeTowerSettings({ merchant: { potionPrice: 10, potionPricePerFloor: 1, offers: ['POTION'] } });
+    expect(settings.ok).toBe(true);
+    if (!settings.ok) return;
+    const offers = rollMerchantOffers(5, new TowerRng(1), settings.value.merchant.offers, 200, settings.value.merchant);
+    expect(offers).toEqual([{ kind: 'POTION', price: 30, sold: false }]);
   });
 
   test('une récompense vide ou un titre répétable sont refusés', () => {
