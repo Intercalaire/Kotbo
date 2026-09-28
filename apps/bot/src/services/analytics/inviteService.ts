@@ -10,43 +10,120 @@ export type InviteStats = {
   totalStayed: number;
 };
 
+type InviteRow = {
+  uses: number;
+  maxUses: number | null;
+  expiresAt: Date | null;
+  inviterId: string | null;
+  inviterTag: string | null;
+  isTemporary: boolean;
+  isDeleted: boolean;
+};
+
+function toInviteRow(invite: Invite): InviteRow {
+  return {
+    uses: invite.uses ?? 0,
+    maxUses: invite.maxUses ?? null,
+    expiresAt: invite.expiresAt ? new Date(invite.expiresAt) : null,
+    inviterId: invite.inviter?.id ?? null,
+    inviterTag: invite.inviter?.tag ?? invite.inviter?.username ?? null,
+    isTemporary: invite.temporary ?? false,
+    isDeleted: false,
+  };
+}
+
+function sameInviteRow(a: InviteRow, b: InviteRow): boolean {
+  return a.uses === b.uses
+    && a.maxUses === b.maxUses
+    && (a.expiresAt?.getTime() ?? null) === (b.expiresAt?.getTime() ?? null)
+    && a.inviterId === b.inviterId
+    && a.inviterTag === b.inviterTag
+    && a.isTemporary === b.isTemporary
+    && a.isDeleted === b.isDeleted;
+}
+
+/** Dernière synchronisation réussie, par serveur. Un seul process bot : la mémoire suffit. */
+const lastSyncAt = new Map<string, number>();
+
 /**
- * Synchronise les invitations Discord avec la base de données
+ * Synchronise les invitations Discord avec la base de données.
+ *
+ * Seules les invitations nouvelles ou modifiées sont écrites. L'ancienne
+ * version faisait un upsert par invitation, l'un après l'autre, même quand
+ * rien n'avait bougé : c'était la requête la plus coûteuse du bot, et la page
+ * Invitations du dashboard attendait la fin de la boucle pour répondre.
+ *
+ * `maxAgeMs` saute la synchronisation si la dernière a eu lieu il y a moins
+ * longtemps : la page du dashboard n'a pas besoin de refaire l'appel Discord
+ * à chaque chargement.
  */
-export async function syncGuildInvites(guild: Guild): Promise<void> {
+export async function syncGuildInvites(guild: Guild, options: { maxAgeMs?: number } = {}): Promise<void> {
+  if (options.maxAgeMs !== undefined) {
+    const last = lastSyncAt.get(guild.id);
+    if (last !== undefined && Date.now() - last < options.maxAgeMs) return;
+  }
+
   try {
     const invites = await guild.invites.fetch().catch(() => null);
     if (!invites) return;
 
+    const codes = [...invites.keys()];
+    const existing = codes.length > 0
+      ? await prisma.guildInvite.findMany({
+        where: { code: { in: codes } },
+        select: {
+          code: true,
+          uses: true,
+          maxUses: true,
+          expiresAt: true,
+          inviterId: true,
+          inviterTag: true,
+          isTemporary: true,
+          isDeleted: true,
+        },
+      })
+      : [];
+    const existingByCode = new Map(existing.map(({ code, ...row }) => [code, row]));
+
+    const toCreate: Array<InviteRow & { guildId: string; code: string }> = [];
+    const toUpdate: Array<{ code: string; row: InviteRow }> = [];
     for (const invite of invites.values()) {
-      await prisma.guildInvite.upsert({
-        where: { code: invite.code },
-        update: {
-          uses: invite.uses ?? 0,
-          maxUses: invite.maxUses ?? null,
-          expiresAt: invite.expiresAt ? new Date(invite.expiresAt) : null,
-          inviterId: invite.inviter?.id ?? null,
-          inviterTag: invite.inviter?.tag ?? invite.inviter?.username ?? null,
-          isTemporary: invite.temporary ?? false,
-          isDeleted: false,
-        },
-        create: {
-          guildId: guild.id,
-          code: invite.code,
-          uses: invite.uses ?? 0,
-          maxUses: invite.maxUses ?? null,
-          expiresAt: invite.expiresAt ? new Date(invite.expiresAt) : null,
-          inviterId: invite.inviter?.id ?? null,
-          inviterTag: invite.inviter?.tag ?? invite.inviter?.username ?? null,
-          isTemporary: invite.temporary ?? false,
-          isDeleted: false,
-        },
-      });
+      const row = toInviteRow(invite);
+      const stored = existingByCode.get(invite.code);
+      if (!stored) toCreate.push({ guildId: guild.id, code: invite.code, ...row });
+      else if (!sameInviteRow(stored, row)) toUpdate.push({ code: invite.code, row });
     }
 
-    logger.debug('Invites', `Synchronisation terminée pour le serveur ${guild.id} (${invites.size} invitations)`);
+    if (toCreate.length > 0) {
+      await prisma.guildInvite.createMany({ data: toCreate, skipDuplicates: true });
+    }
+    if (toUpdate.length > 0) {
+      await prisma.$transaction(
+        toUpdate.map(({ code, row }) => prisma.guildInvite.update({ where: { code }, data: row })),
+      );
+    }
+
+    lastSyncAt.set(guild.id, Date.now());
+    logger.debug(
+      'Invites',
+      `Synchronisation terminée pour le serveur ${guild.id} (${invites.size} invitations, ${toCreate.length} créées, ${toUpdate.length} mises à jour)`,
+    );
   } catch (error) {
     logger.warn('Invites', `Erreur lors de la synchronisation des invitations pour ${guild.id}: ${String(error)}`);
+  }
+}
+
+/** Enregistre une seule invitation, sans relire toutes celles du serveur. */
+export async function syncInvite(guildId: string, invite: Invite): Promise<void> {
+  const row = toInviteRow(invite);
+  try {
+    await prisma.guildInvite.upsert({
+      where: { code: invite.code },
+      update: row,
+      create: { guildId, code: invite.code, ...row },
+    });
+  } catch (error) {
+    logger.warn('Invites', `Erreur lors de l'enregistrement de l'invitation ${invite.code}: ${String(error)}`);
   }
 }
 
