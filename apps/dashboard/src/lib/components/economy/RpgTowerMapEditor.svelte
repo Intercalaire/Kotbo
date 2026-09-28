@@ -688,9 +688,17 @@
       const raw = JSON.parse(await file.text());
       const inRange = (value: unknown) => Number.isInteger(value) && (value as number) >= sizeLimits.min && (value as number) <= sizeLimits.max;
       if (!raw || !Array.isArray(raw.rooms) || raw.rooms.length > roomsMax || !inRange(raw.width) || !inRange(raw.height)) throw new Error('invalid');
-      const rooms = (raw.rooms as Partial<Room>[])
-        .filter((room) => ROOM_TYPES.includes(room.type as RoomType) && Number.isInteger(room.x) && Number.isInteger(room.y))
-        .map((room) => ({ ...newRoom(room.x!, room.y!, room.type!), ...room, id: `${room.x}-${room.y}` }));
+      // Salles hors de la grille ou sur une case déjà prise : ignorées, la première posée l'emporte.
+      const taken = new Set<string>();
+      const rooms: Room[] = [];
+      for (const entry of raw.rooms as Partial<Room>[]) {
+        if (!ROOM_TYPES.includes(entry.type as RoomType) || !Number.isInteger(entry.x) || !Number.isInteger(entry.y)) continue;
+        const room: Room = { ...newRoom(entry.x!, entry.y!, entry.type!), ...entry, id: `${entry.x}-${entry.y}` };
+        const cells = cellsOf(room);
+        if (cells.some(([x, y]) => x < 0 || y < 0 || x >= raw.width || y >= raw.height || taken.has(`${x},${y}`))) continue;
+        cells.forEach(([x, y]) => taken.add(`${x},${y}`));
+        rooms.push(room);
+      }
       remember();
       layout = cloneLayout({
         name: typeof raw.name === 'string' ? raw.name.slice(0, 40) : layout.name,
@@ -1207,7 +1215,7 @@
         class="w-full max-w-[720px] mx-auto select-none touch-none"
         role="grid"
         aria-label={m.eco_tower_map_title()}
-        oncontextmenu={(event) => event.preventDefault()}
+        oncontextmenu={(event) => { if (canManage && !disabled) event.preventDefault(); }}
       >
         <!-- La tour en pierre : créneaux, maçonnerie, puis l'étage dans son cadre. -->
         <defs>
@@ -1254,7 +1262,7 @@
             role="gridcell"
             tabindex="-1"
             onpointerdown={(event) => pointerDown(event, room.x, room.y)}
-            onpointerenter={() => { if (room.type !== 'BOSS') pointerEnter(room.x, room.y); }}
+            onpointerenter={() => { if (rect || room.type !== 'BOSS') pointerEnter(room.x, room.y); }}
           >
             <title>{roomTitle(room)}</title>
             <rect
