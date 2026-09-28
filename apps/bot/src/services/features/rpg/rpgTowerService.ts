@@ -48,6 +48,7 @@ import {
   towerDailySeed,
   towerDayKey,
   towerFoeShape,
+  towerSkill,
   towerUpgradeCost,
   towerWeekStart,
   type TowerCoreStats,
@@ -246,6 +247,10 @@ export type TowerEntryPreview = {
   stats: TowerCoreStats;
   /** Stats effectives du RPG, pour montrer ce que la compression en a fait. */
   main: { attack: number; defense: number; speed: number; maxHealth: number };
+  /**
+   * Compétences du RPG que le joueur peut acheter pour l'ascension, déjà ramenées à la Tour.
+   * Vide pour l'ascension du jour, qui se joue sans.
+   */
   skills: TowerSkill[];
   potions: number;
   gold: number;
@@ -255,7 +260,7 @@ export type TowerEntryPreview = {
 
 /**
  * Ce avec quoi le joueur entrerait dans la Tour : ses stats compressées, les compétences de
- * sa classe et de son arbre, et ses potions de départ.
+ * sa classe et de son arbre qu'il peut acheter, et ses potions de départ.
  */
 export async function previewTowerEntry(guildId: string, userId: string, options: { daily?: boolean } = {}): Promise<TowerEntryPreview> {
   const [settings, rpgProfile, towerProfile] = await Promise.all([
@@ -271,8 +276,8 @@ export async function previewTowerEntry(guildId: string, userId: string, options
   ]);
 
   const rpgClass = getRpgClass(rpgProfile.className);
-  // L'ascension du jour se joue à armes égales : ni héritage du RPG, ni titre, ni amélioration.
-  // Seules la classe et ses compétences distinguent les joueurs.
+  // L'ascension du jour se joue à armes égales : ni héritage du RPG, ni titre, ni amélioration,
+  // ni compétence. Seule la classe distingue les joueurs.
   const daily = options.daily === true;
   const bonus = daily ? null : towerUpgradeBonus(settings.upgrades, parseTowerUpgrades(towerProfile.upgrades, settings.upgrades));
   const mode: TowerEntryMode = daily ? 'RESET' : settings.entryMode;
@@ -298,7 +303,7 @@ export async function previewTowerEntry(guildId: string, userId: string, options
     mode,
     stats,
     main: { attack: main.attack, defense: main.defense, speed: main.speed, maxHealth: main.maxHealth },
-    skills: skills.map((skill) => ({
+    skills: daily ? [] : skills.map((skill) => towerSkill({
       id: skill.id,
       name: skill.name,
       emoji: skill.emoji,
@@ -340,16 +345,22 @@ export async function getActiveTowerRun(
 // Partie
 // ─────────────────────────────────────────────────────────────
 
+/** Compétences choisies : le bit `i` de `mask` désigne la i-ème compétence de l'aperçu. */
+export function pickTowerSkills(skills: readonly TowerSkill[], mask: number): TowerSkill[] {
+  return skills.filter((_, index) => (mask & (1 << index)) !== 0);
+}
+
 /**
  * Ouvre une ascension. `daily` : l'ascension du jour, même graine pour tout le serveur et une
  * seule tentative par joueur et par jour ; elle a son propre classement et ne compte ni pour
- * la saison ni pour les paliers.
+ * la saison ni pour les paliers. `skillMask` : compétences achetées pour cette ascension,
+ * payées en éclats à l'entrée.
  */
 export async function startTowerRun(
   client: Client | null,
   guildId: string,
   userId: string,
-  options: { daily?: boolean } = {},
+  options: { daily?: boolean; skillMask?: number } = {},
 ): Promise<ActiveTowerRun> {
   if (!(await isTowerOpen(guildId))) throw new TowerRefused({ kind: 'disabled' });
   const daily = options.daily === true;
@@ -366,9 +377,11 @@ export async function startTowerRun(
 
   const dayKey = towerDayKey(new Date());
   const seed = daily ? towerDailySeed(guildId, dayKey) : newTowerSeed();
+  const skills = pickTowerSkills(preview.skills, options.skillMask ?? 0);
+  const skillCost = skills.length * settings.skillPrice;
   const state = createTowerState({
     base: preview.stats,
-    skills: preview.skills,
+    skills,
     potions: preview.potions,
     gold: preview.gold,
     seed,
@@ -387,6 +400,10 @@ export async function startTowerRun(
       const played = await tx.rpgTowerRun.count({ where: { profileId: towerProfile.id, mode: 'DAILY', dailyKey: dayKey } });
       if (played > 0) throw new TowerRefused({ kind: 'daily_done' });
     }
+    if (skillCost > 0) {
+      const fresh = await tx.rpgTowerProfile.findUniqueOrThrow({ where: { id: towerProfile.id }, select: { shards: true } });
+      if (fresh.shards < skillCost) throw new TowerRefused({ kind: 'shards', price: skillCost, balance: fresh.shards });
+    }
 
     const run = await tx.rpgTowerRun.create({
       data: {
@@ -398,7 +415,10 @@ export async function startTowerRun(
         dailyKey: daily ? dayKey : null,
       },
     });
-    await tx.rpgTowerProfile.update({ where: { id: towerProfile.id }, data: { totalRuns: { increment: 1 } } });
+    await tx.rpgTowerProfile.update({
+      where: { id: towerProfile.id },
+      data: { totalRuns: { increment: 1 }, ...(skillCost > 0 ? { shards: { decrement: skillCost } } : {}) },
+    });
     return { run, state };
   });
 }

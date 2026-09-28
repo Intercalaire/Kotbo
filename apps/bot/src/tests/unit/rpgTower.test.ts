@@ -17,6 +17,7 @@ import {
   TOWER_DODGE_CAP,
   TOWER_GROWTH_KNEE,
   towerDailySeed,
+  towerSkill,
   towerDayKey,
   towerDodgeChance,
   towerFloorGrowth,
@@ -104,6 +105,20 @@ describe('statistiques d\'entrée', () => {
     }));
     expect(mage.attack).toBe(27);
     expect(mage.armorPiercing).toBe(0.3);
+  });
+});
+
+describe('compétences dans la Tour', () => {
+  test('une compétence du RPG est affaiblie : dégâts bonus divisés, vol de vie et soins plafonnés, recharge plus longue', () => {
+    const drain = towerSkill({ id: 'd', name: 'Drain', emoji: '', cooldownTurns: 2, effect: { damageMultiplier: 2, lifesteal: 0.7 } });
+    expect(drain.effect.damageMultiplier).toBe(1.5);
+    expect(drain.effect.lifesteal).toBe(0.15);
+    expect(drain.cooldownTurns).toBe(3);
+    const guard = towerSkill({ id: 'g', name: 'Garde', emoji: '', cooldownTurns: 4, effect: { damageMultiplier: 0, defenseMultiplier: 2, healPercent: 0.3 } });
+    expect(guard.effect.damageMultiplier).toBe(0);
+    expect(guard.effect.defenseMultiplier).toBe(1.5);
+    expect(guard.effect.healPercent).toBe(0.12);
+    expect(guard.cooldownTurns).toBe(5);
   });
 });
 

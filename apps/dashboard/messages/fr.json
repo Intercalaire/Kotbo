@@ -11328,6 +11328,8 @@
   "eco_tower_field_blessing_map_hint": "Une bénédiction tous les N étages gravis, en plus des autels. 0 pour les autels seuls.",
   "eco_tower_field_leave": "Part gardée en partant (%)",
   "eco_tower_field_leave_hint": "Quitter hors palier sûr ne garde que cette part. Juste après un boss, quitter garde tout.",
+  "eco_tower_field_skill_price": "Prix d'une compétence",
+  "eco_tower_field_skill_price_hint": "Éclats payés au départ pour emporter une compétence du RPG, le temps d'une ascension (0 : gratuites). Dans la Tour, elles sont affaiblies : dégâts bonus divisés par deux, vol de vie et soins plafonnés, recharge plus longue. L'ascension du jour se joue sans.",
   "eco_tower_season_reset_milestones": "Paliers regagnables",
   "eco_tower_season_reset_milestones_hint": "La nouvelle saison rend les paliers de nouveau gagnables par tous.",
   "eco_tower_floors_title": "La tour",

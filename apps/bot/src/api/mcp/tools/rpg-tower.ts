@@ -220,6 +220,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
           deathShardPercent: range('deathShardPercent').describe('Part des éclats gardée à la mort'),
           leaveShardPercent: range('leaveShardPercent').describe('Part des éclats gardée en quittant hors palier sûr ; juste après un boss, quitter garde tout'),
           weeklyShardCap: range('weeklyShardCap').describe('0 pour aucun plafond'),
+          skillPrice: range('skillPrice').describe("Prix en éclats d'une compétence du RPG, achetée au départ pour une seule ascension (0 : gratuites). Dans la Tour, les compétences sont affaiblies : dégâts bonus divisés par deux, vol de vie et soins plafonnés, recharge plus longue."),
           idleTimeoutMinutes: range('idleTimeoutMinutes'),
           floorsAfter: z.enum(TOWER_FLOORS_AFTER).optional().describe('Après le dernier étage dessiné : GENERATE génère des étages inédits, LOOP reprend au premier. Sans étage dessiné, tous sont générés.'),
           generatedFog: z.boolean().optional().describe('Brouillard de guerre sur les étages générés (défaut : true). Chaque étage dessiné a son propre réglage (fog).'),

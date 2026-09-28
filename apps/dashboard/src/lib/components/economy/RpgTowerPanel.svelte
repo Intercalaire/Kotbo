@@ -74,6 +74,7 @@
     shardsPerFloor: number;
     deathShardPercent: number;
     leaveShardPercent: number;
+    skillPrice: number;
     weeklyShardCap: number;
     idleTimeoutMinutes: number;
     currencyName: string;
@@ -161,6 +162,7 @@
     shardsPerFloor: 2,
     deathShardPercent: 50,
     leaveShardPercent: 80,
+    skillPrice: 10,
     weeklyShardCap: 0,
     idleTimeoutMinutes: 30,
     currencyName: 'Éclats de Tour',
@@ -795,6 +797,7 @@
             {@render numberField('towerDeath', m.eco_tower_field_death(), m.eco_tower_field_death_hint(), 'deathShardPercent', 0, 100)}
             {@render numberField('towerLeave', m.eco_tower_field_leave(), m.eco_tower_field_leave_hint(), 'leaveShardPercent', 0, 100)}
             {@render numberField('towerCap', m.eco_tower_field_cap(), m.eco_tower_field_cap_hint(), 'weeklyShardCap', 0, 1000000)}
+            {@render numberField('towerSkillPrice', m.eco_tower_field_skill_price(), m.eco_tower_field_skill_price_hint(), 'skillPrice', 0, 1000)}
           </div>
         </div>
 
