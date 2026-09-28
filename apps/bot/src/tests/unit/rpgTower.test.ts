@@ -11,8 +11,13 @@ import {
   parseTowerUpgrades,
   rollBlessingChoices,
   rollMerchantOffers,
+  defaultTowerMerchant,
   rollDoors,
   settleShards,
+  TOWER_DODGE_CAP,
+  TOWER_GROWTH_KNEE,
+  towerDodgeChance,
+  towerFloorGrowth,
   towerMonsterStats,
   towerUpgradeBonus,
   towerUpgradeCost,
@@ -270,6 +275,100 @@ describe('moteur d\'ascension', () => {
   test('une action hors de sa phase est refusée', () => {
     expect(() => applyTowerAction(start(), 1, { type: 'attack' }, RULES, FOES)).toThrow(TowerActionRefused);
     expect(() => applyTowerAction(start(), 1, { type: 'door', index: 7 }, RULES, FOES)).toThrow(TowerActionRefused);
+  });
+
+  test('un monstre tué par les épines de son dernier coup n\'empêche pas la mort', () => {
+    const fighting = enterCombat(start({ ...STRONG, speed: 1, defense: 0, maxHealth: 10, thorns: 0.5 })).state;
+    fighting.hp = 1;
+    fighting.encounter!.health = 1;
+    const step = applyTowerAction(fighting, 1, { type: 'defend' }, RULES, FOES);
+    expect(step.dead).toBe(true);
+    expect(step.state.hp).toBe(0);
+  });
+
+  test('une potion à PV pleins est refusée en combat aussi', () => {
+    expect(() => applyTowerAction(enterCombat(start()).state, 1, { type: 'potion' }, RULES, FOES)).toThrow(TowerActionRefused);
+  });
+
+  test('fuir coûte une part de l\'or et rouvre des portes au même étage', () => {
+    const fighting = enterCombat(start({ ...STRONG, speed: 1 })).state;
+    fighting.gold = 100;
+    const step = applyTowerAction(fighting, 1, { type: 'flee' }, RULES, FOES);
+    expect(step.dead).toBe(false);
+    expect(step.floor).toBe(1);
+    expect(step.state.phase).toBe('DOORS');
+    expect(step.state.gold).toBe(75);
+    expect(step.state.notice).toEqual({ k: 'fled', gold: 25 });
+  });
+
+  test('on ne fuit pas un boss', () => {
+    const fighting = enterCombat(start()).state;
+    fighting.encounter!.kind = 'BOSS';
+    expect(() => applyTowerAction(fighting, 1, { type: 'flee' }, RULES, FOES)).toThrow(TowerActionRefused);
+  });
+
+  test('une élite annonce un coup puissant, que la garde pare', () => {
+    let state = enterCombat(start({ ...STRONG, attack: 1, speed: 1 })).state;
+    state.encounter!.kind = 'ELITE';
+    state.encounter!.health = 1_000_000;
+    for (let i = 0; i < 4; i++) state = applyTowerAction(state, 1, { type: 'attack' }, RULES, FOES).state;
+    expect(state.encounter?.charging).toBe(true);
+    const parried = applyTowerAction(state, 1, { type: 'defend' }, RULES, FOES).state;
+    const hit = parried.encounter!.log.find((entry) => entry.k === 'monster' && entry.heavy);
+    expect(hit).toMatchObject({ heavy: true, parried: true });
+    expect(parried.encounter?.charging).toBe(false);
+  });
+
+  test('un boss sous 30 % de PV entre en rage', () => {
+    const fighting = enterCombat(start({ ...STRONG, attack: 1, speed: 1 })).state;
+    fighting.encounter!.kind = 'BOSS';
+    fighting.encounter!.health = Math.floor(fighting.encounter!.maxHealth * 0.3);
+    const step = applyTowerAction(fighting, 1, { type: 'defend' }, RULES, FOES);
+    expect(step.state.encounter?.enraged).toBe(true);
+    expect(step.state.encounter?.log.some((entry) => entry.k === 'enrage')).toBe(true);
+  });
+
+  test('défendre soigne et renforce l\'attaque suivante', () => {
+    const fighting = enterCombat(start({ ...STRONG, speed: 1 })).state;
+    fighting.hp = 100;
+    const step = applyTowerAction(fighting, 1, { type: 'defend' }, RULES, FOES);
+    expect(step.state.encounter?.riposte).toBe(true);
+    expect(step.state.encounter?.log[0]).toEqual({ k: 'defend', hp: Math.floor(STRONG.maxHealth * 0.05) });
+  });
+
+  test('les règles sont figées à l\'entrée', () => {
+    const state = start();
+    expect(state.rules).toEqual(RULES);
+    state.hp = 1000;
+    const live = { ...RULES, merchant: { ...defaultTowerMerchant(), potionHealPercent: 100 } };
+    const step = applyTowerAction(state, 1, { type: 'potion' }, live, FOES);
+    expect(step.state.hp).toBe(1000 + Math.floor(STRONG.maxHealth * 0.35));
+  });
+
+  test('le marchand renouvelle son équipement une seule fois', () => {
+    const state = start();
+    state.phase = 'MERCHANT';
+    state.merchant = rollMerchantOffers(1, new TowerRng(3), ['GEAR']);
+    state.gold = 1000;
+    const step = applyTowerAction(state, 1, { type: 'reroll' }, RULES, FOES);
+    expect(step.state.merchantRerolled).toBe(true);
+    expect(step.state.gold).toBeLessThan(1000);
+    expect(() => applyTowerAction(step.state, 1, { type: 'reroll' }, RULES, FOES)).toThrow(TowerActionRefused);
+  });
+});
+
+describe('vitesse et croissance', () => {
+  test('l\'esquive vient de l\'écart de vitesse et reste plafonnée', () => {
+    expect(towerDodgeChance(10, 10)).toBe(0);
+    expect(towerDodgeChance(8, 10)).toBe(0);
+    expect(towerDodgeChance(15, 10)).toBeCloseTo(TOWER_DODGE_CAP / 2);
+    expect(towerDodgeChance(100, 10)).toBe(TOWER_DODGE_CAP);
+  });
+
+  test('la croissance des monstres ralentit après le coude', () => {
+    const knee = towerFloorGrowth(TOWER_GROWTH_KNEE, 8);
+    expect(knee).toBeCloseTo(Math.pow(1.08, TOWER_GROWTH_KNEE - 1));
+    expect(towerFloorGrowth(TOWER_GROWTH_KNEE + 1, 8) / knee).toBeCloseTo(1.04);
   });
 });
 

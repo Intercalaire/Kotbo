@@ -382,11 +382,23 @@ const ENCOUNTER_MULTIPLIERS: Record<TowerEncounterKind, TowerMonsterStats> = {
 };
 
 /**
+ * Étage à partir duquel la croissance des monstres est divisée par deux. L'équipement ne
+ * progresse que linéairement : à pleine croissance, le mur tombait d'un coup vers l'étage 40.
+ */
+export const TOWER_GROWTH_KNEE = 25;
+
+export function towerFloorGrowth(floor: number, growthPercent: number): number {
+  const steps = Math.max(0, floor - 1);
+  const steep = Math.min(steps, TOWER_GROWTH_KNEE - 1);
+  return Math.pow(1 + growthPercent / 100, steep) * Math.pow(1 + growthPercent / 200, steps - steep);
+}
+
+/**
  * Force d'un monstre, qui ne dépend que de l'étage : jamais du joueur. Deux joueurs au même
  * étage affrontent la même difficulté, et le classement reste comparable.
  */
 export function towerMonsterStats(floor: number, growthPercent: number, kind: TowerEncounterKind): TowerMonsterStats {
-  const growth = Math.pow(1 + growthPercent / 100, Math.max(0, floor - 1));
+  const growth = towerFloorGrowth(floor, growthPercent);
   const mult = ENCOUNTER_MULTIPLIERS[kind];
   return {
     health: Math.round(70 * growth * mult.health),
@@ -397,6 +409,34 @@ export function towerMonsterStats(floor: number, growthPercent: number, kind: To
 }
 
 export const TOWER_MONSTER_CRIT = 0.08;
+
+/**
+ * Esquive tirée de l'écart de vitesse : rien à vitesse égale ou inférieure, le plafond à
+ * vitesse double. C'est ce qui donne un rôle à la vitesse, qui sinon n'élargissait que la
+ * fourchette de dégâts.
+ */
+export const TOWER_DODGE_CAP = 0.25;
+
+export function towerDodgeChance(defenderSpeed: number, attackerSpeed: number): number {
+  if (attackerSpeed <= 0 || defenderSpeed <= attackerSpeed) return 0;
+  return Math.min(TOWER_DODGE_CAP, (defenderSpeed / attackerSpeed - 1) * TOWER_DODGE_CAP);
+}
+
+/** Tous les combien de coups une élite ou un boss prépare un coup puissant (0 = jamais). */
+export const TOWER_CHARGE_EVERY: Record<TowerEncounterKind, number> = { COMBAT: 0, ELITE: 4, BOSS: 3 };
+export const TOWER_HEAVY_MULTIPLIER = 2;
+/** Coup puissant reçu en garde (Défendre ou compétence défensive). */
+export const TOWER_PARRIED_MULTIPLIER = 0.5;
+/** Sous cette part de PV, un boss entre en rage. */
+export const TOWER_ENRAGE_THRESHOLD = 0.3;
+export const TOWER_ENRAGE_MULTIPLIER = 1.3;
+
+/** Défendre soigne un peu et renforce la prochaine attaque. */
+export const TOWER_DEFEND_HEAL = 0.05;
+export const TOWER_RIPOSTE_MULTIPLIER = 1.3;
+
+/** Part de l'or de la partie perdue en fuyant un combat. */
+export const TOWER_FLEE_GOLD_LOSS = 0.25;
 
 const KIND_GOLD: Record<TowerEncounterKind, number> = { COMBAT: 1, ELITE: 2, BOSS: 4 };
 
@@ -739,6 +779,11 @@ export function rollMerchantOffers(
     if (kind === 'HEAL') return { kind, price: price(merchant.healPrice, merchant.healPricePerFloor), sold: false };
     return { kind, price: price(merchant.gearPrice, merchant.gearPricePerFloor), sold: false, gear: rollTowerGear(floor, 'MERCHANT', rng) };
   });
+}
+
+/** Prix pour renouveler l'équipement d'un marchand : un quart d'une pièce au prix normal. */
+export function towerRerollPrice(floor: number, merchant: TowerMerchantSettings = TOWER_MERCHANT_DEFAULTS): number {
+  return Math.max(1, Math.round((merchant.gearPrice + floor * merchant.gearPricePerFloor) / 4));
 }
 
 // ─────────────────────────────────────────────────────────────

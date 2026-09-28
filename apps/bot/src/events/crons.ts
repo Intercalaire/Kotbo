@@ -253,6 +253,11 @@ export async function registerCrons(client: Client): Promise<void> {
       const { runRaidCycle } = await import('../services/features/rpg/rpgRaidService.js');
       await runRaidCycle(client);
     },
+    'tower-idle-expiration': async () => {
+      logger.debug('Cron', 'Clôture des ascensions de la Tour inactives...');
+      const { expireIdleTowerRuns } = await import('../services/features/rpg/rpgTowerService.js');
+      await expireIdleTowerRuns(client);
+    },
     'meeting-notifications': async () => {
       await processMeetingNotifications();
     },
@@ -533,6 +538,14 @@ export async function registerCrons(client: Client): Promise<void> {
       const { runRaidCycle } = await import('../services/features/rpg/rpgRaidService.js');
       await runRaidCycle(client);
     }, 1000);
+  });
+
+  // La Tour : clôture des ascensions restées inactives (toutes les 5 minutes)
+  cron.schedule('*/5 * * * *', async () => {
+    await runCronJob('tower-idle-expiration', async () => {
+      const { expireIdleTowerRuns } = await import('../services/features/rpg/rpgTowerService.js');
+      await expireIdleTowerRuns(client);
+    }, 2000);
   });
 
   // 📊 Activity & Heatmap: Toutes les 10 minutes (Snapshot présences lissé)

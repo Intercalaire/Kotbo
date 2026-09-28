@@ -15,8 +15,16 @@ import {
   FALLBACK_MONSTERS,
   LOOT_CHANCE,
   MAX_POTIONS,
+  TOWER_CHARGE_EVERY,
+  TOWER_DEFEND_HEAL,
+  TOWER_ENRAGE_MULTIPLIER,
+  TOWER_ENRAGE_THRESHOLD,
+  TOWER_FLEE_GOLD_LOSS,
+  TOWER_HEAVY_MULTIPLIER,
   TOWER_MERCHANT_DEFAULTS,
   TOWER_MONSTER_CRIT,
+  TOWER_PARRIED_MULTIPLIER,
+  TOWER_RIPOSTE_MULTIPLIER,
   TowerRng,
   effectiveCooldown,
   encounterGold,
@@ -28,8 +36,10 @@ import {
   rollMerchantOffers,
   rollTowerGear,
   scrapValue,
+  towerDodgeChance,
   towerEffectiveStats,
   towerMonsterStats,
+  towerRerollPrice,
   treasureGold,
   type TowerCoreStats,
   type TowerDoor,
@@ -56,11 +66,15 @@ export type TowerLogEntry =
   | { k: 'attack'; dmg: number; crit: boolean }
   | { k: 'skill'; name: string; emoji: string; dmg: number; crit: boolean }
   | { k: 'support'; name: string; emoji: string }
-  | { k: 'defend' }
+  | { k: 'defend'; hp?: number }
   | { k: 'potion'; hp: number }
   | { k: 'heal'; hp: number }
-  | { k: 'monster'; dmg: number; crit: boolean }
+  /** `heavy` : coup puissant annoncé au tour précédent ; `parried` : reçu en garde. */
+  | { k: 'monster'; dmg: number; crit: boolean; heavy?: boolean; parried?: boolean }
   | { k: 'evaded' }
+  | { k: 'dodged' }
+  | { k: 'charge' }
+  | { k: 'enrage' }
   | { k: 'thorns'; dmg: number };
 
 export type TowerEncounter = {
@@ -77,6 +91,13 @@ export type TowerEncounter = {
   defenseMultiplier: number;
   evade: boolean;
   log: TowerLogEntry[];
+  /** Coups portés par le monstre. Les champs suivants manquent aux parties d'avant leur ajout. */
+  turn?: number;
+  /** Le prochain coup du monstre est un coup puissant. */
+  charging?: boolean;
+  enraged?: boolean;
+  /** Le joueur s'est défendu : sa prochaine attaque est renforcée. */
+  riposte?: boolean;
 };
 
 /** Ce qui s'est passé à la dernière action, affiché en tête de l'écran suivant. */
@@ -89,7 +110,9 @@ export type TowerNotice =
   | { k: 'equipped'; name: string; emoji: string }
   | { k: 'scrapped'; gold: number }
   | { k: 'blessed'; id: string; rank: number }
-  | { k: 'bought'; kind: TowerOffer['kind'] };
+  | { k: 'bought'; kind: TowerOffer['kind'] }
+  | { k: 'fled'; gold: number }
+  | { k: 'rerolled' };
 
 /** Position sur une carte dessinée. La carte est copiée à l'entrée : la modifier ne touche pas aux parties lancées. */
 export type TowerMapState = {
@@ -99,6 +122,8 @@ export type TowerMapState = {
   pos: string;
   /** Salles déjà résolues dans la section en cours ; les retraverser ne coûte rien. */
   cleared: string[];
+  /** Salle d'où l'on vient, où ramène une fuite. */
+  prev?: string;
 };
 
 /** Salle voisine proposée au joueur. */
@@ -128,6 +153,13 @@ export type TowerState = {
   /** Carte dessinée, `null` en mode aléatoire. */
   map: TowerMapState | null;
   moves: TowerMove[];
+  /**
+   * Règles figées à l'entrée : un réglage changé au dashboard ne touche pas aux parties en
+   * cours. Absent des parties lancées avant ce champ, qui suivent les réglages du moment.
+   */
+  rules?: TowerRules;
+  /** Le marchand courant a déjà renouvelé son équipement. */
+  merchantRerolled?: boolean;
 };
 
 export type TowerRules = {
@@ -161,7 +193,9 @@ export type TowerAction =
   | { type: 'discard' }
   | { type: 'bless'; index: number }
   | { type: 'buy'; index: number }
-  | { type: 'leave_shop' };
+  | { type: 'reroll' }
+  | { type: 'leave_shop' }
+  | { type: 'flee' };
 
 export type TowerActionError =
   | 'wrong_phase'
@@ -171,7 +205,9 @@ export type TowerActionError =
   | 'hp_full'
   | 'no_gold'
   | 'sold_out'
-  | 'potions_full';
+  | 'potions_full'
+  | 'no_flee'
+  | 'no_reroll';
 
 export class TowerActionRefused extends Error {
   constructor(readonly reason: TowerActionError) {
@@ -246,6 +282,7 @@ export function createTowerState(input: {
     notice: null,
     map,
     moves: [],
+    rules: structuredClone(input.rules),
   };
   if (map) state.moves = computeMoves(state);
   return state;
@@ -356,27 +393,46 @@ function startEncounter(
   state.phase = 'COMBAT';
 }
 
+/**
+ * Coup du monstre. Une élite ou un boss annonce un coup puissant un tour à l'avance : se
+ * mettre en garde à ce moment-là le pare. La vitesse du joueur lui donne une chance d'esquive.
+ */
 function monsterStrike(state: TowerState, encounter: TowerEncounter, stats: TowerEffectiveStats, rng: TowerRng, log: TowerLogEntry[]): void {
+  const heavy = encounter.charging === true;
+  encounter.charging = false;
+
   if (encounter.evade) {
     encounter.evade = false;
     log.push({ k: 'evaded' });
-    return;
+  } else if (rng.next() < towerDodgeChance(stats.speed, encounter.speed)) {
+    log.push({ k: 'dodged' });
+  } else {
+    const guarded = encounter.defenseMultiplier > 1;
+    const power = heavy ? (guarded ? TOWER_PARRIED_MULTIPLIER : TOWER_HEAVY_MULTIPLIER) : 1;
+    const hit = computeAttack({
+      attack: encounter.attack,
+      targetDefense: stats.defense,
+      speed: encounter.speed,
+      critChance: TOWER_MONSTER_CRIT,
+      skillMultiplier: power * (encounter.enraged ? TOWER_ENRAGE_MULTIPLIER : 1),
+      targetDefenseMultiplier: encounter.defenseMultiplier,
+      targetDamageReduction: stats.damageReduction,
+      targetThorns: stats.thorns,
+      random: () => rng.next(),
+    });
+    state.hp = Math.max(0, state.hp - hit.damage);
+    log.push({ k: 'monster', dmg: hit.damage, crit: hit.critical, heavy, parried: heavy && guarded });
+    if (hit.reflected > 0) {
+      encounter.health = Math.max(0, encounter.health - hit.reflected);
+      log.push({ k: 'thorns', dmg: hit.reflected });
+    }
   }
-  const hit = computeAttack({
-    attack: encounter.attack,
-    targetDefense: stats.defense,
-    speed: encounter.speed,
-    critChance: TOWER_MONSTER_CRIT,
-    targetDefenseMultiplier: encounter.defenseMultiplier,
-    targetDamageReduction: stats.damageReduction,
-    targetThorns: stats.thorns,
-    random: () => rng.next(),
-  });
-  state.hp = Math.max(0, state.hp - hit.damage);
-  log.push({ k: 'monster', dmg: hit.damage, crit: hit.critical });
-  if (hit.reflected > 0) {
-    encounter.health = Math.max(0, encounter.health - hit.reflected);
-    log.push({ k: 'thorns', dmg: hit.reflected });
+
+  encounter.turn = (encounter.turn ?? 0) + 1;
+  const every = TOWER_CHARGE_EVERY[encounter.kind];
+  if (every > 0 && encounter.turn % every === 0 && encounter.health > 0) {
+    encounter.charging = true;
+    log.push({ k: 'charge' });
   }
 }
 
@@ -387,10 +443,11 @@ function playerStrike(state: TowerState, encounter: TowerEncounter, stats: Tower
     speed: stats.speed,
     critChance: stats.critChance,
     armorPiercing: Math.max(stats.armorPiercing, skill?.effect.armorPiercing ?? 0),
-    skillMultiplier: skill?.effect.damageMultiplier ?? 1,
+    skillMultiplier: (skill?.effect.damageMultiplier ?? 1) * (encounter.riposte ? TOWER_RIPOSTE_MULTIPLIER : 1),
     lifesteal: stats.lifesteal + (skill?.effect.lifesteal ?? 0),
     random: () => rng.next(),
   });
+  encounter.riposte = false;
   encounter.health = Math.max(0, encounter.health - hit.damage);
   if (hit.healed > 0) state.hp = Math.min(stats.maxHealth, state.hp + hit.healed);
   return { dmg: hit.damage, crit: hit.critical };
@@ -415,6 +472,14 @@ function winEncounter(state: TowerState, floor: number, rules: TowerRules, rng: 
   return next;
 }
 
+/** Fuite : retour à la salle d'où l'on vient sur une carte, de nouvelles portes au même étage sinon. */
+function retreat(state: TowerState): void {
+  const map = state.map;
+  if (!map) return;
+  const back = map.prev && map.layout.rooms.some((room) => room.id === map.prev) ? map.prev : startRoom(map.layout)?.id;
+  if (back) map.pos = back;
+}
+
 function combatTurn(state: TowerState, floor: number, action: TowerAction, rules: TowerRules, rng: TowerRng): TowerStepResult {
   const encounter = state.encounter;
   if (!encounter) throw new TowerActionRefused('wrong_phase');
@@ -424,6 +489,21 @@ function combatTurn(state: TowerState, floor: number, action: TowerAction, rules
   // Les postures ne durent qu'un tour ennemi.
   encounter.defenseMultiplier = 1;
 
+  // On ne fuit pas un boss. Fuir laisse au monstre un dernier coup et coûte une part de l'or.
+  if (action.type === 'flee') {
+    if (encounter.kind === 'BOSS') throw new TowerActionRefused('no_flee');
+    monsterStrike(state, encounter, stats, rng, log);
+    encounter.log = [...encounter.log, ...log].slice(-LOG_KEPT);
+    if (state.hp <= 0) return { state, floor, dead: true };
+    if (encounter.health <= 0) return { state, floor: winEncounter(state, floor, rules, rng), dead: false };
+    const lost = Math.floor(state.gold * TOWER_FLEE_GOLD_LOSS);
+    state.gold -= lost;
+    retreat(state);
+    state.notice = { k: 'fled', gold: lost };
+    advance(state, floor, rules, rng);
+    return { state, floor, dead: false };
+  }
+
   switch (action.type) {
     case 'attack': {
       log.push({ k: 'attack', ...playerStrike(state, encounter, stats, null, rng) });
@@ -431,11 +511,13 @@ function combatTurn(state: TowerState, floor: number, action: TowerAction, rules
     }
     case 'defend': {
       encounter.defenseMultiplier = 2;
-      log.push({ k: 'defend' });
+      encounter.riposte = true;
+      log.push({ k: 'defend', hp: heal(state, TOWER_DEFEND_HEAL) });
       break;
     }
     case 'potion': {
       if (state.potions <= 0) throw new TowerActionRefused('no_potion');
+      if (state.hp >= stats.maxHealth) throw new TowerActionRefused('hp_full');
       state.potions -= 1;
       log.push({ k: 'potion', hp: heal(state, merchantOf(rules).potionHealPercent / 100) });
       break;
@@ -467,14 +549,22 @@ function combatTurn(state: TowerState, floor: number, action: TowerAction, rules
     if (encounter.cooldowns[id] > 0) encounter.cooldowns[id] -= 1;
   }
 
+  if (encounter.kind === 'BOSS' && !encounter.enraged && encounter.health > 0
+    && encounter.health <= encounter.maxHealth * TOWER_ENRAGE_THRESHOLD) {
+    encounter.enraged = true;
+    log.push({ k: 'enrage' });
+  }
+
   if (encounter.health > 0) monsterStrike(state, encounter, stats, rng, log);
   encounter.log = [...encounter.log, ...log].slice(-LOG_KEPT);
 
-  if (encounter.health <= 0) {
-    return { state, floor: winEncounter(state, floor, rules, rng), dead: false };
-  }
+  // La mort passe avant la victoire : un monstre tué par les épines de son dernier coup
+  // n'empêche pas le joueur de tomber, sans quoi il repartait à 0 PV.
   if (state.hp <= 0) {
     return { state, floor, dead: true };
+  }
+  if (encounter.health <= 0) {
+    return { state, floor: winEncounter(state, floor, rules, rng), dead: false };
   }
   return { state, floor, dead: false };
 }
@@ -487,6 +577,7 @@ function enterRoom(state: TowerState, floor: number, move: TowerMove, rules: Tow
   const map = state.map!;
   const room = map.layout.rooms.find((candidate) => candidate.id === move.roomId);
   if (!room) throw new TowerActionRefused('bad_choice');
+  map.prev = map.pos;
   map.pos = room.id;
 
   if (map.cleared.includes(room.id)) {
@@ -506,6 +597,7 @@ function enterRoom(state: TowerState, floor: number, move: TowerMove, rules: Tow
       return floor;
     case 'MERCHANT':
       state.merchant = rollMerchantOffers(floor, rng, room.offers, room.pricePercent, merchantOf(rules));
+      state.merchantRerolled = false;
       state.phase = 'MERCHANT';
       return floor;
     case 'CHEST': {
@@ -535,16 +627,18 @@ function enterRoom(state: TowerState, floor: number, move: TowerMove, rules: Tow
 }
 
 /**
- * Applique une action du joueur. L'état d'entrée n'est jamais modifié.
+ * Applique une action du joueur. L'état d'entrée n'est jamais modifié. Les règles figées dans
+ * la partie l'emportent sur `liveRules`, qui ne sert qu'aux parties d'avant ce gel.
  * Lève `TowerActionRefused` si l'action n'a pas de sens dans la phase en cours.
  */
 export function applyTowerAction(
   input: TowerState,
   floor: number,
   action: TowerAction,
-  rules: TowerRules,
+  liveRules: TowerRules,
   foes: TowerFoePool,
 ): TowerStepResult {
+  const rules = input.rules ?? liveRules;
   const state = clone(input);
   const rng = new TowerRng(state.rng);
   state.notice = null;
@@ -601,6 +695,7 @@ export function applyTowerAction(
         return done(next);
       }
       state.merchant = rollMerchantOffers(floor, rng, merchantOf(rules).offers, 100, merchantOf(rules));
+      state.merchantRerolled = false;
       state.phase = 'MERCHANT';
       return done(floor);
     }
@@ -641,10 +736,23 @@ export function applyTowerAction(
     case 'MERCHANT': {
       if (action.type === 'leave_shop') {
         state.merchant = [];
+        state.merchantRerolled = false;
         markRoomCleared(state);
         const next = clearFloor(state, floor, rules, false);
         advance(state, next, rules, rng);
         return done(next);
+      }
+      if (action.type === 'reroll') {
+        if (state.merchantRerolled) throw new TowerActionRefused('no_reroll');
+        const gear = state.merchant.filter((offer): offer is Extract<TowerOffer, { kind: 'GEAR' }> => offer.kind === 'GEAR' && !offer.sold);
+        if (gear.length === 0) throw new TowerActionRefused('no_reroll');
+        const price = towerRerollPrice(floor, merchantOf(rules));
+        if (state.gold < price) throw new TowerActionRefused('no_gold');
+        state.gold -= price;
+        for (const offer of gear) offer.gear = rollTowerGear(floor, 'MERCHANT', rng);
+        state.merchantRerolled = true;
+        state.notice = { k: 'rerolled' };
+        return done(floor);
       }
       if (action.type !== 'buy') throw new TowerActionRefused('wrong_phase');
       const offer = state.merchant[action.index];

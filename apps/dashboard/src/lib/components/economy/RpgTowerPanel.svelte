@@ -158,6 +158,8 @@
   const INHERIT_SLOPE = 0.2;
   const MONSTER_BASE_HEALTH = 70;
   const MONSTER_BASE_ATTACK = 13;
+  // Au-delà de cet étage, la croissance des monstres est divisée par deux (miroir du bot).
+  const GROWTH_KNEE = 25;
 
   const actionState = createAsyncActionState();
   let loading = $state(true);
@@ -205,7 +207,9 @@
 
   const entryPreview = $derived([20, 2_000, 200_000, 20_000_000].map((main) => ({ main, tower: towerAttack(main) })));
   const floorPreview = $derived([1, 10, 25, 50].map((floor) => {
-    const growth = Math.pow(1 + (Number(settings.floorGrowthPercent) || 0) / 100, floor - 1);
+    const rate = (Number(settings.floorGrowthPercent) || 0) / 100;
+    const steep = Math.min(floor - 1, GROWTH_KNEE - 1);
+    const growth = Math.pow(1 + rate, steep) * Math.pow(1 + rate / 2, floor - 1 - steep);
     return { floor, health: Math.round(MONSTER_BASE_HEALTH * growth), attack: Math.round(MONSTER_BASE_ATTACK * growth) };
   }));
   const veteranRatio = $derived((towerAttack(20_000_000) / towerAttack(20)).toFixed(2));
@@ -557,6 +561,7 @@
             <li>{m.eco_tower_guide_floor()}</li>
             <li>{m.eco_tower_guide_boss()}</li>
             <li>{m.eco_tower_guide_growth()}</li>
+            <li>{m.eco_tower_guide_combat()}</li>
             <li>{m.eco_tower_guide_milestones()}</li>
             <li>{m.eco_tower_guide_start()}</li>
           </ul>

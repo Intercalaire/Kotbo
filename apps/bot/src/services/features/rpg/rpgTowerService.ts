@@ -32,6 +32,7 @@ import {
 import {
   STARTING_POTIONS,
   TOWER_DEFAULTS,
+  TOWER_RANGES,
   TOWER_REWARDS_PER_GUILD_MAX,
   applyWeeklyCap,
   computeTowerEntryStats,
@@ -458,13 +459,14 @@ async function grantRewardToPlayer(client: Client | null, guildId: string, userI
  * Solde une partie : éclats (moins la pénalité de mort et le plafond hebdomadaire), record
  * de la saison et paliers atteints. La partie est close en premier, sous condition de statut :
  * une partie ne peut être soldée qu'une fois, même si l'expiration et un clic se croisent.
+ * Une partie commencée avant l'ouverture de la saison ne compte pas pour son classement.
  */
 async function settleRun(
   client: Client | null,
   run: RpgTowerRun,
   state: TowerState,
   outcome: TowerOutcome,
-  settings: TowerSettings,
+  settings: TowerConfigView,
   expired: boolean,
 ): Promise<TowerSettlement> {
   const kept = settleShards(state.shards, outcome, settings.deathShardPercent);
@@ -483,7 +485,8 @@ async function settleRun(
     const sameWeek = profile.weekStart !== null && profile.weekStart.getTime() === weekStart.getTime();
     const weekSoFar = sameWeek ? profile.weekShards : 0;
     const granted = applyWeeklyCap(kept, weekSoFar, settings.weeklyShardCap);
-    const newBest = state.floorsCleared > profile.bestFloor;
+    const inSeason = run.startedAt.getTime() >= settings.seasonStartedAt.getTime();
+    const newBest = inSeason && state.floorsCleared > profile.bestFloor;
 
     const milestones = await tx.rpgTowerReward.findMany({
       where: {
@@ -546,6 +549,45 @@ async function settleRun(
     milestones: await withTitleNames(result.milestones),
     expired,
   };
+}
+
+const IDLE_SWEEP_BATCH = 200;
+
+/**
+ * Solde les parties restées inactives au-delà du délai de leur serveur. Sans ce balayage,
+ * une partie n'était close qu'à la réouverture de la Tour : celle d'un joueur qui ne revenait
+ * pas restait en cours pour toujours, sans record ni paliers versés.
+ */
+export async function expireIdleTowerRuns(client: Client | null): Promise<number> {
+  const now = Date.now();
+  const candidates = await prisma.rpgTowerRun.findMany({
+    where: {
+      status: 'ACTIVE',
+      lastActionAt: { lt: new Date(now - TOWER_RANGES.idleTimeoutMinutes.min * 60 * 1000) },
+    },
+    orderBy: { lastActionAt: 'asc' },
+    take: IDLE_SWEEP_BATCH,
+  });
+
+  const configs = new Map<string, TowerConfigView>();
+  let closed = 0;
+  for (const run of candidates) {
+    let settings = configs.get(run.guildId);
+    if (!settings) {
+      settings = await getTowerConfig(run.guildId);
+      configs.set(run.guildId, settings);
+    }
+    if (!isExpired(run, settings.idleTimeoutMinutes, now)) continue;
+    const state = parseState(run.state);
+    try {
+      await settleRun(client, run, state, state.phase === 'COMBAT' ? 'DEAD' : 'LEFT', settings, true);
+      closed += 1;
+    } catch (err) {
+      logger.error('RpgTower', `Partie ${run.id} expirée non soldée :`, err);
+    }
+  }
+  if (closed > 0) logger.info('RpgTower', `${closed} ascension(s) inactive(s) soldée(s).`);
+  return closed;
 }
 
 // ─────────────────────────────────────────────────────────────
