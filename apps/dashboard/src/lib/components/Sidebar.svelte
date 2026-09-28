@@ -170,6 +170,7 @@
 
 <aside
   id="dashboard-sidebar"
+  data-telemetry-nav={showOnlyFavorites ? 'favorite' : 'sidebar'}
   inert={!isDesktop && !mobileOpen}
   aria-hidden={!isDesktop && !mobileOpen}
   ontouchstart={onTouchStart}
