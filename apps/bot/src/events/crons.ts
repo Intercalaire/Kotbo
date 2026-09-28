@@ -472,6 +472,15 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 5000);
   }, 60_000).unref?.();
 
+  // Même raison pour la présence : les retours et départs survenus pendant la
+  // coupure n'ont été vus par personne.
+  setTimeout(() => {
+    void runLocalSweep('member-presence-reconcile', async () => {
+      const { reconcileAllMemberPresence } = await import('../services/analytics/memberPresenceService.js');
+      await reconcileAllMemberPresence(client);
+    });
+  }, 5 * 60_000).unref?.();
+
   // 📊 Daily Algo: Toutes les minutes (vérification de l'heure configurée)
   cron.schedule('* * * * *', async () => {
     await runCronJob('daily-algo', async () => {
@@ -813,6 +822,16 @@ export async function registerCrons(client: Client): Promise<void> {
       const { reconcileAllMemberAccess } = await import('../services/core/memberAccessService.js');
       await reconcileAllMemberAccess(client);
     }, 5000);
+  });
+
+  // 👥 Présence des membres : corrige les fiches « parti » de membres revenus,
+  // et les départs manqués, toutes les 6 h. Propre au shard, chacun ne voyant
+  // que ses serveurs : une passe mise en file n'en couvrirait qu'un.
+  cron.schedule('15 */6 * * *', async () => {
+    await runLocalSweep('member-presence-reconcile', async () => {
+      const { reconcileAllMemberPresence } = await import('../services/analytics/memberPresenceService.js');
+      await reconcileAllMemberPresence(client);
+    });
   });
 
   // 👋 Threads d'accueil: purge des threads inactifs (toutes les heures).
