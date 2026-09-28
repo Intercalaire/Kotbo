@@ -42,7 +42,6 @@ model GuildDailyStat {
   updatedAt DateTime @updatedAt
 
   @@unique([guildId, dateKey])
-  @@index([guildId, dateKey])
   @@map("guild_daily_stats")
 }
 
@@ -65,7 +64,6 @@ model ChannelDailyStat {
 
   @@unique([guildId, channelId, dateKey])
   @@index([guildId, dateKey])
-  @@index([guildId, channelId])
   @@map("channel_daily_stats")
 }
 
@@ -173,7 +171,6 @@ model GuildHourlyStat {
   updatedAt DateTime @updatedAt
 
   @@unique([guildId, dateKey, hour])
-  @@index([guildId, dateKey])
   @@map("guild_hourly_stats")
 }
 
@@ -197,7 +194,6 @@ model MemberDailyStat {
 
   @@unique([guildId, userId, dateKey])
   @@index([guildId, dateKey])
-  @@index([guildId, userId])
   @@map("member_daily_stats")
 }
 
