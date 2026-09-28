@@ -435,6 +435,8 @@ model Guild {
   guildHourlyStats GuildHourlyStat[]
   channelDailyStats ChannelDailyStat[]
   memberDailyStats MemberDailyStat[]
+  messageContentDailyStats MessageContentDailyStat[]
+  contentItemDailyStats ContentItemDailyStat[]
   memberInvites MemberInvite[]
   guildInvites  GuildInvite[]
   suspendedInviters SuspendedInviter[]
@@ -732,6 +734,10 @@ model Guild {
   wordStatsEnabled Boolean @default(false)
   // Suivi de l'indexation initiale depuis les messages déjà journalisés
   wordStatsBackfillStatus Json?
+  // Rattrapage des stats de contenu depuis message_logs. La migration qui l'a
+  // créé y a posé `cutoff` : le rattrapage ne lit que les messages antérieurs,
+  // le tracker live compte tout ce qui suit. Null = rien à rattraper.
+  contentStatsBackfillStatus Json?
 
   // Hygiène des bans : détection des comptes bannis supprimés par Discord
   banHygieneEnabled Boolean @default(true)

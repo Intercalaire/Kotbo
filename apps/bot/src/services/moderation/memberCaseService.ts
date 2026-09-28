@@ -82,7 +82,9 @@ async function upsertMemberProfile(snapshot: MemberProfileSnapshot): Promise<voi
     isBot: snapshot.isBot ?? undefined,
     accountCreatedAt: snapshot.accountCreatedAt ?? undefined,
     guildJoinedAt: snapshot.guildJoinedAt ?? undefined,
-    guildLeftAt: snapshot.guildLeftAt ?? undefined,
+    // `null` efface la date de départ, `undefined` n'y touche pas. Réduire les
+    // deux à `undefined` laissait « parti » un membre revenu sur le serveur.
+    guildLeftAt: snapshot.guildLeftAt,
     lastSeenAt: snapshot.lastSeenAt ?? now,
     lastMessageAt: snapshot.lastMessageAt ?? undefined,
     lastMessageChannelId: snapshot.lastMessageChannelId ?? undefined,
@@ -790,6 +792,7 @@ async function flushProfileMessageCounts(): Promise<void> {
       where: { guildId_userId: { guildId, userId } },
       data: {
         messageCount: { increment: delta },
+        guildLeftAt: null,
         lastSeenAt: new Date(),
       }
     }).catch(() => {
@@ -835,6 +838,9 @@ export async function touchMemberMessageActivity(params: {
     accentColor: params.user.accentColor,
     isBot: params.user.bot,
     accountCreatedAt: params.user.createdAt,
+    // Écrire sur le serveur, c'est y être : rattrape un retour dont l'arrivée
+    // n'a pas été vue (bot coupé, module de journaux éteint).
+    guildLeftAt: null,
     lastSeenAt: new Date(),
     lastMessageAt: new Date(),
     lastMessageChannelId: params.channelId,
