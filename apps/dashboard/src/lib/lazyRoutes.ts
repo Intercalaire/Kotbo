@@ -10,6 +10,8 @@
  * navigations suivantes soient instantanees (pas de re-affichage du squelette).
  */
 
+import { trackJsError, trackRouteLoad } from './telemetry/telemetry';
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PageComponent = any;
 export type RouteLoader = () => Promise<{ default: PageComponent }>;
@@ -36,13 +38,16 @@ export function loadPage(pattern: string, load: RouteLoader): Promise<PageCompon
   const pending = inflight.get(pattern);
   if (pending) return pending;
 
+  const startedAt = performance.now();
   const request = load()
     .then((module) => {
       componentCache.set(pattern, module.default);
       inflight.delete(pattern);
+      trackRouteLoad(performance.now() - startedAt);
       return module.default;
     })
     .catch((error) => {
+      trackJsError('chunk_load');
       // On retire l'entree pour qu'un nouvel essai (navigation, reseau revenu)
       // puisse relancer l'import au lieu de rejouer l'echec en boucle.
       inflight.delete(pattern);
