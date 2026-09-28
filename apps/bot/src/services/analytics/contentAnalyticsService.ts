@@ -81,6 +81,14 @@ export async function resolveScope(client: Client, guildId: string, params: URLS
       ? guild!.channels.cache.filter((c) => c.parentId === channelParam).map((c) => c.id)
       : [channelParam];
     if (channelIds.length === 0) channelIds = [channelParam];
+    // channel_daily_stats range les messages d'un fil sous l'id du fil : on
+    // ajoute les fils actifs connus pour qu'ils suivent leur salon.
+    if (guild) {
+      const parents = new Set(channelIds);
+      for (const c of guild.channels.cache.values()) {
+        if (c.isThread() && c.parentId && parents.has(c.parentId)) channelIds.push(c.id);
+      }
+    }
   }
 
   let userIds: string[] | null = null;
@@ -377,6 +385,19 @@ async function joinsAndLeaves(guildId: string, start: string, end: string): Prom
   return { joined: agg._sum.membersJoined ?? 0, left: agg._sum.membersLeft ?? 0 };
 }
 
+/** Regroupe les fils sous leur salon parent, puis retrie. */
+function foldTopChannels(guild: Guild | null, rows: Array<{ channelId: string; messages: number }>) {
+  const byId = new Map<string, { channelId: string; name: string | null; messages: number }>();
+  for (const row of rows) {
+    const channel = guild?.channels.cache.get(row.channelId);
+    const id = channel?.isThread() && channel.parentId ? channel.parentId : row.channelId;
+    const entry = byId.get(id) ?? { channelId: id, name: guild?.channels.cache.get(id)?.name ?? null, messages: 0 };
+    entry.messages += row.messages;
+    byId.set(id, entry);
+  }
+  return [...byId.values()].sort((a, b) => b.messages - a.messages);
+}
+
 export async function getActivityAnalytics(client: Client, guildId: string, range: DateRange, scope: AnalyticsScope, includeBots = false) {
   const guild = client.guilds.cache.get(guildId) ?? null;
   const [cur, prev, activeNow, activePrev, flowNow, flowPrev, topChannelRows] = await Promise.all([
@@ -390,7 +411,7 @@ export async function getActivityAnalytics(client: Client, guildId: string, rang
       SELECT "channelId", SUM("messagesCount")::int AS "messages"
       FROM "channel_daily_stats"
       WHERE "guildId" = ${guildId} AND "dateKey" >= ${range.start} AND "dateKey" <= ${range.end}${scopeSql(scope, { users: false })}
-      GROUP BY "channelId" ORDER BY "messages" DESC LIMIT 5
+      GROUP BY "channelId" ORDER BY "messages" DESC LIMIT 40
     `,
   ]);
 
@@ -427,11 +448,7 @@ export async function getActivityAnalytics(client: Client, guildId: string, rang
       memberCount,
     },
     series,
-    topChannels: topChannelRows.map((r) => ({
-      channelId: r.channelId,
-      name: guild?.channels.cache.get(r.channelId)?.name ?? null,
-      messages: r.messages,
-    })),
+    topChannels: foldTopChannels(guild, topChannelRows).slice(0, 5),
   };
 }
 
