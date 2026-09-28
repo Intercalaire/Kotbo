@@ -22,6 +22,7 @@
   import { createSanctionReport, deleteSanction, updateSanctionReport, fetchMemberCase, updateGlobalSettings, fetchFeatureConfigurations, updateSanctionTables, dashboardFetch } from '../lib/api';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
+  import { channelDisplayName } from '../lib/channelUtils';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
   import { buildBrokenRulesPayload, buildReportRuleOptions, getRuleIdsFromBrokenRules, getRulesFromBrokenRules } from '../lib/sanctions/reportRules';
@@ -487,6 +488,7 @@
 
   let guildSettings = $state({
     moderatorRoleId: '',
+    sanctionAlertChannelId: '',
     propagateSanctions: false,
     sanctionReportEnabled: true,
     sanctionReportSkipBots: false,
@@ -495,6 +497,7 @@
 
   let savedSettings = $state({
     moderatorRoleId: '',
+    sanctionAlertChannelId: '',
     propagateSanctions: false,
     sanctionReportEnabled: true,
     sanctionReportSkipBots: false,
@@ -535,6 +538,7 @@
     if (dashboardStore.state.moderatorRoleId !== undefined) {
       const loaded = {
         moderatorRoleId: dashboardStore.state.moderatorRoleId || '',
+        sanctionAlertChannelId: dashboardStore.state.sanctionAlertChannelId || '',
         propagateSanctions: (dashboardStore.state as any).propagateSanctions || false,
         sanctionReportEnabled: (dashboardStore.state as any).sanctionReportEnabled ?? true,
         sanctionReportSkipBots: (dashboardStore.state as any).sanctionReportSkipBots ?? false,
@@ -578,6 +582,7 @@
     await saveAction.run(async () => {
       const ok1 = await updateGlobalSettings({
         moderatorRoleId: guildSettings.moderatorRoleId,
+        sanctionAlertChannelId: guildSettings.sanctionAlertChannelId || null,
         propagateSanctions: guildSettings.propagateSanctions,
         sanctionReportEnabled: guildSettings.sanctionReportEnabled,
         sanctionReportSkipBots: guildSettings.sanctionReportSkipBots
@@ -1358,12 +1363,20 @@
       <section class="space-y-8 animate-in fade-in duration-500">
         <div class="premium-card p-10 rounded-xl space-y-8">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div class="space-y-4">
+            <div class="space-y-4" data-guide="sanctions-moderator-role">
               <div>
                 <p class="text-sm font-semibold text-on-surface">{m.sc_mod_role()}</p>
                 <p class="text-xs text-on-surface-variant/70 mt-1">{m.sc_mod_role_desc()}</p>
               </div>
               <SearchableSelect bind:value={guildSettings.moderatorRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder={m.sc_no_role_ph()} className="w-full rounded-lg bg-surface-container-high/40 border border-outline-variant/10 px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all" />
+            </div>
+
+            <div class="space-y-4" data-guide="sanctions-alert-channel">
+              <div>
+                <p class="text-sm font-semibold text-on-surface">{m.sc_alert_channel()}</p>
+                <p class="text-xs text-on-surface-variant/70 mt-1">{m.sc_alert_channel_desc()}</p>
+              </div>
+              <SearchableSelect bind:value={guildSettings.sanctionAlertChannelId} options={(dashboardStore.state.discordChannels || []).map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.sc_alert_channel_ph()} className="w-full rounded-lg bg-surface-container-high/40 border border-outline-variant/10 px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all" />
             </div>
 
             <div class="space-y-4">

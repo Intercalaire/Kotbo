@@ -99,6 +99,7 @@ class DashboardStore {
     discordRoles: [] as DashboardRole[],
     staffRoleIds: [] as string[],
     moderatorRoleId: '',
+    sanctionAlertChannelId: '',
     propagateSanctions: false,
     crossServerSanctionsEnabled: true,
     sanctionReportEnabled: true,
@@ -395,6 +396,7 @@ class DashboardStore {
         this.state.discordRoles = data.discordRoles || [];
         this.state.staffRoleIds = data.staffRoleIds || [];
         this.state.moderatorRoleId = data.moderatorRoleId || '';
+        this.state.sanctionAlertChannelId = data.sanctionAlertChannelId || '';
         this.state.propagateSanctions = data.propagateSanctions || false;
         this.state.crossServerSanctionsEnabled = data.crossServerSanctionsEnabled ?? true;
         this.state.sanctionReportEnabled = data.sanctionReportEnabled ?? true;
