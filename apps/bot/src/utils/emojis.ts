@@ -117,6 +117,15 @@ const EMOJI_NAME_MAP: Record<string, string> = {
   rpgPrev: 'ktb_rpg_prev',
   rpgNext: 'ktb_rpg_next',
   rpgRefresh: 'ktb_rpg_refresh',
+  rpgUp: 'ktb_rpg_up',
+  rpgDown: 'ktb_rpg_down',
+
+  // La Tour.
+  rpgTower: 'ktb_rpg_tower',
+  rpgShard: 'ktb_rpg_shard',
+  rpgDoor: 'ktb_rpg_door',
+  rpgChest: 'ktb_rpg_chest',
+  rpgLeave: 'ktb_rpg_leave',
 
   // Jauges segmentées du RPG. Le segment vide est partagé avec `barEmpty*`.
   rpgBarHpL: 'ktb_rpg_hp_l',
@@ -156,7 +165,8 @@ export const UNICODE_FALLBACKS: Record<string, string> = {
   rpgBlackMarket: '🕯️', rpgRaid: '🐲', rpgPay: '💸', rpgSell: '🪙', rpgMap: '🗺️',
   rpgHp: '❤️', rpgEnergy: '⚡', rpgXp: '✨', rpgAtk: '⚔️', rpgDef: '🛡️', rpgSpd: '💨',
   rpgCrit: '🎯', rpgRest: '🏡',
-  rpgBack: '◀️', rpgPrev: '◀️', rpgNext: '▶️', rpgRefresh: '🔄',
+  rpgBack: '◀️', rpgPrev: '◀️', rpgNext: '▶️', rpgRefresh: '🔄', rpgUp: '🔼', rpgDown: '🔽',
+  rpgTower: '🗼', rpgShard: '💠', rpgDoor: '🚪', rpgChest: '💰', rpgLeave: '🏳️',
   rpgBarHpL: '❤️', rpgBarHpM: '❤️', rpgBarHpR: '❤️',
   rpgBarEnL: '⚡', rpgBarEnM: '⚡', rpgBarEnR: '⚡',
   rpgBarXpL: '🟦', rpgBarXpM: '🟦', rpgBarXpR: '🟦',

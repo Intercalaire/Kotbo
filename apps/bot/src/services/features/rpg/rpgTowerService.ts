@@ -33,7 +33,6 @@ import {
   STARTING_POTIONS,
   TOWER_DEFAULTS,
   TOWER_REWARDS_PER_GUILD_MAX,
-  TOWER_UPGRADES,
   applyWeeklyCap,
   computeTowerEntryStats,
   newTowerSeed,
@@ -41,6 +40,7 @@ import {
   normalizeTowerSettings,
   parseTowerUpgrades,
   settleShards,
+  towerUpgradeBonus,
   towerUpgradeCost,
   towerWeekStart,
   type TowerCoreStats,
@@ -48,7 +48,7 @@ import {
   type TowerOutcome,
   type TowerSettings,
   type TowerSkill,
-  type TowerUpgradeKey,
+  type TowerUpgradeDef,
 } from './rpgTowerPolicy.js';
 import { TOWER_MAP_ROOMS_MAX, TOWER_MAP_SIZE, normalizeTowerLayout, type TowerLayout } from './rpgTowerMap.js';
 
@@ -156,6 +156,7 @@ function rulesOf(settings: TowerSettings): TowerRules {
     blessingEvery: settings.blessingEvery,
     maxBlessings: settings.maxBlessings,
     shardsPerFloor: settings.shardsPerFloor,
+    merchant: settings.merchant,
   };
 }
 
@@ -194,6 +195,7 @@ export type TowerEntryPreview = {
   main: { attack: number; defense: number; speed: number; maxHealth: number };
   skills: TowerSkill[];
   potions: number;
+  gold: number;
   titleName: string | null;
   className: string | null;
 };
@@ -216,7 +218,7 @@ export async function previewTowerEntry(guildId: string, userId: string): Promis
   ]);
 
   const rpgClass = getRpgClass(rpgProfile.className);
-  const upgrades = parseTowerUpgrades(towerProfile.upgrades);
+  const bonus = towerUpgradeBonus(settings.upgrades, parseTowerUpgrades(towerProfile.upgrades, settings.upgrades));
 
   const stats = computeTowerEntryStats({
     mode: settings.entryMode,
@@ -232,7 +234,7 @@ export async function previewTowerEntry(guildId: string, userId: string): Promis
     },
     classModifiers: rpgClass?.modifiers ?? { attack: 1, defense: 1, speed: 1, maxHealth: 1 },
     classPassive: rpgClass?.passive ?? {},
-    vigorLevel: upgrades.vigor,
+    upgradeBonus: bonus,
   });
 
   return {
@@ -246,7 +248,8 @@ export async function previewTowerEntry(guildId: string, userId: string): Promis
       cooldownTurns: skill.cooldownTurns,
       effect: skill.effect,
     })),
-    potions: STARTING_POTIONS + upgrades.potion,
+    potions: STARTING_POTIONS + bonus.potions,
+    gold: bonus.gold,
     titleName: title?.name ?? null,
     className: rpgClass ? `${rpgClass.emoji} ${rpgClass.name}` : null,
   };
@@ -296,6 +299,7 @@ export async function startTowerRun(client: Client | null, guildId: string, user
     base: preview.stats,
     skills: preview.skills,
     potions: preview.potions,
+    gold: preview.gold,
     seed: newTowerSeed(),
     rules: rulesOf(settings),
     layout: settings.layoutEnabled ? settings.layout : null,
@@ -549,7 +553,8 @@ async function settleRun(
 // ─────────────────────────────────────────────────────────────
 
 export async function getTowerShop(guildId: string, userId: string) {
-  const [profile, rewards, milestones] = await Promise.all([
+  const [settings, profile, rewards, milestones] = await Promise.all([
+    getTowerConfig(guildId),
     getOrCreateTowerProfile(guildId, userId),
     prisma.rpgTowerReward.findMany({ where: { guildId, kind: 'SHOP', enabled: true }, orderBy: [{ price: 'asc' }, { name: 'asc' }] }),
     prisma.rpgTowerReward.findMany({ where: { guildId, kind: 'MILESTONE', enabled: true }, orderBy: { floor: 'asc' } }),
@@ -558,7 +563,8 @@ export async function getTowerShop(guildId: string, userId: string) {
     profile,
     rewards: await withTitleNames(rewards),
     milestones: await withTitleNames(milestones),
-    upgrades: parseTowerUpgrades(profile.upgrades),
+    upgrades: settings.upgrades.filter((upgrade) => upgrade.enabled),
+    levels: parseTowerUpgrades(profile.upgrades, settings.upgrades),
   };
 }
 
@@ -587,26 +593,30 @@ export async function buyTowerReward(client: Client | null, guildId: string, use
   return reward;
 }
 
-export async function buyTowerUpgrade(guildId: string, userId: string, key: TowerUpgradeKey): Promise<number> {
-  if (!(key in TOWER_UPGRADES)) throw new TowerRefused({ kind: 'unavailable' });
+export async function buyTowerUpgrade(guildId: string, userId: string, id: string): Promise<{ upgrade: TowerUpgradeDef; level: number }> {
+  const settings = await getTowerConfig(guildId);
+  const upgrade = settings.upgrades.find((candidate) => candidate.id === id && candidate.enabled);
+  if (!upgrade) throw new TowerRefused({ kind: 'unavailable' });
   const profile = await getOrCreateTowerProfile(guildId, userId);
 
   return prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT 1 FROM "rpg_tower_profiles" WHERE "id" = ${profile.id} FOR UPDATE`;
     const fresh = await tx.rpgTowerProfile.findUniqueOrThrow({ where: { id: profile.id } });
-    const upgrades = parseTowerUpgrades(fresh.upgrades);
-    const level = upgrades[key];
-    if (level >= TOWER_UPGRADES[key].maxLevel) throw new TowerRefused({ kind: 'upgrade_max' });
-    const cost = towerUpgradeCost(key, level);
+    const stored = fresh.upgrades && typeof fresh.upgrades === 'object' ? (fresh.upgrades as Record<string, unknown>) : {};
+    const level = parseTowerUpgrades(stored, [upgrade])[upgrade.id];
+    if (level >= upgrade.maxLevel) throw new TowerRefused({ kind: 'upgrade_max' });
+    const cost = towerUpgradeCost(upgrade, level);
     if (fresh.shards < cost) throw new TowerRefused({ kind: 'shards', price: cost, balance: fresh.shards });
     await tx.rpgTowerProfile.update({
       where: { id: profile.id },
       data: {
         shards: { decrement: cost },
-        upgrades: { ...upgrades, [key]: level + 1 } as Prisma.InputJsonValue,
+        // Les niveaux des améliorations supprimées restent en base : les rétablir sous le
+        // même identifiant rendrait ce que le joueur avait payé.
+        upgrades: { ...stored, [upgrade.id]: level + 1 } as Prisma.InputJsonValue,
       },
     });
-    return level + 1;
+    return { upgrade, level: level + 1 };
   });
 }
 
@@ -646,10 +656,15 @@ export async function getTowerDashboard(guildId: string) {
 export async function saveTowerSettings(guildId: string, input: Record<string, unknown>): Promise<TowerConfigView> {
   const normalized = normalizeTowerSettings(input);
   if (!normalized.ok) throw new TowerError(normalized.error, 400);
+  const data = {
+    ...normalized.value,
+    upgrades: normalized.value.upgrades as unknown as Prisma.InputJsonValue,
+    merchant: normalized.value.merchant as unknown as Prisma.InputJsonValue,
+  };
   await prisma.rpgTowerConfig.upsert({
     where: { guildId },
-    update: normalized.value,
-    create: { guildId, ...normalized.value },
+    update: data,
+    create: { guildId, ...data },
   });
   return getTowerConfig(guildId);
 }
@@ -731,7 +746,8 @@ export async function startTowerSeason(guildId: string): Promise<number> {
 
 /** Fiche Tour d'un joueur, pour les administrateurs. Lecture seule : une partie expirée n'est pas soldée ici. */
 export async function getTowerPlayerSummary(guildId: string, userId: string) {
-  const [profile, run] = await Promise.all([
+  const [settings, profile, run] = await Promise.all([
+    getTowerConfig(guildId),
     prisma.rpgTowerProfile.findUnique({ where: { guildId_userId: { guildId, userId } } }),
     prisma.rpgTowerRun.findFirst({ where: { guildId, userId, status: 'ACTIVE' }, orderBy: { startedAt: 'desc' } }),
   ]);
@@ -745,7 +761,7 @@ export async function getTowerPlayerSummary(guildId: string, userId: string) {
         bestFloorAllTime: profile.bestFloorAllTime,
         totalRuns: profile.totalRuns,
         weekShards: profile.weekShards,
-        upgrades: parseTowerUpgrades(profile.upgrades),
+        upgrades: parseTowerUpgrades(profile.upgrades, settings.upgrades),
         claimedRewardIds: profile.claimedRewardIds,
       }
       : null,

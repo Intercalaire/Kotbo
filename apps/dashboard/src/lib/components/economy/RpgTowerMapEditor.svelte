@@ -55,8 +55,10 @@
 
   const CELL = 56;
   const ROOM_TYPES: RoomType[] = ['START', 'MONSTER', 'ELITE', 'BOSS', 'CHEST', 'CAMPFIRE', 'MERCHANT', 'SHRINE', 'EMPTY'];
-  const EMOJI: Record<RoomType, string> = {
-    START: '🚪', MONSTER: '👹', ELITE: '💀', BOSS: '👑', CHEST: '💰', CAMPFIRE: '🔥', MERCHANT: '🛒', SHRINE: '✨', EMPTY: '⬜',
+  // Mêmes pictogrammes que les emojis d'application du bot sur Discord.
+  const ICON: Record<RoomType, string> = {
+    START: 'DoorOpen', MONSTER: 'Swords', ELITE: 'Skull', BOSS: 'Crown', CHEST: 'PackageOpen',
+    CAMPFIRE: 'Flame', MERCHANT: 'ShoppingCart', SHRINE: 'Sparkles', EMPTY: 'Square',
   };
   const COLOR: Record<RoomType, string> = {
     START: '#64748b', MONSTER: '#ef4444', ELITE: '#a855f7', BOSS: '#f59e0b', CHEST: '#eab308',
@@ -76,6 +78,28 @@
       case 'SHRINE': return m.eco_tower_room_shrine();
       default: return m.eco_tower_room_empty();
     }
+  }
+
+  function tip(type: RoomType): string {
+    switch (type) {
+      case 'START': return m.eco_tower_room_start_tip();
+      case 'MONSTER': return m.eco_tower_room_monster_tip();
+      case 'ELITE': return m.eco_tower_room_elite_tip();
+      case 'BOSS': return m.eco_tower_room_boss_tip();
+      case 'CHEST': return m.eco_tower_room_chest_tip();
+      case 'CAMPFIRE': return m.eco_tower_room_campfire_tip();
+      case 'MERCHANT': return m.eco_tower_room_merchant_tip();
+      case 'SHRINE': return m.eco_tower_room_shrine_tip();
+      default: return m.eco_tower_room_empty_tip();
+    }
+  }
+
+  function roomTitle(room: Room): string {
+    const parts = [`${label(room.type)}${room.foe ? ` : ${room.foe}` : ''}`, tip(room.type)];
+    const distance = distances.get(room.id);
+    if (distance === undefined) parts.push(m.eco_tower_map_unreachable_tip());
+    else if (room.type !== 'START') parts.push(m.eco_tower_map_distance_tip({ rooms: distance }));
+    return parts.join('\n');
   }
 
   function offerLabel(offer: OfferKind): string {
@@ -352,15 +376,15 @@
 
     <!-- Palette -->
     <div class="flex flex-wrap gap-2">
-      <button type="button" onclick={() => tool = 'SELECT'} class="px-3 py-2 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 {tool === 'SELECT' ? 'border-primary bg-primary/15' : 'border-outline-variant/15 bg-surface-container-high/30 hover:border-outline-variant/40'}">
+      <button type="button" onclick={() => tool = 'SELECT'} title={m.eco_tower_map_tool_select_tip()} class="px-3 py-2 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 {tool === 'SELECT' ? 'border-primary bg-primary/15' : 'border-outline-variant/15 bg-surface-container-high/30 hover:border-outline-variant/40'}">
         <Papicon icon="MousePointer" size={12} /> {m.eco_tower_map_tool_select()}
       </button>
       {#each ROOM_TYPES as type}
-        <button type="button" onclick={() => tool = type} class="px-3 py-2 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 {tool === type ? 'border-primary bg-primary/15' : 'border-outline-variant/15 bg-surface-container-high/30 hover:border-outline-variant/40'}">
-          <span style="color: {COLOR[type]}">{EMOJI[type]}</span> {label(type)}
+        <button type="button" onclick={() => tool = type} title={tip(type)} class="px-3 py-2 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 {tool === type ? 'border-primary bg-primary/15' : 'border-outline-variant/15 bg-surface-container-high/30 hover:border-outline-variant/40'}">
+          <span style="color: {COLOR[type]}" class="flex"><Papicon icon={ICON[type]} size={13} /></span> {label(type)}
         </button>
       {/each}
-      <button type="button" onclick={() => tool = 'ERASE'} class="px-3 py-2 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 {tool === 'ERASE' ? 'border-error bg-error/15 text-error' : 'border-outline-variant/15 bg-surface-container-high/30 hover:border-outline-variant/40'}">
+      <button type="button" onclick={() => tool = 'ERASE'} title={m.eco_tower_map_tool_erase_tip()} class="px-3 py-2 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 {tool === 'ERASE' ? 'border-error bg-error/15 text-error' : 'border-outline-variant/15 bg-surface-container-high/30 hover:border-outline-variant/40'}">
         <Papicon icon="Eraser" size={12} /> {m.eco_tower_map_tool_erase()}
       </button>
     </div>
@@ -397,6 +421,7 @@
         {#each layout.rooms as room (room.id)}
           {@const span = room.type === 'BOSS' ? 2 : 1}
           {@const reachable = distances.has(room.id)}
+          {@const iconSize = room.type === 'BOSS' ? 40 : 22}
           <g
             class={canManage ? 'cursor-pointer' : ''}
             role="gridcell"
@@ -404,6 +429,7 @@
             onpointerdown={(event) => pointerDown(event, room.x, room.y)}
             onpointerenter={() => { if (room.type !== 'BOSS') pointerEnter(room.x, room.y); }}
           >
+            <title>{roomTitle(room)}</title>
             <rect
               x={room.x * CELL + 5} y={room.y * CELL + 5}
               width={span * CELL - 10} height={span * CELL - 10}
@@ -413,12 +439,13 @@
               stroke-width={room.id === selectedId ? 4 : reachable ? 2 : 3}
               stroke-dasharray={reachable ? undefined : '6 4'}
             />
-            <text
-              x={(room.x + span / 2) * CELL} y={(room.y + span / 2) * CELL + (room.type === 'BOSS' ? 4 : 2)}
-              text-anchor="middle" dominant-baseline="middle"
-              font-size={room.type === 'BOSS' ? 44 : 24}
+            <g
+              transform="translate({(room.x + span / 2) * CELL - iconSize / 2} {(room.y + span / 2) * CELL - iconSize / 2 - (room.type === 'BOSS' ? 6 : 0)})"
+              style="color: {COLOR[room.type]}"
               pointer-events="none"
-            >{EMOJI[room.type]}</text>
+            >
+              <Papicon icon={ICON[room.type]} size={iconSize} />
+            </g>
             {#if room.type === 'BOSS'}
               <text x={(room.x + 1) * CELL} y={(room.y + 2) * CELL - 16} text-anchor="middle" font-size="11" font-weight="700" fill={COLOR.BOSS} pointer-events="none">
                 {room.foe ?? 'BOSS'}
@@ -443,7 +470,7 @@
         </p>
         <div class="flex flex-wrap gap-x-3 gap-y-1 text-2xs text-on-surface-variant/70">
           {#each ROOM_TYPES as type}
-            {#if counts[type] > 0}<span>{EMOJI[type]} {counts[type]}</span>{/if}
+            {#if counts[type] > 0}<span class="flex items-center gap-1" title={label(type)}><span style="color: {COLOR[type]}" class="flex"><Papicon icon={ICON[type]} size={11} /></span> {counts[type]}</span>{/if}
           {/each}
         </div>
         {#if problems.length > 0}
@@ -460,7 +487,7 @@
         {#key selected.id}
         <div class="bg-surface-container-high/30 border border-outline-variant/10 rounded-xl p-4 space-y-3">
           <div class="flex items-center justify-between">
-            <p class="text-sm font-bold flex items-center gap-2"><span>{EMOJI[selected.type]}</span> {label(selected.type)}</p>
+            <p class="text-sm font-bold flex items-center gap-2" title={tip(selected.type)}><span style="color: {COLOR[selected.type]}" class="flex"><Papicon icon={ICON[selected.type]} size={16} /></span> {label(selected.type)}</p>
             <span class="text-2xs text-on-surface-variant/50 font-mono">{selected.x},{selected.y}</span>
           </div>
 
@@ -513,6 +540,7 @@
           {:else}
             <p class="text-2xs text-on-surface-variant/60">{m.eco_tower_map_no_option()}</p>
           {/if}
+          <p class="text-2xs text-on-surface-variant/50 leading-relaxed">{tip(selected.type)}</p>
         </div>
         {/key}
       {:else}
