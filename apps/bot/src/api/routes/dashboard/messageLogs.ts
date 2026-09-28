@@ -6,6 +6,10 @@ import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, type AuthClaims, type DashboardAccess } from '../../shared.js';
 
 import { jsonFailure } from '../../shared/failure.js';
+
+/** Au-dela, la recherche annonce « plus de N resultats » au lieu du nombre exact. */
+const SEARCH_COUNT_CAP = 1000;
+
 /**
  * Global message search - Discord/Windows-style full-text search across every
  * message the bot has recorded for a guild (when message logging is enabled).
@@ -66,17 +70,25 @@ export async function handleMessageLogRoutes(
         if (Object.keys(createdAt).length > 0) where.createdAt = createdAt;
       }
 
-      const [messages, total] = await Promise.all([
+      // Le comptage est plafonne : un count() complet parcourait toutes les
+      // lignes correspondantes, soit toute la table du serveur pour une
+      // recherche large, et coutait plus cher que la page elle-meme. La ligne
+      // de plus demandee a findMany dit s'il reste une page, sans compter.
+      const [rows, counted] = await Promise.all([
         prisma.messageLog.findMany({
           where,
           orderBy: { createdAt: order },
           skip: offset,
-          take: limit,
+          take: limit + 1,
         }),
-        prisma.messageLog.count({ where }),
+        prisma.messageLog.count({ where, take: SEARCH_COUNT_CAP + 1 }),
       ]);
+      const hasMore = rows.length > limit;
+      const messages = hasMore ? rows.slice(0, limit) : rows;
+      const totalCapped = counted > SEARCH_COUNT_CAP;
+      const total = totalCapped ? SEARCH_COUNT_CAP : counted;
 
-      json(res, 200, { messages, total, limit, offset });
+      json(res, 200, { messages, total, totalCapped, hasMore, limit, offset });
     } catch (err) {
       logger.error('MessageLogsAPI', 'Erreur lors de la recherche de messages:', err);
       jsonFailure(res, err, 'Erreur lors de la recherche de messages', 'MessageLogsAPI');
