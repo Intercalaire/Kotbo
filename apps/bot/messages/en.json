@@ -884,6 +884,7 @@
   "b5_rank_opt_member": "Member to show (default: you)",
   "b5_rank_member_not_found": "Couldn't find this member on the server.",
   "b5_rank_gen_error": "An error occurred while generating the rank card.",
+  "b5_rank_edit_button": "Edit my card",
   "b5_casier_name": "casier",
   "b5_casier_description": "📁 Open the full user case file",
   "b5_casier_voir_desc": "Show a member's or Discord ID's case file",

@@ -2,6 +2,8 @@ import type { SlashCommandDefinition } from '../../commands.js';
 import {
   SlashCommandBuilder,
   AttachmentBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   MessageFlags,
   type ChatInputCommandInteraction,
 } from 'discord.js';
@@ -10,7 +12,7 @@ import { refreshAchievementsInBackground } from '../../services/progression/achi
 import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../../utils/moduleTracking.js';
 import { kotboContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
-import { mediaGallery, v2Message } from '@arcscord/components';
+import { actionRow, mediaGallery, v2Message } from '@arcscord/components';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
@@ -67,12 +69,25 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
     const imageBuffer = await generateRankCard(member, rankData.level, rankData.xp, rankData.rank, locale);
     const attachment = new AttachmentBuilder(imageBuffer, { name: 'rank-card.png' });
 
+    // Le bouton ne sert qu'a qui regarde sa propre carte : un lien vers « Mon
+    // espace » sous la carte d'un autre ouvrirait la sienne, pas celle affichee.
+    const isOwnCard = targetUser.id === interaction.user.id;
+    const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:5173';
+
     await interaction.editReply({
       ...v2Message(
         kotboContainer({
           color: 'primary',
           fields: [
             mediaGallery({ items: [{ media: { url: 'attachment://rank-card.png' } }] }),
+            ...(isOwnCard
+              ? [actionRow(
+                new ButtonBuilder()
+                  .setLabel(m.b5_rank_edit_button({}, { locale }))
+                  .setURL(`${dashboardUrl}/me`)
+                  .setStyle(ButtonStyle.Link),
+              )]
+              : []),
           ],
         }),
       ),

@@ -884,6 +884,7 @@
   "b5_rank_opt_member": "Membre à afficher (par défaut: vous)",
   "b5_rank_member_not_found": "Impossible de trouver ce membre sur le serveur.",
   "b5_rank_gen_error": "Une erreur est survenue lors de la génération de la carte de niveau.",
+  "b5_rank_edit_button": "Modifier ma carte",
   "b5_casier_name": "casier",
   "b5_casier_description": "📁 Ouvre le casier utilisateur complet",
   "b5_casier_voir_desc": "Affiche le casier d'un membre ou d'un ID Discord",
