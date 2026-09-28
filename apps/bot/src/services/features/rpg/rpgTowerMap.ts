@@ -67,6 +67,8 @@ export const TOWER_FLOORS_AFTER = ['GENERATE', 'LOOP'] as const;
 export type TowerFloorsAfter = (typeof TOWER_FLOORS_AFTER)[number];
 export const TOWER_HEAL_PERCENT_RANGE = { min: 5, max: 100 } as const;
 export const TOWER_PRICE_PERCENT_RANGE = { min: 10, max: 500 } as const;
+/** Puissance d'un adversaire imposé, en pourcentage de la force normale à cette profondeur. */
+export const TOWER_POWER_PERCENT_RANGE = { min: 50, max: 300 } as const;
 const FOE_NAME_MAX = 100;
 
 export type TowerRoom = {
@@ -86,6 +88,10 @@ export type TowerRoom = {
   pricePercent: number;
   /** Traits imposés à un monstre, une élite ou un gardien ; vide : tirés au hasard. */
   traits: TowerTrait[];
+  /** Puissance d'un monstre, d'une élite ou d'un gardien, en % de la force normale à sa profondeur. */
+  powerPercent: number;
+  /** Or et chance de butin suivent aussi la puissance ; sinon une salle renforcée ne rapporte pas plus. */
+  powerReward: boolean;
   /** Mécanique d'un gardien. */
   mechanic: TowerMechanicChoice;
   /** Événement d'une salle d'événement. */
@@ -256,6 +262,8 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
       traits: (type === 'MONSTER' || type === 'ELITE' || type === 'BOSS') && Array.isArray(cell.traits)
         ? [...new Set(cell.traits.filter((trait): trait is TowerTrait => TOWER_TRAITS.includes(trait as TowerTrait)))].slice(0, TOWER_ROOM_TRAITS_MAX)
         : [],
+      powerPercent: type === 'MONSTER' || type === 'ELITE' || type === 'BOSS' ? clampInt(cell.powerPercent, TOWER_POWER_PERCENT_RANGE, 100) : 100,
+      powerReward: (type === 'MONSTER' || type === 'ELITE' || type === 'BOSS') && cell.powerReward === true,
       mechanic: TOWER_MECHANIC_CHOICES.includes(cell.mechanic as TowerMechanicChoice) ? (cell.mechanic as TowerMechanicChoice) : 'RANDOM',
       event: TOWER_EVENT_CHOICES.includes(cell.event as TowerEventChoice) ? (cell.event as TowerEventChoice) : 'RANDOM',
       key: canHoldKey(type) && cell.key === true,
@@ -348,7 +356,7 @@ export function visibleRooms(layout: TowerLayout, pos: string, cleared: readonly
 export function newTowerRoom(x: number, y: number, type: TowerRoomType, extra: Partial<TowerRoom> = {}): TowerRoom {
   return {
     id: roomId(x, y), x, y, type, foe: null, chest: 'BOTH', healPercent: 35, offers: [...TOWER_OFFER_KINDS], pricePercent: 100,
-    traits: [], mechanic: 'RANDOM', event: 'RANDOM', key: false, ...extra,
+    traits: [], powerPercent: 100, powerReward: false, mechanic: 'RANDOM', event: 'RANDOM', key: false, ...extra,
   };
 }
 
