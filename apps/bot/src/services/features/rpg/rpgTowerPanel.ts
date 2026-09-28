@@ -37,9 +37,11 @@ import {
   type PanelView,
 } from '../rpgPanelService.js';
 import {
+  TRIAL_WAVES,
   towerLevel,
   towerStats,
   type TowerAction,
+  type TowerLockProgress,
   type TowerLogEntry,
   type TowerMapState,
   type TowerMove,
@@ -47,7 +49,18 @@ import {
   type TowerRoomInfo,
   type TowerState,
 } from './rpgTowerEngine.js';
-import { floorLayout, occupancy, visibleRooms, type TowerDirection, type TowerRoomType } from './rpgTowerMap.js';
+import {
+  exitLocks,
+  exitRoom,
+  floorLayout,
+  isExitRoom,
+  occupancy,
+  visibleRooms,
+  type TowerDirection,
+  type TowerExitType,
+  type TowerLayout,
+  type TowerRoomType,
+} from './rpgTowerMap.js';
 import {
   blacksmithPrice,
   type TowerBossMechanic,
@@ -86,7 +99,6 @@ import {
   hasPlayedDaily,
   getTowerShop,
   isTowerOpen,
-  mapPlayed,
   previewTowerEntry,
   startTowerRun,
   takePendingTowerSettlement,
@@ -205,6 +217,10 @@ const ROOM_ICON: Record<TowerRoomType, string> = {
   MONSTER: 'rpgFight',
   ELITE: 'rpgBoss',
   BOSS: 'crown',
+  STAIRS: 'rpgUp',
+  TRIAL: 'rpgWar',
+  GATE: 'rpgTower',
+  SEAL: 'rpgShard',
   CHEST: 'rpgChest',
   CAMPFIRE: 'rpgRest',
   MERCHANT: 'rpgShop',
@@ -227,6 +243,10 @@ const MINIMAP_GLYPH: Record<TowerRoomType, string> = {
   MERCHANT: '🛒',
   SHRINE: '✨',
   EVENT: '？',
+  STAIRS: '⇧',
+  TRIAL: 'Ｔ',
+  GATE: 'Ｇ',
+  SEAL: '◎',
   EMPTY: '⬜',
 };
 
@@ -243,6 +263,10 @@ function roomLabel(type: TowerRoomType, locale: Locale): string {
     case 'MERCHANT': return doorLabel('MERCHANT', locale);
     case 'SHRINE': return m.tower_room_shrine({}, { locale });
     case 'EVENT': return doorLabel('EVENT', locale);
+    case 'STAIRS': return m.tower_room_stairs({}, { locale });
+    case 'TRIAL': return m.tower_room_trial({}, { locale });
+    case 'GATE': return m.tower_room_gate({}, { locale });
+    case 'SEAL': return m.tower_room_seal({}, { locale });
     default: return m.tower_room_empty({}, { locale });
   }
 }
@@ -258,6 +282,10 @@ function roomDescription(type: TowerRoomType, locale: Locale): string {
     case 'MERCHANT': return doorDescription('MERCHANT', locale);
     case 'SHRINE': return m.tower_room_shrine_desc({}, { locale });
     case 'EVENT': return doorDescription('EVENT', locale);
+    case 'STAIRS': return m.tower_room_stairs_desc({}, { locale });
+    case 'TRIAL': return m.tower_room_trial_desc({ waves: TRIAL_WAVES }, { locale });
+    case 'GATE': return m.tower_room_gate_desc({}, { locale });
+    case 'SEAL': return m.tower_room_seal_desc({}, { locale });
     default: return m.tower_room_empty_desc({}, { locale });
   }
 }
@@ -285,12 +313,45 @@ function miniMap(map: TowerMapState): string {
   return rows.join('\n');
 }
 
-function moveLine(move: TowerMove, info: TowerRoomInfo | undefined, locale: Locale): string {
+/** État d'une sortie scellée : clés trouvées ou sceaux allumés, sur le total. */
+function exitStatus(type: TowerRoomType, layout: TowerLayout, cleared: readonly string[], locale: Locale): string {
+  const locks = exitLocks(layout, cleared);
+  if (type === 'STAIRS') {
+    return locks.keysFound < locks.keysNeeded
+      ? m.tower_exit_stairs_locked({ found: locks.keysFound, needed: locks.keysNeeded }, { locale })
+      : m.tower_exit_open({}, { locale });
+  }
+  if (type === 'GATE') {
+    return locks.sealsLit < locks.sealsNeeded
+      ? m.tower_exit_gate_locked({ lit: locks.sealsLit, needed: locks.sealsNeeded }, { locale })
+      : m.tower_exit_open({}, { locale });
+  }
+  return '';
+}
+
+function moveLine(move: TowerMove, info: TowerRoomInfo | undefined, map: TowerMapState, locale: Locale): string {
   const status = move.cleared
     ? `*${m.tower_room_visited({}, { locale })}*`
     : roomDescription(move.type, locale);
-  const known = move.cleared ? '' : roomInfoLine(info, locale);
-  return `${icon(DIRECTION_ICON[move.direction])} ${icon(ROOM_ICON[move.type])} **${roomLabel(move.type, locale)}** — ${status}${known ? `\n-# ${known}` : ''}`;
+  const room = map.layout.rooms.find((candidate) => candidate.id === move.roomId);
+  const extras = move.cleared ? [] : [
+    roomInfoLine(info, locale),
+    exitStatus(move.type, map.layout, map.cleared, locale),
+    room?.key ? `${icon('rpgKey')} ${m.tower_room_holds_key({}, { locale })}` : '',
+  ].filter(Boolean);
+  return `${icon(DIRECTION_ICON[move.direction])} ${icon(ROOM_ICON[move.type])} **${roomLabel(move.type, locale)}** — ${status}${extras.length > 0 ? `\n-# ${extras.join(' · ')}` : ''}`;
+}
+
+function exitName(exit: TowerExitType, locale: Locale): string {
+  return exit === 'BOSS' ? doorLabel('BOSS', locale) : roomLabel(exit, locale);
+}
+
+/** Clé trouvée ou sceau allumé, à la suite d'un retour de victoire ou de coffre. */
+function lockLine(lock: TowerLockProgress | null | undefined, locale: Locale): string {
+  if (!lock) return '';
+  return lock.kind === 'key'
+    ? `\n> ${icon('rpgKey')} ${m.tower_notice_key({ done: lock.done, needed: lock.needed }, { locale })}`
+    : `\n> ${icon('rpgShard')} ${m.tower_notice_seal({ done: lock.done, needed: lock.needed }, { locale })}`;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -532,7 +593,7 @@ function floorTitle(floor: number, name: string, locale: Locale): string {
 
 /** Échelle des étages autour du joueur : deux à venir, le sien, deux franchis. */
 function towerLadder(state: TowerState, floor: number, config: TowerConfigView, locale: Locale): TowerLadderEntry[] {
-  const floors = config.layoutEnabled ? config.floors : [];
+  const floors = config.floors;
   const entries: TowerLadderEntry[] = [];
   for (let n = floor + 2; n >= Math.max(1, floor - 2); n--) {
     const name = n === floor ? state.map?.layout.name ?? '' : floorLayout(floors, n)?.name ?? '';
@@ -559,6 +620,7 @@ async function towerImage(state: TowerState, floor: number, config: TowerConfigV
       ladder: towerLadder(state, floor, config, locale),
       visible: visible ? [...visible] : null,
       badges,
+      keys: map.layout.rooms.filter((room) => room.key && !map.cleared.includes(room.id)).map((room) => room.id),
     });
   }
   return renderTowerImage({
@@ -633,11 +695,15 @@ function noticeLine(notice: TowerNotice | null, locale: Locale): string | null {
         : m.tower_notice_victory({ emoji: foe, name: notice.name, gold: notice.gold, coin: gold }, { locale });
       return notice.climbed
         ? `${line}\n> ${icon('rpgUp')} ${m.tower_notice_climbed({ floor: floorTitle(notice.climbed.floor, notice.climbed.name, locale) }, { locale })}`
-        : line;
+        : `${line}${lockLine(notice.lock, locale)}`;
     }
     case 'treasure': return `${icon('rpgChest')} ${notice.gold > 0
       ? m.tower_notice_treasure({ gold: notice.gold, coin: gold }, { locale })
-      : m.tower_notice_chest_item({}, { locale })}`;
+      : m.tower_notice_chest_item({}, { locale })}${lockLine(notice.lock, locale)}`;
+    case 'wave': return `${icon('rpgWar')} ${m.tower_notice_wave({ wave: notice.wave, waves: notice.waves, gold: notice.gold, coin: gold }, { locale })}`;
+    case 'exit': return `${icon('rpgUp')} ${m.tower_notice_exit({ exit: exitName(notice.exit, locale) }, { locale })}${notice.climbed
+      ? `\n> ${m.tower_notice_climbed({ floor: floorTitle(notice.climbed.floor, notice.climbed.name, locale) }, { locale })}`
+      : ''}`;
     case 'campfire': return `${icon('rpgRest')} ${m.tower_notice_campfire({ hp: notice.hp }, { locale })}`;
     case 'potion': return `${icon('rpgPotion')} ${m.tower_log_potion({ hp: notice.hp }, { locale })}`;
     case 'equipped': return `${icon('success')} ${m.tower_notice_equipped({ name: notice.name }, { locale })}`;
@@ -677,6 +743,8 @@ export function towerRefusalText(refusal: TowerRefusal, config: TowerConfigView,
         case 'no_flee': return m.tower_refused_no_flee({}, { locale });
         case 'no_reroll': return m.tower_refused_no_reroll({}, { locale });
         case 'no_gear': return m.tower_refused_no_gear({}, { locale });
+        case 'stairs_locked': return m.tower_refused_stairs_locked({}, { locale });
+        case 'gate_locked': return m.tower_refused_gate_locked({}, { locale });
         default: return m.tower_refused_stale({}, { locale });
       }
     }
@@ -750,11 +818,9 @@ export async function buildTowerHomeView(client: Client | null, guildId: string,
   ]);
 
   const container = new ContainerBuilder().setAccentColor(COLOR);
-  const rules = !mapPlayed(config)
-    ? m.tower_rules_random({}, { locale })
-    : config.floors.length > 0
-      ? m.tower_rules_map({ floors: config.floors.length }, { locale })
-      : m.tower_rules_generated({}, { locale });
+  const rules = config.floors.length > 0
+    ? m.tower_rules_map({ floors: config.floors.length }, { locale })
+    : m.tower_rules_generated({}, { locale });
   textBlock(container, [
     header(config),
     config.description || m.tower_default_description({}, { locale }),
@@ -767,7 +833,7 @@ export async function buildTowerHomeView(client: Client | null, guildId: string,
     kind: 'shaft',
     title: config.name,
     floor: Math.max(1, profile.bestFloor),
-    bossEvery: mapPlayed(config) ? 0 : config.bossEvery,
+    bossEvery: 0,
     floorLabel: (value) => m.tower_floor({ floor: value }, { locale }),
     panel: {
       title: m.tower_panel_record({ floors: profile.bestFloor }, { locale }),
@@ -849,6 +915,23 @@ export async function buildTowerHomeView(client: Client | null, guildId: string,
   return closed ? withNote(view, m.tower_expired_note({ minutes: config.idleTimeoutMinutes, shards: closed.shards, emoji: shardIcon(config) }, { locale })) : view;
 }
 
+/**
+ * Objectif de l'étage, toujours affiché : sous le brouillard, le joueur ne voit pas la sortie
+ * avant d'en être proche, et doit savoir ce qu'il cherche et ce qu'il lui manque.
+ */
+function floorObjective(state: TowerState, locale: Locale): string | null {
+  const map = state.map;
+  const exit = map ? exitRoom(map.layout) : null;
+  if (!map || !exit) return null;
+  const locks = exitLocks(map.layout, map.cleared);
+  switch (exit.type) {
+    case 'STAIRS': return m.tower_objective_stairs({ found: locks.keysFound, needed: locks.keysNeeded }, { locale });
+    case 'GATE': return m.tower_objective_gate({ lit: locks.sealsLit, needed: locks.sealsNeeded }, { locale });
+    case 'TRIAL': return m.tower_objective_trial({ waves: TRIAL_WAVES }, { locale });
+    default: return m.tower_objective_boss({}, { locale });
+  }
+}
+
 function statusBlock(state: TowerState, floor: number, config: TowerConfigView, locale: Locale): string {
   const stats = towerStats(state);
   const blessings = Object.entries(state.blessings)
@@ -860,8 +943,10 @@ function statusBlock(state: TowerState, floor: number, config: TowerConfigView, 
     .join(' ');
 
   const title = floorTitle(floor, state.map?.layout.name ?? '', locale);
+  const objective = floorObjective(state, locale);
   return [
     header(config, title),
+    objective ? `${icon('rpgMap')} ${objective}` : null,
     combatHpBar(state.hp, stats.maxHealth),
     `${icon('rpgAtk')} ${stats.attack} · ${icon('rpgDef')} ${stats.defense} · ${icon('rpgSpd')} ${stats.speed} · ${icon('rpgCrit')} ${percent(stats.critChance)}`,
     `${icon('coins')} ${state.gold} · ${icon('rpgPotion')} ${state.potions} · ${m.tower_run_shards({ shards: state.shards, emoji: shardIcon(config) }, { locale })}`,
@@ -915,14 +1000,19 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
         if (details.length > 0) textBlock(container, details.join('\n'));
         textBlock(container, [
           `### ${m.tower_moves_title({}, { locale })}`,
-          ...moves.map((move) => moveLine(move, state.map?.rooms?.[move.roomId], locale)),
+          ...moves.map((move) => moveLine(move, state.map?.rooms?.[move.roomId], state.map!, locale)),
         ].join('\n'));
         if (moves.length > 0) {
+          // Une sortie encore scellée se voit mais ne se clique pas : il manque des clés ou des sceaux.
+          const locks = exitLocks(state.map.layout, state.map.cleared);
+          const sealed = (type: TowerRoomType) => (type === 'STAIRS' && locks.keysFound < locks.keysNeeded)
+            || (type === 'GATE' && locks.sealsLit < locks.sealsNeeded);
           components.push(row(...moves.map((move, index) => button(
             actId(ownerId, version, `d${index}`),
             roomLabel(move.type, locale),
-            move.cleared ? ButtonStyle.Secondary : move.type === 'BOSS' ? ButtonStyle.Danger : ButtonStyle.Primary,
+            move.cleared ? ButtonStyle.Secondary : isExitRoom(move.type) ? ButtonStyle.Danger : ButtonStyle.Primary,
             icon(DIRECTION_ICON[move.direction]),
+            sealed(move.type),
           ))));
         }
         components.push(runControls(ownerId, state, version, locale));
@@ -946,6 +1036,7 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
     case 'COMBAT': {
       const foe = state.encounter!;
       const kind = foe.kind === 'BOSS' ? ` ${icon('crown')}` : foe.kind === 'ELITE' ? ` ${icon('rpgBoss')}` : '';
+      const trial = state.trial ? `${icon('rpgWar')} **${m.tower_combat_trial({ wave: state.trial.wave, waves: state.trial.waves }, { locale })}**` : null;
       const enraged = foe.enraged ? ` · **${m.tower_combat_enraged({}, { locale })}**` : '';
       const log = foe.log.map((entry) => logLine(entry, foe, locale));
       const traits = (foe.traits ?? []).map((trait) => `${icon(TRAIT_ICON[trait])} **${traitName(trait, locale)}** : ${traitDescription(trait, locale)}`);
@@ -953,6 +1044,7 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
       const shield = (foe.shield ?? 0) > 0 ? `${icon('shield')} ${m.tower_combat_shield({ shield: foe.shield ?? 0 }, { locale })}` : null;
       const minions = (foe.minions ?? 0) > 0 ? `${icon('rpgBoss')} ${m.tower_combat_minions({ count: foe.minions ?? 0 }, { locale })}` : null;
       textBlock(container, [
+        ...(trial ? [trial] : []),
         `### ${foeIcon(foe)} ${foe.name}${kind}`,
         combatHpBar(foe.health, foe.maxHealth),
         `-# ${icon('rpgAtk')} ${foe.attack} · ${icon('rpgDef')} ${foe.defense} · ${icon('rpgSpd')} ${foe.speed}${enraged}`,
@@ -967,7 +1059,8 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
         button(actId(ownerId, version, 'atk'), m.rpg_fight_btn_attack({}, { locale }), ButtonStyle.Primary, icon('rpgAtk')),
         button(actId(ownerId, version, 'def'), m.rpg_fight_btn_defend({}, { locale }), foe.charging ? ButtonStyle.Success : ButtonStyle.Secondary, icon('rpgDef')),
         button(actId(ownerId, version, 'pot'), m.rpg_fight_btn_potion({ count: state.potions }, { locale }), ButtonStyle.Success, icon('rpgPotion'), state.potions === 0 || state.hp >= maxHealth),
-        ...(foe.kind === 'BOSS' ? [] : [button(actId(ownerId, version, 'fl'), m.tower_btn_flee({}, { locale }), ButtonStyle.Danger, icon('rpgLeave'))]),
+        // On ne fuit ni un gardien ni une épreuve.
+        ...(foe.kind === 'BOSS' || state.trial ? [] : [button(actId(ownerId, version, 'fl'), m.tower_btn_flee({}, { locale }), ButtonStyle.Danger, icon('rpgLeave'))]),
       ));
       if (state.skills.length > 0) {
         components.push(row(...state.skills.slice(0, 5).map((skill) => {
@@ -1116,7 +1209,7 @@ export async function buildTowerSettlementView(guildId: string, ownerId: string,
     kind: 'shaft',
     title: config.name,
     floor: Math.max(1, settlement.floorsCleared),
-    bossEvery: mapPlayed(config) ? 0 : config.bossEvery,
+    bossEvery: 0,
     floorLabel: (value) => m.tower_floor({ floor: value }, { locale }),
     panel: {
       title,

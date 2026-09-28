@@ -18,7 +18,9 @@
   import SearchableSelect from '../SearchableSelect.svelte';
   import ToggleSwitch from '../ToggleSwitch.svelte';
 
-  type RoomType = 'START' | 'MONSTER' | 'ELITE' | 'BOSS' | 'CHEST' | 'CAMPFIRE' | 'MERCHANT' | 'SHRINE' | 'EVENT' | 'EMPTY';
+  type RoomType = 'START' | 'MONSTER' | 'ELITE' | 'BOSS' | 'STAIRS' | 'TRIAL' | 'GATE' | 'SEAL'
+    | 'CHEST' | 'CAMPFIRE' | 'MERCHANT' | 'SHRINE' | 'EVENT' | 'EMPTY';
+  type Category = 'ENTRY' | 'MONSTERS' | 'EXITS' | 'OTHER';
   type Trait = 'ARMORED' | 'VAMPIRIC' | 'SWIFT' | 'THORNY' | 'BERSERK' | 'REGENERATING';
   type Mechanic = 'RANDOM' | 'NONE' | 'SHIELD' | 'SUMMONER' | 'PHASES';
   type EventChoice = 'RANDOM' | 'BLOOD_ALTAR' | 'GAMBLER' | 'SPRING' | 'BLACKSMITH' | 'CURSED_PACT';
@@ -37,6 +39,7 @@
     traits: Trait[];
     mechanic: Mechanic;
     event: EventChoice;
+    key: boolean;
   };
   type Layout = { name: string; width: number; height: number; fog: boolean; rooms: Room[] };
   type Foe = { name: string; emoji: string; isBoss: boolean; enabled: boolean };
@@ -46,7 +49,6 @@
     canManage = false,
     disabled = false,
     initialFloors = [],
-    initialEnabled = false,
     foes = [],
     sizeLimits = { min: 3, max: 12 },
     roomsMax = 100,
@@ -58,7 +60,6 @@
     canManage?: boolean;
     disabled?: boolean;
     initialFloors?: Layout[];
-    initialEnabled?: boolean;
     foes?: Foe[];
     sizeLimits?: { min: number; max: number };
     roomsMax?: number;
@@ -72,7 +73,17 @@
   // Cadre de pierre autour de la grille et hauteur des créneaux, en unités du dessin.
   const FRAME = 18;
   const CRENEL = 22;
-  const ROOM_TYPES: RoomType[] = ['START', 'MONSTER', 'ELITE', 'BOSS', 'CHEST', 'CAMPFIRE', 'MERCHANT', 'SHRINE', 'EVENT', 'EMPTY'];
+  const ROOM_TYPES: RoomType[] = ['START', 'MONSTER', 'ELITE', 'BOSS', 'STAIRS', 'TRIAL', 'GATE', 'SEAL', 'CHEST', 'CAMPFIRE', 'MERCHANT', 'SHRINE', 'EVENT', 'EMPTY'];
+  // Sorties d'un étage (miroir de `TOWER_EXIT_TYPES`) : exactement une par étage.
+  const EXITS: RoomType[] = ['BOSS', 'STAIRS', 'TRIAL', 'GATE'];
+  const isExit = (type: RoomType) => EXITS.includes(type);
+  // La palette est rangée par familles : on cherche une sortie parmi les sorties, pas dans une liste de quatorze.
+  const CATEGORIES: { id: Category; icon: string; types: RoomType[] }[] = [
+    { id: 'ENTRY', icon: 'LogIn', types: ['START'] },
+    { id: 'MONSTERS', icon: 'Swords', types: ['MONSTER', 'ELITE'] },
+    { id: 'EXITS', icon: 'Flag', types: ['BOSS', 'STAIRS', 'TRIAL', 'GATE', 'SEAL'] },
+    { id: 'OTHER', icon: 'LayoutGrid', types: ['CHEST', 'CAMPFIRE', 'MERCHANT', 'SHRINE', 'EVENT', 'EMPTY'] },
+  ];
   // Mêmes valeurs que `rpgTowerContent.ts` côté bot.
   const TRAITS: Trait[] = ['ARMORED', 'VAMPIRIC', 'SWIFT', 'THORNY', 'BERSERK', 'REGENERATING'];
   const TRAITS_MAX = 2;
@@ -85,10 +96,12 @@
   const ICON: Record<RoomType, string> = {
     START: 'DoorOpen', MONSTER: 'Swords', ELITE: 'Skull', BOSS: 'Crown', CHEST: 'PackageOpen',
     CAMPFIRE: 'Flame', MERCHANT: 'ShoppingCart', SHRINE: 'Sparkles', EVENT: 'HelpCircle', EMPTY: 'Square',
+    STAIRS: 'ArrowUpCircle', TRIAL: 'Hourglass', GATE: 'Flag', SEAL: 'Target',
   };
   const COLOR: Record<RoomType, string> = {
     START: '#64748b', MONSTER: '#ef4444', ELITE: '#a855f7', BOSS: '#f59e0b', CHEST: '#eab308',
     CAMPFIRE: '#f97316', MERCHANT: '#10b981', SHRINE: '#38bdf8', EVENT: '#e879f9', EMPTY: '#94a3b8',
+    STAIRS: '#22d3ee', TRIAL: '#f43f5e', GATE: '#c084fc', SEAL: '#a78bfa',
   };
   const OFFERS: OfferKind[] = ['POTION', 'HEAL', 'GEAR'];
 
@@ -103,6 +116,10 @@
       case 'MERCHANT': return m.eco_tower_room_merchant();
       case 'SHRINE': return m.eco_tower_room_shrine();
       case 'EVENT': return m.eco_tower_room_event();
+      case 'STAIRS': return m.eco_tower_room_stairs();
+      case 'TRIAL': return m.eco_tower_room_trial();
+      case 'GATE': return m.eco_tower_room_gate();
+      case 'SEAL': return m.eco_tower_room_seal();
       default: return m.eco_tower_room_empty();
     }
   }
@@ -118,6 +135,10 @@
       case 'MERCHANT': return m.eco_tower_room_merchant_tip();
       case 'SHRINE': return m.eco_tower_room_shrine_tip();
       case 'EVENT': return m.eco_tower_room_event_tip();
+      case 'STAIRS': return m.eco_tower_room_stairs_tip();
+      case 'TRIAL': return m.eco_tower_room_trial_tip();
+      case 'GATE': return m.eco_tower_room_gate_tip();
+      case 'SEAL': return m.eco_tower_room_seal_tip();
       default: return m.eco_tower_room_empty_tip();
     }
   }
@@ -134,6 +155,24 @@
     if (offer === 'POTION') return m.eco_tower_offer_potion();
     if (offer === 'HEAL') return m.eco_tower_offer_heal();
     return m.eco_tower_offer_gear();
+  }
+
+  function categoryLabel(category: Category): string {
+    switch (category) {
+      case 'ENTRY': return m.eco_tower_category_entry();
+      case 'MONSTERS': return m.eco_tower_category_monsters();
+      case 'EXITS': return m.eco_tower_category_exits();
+      default: return m.eco_tower_category_other();
+    }
+  }
+
+  function categoryTip(category: Category): string {
+    switch (category) {
+      case 'ENTRY': return m.eco_tower_category_entry_tip();
+      case 'MONSTERS': return m.eco_tower_category_monsters_tip();
+      case 'EXITS': return m.eco_tower_category_exits_tip();
+      default: return m.eco_tower_category_other_tip();
+    }
   }
 
   function traitLabel(trait: Trait): string {
@@ -203,7 +242,7 @@
   function newRoom(x: number, y: number, type: RoomType): Room {
     return {
       id: `${x}-${y}`, x, y, type, foe: null, chest: 'BOTH', healPercent: 35, offers: [...OFFERS], pricePercent: 100,
-      traits: [], mechanic: 'RANDOM', event: 'RANDOM',
+      traits: [], mechanic: 'RANDOM', event: 'RANDOM', key: false,
     };
   }
 
@@ -236,6 +275,7 @@
         traits: [...(room.traits ?? [])],
         mechanic: room.mechanic ?? 'RANDOM',
         event: room.event ?? 'RANDOM',
+        key: room.key === true,
       })),
     };
   }
@@ -247,8 +287,8 @@
   let floors = $state<Layout[]>(seeded);
   let current = $state(0);
   let layout = $state<Layout>(cloneLayout(seeded[0]));
-  let layoutEnabled = $state(initialEnabled);
   let tool = $state<Tool>('MONSTER');
+  let category = $state<Category>('MONSTERS');
   let selectedId = $state<string | null>(null);
   let painting = $state(false);
   let dirty = $state(false);
@@ -319,14 +359,30 @@
   const counts = $derived(Object.fromEntries(ROOM_TYPES.map((type) => [type, layout.rooms.filter((room) => room.type === type).length])) as Record<RoomType, number>);
   const unreachable = $derived(layout.rooms.filter((room) => !distances.has(room.id)).length);
   const bossDepth = $derived.by(() => {
-    const depths = layout.rooms.filter((room) => room.type === 'BOSS' && distances.has(room.id)).map((room) => distances.get(room.id)!);
+    const depths = layout.rooms.filter((room) => isExit(room.type) && distances.has(room.id)).map((room) => distances.get(room.id)!);
     return depths.length > 0 ? Math.min(...depths) : null;
   });
+
+  /** Règles de la sortie, mêmes que le serveur : une seule, et ce qui l'ouvre avec elle. */
+  function exitProblems(floor: Layout): string[] {
+    const list: string[] = [];
+    const exits = floor.rooms.filter((room) => isExit(room.type));
+    const keys = floor.rooms.filter((room) => room.key).length;
+    const seals = floor.rooms.filter((room) => room.type === 'SEAL').length;
+    if (exits.length === 0) list.push(m.eco_tower_map_need_exit());
+    if (exits.length > 1) list.push(m.eco_tower_map_one_exit());
+    const exit = exits.length === 1 ? exits[0].type : null;
+    if (exit === 'STAIRS' && keys === 0) list.push(m.eco_tower_map_stairs_need_key());
+    if (exit !== 'STAIRS' && keys > 0) list.push(m.eco_tower_map_keys_without_stairs());
+    if (exit === 'GATE' && seals === 0) list.push(m.eco_tower_map_gate_need_seal());
+    if (exit !== 'GATE' && seals > 0) list.push(m.eco_tower_map_seals_without_gate());
+    return list;
+  }
 
   const problems = $derived.by(() => {
     const list: string[] = [];
     if (counts.START !== 1) list.push(m.eco_tower_map_need_start());
-    if (counts.BOSS === 0) list.push(m.eco_tower_map_need_boss());
+    list.push(...exitProblems(layout));
     if (counts.START === 1 && unreachable > 0) list.push(m.eco_tower_map_unreachable({ count: unreachable }));
     if (layout.rooms.some((room) => room.type === 'MERCHANT' && room.offers.length === 0)) list.push(m.eco_tower_map_empty_merchant());
     if (layout.rooms.length > roomsMax) list.push(m.eco_tower_map_too_many({ max: roomsMax }));
@@ -338,7 +394,7 @@
   function floorValid(floor: Layout): boolean {
     if (floor.rooms.length === 0 || floor.rooms.length > roomsMax) return false;
     const starts = floor.rooms.filter((room) => room.type === 'START');
-    if (starts.length !== 1 || !floor.rooms.some((room) => room.type === 'BOSS')) return false;
+    if (starts.length !== 1 || exitProblems(floor).length > 0) return false;
     if (floor.rooms.some((room) => room.type === 'MERCHANT' && room.offers.length === 0)) return false;
     const cells = new Map<string, Room>();
     for (const room of floor.rooms) for (const [x, y] of cellsOf(room)) cells.set(`${x},${y}`, room);
@@ -387,7 +443,7 @@
         }
       }
     }
-    const boss = floor.rooms.filter((room) => room.type === 'BOSS').map((room) => distance.get(room.id)).filter((value): value is number => value !== undefined);
+    const boss = floor.rooms.filter((room) => isExit(room.type)).map((room) => distance.get(room.id)).filter((value): value is number => value !== undefined);
     return { shortest: boss.length > 0 ? Math.min(...boss) : 0, rooms };
   }
 
@@ -545,8 +601,9 @@
 
     const room = newRoom(x, y, tool);
     removeAt(cellsOf(room));
-    // Un seul départ : en poser un nouveau déplace l'ancien.
+    // Un seul départ et une seule sortie par étage : en poser une nouvelle remplace l'ancienne.
     if (tool === 'START') layout.rooms = layout.rooms.filter((candidate) => candidate.type !== 'START');
+    if (isExit(tool)) layout.rooms = layout.rooms.filter((candidate) => !isExit(candidate.type));
     layout.rooms = [...layout.rooms, room];
     selectedId = room.id;
     dirty = true;
@@ -557,7 +614,8 @@
     // glisser le doigt ne peindrait jamais les cases suivantes.
     const target = event.target as Element | null;
     if (target?.hasPointerCapture?.(event.pointerId)) target.releasePointerCapture(event.pointerId);
-    painting = tool !== 'SELECT' && tool !== 'BOSS' && tool !== 'START';
+    // Départ et sortie se posent une fois : glisser ne les répète pas.
+    painting = tool !== 'SELECT' && tool !== 'START' && !(tool !== 'ERASE' && isExit(tool));
     apply(x, y);
   }
 
@@ -607,19 +665,10 @@
   }
 
   async function save() {
-    // Un étage de carte vaut bien plus qu'une porte : changer de mode fausse la saison en cours.
-    if (layoutEnabled !== initialEnabled) {
-      const confirmed = await confirmDialog.ask({
-        title: m.eco_tower_mode_switch_confirm(),
-        description: m.eco_tower_mode_switch_confirm_desc(),
-        confirmLabel: m.eco_btn_save(),
-        variant: 'warning',
-      });
-      if (!confirmed) return;
-    }
     commit();
     await actionState.run(async () => {
-      await saveRpgTowerLayout({ layoutEnabled, floors: towerEmpty ? [] : floors });
+      // Aucun étage dessiné : la Tour génère les siens.
+      await saveRpgTowerLayout({ floors: towerEmpty ? [] : floors });
       dirty = false;
       await onSaved?.();
       return true;
@@ -637,22 +686,17 @@
       <h3 class="text-lg font-semibold">{m.eco_tower_map_title()}</h3>
       <p class="text-xs text-on-surface-variant/60 mt-1 leading-relaxed max-w-2xl">{m.eco_tower_map_desc()}</p>
     </div>
-    <div class="flex items-center gap-3">
-      <span class="text-xs font-semibold">{layoutEnabled ? m.eco_tower_map_played() : m.eco_tower_map_random()}</span>
-      <ToggleSwitch
-        checked={layoutEnabled}
-        disabled={!canManage || disabled}
-        ariaLabel={m.eco_tower_map_toggle_aria()}
-        onToggle={(value: boolean) => { layoutEnabled = value; dirty = true; }}
-      />
-    </div>
   </div>
 
-  {#if layoutEnabled !== initialEnabled}
-    <p class="text-2xs text-warning flex items-start gap-1.5 bg-warning/10 border border-warning/20 rounded-lg px-3 py-2">
-      <Papicon icon="AlertTriangle" size={12} /> {m.eco_tower_mode_switch_warning()}
-    </p>
-  {/if}
+  <!-- Ce que les joueurs vont réellement parcourir, dit en clair. -->
+  <p class="text-xs flex items-start gap-2 bg-primary/10 border border-primary/20 rounded-lg px-3 py-2">
+    <Papicon icon="Info" size={13} />
+    {towerEmpty
+      ? m.eco_tower_map_status_generated()
+      : floorsAfter === 'GENERATE'
+        ? m.eco_tower_map_status_then_generated({ floors: floors.length })
+        : m.eco_tower_map_status_then_loop({ floors: floors.length })}
+  </p>
 
   {#if canManage}
     <div class="flex flex-wrap items-end gap-3">
@@ -690,21 +734,49 @@
       </button>
     </div>
 
-    <!-- Palette -->
-    <div class="flex flex-wrap gap-2">
-      <button type="button" onclick={() => tool = 'SELECT'} title={m.eco_tower_map_tool_select_tip()} class="px-3 py-2 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 {tool === 'SELECT' ? 'border-primary bg-primary/15' : 'border-outline-variant/15 bg-surface-container-high/30 hover:border-outline-variant/40'}">
-        <Papicon icon="MousePointer" size={12} /> {m.eco_tower_map_tool_select()}
-      </button>
-      {#each ROOM_TYPES as type}
-        <button type="button" onclick={() => tool = type} title={tip(type)} class="px-3 py-2 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 {tool === type ? 'border-primary bg-primary/15' : 'border-outline-variant/15 bg-surface-container-high/30 hover:border-outline-variant/40'}">
-          <span style="color: {COLOR[type]}" class="flex"><Papicon icon={ICON[type]} size={13} /></span> {label(type)}
+    <!-- Palette : les outils toujours à portée, puis les salles rangées par famille. -->
+    <div class="rounded-xl border border-outline-variant/15 bg-surface-container-high/20 overflow-hidden">
+      <div class="flex flex-wrap items-center gap-2 p-2 border-b border-outline-variant/10">
+        <button type="button" onclick={() => tool = 'SELECT'} title={m.eco_tower_map_tool_select_tip()} class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 {tool === 'SELECT' ? 'border-primary bg-primary/15' : 'border-transparent hover:bg-outline-variant/10'}">
+          <Papicon icon="MousePointer" size={12} /> {m.eco_tower_map_tool_select()}
         </button>
+        <button type="button" onclick={() => tool = 'ERASE'} title={m.eco_tower_map_tool_erase_tip()} class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 {tool === 'ERASE' ? 'border-error bg-error/15 text-error' : 'border-transparent hover:bg-outline-variant/10'}">
+          <Papicon icon="Eraser" size={12} /> {m.eco_tower_map_tool_erase()}
+        </button>
+        <span class="w-px h-6 bg-outline-variant/20 mx-1" aria-hidden="true"></span>
+        <div class="flex flex-wrap gap-1" role="tablist" aria-label={m.eco_tower_categories_aria()}>
+          {#each CATEGORIES as entry (entry.id)}
+            {@const placed = entry.types.reduce((sum, type) => sum + counts[type], 0)}
+            <button type="button" role="tab" aria-selected={category === entry.id} title={categoryTip(entry.id)} onclick={() => { category = entry.id; }}
+              class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 {category === entry.id ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant/80 hover:bg-outline-variant/10'}">
+              <Papicon icon={entry.icon} size={12} /> {categoryLabel(entry.id)}
+              {#if placed > 0}<span class="text-2xs px-1.5 rounded-full {category === entry.id ? 'bg-on-primary/20' : 'bg-outline-variant/20'}">{placed}</span>{/if}
+            </button>
+          {/each}
+        </div>
+      </div>
+      {#each CATEGORIES.filter((entry) => entry.id === category) as entry (entry.id)}
+        <div class="p-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          {#each entry.types as type}
+            <button type="button" onclick={() => tool = type} title={tip(type)}
+              class="group text-left p-2 rounded-lg border transition-all flex items-start gap-2 {tool === type ? 'bg-surface-container-high/60' : 'border-outline-variant/10 hover:border-outline-variant/30'}"
+              style={tool === type ? `border-color: ${COLOR[type]}; box-shadow: inset 3px 0 0 ${COLOR[type]}` : ''}>
+              <span class="shrink-0 w-7 h-7 rounded-md flex items-center justify-center" style="background: {COLOR[type]}26; color: {COLOR[type]}">
+                <Papicon icon={ICON[type]} size={14} />
+              </span>
+              <span class="min-w-0">
+                <span class="flex items-center gap-1 text-xs font-bold">{label(type)}{#if counts[type] > 0}<span class="text-2xs text-on-surface-variant/50 font-mono">×{counts[type]}</span>{/if}</span>
+                <span class="block text-2xs text-on-surface-variant/55 leading-snug line-clamp-2">{tip(type)}</span>
+              </span>
+            </button>
+          {/each}
+        </div>
+        {#if entry.id === 'EXITS'}
+          <p class="px-3 pb-2 text-2xs text-on-surface-variant/60 flex items-start gap-1.5"><Papicon icon="Info" size={11} /> {m.eco_tower_category_exits_rule()}</p>
+        {/if}
       {/each}
-      <button type="button" onclick={() => tool = 'ERASE'} title={m.eco_tower_map_tool_erase_tip()} class="px-3 py-2 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 {tool === 'ERASE' ? 'border-error bg-error/15 text-error' : 'border-outline-variant/15 bg-surface-container-high/30 hover:border-outline-variant/40'}">
-        <Papicon icon="Eraser" size={12} /> {m.eco_tower_map_tool_erase()}
-      </button>
     </div>
-    <p class="text-2xs text-on-surface-variant/50 -mt-3">{m.eco_tower_map_hint()}</p>
+    <p class="text-2xs text-on-surface-variant/50">{m.eco_tower_map_hint()}</p>
   {/if}
 
   <div class="grid grid-cols-1 xl:grid-cols-[220px_1fr_300px] gap-6">
@@ -851,6 +923,11 @@
                 {distances.get(room.id)}
               </text>
             {/if}
+            {#if room.key}
+              <g transform="translate({room.x * CELL + CELL - 22} {room.y * CELL + CELL - 22})" style="color: #fbbf24" pointer-events="none">
+                <Papicon icon="Lock" size={14} />
+              </g>
+            {/if}
           </g>
         {/each}
         </g>
@@ -862,7 +939,7 @@
       <div class="bg-surface-container-high/30 border border-outline-variant/10 rounded-xl p-4 space-y-2 text-xs">
         <p class="font-semibold">{m.eco_tower_map_summary({ rooms: layout.rooms.length, max: roomsMax })}</p>
         <p class="text-on-surface-variant/70">
-          {bossDepth !== null ? m.eco_tower_map_boss_depth({ rooms: bossDepth }) : m.eco_tower_map_no_path()}
+          {bossDepth !== null ? m.eco_tower_map_exit_depth({ rooms: bossDepth }) : m.eco_tower_map_no_path()}
         </p>
         <div class="flex flex-wrap gap-x-3 gap-y-1 text-2xs text-on-surface-variant/70">
           {#each ROOM_TYPES as type}
@@ -971,6 +1048,13 @@
           {:else}
             <p class="text-2xs text-on-surface-variant/60">{m.eco_tower_map_no_option()}</p>
           {/if}
+          {#if selected.type === 'ELITE' || selected.type === 'CHEST'}
+            <label class="flex items-start gap-2 text-xs pt-1" title={m.eco_tower_map_key_tip()}>
+              <input type="checkbox" checked={selected.key} disabled={!canManage || disabled} onchange={() => updateSelected({ key: !selected!.key })} />
+              <span><span class="font-semibold flex items-center gap-1"><Papicon icon="Lock" size={11} /> {m.eco_tower_map_key()}</span>
+                <span class="block text-2xs text-on-surface-variant/50">{m.eco_tower_map_key_tip()}</span></span>
+            </label>
+          {/if}
           <p class="text-2xs text-on-surface-variant/50 leading-relaxed">{tip(selected.type)}</p>
         </div>
         {/key}
@@ -987,7 +1071,7 @@
       <button
         type="button"
         onclick={save}
-        disabled={disabled || actionState.state.loading || invalidFloors > 0 || (layoutEnabled && towerEmpty && floorsAfter !== 'GENERATE')}
+        disabled={disabled || actionState.state.loading || invalidFloors > 0}
         class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-body-sm font-medium rounded-lg transition-all disabled:opacity-50"
       >
         {m.eco_btn_save()}

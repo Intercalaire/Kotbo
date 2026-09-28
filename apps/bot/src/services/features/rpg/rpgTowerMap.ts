@@ -18,8 +18,28 @@ import {
   type TowerTrait,
 } from './rpgTowerContent.js';
 
-export const TOWER_ROOM_TYPES = ['START', 'MONSTER', 'ELITE', 'BOSS', 'CHEST', 'CAMPFIRE', 'MERCHANT', 'SHRINE', 'EVENT', 'EMPTY'] as const;
+export const TOWER_ROOM_TYPES = [
+  'START', 'MONSTER', 'ELITE', 'BOSS', 'STAIRS', 'TRIAL', 'GATE', 'SEAL',
+  'CHEST', 'CAMPFIRE', 'MERCHANT', 'SHRINE', 'EVENT', 'EMPTY',
+] as const;
 export type TowerRoomType = (typeof TOWER_ROOM_TYPES)[number];
+
+/**
+ * Sorties d'un étage : le gardien à abattre, l'escalier scellé qu'ouvrent les clés de l'étage,
+ * l'épreuve (tenir trois vagues sans fuir) ou le portail qu'ouvrent les sceaux allumés. Un
+ * étage en a exactement une : cumuler les mécanismes rendrait l'étage illisible.
+ */
+export const TOWER_EXIT_TYPES = ['BOSS', 'STAIRS', 'TRIAL', 'GATE'] as const;
+export type TowerExitType = (typeof TOWER_EXIT_TYPES)[number];
+
+export function isExitRoom(type: TowerRoomType): type is TowerExitType {
+  return (TOWER_EXIT_TYPES as readonly string[]).includes(type);
+}
+
+/** Salles qui peuvent porter une clé de l'escalier scellé. */
+export function canHoldKey(type: TowerRoomType): boolean {
+  return type === 'ELITE' || type === 'CHEST';
+}
 
 export const TOWER_CHEST_KINDS = ['BOTH', 'GOLD', 'GEAR'] as const;
 export type TowerChestKind = (typeof TOWER_CHEST_KINDS)[number];
@@ -60,6 +80,8 @@ export type TowerRoom = {
   mechanic: TowerMechanicChoice;
   /** Événement d'une salle d'événement. */
   event: TowerEventChoice;
+  /** Élite ou coffre qui garde une clé de l'escalier scellé. */
+  key: boolean;
 };
 
 /**
@@ -128,11 +150,31 @@ export function distancesFromStart(layout: TowerLayout): Map<string, number> {
   return distances;
 }
 
-/** Plus court chemin du départ jusqu'à un boss, en salles franchies. */
-export function shortestPathToBoss(layout: TowerLayout): number | null {
+/** Plus court chemin du départ jusqu'à la sortie de l'étage, en salles franchies. */
+export function shortestPathToExit(layout: TowerLayout): number | null {
   const distances = distancesFromStart(layout);
-  const reachable = layout.rooms.filter((room) => room.type === 'BOSS' && distances.has(room.id)).map((room) => distances.get(room.id)!);
+  const reachable = layout.rooms.filter((room) => isExitRoom(room.type) && distances.has(room.id)).map((room) => distances.get(room.id)!);
   return reachable.length > 0 ? Math.min(...reachable) : null;
+}
+
+/** Sortie de l'étage : la salle qui le ferme. */
+export function exitRoom(layout: TowerLayout): TowerRoom | null {
+  return layout.rooms.find((room) => isExitRoom(room.type)) ?? null;
+}
+
+/**
+ * Ce qu'il manque pour ouvrir la sortie : clés trouvées pour l'escalier, sceaux allumés pour
+ * le portail. Une clé ou un sceau compte dès que sa salle est résolue.
+ */
+export function exitLocks(layout: TowerLayout, cleared: readonly string[]) {
+  const keyRooms = layout.rooms.filter((room) => room.key && canHoldKey(room.type));
+  const sealRooms = layout.rooms.filter((room) => room.type === 'SEAL');
+  return {
+    keysFound: keyRooms.filter((room) => cleared.includes(room.id)).length,
+    keysNeeded: keyRooms.length,
+    sealsLit: sealRooms.filter((room) => cleared.includes(room.id)).length,
+    sealsNeeded: sealRooms.length,
+  };
 }
 
 export type TowerLayoutResult = { ok: true; value: TowerLayout } | { ok: false; error: string };
@@ -145,7 +187,8 @@ function clampInt(value: unknown, range: { min: number; max: number }, fallback:
 
 /**
  * Valide une carte : dimensions, salles dans la grille et sans chevauchement, un seul départ,
- * au moins un boss, et toutes les salles joignables depuis le départ. Une salle isolée ne
+ * exactement une sortie (gardien, escalier scellé, épreuve ou portail) avec ce qui l'ouvre, et
+ * toutes les salles joignables depuis le départ, sortie comprise. Une salle isolée ne
  * pourrait jamais être visitée : c'est presque toujours une erreur de dessin.
  */
 export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
@@ -187,6 +230,7 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
         : [],
       mechanic: TOWER_MECHANIC_CHOICES.includes(cell.mechanic as TowerMechanicChoice) ? (cell.mechanic as TowerMechanicChoice) : 'RANDOM',
       event: TOWER_EVENT_CHOICES.includes(cell.event as TowerEventChoice) ? (cell.event as TowerEventChoice) : 'RANDOM',
+      key: canHoldKey(type) && cell.key === true,
     };
     if (type === 'MERCHANT' && room.offers.length === 0) return { ok: false, error: 'Un marchand doit vendre au moins un article.' };
 
@@ -203,7 +247,22 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
 
   const starts = rooms.filter((room) => room.type === 'START').length;
   if (starts !== 1) return { ok: false, error: 'La carte doit avoir exactement une salle de départ.' };
-  if (!rooms.some((room) => room.type === 'BOSS')) return { ok: false, error: 'La carte doit avoir au moins un boss.' };
+  // Un étage a exactement une sortie : sans elle on ne pourrait pas monter, et avec deux on
+  // mélangerait des mécanismes qui n'ont pas été pensés ensemble.
+  const exits = rooms.filter((room) => isExitRoom(room.type));
+  if (exits.length === 0) {
+    return { ok: false, error: 'Chaque étage doit avoir une sortie : un gardien, un escalier scellé, une épreuve ou un portail.' };
+  }
+  if (exits.length > 1) return { ok: false, error: 'Un étage n\'a qu\'une seule sortie : retirez les sorties en trop.' };
+  const exit = exits[0].type;
+  const keys = rooms.filter((room) => room.key).length;
+  const seals = rooms.filter((room) => room.type === 'SEAL').length;
+  if (exit === 'STAIRS' && keys === 0) {
+    return { ok: false, error: 'L\'escalier scellé s\'ouvre avec des clés : marquez au moins une élite ou un coffre comme porteur de clé.' };
+  }
+  if (exit !== 'STAIRS' && keys > 0) return { ok: false, error: 'Les clés n\'ouvrent qu\'un escalier scellé : retirez-les, ou choisissez cette sortie.' };
+  if (exit === 'GATE' && seals === 0) return { ok: false, error: 'Le portail s\'ouvre avec des sceaux : placez au moins une salle de sceau.' };
+  if (exit !== 'GATE' && seals > 0) return { ok: false, error: 'Les sceaux n\'ouvrent qu\'un portail : retirez-les, ou choisissez cette sortie.' };
 
   const name = typeof raw.name === 'string' ? raw.name.trim() : '';
   if (name.length > TOWER_FLOOR_NAME_MAX) return { ok: false, error: `Le nom d'un étage ne peut pas dépasser ${TOWER_FLOOR_NAME_MAX} caractères.` };
@@ -256,7 +315,7 @@ export function visibleRooms(layout: TowerLayout, pos: string, cleared: readonly
 export function newTowerRoom(x: number, y: number, type: TowerRoomType, extra: Partial<TowerRoom> = {}): TowerRoom {
   return {
     id: roomId(x, y), x, y, type, foe: null, chest: 'BOTH', healPercent: 35, offers: [...TOWER_OFFER_KINDS], pricePercent: 100,
-    traits: [], mechanic: 'RANDOM', event: 'RANDOM', ...extra,
+    traits: [], mechanic: 'RANDOM', event: 'RANDOM', key: false, ...extra,
   };
 }
 

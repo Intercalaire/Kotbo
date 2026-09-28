@@ -40,6 +40,10 @@ const ROOM_COLOR: Record<TowerRoomType, string> = {
   MONSTER: '#ef4444',
   ELITE: '#a855f7',
   BOSS: '#f59e0b',
+  STAIRS: '#22d3ee',
+  TRIAL: '#f43f5e',
+  GATE: '#c084fc',
+  SEAL: '#a78bfa',
   CHEST: '#eab308',
   CAMPFIRE: '#f97316',
   MERCHANT: '#10b981',
@@ -65,6 +69,8 @@ export type TowerMapImage = {
   visible?: readonly string[] | null;
   /** Salles dont le monstre porte des traits ou une mécanique, marquées d'une pastille. */
   badges?: Record<string, number>;
+  /** Salles qui gardent une clé de l'escalier scellé. */
+  keys?: readonly string[];
 };
 
 /** Encart de texte à droite de la tour : titre et quelques lignes courtes. */
@@ -289,6 +295,63 @@ function glyph(ctx: SKRSContext2D, type: TowerRoomType, cx: number, cy: number, 
       ctx.fill();
       break;
     }
+    case 'STAIRS': {
+      // Trois marches qui montent vers la droite.
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.8, cy + s * 0.7);
+      ctx.lineTo(cx - s * 0.8, cy + s * 0.2);
+      ctx.lineTo(cx - s * 0.25, cy + s * 0.2);
+      ctx.lineTo(cx - s * 0.25, cy - s * 0.25);
+      ctx.lineTo(cx + s * 0.3, cy - s * 0.25);
+      ctx.lineTo(cx + s * 0.3, cy - s * 0.7);
+      ctx.lineTo(cx + s * 0.8, cy - s * 0.7);
+      ctx.lineTo(cx + s * 0.8, cy + s * 0.7);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    }
+    case 'TRIAL': {
+      // Sablier : on tient jusqu'à la dernière vague.
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.6, cy - s * 0.8);
+      ctx.lineTo(cx + s * 0.6, cy - s * 0.8);
+      ctx.lineTo(cx, cy);
+      ctx.lineTo(cx + s * 0.6, cy + s * 0.8);
+      ctx.lineTo(cx - s * 0.6, cy + s * 0.8);
+      ctx.lineTo(cx, cy);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    }
+    case 'GATE': {
+      // Arche fermée de barreaux.
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.7, cy + s * 0.8);
+      ctx.lineTo(cx - s * 0.7, cy - s * 0.1);
+      ctx.arc(cx, cy - s * 0.1, s * 0.7, Math.PI, 0);
+      ctx.lineTo(cx + s * 0.7, cy + s * 0.8);
+      ctx.stroke();
+      for (const dx of [-0.3, 0, 0.3]) {
+        ctx.beginPath();
+        ctx.moveTo(cx + s * dx, cy - s * 0.5);
+        ctx.lineTo(cx + s * dx, cy + s * 0.8);
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'SEAL': {
+      // Sceau : deux cercles et un point, comme une rune.
+      ctx.beginPath();
+      ctx.arc(cx, cy, s * 0.75, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, s * 0.4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, s * 0.12, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
     case 'EVENT': {
       ctx.font = canvasFont(Math.round(size * 0.9), 'bold');
       ctx.textAlign = 'center';
@@ -330,6 +393,21 @@ function drawBadge(ctx: SKRSContext2D, cx: number, cy: number, radius: number, c
   ctx.fill();
   ctx.stroke();
   text(ctx, String(count), cx, cy + 0.5, Math.round(radius * 1.3), C.text, 'center');
+  ctx.restore();
+}
+
+/** Petite clé dorée dans un coin de salle : elle ouvre l'escalier scellé. */
+function drawKey(ctx: SKRSContext2D, x: number, y: number, size: number): void {
+  ctx.save();
+  ctx.strokeStyle = C.gold;
+  ctx.lineWidth = Math.max(2, size / 5);
+  ctx.beginPath();
+  ctx.arc(x + size * 0.3, y - size * 0.3, size * 0.25, 0, Math.PI * 2);
+  ctx.moveTo(x + size * 0.5, y - size * 0.5);
+  ctx.lineTo(x + size, y - size);
+  ctx.moveTo(x + size * 0.8, y - size * 0.8);
+  ctx.lineTo(x + size * 0.95, y - size * 0.65);
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -493,6 +571,7 @@ function renderMap(input: TowerMapImage): Buffer {
       ctx.restore();
       const badge = input.badges?.[room.id] ?? 0;
       if (badge > 0) drawBadge(ctx, x + size - 2, y + 2, Math.max(7, tile * 0.16), badge);
+      if (input.keys?.includes(room.id)) drawKey(ctx, x + 3, y + size - 3, Math.max(8, tile * 0.2));
     }
   }
 

@@ -17,6 +17,7 @@
     fetchRpgItems,
     fetchRpgTitles,
     fetchRpgTower,
+    resetRpgTower,
     saveRpgTowerReward,
     saveRpgTowerSettings,
     startRpgTowerSeason,
@@ -80,10 +81,10 @@
     upgrades: Upgrade[];
     merchant: Merchant;
     floorsAfter: 'GENERATE' | 'LOOP';
+    generatedFog: boolean;
     dailyEnabled: boolean;
     announceChannelId: string | null;
     seasonStartedAt?: string;
-    layoutEnabled?: boolean;
     floors?: any[];
   };
   type Reward = {
@@ -167,6 +168,7 @@
     upgrades: defaultUpgrades(),
     merchant: { ...MERCHANT_DEFAULTS, offers: [...OFFERS] },
     floorsAfter: 'GENERATE',
+    generatedFog: true,
     dailyEnabled: true,
     announceChannelId: null,
   };
@@ -349,7 +351,6 @@
     };
     delete payload.seasonStartedAt;
     delete payload.floors;
-    delete payload.layoutEnabled;
     await actionState.run(async () => {
       await saveRpgTowerSettings(payload);
       await load();
@@ -431,6 +432,20 @@
     if (!confirmed) return;
     await actionState.run(async () => {
       await deleteRpgTowerReward(reward.id);
+      await load();
+      return true;
+    });
+  }
+
+  async function resetTower(everything: boolean) {
+    const confirmed = await confirmDialog.danger(
+      everything ? m.eco_tower_reset_all_confirm() : m.eco_tower_reset_players_confirm(),
+      everything ? m.eco_tower_reset_all_confirm_desc() : m.eco_tower_reset_players_confirm_desc(),
+      m.eco_tower_reset_confirm_btn(),
+    );
+    if (!confirmed) return;
+    await actionState.run(async () => {
+      await resetRpgTower({ everything });
       await load();
       return true;
     });
@@ -610,6 +625,17 @@
           <ToggleSwitch checked={settings.enabled} disabled={!canManage || disabled} ariaLabel={m.eco_tower_toggle_aria()} onToggle={(value: boolean) => { settings.enabled = value; }} />
         </div>
 
+        <div class="flex items-center justify-between gap-4 bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-4">
+          <div>
+            <p class="text-sm font-bold flex items-center gap-2"><Papicon icon="CalendarDays" size={14} /> {m.eco_tower_daily_title()}</p>
+            <p class="text-2xs text-on-surface-variant/60 mt-1 leading-relaxed max-w-xl">{m.eco_tower_daily_desc()}</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-2xs font-semibold {settings.dailyEnabled ? 'text-success' : 'text-on-surface-variant/60'}">{settings.dailyEnabled ? m.eco_tower_daily_on() : m.eco_tower_daily_off()}</span>
+            <ToggleSwitch checked={settings.dailyEnabled} disabled={!canManage || disabled} ariaLabel={m.eco_tower_daily_title()} onToggle={(value: boolean) => { settings.dailyEnabled = value; }} />
+          </div>
+        </div>
+
         <details class="bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-4 group">
           <summary class="text-sm font-bold cursor-pointer flex items-center gap-2 select-none">
             <Papicon icon="Info" size={14} /> {m.eco_tower_guide_title()}
@@ -691,9 +717,8 @@
           <h4 class="text-sm font-bold">{m.eco_tower_difficulty_title()}</h4>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             {@render numberField('towerGrowth', m.eco_tower_field_growth(), m.eco_tower_field_growth_hint(), 'floorGrowthPercent', 1, 30)}
-            <!-- Sur carte, chaque étage a son gardien, et les bénédictions se comptent en étages gravis. -->
-            {@render numberField('towerBoss', m.eco_tower_field_boss(), settings.layoutEnabled ? m.eco_tower_field_boss_map_hint() : m.eco_tower_field_boss_hint(), 'bossEvery', 0, 50, settings.layoutEnabled === true)}
-            {@render numberField('towerBlessing', m.eco_tower_field_blessing(), settings.layoutEnabled ? m.eco_tower_field_blessing_map_hint() : m.eco_tower_field_blessing_hint(), 'blessingEvery', 0, 20)}
+            <!-- Chaque étage a son gardien ; les bénédictions se comptent en étages gravis. -->
+            {@render numberField('towerBlessing', m.eco_tower_field_blessing(), m.eco_tower_field_blessing_map_hint(), 'blessingEvery', 0, 20)}
             {@render numberField('towerMaxBlessings', m.eco_tower_field_max_blessings(), m.eco_tower_field_max_blessings_hint(), 'maxBlessings', 1, 12)}
             {@render numberField('towerIdle', m.eco_tower_field_idle(), m.eco_tower_field_idle_hint(), 'idleTimeoutMinutes', 5, 1440)}
           </div>
@@ -728,12 +753,12 @@
               {/each}
             </div>
           </div>
-          <div class="flex items-center justify-between gap-4 bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-4">
+          <div class="flex items-center justify-between gap-4 bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-4" title={m.eco_tower_generated_fog_hint()}>
             <div>
-              <p class="text-sm font-bold flex items-center gap-2"><Papicon icon="CalendarDays" size={14} /> {m.eco_tower_daily_title()}</p>
-              <p class="text-2xs text-on-surface-variant/60 mt-1 leading-relaxed max-w-xl">{m.eco_tower_daily_desc()}</p>
+              <p class="text-sm font-bold flex items-center gap-2"><Papicon icon="Eye" size={14} /> {m.eco_tower_generated_fog()}</p>
+              <p class="text-2xs text-on-surface-variant/60 mt-1 leading-relaxed max-w-xl">{m.eco_tower_generated_fog_hint()}</p>
             </div>
-            <ToggleSwitch checked={settings.dailyEnabled} disabled={!canManage || disabled} ariaLabel={m.eco_tower_daily_title()} onToggle={(value: boolean) => { settings.dailyEnabled = value; }} />
+            <ToggleSwitch checked={settings.generatedFog} disabled={!canManage || disabled} ariaLabel={m.eco_tower_generated_fog()} onToggle={(value: boolean) => { settings.generatedFog = value; }} />
           </div>
           <div class="space-y-1" title={m.eco_tower_announce_hint()}>
             <span class={labelClass}>{m.eco_tower_announce_channel()}</span>
@@ -775,13 +800,30 @@
 
         {@render saveBar()}
       </div>
+
+      {#if canManage}
+        <!-- Zone sensible : effacer la Tour. Irréversible, d'où la double confirmation. -->
+        <div class="bg-error/5 border border-error/20 p-6 rounded-xl space-y-4">
+          <div>
+            <h4 class="text-sm font-bold text-error flex items-center gap-2"><Papicon icon="AlertTriangle" size={14} /> {m.eco_tower_reset_title()}</h4>
+            <p class="text-2xs text-on-surface-variant/70 mt-1 leading-relaxed max-w-2xl">{m.eco_tower_reset_desc()}</p>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <button type="button" onclick={() => resetTower(false)} disabled={disabled || actionState.state.loading} class="px-4 py-2 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50">
+              <Papicon icon="users" size={12} /> {m.eco_tower_reset_players_btn()}
+            </button>
+            <button type="button" onclick={() => resetTower(true)} disabled={disabled || actionState.state.loading} class="px-4 py-2 bg-error hover:bg-error/90 text-on-error text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50">
+              <Papicon icon="trash" size={12} /> {m.eco_tower_reset_all_btn()}
+            </button>
+          </div>
+        </div>
+      {/if}
     {:else if tab === 'map'}
       {#key mapVersion}
         <RpgTowerMapEditor
           {canManage}
           {disabled}
           initialFloors={settings.floors ?? []}
-          initialEnabled={settings.layoutEnabled ?? false}
           floorsMax={limits.floorsMax ?? 12}
           growthPercent={Number(settings.floorGrowthPercent) || 8}
           floorsAfter={settings.floorsAfter}

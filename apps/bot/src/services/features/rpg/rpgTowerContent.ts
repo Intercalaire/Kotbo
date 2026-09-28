@@ -71,8 +71,8 @@ export const PHASE_BOOST = 1.25;
 export const TOWER_RELIC_PERKS = ['FIRST_STRIKE', 'LAST_STAND', 'EXECUTE', 'GUARDIAN_POTION', 'SHARD_SEEKER'] as const;
 export type TowerRelicPerk = (typeof TOWER_RELIC_PERKS)[number];
 
-/** Chance qu'une relique porte un effet, selon sa rareté. */
-export const RELIC_PERK_CHANCE: Record<string, number> = { COMMON: 0, UNCOMMON: 0.1, RARE: 0.3, EPIC: 0.6, LEGENDARY: 1 };
+/** Chance qu'une relique porte un effet, selon sa rareté : un effet unique doit rester rare. */
+export const RELIC_PERK_CHANCE: Record<string, number> = { COMMON: 0, UNCOMMON: 0, RARE: 0.05, EPIC: 0.15, LEGENDARY: 0.3 };
 /** EXECUTE : bonus de dégâts contre une cible affaiblie. */
 export const EXECUTE_THRESHOLD = 0.3;
 export const EXECUTE_BONUS = 1.5;
