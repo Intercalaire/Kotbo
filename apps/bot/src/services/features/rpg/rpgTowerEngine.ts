@@ -6,9 +6,17 @@
  * et le service n'a qu'à écrire le résultat sous condition de version.
  */
 
-import { computeAttack } from './rpgCombatMath.js';
+import { computeAttack, damageThrough } from './rpgCombatMath.js';
 import {
+  ALLY_POWER,
   ALTAR_COST,
+  BLESSED_HEAL,
+  BURN_DAMAGE,
+  FLOODED_SPEED,
+  MIMIC_NAME,
+  TRAP_DAMAGE,
+  TRAP_DODGE,
+  mercenaryPrice,
   BLACKSMITH_BOOST,
   CURSE_ATTACK,
   DISPEL_SKILL_MULTIPLIER,
@@ -86,16 +94,18 @@ import {
   type TowerSkill,
 } from './rpgTowerPolicy.js';
 import {
+  exitLocks,
   roomNeighbors,
   startRoom,
   type TowerDirection,
+  type TowerExitType,
   type TowerFloorsAfter,
   type TowerLayout,
   type TowerRoomType,
 } from './rpgTowerMap.js';
 import { towerFloorLayout } from './rpgTowerGen.js';
 
-export type TowerPhase = 'DOORS' | 'COMBAT' | 'LOOT' | 'BLESSING' | 'MERCHANT' | 'EVENT';
+export type TowerPhase = 'DOORS' | 'COMBAT' | 'LOOT' | 'BLESSING' | 'MERCHANT' | 'EVENT' | 'MERCENARY';
 
 export type TowerLogEntry =
   | { k: 'attack'; dmg: number; crit: boolean }
@@ -121,7 +131,9 @@ export type TowerLogEntry =
   | { k: 'regen'; hp: number }
   | { k: 'drain'; hp: number }
   | { k: 'spikes'; dmg: number }
-  | { k: 'lastStand' };
+  | { k: 'lastStand' }
+  /** Coup du mercenaire. */
+  | { k: 'ally'; dmg: number };
 
 export type TowerEncounter = {
   kind: TowerEncounterKind;
@@ -156,6 +168,8 @@ export type TowerEncounter = {
   opened?: boolean;
   /** Le sursis de la relique LAST_STAND a servi dans ce combat. */
   lastStandUsed?: boolean;
+  /** Un coffre qui était une mimique. */
+  mimic?: boolean;
 };
 
 /** Étage atteint en montant : son numéro et le nom de sa carte. */
@@ -164,8 +178,24 @@ export type TowerClimb = { floor: number; name: string };
 /** Ce qui s'est passé à la dernière action, affiché en tête de l'écran suivant. */
 export type TowerNotice =
   /** `climbed` : étage atteint quand le gardien d'une carte vient de tomber. */
-  | { k: 'victory'; name: string; emoji: string; gold: number; healed: number; climbed: TowerClimb | null }
-  | { k: 'treasure'; gold: number }
+  | {
+    k: 'victory';
+    name: string;
+    emoji: string;
+    gold: number;
+    healed: number;
+    climbed: TowerClimb | null;
+    /** Clé de l'escalier scellé trouvée sur ce monstre, ou sceau allumé en le battant. */
+    lock?: TowerLockProgress | null;
+  }
+  | { k: 'treasure'; gold: number; lock?: TowerLockProgress | null }
+  /** Vague suivante d'une épreuve. */
+  | { k: 'wave'; wave: number; waves: number; gold: number }
+  /** Sortie franchie sans combat : escalier ouvert ou portail. */
+  | { k: 'exit'; exit: TowerExitType; climbed: TowerClimb | null }
+  /** Piège déclenché, ou évité grâce à la vitesse. */
+  | { k: 'trap'; dmg: number; dodged: boolean }
+  | { k: 'hired'; gold: number }
   | { k: 'campfire'; hp: number }
   | { k: 'potion'; hp: number }
   | { k: 'equipped'; name: string; emoji: string }
@@ -176,6 +206,9 @@ export type TowerNotice =
   | { k: 'rerolled' }
   /** Issue d'un événement : `amount` selon l'événement (PV, or, prix), `won` pour le pari. */
   | { k: 'event'; id: TowerEventId; option: number; amount: number; won?: boolean; item?: string };
+
+/** Progression vers l'ouverture de la sortie, après une clé trouvée ou un sceau allumé. */
+export type TowerLockProgress = { kind: 'key' | 'seal'; done: number; needed: number };
 
 /** Ce qu'on sait d'une porte ou d'une salle avant d'y entrer. */
 export type TowerRoomInfo = { traits: TowerTrait[]; mechanic: TowerBossMechanic | null; event: TowerEventId | null };
@@ -248,6 +281,12 @@ export type TowerState = {
   event?: { id: TowerEventId } | null;
   /** Malédictions acceptées : chacune renforce l'attaque des monstres. */
   curse?: number;
+  /** Épreuve en cours : vague atteinte sur le total. On n'en fuit pas. */
+  trial?: { wave: number; waves: number } | null;
+  /** Mercenaire engagé : il combat jusqu'à la fin de l'étage. */
+  ally?: boolean;
+  /** PV brûlés à la dernière action, sur un étage en feu. */
+  burned?: number;
 };
 
 export type TowerRules = {
@@ -260,6 +299,8 @@ export type TowerRules = {
   merchant?: TowerMerchantSettings;
   /** Absent : la tour reprend au premier étage dessiné. */
   floorsAfter?: TowerFloorsAfter;
+  /** Absent : les étages générés ont leur brouillard. */
+  generatedFog?: boolean;
 };
 
 function merchantOf(rules: TowerRules): TowerMerchantSettings {
@@ -286,7 +327,8 @@ export type TowerAction =
   | { type: 'reroll' }
   | { type: 'leave_shop' }
   | { type: 'flee' }
-  | { type: 'event'; index: number };
+  | { type: 'event'; index: number }
+  | { type: 'hire' };
 
 export type TowerActionError =
   | 'wrong_phase'
@@ -299,7 +341,9 @@ export type TowerActionError =
   | 'potions_full'
   | 'no_flee'
   | 'no_reroll'
-  | 'no_gear';
+  | 'no_gear'
+  | 'stairs_locked'
+  | 'gate_locked';
 
 export class TowerActionRefused extends Error {
   constructor(readonly reason: TowerActionError) {
@@ -311,6 +355,8 @@ export class TowerActionRefused extends Error {
 export type TowerStepResult = { state: TowerState; floor: number; dead: boolean };
 
 const LOG_KEPT = 6;
+/** Chance qu'un coffre mixte (or et objet) contienne vraiment un objet. */
+const CHEST_GEAR_CHANCE = 0.2;
 
 export function towerStats(state: TowerState): TowerEffectiveStats {
   return towerEffectiveStats(state.base, state.gear, state.blessings);
@@ -338,10 +384,23 @@ function withMaxHealthChange(state: TowerState, change: () => void): void {
   state.hp = Math.max(1, Math.min(after, state.hp + Math.max(0, after - before)));
 }
 
+/** Ambiance de l'étage en cours ; le mode aléatoire n'en a pas. */
+export function floorModifier(state: TowerState) {
+  return state.map?.layout.modifier ?? 'NONE';
+}
+
+/** Stats de combat : celles de l'équipement et des bénédictions, ralenties sur un étage inondé. */
+export function combatStats(state: TowerState): TowerEffectiveStats {
+  const stats = towerStats(state);
+  return floorModifier(state) === 'FLOODED' ? { ...stats, speed: Math.max(1, Math.round(stats.speed * FLOODED_SPEED)) } : stats;
+}
+
 function heal(state: TowerState, share: number): number {
   const max = towerStats(state).maxHealth;
   const before = state.hp;
-  state.hp = Math.min(max, state.hp + Math.floor(max * share));
+  // Sur un étage béni, chaque soin rend davantage.
+  const boosted = floorModifier(state) === 'BLESSED' ? share * BLESSED_HEAL : share;
+  state.hp = Math.min(max, state.hp + Math.floor(max * boosted));
   return state.hp - before;
 }
 
@@ -368,7 +427,9 @@ function rollMechanic(choice: TowerMechanicChoice, rng: TowerRng): TowerBossMech
   return choice;
 }
 
-const ROOM_KIND: Partial<Record<TowerRoomType, TowerEncounterKind>> = { MONSTER: 'COMBAT', ELITE: 'ELITE', BOSS: 'BOSS' };
+const ROOM_KIND: Partial<Record<TowerRoomType, TowerEncounterKind>> = { MONSTER: 'COMBAT', ELITE: 'ELITE', BOSS: 'BOSS', SEAL: 'ELITE', MIMIC: 'ELITE' };
+/** Vagues d'une épreuve : deux combats ordinaires puis une élite. */
+export const TRIAL_WAVES = 3;
 const DOOR_KIND: Partial<Record<TowerDoor, TowerEncounterKind>> = { COMBAT: 'COMBAT', ELITE: 'ELITE', BOSS: 'BOSS' };
 
 /**
@@ -483,13 +544,15 @@ function markRoomCleared(state: TowerState): void {
 function climb(state: TowerState, floor: number, rules: TowerRules, floors: readonly TowerLayout[], rng: TowerRng): TowerClimb | null {
   const map = state.map;
   if (!map) return null;
-  const next = towerFloorLayout(floors, floor, rules.floorsAfter ?? 'LOOP', state.seed ?? 0) ?? map.layout;
+  const next = towerFloorLayout(floors, floor, rules.floorsAfter ?? 'LOOP', state.seed ?? 0, rules.generatedFog ?? true);
   const start = startRoom(next);
   if (!start) return null;
   map.layout = structuredClone(next);
   map.pos = start.id;
   map.cleared = [start.id];
   map.prev = undefined;
+  // Le mercenaire ne suit pas l'escalier : il est engagé pour un étage.
+  state.ally = false;
   prepareFloor(map, rng);
   return { floor, name: next.name };
 }
@@ -753,14 +816,58 @@ function playerStrike(
   }
 }
 
-function winEncounter(state: TowerState, floor: number, rules: TowerRules, rng: TowerRng, floors: readonly TowerLayout[]): number {
+/**
+ * Salle du joueur qui vient d'être résolue : si elle gardait une clé de l'escalier ou un
+ * sceau du portail, où en est l'ouverture de la sortie.
+ */
+function lockProgress(state: TowerState): TowerLockProgress | null {
+  const map = state.map;
+  const room = map?.layout.rooms.find((candidate) => candidate.id === map.pos);
+  if (!map || !room) return null;
+  const locks = exitLocks(map.layout, map.cleared);
+  if (room.key) return { kind: 'key', done: locks.keysFound, needed: locks.keysNeeded };
+  if (room.type === 'SEAL') return { kind: 'seal', done: locks.sealsLit, needed: locks.sealsNeeded };
+  return null;
+}
+
+/**
+ * Sortie franchie : l'étage est gravi, la carte suivante chargée et le palier est sûr.
+ * Sert au gardien, à la dernière vague d'une épreuve, à l'escalier et au portail.
+ */
+function exitFloor(state: TowerState, floor: number, rules: TowerRules, floors: readonly TowerLayout[], rng: TowerRng): { next: number; climbed: TowerClimb | null } {
+  const next = progress(state, floor, rules, true);
+  markRoomCleared(state);
+  const climbed = state.map ? climb(state, next, rules, floors, rng) : null;
+  state.safeLeave = true;
+  return { next, climbed };
+}
+
+function winEncounter(
+  state: TowerState,
+  floor: number,
+  rules: TowerRules,
+  rng: TowerRng,
+  floors: readonly TowerLayout[],
+  foes: TowerFoePool,
+): number {
   const encounter = state.encounter!;
   const stats = towerStats(state);
   const level = towerLevel(state, floor);
   const gold = encounterGold(level, encounter.kind, stats.goldPercent, rng);
   state.gold += gold;
   state.kills += 1;
-  if (rng.next() < LOOT_CHANCE[encounter.kind]) state.pendingLoot = rollTowerGear(level, encounter.kind, rng);
+
+  // Épreuve : tant qu'il reste des vagues, la suivante arrive aussitôt, sans butin ni répit.
+  const trial = state.trial;
+  if (trial && trial.wave < trial.waves) {
+    trial.wave += 1;
+    state.notice = { k: 'wave', wave: trial.wave, waves: trial.waves, gold };
+    startEncounter(state, level, trial.wave === trial.waves ? 'ELITE' : 'COMBAT', rules, foes, rng);
+    return floor;
+  }
+
+  // Une mimique paie le risque : son butin est garanti.
+  if (encounter.mimic || rng.next() < LOOT_CHANCE[encounter.kind]) state.pendingLoot = rollTowerGear(level, encounter.kind, rng);
 
   let healed = heal(state, stats.healAfterCombat);
   if (encounter.kind === 'BOSS') {
@@ -768,12 +875,20 @@ function winEncounter(state: TowerState, floor: number, rules: TowerRules, rng: 
     if (hasPerk(state, 'GUARDIAN_POTION')) state.potions = Math.min(MAX_POTIONS, state.potions + 1);
   }
 
-  const boss = isBossStep(state, floor, rules, encounter.kind);
-  const next = progress(state, floor, rules, boss);
+  // Le gardien, ou la dernière vague d'une épreuve, ferme l'étage.
+  const closesFloor = state.map ? (encounter.kind === 'BOSS' || Boolean(trial)) : isBossStep(state, floor, rules, encounter.kind);
+  state.trial = null;
+  if (closesFloor && state.map) {
+    const { next, climbed } = exitFloor(state, floor, rules, floors, rng);
+    state.notice = { k: 'victory', name: encounter.name, emoji: encounter.emoji, gold, healed, climbed };
+    advance(state, next, rules, rng);
+    return next;
+  }
+
+  const next = progress(state, floor, rules, closesFloor);
   markRoomCleared(state);
-  const climbed = state.map && encounter.kind === 'BOSS' ? climb(state, next, rules, floors, rng) : null;
-  if (boss) state.safeLeave = true;
-  state.notice = { k: 'victory', name: encounter.name, emoji: encounter.emoji, gold, healed, climbed };
+  if (closesFloor) state.safeLeave = true;
+  state.notice = { k: 'victory', name: encounter.name, emoji: encounter.emoji, gold, healed, climbed: null, lock: lockProgress(state) };
   advance(state, next, rules, rng);
   return next;
 }
@@ -793,22 +908,24 @@ function combatTurn(
   rules: TowerRules,
   rng: TowerRng,
   floors: readonly TowerLayout[],
+  foes: TowerFoePool,
 ): TowerStepResult {
   const encounter = state.encounter;
   if (!encounter) throw new TowerActionRefused('wrong_phase');
-  const stats = towerStats(state);
+  const stats = combatStats(state);
   const log: TowerLogEntry[] = [];
 
   // Les postures ne durent qu'un tour ennemi.
   encounter.defenseMultiplier = 1;
 
-  // On ne fuit pas un boss. Fuir laisse au monstre un dernier coup et coûte une part de l'or.
+  // On ne fuit ni un boss ni une épreuve. Fuir laisse au monstre un dernier coup et coûte une
+  // part de l'or.
   if (action.type === 'flee') {
-    if (encounter.kind === 'BOSS') throw new TowerActionRefused('no_flee');
+    if (encounter.kind === 'BOSS' || state.trial) throw new TowerActionRefused('no_flee');
     monsterStrike(state, encounter, stats, rng, log);
     encounter.log = [...encounter.log, ...log].slice(-LOG_KEPT);
     if (state.hp <= 0) return { state, floor, dead: true };
-    if (encounter.health <= 0) return { state, floor: winEncounter(state, floor, rules, rng, floors), dead: false };
+    if (encounter.health <= 0) return { state, floor: winEncounter(state, floor, rules, rng, floors, foes), dead: false };
     const lost = Math.floor(state.gold * TOWER_FLEE_GOLD_LOSS);
     state.gold -= lost;
     retreat(state);
@@ -876,6 +993,13 @@ function combatTurn(
     log.push({ k: 'enrage' });
   }
 
+  // Le mercenaire frappe après le joueur, avant la riposte du monstre.
+  if (state.ally && encounter.health > 0) {
+    const dmg = Math.max(1, Math.round(stats.attack * ALLY_POWER * damageThrough(encounter.defense)));
+    log.push({ k: 'ally', dmg });
+    hurtFoe(encounter, dmg, log);
+  }
+
   if (encounter.health > 0 && state.hp > 0) monsterStrike(state, encounter, stats, rng, log);
   encounter.log = [...encounter.log, ...log].slice(-LOG_KEPT);
 
@@ -885,7 +1009,7 @@ function combatTurn(
     return { state, floor, dead: true };
   }
   if (encounter.health <= 0) {
-    return { state, floor: winEncounter(state, floor, rules, rng, floors), dead: false };
+    return { state, floor: winEncounter(state, floor, rules, rng, floors, foes), dead: false };
   }
   return { state, floor, dead: false };
 }
@@ -957,17 +1081,39 @@ function resolveEvent(state: TowerState, id: TowerEventId, option: number, level
  * Entre dans une salle voisine de la carte et la résout. Une salle déjà résolue se traverse
  * sans rien déclencher : c'est ainsi qu'on ressort d'un cul-de-sac.
  */
-function enterRoom(state: TowerState, floor: number, move: TowerMove, rules: TowerRules, foes: TowerFoePool, rng: TowerRng): number {
+function enterRoom(
+  state: TowerState,
+  floor: number,
+  move: TowerMove,
+  rules: TowerRules,
+  foes: TowerFoePool,
+  rng: TowerRng,
+  floors: readonly TowerLayout[],
+): number {
   const level = towerLevel(state, floor);
   const map = state.map!;
   const room = map.layout.rooms.find((candidate) => candidate.id === move.roomId);
   if (!room) throw new TowerActionRefused('bad_choice');
+
+  // Une sortie scellée se refuse avant d'y mettre les pieds : le joueur reste où il est.
+  const locks = exitLocks(map.layout, map.cleared);
+  if (room.type === 'STAIRS' && locks.keysFound < locks.keysNeeded) throw new TowerActionRefused('stairs_locked');
+  if (room.type === 'GATE' && locks.sealsLit < locks.sealsNeeded) throw new TowerActionRefused('gate_locked');
+
   map.prev = map.pos;
   map.pos = room.id;
 
   if (map.cleared.includes(room.id)) {
     advance(state, floor, rules, rng);
     return floor;
+  }
+
+  // Étage en feu : chaque nouvelle salle brûle un peu, sans jamais achever le joueur.
+  if (floorModifier(state) === 'BURNING') {
+    const burn = Math.max(1, Math.floor(towerStats(state).maxHealth * BURN_DAMAGE));
+    const before = state.hp;
+    state.hp = Math.max(1, state.hp - burn);
+    state.burned = before - state.hp;
   }
 
   const info = map.rooms?.[room.id] ?? null;
@@ -981,6 +1127,46 @@ function enterRoom(state: TowerState, floor: number, move: TowerMove, rules: Tow
     case 'BOSS':
       startEncounter(state, level, 'BOSS', rules, foes, rng, room.foe, info);
       return floor;
+    case 'SEAL':
+      // Chaque sceau est gardé par une élite : l'abattre l'allume.
+      startEncounter(state, level, 'ELITE', rules, foes, rng, room.foe, info);
+      return floor;
+    case 'MIMIC':
+      // Le coffre ouvert se révèle : une élite sous un autre nom, au butin garanti.
+      startEncounter(state, level, 'ELITE', rules, foes, rng, null, info);
+      state.encounter!.name = MIMIC_NAME;
+      state.encounter!.emoji = '';
+      state.encounter!.mimic = true;
+      return floor;
+    case 'MERCENARY':
+      state.phase = 'MERCENARY';
+      return floor;
+    case 'TRAP': {
+      // La vitesse fait éviter le piège : une fois sur deux à vitesse égale au mécanisme, un peu
+      // moins à vitesse égale aux monstres de l'étage (le mécanisme est 20 % plus vif).
+      const trapSpeed = towerMonsterStats(level, rules.floorGrowthPercent, 'COMBAT').speed * 1.2;
+      const dodge = Math.min(TRAP_DODGE.max, Math.max(TRAP_DODGE.min, combatStats(state).speed / (trapSpeed * 2)));
+      if (rng.next() < dodge) {
+        state.notice = { k: 'trap', dmg: 0, dodged: true };
+      } else {
+        const dmg = Math.max(1, Math.floor(towerStats(state).maxHealth * TRAP_DAMAGE));
+        const before = state.hp;
+        state.hp = Math.max(1, state.hp - dmg);
+        state.notice = { k: 'trap', dmg: before - state.hp, dodged: false };
+      }
+      break;
+    }
+    case 'TRIAL':
+      state.trial = { wave: 1, waves: TRIAL_WAVES };
+      startEncounter(state, level, 'COMBAT', rules, foes, rng);
+      return floor;
+    case 'STAIRS':
+    case 'GATE': {
+      const { next, climbed } = exitFloor(state, floor, rules, floors, rng);
+      state.notice = { k: 'exit', exit: room.type, climbed };
+      advance(state, next, rules, rng);
+      return next;
+    }
     case 'MERCHANT':
       state.merchant = rollMerchantOffers(level, rng, room.offers, room.pricePercent, merchantOf(rules));
       state.merchantRerolled = false;
@@ -993,7 +1179,10 @@ function enterRoom(state: TowerState, floor: number, move: TowerMove, rules: Tow
     case 'CHEST': {
       const gold = room.chest === 'GEAR' ? 0 : treasureGold(level, rng);
       state.gold += gold;
-      if (room.chest !== 'GOLD') state.pendingLoot = rollTowerGear(level, 'TREASURE', rng);
+      // Un coffre mixte ne donne un objet qu'une fois sur cinq ; un coffre à équipement, toujours.
+      if (room.chest === 'GEAR' || (room.chest === 'BOTH' && rng.next() < CHEST_GEAR_CHANCE)) {
+        state.pendingLoot = rollTowerGear(level, 'TREASURE', rng);
+      }
       state.notice = { k: 'treasure', gold };
       break;
     }
@@ -1011,6 +1200,7 @@ function enterRoom(state: TowerState, floor: number, move: TowerMove, rules: Tow
   }
 
   markRoomCleared(state);
+  if (state.notice?.k === 'treasure') state.notice.lock = lockProgress(state);
   const next = progress(state, floor, rules, false);
   advance(state, next, rules, rng);
   return next;
@@ -1035,6 +1225,7 @@ export function applyTowerAction(
   const rng = new TowerRng(state.rng);
   const level = towerLevel(state, floor);
   state.notice = null;
+  state.burned = 0;
 
   const done = (nextFloor: number, dead = false): TowerStepResult => {
     state.rng = rng.state;
@@ -1042,7 +1233,7 @@ export function applyTowerAction(
   };
 
   if (state.phase === 'COMBAT') {
-    const result = combatTurn(state, floor, action, rules, rng, floors);
+    const result = combatTurn(state, floor, action, rules, rng, floors, foes);
     state.rng = rng.state;
     return result;
   }
@@ -1064,7 +1255,7 @@ export function applyTowerAction(
       if (state.map) {
         const move = state.moves[action.index];
         if (!move) throw new TowerActionRefused('bad_choice');
-        return done(enterRoom(state, floor, move, rules, foes, rng));
+        return done(enterRoom(state, floor, move, rules, foes, rng, floors));
       }
       const door = state.doors[action.index];
       if (!door) throw new TowerActionRefused('bad_choice');
@@ -1109,6 +1300,24 @@ export function applyTowerAction(
       if (action.index !== 0 && action.index !== 1) throw new TowerActionRefused('bad_choice');
       state.notice = resolveEvent(state, event.id, action.index, level, rng);
       state.event = null;
+      markRoomCleared(state);
+      const next = progress(state, floor, rules, false);
+      advance(state, next, rules, rng);
+      return done(next);
+    }
+
+    case 'MERCENARY': {
+      if (action.type === 'hire') {
+        // Un seul mercenaire à la fois : en payer un second ne servirait à rien.
+        if (state.ally) throw new TowerActionRefused('bad_choice');
+        const price = mercenaryPrice(level);
+        if (state.gold < price) throw new TowerActionRefused('no_gold');
+        state.gold -= price;
+        state.ally = true;
+        state.notice = { k: 'hired', gold: price };
+      } else if (action.type !== 'leave_shop') {
+        throw new TowerActionRefused('wrong_phase');
+      }
       markRoomCleared(state);
       const next = progress(state, floor, rules, false);
       advance(state, next, rules, rng);

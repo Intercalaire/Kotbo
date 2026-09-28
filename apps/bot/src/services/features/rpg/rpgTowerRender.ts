@@ -40,7 +40,16 @@ const ROOM_COLOR: Record<TowerRoomType, string> = {
   MONSTER: '#ef4444',
   ELITE: '#a855f7',
   BOSS: '#f59e0b',
+  STAIRS: '#22d3ee',
+  TRIAL: '#f43f5e',
+  GATE: '#c084fc',
+  SEAL: '#a78bfa',
+  WARP_A: '#2dd4bf',
+  WARP_B: '#2dd4bf',
   CHEST: '#eab308',
+  MIMIC: '#eab308',
+  MERCENARY: '#84cc16',
+  TRAP: '#dc2626',
   CAMPFIRE: '#f97316',
   MERCHANT: '#10b981',
   SHRINE: '#38bdf8',
@@ -65,6 +74,8 @@ export type TowerMapImage = {
   visible?: readonly string[] | null;
   /** Salles dont le monstre porte des traits ou une mécanique, marquées d'une pastille. */
   badges?: Record<string, number>;
+  /** Salles qui gardent une clé de l'escalier scellé. */
+  keys?: readonly string[];
 };
 
 /** Encart de texte à droite de la tour : titre et quelques lignes courtes. */
@@ -289,6 +300,103 @@ function glyph(ctx: SKRSContext2D, type: TowerRoomType, cx: number, cy: number, 
       ctx.fill();
       break;
     }
+    case 'STAIRS': {
+      // Trois marches qui montent vers la droite.
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.8, cy + s * 0.7);
+      ctx.lineTo(cx - s * 0.8, cy + s * 0.2);
+      ctx.lineTo(cx - s * 0.25, cy + s * 0.2);
+      ctx.lineTo(cx - s * 0.25, cy - s * 0.25);
+      ctx.lineTo(cx + s * 0.3, cy - s * 0.25);
+      ctx.lineTo(cx + s * 0.3, cy - s * 0.7);
+      ctx.lineTo(cx + s * 0.8, cy - s * 0.7);
+      ctx.lineTo(cx + s * 0.8, cy + s * 0.7);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    }
+    case 'TRIAL': {
+      // Sablier : on tient jusqu'à la dernière vague.
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.6, cy - s * 0.8);
+      ctx.lineTo(cx + s * 0.6, cy - s * 0.8);
+      ctx.lineTo(cx, cy);
+      ctx.lineTo(cx + s * 0.6, cy + s * 0.8);
+      ctx.lineTo(cx - s * 0.6, cy + s * 0.8);
+      ctx.lineTo(cx, cy);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    }
+    case 'GATE': {
+      // Arche fermée de barreaux.
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.7, cy + s * 0.8);
+      ctx.lineTo(cx - s * 0.7, cy - s * 0.1);
+      ctx.arc(cx, cy - s * 0.1, s * 0.7, Math.PI, 0);
+      ctx.lineTo(cx + s * 0.7, cy + s * 0.8);
+      ctx.stroke();
+      for (const dx of [-0.3, 0, 0.3]) {
+        ctx.beginPath();
+        ctx.moveTo(cx + s * dx, cy - s * 0.5);
+        ctx.lineTo(cx + s * dx, cy + s * 0.8);
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'SEAL': {
+      // Sceau : deux cercles et un point, comme une rune.
+      ctx.beginPath();
+      ctx.arc(cx, cy, s * 0.75, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, s * 0.4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, s * 0.12, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'TRAP': {
+      // Rangée de pointes.
+      for (const dx of [-0.6, 0, 0.6]) {
+        ctx.beginPath();
+        ctx.moveTo(cx + s * (dx - 0.3), cy + s * 0.6);
+        ctx.lineTo(cx + s * dx, cy - s * 0.6);
+        ctx.lineTo(cx + s * (dx + 0.3), cy + s * 0.6);
+        ctx.closePath();
+        ctx.fill();
+      }
+      break;
+    }
+    case 'MERCENARY': {
+      // Silhouette casquée : tête, épaules et épée levée.
+      ctx.beginPath();
+      ctx.arc(cx - s * 0.15, cy - s * 0.35, s * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.7, cy + s * 0.8);
+      ctx.quadraticCurveTo(cx - s * 0.15, cy - s * 0.1, cx + s * 0.4, cy + s * 0.8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(cx + s * 0.45, cy + s * 0.3);
+      ctx.lineTo(cx + s * 0.8, cy - s * 0.8);
+      ctx.stroke();
+      break;
+    }
+    case 'WARP_A':
+    case 'WARP_B': {
+      // Tourbillon et lettre : A et B se reconnaissent d'un coup d'œil.
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, s * 0.8, s * 0.55, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.font = canvasFont(Math.round(size * 0.6), 'bold');
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(type === 'WARP_A' ? 'A' : 'B', cx, cy + size * 0.03);
+      break;
+    }
     case 'EVENT': {
       ctx.font = canvasFont(Math.round(size * 0.9), 'bold');
       ctx.textAlign = 'center';
@@ -330,6 +438,21 @@ function drawBadge(ctx: SKRSContext2D, cx: number, cy: number, radius: number, c
   ctx.fill();
   ctx.stroke();
   text(ctx, String(count), cx, cy + 0.5, Math.round(radius * 1.3), C.text, 'center');
+  ctx.restore();
+}
+
+/** Petite clé dorée dans un coin de salle : elle ouvre l'escalier scellé. */
+function drawKey(ctx: SKRSContext2D, x: number, y: number, size: number): void {
+  ctx.save();
+  ctx.strokeStyle = C.gold;
+  ctx.lineWidth = Math.max(2, size / 5);
+  ctx.beginPath();
+  ctx.arc(x + size * 0.3, y - size * 0.3, size * 0.25, 0, Math.PI * 2);
+  ctx.moveTo(x + size * 0.5, y - size * 0.5);
+  ctx.lineTo(x + size, y - size);
+  ctx.moveTo(x + size * 0.8, y - size * 0.8);
+  ctx.lineTo(x + size * 0.95, y - size * 0.65);
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -448,14 +571,33 @@ function renderMap(input: TowerMapImage): Buffer {
     }
   }
 
+  // Le lien des portails, en pointillés, dès que les deux sont connus.
+  const warpA = layout.rooms.find((room) => room.type === 'WARP_A');
+  const warpB = layout.rooms.find((room) => room.type === 'WARP_B');
+  if (warpA && warpB && seen(warpA.id) && seen(warpB.id)) {
+    const a = center(warpA.x, warpA.y);
+    const b = center(warpB.x, warpB.y);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(45, 212, 191, 0.55)';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   const inset = Math.max(3, Math.round(tile * 0.08));
   for (const room of layout.rooms) {
     if (!seen(room.id)) continue;
     const span = room.type === 'BOSS' ? 2 : 1;
+    // Une mimique se dessine en coffre : rien ne la trahit avant qu'on l'ouvre.
+    const shown: TowerRoomType = room.type === 'MIMIC' ? 'CHEST' : room.type;
     const x = gx + room.x * tile + inset;
     const y = gy + room.y * tile + inset;
     const size = span * tile - inset * 2;
-    const color = ROOM_COLOR[room.type];
+    const color = ROOM_COLOR[shown];
     const cleared = input.cleared.includes(room.id) && room.type !== 'START';
 
     roundRect(ctx, x, y, size, size, span === 2 ? 12 : 7);
@@ -489,10 +631,11 @@ function renderMap(input: TowerMapImage): Buffer {
     } else {
       ctx.save();
       ctx.globalAlpha = room.type === 'EMPTY' ? 0.5 : 1;
-      glyph(ctx, room.type, cx, cy, size * (span === 2 ? 0.42 : 0.55), color);
+      glyph(ctx, shown, cx, cy, size * (span === 2 ? 0.42 : 0.55), color);
       ctx.restore();
       const badge = input.badges?.[room.id] ?? 0;
       if (badge > 0) drawBadge(ctx, x + size - 2, y + 2, Math.max(7, tile * 0.16), badge);
+      if (input.keys?.includes(room.id)) drawKey(ctx, x + 3, y + size - 3, Math.max(8, tile * 0.2));
     }
   }
 

@@ -212,6 +212,10 @@ export async function deleteRpgTowerReward(rewardId: string, guildId = authStore
   return dashboardRequest(`/economy/tower/rewards/${rewardId}`, { method: 'DELETE', successMessage: m.api_ok_delete_rpg_tower_reward(), guildId, errorContext: 'API Error (Delete RPG Tower Reward):' });
 }
 
+export async function resetRpgTower(options: { everything: boolean }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/tower/reset', { method: 'POST', successMessage: m.api_ok_reset_rpg_tower(), payload: options, guildId, errorContext: 'API Error (Reset RPG Tower):' });
+}
+
 export async function startRpgTowerSeason(options: { resetMilestones: boolean } = { resetMilestones: true }, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/tower/season', { method: 'POST', successMessage: m.api_ok_start_rpg_tower_season(), payload: options, guildId, errorContext: 'API Error (Start RPG Tower Season):' });
 }

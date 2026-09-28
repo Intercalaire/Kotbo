@@ -71,8 +71,8 @@ export const PHASE_BOOST = 1.25;
 export const TOWER_RELIC_PERKS = ['FIRST_STRIKE', 'LAST_STAND', 'EXECUTE', 'GUARDIAN_POTION', 'SHARD_SEEKER'] as const;
 export type TowerRelicPerk = (typeof TOWER_RELIC_PERKS)[number];
 
-/** Chance qu'une relique porte un effet, selon sa rareté. */
-export const RELIC_PERK_CHANCE: Record<string, number> = { COMMON: 0, UNCOMMON: 0.1, RARE: 0.3, EPIC: 0.6, LEGENDARY: 1 };
+/** Chance qu'une relique porte un effet, selon sa rareté : un effet unique doit rester rare. */
+export const RELIC_PERK_CHANCE: Record<string, number> = { COMMON: 0, UNCOMMON: 0, RARE: 0.05, EPIC: 0.15, LEGENDARY: 0.3 };
 /** EXECUTE : bonus de dégâts contre une cible affaiblie. */
 export const EXECUTE_THRESHOLD = 0.3;
 export const EXECUTE_BONUS = 1.5;
@@ -104,3 +104,29 @@ export const CURSE_ATTACK = 0.1;
 export function blacksmithPrice(level: number): number {
   return BLACKSMITH_BASE_PRICE + Math.max(1, level) * BLACKSMITH_PRICE_PER_LEVEL;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Salles d'étage : mimique, mercenaire, piège ; ambiances d'étage
+// ─────────────────────────────────────────────────────────────
+
+/** Mimique : un coffre qui mord. Son butin est garanti, c'est ce qui paie le risque. */
+export const MIMIC_NAME = 'Mimique';
+/** Part des coffres d'un étage généré qui sont des mimiques. */
+export const MIMIC_CHANCE = 0.25;
+
+/** Mercenaire : frappe à chaque tour jusqu'à la fin de l'étage, pour une part de l'attaque du joueur. */
+export const ALLY_POWER = 0.35;
+export function mercenaryPrice(level: number): number {
+  return 30 + Math.max(1, level) * 4;
+}
+
+/** Piège : dégâts en part des PV max, jamais mortels ; la vitesse permet de l'éviter. */
+export const TRAP_DAMAGE = 0.12;
+export const TRAP_DODGE = { min: 0.1, max: 0.75 } as const;
+
+/** Étage inondé : vitesse du joueur réduite. */
+export const FLOODED_SPEED = 0.8;
+/** Étage en feu : PV perdus en entrant dans une nouvelle salle, jamais mortels. */
+export const BURN_DAMAGE = 0.03;
+/** Étage béni : soins renforcés. */
+export const BLESSED_HEAL = 1.25;
