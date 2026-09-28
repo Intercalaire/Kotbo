@@ -41,6 +41,9 @@ const buffer = new Map<string, Bucket>();
 type Visit = TelemetryPage & { guildId: string; activeMs: number };
 let current: Visit | null = null;
 let pendingSource: DashboardNavSource | null = null;
+let pendingSourceAt = 0;
+/** Une source non suivie d'une navigation (action de palette sans lien) ne colle pas à la suivante. */
+const PENDING_SOURCE_TTL_MS = 3_000;
 let firstView = true;
 let lastInteraction = Date.now();
 let lastTick = Date.now();
@@ -94,6 +97,13 @@ export function trackEvent(event: DashboardTelemetryEvent, dimension?: string, v
 /** Source de la prochaine navigation (barre latérale, palette, favoris…). */
 export function markNavigationSource(source: DashboardNavSource): void {
   pendingSource = source;
+  pendingSourceAt = Date.now();
+}
+
+function takePendingSource(): DashboardNavSource | null {
+  const source = pendingSource && Date.now() - pendingSourceAt < PENDING_SOURCE_TTL_MS ? pendingSource : null;
+  pendingSource = null;
+  return source;
 }
 
 function tickActiveTime(): void {
@@ -141,9 +151,9 @@ export function trackRoute(resolved: TelemetryPage | null): void {
     current = { ...resolved, guildId, activeMs: 0 };
     lastTick = Date.now();
     lastInteraction = Date.now();
-    const source: DashboardNavSource = firstView ? 'entry' : pendingSource ?? 'link';
+    const pending = takePendingSource();
+    const source: DashboardNavSource = firstView ? 'entry' : pending ?? 'link';
     firstView = false;
-    pendingSource = null;
     add('page_view', { dimension: source });
     if (resolved.tab) add('tab_view');
   } catch {
@@ -253,7 +263,7 @@ function startSession(env: { theme: string; locale: string }): void {
   if (!isNew) {
     // Rechargement dans la même session : ni nouvelle session, ni page d'entrée.
     firstView = false;
-    pendingSource = 'reload';
+    markNavigationSource('reload');
     return;
   }
   const noContext = null;
