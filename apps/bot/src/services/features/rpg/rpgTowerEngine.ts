@@ -390,7 +390,7 @@ export function floorModifier(state: TowerState) {
 }
 
 /** Stats de combat : celles de l'équipement et des bénédictions, ralenties sur un étage inondé. */
-function combatStats(state: TowerState): TowerEffectiveStats {
+export function combatStats(state: TowerState): TowerEffectiveStats {
   const stats = towerStats(state);
   return floorModifier(state) === 'FLOODED' ? { ...stats, speed: Math.max(1, Math.round(stats.speed * FLOODED_SPEED)) } : stats;
 }
@@ -1142,7 +1142,8 @@ function enterRoom(
       state.phase = 'MERCENARY';
       return floor;
     case 'TRAP': {
-      // La vitesse fait éviter le piège : à vitesse égale au mécanisme, un peu moins d'une fois sur deux.
+      // La vitesse fait éviter le piège : une fois sur deux à vitesse égale au mécanisme, un peu
+      // moins à vitesse égale aux monstres de l'étage (le mécanisme est 20 % plus vif).
       const trapSpeed = towerMonsterStats(level, rules.floorGrowthPercent, 'COMBAT').speed * 1.2;
       const dodge = Math.min(TRAP_DODGE.max, Math.max(TRAP_DODGE.min, combatStats(state).speed / (trapSpeed * 2)));
       if (rng.next() < dodge) {
@@ -1307,6 +1308,8 @@ export function applyTowerAction(
 
     case 'MERCENARY': {
       if (action.type === 'hire') {
+        // Un seul mercenaire à la fois : en payer un second ne servirait à rien.
+        if (state.ally) throw new TowerActionRefused('bad_choice');
         const price = mercenaryPrice(level);
         if (state.gold < price) throw new TowerActionRefused('no_gold');
         state.gold -= price;

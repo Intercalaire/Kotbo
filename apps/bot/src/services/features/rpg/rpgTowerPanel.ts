@@ -38,6 +38,7 @@ import {
 } from '../rpgPanelService.js';
 import {
   TRIAL_WAVES,
+  combatStats,
   floorModifier,
   towerLevel,
   towerStats,
@@ -990,7 +991,8 @@ function floorObjective(state: TowerState, locale: Locale): string | null {
 }
 
 function statusBlock(state: TowerState, floor: number, config: TowerConfigView, locale: Locale): string {
-  const stats = towerStats(state);
+  // Les stats du combat : un étage inondé ralentit, autant l'afficher.
+  const stats = combatStats(state);
   const blessings = Object.entries(state.blessings)
     .map(([id, rank]) => {
       const blessing = findBlessing(id);
