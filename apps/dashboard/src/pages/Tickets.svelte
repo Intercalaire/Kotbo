@@ -2,9 +2,10 @@
   import { m, dateLocale } from '../lib/i18n';
   import { canViewFeature } from '../lib/permissions.svelte';
   import { channelDisplayName } from '../lib/channelUtils';
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import { guide } from '../lib/stores/guide.svelte';
   import { pageTabItems } from '../lib/config/pageTabs';
   import { Tabs } from '../lib/components/ui';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -280,6 +281,18 @@
   function toggleConfigSection(section: string) {
     expandedConfigSection = expandedConfigSection === section ? null : section;
   }
+
+  // « Me guider » depuis l'accueil vise un reglage range dans une section
+  // repliee : on la deplie pour que le champ soit visible sous la mise en
+  // evidence.
+  const GUIDED_SECTIONS: Record<string, string> = {
+    'tickets-channels': 'channels',
+    'tickets-quotas': 'quotas',
+  };
+  $effect(() => {
+    const section = guide.target ? GUIDED_SECTIONS[guide.target] : undefined;
+    if (section) untrack(() => (expandedConfigSection = section));
+  });
 
   // Member Case Modal Integration
   let caseModalOpen = $state(false);
@@ -2322,7 +2335,7 @@
       {/if}
 
       <!-- ─── Section 1: Salons & Rôles ──────────────────────────────────── -->
-      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
+      <div data-guide="tickets-channels" class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
         <button onclick={() => toggleConfigSection('channels')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
           <div class="flex items-center gap-3">
             <div class="w-9 h-9 rounded-lg bg-success/10 text-success flex items-center justify-center shrink-0">
@@ -2717,7 +2730,7 @@
       </div>
 
       <!-- ─── Quotas ─────────────────────────────────────────────────────── -->
-      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
+      <div data-guide="tickets-quotas" class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
         <button onclick={() => toggleConfigSection('quotas')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
           <div class="flex items-center gap-3">
             <div class="w-9 h-9 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center shrink-0">

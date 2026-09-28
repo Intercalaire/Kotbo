@@ -808,6 +808,7 @@ export const getGuildState = async (
     discordRoles,
     staffRoleIds,
     moderatorRoleId: guild.moderatorRoleId ?? '',
+    sanctionAlertChannelId: guild.sanctionAlertChannelId ?? '',
     commandRestrictions: runtime.commandRestrictions,
     sidebarFavorites: runtime.sidebarFavorites,
     commandCatalog: overview ? [] : buildRichCommandCatalog(),

@@ -586,7 +586,7 @@ async function buildGuildSnapshot(client: Client, guildId: string, modules: Modu
         total: journey.progress.total,
         missing: journey.steps
           .filter((step) => !step.done && step.key !== 'timezone')
-          .map<HomeSetupGap>((step) => ({ key: step.key, label: step.label, href: step.href, detail: step.detail })),
+          .map<HomeSetupGap>((step) => ({ key: step.key, label: step.label, href: step.href, detail: step.detail, why: step.why })),
       }
     : null;
 

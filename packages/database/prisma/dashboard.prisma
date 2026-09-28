@@ -197,6 +197,11 @@ model DashboardUserSettings {
   // lecteur parisien un pic de 14h comme un pic de midi.
   timezone    String?
 
+  // Ce que le lecteur a ecarte du bloc « A traiter » de l'accueil : sujets
+  // masques pour de bon ou jusqu'a du nouveau, etapes de configuration
+  // ignorees. Forme decrite par `HomeTodoPrefs` dans @kotbo/contracts.
+  homeTodoPrefs Json?
+
   guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())

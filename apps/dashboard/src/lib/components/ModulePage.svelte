@@ -106,22 +106,28 @@
   <!-- Un module eteint ferme ses routes API : la page ne peut ni charger ni
        enregistrer quoi que ce soit. Le dire ici, une fois, evite que chaque
        appel refuse ne remonte en notification. -->
+  <!-- `data-guide-blocker` : un guidage vers un reglage de la page montre
+       d'abord cet encadre, le reglage restant inerte tant qu'il est la. -->
   {#if module && !isFixed && lockedByPlan}
-    <Callout variant="info" icon="Lock" title="« {title} » fait partie de l'offre {requiredPlanLabel}">
-      Tu peux en voir la page, mais pas l'activer tant que l'offre du serveur ne le comprend pas.
-      {#snippet actions()}
-        <Button href="/billing" variant="secondary" size="sm" iconRight="ArrowRight">Voir les offres</Button>
-      {/snippet}
-    </Callout>
+    <div data-guide-blocker="plan">
+      <Callout variant="info" icon="Lock" title="« {title} » fait partie de l'offre {requiredPlanLabel}">
+        Tu peux en voir la page, mais pas l'activer tant que l'offre du serveur ne le comprend pas.
+        {#snippet actions()}
+          <Button href="/billing" variant="secondary" size="sm" iconRight="ArrowRight">Voir les offres</Button>
+        {/snippet}
+      </Callout>
+    </div>
   {:else if module && !isFixed && !isModuleEnabled}
-    <Callout variant="warning" title={m.mp_module_off_title()}>
-      {m.mp_module_off_desc()}
-      {#snippet actions()}
-        <Button variant="primary" size="sm" icon="power" loading={saveAction.state.loading} onclick={toggleModule}>
-          {m.mp_module_off_action()}
-        </Button>
-      {/snippet}
-    </Callout>
+    <div data-guide-blocker="module-off">
+      <Callout variant="warning" title={m.mp_module_off_title()}>
+        {m.mp_module_off_desc()}
+        {#snippet actions()}
+          <Button variant="primary" size="sm" icon="power" loading={saveAction.state.loading} onclick={toggleModule}>
+            {m.mp_module_off_action()}
+          </Button>
+        {/snippet}
+      </Callout>
+    </div>
   {/if}
 
   <main class="module-page__body flex-1 space-y-8 {isModuleEnabled || isFixed || featureKey === 'sanctions' || featureKey === 'channel_links' || featureKey === 'staff_server' ? '' : 'opacity-40 pointer-events-none grayscale-[0.5] transition-all duration-500'}">

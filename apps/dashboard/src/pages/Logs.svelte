@@ -531,7 +531,7 @@
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
   <!-- General Configuration -->
   <div class="bg-surface-container-low/30 p-8 rounded-xl border border-outline-variant/10 space-y-6">
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6" data-guide="logs-channel">
       <div class="flex items-center gap-4">
         <div class="bg-primary/10 p-3 rounded-lg text-primary">
           <Papicon icon="Settings" size={24} />

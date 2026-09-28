@@ -206,3 +206,197 @@ export async function fetchGlobalInteractions(options: { period?: number, startD
     errorContext: 'API Error (Global Interactions Graph):'
   });
 }
+
+// ── Nouvelle page Analytics ────────────────────────────────────────────────
+
+/** Période et filtres partagés par toutes les sections de la page Analytics. */
+export interface AnalyticsQuery {
+  period?: number;
+  startDate?: string;
+  endDate?: string;
+  /** Salon ou catégorie. */
+  channel?: string | null;
+  role?: string | null;
+  excludeStaff?: boolean;
+  includeBots?: boolean;
+  userId?: string | null;
+}
+
+export interface AnalyticsRange {
+  start: string;
+  end: string;
+  prevStart: string;
+  prevEnd: string;
+  days: number;
+}
+
+export interface ComparedValue {
+  value: number;
+  previous: number;
+}
+
+export interface ContentEmoji {
+  key: string;
+  origin: 'unicode' | 'guild' | 'external';
+  count: number;
+  name: string | null;
+  animated: boolean;
+  imageUrl: string | null;
+  sourceName: string | null;
+}
+
+export interface ContentSticker {
+  key: string;
+  origin: 'guild' | 'external' | 'standard';
+  count: number;
+  name: string | null;
+  imageUrl: string;
+  sourceName: string | null;
+}
+
+export interface ContentSourceServer {
+  guildId: string | null;
+  name: string | null;
+  count: number;
+  items: number;
+}
+
+export interface ContentAnalytics {
+  range: AnalyticsRange;
+  itemBasis: 'server' | 'channel' | 'member';
+  totals: Record<string, number>;
+  previous: Record<string, number>;
+  emojis: ContentEmoji[];
+  reactions: ContentEmoji[];
+  emojiServers: ContentSourceServer[];
+  reactionServers: ContentSourceServer[];
+  stickers: ContentSticker[];
+  stickerServers: ContentSourceServer[];
+  domains: Array<{ domain: string; family: string; count: number }>;
+  gifChannels: Array<{ channelId: string; name: string | null; count: number }>;
+  backfill: { status: string; processed: number; total: number } | null;
+}
+
+export interface ActivityAnalytics {
+  range: AnalyticsRange;
+  voiceAvailable: boolean;
+  kpis: {
+    messages: ComparedValue;
+    activeMembers: ComparedValue;
+    voiceMinutes: ComparedValue;
+    netJoins: ComparedValue;
+    joined: number;
+    left: number;
+    memberCount: number | null;
+  };
+  series: Array<{ dateKey: string; messages: number; voiceMinutes: number; prevMessages: number; prevVoiceMinutes: number }>;
+  topChannels: Array<{ channelId: string; name: string | null; messages: number }>;
+}
+
+export interface ChannelTreeChannel {
+  id: string;
+  name: string;
+  kind: 'text' | 'voice' | 'forum';
+  messages: number;
+  voiceMinutes: number;
+  prevMessages: number;
+  prevVoiceMinutes: number;
+  authors: number;
+  lastActiveDate: string | null;
+}
+
+export interface ChannelTreeCategory {
+  id: string | null;
+  name: string | null;
+  messages: number;
+  voiceMinutes: number;
+  prevMessages: number;
+  prevVoiceMinutes: number;
+  authors: number;
+  channels: ChannelTreeChannel[];
+}
+
+export interface ChannelTree {
+  range: AnalyticsRange;
+  totals: { messages: number; voiceMinutes: number };
+  orphan: { messages: number; voiceMinutes: number } | null;
+  categories: ChannelTreeCategory[];
+}
+
+export interface CategoryDetail {
+  range: AnalyticsRange;
+  id: string;
+  name: string;
+  kpis: {
+    messages: ComparedValue;
+    voiceMinutes: ComparedValue;
+    activeMembers: number;
+    messageShare: ComparedValue;
+    voiceShare: number;
+  };
+  daily: Array<{ dateKey: string; textOnly: number; voiceOnly: number; both: number }>;
+  voiceHistoryDays: number;
+  channels: ChannelTreeChannel[];
+  topMembers: Array<{ userId: string; name: string | null; avatarUrl: string | null; messages: number; voiceMinutes: number }>;
+}
+
+export interface AnalyticsFilterOptions {
+  categories: Array<{ id: string | null; name: string | null; channels: Array<{ id: string; name: string; kind: string }> }>;
+  roles: Array<{ id: string; name: string; color: string; members: number }>;
+}
+
+function analyticsParams(query: AnalyticsQuery): string {
+  const params = new URLSearchParams();
+  if (query.startDate && query.endDate) {
+    params.append('startDate', query.startDate);
+    params.append('endDate', query.endDate);
+  } else if (query.period) {
+    params.append('period', String(query.period));
+  }
+  if (query.channel) params.append('channel', query.channel);
+  if (query.role) params.append('role', query.role);
+  if (query.userId) params.append('userId', query.userId);
+  if (query.excludeStaff) params.append('excludeStaff', '1');
+  if (query.includeBots) params.append('includeBots', '1');
+  return params.toString();
+}
+
+export async function fetchContentAnalytics(query: AnalyticsQuery, guildId = authStore.selectedGuildId): Promise<ContentAnalytics | null> {
+  return dashboardRequest<ContentAnalytics>(`/analytics/content?${analyticsParams(query)}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Content Analytics):'
+  });
+}
+
+export async function fetchActivityAnalytics(query: AnalyticsQuery, guildId = authStore.selectedGuildId): Promise<ActivityAnalytics | null> {
+  return dashboardRequest<ActivityAnalytics>(`/analytics/activity?${analyticsParams(query)}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Activity Analytics):'
+  });
+}
+
+export async function fetchChannelTree(query: AnalyticsQuery, guildId = authStore.selectedGuildId): Promise<ChannelTree | null> {
+  return dashboardRequest<ChannelTree>(`/analytics/channel-tree?${analyticsParams({ period: query.period, startDate: query.startDate, endDate: query.endDate })}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Channel Tree):'
+  });
+}
+
+export async function fetchCategoryDetail(categoryId: string, query: AnalyticsQuery, guildId = authStore.selectedGuildId): Promise<CategoryDetail | null> {
+  return dashboardRequest<CategoryDetail>(`/analytics/categories/${categoryId}?${analyticsParams({ period: query.period, startDate: query.startDate, endDate: query.endDate })}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Category Detail):'
+  });
+}
+
+export async function fetchAnalyticsFilterOptions(guildId = authStore.selectedGuildId): Promise<AnalyticsFilterOptions | null> {
+  return dashboardRequest<AnalyticsFilterOptions>('/analytics/filters', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Analytics Filters):'
+  });
+}

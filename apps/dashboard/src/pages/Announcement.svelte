@@ -653,7 +653,7 @@
       
       <!-- Welcome Tab -->
       {#if activeTab === 'welcome'}
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 max-w-4xl">
+        <section data-guide="welcome-message" class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 max-w-4xl">
           <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
             <h3 class="text-xl font-semibold flex items-center gap-3">
               <Papicon icon="DoorOpen" size={20} class="text-primary" />

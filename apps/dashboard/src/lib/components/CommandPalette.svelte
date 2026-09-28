@@ -10,6 +10,7 @@
   import { onboardingStore } from '../stores/tutorial.svelte';
   import { navigationStore } from '../stores/navigation.svelte';
   import { tabsForPage } from '../config/pageTabs';
+  import { markNavigationSource, trackEvent } from '../telemetry/telemetry';
 
   const GROUP_ICONS: Record<string, string> = {
     general: 'home',
@@ -199,7 +200,19 @@
       query = '';
       selectedIndex = 0;
       setTimeout(() => inputEl?.focus(), 50);
+      trackEvent('palette', 'open');
     }
+  });
+
+  // Télémétrie : une recherche compte une fois la frappe posée, avec ou sans
+  // résultat. Le texte cherché ne part jamais.
+  $effect(() => {
+    const q = query.trim();
+    if (!open || q.length < 2) return;
+    const timer = setTimeout(() => {
+      trackEvent('palette', flatItems().length > 0 ? 'search_hit' : 'search_empty');
+    }, 800);
+    return () => clearTimeout(timer);
   });
 
   function close() {
@@ -207,6 +220,8 @@
   }
 
   function runItem(item: PaletteItem) {
+    markNavigationSource('palette');
+    trackEvent('palette', `select:${item.group}`);
     item.action();
     close();
   }

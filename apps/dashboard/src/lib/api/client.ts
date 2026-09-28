@@ -26,6 +26,7 @@ import { authStore } from '../stores/auth.svelte';
 import { backendHealth } from '../stores/backendHealth.svelte';
 import { toast } from '../stores/toast.svelte';
 import { captureApiFailure } from '../sentry';
+import { trackApiResult } from '../telemetry/telemetry';
 import { m } from '../i18n';
 import {
   DashboardApiError,
@@ -306,6 +307,39 @@ type RequestOptions = {
  * seul lui sait si la route rend du JSON ou un fichier.
  */
 async function performRequest(
+  url: string,
+  path: string,
+  options: RequestOptions,
+): Promise<Response> {
+  // Issue finale de l'appel, rejeux compris, pour la telemetrie produit :
+  // latence des lectures, enregistrements, erreurs et refus par page. Un
+  // appel annule par l'appelant (recherche relancee) n'est pas un echec.
+  const method = (options.method ?? 'GET').toUpperCase();
+  const startedAt = performance.now();
+  try {
+    const response = await performRequestAttempts(url, path, options);
+    trackApiResult({
+      method,
+      ok: response.ok,
+      durationMs: performance.now() - startedAt,
+      errorKind: response.ok ? undefined : kindFromStatus(response.status),
+    });
+    return response;
+  } catch (error) {
+    if (isDashboardApiError(error) && !options.signal?.aborted) {
+      trackApiResult({
+        method,
+        ok: false,
+        durationMs: performance.now() - startedAt,
+        errorKind: error.kind,
+        refusalCode: isExpectedRefusal(error) ? error.code : undefined,
+      });
+    }
+    throw error;
+  }
+}
+
+async function performRequestAttempts(
   url: string,
   path: string,
   options: RequestOptions,

@@ -162,7 +162,7 @@
   }
 </script>
 
-<section class="flex flex-col gap-4">
+<section class="flex flex-col gap-4" data-guide="security-presets">
   <div class="flex items-baseline justify-between gap-4">
     <h2 class="font-headline text-base font-semibold tracking-tight text-on-surface">
       {m.sec_quick_setup_title()}

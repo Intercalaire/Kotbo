@@ -63,6 +63,7 @@ import { handleGhostMembersRoutes } from './dashboard/ghostMembers.js';
 import { handleAuditEventRoutes } from './dashboard/auditEvents.js';
 import { handleWorkflowRoutes } from './dashboard/workflows.js';
 import { handleSimulationRoutes } from './dashboard/simulation.js';
+import { handleTelemetryRoute } from './dashboard/telemetry.js';
 import { featureKeysForSegment, getCachedFeatureAccess, isModuleUngatedSubroute, sharedModulesForSegment } from './dashboard/featureGate.js';
 
 /**
@@ -131,6 +132,12 @@ export async function handleDashboardRoutes(
   const user = await verifyAuth(req);
   if (!user) {
     json(res, 401, { error: 'Non authentifié' });
+    return true;
+  }
+
+  // 3ter. Télémétrie produit : hors serveur, avant les gardes d'accès par guilde
+  // (la route vérifie elle-même chaque serveur du lot).
+  if (await handleTelemetryRoute(req, res, parts, client, user)) {
     return true;
   }
 

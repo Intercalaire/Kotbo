@@ -521,7 +521,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           <span class="text-sm font-semibold text-primary bg-primary/5 px-3 py-2 rounded-lg break-all">{regulationChannelLabel}</span>
         </div>
         {#if canManageSettings}
-          <div class="space-y-2">
+          <div class="space-y-2" data-guide="regulation-channel">
             <SearchableSelect id="regulation-channel-select" bind:value={guildState.regulationChannelId} options={(guildState.discordChannels || []).map((channel: any) => ({ id: channel.id, name: channelDisplayName(channel) }))} placeholder={m.regulation_channel_default_ph()} className="w-full" on:change={(e) => handleRegulationChannelChange(e.detail.value)} disabled={saving || guildState.loading || guildState.discordChannels.length === 0} />
           </div>
         {/if}

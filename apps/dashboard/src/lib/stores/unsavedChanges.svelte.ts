@@ -4,6 +4,8 @@
  * callbacks, and the UnsavedChangesBar overlay handles displaying the prompt.
  */
 
+import { trackEvent } from '../telemetry/telemetry';
+
 type SaveCallback = () => Promise<boolean | void>;
 type ResetCallback = () => void;
 
@@ -85,12 +87,15 @@ class UnsavedChangesStore {
       // If the page callback returns false explicitly, keep dirty
       if (result === false) {
         this.saving = false;
+        trackEvent('unsaved_prompt', 'save_failed');
         return false;
       }
       this.clear();
+      trackEvent('unsaved_prompt', 'save');
       return true;
     } catch {
       this.saving = false;
+      trackEvent('unsaved_prompt', 'save_failed');
       return false;
     }
   }
@@ -99,6 +104,7 @@ class UnsavedChangesStore {
    * Trigger the registered reset callback and clear state.
    */
   reset() {
+    if (this.isDirty) trackEvent('unsaved_prompt', 'discard');
     this._onReset?.();
     this.clear();
   }
