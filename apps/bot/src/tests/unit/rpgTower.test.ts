@@ -819,7 +819,7 @@ describe('sorties d\'étage', () => {
   });
 
   test('une épreuve peut garder une clé de l\'escalier', () => {
-    let step = go(begin([room(0, 0, 'START'), room(1, 0, 'TRIAL', { key: true, waves: 2 }), room(0, 1, 'STAIRS')]), 'TRIAL');
+    let step = go(begin([room(0, 0, 'START'), room(1, 0, 'TRIAL', { key: true, waves: 2, trialReward: false }), room(0, 1, 'STAIRS')]), 'TRIAL');
     step = fight(step);
     expect(step.state.notice).toMatchObject({ k: 'victory', lock: { kind: 'key', done: 1, needed: 1 } });
     step = go(go(step, 'START'), 'STAIRS');
