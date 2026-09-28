@@ -10905,7 +10905,7 @@
   "eco_events_remove_choice": "Retirer ce choix",
   "eco_events_field_hp": "PV",
   "eco_events_field_coins": "Pièces",
-  "eco_events_field_title": "Titre remis",
+  "eco_events_field_reward_title": "Titre remis",
   "eco_events_field_min_level": "Niveau min.",
   "eco_events_add_choice": "Ajouter un choix",
   "eco_events_effects_hint": "Une valeur négative retire des PV ou des pièces. Un choix au niveau minimum trop élevé reste visible mais grisé pour les joueurs qui ne l'ont pas atteint.",
