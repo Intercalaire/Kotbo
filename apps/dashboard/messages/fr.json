@@ -11068,7 +11068,7 @@
   "eco_tower_shards_title": "Éclats",
   "eco_tower_field_currency": "Nom de la monnaie",
   "eco_tower_field_shards": "Éclats par étage",
-  "eco_tower_field_shards_hint": "Valeur de base : elle augmente tous les 10 étages, un boss en rapporte 5 fois plus.",
+  "eco_tower_field_shards_hint": "Gagnés à chaque étage gravi, pas à chaque salle. La valeur augmente tous les 10 étages et double quand l'étage se termine sur un gardien vaincu.",
   "eco_tower_field_death": "Éclats gardés à la mort (%)",
   "eco_tower_field_death_hint": "Mourir ne garde que cette part des éclats de l'ascension.",
   "eco_tower_field_cap": "Plafond hebdomadaire",

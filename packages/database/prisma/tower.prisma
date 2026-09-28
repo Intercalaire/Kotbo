@@ -27,7 +27,7 @@ model RpgTowerConfig {
   blessingEvery      Int @default(5)
   maxBlessings       Int @default(6)
 
-  shardsPerFloor     Int @default(2)
+  shardsPerFloor     Int @default(10)
   /// Part des éclats conservée après une mort, en pourcentage.
   deathShardPercent  Int @default(50)
   /// Part des éclats conservée en quittant la Tour hors palier sûr. Juste après un boss,

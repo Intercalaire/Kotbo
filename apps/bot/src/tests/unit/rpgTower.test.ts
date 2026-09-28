@@ -156,7 +156,7 @@ describe('éclats', () => {
   test('un boss et les dizaines valent plus', () => {
     expect(floorShards(3, 2, false)).toBe(2);
     expect(floorShards(12, 2, false)).toBe(4);
-    expect(floorShards(10, 2, true)).toBe(14);
+    expect(floorShards(10, 2, true)).toBe(8);
   });
 
   test('la mort retient une part, l\'abandon garde tout', () => {
@@ -462,7 +462,8 @@ describe('carte de la Tour', () => {
     step = applyTowerAction(step.state, step.floor, { type: 'door', index: 0 }, RULES, FOES, floors);
     expect(step.floor).toBe(1);
     expect(step.state.map?.depth).toBe(2);
-    expect(step.state.shards).toBeGreaterThan(0);
+    // Les éclats tombent à l'étage gravi, pas à chaque salle.
+    expect(step.state.shards).toBe(0);
     expect(step.state.gold).toBeGreaterThan(0);
     expect(step.state.map?.cleared).toContain('1-0');
 

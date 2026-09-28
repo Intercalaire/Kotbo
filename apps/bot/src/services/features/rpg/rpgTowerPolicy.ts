@@ -66,7 +66,7 @@ export const TOWER_DEFAULTS: TowerSettings = {
   bossEvery: 10,
   blessingEvery: 5,
   maxBlessings: 6,
-  shardsPerFloor: 2,
+  shardsPerFloor: 10,
   deathShardPercent: 50,
   leaveShardPercent: 80,
   weeklyShardCap: 0,
@@ -977,8 +977,12 @@ export function effectiveCooldown(cooldownTurns: number, reduction: number): num
 // ─────────────────────────────────────────────────────────────
 
 /** Éclats d'un étage franchi : la valeur croît par tranche de dix, un boss en vaut cinq de plus. */
+/**
+ * Éclats d'un étage gravi : la valeur de base, qui augmente tous les 10 étages, doublée quand
+ * l'étage se termine sur un gardien vaincu.
+ */
 export function floorShards(floor: number, shardsPerFloor: number, boss: boolean): number {
-  return shardsPerFloor * (1 + Math.floor(floor / 10)) + (boss ? shardsPerFloor * 5 : 0);
+  return shardsPerFloor * (1 + Math.floor(floor / 10)) * (boss ? 2 : 1);
 }
 
 export type TowerOutcome = 'DEAD' | 'LEFT';

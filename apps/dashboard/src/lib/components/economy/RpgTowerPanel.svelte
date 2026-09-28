@@ -161,7 +161,7 @@
     bossEvery: 10,
     blessingEvery: 5,
     maxBlessings: 6,
-    shardsPerFloor: 2,
+    shardsPerFloor: 10,
     deathShardPercent: 50,
     leaveShardPercent: 80,
     skillPrice: 10,
