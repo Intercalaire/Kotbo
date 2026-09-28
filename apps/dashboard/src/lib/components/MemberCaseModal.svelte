@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Tabs } from './ui';
+  import MemberContentPanel from './analytics/MemberContentPanel.svelte';
   import type { MemberCaseResponse } from '@kotbo/contracts';
   import FormInput from './FormInput.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte';
@@ -24,7 +25,7 @@
   import { renderLogHtml } from '../logDetails';
 
   import { errorMessage } from '@kotbo/shared';
-  type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics' | 'candidatures' | 'linked_accounts' | 'notes';
+  type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics' | 'contenu' | 'candidatures' | 'linked_accounts' | 'notes';
 
   type MemberAnalyticsResponse = {
     totalMessages: number;
@@ -626,6 +627,7 @@
     { id: 'identite', label: m.mcm_tab_identity(), icon: 'user' },
     { id: 'activite', label: m.mcm_tab_activity(), icon: 'trending-up' },
     { id: 'analytics', label: m.mcm_tab_analytics(), icon: 'bar-chart-2' },
+    { id: 'contenu', label: m.anx_member_content_tab(), icon: 'message-square' },
     { id: 'messages', label: m.mcm_tab_messages(), icon: 'message-square', count: () => caseData?.recentMessageCount ?? 0 },
     { id: 'logs', label: m.mcm_tab_logs(), icon: 'history', count: () => caseData?.recentLogCount ?? 0 },
     { id: 'sanctions', label: m.mcm_tab_sanctions(), icon: 'hammer', count: () => sanctions.length },
@@ -1699,6 +1701,9 @@
                     </div>
                   {/if}
                 </div>
+
+              {:else if activeTab === 'contenu' && userId}
+                <MemberContentPanel {userId} />
 
               {:else if activeTab === 'messages'}
                 <div class="space-y-6">

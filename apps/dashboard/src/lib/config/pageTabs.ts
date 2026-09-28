@@ -5,7 +5,7 @@ import { allPages } from './pages';
  * Onglets de chaque page, adressables par URL.
  *
  * Les pages découpent leur contenu en onglets via `tabRouting` : `/economy`
- * porte dix sections, `/analytics` une vingtaine. Ces sections sont invisibles
+ * porte dix sections, `/analytics` huit. Ces sections sont invisibles
  * pour qui cherche « bestiaire » ou « rétention » depuis la palette, qui ne
  * connaissait que les pages. Ce registre les lui donne.
  *
@@ -44,26 +44,13 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
 
   '/analytics': [
     { id: 'overview', label: () => m.an_tab_overview(), icon: 'Grid' },
-    { id: 'messages', label: () => m.an_tab_messages(), icon: 'ChatCircleDots' },
-    { id: 'voice', label: () => m.an_tab_voice(), icon: 'Microphone' },
-    { id: 'interactions', label: () => m.an_tab_network(), icon: 'Compass' },
-    { id: 'commands', label: () => m.an_tab_commands(), icon: 'Code' },
+    { id: 'activity', label: () => m.anx_section_activity(), icon: 'Activity' },
+    { id: 'content', label: () => m.anx_section_content(), icon: 'ChatCircleDots' },
+    { id: 'channels', label: () => m.anx_section_channels(), icon: 'ChatBubbles' },
     { id: 'members', label: () => m.an_tab_members(), icon: 'UsersFour' },
-    { id: 'pulse', label: () => m.an_tab_pulse(), icon: 'Activity' },
-    { id: 'channels', label: () => m.an_tab_channels(), icon: 'ChatBubbles' },
-    { id: 'social', label: () => m.an_tab_social(), icon: 'Users' },
-    { id: 'words', label: () => m.an_tab_words(), icon: 'ChatCircleDots' },
-    { id: 'ghosts', label: () => m.ghost_tab(), icon: 'Ghost' },
+    { id: 'growth', label: () => m.anx_section_growth(), icon: 'TrendingUp' },
     { id: 'moderation', label: () => m.an_tab_moderation(), icon: 'Gavel' },
-    { id: 'mod-advanced', label: () => m.an_tab_mod_advanced(), icon: 'ChartLineUp' },
-    { id: 'staff', label: () => m.an_tab_staff_directory(), icon: 'Users' },
-    { id: 'performance', label: () => m.an_tab_staff_performance(), icon: 'TrendUp' },
-    { id: 'invitations', label: () => m.an_tab_invitations(), icon: 'MailOpen' },
-    { id: 'cohorts', label: () => m.an_tab_cohorts(), icon: 'UsersFour' },
-    { id: 'churn', label: () => m.an_tab_churn(), icon: 'Warning' },
-    { id: 'heatmap', label: () => m.an_tab_heatmap(), icon: 'Fire' },
-    { id: 'weekly', label: () => m.an_tab_weekly(), icon: 'Calendar' },
-    { id: 'algo', label: () => m.an_tab_algo(), icon: 'Code' },
+    { id: 'staff', label: () => m.anx_section_staff(), icon: 'Users' },
   ],
 
   '/invitations': [

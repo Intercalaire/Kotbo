@@ -1,236 +1,236 @@
 <script lang="ts">
-import { onMount } from 'svelte';
-import { canViewFeature } from '../lib/permissions.svelte';
-import { router } from 'tinro';
-import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
-import { authStore } from '../lib/stores/auth.svelte';
-import Papicon from '../lib/components/Papicon.svelte';
-import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
-import { fetchAnalytics, fetchMemberCase, fetchInviteAnalytics, fetchHourlyHeatmap, fetchWeeklyComparison, fetchDailyAlgoAnalytics, fetchGlobalInteractions, type AdvancedAnalyticsSection } from '../lib/api';
-import AdvancedAnalyticsPanel from '../lib/components/analytics/AdvancedAnalyticsPanel.svelte';
-import GhostMembersPanel from '../lib/components/analytics/GhostMembersPanel.svelte';
-import AnalyticsSkeleton from '../lib/components/analytics/AnalyticsSkeleton.svelte';
-import LoadingHint from '../lib/components/LoadingHint.svelte';
-import StatsOverview from '../lib/components/analytics/StatsOverview.svelte';
-import EngagementMetrics from '../lib/components/analytics/EngagementMetrics.svelte';
-import MembersStats from '../lib/components/analytics/MembersStats.svelte';
-import InvitationsStats from '../lib/components/analytics/InvitationsStats.svelte';
-import ModerationAudit from '../lib/components/analytics/ModerationAudit.svelte';
-import StaffAudit from '../lib/components/analytics/StaffAudit.svelte';
-import HourlyHeatmap from '../lib/components/analytics/HourlyHeatmap.svelte';
-import WeeklyComparison from '../lib/components/analytics/WeeklyComparison.svelte';
-import DailyAlgoAnalyticsCard from '../lib/components/analytics/DailyAlgoAnalyticsCard.svelte';
-import CommandUsage from '../lib/components/analytics/CommandUsage.svelte';
-import StaffPerformance from '../lib/components/analytics/StaffPerformance.svelte';
-import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGraph.svelte';
-import { downloadXlsx } from '../lib/xlsxExport';
-import { toast } from '../lib/stores/toast.svelte';
-import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
-import { m, dateLocale } from '../lib/i18n';
+  /**
+   * Page Analytics : huit sections dans une barre latérale (des onglets sur
+   * mobile), des filtres communs au-dessus. Chaque section charge ses propres
+   * données ; les anciens composants qui dépendent de la grosse réponse
+   * /analytics la reçoivent d'ici, chargée seulement quand une section en a
+   * besoin.
+   *
+   * Pulse, Invitations et l'annuaire des invitations ont leur propre page : les
+   * anciennes adresses d'onglets y mènent ou vers la section qui les a reprises.
+   */
+  import { untrack } from 'svelte';
+  import { router } from 'tinro';
+  import { canViewFeature } from '../lib/permissions.svelte';
+  import { authStore } from '../lib/stores/auth.svelte';
+  import { toast } from '../lib/stores/toast.svelte';
+  import { downloadXlsx } from '../lib/xlsxExport';
+  import { gotoTab, resolveTabFromUrl } from '../lib/tabRouting';
+  import { m, dateLocale } from '../lib/i18n';
+  import { errorMessage } from '@kotbo/shared';
+  import { fetchAnalytics, fetchGlobalInteractions, fetchMemberCase } from '../lib/api';
+  import Papicon from '../lib/components/Papicon.svelte';
+  import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
+  import { Button, Callout, SectionCard, Tabs } from '../lib/components/ui';
+  import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
+  import AnalyticsFilterBar from '../lib/components/analytics/AnalyticsFilterBar.svelte';
+  import AnalyticsSkeleton from '../lib/components/analytics/AnalyticsSkeleton.svelte';
+  import OverviewSection from '../lib/components/analytics/OverviewSection.svelte';
+  import ActivitySection from '../lib/components/analytics/ActivitySection.svelte';
+  import ContentSection from '../lib/components/analytics/ContentSection.svelte';
+  import ChannelsSection from '../lib/components/analytics/ChannelsSection.svelte';
+  import GrowthSection from '../lib/components/analytics/GrowthSection.svelte';
+  import MembersStats from '../lib/components/analytics/MembersStats.svelte';
+  import GhostMembersPanel from '../lib/components/analytics/GhostMembersPanel.svelte';
+  import AdvancedAnalyticsPanel from '../lib/components/analytics/AdvancedAnalyticsPanel.svelte';
+  import ModerationAudit from '../lib/components/analytics/ModerationAudit.svelte';
+  import StaffAudit from '../lib/components/analytics/StaffAudit.svelte';
+  import StaffPerformance from '../lib/components/analytics/StaffPerformance.svelte';
+  import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGraph.svelte';
+  import { analyticsExport, analyticsFilters as filters } from '../lib/components/analytics/analyticsFilters.svelte';
 
-import { errorMessage } from '@kotbo/shared';
-  let data: any = $state(null);
-  let heatmapData: any = $state(null);
-  let weeklyData: any = $state(null);
-  let algoData: any = $state(null);
-  let interactionsData: any = $state(null);
-  let loading = $state(true);
-  let loadingInteractions = $state(false);
-  let error = $state('');
-  let interactionsError = $state('');
-  let period = $state(30);
-  let startDate = $state('');
-  let endDate = $state('');
-  let isCustomPeriod = $state(false);
+  type SectionId = 'overview' | 'activity' | 'content' | 'channels' | 'members' | 'growth' | 'moderation' | 'staff';
 
-  const periodPresets = $derived([
-    { label: m.an_period_24h(), value: 1 },
-    { label: m.an_period_7d(), value: 7 },
-    { label: m.an_period_30d(), value: 30 },
-    { label: m.an_period_90d(), value: 90 },
-    { label: m.an_period_365d(), value: 365 },
-    { label: m.an_period_custom(), value: 'custom' }
+  interface SectionDef {
+    id: SectionId;
+    label: string;
+    icon: string;
+    description: string;
+    /** Les filtres salon/rôle/staff s'appliquent-ils à cette section ? */
+    scope: 'full' | 'period';
+    isNew?: boolean;
+  }
+
+  const sections: SectionDef[] = $derived([
+    { id: 'overview', label: m.an_tab_overview(), icon: 'Grid', description: m.anx_section_overview_desc(), scope: 'full' },
+    { id: 'activity', label: m.anx_section_activity(), icon: 'Activity', description: m.anx_section_activity_desc(), scope: 'full' },
+    { id: 'content', label: m.anx_section_content(), icon: 'ChatCircleDots', description: m.anx_section_content_desc(), scope: 'full', isNew: true },
+    { id: 'channels', label: m.anx_section_channels(), icon: 'ChatBubbles', description: m.anx_section_channels_desc(), scope: 'period' },
+    { id: 'members', label: m.an_tab_members(), icon: 'UsersFour', description: m.anx_section_members_desc(), scope: 'period' },
+    { id: 'growth', label: m.anx_section_growth(), icon: 'TrendingUp', description: m.anx_section_growth_desc(), scope: 'period' },
+    { id: 'moderation', label: m.an_tab_moderation(), icon: 'Gavel', description: m.anx_section_moderation_desc(), scope: 'period' },
+    { id: 'staff', label: m.anx_section_staff(), icon: 'Users', description: m.anx_section_staff_desc(), scope: 'period' },
   ]);
 
-  let currentInteractionsRequestId = 0;
+  const SECTION_IDS: SectionId[] = ['overview', 'activity', 'content', 'channels', 'members', 'growth', 'moderation', 'staff'];
 
-  async function loadInteractions() {
-    const requestId = ++currentInteractionsRequestId;
-    loadingInteractions = true;
-    interactionsError = '';
-    const options = isCustomPeriod 
-      ? { startDate, endDate } 
-      : { period };
+  /** Anciens onglets : leur contenu vit dans une section, ou dans une autre page. */
+  const LEGACY_TABS: Record<string, SectionId | `/${string}`> = {
+    messages: 'activity', voice: 'activity', commands: 'activity', heatmap: 'activity', weekly: 'activity', algo: 'activity',
+    interactions: 'members', social: 'members', ghosts: 'members',
+    words: 'content',
+    cohorts: 'growth', churn: 'growth',
+    'mod-advanced': 'moderation',
+    performance: 'staff',
+    pulse: '/pulse',
+    invitations: '/invitations',
+  };
 
-    try {
-      const res = await fetchGlobalInteractions(options);
-      if (requestId === currentInteractionsRequestId) {
-        interactionsData = res;
-      }
-    } catch (e) {
-      if (requestId === currentInteractionsRequestId) {
-        console.error('Error preloading interactions:', e);
-        interactionsError = errorMessage(e) || m.an_error_interactions();
-      }
-    } finally {
-      if (requestId === currentInteractionsRequestId) {
-        loadingInteractions = false;
+  let active = $state<SectionId>('overview');
+
+  $effect(() => {
+    const path = $router.path;
+    const prefix = '/analytics/';
+    if (path.startsWith(prefix)) {
+      const segment = decodeURIComponent(path.slice(prefix.length).split('/')[0] ?? '');
+      const target = LEGACY_TABS[segment];
+      if (target) {
+        router.goto(target.startsWith('/') ? target : `/analytics/${target}`, true);
+        return;
       }
     }
-  }
-
-  async function load() {
-    loading = true; error = '';
-    const options = isCustomPeriod 
-      ? { startDate, endDate } 
-      : { period, ...(period === 1 ? { granularity: '30' } : {}) };
-
-    try { 
-      const [mainData, invites, heatmap, weekly, algo] = await Promise.all([
-        fetchAnalytics(options),
-        fetchInviteAnalytics(),
-        fetchHourlyHeatmap(isCustomPeriod ? { startDate, endDate } : { days: period }),
-        fetchWeeklyComparison(),
-        fetchDailyAlgoAnalytics(isCustomPeriod ? { startDate, endDate } : { days: period })
-      ]);
-      data = mainData;
-      invitesData = invites;
-      heatmapData = heatmap;
-      weeklyData = weekly;
-      algoData = algo;
-      
-      // Pre-charge/preload the heavy interactions graph in the background
-      loadInteractions();
-    }
-    catch (e) { error = errorMessage(e) || m.an_error_generic(); }
-    finally { loading = false; }
-  }
-
-  onMount(() => {
-    // Default to local time for datetime-local
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    endDate = now.toISOString().slice(0, 16);
-    
-    const start = new Date();
-    start.setDate(start.getDate() - 30);
-    start.setMinutes(start.getMinutes() - start.getTimezoneOffset());
-    startDate = start.toISOString().slice(0, 16);
-    
-    load();
+    active = resolveTabFromUrl('/analytics', SECTION_IDS, 'overview', path) as SectionId;
   });
 
-  function changePeriod(p: number | 'custom') { 
-    if (p === 'custom') {
-      isCustomPeriod = true;
-    } else {
-      isCustomPeriod = false;
-      period = p; 
-      load(); 
+  const current = $derived(sections.find((s) => s.id === active) ?? sections[0]!);
+
+  function go(id: string) {
+    gotoTab('/analytics', id, 'overview');
+  }
+
+  // ── Réponse /analytics historique, pour les anciens composants ─────────────
+  const NEEDS_LEGACY = new Set<SectionId>(['activity', 'members', 'moderation', 'staff']);
+  let legacy = $state<any>(null);
+  let legacyKey = '';
+  let legacyLoading = $state(false);
+  let legacyError = $state('');
+
+  $effect(() => {
+    if (!NEEDS_LEGACY.has(active)) return;
+    const period = filters.periodQuery;
+    untrack(() => loadLegacy(period));
+  });
+
+  function loadLegacy(period: { period?: number; startDate?: string; endDate?: string }) {
+    const key = JSON.stringify(period);
+    if (key === legacyKey && (legacy || legacyLoading)) return;
+    legacyKey = key;
+    legacyLoading = true;
+    legacyError = '';
+    const options = period.period === 1 ? { ...period, granularity: '30' } : period;
+    fetchAnalytics(options)
+      .then((res) => {
+        if (legacyKey !== key) return;
+        legacy = res;
+        analyticsExport.legacy = res;
+      })
+      .catch((e) => {
+        if (legacyKey === key) legacyError = errorMessage(e) || m.an_error_generic();
+      })
+      .finally(() => {
+        if (legacyKey === key) legacyLoading = false;
+      });
+  }
+
+  const isWeeklyView = $derived(!filters.isCustom && filters.days > 90);
+  const chartLabels = $derived(legacy?.dailyTrend?.map((d: any) => {
+    if (isWeeklyView) {
+      const parts = d.dateKey?.slice(5)?.split('-');
+      return { ...d, label: parts ? m.an_week_short({ date: `${parts[1]}/${parts[0]}` }) : d.dateKey?.slice(5) };
+    }
+    return { ...d, label: d.dateKey?.slice(5) };
+  }) ?? []);
+
+  const fmt = (n: number) => n?.toLocaleString(dateLocale()) ?? '0';
+  const fmtH = (mins: number) => {
+    const h = Math.floor((mins || 0) / 60);
+    const min = Math.round((mins || 0) % 60);
+    if (h > 0) return `${h}h${min > 0 ? String(min).padStart(2, '0') : ''}`;
+    return `${min}min`;
+  };
+
+  // ── Réseau d'interactions, chargé à la demande (lourd) ─────────────────────
+  let interactions = $state<any>(null);
+  let interactionsLoading = $state(false);
+  let interactionsError = $state('');
+
+  async function loadInteractions() {
+    interactionsLoading = true;
+    interactionsError = '';
+    try {
+      interactions = await fetchGlobalInteractions(filters.periodQuery);
+    } catch (e) {
+      interactionsError = errorMessage(e) || m.an_error_interactions();
+    } finally {
+      interactionsLoading = false;
     }
   }
 
-  function applyCustomRange() {
-    if (startDate && endDate) {
-      load();
+  // ── Fiche membre ───────────────────────────────────────────────────────────
+  let modalOpen = $state(false);
+  let selectedUserId = $state<string | null>(null);
+  let selectedUserName = $state('');
+  let caseData = $state<any>(null);
+  let loadingCase = $state(false);
+  let caseError = $state('');
+
+  /** La fiche membre appartient à la section Membres du centre de gestion. */
+  const canOpenMemberCase = $derived(canViewFeature('members'));
+
+  async function openMemberDetails(memberId: string, memberName: string) {
+    if (!canOpenMemberCase) return;
+    selectedUserId = memberId;
+    selectedUserName = memberName || m.an_member_fallback();
+    modalOpen = true;
+    loadingCase = true;
+    caseError = '';
+    caseData = null;
+    try {
+      caseData = await fetchMemberCase(memberId, authStore.selectedGuildId);
+    } catch (e) {
+      caseError = errorMessage(e) || m.an_case_load_error();
+    } finally {
+      loadingCase = false;
     }
   }
 
+  // ── Export ─────────────────────────────────────────────────────────────────
   type ExportRow = Record<string, string | number | boolean | null>;
   type ExportSheet = { name: string; rows: ExportRow[] };
 
-  function normalizeCellValue(value: unknown): string | number | boolean | null {
+  function cell(value: unknown): string | number | boolean | null {
     if (value === null || value === undefined) return null;
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
     return JSON.stringify(value);
   }
 
-  function normalizeRow(row: Record<string, unknown>): ExportRow {
-    return Object.fromEntries(
-      Object.entries(row).map(([key, value]) => [key, normalizeCellValue(value)])
-    ) as ExportRow;
-  }
-
-  function appendExportValue(sheets: ExportSheet[], name: string, value: unknown) {
+  function appendSheets(sheets: ExportSheet[], name: string, value: unknown) {
     if (value === null || value === undefined) return;
-
     if (Array.isArray(value)) {
       if (value.length === 0) return;
-      if (typeof value[0] === 'object' && value[0] !== null) {
-        sheets.push({
-          name,
-          rows: value.map((entry) => normalizeRow(entry as Record<string, unknown>))
-        });
-      } else {
-        sheets.push({
-          name,
-          rows: value.map((entry, index) => ({ index: index + 1, value: normalizeCellValue(entry) }))
-        });
-      }
+      sheets.push({
+        name,
+        rows: value.map((entry, index) =>
+          typeof entry === 'object' && entry !== null
+            ? Object.fromEntries(Object.entries(entry).map(([k, v]) => [k, cell(v)]))
+            : { index: index + 1, value: cell(entry) }),
+      });
       return;
     }
-
     if (typeof value === 'object') {
       const entries = Object.entries(value as Record<string, unknown>);
-      const arrayEntries = entries.filter(([, entryValue]) => Array.isArray(entryValue));
-
-      if (arrayEntries.length > 0) {
-        for (const [key, nestedValue] of arrayEntries) {
-          appendExportValue(sheets, `${name}_${key}`, nestedValue);
-        }
-
-        const scalarEntries = entries.filter(([, entryValue]) => !Array.isArray(entryValue));
-        if (scalarEntries.length > 0) {
-          sheets.push({
-            name: `${name}_meta`,
-            rows: scalarEntries.map(([key, entryValue]) => ({
-              key,
-              value: normalizeCellValue(entryValue)
-            }))
-          });
-        }
-        return;
+      for (const [key, nested] of entries) {
+        if (Array.isArray(nested)) appendSheets(sheets, `${name}_${key}`, nested);
       }
-
-      sheets.push({ name, rows: [normalizeRow(value as Record<string, unknown>)] });
-      return;
+      const scalars = entries.filter(([, v]) => !Array.isArray(v));
+      if (scalars.length > 0) sheets.push({ name: `${name}_resume`, rows: scalars.map(([key, v]) => ({ key, value: cell(v) })) });
     }
-
-    sheets.push({ name, rows: [{ value: normalizeCellValue(value) }] });
   }
 
-  function collectExportSheets(): ExportSheet[] {
+  function collectSheets(): ExportSheet[] {
     const sheets: ExportSheet[] = [];
-    appendExportValue(sheets, 'analytics_dailyTrend', data?.dailyTrend);
-    appendExportValue(sheets, 'analytics_topChannels', data?.topChannels);
-    appendExportValue(sheets, 'analytics_topVoiceChannels', data?.topVoiceChannels);
-    appendExportValue(sheets, 'analytics_topMessageMembers', data?.topMessageMembers);
-    appendExportValue(sheets, 'analytics_topVoiceMembers', data?.topVoiceMembers);
-    appendExportValue(sheets, 'analytics_topInviters', data?.topInviters);
-    appendExportValue(sheets, 'analytics_topModerators', data?.topModerators);
-    appendExportValue(sheets, 'analytics_topSanctionedMembers', data?.topSanctionedMembers);
-    appendExportValue(sheets, 'analytics_recentSanctions', data?.recentSanctions);
-    appendExportValue(sheets, 'analytics_staff', data?.staff);
-    appendExportValue(sheets, 'analytics_recruitmentPipeline', data?.recruitmentPipeline);
-    appendExportValue(sheets, 'analytics_roleDistribution', data?.roleDistribution);
-    appendExportValue(sheets, 'analytics_recentJoins', data?.recentJoins);
-    appendExportValue(sheets, 'analytics_recentLeaves', data?.recentLeaves);
-    appendExportValue(sheets, 'analytics_commandUsage', data?.commandUsage);
-    appendExportValue(sheets, 'invites', invitesData);
-    appendExportValue(sheets, 'heatmap', heatmapData);
-    appendExportValue(sheets, 'weeklyComparison', weeklyData);
-    appendExportValue(sheets, 'dailyAlgo', algoData);
-    appendExportValue(sheets, 'interactions', interactionsData);
+    for (const [name, value] of Object.entries(analyticsExport)) appendSheets(sheets, name, value);
     return sheets;
-  }
-
-  function escapeCsvCell(value: string | number | boolean | null): string {
-    if (value === null || value === undefined) return '';
-    const stringValue = String(value);
-    if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
-      return `"${stringValue.replace(/"/g, '""')}"`;
-    }
-    return stringValue;
   }
 
   function triggerDownload(content: BlobPart, fileName: string, mimeType: string) {
@@ -245,489 +245,156 @@ import { errorMessage } from '@kotbo/shared';
     URL.revokeObjectURL(url);
   }
 
-  function exportAllToCSV() {
-    const sheets = collectExportSheets();
-    if (sheets.length === 0) {
-      toast.error(m.an_export_no_data());
-      return;
-    }
+  const csvCell = (v: string | number | boolean | null) => {
+    if (v === null) return '';
+    const s = String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
 
-    const csvParts: string[] = [];
+  function exportCSV() {
+    const sheets = collectSheets();
+    if (sheets.length === 0) return toast.error(m.an_export_no_data());
+    const lines: string[] = [];
     for (const sheet of sheets) {
-      if (!sheet.rows.length) continue;
-      const headers = Array.from(new Set(sheet.rows.flatMap((row) => Object.keys(row))));
-      csvParts.push(`# ${sheet.name}`);
-      csvParts.push(headers.join(','));
-      for (const row of sheet.rows) {
-        csvParts.push(headers.map((header) => escapeCsvCell(row[header] ?? null)).join(','));
-      }
-      csvParts.push('');
+      const headers = [...new Set(sheet.rows.flatMap((r) => Object.keys(r)))];
+      lines.push(`# ${sheet.name}`, headers.join(','), ...sheet.rows.map((r) => headers.map((h) => csvCell(r[h] ?? null)).join(',')), '');
     }
-
-    const datePart = new Date().toISOString().split('T')[0];
-    triggerDownload(csvParts.join('\n'), `analytics_kotbo_all_${datePart}.csv`, 'text/csv;charset=utf-8');
+    triggerDownload(lines.join('\n'), `analytics_kotbo_${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8');
     toast.success(m.an_export_csv_done());
   }
 
-  async function exportAllToXLSX() {
-    const sheets = collectExportSheets();
-    if (sheets.length === 0) {
-      toast.error(m.an_export_no_data());
-      return;
-    }
-
-    const datePart = new Date().toISOString().split('T')[0];
-    const exported = await downloadXlsx(`analytics_kotbo_all_${datePart}.xlsx`, sheets);
-    if (!exported) {
-      toast.error(m.an_export_no_data());
-      return;
-    }
-    toast.success(m.an_export_xlsx_done());
+  async function exportXLSX() {
+    const sheets = collectSheets();
+    if (sheets.length === 0) return toast.error(m.an_export_no_data());
+    const ok = await downloadXlsx(`analytics_kotbo_${new Date().toISOString().slice(0, 10)}.xlsx`, sheets);
+    if (ok) toast.success(m.an_export_xlsx_done());
+    else toast.error(m.an_export_no_data());
   }
 
-  function sanitizeFileNamePart(value: string): string {
-    return value
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 40) || 'chart';
-  }
-
-  function isLargeGraphicElement(element: Element): boolean {
-    const rect = element.getBoundingClientRect();
-    return rect.width >= 280 && rect.height >= 160;
-  }
-
-  function resolveGraphicName(element: Element, index: number): string {
-    const titleCandidate = element
-      .closest('section, article, div')
-      ?.querySelector('h1, h2, h3, h4, h5')
-      ?.textContent
-      ?.trim();
-    const safeTitle = sanitizeFileNamePart(titleCandidate || `graph-${index}`);
-    return `${String(index).padStart(2, '0')}_${safeTitle}`;
-  }
-
-  async function svgToBlob(svg: SVGSVGElement): Promise<Blob | null> {
-    const serializer = new XMLSerializer();
-    const source = serializer.serializeToString(svg);
-    const svgBlob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(svgBlob);
-
-    try {
-      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error('Impossible de convertir le SVG'));
-        img.src = url;
-      });
-
-      const rect = svg.getBoundingClientRect();
-      const width = Math.max(1, Math.round(rect.width));
-      const height = Math.max(1, Math.round(rect.height));
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext('2d');
-      if (!context) return null;
-      context.fillStyle = '#0f1118';
-      context.fillRect(0, 0, width, height);
-      context.drawImage(image, 0, 0, width, height);
-
-      return await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
-    } finally {
-      URL.revokeObjectURL(url);
-    }
-  }
-
-  async function exportAllChartsAsImages() {
+  async function exportImages() {
     const root = document.getElementById('analytics-export-root');
-    if (!root) {
-      toast.error(m.an_export_root_missing());
-      return;
-    }
-
-    const canvases = Array.from(root.querySelectorAll('canvas')).filter(isLargeGraphicElement);
-    const svgs = Array.from(root.querySelectorAll('svg')).filter(isLargeGraphicElement);
-
-    if (canvases.length === 0 && svgs.length === 0) {
-      toast.error(m.an_export_no_visible_chart());
-      return;
-    }
-
-    let exportedCount = 0;
-
+    const canvases = root ? [...root.querySelectorAll('canvas')].filter((c) => c.width >= 280 && c.height >= 160) : [];
+    if (canvases.length === 0) return toast.error(m.an_export_no_visible_chart());
+    let count = 0;
     for (const [index, canvas] of canvases.entries()) {
       const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
       if (!blob) continue;
-      triggerDownload(blob, `analytics_${resolveGraphicName(canvas, index + 1)}.png`, 'image/png');
-      exportedCount += 1;
+      triggerDownload(blob, `analytics_${active}_${String(index + 1).padStart(2, '0')}.png`, 'image/png');
+      count += 1;
     }
-
-    const startIndex = exportedCount;
-    for (const [index, svg] of svgs.entries()) {
-      const blob = await svgToBlob(svg);
-      if (!blob) continue;
-      triggerDownload(blob, `analytics_${resolveGraphicName(svg, startIndex + index + 1)}.png`, 'image/png');
-      exportedCount += 1;
-    }
-
-    if (exportedCount === 0) {
-      toast.error(m.an_export_images_failed());
-      return;
-    }
-
-    toast.success(m.an_export_images_done({ count: exportedCount }));
+    if (count === 0) toast.error(m.an_export_images_failed());
+    else toast.success(m.an_export_images_done({ count }));
   }
-
-  let activeCategory = $state('overview');
-  let activeTab = $state('overview');
-
-  const categories = $derived([
-    { id: 'overview', label: m.an_cat_overview(), icon: 'Grid', description: m.an_cat_overview_desc() },
-    { id: 'engagement', label: m.an_cat_engagement(), icon: 'ChatBubbles', description: m.an_cat_engagement_desc() },
-    { id: 'community', label: m.an_cat_community(), icon: 'Compass', description: m.an_cat_community_desc() },
-    { id: 'growth', label: m.an_cat_growth(), icon: 'TrendingUp', description: m.an_cat_growth_desc() },
-    { id: 'moderation', label: m.an_cat_moderation(), icon: 'Gavel', description: m.an_cat_moderation_desc() },
-    { id: 'invitations', label: m.an_cat_invitations(), icon: 'MailOpen', description: m.an_cat_invitations_desc() },
-  ]);
-
-  const tabsByCategory: Record<string, Array<{ id: string; label: string; icon: string; badge?: string; disabled?: boolean }>> = $derived({
-    overview: [
-      { id: 'overview', label: m.an_tab_overview(), icon: 'Grid' },
-    ],
-    engagement: [
-      { id: 'messages', label: m.an_tab_messages(), icon: 'ChatCircleDots' },
-      { id: 'voice', label: m.an_tab_voice(), icon: 'Microphone' },
-      { id: 'interactions', label: m.an_tab_network(), icon: 'Compass' },
-      { id: 'commands', label: m.an_tab_commands(), icon: 'Code' },
-      { id: 'members', label: m.an_tab_members(), icon: 'UsersFour' },
-    ],
-    community: [
-      { id: 'pulse', label: m.an_tab_pulse(), icon: 'Activity' },
-      { id: 'channels', label: m.an_tab_channels(), icon: 'ChatBubbles' },
-      { id: 'social', label: m.an_tab_social(), icon: 'Users' },
-      { id: 'words', label: m.an_tab_words(), icon: 'ChatCircleDots' },
-      { id: 'ghosts', label: m.ghost_tab(), icon: 'Ghost' },
-    ],
-    moderation: [
-      { id: 'moderation', label: m.an_tab_moderation(), icon: 'Gavel' },
-      { id: 'mod-advanced', label: m.an_tab_mod_advanced(), icon: 'ChartLineUp' },
-      { id: 'staff', label: m.an_tab_staff_directory(), icon: 'Users' },
-      { id: 'performance', label: m.an_tab_staff_performance(), icon: 'TrendUp' },
-    ],
-    invitations: [
-      { id: 'invitations', label: m.an_tab_invitations(), icon: 'MailOpen' },
-    ],
-    growth: [
-      { id: 'cohorts', label: m.an_tab_cohorts(), icon: 'UsersFour' },
-      { id: 'churn', label: m.an_tab_churn(), icon: 'Warning' },
-      { id: 'heatmap', label: m.an_tab_heatmap(), icon: 'Fire' },
-      { id: 'weekly', label: m.an_tab_weekly(), icon: 'Calendar' },
-      { id: 'algo', label: m.an_tab_algo(), icon: 'Code' },
-    ],
-  });
-
-  /** Onglets servis par AdvancedAnalyticsPanel (chargent leurs propres données). */
-  const ADVANCED_TABS: Record<string, AdvancedAnalyticsSection> = {
-    pulse: 'activity',
-    channels: 'channels',
-    social: 'social',
-    words: 'words',
-    cohorts: 'retention',
-    churn: 'churn',
-    'mod-advanced': 'moderation',
-  };
-
-  const allValidTabs = $derived(Object.values(tabsByCategory).flatMap(tabs => tabs.map(t => t.id)));
-
-  function categoryForTab(tabId: string): string {
-    for (const [catId, tabs] of Object.entries(tabsByCategory)) {
-      if (tabs.some(t => t.id === tabId)) return catId;
-    }
-    return 'overview';
-  }
-
-  $effect(() => {
-    const _path = $router.path;
-    const tab = resolveTabFromUrl('/analytics', allValidTabs, 'overview');
-    activeTab = tab;
-    activeCategory = categoryForTab(tab);
-  });
-
-  function selectTab(tab: { id: string; disabled?: boolean }) {
-    if (tab.disabled) return;
-    gotoTab('/analytics', tab.id, 'overview');
-  }
-
-  const currentTabs = $derived(tabsByCategory[activeCategory] || []);
-
-  let invitesData: any = $state(null);
-  
-  // Member Case Modal state
-  let modalOpen = $state(false);
-  let selectedUserId = $state<string | null>(null);
-  let selectedUserName = $state('');
-  let caseData = $state<any>(null);
-  let loadingCase = $state(false);
-  let caseError = $state('');
-
-
-  /**
-   * Le dossier membre appartient a la section Membres : la fenetre ne s'ouvre
-   * pas pour un role a qui le centre de gestion l'a fermee, quelle que soit la
-   * page qui la demande.
-   */
-  const canOpenMemberCase = $derived(canViewFeature('members'));
-
-  async function openMemberDetails(memberId: string, memberName: string) {
-    if (!canOpenMemberCase) return;
-    selectedUserId = memberId;
-    selectedUserName = memberName || m.an_member_fallback();
-    modalOpen = true;
-    loadingCase = true;
-    caseError = '';
-    caseData = null;
-
-    try {
-      caseData = await fetchMemberCase(memberId, authStore.selectedGuildId);
-    } catch (e) {
-      console.error(e);
-      caseError = errorMessage(e) || m.an_case_load_error();
-    } finally {
-      loadingCase = false;
-    }
-  }
-
-  const fmt = (n: number) => n?.toLocaleString(dateLocale()) ?? '0';
-  const fmtH = (mins: number) => { 
-    const h = Math.floor((mins || 0) / 60); 
-    const m = Math.round((mins || 0) % 60); 
-    if (h > 0) return `${h}h${m > 0 ? String(m).padStart(2, '0') : ''}`;
-    return `${m}min`;
-  };
-  const isWeeklyView = $derived(!isCustomPeriod && period > 90);
-  const chartLabels = $derived(data?.dailyTrend?.map((d: any) => {
-    if (isWeeklyView) {
-      // dateKey is already the Monday of the week
-      const parts = d.dateKey?.slice(5)?.split('-');
-      return { ...d, label: parts ? m.an_week_short({ date: `${parts[1]}/${parts[0]}` }) : d.dateKey?.slice(5) };
-    }
-    return { ...d, label: d.dateKey?.slice(5) };
-  }) ?? []);
 </script>
 
-<div id="analytics-export-root" class="analytics-page space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 max-w-7xl mx-auto px-0 sm:px-4 md:px-8">
-  <!-- Header -->
-  <div class="relative overflow-hidden bg-surface-container-low/30 p-5 md:p-6 rounded-xl border border-outline-variant/10 group">
-    <div class="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-64 h-64 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors duration-1000"></div>
-
-    <div class="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-      <div class="analytics-page__identity flex min-w-0 items-center gap-4">
-        <div class="bg-primary/10 p-2 rounded-xl text-primary">
-          <Papicon icon="ChartLineUp" size={20} />
-        </div>
-        <div class="min-w-0">
-          <span class="text-xs font-medium text-primary">{m.an_header_eyebrow()}</span>
-          <h2 class="text-lg font-semibold tracking-tight text-on-surface font-headline leading-tight">
-            {m.an_header_title_lead()} <span class="text-primary">{m.an_header_title_accent()}</span>
-          </h2>
-          <p class="text-on-surface-variant/60 text-sm max-w-md">{m.an_header_desc()}</p>
-        </div>
-      </div>
-
-      <div class="analytics-page__actions flex flex-col items-end gap-3 w-full md:w-auto">
-        <div class="flex w-full flex-wrap items-center justify-end gap-2">
-          <ExportDropdown
-            onExportCSV={exportAllToCSV}
-            onExportXLSX={exportAllToXLSX}
-            onExportImage={exportAllChartsAsImages}
-          />
-
-          <div class="flex flex-col gap-2">
-            <div class="analytics-period-presets flex gap-1 bg-surface-container-high/40 p-1.5 rounded-lg border border-outline-variant/10 overflow-x-auto no-scrollbar">
-              {#each periodPresets as p}
-                <button
-                  onclick={() => changePeriod(p.value as any)}
-                  class="px-3 py-2 rounded-lg text-xs font-medium transition-all duration-300 whitespace-nowrap { (isCustomPeriod ? p.value === 'custom' : period === p.value) ? 'bg-on-surface text-surface shadow-sm' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
-                >
-                  {p.label}
-                </button>
-              {/each}
-            </div>
-
-            {#if isCustomPeriod}
-              <div class="analytics-custom-range flex flex-wrap items-center gap-2 animate-in fade-in zoom-in-95 duration-300">
-                <input
-                  type="datetime-local"
-                  bind:value={startDate}
-                  class="bg-surface-container-low border border-outline-variant/10 rounded-lg px-3 py-1.5 text-xs text-on-surface focus:outline-none focus:border-primary transition-colors"
-                />
-                <span class="text-2xs font-bold text-on-surface-variant/40">{m.an_range_to()}</span>
-                <input
-                  type="datetime-local"
-                  bind:value={endDate}
-                  class="bg-surface-container-low border border-outline-variant/10 rounded-lg px-3 py-1.5 text-xs text-on-surface focus:outline-none focus:border-primary transition-colors"
-                />
-                <button
-                  onclick={applyCustomRange}
-                  class="bg-primary text-on-primary px-3 py-1.5 rounded-lg text-xs font-medium hover:brightness-110 transition-all"
-                >
-                  {m.an_apply()}
-                </button>
-              </div>
-            {/if}
-          </div>
-        </div>
-        {#if data?.totals}
-          <div class="flex items-center gap-3 text-xs font-bold text-on-surface-variant/40 bg-surface-container-low/40 px-3 py-1.5 rounded-lg border border-outline-variant/5">
-             <div class="flex items-center gap-2">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>{m.an_live_feed()}</span>
-             </div>
-             <span class="w-px h-3 bg-outline-variant/20"></span>
-             <span>{m.an_last_update({ time: new Date().toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' }) })}</span>
-          </div>
-        {/if}
-      </div>
+<div id="analytics-export-root" class="analytics-v2 mx-auto flex max-w-7xl flex-col gap-5 pb-20">
+  <header class="flex flex-wrap items-end justify-between gap-4">
+    <div class="flex min-w-0 flex-col gap-1">
+      <h1 class="font-headline text-2xl font-semibold text-on-surface">{m.anx_page_title()}</h1>
+      <p class="max-w-2xl text-body-sm text-on-surface-variant">{current.description}</p>
     </div>
-  </div>
+    <ExportDropdown onExportCSV={exportCSV} onExportXLSX={exportXLSX} onExportImage={exportImages} />
+  </header>
 
-  <!-- Navigation Catégories -->
-  <div class="analytics-category-nav sticky flex justify-center">
-    <div class="analytics-category-list flex gap-1 bg-surface-container-low/60 p-1.5 rounded-xl border border-outline-variant/10 shadow-sm shadow-surface/20 overflow-x-auto no-scrollbar max-w-full">
-      {#each categories as cat}
-        <button 
-          onclick={() => { const firstTab = tabsByCategory[cat.id]?.[0]?.id || cat.id; gotoTab('/analytics', firstTab, 'overview'); }}
-          class="flex items-center gap-2.5 px-6 py-3.5 rounded-xl text-xs font-medium transition-all duration-400 whitespace-nowrap group {activeCategory === cat.id ? 'bg-primary text-on-primary shadow-sm scale-[1.02]' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
-          title={cat.description}
-        >
-          <div class="transition-transform group-hover:scale-110 {activeCategory === cat.id ? 'text-on-primary' : 'text-primary'}">
-            <Papicon icon={cat.icon} size={16} />
-          </div>
-          {cat.label}
-        </button>
-      {/each}
-    </div>
-  </div>
-
-  <!-- Navigation Onglets (sous-catégories) -->
-  {#if currentTabs.length > 1}
-    <div class="flex justify-center">
-      <div class="analytics-subcategory-list flex max-w-full gap-1 overflow-x-auto bg-surface-container p-1.5 rounded-lg border border-outline-variant no-scrollbar">
-        {#each currentTabs as tab}
-          <button 
-            onclick={() => selectTab(tab)}
-            disabled={tab.disabled}
-            aria-disabled={tab.disabled}
-            class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-medium transition-all duration-300 whitespace-nowrap {tab.disabled ? 'bg-surface-container-high/40 text-on-surface-variant/30 cursor-not-allowed opacity-70' : activeTab === tab.id ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+  <div class="analytics-v2__layout">
+    <aside class="analytics-v2__sidebar">
+      <nav aria-label={m.anx_nav_label()} class="flex flex-col gap-0.5">
+        {#each sections as section (section.id)}
+          <button
+            type="button"
+            class="side-link"
+            aria-current={section.id === active ? 'page' : undefined}
+            onclick={() => go(section.id)}
           >
-            <div class="transition-transform {tab.disabled ? 'text-on-surface-variant/30' : activeTab === tab.id ? 'text-on-primary' : 'text-primary'}">
-              <Papicon icon={tab.icon} size={14} />
-            </div>
-            {tab.label}
-            {#if tab.badge}
-              <span class="ml-1 rounded-full border border-current/20 bg-current/10 px-2 py-0.5 text-xs font-medium {tab.disabled ? 'text-on-surface-variant/35' : 'text-current/80'}">
-                {tab.badge}
-              </span>
-            {/if}
+            <Papicon icon={section.icon} size={18} />
+            <span class="truncate">{section.label}</span>
+            {#if section.isNew}<span class="side-link__badge">{m.anx_badge_new()}</span>{/if}
           </button>
         {/each}
+      </nav>
+      <div class="flex flex-col gap-1 border-t border-outline-variant pt-3">
+        <span class="px-3 text-2xs text-on-surface-variant">{m.anx_nav_elsewhere()}</span>
+        <a class="side-link side-link--quiet" href="/pulse"><Papicon icon="activity" size={16} />{m.nav_pulse()}</a>
+        <a class="side-link side-link--quiet" href="/invitations"><Papicon icon="link" size={16} />{m.nav_invitations()}</a>
       </div>
-    </div>
-  {/if}
+    </aside>
 
-
-  {#if activeTab === 'ghosts'}
-    <!-- Audit de présence silencieuse : autonome, charge ses propres données -->
-    <GhostMembersPanel onOpenMember={openMemberDetails} />
-  {:else if ADVANCED_TABS[activeTab]}
-    <!-- Sections avancées : autonomes, elles chargent et cachent leurs propres données -->
-    <AdvancedAnalyticsPanel section={ADVANCED_TABS[activeTab]} onOpenMember={openMemberDetails} />
-  {:else if loading}
-    <AnalyticsSkeleton />
-    <div class="flex justify-center mt-4">
-      <LoadingHint context="analytics" />
-    </div>
-  {:else if error}
-
-    <div class="bg-error-container/10 border border-error/20 p-5 rounded-xl text-error text-sm font-bold flex items-center gap-3">
-      <Papicon icon="alert-octagon" size={20} />{error}
-    </div>
-  {:else if data}
-
-    {#if activeTab === 'overview'}
-      <StatsOverview {data} {chartLabels} />
-    {:else if activeTab === 'messages' || activeTab === 'voice'}
-      <EngagementMetrics {data} mode={activeTab} onOpenMember={openMemberDetails} />
-    {:else if activeTab === 'interactions'}
-      {#if loadingInteractions}
-        <div class="w-full h-155 rounded-xl border border-white/5 bg-surface-container-low/50 flex flex-col items-center justify-center gap-4 text-on-surface-variant p-8">
-          <div class="relative w-16 h-16 flex items-center justify-center">
-            <div class="absolute inset-0 rounded-full border-4 border-primary/10 border-t-primary animate-spin"></div>
-            <div class="absolute inset-2 rounded-full border-4 border-secondary/10 border-t-secondary animate-spin" style="animation-direction: reverse; animation-duration: 1.5s;"></div>
-          </div>
-          <div class="flex flex-col items-center text-center mt-2">
-            <span class="text-sm font-semibold text-primary animate-pulse">{m.an_network_loading()}</span>
-            <LoadingHint context="network" />
-          </div>
-        </div>
-      {:else if interactionsError}
-        <div class="w-full h-155 rounded-xl border border-error/10 bg-error-container/5 flex flex-col items-center justify-center gap-4 text-error p-8 text-center">
-          <div class="w-12 h-12 rounded-full bg-error/10 flex items-center justify-center text-error mb-2">
-            <Papicon icon="alert-octagon" size={24} />
-          </div>
-          <span class="text-sm font-semibold">{m.an_network_error()}</span>
-          <span class="text-xs text-on-surface-variant/60 max-w-md">{interactionsError}</span>
-          <button 
-            onclick={loadInteractions}
-            class="mt-2 px-5 py-2.5 bg-error/10 hover:bg-error/20 border border-error/20 hover:border-error/30 rounded-full text-body-sm font-medium transition-all hover:scale-[1.02] active:scale-[0.98]"
-          >
-            {m.an_retry()}
-          </button>
-        </div>
-      {:else if interactionsData}
-        <GlobalInteractionGraph 
-          nodes={interactionsData.nodes || []} 
-          edges={interactionsData.edges || []} 
-          hiddenMembersCount={interactionsData.hiddenMembersCount || 0} 
-          onSelectNode={(userId) => openMemberDetails(userId, m.an_loading_short())}
+    <div class="flex min-w-0 flex-col gap-4">
+      <div class="analytics-v2__tabs">
+        <Tabs
+          label={m.anx_nav_label()}
+          tabs={sections.map((s) => ({ id: s.id, label: s.label, icon: s.icon, badge: s.isNew ? m.anx_badge_new() : undefined }))}
+          active={active}
+          onchange={go}
         />
-      {/if}
-    {:else if activeTab === 'members'}
-      <MembersStats {data} {chartLabels} onOpenMember={openMemberDetails} />
-    {:else if activeTab === 'invitations'}
-      <InvitationsStats {invitesData} />
-    {:else if activeTab === 'moderation'}
-      <ModerationAudit {data} {chartLabels} onOpenMember={openMemberDetails} />
-    {:else if activeTab === 'staff'}
-      <StaffAudit {data} onOpenMember={openMemberDetails} {fmt} {fmtH} />
-    {:else if activeTab === 'heatmap' && heatmapData}
-      <HourlyHeatmap data={heatmapData} />
-    {:else if activeTab === 'weekly' && weeklyData}
-      <WeeklyComparison data={weeklyData} />
-    {:else if activeTab === 'algo' && algoData}
-      <DailyAlgoAnalyticsCard data={algoData} />
-    {:else if activeTab === 'commands'}
-      {#if data?.commandUsage && data.commandUsage.length > 0}
-        <CommandUsage data={data.commandUsage} />
-      {:else}
-        <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-10 text-center">
-          <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Papicon icon="Code" size={26} />
-          </div>
-          <h3 class="text-lg font-semibold text-on-surface">{m.an_commands_empty_title()}</h3>
-          <p class="mt-2 text-sm text-on-surface-variant/70">
-            {m.an_commands_empty_desc()}
-          </p>
-        </div>
-      {/if}
-    {:else if activeTab === 'performance' && data?.staffPerformance}
-      <StaffPerformance data={data.staffPerformance} onOpenMember={openMemberDetails} />
-    {/if}
-  {/if}
+      </div>
 
-  <!-- Member Case Modal -->
+      <AnalyticsFilterBar scopeSupport={current.scope} />
+
+      {#key active}
+        {#if active === 'overview'}
+          <OverviewSection onNavigate={go} />
+        {:else if active === 'activity'}
+          <ActivitySection {legacy} {legacyLoading} onOpenMember={openMemberDetails} />
+        {:else if active === 'content'}
+          <ContentSection onOpenMember={openMemberDetails} />
+        {:else if active === 'channels'}
+          <ChannelsSection onOpenMember={openMemberDetails} />
+        {:else if active === 'growth'}
+          <GrowthSection onOpenMember={openMemberDetails} />
+        {:else if legacyError}
+          <Callout variant="danger" title={m.an_error_generic()}>{legacyError}</Callout>
+        {:else if !legacy}
+          <AnalyticsSkeleton />
+        {:else if active === 'members'}
+          <div class="flex flex-col gap-4">
+            <MembersStats data={legacy} {chartLabels} onOpenMember={openMemberDetails} />
+            <SectionCard title={m.an_tab_network()} description={m.anx_network_desc()}>
+              {#if interactions}
+                <GlobalInteractionGraph
+                  nodes={interactions.nodes || []}
+                  edges={interactions.edges || []}
+                  hiddenMembersCount={interactions.hiddenMembersCount || 0}
+                  onSelectNode={(userId) => openMemberDetails(userId, m.an_loading_short())}
+                />
+              {:else if interactionsError}
+                <Callout variant="danger" title={m.an_network_error()}>
+                  {interactionsError}
+                  {#snippet actions()}<Button size="sm" onclick={loadInteractions}>{m.an_retry()}</Button>{/snippet}
+                </Callout>
+              {:else}
+                <Button icon="Compass" loading={interactionsLoading} onclick={loadInteractions}>{m.anx_network_show()}</Button>
+              {/if}
+            </SectionCard>
+            <div class="flex flex-col gap-2">
+              <h3 class="text-sm font-semibold text-on-surface">{m.an_tab_social()}</h3>
+              <AdvancedAnalyticsPanel section="social" onOpenMember={openMemberDetails} />
+            </div>
+            <div class="flex flex-col gap-2">
+              <h3 class="text-sm font-semibold text-on-surface">{m.ghost_tab()}</h3>
+              <GhostMembersPanel onOpenMember={openMemberDetails} />
+            </div>
+          </div>
+        {:else if active === 'moderation'}
+          <div class="flex flex-col gap-4">
+            <ModerationAudit data={legacy} {chartLabels} onOpenMember={openMemberDetails} />
+            <div class="flex flex-col gap-2">
+              <h3 class="text-sm font-semibold text-on-surface">{m.an_tab_mod_advanced()}</h3>
+              <AdvancedAnalyticsPanel section="moderation" onOpenMember={openMemberDetails} />
+            </div>
+          </div>
+        {:else if active === 'staff'}
+          <div class="flex flex-col gap-4">
+            <StaffAudit data={legacy} onOpenMember={openMemberDetails} {fmt} {fmtH} />
+            {#if legacy.staffPerformance}
+              <StaffPerformance data={legacy.staffPerformance} onOpenMember={openMemberDetails} />
+            {/if}
+          </div>
+        {/if}
+      {/key}
+    </div>
+  </div>
+
   <MemberCaseModal
     bind:open={modalOpen}
     userId={selectedUserId}
@@ -735,94 +402,136 @@ import { errorMessage } from '@kotbo/shared';
     {caseData}
     loading={loadingCase}
     error={caseError}
-    onClose={() => {
-      modalOpen = false;
-    }}
-    onSelectUser={(userId) => {
-      openMemberDetails(userId, m.an_loading_short());
-    }}
+    onClose={() => (modalOpen = false)}
+    onSelectUser={(userId) => openMemberDetails(userId, m.an_loading_short())}
   />
 </div>
 
 <style>
-  /* La navbar du dashboard est `fixed` : sans cet offset la barre de catégories
-     se colle au bord de la fenêtre et se retrouve masquée derrière, boutons
-     compris. Le z-index passe devant la navbar pour les quelques pixels où les
-     deux se chevauchent pendant le scroll. */
-  .analytics-category-nav {
-    top: calc(var(--app-navbar-height) + 0.75rem);
-    z-index: calc(var(--app-navbar-z) + 1);
+  .analytics-v2__layout {
+    display: grid;
+    grid-template-columns: 13.5rem minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: start;
   }
 
-  @media (max-width: 767px) {
-    .analytics-page__identity {
-      align-items: flex-start;
+  .analytics-v2__sidebar {
+    position: sticky;
+    top: calc(var(--app-navbar-height) + 1rem);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .analytics-v2__tabs {
+    display: none;
+  }
+
+  .side-link {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    width: 100%;
+    min-height: 2.5rem;
+    padding: 0 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-align: left;
+    color: var(--color-on-surface-variant);
+  }
+
+  .side-link:hover {
+    background: var(--color-surface-container);
+    color: var(--color-on-surface);
+  }
+
+  .side-link:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 1px;
+  }
+
+  .side-link[aria-current='page'] {
+    background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+    color: var(--color-primary);
+  }
+
+  .side-link--quiet {
+    min-height: 2.25rem;
+    font-size: 0.8125rem;
+  }
+
+  .side-link__badge {
+    margin-left: auto;
+    padding: 0.0625rem 0.4375rem;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+  }
+
+  /* Grilles partagées par les sections. */
+  .analytics-v2 :global(.kpi-grid) {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(var(--kpi-cols, 4), minmax(0, 1fr));
+  }
+
+  .analytics-v2 :global(.kpi-grid--4) {
+    --kpi-cols: 4;
+  }
+
+  .analytics-v2 :global(.kpi-grid--5) {
+    --kpi-cols: 5;
+  }
+
+  .analytics-v2 :global(.section-grid) {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .analytics-v2 :global(.span-4) { grid-column: span 4; }
+  .analytics-v2 :global(.span-5) { grid-column: span 5; }
+  .analytics-v2 :global(.span-6) { grid-column: span 6; }
+  .analytics-v2 :global(.span-7) { grid-column: span 7; }
+  .analytics-v2 :global(.span-12) { grid-column: span 12; }
+
+  @media (max-width: 1279px) {
+    .analytics-v2 :global(.kpi-grid--5) {
+      --kpi-cols: 3;
     }
 
-    .analytics-page__actions {
-      align-items: stretch;
+    .analytics-v2 :global(.span-4),
+    .analytics-v2 :global(.span-5),
+    .analytics-v2 :global(.span-7) {
+      grid-column: span 12;
+    }
+  }
+
+  @media (max-width: 1023px) {
+    .analytics-v2__layout {
+      grid-template-columns: minmax(0, 1fr);
     }
 
-    .analytics-custom-range > input {
-      min-width: min(100%, 12rem);
-      flex: 1 1 12rem;
-    }
-
-    .analytics-custom-range > button {
-      min-height: 2.75rem;
-      flex: 1 1 100%;
-    }
-
-    .analytics-category-nav {
-      top: calc(var(--mobile-topbar-height) + env(safe-area-inset-top) + 0.5rem);
-      margin-right: -0.5rem;
-      margin-left: -0.5rem;
-    }
-
-    /* A horizontal scroller hides how many categories exist. Wrapping them into
-       a grid shows the whole set at once, which matters more than compactness
-       when the user is hunting for one report. */
-    .analytics-period-presets,
-    .analytics-category-list {
-      display: grid;
-      width: 100%;
-      overflow: visible;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
-    .analytics-period-presets > button {
-      min-width: 0;
-      padding-right: 0.5rem;
-      padding-left: 0.5rem;
-      white-space: normal;
-    }
-
-    .analytics-category-list > button {
-      min-width: 0;
-      justify-content: center;
-      gap: 0.25rem;
-      padding: 0.75rem 0.35rem;
-      font-size: 0.6875rem;
-      white-space: normal;
-    }
-
-    .analytics-category-list > button > div {
+    .analytics-v2__sidebar {
       display: none;
     }
 
-    .analytics-subcategory-list {
-      display: grid;
-      width: 100%;
-      overflow: visible;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+    .analytics-v2__tabs {
+      display: block;
     }
 
-    .analytics-subcategory-list > button {
-      min-width: 0;
-      justify-content: center;
-      padding-right: 0.5rem;
-      padding-left: 0.5rem;
-      white-space: normal;
+    .analytics-v2 :global(.span-6) {
+      grid-column: span 12;
+    }
+  }
+
+  @media (max-width: 639px) {
+    .analytics-v2 :global(.kpi-grid) {
+      --kpi-cols: 2;
     }
   }
 </style>
