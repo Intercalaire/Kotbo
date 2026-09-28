@@ -42,6 +42,7 @@ import {
 import {
   TOWER_CHEST_KINDS,
   TOWER_FLOORS_AFTER,
+  TOWER_FLOOR_MODIFIERS,
   TOWER_FLOORS_MAX,
   TOWER_FLOOR_NAME_MAX,
   TOWER_MAP_ROOMS_MAX,
@@ -55,7 +56,7 @@ import {
 const roomSchema = z.object({
   x: z.number().int().min(0),
   y: z.number().int().min(0),
-  type: z.enum(TOWER_ROOM_TYPES).describe('START départ (un seul). Sorties, exactement une par étage : BOSS (gardien, salle 2×2 ancrée en haut à gauche), STAIRS (escalier scellé, ouvert par les clés), TRIAL (épreuve : trois vagues sans fuite), GATE (portail, ouvert par les sceaux). SEAL (sceau gardé par une élite, seulement avec GATE). Autres : MONSTER, ELITE, CHEST, CAMPFIRE, MERCHANT, SHRINE (bénédiction), EVENT (choix narratif), EMPTY (couloir)'),
+  type: z.enum(TOWER_ROOM_TYPES).describe('START départ (un seul). Sorties, exactement une par étage : BOSS (gardien, salle 2×2 ancrée en haut à gauche), STAIRS (escalier scellé, ouvert par les clés), TRIAL (épreuve : trois vagues sans fuite), GATE (porte scellée, ouverte par les sceaux). SEAL (sceau gardé par une élite, seulement avec GATE). Autres : MONSTER, ELITE, CHEST, MIMIC (se présente comme un coffre, cache une élite au butin garanti), CAMPFIRE, MERCHANT, MERCENARY (allié payant qui frappe à chaque tour jusqu'à la fin de l'étage), SHRINE (bénédiction), EVENT (choix narratif), TRAP (dégâts à l'entrée, évités selon la vitesse), WARP_A et WARP_B (paire de portails liés : entrer dans l'un permet de passer dans l'autre ; une seule paire par étage, A et B ensemble), EMPTY (couloir)'),
   foe: z.string().nullable().optional().describe('MONSTER/ELITE/BOSS : créature imposée (nom exact du bestiaire), sinon tirée au hasard'),
   traits: z.array(z.enum(TOWER_TRAITS)).max(TOWER_ROOM_TRAITS_MAX).optional().describe('MONSTER/ELITE/BOSS : traits imposés (vide : tirés au hasard ; une élite et un gardien en ont un)'),
   mechanic: z.enum(TOWER_MECHANIC_CHOICES).optional().describe('BOSS : mécanique du gardien (RANDOM par défaut, NONE pour aucune)'),
@@ -70,6 +71,7 @@ const roomSchema = z.object({
 const floorSchema = z.object({
   name: z.string().max(TOWER_FLOOR_NAME_MAX).optional().describe("Nom de l'étage (« Caserne », « Crypte »…)"),
   fog: z.boolean().optional().describe('Brouillard de guerre : seules les salles visitées et leurs voisines se voient'),
+  modifier: z.enum(TOWER_FLOOR_MODIFIERS).optional().describe('Ambiance : NONE, FLOODED (vitesse -20 %), BURNING (chaque nouvelle salle brûle 3 % des PV), BLESSED (soins +25 %)'),
   width: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max),
   height: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max),
   rooms: z.array(roomSchema).max(TOWER_MAP_ROOMS_MAX),
@@ -244,7 +246,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
     server.registerTool(
       'save_rpg_tower_layout',
       {
-        description: `Dessine les étages de la Tour. Chaque étage est une carte : une grille (${TOWER_MAP_SIZE.min} à ${TOWER_MAP_SIZE.max} cases de côté, ${TOWER_MAP_ROOMS_MAX} salles au plus) où deux salles qui se touchent par un côté communiquent ; une case sans salle est un mur. Il faut un seul départ, exactement une sortie (BOSS gardien, STAIRS escalier scellé avec au moins une clé, TRIAL épreuve, GATE portail avec au moins un SEAL), et toutes les salles reliées au départ. Battre le gardien fait monter à l'étage suivant ; les ${TOWER_FLOORS_MAX} étages au plus se jouent dans l'ordre, puis la tour reprend au premier, plus dure. \`floors\` remplace toute la tour ; sinon \`floor\` (1 = rez-de-chaussée) désigne l'étage à modifier ou à ajouter à la suite, avec \`name\`, \`width\`, \`height\`, \`rooms\`, ou \`useDefault: true\` pour la carte d'exemple. \`removeFloor\` retire l'étage \`floor\`. Sans aucun étage, la Tour génère les siens. Un joueur garde la carte de l'étage où il se trouve ; les étages suivants suivent la tour enregistrée. Requiert WRITE_MEMBERS.`,
+        description: `Dessine les étages de la Tour. Chaque étage est une carte : une grille (${TOWER_MAP_SIZE.min} à ${TOWER_MAP_SIZE.max} cases de côté, ${TOWER_MAP_ROOMS_MAX} salles au plus) où deux salles qui se touchent par un côté communiquent ; une case sans salle est un mur. Il faut un seul départ, exactement une sortie (BOSS gardien, STAIRS escalier scellé avec au moins une clé, TRIAL épreuve, GATE porte scellée avec au moins un SEAL ; au plus une paire de portails WARP_A/WARP_B), et toutes les salles reliées au départ. Battre le gardien fait monter à l'étage suivant ; les ${TOWER_FLOORS_MAX} étages au plus se jouent dans l'ordre, puis la tour reprend au premier, plus dure. \`floors\` remplace toute la tour ; sinon \`floor\` (1 = rez-de-chaussée) désigne l'étage à modifier ou à ajouter à la suite, avec \`name\`, \`width\`, \`height\`, \`rooms\`, ou \`useDefault: true\` pour la carte d'exemple. \`removeFloor\` retire l'étage \`floor\`. Sans aucun étage, la Tour génère les siens. Un joueur garde la carte de l'étage où il se trouve ; les étages suivants suivent la tour enregistrée. Requiert WRITE_MEMBERS.`,
         inputSchema: {
           floors: z.array(floorSchema).max(TOWER_FLOORS_MAX).optional().describe('Remplace tous les étages, dans l\'ordre de la montée'),
           floor: z.number().int().min(1).max(TOWER_FLOORS_MAX).optional().describe('Étage à modifier (1 = premier). Défaut : 1.'),
@@ -252,6 +254,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
           useDefault: z.boolean().optional().describe('Remplacer l\'étage par la carte d\'exemple'),
           name: z.string().max(TOWER_FLOOR_NAME_MAX).optional(),
           fog: z.boolean().optional().describe('Brouillard de guerre sur cet étage'),
+          modifier: z.enum(TOWER_FLOOR_MODIFIERS).optional().describe('Ambiance de cet étage : NONE, FLOODED, BURNING ou BLESSED'),
           width: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max).optional(),
           height: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max).optional(),
           rooms: z.array(roomSchema).max(TOWER_MAP_ROOMS_MAX).optional().describe('Salles de l\'étage. Absent : celles de l\'étage actuel sont gardées.'),
@@ -259,7 +262,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
         },
         _meta: toolMeta,
       },
-      guard('WRITE_MEMBERS', async ({ floors, floor, removeFloor, useDefault, name, fog, width, height, rooms, key_name }) => {
+      guard('WRITE_MEMBERS', async ({ floors, floor, removeFloor, useDefault, name, fog, modifier, width, height, rooms, key_name }) => {
         try {
           let next: unknown[];
           if (floors) {
@@ -271,11 +274,12 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
             if (removeFloor) {
               if (index >= current.length) return err('Cet étage n\'existe pas.');
               current.splice(index, 1);
-            } else if (useDefault || name !== undefined || fog !== undefined || width || height || rooms) {
+            } else if (useDefault || name !== undefined || fog !== undefined || modifier !== undefined || width || height || rooms) {
               const base: Partial<TowerLayout> = useDefault ? defaultTowerLayout() : current[index] ?? {};
               current[index] = {
                 name: name ?? base.name ?? '',
                 fog: fog ?? base.fog ?? true,
+                modifier: modifier ?? base.modifier ?? 'NONE',
                 width: width ?? base.width ?? TOWER_MAP_SIZE.min,
                 height: height ?? base.height ?? TOWER_MAP_SIZE.min,
                 rooms: (rooms ?? base.rooms ?? []) as TowerLayout['rooms'],

@@ -20,7 +20,7 @@ import {
 
 export const TOWER_ROOM_TYPES = [
   'START', 'MONSTER', 'ELITE', 'BOSS', 'STAIRS', 'TRIAL', 'GATE', 'SEAL',
-  'CHEST', 'CAMPFIRE', 'MERCHANT', 'SHRINE', 'EVENT', 'EMPTY',
+  'CHEST', 'MIMIC', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY',
 ] as const;
 export type TowerRoomType = (typeof TOWER_ROOM_TYPES)[number];
 
@@ -34,6 +34,16 @@ export type TowerExitType = (typeof TOWER_EXIT_TYPES)[number];
 
 export function isExitRoom(type: TowerRoomType): type is TowerExitType {
   return (TOWER_EXIT_TYPES as readonly string[]).includes(type);
+}
+
+/**
+ * Portails A et B : deux salles liées d'un même étage. Entrer dans l'une permet de passer
+ * aussitôt dans l'autre, comme par un couloir. Une seule paire par étage.
+ */
+export const TOWER_WARP_TYPES = ['WARP_A', 'WARP_B'] as const;
+
+export function isWarpRoom(type: TowerRoomType): boolean {
+  return type === 'WARP_A' || type === 'WARP_B';
 }
 
 /** Salles qui peuvent porter une clé de l'escalier scellé. */
@@ -85,12 +95,22 @@ export type TowerRoom = {
 };
 
 /**
+ * Ambiance d'un étage, qui change la façon de le parcourir sans ajouter de salle : inondé
+ * (le joueur est ralenti), en feu (chaque nouvelle salle brûle un peu), béni (les soins sont
+ * renforcés).
+ */
+export const TOWER_FLOOR_MODIFIERS = ['NONE', 'FLOODED', 'BURNING', 'BLESSED'] as const;
+export type TowerFloorModifier = (typeof TOWER_FLOOR_MODIFIERS)[number];
+
+/**
  * `name` : nom de l'étage (« Caserne », « Crypte »…), vide pour un étage sans nom.
  * `fog` : brouillard de guerre, seules les salles visitées et leurs voisines se voient.
+ * `modifier` : ambiance de l'étage.
  */
-export type TowerLayout = { name: string; width: number; height: number; fog: boolean; rooms: TowerRoom[] };
+export type TowerLayout = { name: string; width: number; height: number; fog: boolean; modifier: TowerFloorModifier; rooms: TowerRoom[] };
 
-export type TowerDirection = 'N' | 'S' | 'E' | 'W';
+/** `WARP` : le passage d'un portail vers son jumeau. */
+export type TowerDirection = 'N' | 'S' | 'E' | 'W' | 'WARP';
 
 export function roomId(x: number, y: number): string {
   return `${x}-${y}`;
@@ -113,7 +133,11 @@ export function occupancy(layout: TowerLayout): Map<string, TowerRoom> {
 
 const STEPS: [TowerDirection, number, number][] = [['N', 0, -1], ['E', 1, 0], ['S', 0, 1], ['W', -1, 0]];
 
-/** Salles voisines d'une salle, chacune une seule fois, avec la direction pour y aller. */
+/**
+ * Salles voisines d'une salle, chacune une seule fois, avec la direction pour y aller. Un
+ * portail compte son jumeau parmi ses voisins : c'est ce qui le rend franchissable, et ce
+ * qui rend joignable une partie de l'étage reliée seulement par les portails.
+ */
 export function roomNeighbors(layout: TowerLayout, id: string, cells = occupancy(layout)): { room: TowerRoom; direction: TowerDirection }[] {
   const room = layout.rooms.find((candidate) => candidate.id === id);
   if (!room) return [];
@@ -123,6 +147,10 @@ export function roomNeighbors(layout: TowerLayout, id: string, cells = occupancy
       const neighbor = cells.get(`${x + dx},${y + dy}`);
       if (neighbor && neighbor.id !== room.id && !found.has(neighbor.id)) found.set(neighbor.id, { room: neighbor, direction });
     }
+  }
+  if (isWarpRoom(room.type)) {
+    const twin = layout.rooms.find((candidate) => candidate.type === (room.type === 'WARP_A' ? 'WARP_B' : 'WARP_A'));
+    if (twin && !found.has(twin.id)) found.set(twin.id, { room: twin, direction: 'WARP' });
   }
   return [...found.values()];
 }
@@ -255,6 +283,10 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
   }
   if (exits.length > 1) return { ok: false, error: 'Un étage n\'a qu\'une seule sortie : retirez les sorties en trop.' };
   const exit = exits[0].type;
+  const warpsA = rooms.filter((room) => room.type === 'WARP_A').length;
+  const warpsB = rooms.filter((room) => room.type === 'WARP_B').length;
+  if (warpsA > 1 || warpsB > 1) return { ok: false, error: 'Un étage n\'a qu\'une paire de portails : un portail A et un portail B.' };
+  if (warpsA !== warpsB) return { ok: false, error: 'Un portail va par paire : placez à la fois le portail A et le portail B.' };
   const keys = rooms.filter((room) => room.key).length;
   const seals = rooms.filter((room) => room.type === 'SEAL').length;
   if (exit === 'STAIRS' && keys === 0) {
@@ -268,7 +300,8 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
   if (name.length > TOWER_FLOOR_NAME_MAX) return { ok: false, error: `Le nom d'un étage ne peut pas dépasser ${TOWER_FLOOR_NAME_MAX} caractères.` };
   // Absent des cartes d'avant le brouillard : elles restent entièrement visibles.
   const fog = raw.fog === true;
-  const layout: TowerLayout = { name, width, height, fog, rooms };
+  const modifier = TOWER_FLOOR_MODIFIERS.includes(raw.modifier as TowerFloorModifier) ? (raw.modifier as TowerFloorModifier) : 'NONE';
+  const layout: TowerLayout = { name, width, height, fog, modifier, rooms };
   const distances = distancesFromStart(layout);
   if (distances.size !== rooms.length) {
     return { ok: false, error: `${rooms.length - distances.size} salle(s) ne sont reliées à rien depuis le départ.` };
@@ -324,6 +357,7 @@ export function defaultTowerLayout(): TowerLayout {
   return {
     name: '',
     fog: false,
+    modifier: 'NONE',
     width: 9,
     height: 9,
     rooms: [

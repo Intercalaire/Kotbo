@@ -19,7 +19,8 @@
   import ToggleSwitch from '../ToggleSwitch.svelte';
 
   type RoomType = 'START' | 'MONSTER' | 'ELITE' | 'BOSS' | 'STAIRS' | 'TRIAL' | 'GATE' | 'SEAL'
-    | 'CHEST' | 'CAMPFIRE' | 'MERCHANT' | 'SHRINE' | 'EVENT' | 'EMPTY';
+    | 'CHEST' | 'MIMIC' | 'CAMPFIRE' | 'MERCHANT' | 'MERCENARY' | 'SHRINE' | 'EVENT' | 'TRAP' | 'WARP_A' | 'WARP_B' | 'EMPTY';
+  type Modifier = 'NONE' | 'FLOODED' | 'BURNING' | 'BLESSED';
   type Category = 'ENTRY' | 'MONSTERS' | 'EXITS' | 'OTHER';
   type Trait = 'ARMORED' | 'VAMPIRIC' | 'SWIFT' | 'THORNY' | 'BERSERK' | 'REGENERATING';
   type Mechanic = 'RANDOM' | 'NONE' | 'SHIELD' | 'SUMMONER' | 'PHASES';
@@ -41,7 +42,7 @@
     event: EventChoice;
     key: boolean;
   };
-  type Layout = { name: string; width: number; height: number; fog: boolean; rooms: Room[] };
+  type Layout = { name: string; width: number; height: number; fog: boolean; modifier: Modifier; rooms: Room[] };
   type Foe = { name: string; emoji: string; isBoss: boolean; enabled: boolean };
   type Tool = RoomType | 'ERASE' | 'SELECT';
 
@@ -73,16 +74,23 @@
   // Cadre de pierre autour de la grille et hauteur des créneaux, en unités du dessin.
   const FRAME = 18;
   const CRENEL = 22;
-  const ROOM_TYPES: RoomType[] = ['START', 'MONSTER', 'ELITE', 'BOSS', 'STAIRS', 'TRIAL', 'GATE', 'SEAL', 'CHEST', 'CAMPFIRE', 'MERCHANT', 'SHRINE', 'EVENT', 'EMPTY'];
+  const ROOM_TYPES: RoomType[] = [
+    'START', 'MONSTER', 'ELITE', 'MIMIC', 'BOSS', 'STAIRS', 'TRIAL', 'GATE', 'SEAL',
+    'CHEST', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY',
+  ];
+  // Ambiances d'étage (miroir de `TOWER_FLOOR_MODIFIERS`).
+  const MODIFIERS: Modifier[] = ['NONE', 'FLOODED', 'BURNING', 'BLESSED'];
+  // Portails A et B : une seule paire par étage, liée comme par un couloir (miroir de `rpgTowerMap.ts`).
+  const isWarp = (type: RoomType) => type === 'WARP_A' || type === 'WARP_B';
   // Sorties d'un étage (miroir de `TOWER_EXIT_TYPES`) : exactement une par étage.
   const EXITS: RoomType[] = ['BOSS', 'STAIRS', 'TRIAL', 'GATE'];
   const isExit = (type: RoomType) => EXITS.includes(type);
   // La palette est rangée par familles : on cherche une sortie parmi les sorties, pas dans une liste de quatorze.
   const CATEGORIES: { id: Category; icon: string; types: RoomType[] }[] = [
     { id: 'ENTRY', icon: 'LogIn', types: ['START'] },
-    { id: 'MONSTERS', icon: 'Swords', types: ['MONSTER', 'ELITE'] },
+    { id: 'MONSTERS', icon: 'Swords', types: ['MONSTER', 'ELITE', 'MIMIC'] },
     { id: 'EXITS', icon: 'Flag', types: ['BOSS', 'STAIRS', 'TRIAL', 'GATE', 'SEAL'] },
-    { id: 'OTHER', icon: 'LayoutGrid', types: ['CHEST', 'CAMPFIRE', 'MERCHANT', 'SHRINE', 'EVENT', 'EMPTY'] },
+    { id: 'OTHER', icon: 'LayoutGrid', types: ['CHEST', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY'] },
   ];
   // Mêmes valeurs que `rpgTowerContent.ts` côté bot.
   const TRAITS: Trait[] = ['ARMORED', 'VAMPIRIC', 'SWIFT', 'THORNY', 'BERSERK', 'REGENERATING'];
@@ -96,12 +104,14 @@
   const ICON: Record<RoomType, string> = {
     START: 'DoorOpen', MONSTER: 'Swords', ELITE: 'Skull', BOSS: 'Crown', CHEST: 'PackageOpen',
     CAMPFIRE: 'Flame', MERCHANT: 'ShoppingCart', SHRINE: 'Sparkles', EVENT: 'HelpCircle', EMPTY: 'Square',
-    STAIRS: 'ArrowUpCircle', TRIAL: 'Hourglass', GATE: 'Flag', SEAL: 'Target',
+    STAIRS: 'ArrowUpCircle', TRIAL: 'Hourglass', GATE: 'Flag', SEAL: 'Target', WARP_A: 'Zap', WARP_B: 'Zap',
+    MIMIC: 'Ghost', MERCENARY: 'UserPlus', TRAP: 'AlertTriangle',
   };
   const COLOR: Record<RoomType, string> = {
     START: '#64748b', MONSTER: '#ef4444', ELITE: '#a855f7', BOSS: '#f59e0b', CHEST: '#eab308',
     CAMPFIRE: '#f97316', MERCHANT: '#10b981', SHRINE: '#38bdf8', EVENT: '#e879f9', EMPTY: '#94a3b8',
-    STAIRS: '#22d3ee', TRIAL: '#f43f5e', GATE: '#c084fc', SEAL: '#a78bfa',
+    STAIRS: '#22d3ee', TRIAL: '#f43f5e', GATE: '#c084fc', SEAL: '#a78bfa', WARP_A: '#2dd4bf', WARP_B: '#14b8a6',
+    MIMIC: '#ca8a04', MERCENARY: '#84cc16', TRAP: '#dc2626',
   };
   const OFFERS: OfferKind[] = ['POTION', 'HEAL', 'GEAR'];
 
@@ -120,6 +130,11 @@
       case 'TRIAL': return m.eco_tower_room_trial();
       case 'GATE': return m.eco_tower_room_gate();
       case 'SEAL': return m.eco_tower_room_seal();
+      case 'WARP_A': return m.eco_tower_room_warp_a();
+      case 'WARP_B': return m.eco_tower_room_warp_b();
+      case 'MIMIC': return m.eco_tower_room_mimic();
+      case 'MERCENARY': return m.eco_tower_room_mercenary();
+      case 'TRAP': return m.eco_tower_room_trap();
       default: return m.eco_tower_room_empty();
     }
   }
@@ -139,6 +154,11 @@
       case 'TRIAL': return m.eco_tower_room_trial_tip();
       case 'GATE': return m.eco_tower_room_gate_tip();
       case 'SEAL': return m.eco_tower_room_seal_tip();
+      case 'WARP_A':
+      case 'WARP_B': return m.eco_tower_room_warp_tip();
+      case 'MIMIC': return m.eco_tower_room_mimic_tip();
+      case 'MERCENARY': return m.eco_tower_room_mercenary_tip();
+      case 'TRAP': return m.eco_tower_room_trap_tip();
       default: return m.eco_tower_room_empty_tip();
     }
   }
@@ -155,6 +175,15 @@
     if (offer === 'POTION') return m.eco_tower_offer_potion();
     if (offer === 'HEAL') return m.eco_tower_offer_heal();
     return m.eco_tower_offer_gear();
+  }
+
+  function modifierLabel(modifier: Modifier): string {
+    switch (modifier) {
+      case 'FLOODED': return m.eco_tower_modifier_flooded();
+      case 'BURNING': return m.eco_tower_modifier_burning();
+      case 'BLESSED': return m.eco_tower_modifier_blessed();
+      default: return m.eco_tower_modifier_none();
+    }
   }
 
   function categoryLabel(category: Category): string {
@@ -251,6 +280,7 @@
     return {
       name: '',
       fog: true,
+      modifier: 'NONE',
       width: 9,
       height: 9,
       rooms: [
@@ -267,6 +297,7 @@
       name: source?.name ?? '',
       // Un étage neuf a son brouillard ; un étage enregistré sans ce champ n'en avait pas.
       fog: source ? source.fog === true : true,
+      modifier: source?.modifier ?? 'NONE',
       width: source?.width ?? 7,
       height: source?.height ?? 7,
       rooms: (source?.rooms ?? []).map((room) => ({
@@ -307,15 +338,24 @@
     return map;
   });
 
-  function neighbors(room: Room): Room[] {
+  /** Salles reliées à une salle : ses voisines de côté, et le portail jumeau pour un portail. */
+  function linkedRooms(floor: Layout, room: Room, cells: Map<string, Room>): Room[] {
     const found = new Map<string, Room>();
     for (const [x, y] of cellsOf(room)) {
       for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
-        const other = occupied.get(`${x + dx},${y + dy}`);
+        const other = cells.get(`${x + dx},${y + dy}`);
         if (other && other.id !== room.id) found.set(other.id, other);
       }
     }
+    if (isWarp(room.type)) {
+      const twin = floor.rooms.find((candidate) => candidate.type === (room.type === 'WARP_A' ? 'WARP_B' : 'WARP_A'));
+      if (twin) found.set(twin.id, twin);
+    }
     return [...found.values()];
+  }
+
+  function neighbors(room: Room): Room[] {
+    return linkedRooms(layout, room, occupied);
   }
 
   const distances = $derived.by(() => {
@@ -340,6 +380,7 @@
     const lines: { x1: number; y1: number; x2: number; y2: number }[] = [];
     for (const room of layout.rooms) {
       for (const other of neighbors(room)) {
+        if (isWarp(room.type) && isWarp(other.type)) continue;
         const key = [room.id, other.id].sort().join('|');
         if (seen.has(key)) continue;
         seen.add(key);
@@ -349,6 +390,16 @@
       }
     }
     return lines;
+  });
+
+  // Le lien des portails, dessiné en pointillés par-dessus la grille.
+  const warpLink = $derived.by(() => {
+    const a = layout.rooms.find((room) => room.type === 'WARP_A');
+    const b = layout.rooms.find((room) => room.type === 'WARP_B');
+    if (!a || !b) return null;
+    const from = center(a);
+    const to = center(b);
+    return { x1: from.x, y1: from.y, x2: to.x, y2: to.y };
   });
 
   function center(room: Room): { x: number; y: number } {
@@ -376,6 +427,9 @@
     if (exit !== 'STAIRS' && keys > 0) list.push(m.eco_tower_map_keys_without_stairs());
     if (exit === 'GATE' && seals === 0) list.push(m.eco_tower_map_gate_need_seal());
     if (exit !== 'GATE' && seals > 0) list.push(m.eco_tower_map_seals_without_gate());
+    const warpsA = floor.rooms.filter((room) => room.type === 'WARP_A').length;
+    const warpsB = floor.rooms.filter((room) => room.type === 'WARP_B').length;
+    if (warpsA !== warpsB) list.push(m.eco_tower_map_warp_pair());
     return list;
   }
 
@@ -402,13 +456,10 @@
     const queue = [starts[0]];
     while (queue.length > 0) {
       const room = queue.shift()!;
-      for (const [x, y] of cellsOf(room)) {
-        for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
-          const other = cells.get(`${x + dx},${y + dy}`);
-          if (other && !reached.has(other.id)) {
-            reached.add(other.id);
-            queue.push(other);
-          }
+      for (const other of linkedRooms(floor, room, cells)) {
+        if (!reached.has(other.id)) {
+          reached.add(other.id);
+          queue.push(other);
         }
       }
     }
@@ -433,13 +484,10 @@
     const queue = [start];
     while (queue.length > 0) {
       const room = queue.shift()!;
-      for (const [x, y] of cellsOf(room)) {
-        for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
-          const other = cells.get(`${x + dx},${y + dy}`);
-          if (other && !distance.has(other.id)) {
-            distance.set(other.id, distance.get(room.id)! + 1);
-            queue.push(other);
-          }
+      for (const other of linkedRooms(floor, room, cells)) {
+        if (!distance.has(other.id)) {
+          distance.set(other.id, distance.get(room.id)! + 1);
+          queue.push(other);
         }
       }
     }
@@ -505,7 +553,7 @@
   function addFloor() {
     if (floors.length >= floorsMax) return;
     commit();
-    floors = [...floors, cloneLayout({ width: layout.width, height: layout.height })];
+    floors = [...floors, cloneLayout({ width: layout.width, height: layout.height, fog: true })];
     current = floors.length - 1;
     layout = cloneLayout(floors[current]);
     selectedId = null;
@@ -604,6 +652,8 @@
     // Un seul départ et une seule sortie par étage : en poser une nouvelle remplace l'ancienne.
     if (tool === 'START') layout.rooms = layout.rooms.filter((candidate) => candidate.type !== 'START');
     if (isExit(tool)) layout.rooms = layout.rooms.filter((candidate) => !isExit(candidate.type));
+    // Une seule paire de portails : poser un portail A (ou B) déplace l'ancien.
+    if (isWarp(tool)) layout.rooms = layout.rooms.filter((candidate) => candidate.type !== tool);
     layout.rooms = [...layout.rooms, room];
     selectedId = room.id;
     dirty = true;
@@ -615,7 +665,7 @@
     const target = event.target as Element | null;
     if (target?.hasPointerCapture?.(event.pointerId)) target.releasePointerCapture(event.pointerId);
     // Départ et sortie se posent une fois : glisser ne les répète pas.
-    painting = tool !== 'SELECT' && tool !== 'START' && !(tool !== 'ERASE' && isExit(tool));
+    painting = tool !== 'SELECT' && tool !== 'START' && !(tool !== 'ERASE' && (isExit(tool) || isWarp(tool)));
     apply(x, y);
   }
 
@@ -629,6 +679,7 @@
     layout = {
       name: layout.name,
       fog: layout.fog,
+      modifier: layout.modifier,
       width: w,
       height: h,
       rooms: layout.rooms.filter((room) => cellsOf(room).every(([x, y]) => x < w && y < h)),
@@ -653,13 +704,13 @@
   }
 
   function loadExample() {
-    layout = { ...exampleLayout(), name: layout.name, fog: layout.fog };
+    layout = { ...exampleLayout(), name: layout.name, fog: layout.fog, modifier: layout.modifier };
     selectedId = null;
     dirty = true;
   }
 
   function clearMap() {
-    layout = { name: layout.name, fog: layout.fog, width: layout.width, height: layout.height, rooms: [] };
+    layout = { name: layout.name, fog: layout.fog, modifier: layout.modifier, width: layout.width, height: layout.height, rooms: [] };
     selectedId = null;
     dirty = true;
   }
@@ -727,6 +778,14 @@
       <div class="flex items-center gap-2 px-2" title={m.eco_tower_fog_tip()}>
         <ToggleSwitch checked={layout.fog} disabled={disabled} ariaLabel={m.eco_tower_fog()} onToggle={(value: boolean) => { layout.fog = value; dirty = true; }} />
         <span class="text-xs font-semibold flex items-center gap-1"><Papicon icon="Eye" size={12} /> {m.eco_tower_fog()}</span>
+      </div>
+      <div class="space-y-1" title={m.eco_tower_modifier_tip()}>
+        <label for="floorModifier" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_tower_modifier()}</label>
+        <select id="floorModifier" value={layout.modifier} disabled={disabled}
+          onchange={(e) => { layout.modifier = (e.currentTarget as HTMLSelectElement).value as Modifier; dirty = true; }}
+          class="bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none">
+          {#each MODIFIERS as modifier}<option value={modifier}>{modifierLabel(modifier)}</option>{/each}
+        </select>
       </div>
       <button type="button" onclick={openPreview} disabled={previewing || problems.length > 0 || layout.rooms.length === 0} title={m.eco_tower_preview_tip()}
         class="px-3 py-2 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50">
@@ -884,6 +943,9 @@
         {#each links as link}
           <line x1={link.x1} y1={link.y1} x2={link.x2} y2={link.y2} stroke="currentColor" class="text-on-surface-variant/30" stroke-width="6" stroke-linecap="round" pointer-events="none" />
         {/each}
+        {#if warpLink}
+          <line x1={warpLink.x1} y1={warpLink.y1} x2={warpLink.x2} y2={warpLink.y2} stroke="#2dd4bf" stroke-opacity="0.7" stroke-width="3" stroke-dasharray="8 6" stroke-linecap="round" pointer-events="none" />
+        {/if}
 
         {#each layout.rooms as room (room.id)}
           {@const span = room.type === 'BOSS' ? 2 : 1}
@@ -921,6 +983,11 @@
             {#if reachable && room.type !== 'START'}
               <text x={room.x * CELL + 11} y={room.y * CELL + 17} font-size="10" font-weight="700" fill="currentColor" class="text-on-surface-variant/70" pointer-events="none">
                 {distances.get(room.id)}
+              </text>
+            {/if}
+            {#if isWarp(room.type)}
+              <text x={room.x * CELL + CELL - 12} y={room.y * CELL + CELL - 10} text-anchor="middle" font-size="13" font-weight="800" fill={COLOR[room.type]} pointer-events="none">
+                {room.type === 'WARP_A' ? 'A' : 'B'}
               </text>
             {/if}
             {#if room.key}

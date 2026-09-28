@@ -38,6 +38,7 @@ import {
 } from '../rpgPanelService.js';
 import {
   TRIAL_WAVES,
+  floorModifier,
   towerLevel,
   towerStats,
   type TowerAction,
@@ -58,11 +59,13 @@ import {
   visibleRooms,
   type TowerDirection,
   type TowerExitType,
+  type TowerFloorModifier,
   type TowerLayout,
   type TowerRoomType,
 } from './rpgTowerMap.js';
 import {
   blacksmithPrice,
+  mercenaryPrice,
   type TowerBossMechanic,
   type TowerEventId,
   type TowerRelicPerk,
@@ -226,6 +229,12 @@ const ROOM_ICON: Record<TowerRoomType, string> = {
   MERCHANT: 'rpgShop',
   SHRINE: 'rpgEnchant',
   EVENT: 'rpgMap',
+  // Une mimique se présente comme un coffre : rien ne la trahit avant qu'on l'ouvre.
+  MIMIC: 'rpgChest',
+  MERCENARY: 'rpgClan',
+  TRAP: 'warning',
+  WARP_A: 'rpgTravel',
+  WARP_B: 'rpgTravel',
   EMPTY: 'dot',
 };
 
@@ -233,7 +242,7 @@ const ROOM_ICON: Record<TowerRoomType, string> = {
  * Glyphes de la mini-carte. Elle reste en Unicode : un emoji d'application pèse une trentaine
  * de caractères, et une grille de 12×12 dépasserait la limite de texte d'un message.
  */
-const MINIMAP_GLYPH: Record<TowerRoomType, string> = {
+const MINIMAP_GLYPH: Record<Exclude<TowerRoomType, 'MIMIC'>, string> = {
   START: '🚪',
   MONSTER: '👹',
   ELITE: '💀',
@@ -247,13 +256,22 @@ const MINIMAP_GLYPH: Record<TowerRoomType, string> = {
   TRIAL: 'Ｔ',
   GATE: 'Ｇ',
   SEAL: '◎',
+  WARP_A: 'Ａ',
+  WARP_B: 'Ｂ',
+  MERCENARY: 'Ｍ',
+  TRAP: '▲',
   EMPTY: '⬜',
 };
 
-const DIRECTION_ICON: Record<TowerDirection, string> = { N: 'rpgUp', E: 'rpgNext', S: 'rpgDown', W: 'rpgPrev' };
+/** Ce que le joueur croit voir : une mimique passe pour un coffre. */
+function disguised(type: TowerRoomType): Exclude<TowerRoomType, 'MIMIC'> {
+  return type === 'MIMIC' ? 'CHEST' : type;
+}
+
+const DIRECTION_ICON: Record<TowerDirection, string> = { N: 'rpgUp', E: 'rpgNext', S: 'rpgDown', W: 'rpgPrev', WARP: 'rpgTravel' };
 
 function roomLabel(type: TowerRoomType, locale: Locale): string {
-  switch (type) {
+  switch (disguised(type)) {
     case 'START': return m.tower_room_start({}, { locale });
     case 'MONSTER': return doorLabel('COMBAT', locale);
     case 'ELITE': return doorLabel('ELITE', locale);
@@ -267,12 +285,16 @@ function roomLabel(type: TowerRoomType, locale: Locale): string {
     case 'TRIAL': return m.tower_room_trial({}, { locale });
     case 'GATE': return m.tower_room_gate({}, { locale });
     case 'SEAL': return m.tower_room_seal({}, { locale });
+    case 'WARP_A': return m.tower_room_warp_a({}, { locale });
+    case 'WARP_B': return m.tower_room_warp_b({}, { locale });
+    case 'MERCENARY': return m.tower_room_mercenary({}, { locale });
+    case 'TRAP': return m.tower_room_trap({}, { locale });
     default: return m.tower_room_empty({}, { locale });
   }
 }
 
 function roomDescription(type: TowerRoomType, locale: Locale): string {
-  switch (type) {
+  switch (disguised(type)) {
     case 'START': return m.tower_room_start_desc({}, { locale });
     case 'MONSTER': return doorDescription('COMBAT', locale);
     case 'ELITE': return doorDescription('ELITE', locale);
@@ -286,6 +308,10 @@ function roomDescription(type: TowerRoomType, locale: Locale): string {
     case 'TRIAL': return m.tower_room_trial_desc({ waves: TRIAL_WAVES }, { locale });
     case 'GATE': return m.tower_room_gate_desc({}, { locale });
     case 'SEAL': return m.tower_room_seal_desc({}, { locale });
+    case 'WARP_A':
+    case 'WARP_B': return m.tower_room_warp_desc({}, { locale });
+    case 'MERCENARY': return m.tower_room_mercenary_desc({}, { locale });
+    case 'TRAP': return m.tower_room_trap_desc({}, { locale });
     default: return m.tower_room_empty_desc({}, { locale });
   }
 }
@@ -306,7 +332,7 @@ function miniMap(map: TowerMapState): string {
       if (!room || (visible && !visible.has(room.id))) line += '⬛';
       else if (room.id === map.pos) line += '🧍';
       else if (map.cleared.includes(room.id) && room.type !== 'START' && room.type !== 'EMPTY') line += '🟩';
-      else line += MINIMAP_GLYPH[room.type];
+      else line += MINIMAP_GLYPH[disguised(room.type)];
     }
     rows.push(line);
   }
@@ -330,16 +356,38 @@ function exitStatus(type: TowerRoomType, layout: TowerLayout, cleared: readonly 
 }
 
 function moveLine(move: TowerMove, info: TowerRoomInfo | undefined, map: TowerMapState, locale: Locale): string {
-  const status = move.cleared
-    ? `*${m.tower_room_visited({}, { locale })}*`
-    : roomDescription(move.type, locale);
+  // Passer par un portail se lit comme un déplacement à part : on change de coin de l'étage.
+  const status = move.direction === 'WARP'
+    ? m.tower_move_warp({}, { locale })
+    : move.cleared
+      ? `*${m.tower_room_visited({}, { locale })}*`
+      : roomDescription(move.type, locale);
   const room = map.layout.rooms.find((candidate) => candidate.id === move.roomId);
   const extras = move.cleared ? [] : [
-    roomInfoLine(info, locale),
+    // Les traits d'une mimique la trahiraient : on n'en dit rien.
+    move.type === 'MIMIC' ? '' : roomInfoLine(info, locale),
     exitStatus(move.type, map.layout, map.cleared, locale),
     room?.key ? `${icon('rpgKey')} ${m.tower_room_holds_key({}, { locale })}` : '',
   ].filter(Boolean);
-  return `${icon(DIRECTION_ICON[move.direction])} ${icon(ROOM_ICON[move.type])} **${roomLabel(move.type, locale)}** — ${status}${extras.length > 0 ? `\n-# ${extras.join(' · ')}` : ''}`;
+  return `${icon(DIRECTION_ICON[move.direction])} ${icon(ROOM_ICON[disguised(move.type)])} **${roomLabel(move.type, locale)}** — ${status}${extras.length > 0 ? `\n-# ${extras.join(' · ')}` : ''}`;
+}
+
+function modifierName(modifier: TowerFloorModifier, locale: Locale): string {
+  switch (modifier) {
+    case 'FLOODED': return m.tower_modifier_flooded({}, { locale });
+    case 'BURNING': return m.tower_modifier_burning({}, { locale });
+    case 'BLESSED': return m.tower_modifier_blessed({}, { locale });
+    default: return '';
+  }
+}
+
+function modifierDescription(modifier: TowerFloorModifier, locale: Locale): string {
+  switch (modifier) {
+    case 'FLOODED': return m.tower_modifier_flooded_desc({}, { locale });
+    case 'BURNING': return m.tower_modifier_burning_desc({}, { locale });
+    case 'BLESSED': return m.tower_modifier_blessed_desc({}, { locale });
+    default: return '';
+  }
 }
 
 function exitName(exit: TowerExitType, locale: Locale): string {
@@ -607,12 +655,16 @@ async function towerImage(state: TowerState, floor: number, config: TowerConfigV
   if (state.map) {
     const map = state.map;
     const visible = visibleRooms(map.layout, map.pos, map.cleared);
+    const mimics = new Set(map.layout.rooms.filter((room) => room.type === 'MIMIC').map((room) => room.id));
     const badges = Object.fromEntries(Object.entries(map.rooms ?? {})
+      .filter(([id]) => !mimics.has(id))
       .map(([id, info]) => [id, info.traits.length + (info.mechanic ? 1 : 0)] as const)
       .filter(([, count]) => count > 0));
     return renderTowerImage({
       kind: 'map',
-      title: floorTitle(floor, map.layout.name, locale),
+      title: modifierName(map.layout.modifier ?? 'NONE', locale)
+        ? `${floorTitle(floor, map.layout.name, locale)} · ${modifierName(map.layout.modifier ?? 'NONE', locale)}`
+        : floorTitle(floor, map.layout.name, locale),
       layout: map.layout,
       pos: map.pos,
       cleared: map.cleared,
@@ -681,6 +733,7 @@ function logLine(entry: TowerLogEntry, encounter: { name: string; emoji: string;
     case 'drain': return `${icon('rpgHp')} ${m.tower_log_drain({ emoji: foe.emoji, name: foe.name, hp: entry.hp }, { locale })}`;
     case 'spikes': return `${icon('shield')} ${m.tower_log_spikes({ dmg: entry.dmg }, { locale })}`;
     case 'lastStand': return `${icon('star')} **${m.tower_log_last_stand({}, { locale })}**`;
+    case 'ally': return `${icon('rpgClan')} ${m.tower_log_ally({ dmg: entry.dmg, name: foe.name }, { locale })}`;
   }
 }
 
@@ -715,6 +768,10 @@ function noticeLine(notice: TowerNotice | null, locale: Locale): string | null {
     case 'bought': return `${icon('rpgShop')} ${m.tower_notice_bought({}, { locale })}`;
     case 'fled': return `${icon('rpgLeave')} ${m.tower_notice_fled({ gold: notice.gold, coin: gold }, { locale })}`;
     case 'rerolled': return `${icon('rpgRefresh')} ${m.tower_notice_rerolled({}, { locale })}`;
+    case 'trap': return `${icon('warning')} ${notice.dodged
+      ? m.tower_notice_trap_dodged({}, { locale })
+      : m.tower_notice_trap({ hp: notice.dmg }, { locale })}`;
+    case 'hired': return `${icon('rpgClan')} ${m.tower_notice_hired({ gold: notice.gold, coin: gold }, { locale })}`;
     case 'event': return `${icon('rpgMap')} ${eventOutcome(notice, locale)}`;
   }
 }
@@ -953,6 +1010,11 @@ function statusBlock(state: TowerState, floor: number, config: TowerConfigView, 
     ...TOWER_GEAR_SLOTS.map((slot) => `-# ${icon(SLOT_ICON[slot])} ${slotLabel(slot, locale)} : ${state.gear[slot]?.name ?? '—'}`),
     blessings ? `-# ${m.tower_run_blessings({ list: blessings }, { locale })}` : null,
     state.safeLeave ? `-# ${icon('success')} ${m.tower_run_safe({}, { locale })}` : null,
+    floorModifier(state) !== 'NONE'
+      ? `-# ${icon('rpgMap')} **${modifierName(floorModifier(state), locale)}** : ${modifierDescription(floorModifier(state), locale)}`
+      : null,
+    state.ally ? `-# ${icon('rpgClan')} ${m.tower_run_ally({}, { locale })}` : null,
+    (state.burned ?? 0) > 0 ? `-# ${icon('warning')} ${m.tower_run_burned({ hp: state.burned ?? 0 }, { locale })}` : null,
   ].filter((line): line is string => Boolean(line)).join('\n');
 }
 
@@ -1045,6 +1107,7 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
       const minions = (foe.minions ?? 0) > 0 ? `${icon('rpgBoss')} ${m.tower_combat_minions({ count: foe.minions ?? 0 }, { locale })}` : null;
       textBlock(container, [
         ...(trial ? [trial] : []),
+        ...(foe.mimic && foe.log.length === 0 ? [`${icon('rpgChest')} **${m.tower_combat_mimic({}, { locale })}**`] : []),
         `### ${foeIcon(foe)} ${foe.name}${kind}`,
         combatHpBar(foe.health, foe.maxHealth),
         `-# ${icon('rpgAtk')} ${foe.attack} · ${icon('rpgDef')} ${foe.defense} · ${icon('rpgSpd')} ${foe.speed}${enraged}`,
@@ -1124,6 +1187,20 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
       components.push(row(
         button(actId(ownerId, version, 'e0'), risky, ButtonStyle.Primary, icon('rpgMap'), riskyBlocked),
         button(actId(ownerId, version, 'e1'), safe, ButtonStyle.Secondary, icon('rpgDoor'), safeBlocked),
+      ));
+      components.push(runControls(ownerId, state, version, locale));
+      break;
+    }
+
+    case 'MERCENARY': {
+      const price = mercenaryPrice(level);
+      textBlock(container, [
+        `### ${icon('rpgClan')} ${m.tower_room_mercenary({}, { locale })}`,
+        m.tower_mercenary_desc({ price, coin: icon('coins') }, { locale }),
+      ].join('\n'));
+      components.push(row(
+        button(actId(ownerId, version, 'hi'), m.tower_btn_hire({ price }, { locale }), ButtonStyle.Success, icon('rpgClan'), state.gold < price || state.ally === true),
+        button(actId(ownerId, version, 'ml'), m.tower_btn_leave_shop({}, { locale }), ButtonStyle.Secondary, icon('rpgDoor')),
       ));
       components.push(runControls(ownerId, state, version, locale));
       break;
@@ -1409,6 +1486,7 @@ function parseActionCode(code: string): TowerAction | null {
   if (code === 'ml') return { type: 'leave_shop' };
   if (code === 'fl') return { type: 'flee' };
   if (code === 'rr') return { type: 'reroll' };
+  if (code === 'hi') return { type: 'hire' };
   if (code.startsWith('s-')) return { type: 'skill', id: code.slice(2) };
   const index = Number.parseInt(code.slice(1), 10);
   if (!Number.isInteger(index) || index < 0 || index > 4) return null;

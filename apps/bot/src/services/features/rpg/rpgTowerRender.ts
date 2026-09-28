@@ -44,7 +44,12 @@ const ROOM_COLOR: Record<TowerRoomType, string> = {
   TRIAL: '#f43f5e',
   GATE: '#c084fc',
   SEAL: '#a78bfa',
+  WARP_A: '#2dd4bf',
+  WARP_B: '#2dd4bf',
   CHEST: '#eab308',
+  MIMIC: '#eab308',
+  MERCENARY: '#84cc16',
+  TRAP: '#dc2626',
   CAMPFIRE: '#f97316',
   MERCHANT: '#10b981',
   SHRINE: '#38bdf8',
@@ -352,6 +357,46 @@ function glyph(ctx: SKRSContext2D, type: TowerRoomType, cx: number, cy: number, 
       ctx.fill();
       break;
     }
+    case 'TRAP': {
+      // Rangée de pointes.
+      for (const dx of [-0.6, 0, 0.6]) {
+        ctx.beginPath();
+        ctx.moveTo(cx + s * (dx - 0.3), cy + s * 0.6);
+        ctx.lineTo(cx + s * dx, cy - s * 0.6);
+        ctx.lineTo(cx + s * (dx + 0.3), cy + s * 0.6);
+        ctx.closePath();
+        ctx.fill();
+      }
+      break;
+    }
+    case 'MERCENARY': {
+      // Silhouette casquée : tête, épaules et épée levée.
+      ctx.beginPath();
+      ctx.arc(cx - s * 0.15, cy - s * 0.35, s * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.7, cy + s * 0.8);
+      ctx.quadraticCurveTo(cx - s * 0.15, cy - s * 0.1, cx + s * 0.4, cy + s * 0.8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(cx + s * 0.45, cy + s * 0.3);
+      ctx.lineTo(cx + s * 0.8, cy - s * 0.8);
+      ctx.stroke();
+      break;
+    }
+    case 'WARP_A':
+    case 'WARP_B': {
+      // Tourbillon et lettre : A et B se reconnaissent d'un coup d'œil.
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, s * 0.8, s * 0.55, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.font = canvasFont(Math.round(size * 0.6), 'bold');
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(type === 'WARP_A' ? 'A' : 'B', cx, cy + size * 0.03);
+      break;
+    }
     case 'EVENT': {
       ctx.font = canvasFont(Math.round(size * 0.9), 'bold');
       ctx.textAlign = 'center';
@@ -526,14 +571,33 @@ function renderMap(input: TowerMapImage): Buffer {
     }
   }
 
+  // Le lien des portails, en pointillés, dès que les deux sont connus.
+  const warpA = layout.rooms.find((room) => room.type === 'WARP_A');
+  const warpB = layout.rooms.find((room) => room.type === 'WARP_B');
+  if (warpA && warpB && seen(warpA.id) && seen(warpB.id)) {
+    const a = center(warpA.x, warpA.y);
+    const b = center(warpB.x, warpB.y);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(45, 212, 191, 0.55)';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   const inset = Math.max(3, Math.round(tile * 0.08));
   for (const room of layout.rooms) {
     if (!seen(room.id)) continue;
     const span = room.type === 'BOSS' ? 2 : 1;
+    // Une mimique se dessine en coffre : rien ne la trahit avant qu'on l'ouvre.
+    const shown: TowerRoomType = room.type === 'MIMIC' ? 'CHEST' : room.type;
     const x = gx + room.x * tile + inset;
     const y = gy + room.y * tile + inset;
     const size = span * tile - inset * 2;
-    const color = ROOM_COLOR[room.type];
+    const color = ROOM_COLOR[shown];
     const cleared = input.cleared.includes(room.id) && room.type !== 'START';
 
     roundRect(ctx, x, y, size, size, span === 2 ? 12 : 7);
@@ -567,7 +631,7 @@ function renderMap(input: TowerMapImage): Buffer {
     } else {
       ctx.save();
       ctx.globalAlpha = room.type === 'EMPTY' ? 0.5 : 1;
-      glyph(ctx, room.type, cx, cy, size * (span === 2 ? 0.42 : 0.55), color);
+      glyph(ctx, shown, cx, cy, size * (span === 2 ? 0.42 : 0.55), color);
       ctx.restore();
       const badge = input.badges?.[room.id] ?? 0;
       if (badge > 0) drawBadge(ctx, x + size - 2, y + 2, Math.max(7, tile * 0.16), badge);

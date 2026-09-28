@@ -8,12 +8,14 @@
  */
 
 import { TowerRng } from './rpgTowerPolicy.js';
+import { MIMIC_CHANCE } from './rpgTowerContent.js';
 import {
   defaultTowerLayout,
   floorLayout,
   newTowerRoom,
   normalizeTowerLayout,
   type TowerExitType,
+  type TowerFloorModifier,
   type TowerFloorsAfter,
   type TowerLayout,
   type TowerRoom,
@@ -25,19 +27,23 @@ const HEIGHT = 9;
 /** Rangée juste sous le gardien, qui occupe les deux rangées du haut. */
 const GUARD_ROW = 2;
 
-const PATH_WEIGHTS: Partial<Record<TowerRoomType, number>> = { MONSTER: 68, EMPTY: 18, ELITE: 8, EVENT: 6 };
-const BRANCH_END_WEIGHTS: Partial<Record<TowerRoomType, number>> = { MONSTER: 30, ELITE: 25, EVENT: 15, CHEST: 12, MERCHANT: 8, CAMPFIRE: 6, SHRINE: 4 };
+const PATH_WEIGHTS: Partial<Record<TowerRoomType, number>> = { MONSTER: 64, EMPTY: 17, ELITE: 8, EVENT: 6, TRAP: 5 };
+const BRANCH_END_WEIGHTS: Partial<Record<TowerRoomType, number>> = { MONSTER: 28, ELITE: 23, EVENT: 14, CHEST: 12, MERCHANT: 8, MERCENARY: 6, CAMPFIRE: 5, SHRINE: 4 };
 const BRANCH_WEIGHTS: Partial<Record<TowerRoomType, number>> = { MONSTER: 75, EMPTY: 25 };
 /**
  * Plafond de chaque salle de récompense par étage généré. Sans plafond, un étage pouvait
  * aligner trois autels et trois coffres : bénédictions et objets pleuvaient.
  */
-const ROOM_CAPS: Partial<Record<TowerRoomType, number>> = { SHRINE: 1, CHEST: 2, MERCHANT: 1, CAMPFIRE: 1, EVENT: 2, ELITE: 2 };
-const CAP_FALLBACK: Partial<Record<TowerRoomType, TowerRoomType>> = { ELITE: 'MONSTER', EVENT: 'MONSTER' };
+const ROOM_CAPS: Partial<Record<TowerRoomType, number>> = { SHRINE: 1, CHEST: 2, MERCHANT: 1, MERCENARY: 1, CAMPFIRE: 1, EVENT: 2, ELITE: 2, TRAP: 2 };
+const CAP_FALLBACK: Partial<Record<TowerRoomType, TowerRoomType>> = { ELITE: 'MONSTER', EVENT: 'MONSTER', TRAP: 'MONSTER' };
+/** Ambiance d'un étage généré : la plupart n'en ont pas. */
+const MODIFIER_WEIGHTS: Record<TowerFloorModifier, number> = { NONE: 70, FLOODED: 10, BURNING: 10, BLESSED: 10 };
 /** Sortie d'un étage généré : le gardien reste la plus fréquente. */
 const EXIT_WEIGHTS: Record<TowerExitType, number> = { BOSS: 55, STAIRS: 15, TRIAL: 15, GATE: 15 };
-/** Clés d'un escalier scellé et sceaux d'un portail, par étage généré. */
+/** Clés d'un escalier scellé et sceaux d'une porte scellée, par étage généré. */
 const LOCKS_PER_FLOOR = 2;
+/** Part des étages générés qui ont une paire de portails. */
+const WARP_CHANCE = 0.2;
 
 function pick(rng: TowerRng, weights: Partial<Record<TowerRoomType, number>>): TowerRoomType {
   return rng.weighted(weights as Record<TowerRoomType, number>);
@@ -51,6 +57,7 @@ export function floorSeed(seed: number, floor: number): number {
 export function generateTowerLayout(seed: number, fog = true): TowerLayout {
   const rng = new TowerRng(seed);
   const exit = rng.weighted(EXIT_WEIGHTS);
+  const modifier = rng.weighted(MODIFIER_WEIGHTS);
   const bossX = 1 + rng.int(WIDTH - 3);
   // Seul le gardien occupe les deux rangées du haut ; les autres sorties tiennent sur une case.
   const isBossCell = (x: number, y: number) => exit === 'BOSS' && y < GUARD_ROW && x >= bossX && x <= bossX + 1;
@@ -128,6 +135,11 @@ export function generateTowerLayout(seed: number, fog = true): TowerLayout {
     });
   }
 
+  // Certains coffres mordent : une mimique garde l'apparence d'un coffre jusqu'à ce qu'on l'ouvre.
+  for (const room of [...cells.values()]) {
+    if (room.type === 'CHEST' && rng.next() < MIMIC_CHANCE) cells.set(key(room.x, room.y), newTowerRoom(room.x, room.y, 'MIMIC'));
+  }
+
   // Ce qui ouvre la sortie : des clés sur des élites ou des coffres, ou des sceaux gardés.
   if (exit === 'STAIRS' || exit === 'GATE') {
     const rooms = [...cells.values()];
@@ -147,9 +159,23 @@ export function generateTowerLayout(seed: number, fog = true): TowerLayout {
     }
   }
 
+  // Une paire de portails relie parfois le bas et le haut de l'étage : un raccourci à trouver.
+  if (rng.next() < WARP_CHANCE) {
+    const plain = [...cells.values()].filter((room) => room.type === 'MONSTER' || room.type === 'EMPTY');
+    const low = plain.filter((room) => room.y >= HEIGHT - 3);
+    const high = plain.filter((room) => room.y <= GUARD_ROW + 1);
+    if (low.length > 0 && high.length > 0) {
+      const a = rng.pick(low);
+      const b = rng.pick(high);
+      cells.set(key(a.x, a.y), newTowerRoom(a.x, a.y, 'WARP_A'));
+      cells.set(key(b.x, b.y), newTowerRoom(b.x, b.y, 'WARP_B'));
+    }
+  }
+
   const layout = normalizeTowerLayout({
     name: '',
     fog,
+    modifier,
     width: WIDTH,
     height: HEIGHT,
     rooms: exit === 'BOSS' ? [...cells.values(), newTowerRoom(bossX, 0, 'BOSS')] : [...cells.values()],

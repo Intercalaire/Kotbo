@@ -761,3 +761,86 @@ describe('sorties d\'étage', () => {
     expect(step.state.trial).toBeNull();
   });
 });
+
+describe('portails A et B', () => {
+  const room = (x: number, y: number, type: string) => ({ x, y, type });
+  // Le gardien n'est joignable que par les portails.
+  const LINKED = { width: 4, height: 4, rooms: [room(0, 0, 'START'), room(1, 0, 'WARP_A'), room(3, 3, 'WARP_B'), room(2, 1, 'BOSS')] };
+
+  test('un portail va par paire, et une seule paire par étage', () => {
+    expect(normalizeTowerLayout({ ...LINKED, rooms: LINKED.rooms.filter((entry) => entry.type !== 'WARP_B') }).ok).toBe(false);
+    expect(normalizeTowerLayout({ ...LINKED, rooms: [...LINKED.rooms, room(0, 1, 'WARP_A')] }).ok).toBe(false);
+  });
+
+  test('les portails relient deux coins de l\'étage, et la carte reste valide', () => {
+    const layout = normalizeTowerLayout(LINKED);
+    expect(layout.ok).toBe(true);
+    if (!layout.ok) return;
+    let step = { state: createTowerState({ base: STRONG, skills: [], potions: 1, seed: 3, rules: RULES, layout: layout.value }), floor: 1, dead: false };
+    step = applyTowerAction(step.state, step.floor, { type: 'door', index: step.state.moves.findIndex((move) => move.type === 'WARP_A') }, RULES, FOES);
+    const warp = step.state.moves.find((move) => move.type === 'WARP_B');
+    expect(warp?.direction).toBe('WARP');
+    step = applyTowerAction(step.state, step.floor, { type: 'door', index: step.state.moves.indexOf(warp!) }, RULES, FOES);
+    expect(step.state.map?.pos).toBe('3-3');
+    expect(step.state.moves.some((move) => move.type === 'BOSS')).toBe(true);
+  });
+});
+
+describe('mimiques, mercenaires, pièges et ambiances', () => {
+  const room = (x: number, y: number, type: string) => ({ x, y, type });
+  const make = (middle: string, modifier = 'NONE') => {
+    const layout = normalizeTowerLayout({ width: 4, height: 4, modifier, rooms: [room(0, 0, 'START'), room(1, 0, middle), room(2, 0, 'BOSS')] });
+    if (!layout.ok) throw new Error(layout.error);
+    return createTowerState({ base: { ...STRONG, speed: 1 }, skills: [], potions: 1, seed: 21, rules: RULES, layout: layout.value });
+  };
+  const enter = (state: TowerState, type: string) =>
+    applyTowerAction(state, 1, { type: 'door', index: state.moves.findIndex((move) => move.type === type) }, RULES, FOES);
+
+  test('une ambiance inconnue retombe sur aucune', () => {
+    const flooded = normalizeTowerLayout({ width: 4, height: 4, modifier: 'FLOODED', rooms: [room(0, 0, 'START'), room(1, 0, 'BOSS')] });
+    const unknown = normalizeTowerLayout({ width: 4, height: 4, modifier: 'LAVA', rooms: [room(0, 0, 'START'), room(1, 0, 'BOSS')] });
+    expect(flooded.ok && flooded.value.modifier).toBe('FLOODED');
+    expect(unknown.ok && unknown.value.modifier).toBe('NONE');
+  });
+
+  test('un piège blesse sans jamais achever, ou s\'évite', () => {
+    const state = make('TRAP');
+    state.hp = 1;
+    const step = enter(state, 'TRAP');
+    expect(step.state.hp).toBe(1);
+    expect(step.state.notice).toMatchObject({ k: 'trap' });
+    expect(step.state.map?.cleared).toContain('1-0');
+  });
+
+  test('une mimique se révèle à l\'ouverture et garantit son butin', () => {
+    let step = enter(make('MIMIC'), 'MIMIC');
+    expect(step.state.encounter).toMatchObject({ name: 'Mimique', mimic: true, kind: 'ELITE' });
+    for (let turn = 0; turn < 50 && step.state.phase === 'COMBAT'; turn++) {
+      step = applyTowerAction(step.state, step.floor, { type: 'attack' }, RULES, FOES);
+    }
+    expect(step.state.phase).toBe('LOOT');
+  });
+
+  test('un mercenaire engagé frappe à chaque tour', () => {
+    const state = make('MERCENARY');
+    state.gold = 1000;
+    let step = enter(state, 'MERCENARY');
+    expect(step.state.phase).toBe('MERCENARY');
+    step = applyTowerAction(step.state, step.floor, { type: 'hire' }, RULES, FOES);
+    expect(step.state.ally).toBe(true);
+    expect(step.state.gold).toBeLessThan(1000);
+    step = applyTowerAction(step.state, step.floor, { type: 'door', index: step.state.moves.findIndex((move) => move.type === 'BOSS') }, RULES, FOES);
+    step = applyTowerAction(step.state, step.floor, { type: 'defend' }, RULES, FOES);
+    expect(step.state.encounter?.log.some((entry) => entry.k === 'ally')).toBe(true);
+  });
+
+  test('un étage en feu brûle chaque nouvelle salle, un étage béni soigne mieux', () => {
+    const burning = enter(make('CHEST', 'BURNING'), 'CHEST');
+    expect(burning.state.burned).toBe(Math.floor(STRONG.maxHealth * 0.03));
+
+    const blessed = make('CHEST', 'BLESSED');
+    blessed.hp = 1000;
+    const potion = applyTowerAction(blessed, 1, { type: 'potion' }, RULES, FOES);
+    expect(potion.state.hp).toBe(1000 + Math.floor(STRONG.maxHealth * 0.35 * 1.25));
+  });
+});
