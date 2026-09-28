@@ -273,3 +273,26 @@ export type {
   RpgEnchantment,
   EnchantStack,
 } from './types/rpgEnchantments.js';
+
+export {
+  DASHBOARD_LATENCY_BUCKETS,
+  DASHBOARD_NAV_SOURCES,
+  DASHBOARD_TELEMETRY_EVENTS,
+  DASHBOARD_TELEMETRY_LIMITS,
+  isDashboardTelemetryEvent,
+  latencyBucketFor,
+  sanitizeTelemetryEntry,
+} from './types/dashboardTelemetry.js';
+export type {
+  DashboardLatencyBucket,
+  DashboardNavSource,
+  DashboardTelemetryEntry,
+  DashboardTelemetryEvent,
+  DashboardUsageDailyRow,
+  DashboardUsageDimensionRow,
+  DashboardUsageFeatureRow,
+  DashboardUsagePageRow,
+  DashboardUsageResult,
+  DashboardUsageRow,
+  DashboardUsageTabRow,
+} from './types/dashboardTelemetry.js';
