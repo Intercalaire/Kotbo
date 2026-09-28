@@ -28,8 +28,11 @@ model RpgTowerConfig {
   maxBlessings       Int @default(6)
 
   shardsPerFloor     Int @default(2)
-  /// Part des éclats conservée après une mort, en pourcentage. Abandonner garde tout.
+  /// Part des éclats conservée après une mort, en pourcentage.
   deathShardPercent  Int @default(50)
+  /// Part des éclats conservée en quittant la Tour hors palier sûr. Juste après un boss,
+  /// quitter garde tout.
+  leaveShardPercent  Int @default(80)
   /// Plafond d'éclats gagnés par semaine et par joueur. 0 = aucun plafond.
   weeklyShardCap     Int @default(0)
   idleTimeoutMinutes Int @default(30)
@@ -43,9 +46,11 @@ model RpgTowerConfig {
   /// Prix et soins du marchand (voir `TowerMerchantSettings`). `null` : réglages par défaut.
   merchant Json?
 
-  /// Carte dessinée depuis le dashboard (voir `rpgTowerMap.ts`). Tant qu'elle n'est pas
-  /// activée, la Tour tire ses portes au hasard.
+  /// Étages dessinés depuis le dashboard, dans l'ordre de la montée (voir `rpgTowerMap.ts`).
+  /// Tant que la carte n'est pas activée, la Tour tire ses portes au hasard.
   layoutEnabled Boolean @default(false)
+  layouts       Json    @default("[]")
+  /// Ancienne carte unique, d'avant les étages : relue comme premier étage si `layouts` est vide.
   layout        Json?
 
   /// Début de la saison en cours : le classement se lit sur `RpgTowerProfile.bestFloor`,
@@ -122,6 +127,8 @@ model RpgTowerProfile {
   upgrades         Json     @default("{}")
   /// Paliers déjà versés et articles uniques déjà achetés.
   claimedRewardIds String[] @default([])
+  /// Bilan d'une partie close en l'absence du joueur, affiché une fois à son retour.
+  pendingSettlement Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

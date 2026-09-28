@@ -12,7 +12,7 @@ import {
   getTowerConfig,
   getTowerDashboard,
   getTowerPlayerSummary,
-  saveTowerLayout,
+  saveTowerFloors,
   saveTowerReward,
   saveTowerSettings,
   startTowerSeason,
@@ -30,11 +30,14 @@ import {
 } from '../../../services/features/rpg/rpgTowerPolicy.js';
 import {
   TOWER_CHEST_KINDS,
+  TOWER_FLOORS_MAX,
+  TOWER_FLOOR_NAME_MAX,
   TOWER_MAP_ROOMS_MAX,
   TOWER_MAP_SIZE,
   TOWER_OFFER_KINDS,
   TOWER_ROOM_TYPES,
   defaultTowerLayout,
+  type TowerLayout,
 } from '../../../services/features/rpg/rpgTowerMap.js';
 
 const roomSchema = z.object({
@@ -46,6 +49,13 @@ const roomSchema = z.object({
   healPercent: z.number().int().min(5).max(100).optional().describe('CAMPFIRE : soin en % des PV max'),
   offers: z.array(z.enum(TOWER_OFFER_KINDS)).max(4).optional().describe('MERCHANT : articles vendus'),
   pricePercent: z.number().int().min(10).max(500).optional().describe('MERCHANT : prix en % du prix normal'),
+});
+
+const floorSchema = z.object({
+  name: z.string().max(TOWER_FLOOR_NAME_MAX).optional().describe("Nom de l'étage (« Caserne », « Crypte »…)"),
+  width: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max),
+  height: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max),
+  rooms: z.array(roomSchema).max(TOWER_MAP_ROOMS_MAX),
 });
 
 const upgradeSchema = z.object({
@@ -93,7 +103,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
     server.registerTool(
       'get_rpg_tower',
       {
-        description: "Lit la Tour (mode roguelite du RPG). Un « étage » est une salle résolue (carte dessinée) ou une porte franchie (mode aléatoire) ; battre le boss d'une carte ouvre la section suivante, plus dure. Contient : carte dessinée (layout, layoutEnabled) et créatures proposables pour ses salles (foes), réglages (ouverture, mode d'entrée COMPRESSED ou RESET, plafonds d'héritage et de titre, croissance des monstres par étage, boss et bénédictions, éclats par étage, part gardée à la mort, plafond hebdomadaire, monnaie), récompenses (boutique d'éclats et paliers d'étage), statistiques, classement de la saison, améliorations permanentes (settings.upgrades) et marchand (settings.merchant) réglables, et le catalogue fixe des bénédictions.",
+        description: "Lit la Tour (mode roguelite du RPG). En portes aléatoires, chaque porte franchie est un étage. Avec la carte activée, chaque étage est une carte dessinée (settings.floors, dans l'ordre de la montée, puis la tour reprend au premier en plus dur) : on monte d'un étage en battant son gardien, et la difficulté croît à chaque salle. Contient : étages dessinés (floors, layoutEnabled) et créatures proposables pour leurs salles (foes), réglages (ouverture, mode d'entrée COMPRESSED ou RESET, plafonds d'héritage et de titre, croissance des monstres, boss et bénédictions, éclats par étage, part gardée à la mort et en partant, plafond hebdomadaire, monnaie), récompenses (boutique d'éclats et paliers d'étage), statistiques, classement de la saison, améliorations permanentes (settings.upgrades) et marchand (settings.merchant) réglables, et le catalogue fixe des bénédictions.",
         inputSchema: {},
         _meta: toolMeta,
       },
@@ -145,11 +155,12 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
           inheritCapPercent: range('inheritCapPercent').describe('Bonus maximal hérité des stats du RPG, en % des stats de base'),
           titleCapPercent: range('titleCapPercent').describe('Bonus maximal du titre porté, en %'),
           floorGrowthPercent: range('floorGrowthPercent').describe('Force gagnée par les monstres à chaque étage, en %'),
-          bossEvery: range('bossEvery').describe('Boss tous les N étages, 0 pour aucun'),
-          blessingEvery: range('blessingEvery').describe('Bénédiction tous les N étages, 0 pour aucune'),
+          bossEvery: range('bossEvery').describe('Portes aléatoires : boss tous les N étages, 0 pour aucun. Sans effet sur carte, où chaque étage a son gardien.'),
+          blessingEvery: range('blessingEvery').describe('Bénédiction tous les N étages (sur carte : tous les N étages gravis, en plus des autels), 0 pour aucune'),
           maxBlessings: range('maxBlessings'),
           shardsPerFloor: range('shardsPerFloor'),
           deathShardPercent: range('deathShardPercent').describe('Part des éclats gardée à la mort'),
+          leaveShardPercent: range('leaveShardPercent').describe('Part des éclats gardée en quittant hors palier sûr ; juste après un boss, quitter garde tout'),
           weeklyShardCap: range('weeklyShardCap').describe('0 pour aucun plafond'),
           idleTimeoutMinutes: range('idleTimeoutMinutes'),
           currencyName: z.string().optional(),
@@ -164,6 +175,8 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
         try {
           const base: Record<string, unknown> = { ...(await getTowerConfig(guildId)) };
           delete base.seasonStartedAt;
+          delete base.floors;
+          delete base.layoutEnabled;
           const merged = mergeDefined(base, { ...input, merchant: undefined });
           if (input.merchant) merged.merchant = mergeDefined(base.merchant as Record<string, unknown>, input.merchant);
           const settings = await saveTowerSettings(guildId, merged);
@@ -178,27 +191,48 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
     server.registerTool(
       'save_rpg_tower_layout',
       {
-        description: `Dessine la carte de la Tour : une grille (${TOWER_MAP_SIZE.min} à ${TOWER_MAP_SIZE.max} cases de côté, ${TOWER_MAP_ROOMS_MAX} salles au plus) où deux salles qui se touchent par un côté communiquent ; une case sans salle est un mur. Il faut un seul départ, au moins un boss, et toutes les salles reliées au départ. Chaque salle franchie compte un étage ; battre un boss relance la carte, plus difficile. \`layoutEnabled\` fait jouer la carte au lieu des portes aléatoires. \`useDefault: true\` part d'une carte d'exemple. Les parties en cours gardent leur carte. Requiert WRITE_MEMBERS.`,
+        description: `Dessine les étages de la Tour. Chaque étage est une carte : une grille (${TOWER_MAP_SIZE.min} à ${TOWER_MAP_SIZE.max} cases de côté, ${TOWER_MAP_ROOMS_MAX} salles au plus) où deux salles qui se touchent par un côté communiquent ; une case sans salle est un mur. Il faut un seul départ, au moins un gardien (BOSS), et toutes les salles reliées au départ. Battre le gardien fait monter à l'étage suivant ; les ${TOWER_FLOORS_MAX} étages au plus se jouent dans l'ordre, puis la tour reprend au premier, plus dure. \`floors\` remplace toute la tour ; sinon \`floor\` (1 = rez-de-chaussée) désigne l'étage à modifier ou à ajouter à la suite, avec \`name\`, \`width\`, \`height\`, \`rooms\`, ou \`useDefault: true\` pour la carte d'exemple. \`removeFloor\` retire l'étage \`floor\`. \`layoutEnabled\` joue les cartes au lieu des portes aléatoires. Un joueur garde la carte de l'étage où il se trouve ; les étages suivants suivent la tour enregistrée. Requiert WRITE_MEMBERS.`,
         inputSchema: {
-          layoutEnabled: z.boolean().describe('Jouer cette carte (sinon la Tour tire ses portes au hasard)'),
-          useDefault: z.boolean().optional().describe('Remplacer la carte par la carte d\'exemple'),
+          layoutEnabled: z.boolean().describe('Jouer les cartes (sinon la Tour tire ses portes au hasard)'),
+          floors: z.array(floorSchema).max(TOWER_FLOORS_MAX).optional().describe('Remplace tous les étages, dans l\'ordre de la montée'),
+          floor: z.number().int().min(1).max(TOWER_FLOORS_MAX).optional().describe('Étage à modifier (1 = premier). Défaut : 1.'),
+          removeFloor: z.boolean().optional().describe('Retire l\'étage `floor`'),
+          useDefault: z.boolean().optional().describe('Remplacer l\'étage par la carte d\'exemple'),
+          name: z.string().max(TOWER_FLOOR_NAME_MAX).optional(),
           width: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max).optional(),
           height: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max).optional(),
-          rooms: z.array(roomSchema).max(TOWER_MAP_ROOMS_MAX).optional().describe('Salles de la carte. Absent : la carte actuelle est gardée.'),
+          rooms: z.array(roomSchema).max(TOWER_MAP_ROOMS_MAX).optional().describe('Salles de l\'étage. Absent : celles de l\'étage actuel sont gardées.'),
           key_name: z.string().optional(),
         },
         _meta: toolMeta,
       },
-      guard('WRITE_MEMBERS', async ({ layoutEnabled, useDefault, width, height, rooms, key_name }) => {
+      guard('WRITE_MEMBERS', async ({ layoutEnabled, floors, floor, removeFloor, useDefault, name, width, height, rooms, key_name }) => {
         try {
-          const current = await getTowerConfig(guildId);
-          const base = useDefault ? defaultTowerLayout() : current.layout;
-          const layout = rooms || width || height
-            ? { width: width ?? base?.width, height: height ?? base?.height, rooms: rooms ?? base?.rooms ?? [] }
-            : base;
-          const settings = await saveTowerLayout(guildId, { layoutEnabled, layout });
-          await audit(key_name, 'Carte de la Tour MCP', 'Carte', settings.layout ? `${settings.layout.rooms.length} salles, ${settings.layoutEnabled ? 'jouée' : 'inactive'}` : 'aucune carte');
-          return ok({ ok: true, layoutEnabled: settings.layoutEnabled, layout: settings.layout });
+          let next: unknown[];
+          if (floors) {
+            next = floors;
+          } else {
+            const current: TowerLayout[] = [...(await getTowerConfig(guildId)).floors];
+            const index = (floor ?? 1) - 1;
+            if (index > current.length) return err(`La tour n'a que ${current.length} étage(s) : l'étage ${index + 1} ne peut pas être créé.`);
+            if (removeFloor) {
+              if (index >= current.length) return err('Cet étage n\'existe pas.');
+              current.splice(index, 1);
+            } else if (useDefault || name !== undefined || width || height || rooms) {
+              const base: Partial<TowerLayout> = useDefault ? defaultTowerLayout() : current[index] ?? {};
+              current[index] = {
+                name: name ?? base.name ?? '',
+                width: width ?? base.width ?? TOWER_MAP_SIZE.min,
+                height: height ?? base.height ?? TOWER_MAP_SIZE.min,
+                rooms: (rooms ?? base.rooms ?? []) as TowerLayout['rooms'],
+              };
+            }
+            next = current;
+          }
+          const settings = await saveTowerFloors(guildId, { layoutEnabled, floors: next });
+          const roomCount = settings.floors.reduce((sum, entry) => sum + entry.rooms.length, 0);
+          await audit(key_name, 'Étages de la Tour MCP', 'Carte', `${settings.floors.length} étage(s), ${roomCount} salles, ${settings.layoutEnabled ? 'jouée' : 'inactive'}`);
+          return ok({ ok: true, layoutEnabled: settings.layoutEnabled, floors: settings.floors });
         } catch (e) {
           return fail(e);
         }
@@ -271,16 +305,17 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
     server.registerTool(
       'start_rpg_tower_season',
       {
-        description: "Ouvre une nouvelle saison de la Tour : remet à zéro le meilleur étage de la saison de tous les joueurs (le classement). Ne touche PAS aux éclats, aux améliorations, aux récompenses obtenues, au record de tous les temps ni aux parties en cours. Irréversible pour le classement : à ne lancer que sur demande explicite. Requiert WRITE_MEMBERS.",
+        description: "Ouvre une nouvelle saison de la Tour : remet à zéro le meilleur étage de la saison de tous les joueurs (le classement) et, sauf `resetMilestones: false`, rend les paliers de nouveau gagnables. Ne touche PAS aux éclats, aux améliorations, aux articles achetés ni au record de tous les temps ; les parties en cours continuent sans compter pour la nouvelle saison. Irréversible pour le classement : à ne lancer que sur demande explicite. Requiert WRITE_MEMBERS.",
         inputSchema: {
           confirm: z.literal(true).describe('Doit valoir true : confirme la remise à zéro du classement'),
+          resetMilestones: z.boolean().optional().describe('Rendre les paliers de nouveau gagnables (défaut : true)'),
           key_name: z.string().optional(),
         },
         _meta: toolMeta,
       },
-      guard('WRITE_MEMBERS', async ({ key_name }) => {
+      guard('WRITE_MEMBERS', async ({ resetMilestones, key_name }) => {
         try {
-          const reset = await startTowerSeason(guildId);
+          const reset = await startTowerSeason(guildId, { resetMilestones });
           await audit(key_name, 'Nouvelle saison de la Tour MCP', 'Classement', `${reset} profil(s) remis à zéro au classement`);
           return ok({ ok: true, reset });
         } catch (e) {

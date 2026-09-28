@@ -51,7 +51,15 @@ import {
   type TowerSkill,
   type TowerUpgradeDef,
 } from './rpgTowerPolicy.js';
-import { TOWER_MAP_ROOMS_MAX, TOWER_MAP_SIZE, normalizeTowerLayout, type TowerLayout } from './rpgTowerMap.js';
+import {
+  TOWER_FLOORS_MAX,
+  TOWER_MAP_ROOMS_MAX,
+  TOWER_MAP_SIZE,
+  floorLayout,
+  normalizeTowerFloors,
+  normalizeTowerLayout,
+  type TowerLayout,
+} from './rpgTowerMap.js';
 
 export class TowerError extends Error {
   constructor(message: string, readonly status: number) {
@@ -83,8 +91,8 @@ export class TowerRefused extends Error {
 export type TowerConfigView = TowerSettings & {
   seasonStartedAt: Date;
   layoutEnabled: boolean;
-  /** Carte enregistrée, relue et validée ; `null` si elle manque ou ne passe plus la validation. */
-  layout: TowerLayout | null;
+  /** Étages dessinés dans l'ordre de la montée, relus et validés ; vide si aucun ne passe. */
+  floors: TowerLayout[];
 };
 
 export type TowerSettlement = {
@@ -95,12 +103,16 @@ export type TowerSettlement = {
   shards: number;
   /** Éclats perdus à la mort. */
   lostToDeath: number;
+  /** Éclats laissés en quittant hors palier sûr. */
+  lostToLeave: number;
   /** Éclats retenus par le plafond hebdomadaire. */
   lostToCap: number;
   newBest: boolean;
   milestones: TowerRewardView[];
   /** Vrai quand la partie a été close par inactivité. */
   expired: boolean;
+  /** Vrai quand un autre appel l'avait déjà soldée : rien n'a été versé cette fois. */
+  alreadySettled?: boolean;
 };
 
 export type ActiveTowerRun = { run: RpgTowerRun; state: TowerState };
@@ -123,17 +135,33 @@ async function withTitleNames(rewards: RpgTowerReward[]): Promise<TowerRewardVie
 
 export async function getTowerConfig(guildId: string): Promise<TowerConfigView> {
   const row = await prisma.rpgTowerConfig.findUnique({ where: { guildId } });
-  if (!row) return { ...TOWER_DEFAULTS, seasonStartedAt: new Date(0), layoutEnabled: false, layout: null };
+  if (!row) return { ...TOWER_DEFAULTS, seasonStartedAt: new Date(0), layoutEnabled: false, floors: [] };
   const normalized = normalizeTowerSettings(row as unknown as Record<string, unknown>);
   const settings = normalized.ok ? normalized.value : TOWER_DEFAULTS;
-  const layout = row.layout ? normalizeTowerLayout(row.layout) : null;
   return {
     ...settings,
     enabled: row.enabled,
     seasonStartedAt: row.seasonStartedAt,
     layoutEnabled: row.layoutEnabled,
-    layout: layout?.ok ? layout.value : null,
+    floors: readFloors(row.layouts, row.layout),
   };
+}
+
+/**
+ * Étages enregistrés. Un étage qui ne passe plus la validation est écarté plutôt que de
+ * fermer toute la tour ; l'ancienne carte unique, d'avant les étages, sert de premier étage.
+ */
+function readFloors(layouts: Prisma.JsonValue, legacy: Prisma.JsonValue | null): TowerLayout[] {
+  const source = Array.isArray(layouts) && layouts.length > 0 ? layouts : legacy ? [legacy] : [];
+  return source
+    .map((entry) => normalizeTowerLayout(entry))
+    .filter((result): result is { ok: true; value: TowerLayout } => result.ok)
+    .map((result) => result.value);
+}
+
+/** Étages joués par une partie : ceux de la tour quand la carte est active, aucun sinon. */
+function playedFloors(settings: TowerConfigView): TowerLayout[] {
+  return settings.layoutEnabled ? settings.floors : [];
 }
 
 /** La Tour n'ouvre que si le module économie, le RPG et la Tour elle-même sont actifs. */
@@ -185,8 +213,16 @@ function parseState(value: Prisma.JsonValue): TowerState {
   return value as unknown as TowerState;
 }
 
+/** Démarrage du processus : le temps où le bot était coupé ne compte pas comme inactivité. */
+const PROCESS_STARTED_AT = Date.now() - process.uptime() * 1000;
+
+/**
+ * Partie restée inactive au-delà du délai. L'inactivité ne court qu'à partir du démarrage du
+ * bot : sans cela, un redémarrage plus long que le délai tuait tous les joueurs en combat.
+ */
 function isExpired(run: RpgTowerRun, idleTimeoutMinutes: number, now = Date.now()): boolean {
-  return now - run.lastActionAt.getTime() > idleTimeoutMinutes * 60 * 1000;
+  const since = Math.max(run.lastActionAt.getTime(), PROCESS_STARTED_AT);
+  return now - since > idleTimeoutMinutes * 60 * 1000;
 }
 
 export type TowerEntryPreview = {
@@ -303,7 +339,7 @@ export async function startTowerRun(client: Client | null, guildId: string, user
     gold: preview.gold,
     seed: newTowerSeed(),
     rules: rulesOf(settings),
-    layout: settings.layoutEnabled ? settings.layout : null,
+    layout: floorLayout(playedFloors(settings), 1),
   });
 
   return prisma.$transaction(async (tx) => {
@@ -353,7 +389,7 @@ export async function actTowerRun(
 
   let step: ReturnType<typeof applyTowerAction>;
   try {
-    step = applyTowerAction(state, run.floor, action, rulesOf(settings), foes);
+    step = applyTowerAction(state, run.floor, action, rulesOf(settings), foes, playedFloors(settings));
   } catch (err) {
     if (err instanceof TowerActionRefused) throw new TowerRefused({ kind: 'action', reason: err.reason });
     throw err;
@@ -469,7 +505,7 @@ async function settleRun(
   settings: TowerConfigView,
   expired: boolean,
 ): Promise<TowerSettlement> {
-  const kept = settleShards(state.shards, outcome, settings.deathShardPercent);
+  const kept = settleShards(state.shards, outcome, settings.deathShardPercent, settings.leaveShardPercent, state.safeLeave === true);
   const now = new Date();
   const weekStart = towerWeekStart(now);
 
@@ -525,10 +561,12 @@ async function settleRun(
       kills: state.kills,
       shards: done?.shardsEarned ?? 0,
       lostToDeath: 0,
+      lostToLeave: 0,
       lostToCap: 0,
       newBest: false,
       milestones: [],
       expired,
+      alreadySettled: true,
     };
   }
 
@@ -543,7 +581,8 @@ async function settleRun(
     floorsCleared: state.floorsCleared,
     kills: state.kills,
     shards: result.granted,
-    lostToDeath: state.shards - kept,
+    lostToDeath: outcome === 'DEAD' ? state.shards - kept : 0,
+    lostToLeave: outcome === 'LEFT' ? state.shards - kept : 0,
     lostToCap: kept - result.granted,
     newBest: result.newBest,
     milestones: await withTitleNames(result.milestones),
@@ -580,7 +619,15 @@ export async function expireIdleTowerRuns(client: Client | null): Promise<number
     if (!isExpired(run, settings.idleTimeoutMinutes, now)) continue;
     const state = parseState(run.state);
     try {
-      await settleRun(client, run, state, state.phase === 'COMBAT' ? 'DEAD' : 'LEFT', settings, true);
+      const settlement = await settleRun(client, run, state, state.phase === 'COMBAT' ? 'DEAD' : 'LEFT', settings, true);
+      // Soldée entre-temps par le joueur lui-même : il a déjà vu son bilan.
+      if (settlement.alreadySettled) continue;
+      // Le joueur n'était pas là : son bilan l'attend à sa prochaine visite.
+      await prisma.rpgTowerProfile.update({
+        where: { id: run.profileId },
+        // Aller-retour JSON : les dates des récompenses deviennent du texte, comme à la relecture.
+        data: { pendingSettlement: JSON.parse(JSON.stringify(settlement)) as Prisma.InputJsonValue },
+      });
       closed += 1;
     } catch (err) {
       logger.error('RpgTower', `Partie ${run.id} expirée non soldée :`, err);
@@ -588,6 +635,23 @@ export async function expireIdleTowerRuns(client: Client | null): Promise<number
   }
   if (closed > 0) logger.info('RpgTower', `${closed} ascension(s) inactive(s) soldée(s).`);
   return closed;
+}
+
+/**
+ * Bilan d'une partie close par le balayage, rendu une seule fois : la lecture l'efface sous
+ * condition, si bien que deux écrans ouverts en même temps ne l'affichent pas deux fois.
+ */
+export async function takePendingTowerSettlement(guildId: string, userId: string): Promise<TowerSettlement | null> {
+  const profile = await prisma.rpgTowerProfile.findUnique({
+    where: { guildId_userId: { guildId, userId } },
+    select: { id: true, pendingSettlement: true },
+  });
+  if (!profile?.pendingSettlement) return null;
+  const taken = await prisma.rpgTowerProfile.updateMany({
+    where: { id: profile.id, pendingSettlement: { not: Prisma.DbNull } },
+    data: { pendingSettlement: Prisma.DbNull },
+  });
+  return taken.count > 0 ? (profile.pendingSettlement as unknown as TowerSettlement) : null;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -691,7 +755,7 @@ export async function getTowerDashboard(guildId: string) {
     foes,
     stats: { players, runs, activeRuns, bestFloor: leaderboard[0]?.bestFloor ?? 0 },
     leaderboard,
-    limits: { rewardsMax: TOWER_REWARDS_PER_GUILD_MAX, mapSize: TOWER_MAP_SIZE, mapRoomsMax: TOWER_MAP_ROOMS_MAX },
+    limits: { rewardsMax: TOWER_REWARDS_PER_GUILD_MAX, mapSize: TOWER_MAP_SIZE, mapRoomsMax: TOWER_MAP_ROOMS_MAX, floorsMax: TOWER_FLOORS_MAX },
   };
 }
 
@@ -745,22 +809,28 @@ export async function saveTowerReward(
 }
 
 /**
- * Enregistre la carte. Une carte invalide est refusée ; l'activer sans carte aussi. Les
- * parties en cours gardent la carte copiée à leur entrée.
+ * Enregistre les étages dessinés, dans l'ordre de la montée. Un étage invalide fait refuser
+ * le tout ; activer la carte sans étage aussi. `layout` seul (une carte) reste accepté.
+ * L'étage où se trouve un joueur garde sa carte ; les étages qu'il n'a pas atteints suivent
+ * la tour enregistrée.
  */
-export async function saveTowerLayout(guildId: string, input: { layoutEnabled?: unknown; layout?: unknown }): Promise<TowerConfigView> {
+export async function saveTowerFloors(
+  guildId: string,
+  input: { layoutEnabled?: unknown; floors?: unknown; layout?: unknown },
+): Promise<TowerConfigView> {
   const enabled = input.layoutEnabled === true;
-  let layout: TowerLayout | null = null;
-  if (input.layout !== null && input.layout !== undefined) {
-    const normalized = normalizeTowerLayout(input.layout);
-    if (!normalized.ok) throw new TowerError(normalized.error, 400);
-    layout = normalized.value;
-  }
-  if (enabled && !layout) throw new TowerError('Impossible d\'activer la carte sans carte valide.', 400);
+  const raw = Array.isArray(input.floors)
+    ? input.floors
+    : input.layout !== null && input.layout !== undefined ? [input.layout] : [];
+  const normalized = normalizeTowerFloors(raw);
+  if (!normalized.ok) throw new TowerError(normalized.error, 400);
+  if (enabled && normalized.value.length === 0) throw new TowerError('Impossible d\'activer la carte sans étage valide.', 400);
 
   const data = {
     layoutEnabled: enabled,
-    layout: layout ? (layout as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
+    layouts: normalized.value as unknown as Prisma.InputJsonValue,
+    // L'ancienne carte unique ne sert plus qu'à relire les tours d'avant les étages.
+    layout: Prisma.DbNull,
   };
   await prisma.rpgTowerConfig.upsert({ where: { guildId }, update: data, create: { guildId, ...data } });
   return getTowerConfig(guildId);
@@ -774,15 +844,29 @@ export async function deleteTowerReward(guildId: string, rewardId: string): Prom
 
 /**
  * Ouvre une nouvelle saison : le classement repart de zéro. Les éclats, les améliorations et
- * le record de tous les temps sont conservés, et les parties en cours continuent.
+ * le record de tous les temps sont conservés, et les parties en cours continuent sans compter
+ * pour la nouvelle saison. Avec `resetMilestones`, les paliers se regagnent : les articles
+ * uniques déjà achetés, eux, restent acquis.
  */
-export async function startTowerSeason(guildId: string): Promise<number> {
+export async function startTowerSeason(guildId: string, options: { resetMilestones?: boolean } = {}): Promise<number> {
+  const now = new Date();
   await prisma.rpgTowerConfig.upsert({
     where: { guildId },
-    update: { seasonStartedAt: new Date() },
-    create: { guildId, seasonStartedAt: new Date() },
+    update: { seasonStartedAt: now },
+    create: { guildId, seasonStartedAt: now },
   });
   const reset = await prisma.rpgTowerProfile.updateMany({ where: { guildId }, data: { bestFloor: 0, bestFloorAt: null } });
+
+  if (options.resetMilestones !== false) {
+    const milestones = await prisma.rpgTowerReward.findMany({ where: { guildId, kind: 'MILESTONE' }, select: { id: true } });
+    const ids = milestones.map((reward) => reward.id);
+    if (ids.length > 0) {
+      await prisma.$executeRaw`
+        UPDATE "rpg_tower_profiles"
+        SET "claimedRewardIds" = ARRAY(SELECT id FROM unnest("claimedRewardIds") AS id WHERE NOT (id = ANY(${ids}::text[])))
+        WHERE "guildId" = ${guildId} AND "claimedRewardIds" && ${ids}::text[]`;
+    }
+  }
   return reset.count;
 }
 

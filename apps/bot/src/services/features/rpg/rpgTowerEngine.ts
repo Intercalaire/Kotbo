@@ -53,6 +53,7 @@ import {
   type TowerSkill,
 } from './rpgTowerPolicy.js';
 import {
+  floorLayout,
   roomNeighbors,
   startRoom,
   type TowerDirection,
@@ -102,8 +103,8 @@ export type TowerEncounter = {
 
 /** Ce qui s'est passé à la dernière action, affiché en tête de l'écran suivant. */
 export type TowerNotice =
-  /** `section` : numéro de la nouvelle section quand un boss de carte vient de tomber. */
-  | { k: 'victory'; name: string; emoji: string; gold: number; healed: number; section: number | null }
+  /** `climbed` : étage atteint quand le gardien d'une carte vient de tomber. */
+  | { k: 'victory'; name: string; emoji: string; gold: number; healed: number; climbed: TowerClimb | null }
   | { k: 'treasure'; gold: number }
   | { k: 'campfire'; hp: number }
   | { k: 'potion'; hp: number }
@@ -114,13 +115,26 @@ export type TowerNotice =
   | { k: 'fled'; gold: number }
   | { k: 'rerolled' };
 
-/** Position sur une carte dessinée. La carte est copiée à l'entrée : la modifier ne touche pas aux parties lancées. */
+/** Étage atteint en montant : son numéro et le nom de sa carte. */
+export type TowerClimb = { floor: number; name: string };
+
+/**
+ * Position sur l'étage en cours. Sa carte est copiée en y arrivant : la modifier ensuite ne
+ * touche pas à l'étage où se trouve le joueur, seulement aux étages qu'il n'a pas atteints.
+ */
 export type TowerMapState = {
   layout: TowerLayout;
-  section: number;
+  /** Ancien compteur de sections, conservé dans les parties d'avant les étages. */
+  section?: number;
+  /**
+   * Salles résolues depuis l'entrée, plus un : c'est ce qui règle la force des monstres, l'or
+   * et le butin, pour que la difficulté monte à chaque salle et pas seulement à chaque étage.
+   * Absent des parties d'avant les étages, où le numéro d'étage en tenait lieu.
+   */
+  depth?: number;
   /** Salle où se trouve le joueur. */
   pos: string;
-  /** Salles déjà résolues dans la section en cours ; les retraverser ne coûte rien. */
+  /** Salles déjà résolues sur l'étage en cours ; les retraverser ne coûte rien. */
   cleared: string[];
   /** Salle d'où l'on vient, où ramène une fuite. */
   prev?: string;
@@ -160,6 +174,8 @@ export type TowerState = {
   rules?: TowerRules;
   /** Le marchand courant a déjà renouvelé son équipement. */
   merchantRerolled?: boolean;
+  /** Palier sûr : un gardien vient de tomber, partir maintenant garde tous les éclats. */
+  safeLeave?: boolean;
 };
 
 export type TowerRules = {
@@ -256,7 +272,7 @@ export function createTowerState(input: {
   const rng = new TowerRng(input.seed);
   const start = input.layout ? startRoom(input.layout) : null;
   const map: TowerMapState | null = input.layout && start
-    ? { layout: structuredClone(input.layout), section: 1, pos: start.id, cleared: [start.id] }
+    ? { layout: structuredClone(input.layout), depth: 1, pos: start.id, cleared: [start.id] }
     : null;
   const doors = map ? [] : rollDoors(1, input.rules.bossEvery, rng);
   const state: TowerState = {
@@ -304,15 +320,30 @@ function markRoomCleared(state: TowerState): void {
   if (map && !map.cleared.includes(map.pos)) map.cleared.push(map.pos);
 }
 
-/** Boss de carte abattu : la section suivante recommence au départ, avec toutes ses salles. */
-function completeSection(state: TowerState): number | null {
+/**
+ * Niveau de difficulté : l'étage en mode aléatoire, la profondeur en salles sur une carte.
+ * Force des monstres, or, butin et prix du marchand le suivent.
+ */
+export function towerLevel(state: TowerState, floor: number): number {
+  return state.map ? (state.map.depth ?? floor) : floor;
+}
+
+/**
+ * Gardien abattu : on monte à l'étage `floor`. Sa carte suit l'ordre de la tour et reprend
+ * au premier étage dessiné une fois le dernier franchi ; sans étage dessiné, la carte en
+ * cours recommence.
+ */
+function climb(state: TowerState, floor: number, floors: readonly TowerLayout[]): TowerClimb | null {
   const map = state.map;
-  const start = map ? startRoom(map.layout) : null;
-  if (!map || !start) return null;
-  map.section += 1;
+  if (!map) return null;
+  const next = floorLayout(floors, floor) ?? map.layout;
+  const start = startRoom(next);
+  if (!start) return null;
+  map.layout = structuredClone(next);
   map.pos = start.id;
   map.cleared = [start.id];
-  return map.section;
+  map.prev = undefined;
+  return { floor, name: next.name };
 }
 
 /** Un étage de boss en mode aléatoire, une salle de boss sur une carte. */
@@ -351,13 +382,27 @@ function advance(state: TowerState, floor: number, rules: TowerRules, rng: Tower
 }
 
 /**
- * Étage franchi : éclats et compteur. En mode aléatoire, une bénédiction tombe sur les étages
- * ronds ; sur une carte, ce sont les autels qui en donnent.
+ * Étape franchie, renvoie l'étage où se trouve désormais le joueur.
+ *
+ * En mode aléatoire, chaque porte est un étage : éclats, compteur, et une bénédiction sur
+ * les étages ronds. Sur une carte, chaque salle rapporte ses éclats et approfondit la
+ * difficulté, mais seul le gardien fait monter d'un étage ; une bénédiction tombe tous les
+ * `blessingEvery` étages gravis, en plus de celles des autels.
  */
-function clearFloor(state: TowerState, floor: number, rules: TowerRules, boss: boolean): number {
-  state.shards += floorShards(floor, rules.shardsPerFloor, boss);
+function progress(state: TowerState, floor: number, rules: TowerRules, boss: boolean): number {
+  const map = state.map;
+  if (!map) {
+    state.shards += floorShards(floor, rules.shardsPerFloor, boss);
+    state.floorsCleared += 1;
+    if (rules.blessingEvery > 0 && floor % rules.blessingEvery === 0) state.blessingDue = true;
+    return floor + 1;
+  }
+  const depth = map.depth ?? floor;
+  state.shards += floorShards(depth, rules.shardsPerFloor, boss);
+  map.depth = depth + 1;
+  if (!boss) return floor;
   state.floorsCleared += 1;
-  if (!state.map && rules.blessingEvery > 0 && floor % rules.blessingEvery === 0) state.blessingDue = true;
+  if (rules.blessingEvery > 0 && state.floorsCleared % rules.blessingEvery === 0) state.blessingDue = true;
   return floor + 1;
 }
 
@@ -453,21 +498,24 @@ function playerStrike(state: TowerState, encounter: TowerEncounter, stats: Tower
   return { dmg: hit.damage, crit: hit.critical };
 }
 
-function winEncounter(state: TowerState, floor: number, rules: TowerRules, rng: TowerRng): number {
+function winEncounter(state: TowerState, floor: number, rules: TowerRules, rng: TowerRng, floors: readonly TowerLayout[]): number {
   const encounter = state.encounter!;
   const stats = towerStats(state);
-  const gold = encounterGold(floor, encounter.kind, stats.goldPercent, rng);
+  const level = towerLevel(state, floor);
+  const gold = encounterGold(level, encounter.kind, stats.goldPercent, rng);
   state.gold += gold;
   state.kills += 1;
-  if (rng.next() < LOOT_CHANCE[encounter.kind]) state.pendingLoot = rollTowerGear(floor, encounter.kind, rng);
+  if (rng.next() < LOOT_CHANCE[encounter.kind]) state.pendingLoot = rollTowerGear(level, encounter.kind, rng);
 
   let healed = heal(state, stats.healAfterCombat);
   if (encounter.kind === 'BOSS') healed += heal(state, BOSS_VICTORY_HEAL);
 
-  const next = clearFloor(state, floor, rules, isBossStep(state, floor, rules, encounter.kind));
+  const boss = isBossStep(state, floor, rules, encounter.kind);
+  const next = progress(state, floor, rules, boss);
   markRoomCleared(state);
-  const section = state.map && encounter.kind === 'BOSS' ? completeSection(state) : null;
-  state.notice = { k: 'victory', name: encounter.name, emoji: encounter.emoji, gold, healed, section };
+  const climbed = state.map && encounter.kind === 'BOSS' ? climb(state, next, floors) : null;
+  if (boss) state.safeLeave = true;
+  state.notice = { k: 'victory', name: encounter.name, emoji: encounter.emoji, gold, healed, climbed };
   advance(state, next, rules, rng);
   return next;
 }
@@ -480,7 +528,14 @@ function retreat(state: TowerState): void {
   if (back) map.pos = back;
 }
 
-function combatTurn(state: TowerState, floor: number, action: TowerAction, rules: TowerRules, rng: TowerRng): TowerStepResult {
+function combatTurn(
+  state: TowerState,
+  floor: number,
+  action: TowerAction,
+  rules: TowerRules,
+  rng: TowerRng,
+  floors: readonly TowerLayout[],
+): TowerStepResult {
   const encounter = state.encounter;
   if (!encounter) throw new TowerActionRefused('wrong_phase');
   const stats = towerStats(state);
@@ -495,7 +550,7 @@ function combatTurn(state: TowerState, floor: number, action: TowerAction, rules
     monsterStrike(state, encounter, stats, rng, log);
     encounter.log = [...encounter.log, ...log].slice(-LOG_KEPT);
     if (state.hp <= 0) return { state, floor, dead: true };
-    if (encounter.health <= 0) return { state, floor: winEncounter(state, floor, rules, rng), dead: false };
+    if (encounter.health <= 0) return { state, floor: winEncounter(state, floor, rules, rng, floors), dead: false };
     const lost = Math.floor(state.gold * TOWER_FLEE_GOLD_LOSS);
     state.gold -= lost;
     retreat(state);
@@ -564,16 +619,17 @@ function combatTurn(state: TowerState, floor: number, action: TowerAction, rules
     return { state, floor, dead: true };
   }
   if (encounter.health <= 0) {
-    return { state, floor: winEncounter(state, floor, rules, rng), dead: false };
+    return { state, floor: winEncounter(state, floor, rules, rng, floors), dead: false };
   }
   return { state, floor, dead: false };
 }
 
 /**
  * Entre dans une salle voisine de la carte et la résout. Une salle déjà résolue se traverse
- * sans rien déclencher ni compter d'étage : c'est ainsi qu'on ressort d'un cul-de-sac.
+ * sans rien déclencher : c'est ainsi qu'on ressort d'un cul-de-sac.
  */
 function enterRoom(state: TowerState, floor: number, move: TowerMove, rules: TowerRules, foes: TowerFoePool, rng: TowerRng): number {
+  const level = towerLevel(state, floor);
   const map = state.map!;
   const room = map.layout.rooms.find((candidate) => candidate.id === move.roomId);
   if (!room) throw new TowerActionRefused('bad_choice');
@@ -587,23 +643,23 @@ function enterRoom(state: TowerState, floor: number, move: TowerMove, rules: Tow
 
   switch (room.type) {
     case 'MONSTER':
-      startEncounter(state, floor, 'COMBAT', rules, foes, rng, room.foe);
+      startEncounter(state, level, 'COMBAT', rules, foes, rng, room.foe);
       return floor;
     case 'ELITE':
-      startEncounter(state, floor, 'ELITE', rules, foes, rng, room.foe);
+      startEncounter(state, level, 'ELITE', rules, foes, rng, room.foe);
       return floor;
     case 'BOSS':
-      startEncounter(state, floor, 'BOSS', rules, foes, rng, room.foe);
+      startEncounter(state, level, 'BOSS', rules, foes, rng, room.foe);
       return floor;
     case 'MERCHANT':
-      state.merchant = rollMerchantOffers(floor, rng, room.offers, room.pricePercent, merchantOf(rules));
+      state.merchant = rollMerchantOffers(level, rng, room.offers, room.pricePercent, merchantOf(rules));
       state.merchantRerolled = false;
       state.phase = 'MERCHANT';
       return floor;
     case 'CHEST': {
-      const gold = room.chest === 'GEAR' ? 0 : treasureGold(floor, rng);
+      const gold = room.chest === 'GEAR' ? 0 : treasureGold(level, rng);
       state.gold += gold;
-      if (room.chest !== 'GOLD') state.pendingLoot = rollTowerGear(floor, 'TREASURE', rng);
+      if (room.chest !== 'GOLD') state.pendingLoot = rollTowerGear(level, 'TREASURE', rng);
       state.notice = { k: 'treasure', gold };
       break;
     }
@@ -614,14 +670,14 @@ function enterRoom(state: TowerState, floor: number, move: TowerMove, rules: Tow
       state.blessingDue = true;
       break;
     default:
-      // Départ et couloir : on les traverse, sans étage à compter.
+      // Départ et couloir : on les traverse sans rien résoudre.
       markRoomCleared(state);
       advance(state, floor, rules, rng);
       return floor;
   }
 
   markRoomCleared(state);
-  const next = clearFloor(state, floor, rules, false);
+  const next = progress(state, floor, rules, false);
   advance(state, next, rules, rng);
   return next;
 }
@@ -637,10 +693,13 @@ export function applyTowerAction(
   action: TowerAction,
   liveRules: TowerRules,
   foes: TowerFoePool,
+  /** Étages dessinés, dans l'ordre de la montée ; vide en mode aléatoire. */
+  floors: readonly TowerLayout[] = [],
 ): TowerStepResult {
   const rules = input.rules ?? liveRules;
   const state = clone(input);
   const rng = new TowerRng(state.rng);
+  const level = towerLevel(state, floor);
   state.notice = null;
 
   const done = (nextFloor: number, dead = false): TowerStepResult => {
@@ -649,7 +708,7 @@ export function applyTowerAction(
   };
 
   if (state.phase === 'COMBAT') {
-    const result = combatTurn(state, floor, action, rules, rng);
+    const result = combatTurn(state, floor, action, rules, rng, floors);
     state.rng = rng.state;
     return result;
   }
@@ -666,6 +725,8 @@ export function applyTowerAction(
   switch (state.phase) {
     case 'DOORS': {
       if (action.type !== 'door') throw new TowerActionRefused('wrong_phase');
+      // Le palier sûr ne dure que jusqu'au pas suivant.
+      state.safeLeave = false;
       if (state.map) {
         const move = state.moves[action.index];
         if (!move) throw new TowerActionRefused('bad_choice');
@@ -684,13 +745,13 @@ export function applyTowerAction(
         state.gold += gold;
         state.pendingLoot = rollTowerGear(floor, 'TREASURE', rng);
         state.notice = { k: 'treasure', gold };
-        const next = clearFloor(state, floor, rules, false);
+        const next = progress(state, floor, rules, false);
         advance(state, next, rules, rng);
         return done(next);
       }
       if (door === 'CAMPFIRE') {
         state.notice = { k: 'campfire', hp: heal(state, CAMPFIRE_HEAL) };
-        const next = clearFloor(state, floor, rules, false);
+        const next = progress(state, floor, rules, false);
         advance(state, next, rules, rng);
         return done(next);
       }
@@ -707,7 +768,7 @@ export function applyTowerAction(
         withMaxHealthChange(state, () => { state.gear[loot.slot] = loot; });
         state.notice = { k: 'equipped', name: loot.name, emoji: loot.emoji };
       } else if (action.type === 'discard') {
-        const gold = scrapValue(floor);
+        const gold = scrapValue(level);
         state.gold += gold;
         state.notice = { k: 'scrapped', gold };
       } else {
@@ -738,7 +799,7 @@ export function applyTowerAction(
         state.merchant = [];
         state.merchantRerolled = false;
         markRoomCleared(state);
-        const next = clearFloor(state, floor, rules, false);
+        const next = progress(state, floor, rules, false);
         advance(state, next, rules, rng);
         return done(next);
       }
@@ -746,10 +807,10 @@ export function applyTowerAction(
         if (state.merchantRerolled) throw new TowerActionRefused('no_reroll');
         const gear = state.merchant.filter((offer): offer is Extract<TowerOffer, { kind: 'GEAR' }> => offer.kind === 'GEAR' && !offer.sold);
         if (gear.length === 0) throw new TowerActionRefused('no_reroll');
-        const price = towerRerollPrice(floor, merchantOf(rules));
+        const price = towerRerollPrice(level, merchantOf(rules));
         if (state.gold < price) throw new TowerActionRefused('no_gold');
         state.gold -= price;
-        for (const offer of gear) offer.gear = rollTowerGear(floor, 'MERCHANT', rng);
+        for (const offer of gear) offer.gear = rollTowerGear(level, 'MERCHANT', rng);
         state.merchantRerolled = true;
         state.notice = { k: 'rerolled' };
         return done(floor);

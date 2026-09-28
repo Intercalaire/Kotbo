@@ -31,6 +31,8 @@ export type TowerSettings = {
   maxBlessings: number;
   shardsPerFloor: number;
   deathShardPercent: number;
+  /** Part des éclats gardée en quittant hors palier sûr (juste après un boss, tout est gardé). */
+  leaveShardPercent: number;
   weeklyShardCap: number;
   idleTimeoutMinutes: number;
   currencyName: string;
@@ -54,6 +56,7 @@ export const TOWER_DEFAULTS: TowerSettings = {
   maxBlessings: 6,
   shardsPerFloor: 2,
   deathShardPercent: 50,
+  leaveShardPercent: 80,
   weeklyShardCap: 0,
   idleTimeoutMinutes: 30,
   currencyName: 'Éclats de Tour',
@@ -71,6 +74,7 @@ export const TOWER_RANGES = {
   maxBlessings: { min: 1, max: 12 },
   shardsPerFloor: { min: 0, max: 1000 },
   deathShardPercent: { min: 0, max: 100 },
+  leaveShardPercent: { min: 0, max: 100 },
   weeklyShardCap: { min: 0, max: 1_000_000 },
   idleTimeoutMinutes: { min: 5, max: 1440 },
 } as const;
@@ -126,6 +130,7 @@ export function normalizeTowerSettings(input: Record<string, unknown>): TowerNor
       maxBlessings: int('maxBlessings'),
       shardsPerFloor: int('shardsPerFloor'),
       deathShardPercent: int('deathShardPercent'),
+      leaveShardPercent: int('leaveShardPercent'),
       weeklyShardCap: int('weeklyShardCap'),
       idleTimeoutMinutes: int('idleTimeoutMinutes'),
       currencyName,
@@ -404,32 +409,39 @@ export function towerMonsterStats(floor: number, growthPercent: number, kind: To
     health: Math.round(70 * growth * mult.health),
     attack: Math.round(13 * growth * mult.attack),
     defense: Math.round(6 * growth * mult.defense),
-    speed: Math.round(9 * Math.pow(1.02, Math.max(0, floor - 1)) * mult.speed),
+    speed: Math.round(9 * Math.pow(TOWER_MONSTER_SPEED_GROWTH, Math.max(0, floor - 1)) * mult.speed),
   };
 }
 
 export const TOWER_MONSTER_CRIT = 0.08;
+/**
+ * Croissance de la vitesse des monstres par étage. Plus lente que leur force, mais assez
+ * rapide pour qu'une seule relique ne suffise pas à tenir l'esquive au plafond.
+ */
+export const TOWER_MONSTER_SPEED_GROWTH = 1.025;
 
 /**
  * Esquive tirée de l'écart de vitesse : rien à vitesse égale ou inférieure, le plafond à
- * vitesse double. C'est ce qui donne un rôle à la vitesse, qui sinon n'élargissait que la
- * fourchette de dégâts.
+ * vitesse triple. La vitesse vaut quelque chose sans devenir un bonus plat que tout
+ * équipement atteint.
  */
 export const TOWER_DODGE_CAP = 0.25;
+export const TOWER_DODGE_FULL_RATIO = 3;
 
 export function towerDodgeChance(defenderSpeed: number, attackerSpeed: number): number {
   if (attackerSpeed <= 0 || defenderSpeed <= attackerSpeed) return 0;
-  return Math.min(TOWER_DODGE_CAP, (defenderSpeed / attackerSpeed - 1) * TOWER_DODGE_CAP);
+  const ratio = defenderSpeed / attackerSpeed;
+  return Math.min(TOWER_DODGE_CAP, ((ratio - 1) / (TOWER_DODGE_FULL_RATIO - 1)) * TOWER_DODGE_CAP);
 }
 
 /** Tous les combien de coups une élite ou un boss prépare un coup puissant (0 = jamais). */
-export const TOWER_CHARGE_EVERY: Record<TowerEncounterKind, number> = { COMBAT: 0, ELITE: 4, BOSS: 3 };
-export const TOWER_HEAVY_MULTIPLIER = 2;
+export const TOWER_CHARGE_EVERY: Record<TowerEncounterKind, number> = { COMBAT: 0, ELITE: 5, BOSS: 4 };
+export const TOWER_HEAVY_MULTIPLIER = 1.8;
 /** Coup puissant reçu en garde (Défendre ou compétence défensive). */
 export const TOWER_PARRIED_MULTIPLIER = 0.5;
 /** Sous cette part de PV, un boss entre en rage. */
 export const TOWER_ENRAGE_THRESHOLD = 0.3;
-export const TOWER_ENRAGE_MULTIPLIER = 1.3;
+export const TOWER_ENRAGE_MULTIPLIER = 1.2;
 
 /** Défendre soigne un peu et renforce la prochaine attaque. */
 export const TOWER_DEFEND_HEAL = 0.05;
@@ -814,8 +826,19 @@ export function floorShards(floor: number, shardsPerFloor: number, boss: boolean
 
 export type TowerOutcome = 'DEAD' | 'LEFT';
 
-export function settleShards(earned: number, outcome: TowerOutcome, deathShardPercent: number): number {
-  if (outcome === 'LEFT') return earned;
+/**
+ * Éclats gardés en fin de partie. Partir sur un palier sûr (juste après un boss) garde tout ;
+ * partir ailleurs en garde `leaveShardPercent`, sans quoi il suffisait de quitter dès que les
+ * PV baissaient pour ne jamais subir la pénalité de mort.
+ */
+export function settleShards(
+  earned: number,
+  outcome: TowerOutcome,
+  deathShardPercent: number,
+  leaveShardPercent = 100,
+  safe = false,
+): number {
+  if (outcome === 'LEFT') return safe ? earned : Math.floor(earned * leaveShardPercent / 100);
   return Math.floor(earned * deathShardPercent / 100);
 }
 
