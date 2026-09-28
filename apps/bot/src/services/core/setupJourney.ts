@@ -38,14 +38,13 @@ function filled(value: unknown): boolean {
 
 /** `null` quand le serveur n'existe pas en base. */
 export async function computeSetupJourney(guildId: string): Promise<SetupJourney | null> {
-  const [guild, features] = await Promise.all([
+  const [guild, features, welcome] = await Promise.all([
     prisma.guild.findUnique({
       where: { id: guildId },
       select: {
         logChannelId: true,
         moderatorRoleId: true,
         regulationChannelId: true,
-        publicChannelId: true,
         timezone: true,
         language: true,
         ticketCategoryId: true,
@@ -58,6 +57,10 @@ export async function computeSetupJourney(guildId: string): Promise<SetupJourney
     prisma.dashboardFeatureConfig.findMany({
       where: { guildId },
       select: { featureKey: true, enabled: true },
+    }),
+    prisma.welcomeConfig.findUnique({
+      where: { guildId },
+      select: { welcomeEnabled: true, welcomeChannelId: true },
     }),
   ]);
 
@@ -74,7 +77,9 @@ export async function computeSetupJourney(guildId: string): Promise<SetupJourney
       label: 'Salon de logs',
       why: "Sans lui, aucune trace de ce que fait le bot ni de ce qui se passe sur le serveur.",
       done: filled(guild.logChannelId),
-      href: '/logs',
+      // L'onglet de reglage, pas le journal : le lien menait a une liste de
+      // logs vide, et le champ a remplir restait a chercher.
+      href: '/logs/config',
     },
     {
       key: 'moderator-role',
@@ -82,7 +87,7 @@ export async function computeSetupJourney(guildId: string): Promise<SetupJourney
       label: 'Rôle modérateur',
       why: "Il décide qui peut sanctionner et prendre en charge un ticket. Sans lui, seuls les administrateurs le peuvent.",
       done: filled(guild.moderatorRoleId),
-      href: '/security/sanctions',
+      href: '/security/sanctions/settings',
     },
     {
       key: 'timezone',
@@ -117,7 +122,7 @@ export async function computeSetupJourney(guildId: string): Promise<SetupJourney
       label: 'Salon des alertes de sanction',
       why: "Le staff voit passer les sanctions au lieu de les découvrir dans le casier.",
       done: filled(guild.sanctionAlertChannelId),
-      href: '/security/sanctions',
+      href: '/security/sanctions/settings',
     },
     {
       key: 'tickets',
@@ -148,7 +153,12 @@ export async function computeSetupJourney(guildId: string): Promise<SetupJourney
       group: 'engagement',
       label: 'Accueil des arrivants',
       why: "Un serveur qui n'accueille pas perd la moitié de ses arrivants dans la première heure.",
-      done: enabled('welcome_goodbye') && filled(guild.publicChannelId),
+      // Le message d'accueil part du salon de `WelcomeConfig`, que la page
+      // regle. `Guild.publicChannelId` sert aux annonces : le lire ici laissait
+      // l'etape a faire alors que l'accueil tournait deja.
+      done: enabled('welcome_goodbye')
+        && welcome?.welcomeEnabled === true
+        && filled(welcome.welcomeChannelId),
       // `/welcome-goodbye` n'a jamais ete une route du dashboard : le lien
       // tombait sur la page introuvable.
       href: '/announcement/welcome',
