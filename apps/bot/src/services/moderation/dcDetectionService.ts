@@ -801,23 +801,19 @@ export async function scanGuildMembersForYoungAccounts(guild: Guild, thresholdMs
     const suspicion = buildYoungAccountSuspicion(member, thresholdMs);
     if (!suspicion) continue;
 
-    await prisma.memberProfile.upsert({
-      where: { guildId_userId: { guildId: guild.id, userId: member.id } },
-      update: { isSuspectedDC: true },
-      create: {
-        guildId: guild.id,
-        userId: member.id,
-        ...memberProfileIdentity(member),
-        isSuspectedDC: true,
-      }
-    }).catch(() => null);
-
-    const evidence: DetectionEvidence = {
-      userId: member.id, reasons: [{ type: 'young_account', label: suspicion.reason, score: 30 }],
-      suspectedAlts: [], totalScore: 30, detectedAt: new Date().toISOString(),
-    };
-    await reportSuspectedDC(member, evidence);
-    await notifyManagersOfSuspectedDC(guild.id, member);
+    if (!alreadyFlagged.has(member.id)) {
+      await prisma.memberProfile.upsert({
+        where: { guildId_userId: { guildId: guild.id, userId: member.id } },
+        update: { isSuspectedDC: true },
+        create: {
+          guildId: guild.id,
+          userId: member.id,
+          ...memberProfileIdentity(member),
+          isSuspectedDC: true,
+        }
+      }).catch(() => null);
+      newlyFlagged.push({ member, reason: suspicion.reason });
+    }
 
     matches.push({
       userId: member.id, username: member.user.username, displayName: member.displayName,
@@ -854,7 +850,15 @@ async function reportSuspectedDC(
     .sort((a, b) => b.score - a.score)
     .slice(0, 8)
     .map(r => `\`${r.score}pts\` ${r.label}`)
+  const newlyFlagged: { member: GuildMember; reason: string }[] = [];
     .join('\n');
+
+  // Les membres déjà suspects ont eu leur alerte au scan précédent : la renvoyer
+  // à chaque relance noyait le salon de logs et faisait expirer l'appel du dashboard.
+  const alreadyFlagged = new Set((await prisma.memberProfile.findMany({
+    where: { guildId: guild.id, isSuspectedDC: true },
+    select: { userId: true },
+  })).map((p) => p.userId));
 
   const altsText = evidence.suspectedAlts.length > 0
     ? evidence.suspectedAlts.map(id => `<@${id}>`).join(', ')
@@ -888,9 +892,26 @@ async function reportSuspectedDC(
       .setLabel('Lier les comptes')
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
+  // Les envois Discord sont limités par salon : on n'attend pas qu'ils passent
+  // pour rendre le résultat, le suspect est déjà marqué en base.
+  void reportYoungAccounts(guild.id, newlyFlagged);
+
       .setCustomId(`dc_reject_${member.id}`)
       .setLabel('Faux positif')
       .setStyle(ButtonStyle.Secondary),
+async function reportYoungAccounts(guildId: string, flagged: { member: GuildMember; reason: string }[]): Promise<void> {
+  for (const { member, reason } of flagged) {
+    const evidence: DetectionEvidence = {
+      userId: member.id, reasons: [{ type: 'young_account', label: reason, score: 30 }],
+      suspectedAlts: [], totalScore: 30, detectedAt: new Date().toISOString(),
+    };
+    await reportSuspectedDC(member, evidence).catch((err) => {
+      logger.warn('DCDetection', `Alerte de scan non envoyée pour ${member.id}: ${String(err)}`);
+    });
+    await notifyManagersOfSuspectedDC(guildId, member);
+  }
+}
+
   );
 
   await logChannel.send({ embeds: [embed], components: [row], allowedMentions: { parse: [] } });
