@@ -2972,6 +2972,7 @@
   "tower_objective_stairs": "Objectif : trouver les clés ({found}/{needed}), puis l'escalier scellé.",
   "tower_objective_trial": "Objectif : réussir l'épreuve ({waves} vagues sans fuir).",
   "tower_combat_trial": "Épreuve · vague {wave}/{waves}",
+  "tower_combat_trial_last": "dernière vague : une élite",
   "tower_exit_gate_locked": "fermé : {lit}/{needed} sceaux allumés",
   "tower_exit_open": "ouvert",
   "tower_exit_stairs_locked": "scellé : {found}/{needed} clés",

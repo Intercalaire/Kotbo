@@ -40,6 +40,8 @@
     traits: Trait[];
     powerPercent: number;
     powerReward: boolean;
+    waves: number;
+    trialReward: boolean;
     mechanic: Mechanic;
     event: EventChoice;
     key: boolean;
@@ -167,7 +169,7 @@
 
   function roomTitle(room: Room): string {
     const parts = [`${label(room.type)}${room.foe ? ` : ${room.foe}` : ''}`, tip(room.type)];
-    if (hasFoe(room.type) && room.powerPercent !== 100) {
+    if (hasPower(room.type) && room.powerPercent !== 100) {
       parts.push(room.powerReward ? m.eco_tower_map_power_value_reward({ percent: room.powerPercent }) : m.eco_tower_map_power_value({ percent: room.powerPercent }));
     }
     const distance = distances.get(room.id);
@@ -276,7 +278,7 @@
   function newRoom(x: number, y: number, type: RoomType): Room {
     return {
       id: `${x}-${y}`, x, y, type, foe: null, chest: 'BOTH', healPercent: 35, offers: [...OFFERS], pricePercent: 100,
-      traits: [], powerPercent: 100, powerReward: false, mechanic: 'RANDOM', event: 'RANDOM', key: false,
+      traits: [], powerPercent: 100, powerReward: false, waves: 3, trialReward: false, mechanic: 'RANDOM', event: 'RANDOM', key: false,
     };
   }
 
@@ -311,6 +313,8 @@
         traits: [...(room.traits ?? [])],
         powerPercent: room.powerPercent ?? 100,
         powerReward: room.powerReward === true,
+        waves: room.waves ?? 3,
+        trialReward: room.trialReward === true,
         mechanic: room.mechanic ?? 'RANDOM',
         event: room.event ?? 'RANDOM',
         key: room.key === true,
@@ -336,8 +340,12 @@
   /** Puissances proposées pour un adversaire, en % de la force normale à sa profondeur. */
   const POWERS = [50, 75, 100, 125, 150, 200, 250, 300];
 
-  function hasFoe(type: RoomType): boolean {
-    return type === 'MONSTER' || type === 'ELITE' || type === 'BOSS';
+  /** Vagues possibles d'une épreuve (mêmes bornes que `TOWER_TRIAL_WAVES` côté bot). */
+  const WAVES = [2, 3, 4, 5];
+
+  /** Salles dont la puissance se règle : celles qui opposent un adversaire, épreuve comprise. */
+  function hasPower(type: RoomType): boolean {
+    return type === 'MONSTER' || type === 'ELITE' || type === 'BOSS' || type === 'TRIAL';
   }
 
   // ── Pipette : peindre des salles avec les réglages d'une salle existante ──
@@ -361,7 +369,7 @@
   function templateSummary(room: Room): string {
     const parts = [label(room.type)];
     if (room.foe) parts.push(room.foe);
-    if (hasFoe(room.type) && room.powerPercent !== 100) parts.push(`×${room.powerPercent / 100}`);
+    if (hasPower(room.type) && room.powerPercent !== 100) parts.push(`×${room.powerPercent / 100}`);
     if (room.traits.length > 0) parts.push(room.traits.map(traitLabel).join(', '));
     return parts.join(' · ');
   }
@@ -740,7 +748,7 @@
 
   /** Salles dont la puissance est réglée, et ce que ça donne sur la plus forte d'entre elles. */
   const powered = $derived.by(() => {
-    const rooms = layout.rooms.filter((room) => hasFoe(room.type) && room.powerPercent !== 100);
+    const rooms = layout.rooms.filter((room) => hasPower(room.type) && room.powerPercent !== 100);
     if (rooms.length === 0) return null;
     const max = Math.max(...rooms.map((room) => room.powerPercent));
     const min = Math.min(...rooms.map((room) => room.powerPercent));
@@ -997,6 +1005,26 @@
     });
   }
 </script>
+
+{#snippet powerSettings(room: Room)}
+  <div class="space-y-1">
+    <span class="text-xs font-semibold text-on-surface-variant/60" title={m.eco_tower_map_power_tip()}>{m.eco_tower_map_power()} · <span class="font-mono">×{room.powerPercent / 100}</span></span>
+    <div class="flex flex-wrap gap-1.5">
+      {#each POWERS as power}
+        <button type="button" disabled={!canManage || disabled} onclick={() => updateSelected({ powerPercent: power })}
+          class="px-2 py-1 rounded-lg text-2xs font-bold border font-mono {room.powerPercent === power ? (power > 100 ? 'border-error bg-error/15 text-error' : power < 100 ? 'border-success bg-success/15 text-success' : 'border-primary bg-primary/15') : 'border-outline-variant/15'}">×{power / 100}</button>
+      {/each}
+    </div>
+    <p class="text-2xs text-on-surface-variant/50">{m.eco_tower_map_power_hint()}</p>
+    {#if room.powerPercent !== 100}
+      <label class="flex items-start gap-2 text-xs pt-1" title={m.eco_tower_map_power_reward_tip()}>
+        <input type="checkbox" class="mt-0.5" checked={room.powerReward} disabled={!canManage || disabled}
+          onchange={(e) => updateSelected({ powerReward: (e.currentTarget as HTMLInputElement).checked })} />
+        {m.eco_tower_map_power_reward({ factor: `×${room.powerPercent / 100}` })}
+      </label>
+    {/if}
+  </div>
+{/snippet}
 
 <svelte:window onpointerup={() => { if (rect) fillRect(); painting = false; erasing = false; stroke = null; }} onkeydown={onKeydown} />
 
@@ -1301,7 +1329,7 @@
                 <Papicon icon="Lock" size={14} />
               </g>
             {/if}
-            {#if hasFoe(room.type) && room.powerPercent !== 100}
+            {#if hasPower(room.type) && room.powerPercent !== 100}
               <text x={(room.x + span) * CELL - 10} y={room.y * CELL + 17} text-anchor="end" font-size="10" font-weight="800" fill={room.powerPercent > 100 ? '#ef4444' : '#22c55e'} pointer-events="none">
                 ×{room.powerPercent / 100}
               </text>
@@ -1375,23 +1403,7 @@
                 on:change={(e: any) => updateSelected({ foe: e.detail?.value ?? null })}
               />
             </div>
-            <div class="space-y-1">
-              <span class="text-xs font-semibold text-on-surface-variant/60" title={m.eco_tower_map_power_tip()}>{m.eco_tower_map_power()} · <span class="font-mono">×{selected.powerPercent / 100}</span></span>
-              <div class="flex flex-wrap gap-1.5">
-                {#each POWERS as power}
-                  <button type="button" disabled={!canManage || disabled} onclick={() => updateSelected({ powerPercent: power })}
-                    class="px-2 py-1 rounded-lg text-2xs font-bold border font-mono {selected.powerPercent === power ? (power > 100 ? 'border-error bg-error/15 text-error' : power < 100 ? 'border-success bg-success/15 text-success' : 'border-primary bg-primary/15') : 'border-outline-variant/15'}">×{power / 100}</button>
-                {/each}
-              </div>
-              <p class="text-2xs text-on-surface-variant/50">{m.eco_tower_map_power_hint()}</p>
-              {#if selected.powerPercent !== 100}
-                <label class="flex items-start gap-2 text-xs pt-1" title={m.eco_tower_map_power_reward_tip()}>
-                  <input type="checkbox" class="mt-0.5" checked={selected.powerReward} disabled={!canManage || disabled}
-                    onchange={(e) => updateSelected({ powerReward: (e.currentTarget as HTMLInputElement).checked })} />
-                  {m.eco_tower_map_power_reward({ factor: `×${selected.powerPercent / 100}` })}
-                </label>
-              {/if}
-            </div>
+            {@render powerSettings(selected)}
             <div class="space-y-1">
               <span class="text-xs font-semibold text-on-surface-variant/60" title={m.eco_tower_map_traits_tip()}>{m.eco_tower_map_traits({ max: TRAITS_MAX })}</span>
               <div class="flex flex-wrap gap-1.5">
@@ -1413,6 +1425,23 @@
                 </div>
               </div>
             {/if}
+          {:else if selected.type === 'TRIAL'}
+            <div class="space-y-1">
+              <span class="text-xs font-semibold text-on-surface-variant/60">{m.eco_tower_map_waves()}</span>
+              <div class="flex flex-wrap gap-1.5">
+                {#each WAVES as waves}
+                  <button type="button" disabled={!canManage || disabled} onclick={() => updateSelected({ waves })}
+                    class="px-2.5 py-1 rounded-lg text-2xs font-bold border font-mono {selected.waves === waves ? 'border-primary bg-primary/15' : 'border-outline-variant/15'}">{waves}</button>
+                {/each}
+              </div>
+              <p class="text-2xs text-on-surface-variant/50">{m.eco_tower_map_waves_hint()}</p>
+            </div>
+            {@render powerSettings(selected)}
+            <label class="flex items-start gap-2 text-xs" title={m.eco_tower_map_trial_reward_tip()}>
+              <input type="checkbox" class="mt-0.5" checked={selected.trialReward} disabled={!canManage || disabled}
+                onchange={(e) => updateSelected({ trialReward: (e.currentTarget as HTMLInputElement).checked })} />
+              {m.eco_tower_map_trial_reward()}
+            </label>
           {:else if selected.type === 'EVENT'}
             <div class="space-y-1">
               <span class="text-xs font-semibold text-on-surface-variant/60">{m.eco_tower_map_event()}</span>

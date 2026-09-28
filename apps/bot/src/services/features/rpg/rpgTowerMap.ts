@@ -69,6 +69,13 @@ export const TOWER_HEAL_PERCENT_RANGE = { min: 5, max: 100 } as const;
 export const TOWER_PRICE_PERCENT_RANGE = { min: 10, max: 500 } as const;
 /** Puissance d'un adversaire imposé, en pourcentage de la force normale à cette profondeur. */
 export const TOWER_POWER_PERCENT_RANGE = { min: 50, max: 300 } as const;
+/** Vagues d'une épreuve ; la dernière est toujours une élite. */
+export const TOWER_TRIAL_WAVES = { min: 2, max: 5, default: 3 } as const;
+
+/** Salles dont la puissance se règle : celles qui opposent un adversaire, épreuve comprise. */
+export function hasTowerPower(type: TowerRoomType): boolean {
+  return type === 'MONSTER' || type === 'ELITE' || type === 'BOSS' || type === 'TRIAL';
+}
 const FOE_NAME_MAX = 100;
 
 export type TowerRoom = {
@@ -92,6 +99,10 @@ export type TowerRoom = {
   powerPercent: number;
   /** Or et chance de butin suivent aussi la puissance ; sinon une salle renforcée ne rapporte pas plus. */
   powerReward: boolean;
+  /** Nombre de vagues d'une épreuve. */
+  waves: number;
+  /** Une épreuve réussie paie comme un gardien : soin de victoire et chance d'objet du gardien. */
+  trialReward: boolean;
   /** Mécanique d'un gardien. */
   mechanic: TowerMechanicChoice;
   /** Événement d'une salle d'événement. */
@@ -262,8 +273,10 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
       traits: (type === 'MONSTER' || type === 'ELITE' || type === 'BOSS') && Array.isArray(cell.traits)
         ? [...new Set(cell.traits.filter((trait): trait is TowerTrait => TOWER_TRAITS.includes(trait as TowerTrait)))].slice(0, TOWER_ROOM_TRAITS_MAX)
         : [],
-      powerPercent: type === 'MONSTER' || type === 'ELITE' || type === 'BOSS' ? clampInt(cell.powerPercent, TOWER_POWER_PERCENT_RANGE, 100) : 100,
-      powerReward: (type === 'MONSTER' || type === 'ELITE' || type === 'BOSS') && cell.powerReward === true,
+      powerPercent: hasTowerPower(type) ? clampInt(cell.powerPercent, TOWER_POWER_PERCENT_RANGE, 100) : 100,
+      powerReward: hasTowerPower(type) && cell.powerReward === true,
+      waves: type === 'TRIAL' ? clampInt(cell.waves, TOWER_TRIAL_WAVES, TOWER_TRIAL_WAVES.default) : TOWER_TRIAL_WAVES.default,
+      trialReward: type === 'TRIAL' && cell.trialReward === true,
       mechanic: TOWER_MECHANIC_CHOICES.includes(cell.mechanic as TowerMechanicChoice) ? (cell.mechanic as TowerMechanicChoice) : 'RANDOM',
       event: TOWER_EVENT_CHOICES.includes(cell.event as TowerEventChoice) ? (cell.event as TowerEventChoice) : 'RANDOM',
       key: canHoldKey(type) && cell.key === true,
@@ -356,7 +369,7 @@ export function visibleRooms(layout: TowerLayout, pos: string, cleared: readonly
 export function newTowerRoom(x: number, y: number, type: TowerRoomType, extra: Partial<TowerRoom> = {}): TowerRoom {
   return {
     id: roomId(x, y), x, y, type, foe: null, chest: 'BOTH', healPercent: 35, offers: [...TOWER_OFFER_KINDS], pricePercent: 100,
-    traits: [], powerPercent: 100, powerReward: false, mechanic: 'RANDOM', event: 'RANDOM', key: false, ...extra,
+    traits: [], powerPercent: 100, powerReward: false, waves: TOWER_TRIAL_WAVES.default, trialReward: false, mechanic: 'RANDOM', event: 'RANDOM', key: false, ...extra,
   };
 }
 

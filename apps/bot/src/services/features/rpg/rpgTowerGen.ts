@@ -112,7 +112,8 @@ export function generateTowerLayout(seed: number, fog = true, floor = 1): TowerL
     place(x, y, pathType());
   }
   // Une sortie d'une case se pose juste au-dessus de la fin du chemin.
-  if (exit !== 'BOSS') cells.set(key(x, y - 1), newTowerRoom(x, y - 1, exit));
+  // Sans level design pour la compenser, une épreuve générée paie comme un gardien.
+  if (exit !== 'BOSS') cells.set(key(x, y - 1), newTowerRoom(x, y - 1, exit, { trialReward: exit === 'TRIAL' }));
 
   // La dernière salle avant la sortie laisse souvent souffler.
   if (rng.next() < 0.5 && (used.CAMPFIRE ?? 0) === 0) {

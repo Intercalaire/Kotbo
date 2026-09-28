@@ -13,7 +13,7 @@
 import { createCanvas, type SKRSContext2D } from '@napi-rs/canvas';
 import { logger } from '../../../utils/logger.js';
 import { canvasFont, ensureCanvasFonts } from '../../../utils/canvasFonts.js';
-import { occupancy, roomCells, type TowerLayout, type TowerRoomType } from './rpgTowerMap.js';
+import { hasTowerPower, occupancy, roomCells, type TowerLayout, type TowerRoomType } from './rpgTowerMap.js';
 
 export const TOWER_IMAGE_FILENAME = 'tour.png';
 
@@ -650,7 +650,7 @@ function renderMap(input: TowerMapImage): Buffer {
       if (badge > 0) drawBadge(ctx, x + size - 2, y + 2, Math.max(7, tile * 0.16), badge);
       if (input.keys?.includes(room.id)) drawKey(ctx, x + 3, y + size - 3, Math.max(8, tile * 0.2));
       const power = room.powerPercent ?? 100;
-      if (power !== 100 && (room.type === 'MONSTER' || room.type === 'ELITE' || room.type === 'BOSS')) {
+      if (power !== 100 && hasTowerPower(room.type)) {
         drawPower(ctx, x + size - 2, y + size - 2, Math.max(9, Math.round(tile * 0.2)), power);
       }
     }

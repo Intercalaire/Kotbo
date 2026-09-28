@@ -792,13 +792,22 @@ describe('sorties d\'étage', () => {
 
   test('l\'épreuve enchaîne trois vagues sans fuite, puis fait monter', () => {
     let step = go(begin([room(0, 0, 'START'), room(1, 0, 'TRIAL')]), 'TRIAL');
-    expect(step.state.trial).toEqual({ wave: 1, waves: 3 });
+    expect(step.state.trial).toMatchObject({ wave: 1, waves: 3, reward: false });
     const fighting = step;
     expect(() => applyTowerAction(fighting.state, fighting.floor, { type: 'flee' }, RULES, FOES)).toThrow(TowerActionRefused);
     step = fight(step);
     expect(step.floor).toBe(2);
     expect(step.state.kills).toBe(3);
     expect(step.state.trial).toBeNull();
+  });
+
+  test('une épreuve règle ses vagues, sa puissance et sa récompense', () => {
+    let step = go(begin([room(0, 0, 'START'), room(1, 0, 'TRIAL', { waves: 2, powerPercent: 150, trialReward: true })]), 'TRIAL');
+    expect(step.state.trial).toMatchObject({ wave: 1, waves: 2, power: 1.5, reward: true });
+    expect(step.state.encounter?.power).toBe(1.5);
+    step = fight(step);
+    expect(step.floor).toBe(2);
+    expect(step.state.kills).toBe(2);
   });
 });
 

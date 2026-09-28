@@ -2972,6 +2972,7 @@
   "tower_objective_stairs": "Goal: find the keys ({found}/{needed}), then the sealed stairs.",
   "tower_objective_trial": "Goal: pass the trial ({waves} waves, no fleeing).",
   "tower_combat_trial": "Trial · wave {wave}/{waves}",
+  "tower_combat_trial_last": "last wave: an elite",
   "tower_exit_gate_locked": "closed: {lit}/{needed} seals lit",
   "tower_exit_open": "open",
   "tower_exit_stairs_locked": "sealed: {found}/{needed} keys",

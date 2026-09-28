@@ -294,7 +294,7 @@ function roomLabel(type: TowerRoomType, locale: Locale): string {
   }
 }
 
-function roomDescription(type: TowerRoomType, locale: Locale): string {
+function roomDescription(type: TowerRoomType, locale: Locale, waves: number = TRIAL_WAVES): string {
   switch (disguised(type)) {
     case 'START': return m.tower_room_start_desc({}, { locale });
     case 'MONSTER': return doorDescription('COMBAT', locale);
@@ -306,7 +306,7 @@ function roomDescription(type: TowerRoomType, locale: Locale): string {
     case 'SHRINE': return m.tower_room_shrine_desc({}, { locale });
     case 'EVENT': return doorDescription('EVENT', locale);
     case 'STAIRS': return m.tower_room_stairs_desc({}, { locale });
-    case 'TRIAL': return m.tower_room_trial_desc({ waves: TRIAL_WAVES }, { locale });
+    case 'TRIAL': return m.tower_room_trial_desc({ waves }, { locale });
     case 'GATE': return m.tower_room_gate_desc({}, { locale });
     case 'SEAL': return m.tower_room_seal_desc({}, { locale });
     case 'WARP_A':
@@ -357,13 +357,13 @@ function exitStatus(type: TowerRoomType, layout: TowerLayout, cleared: readonly 
 }
 
 function moveLine(move: TowerMove, info: TowerRoomInfo | undefined, map: TowerMapState, locale: Locale): string {
+  const room = map.layout.rooms.find((candidate) => candidate.id === move.roomId);
   // Passer par un portail se lit comme un déplacement à part : on change de coin de l'étage.
   const status = move.direction === 'WARP'
     ? m.tower_move_warp({}, { locale })
     : move.cleared
       ? `*${m.tower_room_visited({}, { locale })}*`
-      : roomDescription(move.type, locale);
-  const room = map.layout.rooms.find((candidate) => candidate.id === move.roomId);
+      : roomDescription(move.type, locale, room?.waves);
   const extras = move.cleared ? [] : [
     // Les traits d'une mimique la trahiraient : on n'en dit rien.
     move.type === 'MIMIC' ? '' : roomInfoLine(info, locale),
@@ -996,7 +996,7 @@ function floorObjective(state: TowerState, locale: Locale): string | null {
   switch (exit.type) {
     case 'STAIRS': return m.tower_objective_stairs({ found: locks.keysFound, needed: locks.keysNeeded }, { locale });
     case 'GATE': return m.tower_objective_gate({ lit: locks.sealsLit, needed: locks.sealsNeeded }, { locale });
-    case 'TRIAL': return m.tower_objective_trial({ waves: TRIAL_WAVES }, { locale });
+    case 'TRIAL': return m.tower_objective_trial({ waves: exit.waves ?? TRIAL_WAVES }, { locale });
     default: return m.tower_objective_boss({}, { locale });
   }
 }
@@ -1111,7 +1111,9 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
     case 'COMBAT': {
       const foe = state.encounter!;
       const kind = foe.kind === 'BOSS' ? ` ${icon('crown')}` : foe.kind === 'ELITE' ? ` ${icon('rpgBoss')}` : '';
-      const trial = state.trial ? `${icon('rpgWar')} **${m.tower_combat_trial({ wave: state.trial.wave, waves: state.trial.waves }, { locale })}**` : null;
+      const trial = state.trial
+        ? `${icon('rpgWar')} **${m.tower_combat_trial({ wave: state.trial.wave, waves: state.trial.waves }, { locale })}**${state.trial.wave === state.trial.waves ? ` · ${m.tower_combat_trial_last({}, { locale })}` : ''}`
+        : null;
       const enraged = foe.enraged ? ` · **${m.tower_combat_enraged({}, { locale })}**` : '';
       const log = foe.log.map((entry) => logLine(entry, foe, locale));
       const traits = (foe.traits ?? []).map((trait) => `${icon(TRAIT_ICON[trait])} **${traitName(trait, locale)}** : ${traitDescription(trait, locale)}`);
