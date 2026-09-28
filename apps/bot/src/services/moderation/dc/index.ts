@@ -17,7 +17,17 @@ import { computeVoiceSignals } from './voiceSignals.js';
 export * from './types.js';
 export { computeWeightedScore, loadSignalWeights, classify } from './scoring.js';
 export type { ScoreResult, Severity } from './scoring.js';
-export { logDetectionSample, recordDecision, recalibrateWeights } from './learning.js';
+export {
+  logDetectionSample,
+  recordDecision,
+  undoFalsePositive,
+  recalibrateWeights,
+  assessWithLearnedModel,
+} from './learning.js';
+export type { LearnedAssessment } from './learning.js';
+export { blendScore } from './logisticModel.js';
+export { resolveInviteSponsor, listUsersInvitedBy, findBotIds } from './inviteOrigin.js';
+export type { JoinInvite, InviteSponsor } from './inviteOrigin.js';
 export { getBehavioralProfile, invalidateBehavioralProfile } from './behavioralProfile.js';
 
 const MAX_ALTS_ANALYZED = 8;
