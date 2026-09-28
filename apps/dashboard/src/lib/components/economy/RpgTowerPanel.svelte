@@ -71,6 +71,7 @@
     maxBlessings: number;
     shardsPerFloor: number;
     deathShardPercent: number;
+    leaveShardPercent: number;
     weeklyShardCap: number;
     idleTimeoutMinutes: number;
     currencyName: string;
@@ -79,7 +80,7 @@
     merchant: Merchant;
     seasonStartedAt?: string;
     layoutEnabled?: boolean;
-    layout?: any;
+    floors?: any[];
   };
   type Reward = {
     id: string;
@@ -146,6 +147,7 @@
     maxBlessings: 6,
     shardsPerFloor: 2,
     deathShardPercent: 50,
+    leaveShardPercent: 80,
     weeklyShardCap: 0,
     idleTimeoutMinutes: 30,
     currencyName: 'Éclats de Tour',
@@ -158,6 +160,8 @@
   const INHERIT_SLOPE = 0.2;
   const MONSTER_BASE_HEALTH = 70;
   const MONSTER_BASE_ATTACK = 13;
+  // Au-delà de cet étage, la croissance des monstres est divisée par deux (miroir du bot).
+  const GROWTH_KNEE = 25;
 
   const actionState = createAsyncActionState();
   let loading = $state(true);
@@ -166,7 +170,8 @@
   let rewards = $state<Reward[]>([]);
   let leaderboard = $state<LeaderboardEntry[]>([]);
   let stats = $state({ players: 0, runs: 0, activeRuns: 0, bestFloor: 0 });
-  let limits = $state<{ rewardsMax: number; mapSize?: { min: number; max: number }; mapRoomsMax?: number }>({ rewardsMax: 40 });
+  let limits = $state<{ rewardsMax: number; mapSize?: { min: number; max: number }; mapRoomsMax?: number; floorsMax?: number }>({ rewardsMax: 40 });
+  let resetMilestones = $state(true);
   let foes = $state<{ name: string; emoji: string; isBoss: boolean; enabled: boolean }[]>([]);
   // Recrée l'éditeur après chaque chargement, pour qu'il reparte de la carte enregistrée.
   let mapVersion = $state(0);
@@ -205,7 +210,9 @@
 
   const entryPreview = $derived([20, 2_000, 200_000, 20_000_000].map((main) => ({ main, tower: towerAttack(main) })));
   const floorPreview = $derived([1, 10, 25, 50].map((floor) => {
-    const growth = Math.pow(1 + (Number(settings.floorGrowthPercent) || 0) / 100, floor - 1);
+    const rate = (Number(settings.floorGrowthPercent) || 0) / 100;
+    const steep = Math.min(floor - 1, GROWTH_KNEE - 1);
+    const growth = Math.pow(1 + rate, steep) * Math.pow(1 + rate / 2, floor - 1 - steep);
     return { floor, health: Math.round(MONSTER_BASE_HEALTH * growth), attack: Math.round(MONSTER_BASE_ATTACK * growth) };
   }));
   const veteranRatio = $derived((towerAttack(20_000_000) / towerAttack(20)).toFixed(2));
@@ -319,7 +326,7 @@
       })),
     };
     delete payload.seasonStartedAt;
-    delete payload.layout;
+    delete payload.floors;
     delete payload.layoutEnabled;
     await actionState.run(async () => {
       await saveRpgTowerSettings(payload);
@@ -416,7 +423,7 @@
     });
     if (!confirmed) return;
     await actionState.run(async () => {
-      await startRpgTowerSeason();
+      await startRpgTowerSeason({ resetMilestones });
       await load();
       return true;
     });
@@ -427,10 +434,10 @@
   const cardClass = 'bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6';
 </script>
 
-{#snippet numberField(id: string, label: string, hint: string, key: NumericSetting, min: number, max: number)}
-  <div class="space-y-1" title={hint}>
+{#snippet numberField(id: string, label: string, hint: string, key: NumericSetting, min: number, max: number, off: boolean = false)}
+  <div class="space-y-1 {off ? 'opacity-60' : ''}" title={hint}>
     <label for={id} class={labelClass}>{label}</label>
-    <input {id} type="number" {min} {max} bind:value={settings[key]} disabled={!canManage || disabled} class={inputClass} />
+    <input {id} type="number" {min} {max} bind:value={settings[key]} disabled={!canManage || disabled || off} class={inputClass} />
     <p class="text-2xs text-on-surface-variant/50 leading-relaxed ml-2">{hint}</p>
   </div>
 {/snippet}
@@ -557,6 +564,7 @@
             <li>{m.eco_tower_guide_floor()}</li>
             <li>{m.eco_tower_guide_boss()}</li>
             <li>{m.eco_tower_guide_growth()}</li>
+            <li>{m.eco_tower_guide_combat()}</li>
             <li>{m.eco_tower_guide_milestones()}</li>
             <li>{m.eco_tower_guide_start()}</li>
           </ul>
@@ -628,8 +636,9 @@
           <h4 class="text-sm font-bold">{m.eco_tower_difficulty_title()}</h4>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             {@render numberField('towerGrowth', m.eco_tower_field_growth(), m.eco_tower_field_growth_hint(), 'floorGrowthPercent', 1, 30)}
-            {@render numberField('towerBoss', m.eco_tower_field_boss(), m.eco_tower_field_boss_hint(), 'bossEvery', 0, 50)}
-            {@render numberField('towerBlessing', m.eco_tower_field_blessing(), m.eco_tower_field_blessing_hint(), 'blessingEvery', 0, 20)}
+            <!-- Sur carte, chaque étage a son gardien, et les bénédictions se comptent en étages gravis. -->
+            {@render numberField('towerBoss', m.eco_tower_field_boss(), settings.layoutEnabled ? m.eco_tower_field_boss_map_hint() : m.eco_tower_field_boss_hint(), 'bossEvery', 0, 50, settings.layoutEnabled === true)}
+            {@render numberField('towerBlessing', m.eco_tower_field_blessing(), settings.layoutEnabled ? m.eco_tower_field_blessing_map_hint() : m.eco_tower_field_blessing_hint(), 'blessingEvery', 0, 20)}
             {@render numberField('towerMaxBlessings', m.eco_tower_field_max_blessings(), m.eco_tower_field_max_blessings_hint(), 'maxBlessings', 1, 12)}
             {@render numberField('towerIdle', m.eco_tower_field_idle(), m.eco_tower_field_idle_hint(), 'idleTimeoutMinutes', 5, 1440)}
           </div>
@@ -662,9 +671,10 @@
               </div>
             </div>
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
             {@render numberField('towerShards', m.eco_tower_field_shards(), m.eco_tower_field_shards_hint(), 'shardsPerFloor', 0, 1000)}
             {@render numberField('towerDeath', m.eco_tower_field_death(), m.eco_tower_field_death_hint(), 'deathShardPercent', 0, 100)}
+            {@render numberField('towerLeave', m.eco_tower_field_leave(), m.eco_tower_field_leave_hint(), 'leaveShardPercent', 0, 100)}
             {@render numberField('towerCap', m.eco_tower_field_cap(), m.eco_tower_field_cap_hint(), 'weeklyShardCap', 0, 1000000)}
           </div>
         </div>
@@ -676,8 +686,9 @@
         <RpgTowerMapEditor
           {canManage}
           {disabled}
-          initialLayout={settings.layout ?? null}
+          initialFloors={settings.floors ?? []}
           initialEnabled={settings.layoutEnabled ?? false}
+          floorsMax={limits.floorsMax ?? 12}
           {foes}
           sizeLimits={limits.mapSize ?? { min: 3, max: 12 }}
           roomsMax={limits.mapRoomsMax ?? 100}
@@ -886,9 +897,15 @@
             </p>
           </div>
           {#if canManage}
-            <button type="button" onclick={newSeason} disabled={disabled} title={m.eco_tower_season_confirm_desc()} class="px-4 py-2.5 bg-warning/10 hover:bg-warning/20 text-warning text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap disabled:opacity-50">
-              <Papicon icon="RotateCcw" size={14} /> {m.eco_tower_season_btn()}
-            </button>
+            <div class="flex items-center gap-3">
+              <div class="flex items-center gap-2" title={m.eco_tower_season_reset_milestones_hint()}>
+                <ToggleSwitch checked={resetMilestones} disabled={disabled} ariaLabel={m.eco_tower_season_reset_milestones()} onToggle={(value: boolean) => { resetMilestones = value; }} />
+                <span class="text-2xs font-semibold text-on-surface-variant/70">{m.eco_tower_season_reset_milestones()}</span>
+              </div>
+              <button type="button" onclick={newSeason} disabled={disabled} title={m.eco_tower_season_confirm_desc()} class="px-4 py-2.5 bg-warning/10 hover:bg-warning/20 text-warning text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap disabled:opacity-50">
+                <Papicon icon="RotateCcw" size={14} /> {m.eco_tower_season_btn()}
+              </button>
+            </div>
           {/if}
         </div>
         {#if leaderboard.length === 0}

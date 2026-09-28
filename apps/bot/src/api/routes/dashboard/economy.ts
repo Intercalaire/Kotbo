@@ -137,7 +137,7 @@ import {
   TowerError,
   deleteTowerReward,
   getTowerDashboard,
-  saveTowerLayout,
+  saveTowerFloors,
   saveTowerReward,
   saveTowerSettings,
   startTowerSeason,
@@ -1071,14 +1071,15 @@ export async function handleEconomyRoutes(
     // POST /api/dashboard/guilds/:guildId/economy/tower/layout
     if (parts.length === 7 && parts[6] === 'layout' && method === 'POST') {
       try {
-        const body = await readJsonBody<{ layoutEnabled?: unknown; layout?: unknown }>(req);
+        const body = await readJsonBody<{ layoutEnabled?: unknown; floors?: unknown; layout?: unknown }>(req);
         if (!body) {
           json(res, 400, { error: 'Corps de requête manquant.' });
           return true;
         }
-        const settings = await saveTowerLayout(guildId, body);
-        await towerAudit('Carte de la Tour', settings.layout
-          ? `${settings.layout.rooms.length} salles, ${settings.layoutEnabled ? 'jouée' : 'inactive'}`
+        const settings = await saveTowerFloors(guildId, body);
+        const rooms = settings.floors.reduce((sum, floor) => sum + floor.rooms.length, 0);
+        await towerAudit('Étages de la Tour', settings.floors.length > 0
+          ? `${settings.floors.length} étage(s), ${rooms} salles, ${settings.layoutEnabled ? 'jouée' : 'inactive'}`
           : 'Carte retirée');
         json(res, 200, { settings });
       } catch (err) {
@@ -1090,8 +1091,10 @@ export async function handleEconomyRoutes(
     // POST /api/dashboard/guilds/:guildId/economy/tower/season
     if (parts.length === 7 && parts[6] === 'season' && method === 'POST') {
       try {
-        const reset = await startTowerSeason(guildId);
-        await towerAudit('Nouvelle saison de la Tour', `${reset} profil(s) remis à zéro au classement`);
+        const body = await readJsonBody<{ resetMilestones?: unknown }>(req).catch(() => null);
+        const resetMilestones = body?.resetMilestones !== false;
+        const reset = await startTowerSeason(guildId, { resetMilestones });
+        await towerAudit('Nouvelle saison de la Tour', `${reset} profil(s) remis à zéro au classement${resetMilestones ? ', paliers regagnables' : ''}`);
         json(res, 200, { success: true, reset });
       } catch (err) {
         towerFailure(err, 'Erreur lors du changement de saison.');

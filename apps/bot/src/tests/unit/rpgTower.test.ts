@@ -11,8 +11,13 @@ import {
   parseTowerUpgrades,
   rollBlessingChoices,
   rollMerchantOffers,
+  defaultTowerMerchant,
   rollDoors,
   settleShards,
+  TOWER_DODGE_CAP,
+  TOWER_GROWTH_KNEE,
+  towerDodgeChance,
+  towerFloorGrowth,
   towerMonsterStats,
   towerUpgradeBonus,
   towerUpgradeCost,
@@ -27,7 +32,15 @@ import {
   type TowerRules,
   type TowerState,
 } from '../../services/features/rpg/rpgTowerEngine.js';
-import { defaultTowerLayout, normalizeTowerLayout, roomNeighbors, shortestPathToBoss } from '../../services/features/rpg/rpgTowerMap.js';
+import {
+  defaultTowerLayout,
+  floorLayout,
+  normalizeTowerFloors,
+  normalizeTowerLayout,
+  roomNeighbors,
+  shortestPathToBoss,
+} from '../../services/features/rpg/rpgTowerMap.js';
+import { renderTowerImage } from '../../services/features/rpg/rpgTowerRender.js';
 
 const RULES: TowerRules = { floorGrowthPercent: 8, bossEvery: 10, blessingEvery: 5, maxBlessings: 6, shardsPerFloor: 2 };
 const FOES = { monsters: [{ name: 'Rat', emoji: '🐀' }], bosses: [{ name: 'Roi Rat', emoji: '👑' }], byName: {} };
@@ -123,6 +136,8 @@ describe('éclats', () => {
   test('la mort retient une part, l\'abandon garde tout', () => {
     expect(settleShards(100, 'LEFT', 50)).toBe(100);
     expect(settleShards(101, 'DEAD', 50)).toBe(50);
+    expect(settleShards(100, 'LEFT', 50, 80)).toBe(80);
+    expect(settleShards(100, 'LEFT', 50, 80, true)).toBe(100);
   });
 
   test('le plafond hebdomadaire', () => {
@@ -271,6 +286,101 @@ describe('moteur d\'ascension', () => {
     expect(() => applyTowerAction(start(), 1, { type: 'attack' }, RULES, FOES)).toThrow(TowerActionRefused);
     expect(() => applyTowerAction(start(), 1, { type: 'door', index: 7 }, RULES, FOES)).toThrow(TowerActionRefused);
   });
+
+  test('un monstre tué par les épines de son dernier coup n\'empêche pas la mort', () => {
+    const fighting = enterCombat(start({ ...STRONG, speed: 1, defense: 0, maxHealth: 10, thorns: 0.5 })).state;
+    fighting.hp = 1;
+    fighting.encounter!.health = 1;
+    const step = applyTowerAction(fighting, 1, { type: 'defend' }, RULES, FOES);
+    expect(step.dead).toBe(true);
+    expect(step.state.hp).toBe(0);
+  });
+
+  test('une potion à PV pleins est refusée en combat aussi', () => {
+    expect(() => applyTowerAction(enterCombat(start()).state, 1, { type: 'potion' }, RULES, FOES)).toThrow(TowerActionRefused);
+  });
+
+  test('fuir coûte une part de l\'or et rouvre des portes au même étage', () => {
+    const fighting = enterCombat(start({ ...STRONG, speed: 1 })).state;
+    fighting.gold = 100;
+    const step = applyTowerAction(fighting, 1, { type: 'flee' }, RULES, FOES);
+    expect(step.dead).toBe(false);
+    expect(step.floor).toBe(1);
+    expect(step.state.phase).toBe('DOORS');
+    expect(step.state.gold).toBe(75);
+    expect(step.state.notice).toEqual({ k: 'fled', gold: 25 });
+  });
+
+  test('on ne fuit pas un boss', () => {
+    const fighting = enterCombat(start()).state;
+    fighting.encounter!.kind = 'BOSS';
+    expect(() => applyTowerAction(fighting, 1, { type: 'flee' }, RULES, FOES)).toThrow(TowerActionRefused);
+  });
+
+  test('une élite annonce un coup puissant, que la garde pare', () => {
+    let state = enterCombat(start({ ...STRONG, attack: 1, speed: 1 })).state;
+    state.encounter!.kind = 'ELITE';
+    state.encounter!.health = 1_000_000;
+    for (let i = 0; i < 5; i++) state = applyTowerAction(state, 1, { type: 'attack' }, RULES, FOES).state;
+    expect(state.encounter?.charging).toBe(true);
+    const parried = applyTowerAction(state, 1, { type: 'defend' }, RULES, FOES).state;
+    const hit = parried.encounter!.log.find((entry) => entry.k === 'monster' && entry.heavy);
+    expect(hit).toMatchObject({ heavy: true, parried: true });
+    expect(parried.encounter?.charging).toBe(false);
+  });
+
+  test('un boss sous 30 % de PV entre en rage', () => {
+    const fighting = enterCombat(start({ ...STRONG, attack: 1, speed: 1 })).state;
+    fighting.encounter!.kind = 'BOSS';
+    fighting.encounter!.health = Math.floor(fighting.encounter!.maxHealth * 0.3);
+    const step = applyTowerAction(fighting, 1, { type: 'defend' }, RULES, FOES);
+    expect(step.state.encounter?.enraged).toBe(true);
+    expect(step.state.encounter?.log.some((entry) => entry.k === 'enrage')).toBe(true);
+  });
+
+  test('défendre soigne et renforce l\'attaque suivante', () => {
+    const fighting = enterCombat(start({ ...STRONG, speed: 1 })).state;
+    fighting.hp = 100;
+    const step = applyTowerAction(fighting, 1, { type: 'defend' }, RULES, FOES);
+    expect(step.state.encounter?.riposte).toBe(true);
+    expect(step.state.encounter?.log[0]).toEqual({ k: 'defend', hp: Math.floor(STRONG.maxHealth * 0.05) });
+  });
+
+  test('les règles sont figées à l\'entrée', () => {
+    const state = start();
+    expect(state.rules).toEqual(RULES);
+    state.hp = 1000;
+    const live = { ...RULES, merchant: { ...defaultTowerMerchant(), potionHealPercent: 100 } };
+    const step = applyTowerAction(state, 1, { type: 'potion' }, live, FOES);
+    expect(step.state.hp).toBe(1000 + Math.floor(STRONG.maxHealth * 0.35));
+  });
+
+  test('le marchand renouvelle son équipement une seule fois', () => {
+    const state = start();
+    state.phase = 'MERCHANT';
+    state.merchant = rollMerchantOffers(1, new TowerRng(3), ['GEAR']);
+    state.gold = 1000;
+    const step = applyTowerAction(state, 1, { type: 'reroll' }, RULES, FOES);
+    expect(step.state.merchantRerolled).toBe(true);
+    expect(step.state.gold).toBeLessThan(1000);
+    expect(() => applyTowerAction(step.state, 1, { type: 'reroll' }, RULES, FOES)).toThrow(TowerActionRefused);
+  });
+});
+
+describe('vitesse et croissance', () => {
+  test('l\'esquive vient de l\'écart de vitesse et reste plafonnée', () => {
+    expect(towerDodgeChance(10, 10)).toBe(0);
+    expect(towerDodgeChance(8, 10)).toBe(0);
+    expect(towerDodgeChance(15, 10)).toBeCloseTo(TOWER_DODGE_CAP / 4);
+    expect(towerDodgeChance(30, 10)).toBeCloseTo(TOWER_DODGE_CAP);
+    expect(towerDodgeChance(100, 10)).toBe(TOWER_DODGE_CAP);
+  });
+
+  test('la croissance des monstres ralentit après le coude', () => {
+    const knee = towerFloorGrowth(TOWER_GROWTH_KNEE, 8);
+    expect(knee).toBeCloseTo(Math.pow(1.08, TOWER_GROWTH_KNEE - 1));
+    expect(towerFloorGrowth(TOWER_GROWTH_KNEE + 1, 8) / knee).toBeCloseTo(1.04);
+  });
 });
 
 describe('carte de la Tour', () => {
@@ -306,36 +416,85 @@ describe('carte de la Tour', () => {
     expect(roomNeighbors(result.value, '2-0').map((entry) => entry.room.id)).toEqual(['1-0']);
   });
 
-  test('on avance de salle en salle, on revient sans compter d\'étage, et le boss relance la carte', () => {
-    const layout = normalizeTowerLayout(SMALL);
-    if (!layout.ok) throw new Error(layout.error);
+  test('une carte est un étage : on la parcourt, et son gardien fait monter à l\'étage suivant', () => {
+    const first = normalizeTowerLayout({ ...SMALL, name: 'Caserne' });
+    const second = normalizeTowerLayout({ width: 4, height: 4, name: 'Crypte', rooms: [room(0, 0, 'START'), room(1, 0, 'BOSS')] });
+    if (!first.ok) throw new Error(first.error);
+    if (!second.ok) throw new Error(second.error);
+    const floors = [first.value, second.value];
     let step = {
-      state: createTowerState({ base: STRONG, skills: [], potions: 1, seed: 99, rules: RULES, layout: layout.value }),
+      state: createTowerState({ base: STRONG, skills: [], potions: 1, seed: 99, rules: RULES, layout: first.value }),
       floor: 1,
       dead: false,
     };
     expect(step.state.moves.map((move) => [move.type, move.direction])).toEqual([['CHEST', 'E']]);
 
-    step = applyTowerAction(step.state, step.floor, { type: 'door', index: 0 }, RULES, FOES);
-    expect(step.floor).toBe(2);
+    step = applyTowerAction(step.state, step.floor, { type: 'door', index: 0 }, RULES, FOES, floors);
+    expect(step.floor).toBe(1);
+    expect(step.state.map?.depth).toBe(2);
+    expect(step.state.shards).toBeGreaterThan(0);
     expect(step.state.gold).toBeGreaterThan(0);
     expect(step.state.map?.cleared).toContain('1-0');
 
     const back = step.state.moves.findIndex((move) => move.type === 'START');
-    const returned = applyTowerAction(step.state, step.floor, { type: 'door', index: back }, RULES, FOES);
-    expect(returned.floor).toBe(2);
+    const returned = applyTowerAction(step.state, step.floor, { type: 'door', index: back }, RULES, FOES, floors);
+    expect(returned.floor).toBe(1);
     expect(returned.state.map?.pos).toBe('0-0');
 
     const boss = step.state.moves.findIndex((move) => move.type === 'BOSS');
-    step = applyTowerAction(step.state, step.floor, { type: 'door', index: boss }, RULES, FOES);
+    step = applyTowerAction(step.state, step.floor, { type: 'door', index: boss }, RULES, FOES, floors);
     expect(step.state.encounter?.kind).toBe('BOSS');
     for (let i = 0; i < 50 && step.state.phase === 'COMBAT'; i++) {
-      step = applyTowerAction(step.state, step.floor, { type: 'attack' }, RULES, FOES);
+      step = applyTowerAction(step.state, step.floor, { type: 'attack' }, RULES, FOES, floors);
     }
-    expect(step.floor).toBe(3);
-    expect(step.state.map?.section).toBe(2);
+    expect(step.floor).toBe(2);
+    expect(step.state.floorsCleared).toBe(1);
+    expect(step.state.map?.layout.name).toBe('Crypte');
     expect(step.state.map?.pos).toBe('0-0');
     expect(step.state.map?.cleared).toEqual(['0-0']);
+    expect(step.state.notice).toMatchObject({ k: 'victory', climbed: { floor: 2, name: 'Crypte' } });
+    expect(step.state.safeLeave).toBe(true);
+  });
+
+  test('après le dernier étage dessiné, la montée reprend au premier', () => {
+    const a = { ...defaultTowerLayout(), name: 'A' };
+    const b = { ...defaultTowerLayout(), name: 'B' };
+    expect(floorLayout([a, b], 1)?.name).toBe('A');
+    expect(floorLayout([a, b], 2)?.name).toBe('B');
+    expect(floorLayout([a, b], 3)?.name).toBe('A');
+    expect(floorLayout([], 3)).toBeNull();
+  });
+
+  test('un étage invalide est signalé par son numéro', () => {
+    const result = normalizeTowerFloors([defaultTowerLayout(), { width: 4, height: 4, rooms: [room(0, 0, 'START')] }]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.startsWith('Étage 2')).toBe(true);
+  });
+
+  test('sur carte, une bénédiction tombe tous les N étages gravis', () => {
+    const layout = normalizeTowerLayout({ width: 4, height: 4, rooms: [room(0, 0, 'START'), room(1, 0, 'BOSS')] });
+    if (!layout.ok) throw new Error(layout.error);
+    const rules = { ...RULES, blessingEvery: 1 };
+    let step = {
+      state: createTowerState({ base: STRONG, skills: [], potions: 1, seed: 7, rules, layout: layout.value }),
+      floor: 1,
+      dead: false,
+    };
+    step = applyTowerAction(step.state, step.floor, { type: 'door', index: 0 }, rules, FOES, [layout.value]);
+    for (let i = 0; i < 50 && step.state.phase === 'COMBAT'; i++) {
+      step = applyTowerAction(step.state, step.floor, { type: 'attack' }, rules, FOES, [layout.value]);
+    }
+    expect(step.floor).toBe(2);
+    expect(step.state.blessingDue || step.state.phase === 'BLESSING').toBe(true);
+  });
+
+  test('le palier sûr s\'efface dès le pas suivant', () => {
+    const layout = normalizeTowerLayout(SMALL);
+    if (!layout.ok) throw new Error(layout.error);
+    const state = createTowerState({ base: STRONG, skills: [], potions: 1, seed: 99, rules: RULES, layout: layout.value });
+    state.safeLeave = true;
+    const step = applyTowerAction(state, 1, { type: 'door', index: 0 }, RULES, FOES, [layout.value]);
+    expect(step.state.safeLeave).toBe(false);
   });
 
   test('une salle peut imposer sa créature', () => {
@@ -345,5 +504,36 @@ describe('carte de la Tour', () => {
     const foes = { ...FOES, byName: { Liche: { name: 'Liche', emoji: '🧙' } } };
     const step = applyTowerAction(state, 1, { type: 'door', index: 0 }, RULES, foes);
     expect(step.state.encounter?.name).toBe('Liche');
+  });
+});
+
+describe('rendu de la tour', () => {
+  const isPng = (buffer: Buffer | null) => buffer !== null && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+
+  test('l\'étage en cours se dessine dans la tour, avec son échelle', async () => {
+    const layout = { ...defaultTowerLayout(), name: 'Caserne' };
+    const image = await renderTowerImage({
+      kind: 'map',
+      title: 'Étage 3 · Caserne',
+      layout,
+      pos: '3-8',
+      cleared: ['3-8', '3-7'],
+      targets: ['3-6'],
+      ladder: [
+        { label: 'Étage 5', status: 'next' },
+        { label: 'Étage 4', status: 'next' },
+        { label: 'Étage 3 · Caserne', status: 'current' },
+        { label: 'Étage 2', status: 'done' },
+        { label: 'Étage 1', status: 'done' },
+      ],
+    });
+    expect(isPng(image)).toBe(true);
+  });
+
+  test('en portes aléatoires, la tour se voit de face, même au premier étage', async () => {
+    for (const floor of [1, 10, 250]) {
+      const image = await renderTowerImage({ kind: 'shaft', title: 'La Tour', floor, bossEvery: 10, floorLabel: (value) => `Étage ${value}` });
+      expect(isPng(image)).toBe(true);
+    }
   });
 });

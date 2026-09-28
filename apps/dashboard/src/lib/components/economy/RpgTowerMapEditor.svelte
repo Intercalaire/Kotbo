@@ -1,15 +1,18 @@
 <script lang="ts">
   /**
-   * Éditeur de la carte de la Tour.
+   * Éditeur des étages de la Tour.
    *
-   * Une grille où l'on peint des salles : deux salles qui se touchent par un côté
-   * communiquent, une case vide est un mur. Le boss occupe une grande salle de 2×2. La
-   * géométrie reprend celle du bot (`rpgTowerMap.ts`) : ce qui s'affiche ici est ce que le
-   * joueur parcourra sur Discord, et le serveur revalide tout à l'enregistrement.
+   * La tour est une pile d'étages, du rez-de-chaussée au sommet, qui se jouent dans l'ordre
+   * puis recommencent au premier. Chaque étage est une grille où l'on peint des salles : deux
+   * salles qui se touchent par un côté communiquent, une case vide est un mur, le gardien
+   * occupe une grande salle de 2×2. La géométrie reprend celle du bot (`rpgTowerMap.ts`) :
+   * ce qui s'affiche ici est ce que le joueur parcourra sur Discord, et le serveur revalide
+   * tout à l'enregistrement.
    */
   import { m } from '../../i18n';
   import { createAsyncActionState } from '../../asyncAction.svelte';
   import { saveRpgTowerLayout } from '../../api';
+  import { confirmDialog } from '../../stores/confirmDialog.svelte';
   import Papicon from '../Papicon.svelte';
   import InlineFeedback from '../InlineFeedback.svelte';
   import SearchableSelect from '../SearchableSelect.svelte';
@@ -29,31 +32,36 @@
     offers: OfferKind[];
     pricePercent: number;
   };
-  type Layout = { width: number; height: number; rooms: Room[] };
+  type Layout = { name: string; width: number; height: number; rooms: Room[] };
   type Foe = { name: string; emoji: string; isBoss: boolean; enabled: boolean };
   type Tool = RoomType | 'ERASE' | 'SELECT';
 
   const {
     canManage = false,
     disabled = false,
-    initialLayout = null,
+    initialFloors = [],
     initialEnabled = false,
     foes = [],
     sizeLimits = { min: 3, max: 12 },
     roomsMax = 100,
+    floorsMax = 12,
     onSaved,
   }: {
     canManage?: boolean;
     disabled?: boolean;
-    initialLayout?: Layout | null;
+    initialFloors?: Layout[];
     initialEnabled?: boolean;
     foes?: Foe[];
     sizeLimits?: { min: number; max: number };
     roomsMax?: number;
+    floorsMax?: number;
     onSaved?: () => void | Promise<void>;
   } = $props();
 
   const CELL = 56;
+  // Cadre de pierre autour de la grille et hauteur des créneaux, en unités du dessin.
+  const FRAME = 18;
+  const CRENEL = 22;
   const ROOM_TYPES: RoomType[] = ['START', 'MONSTER', 'ELITE', 'BOSS', 'CHEST', 'CAMPFIRE', 'MERCHANT', 'SHRINE', 'EMPTY'];
   // Mêmes pictogrammes que les emojis d'application du bot sur Discord.
   const ICON: Record<RoomType, string> = {
@@ -115,6 +123,7 @@
   function exampleLayout(): Layout {
     const r = newRoom;
     return {
+      name: '',
       width: 9,
       height: 9,
       rooms: [
@@ -126,13 +135,22 @@
     };
   }
 
-  function cloneLayout(source: Layout | null): Layout {
-    const base = source ?? { width: 7, height: 7, rooms: [] };
-    return { width: base.width, height: base.height, rooms: base.rooms.map((room) => ({ ...room, offers: [...room.offers] })) };
+  function cloneLayout(source: Partial<Layout> | null): Layout {
+    return {
+      name: source?.name ?? '',
+      width: source?.width ?? 7,
+      height: source?.height ?? 7,
+      rooms: (source?.rooms ?? []).map((room) => ({ ...room, offers: [...room.offers] })),
+    };
   }
 
   const actionState = createAsyncActionState();
-  let layout = $state<Layout>(cloneLayout(initialLayout));
+  // L'éditeur est recréé à chaque chargement : il part des étages enregistrés à ce moment-là.
+  const seeded = initialFloors.length > 0 ? initialFloors.map((floor) => cloneLayout(floor)) : [cloneLayout(null)];
+  // `floors` garde une copie de chaque étage ; `layout` est l'étage ouvert, recopié à chaque changement d'étage.
+  let floors = $state<Layout[]>(seeded);
+  let current = $state(0);
+  let layout = $state<Layout>(cloneLayout(seeded[0]));
   let layoutEnabled = $state(initialEnabled);
   let tool = $state<Tool>('MONSTER');
   let selectedId = $state<string | null>(null);
@@ -217,7 +235,106 @@
     return list;
   });
 
+  // ── Étages ──────────────────────────────────────────────────────
+  /** Mêmes règles que le serveur : un départ, un gardien, tout relié, aucun marchand vide. */
+  function floorValid(floor: Layout): boolean {
+    if (floor.rooms.length === 0 || floor.rooms.length > roomsMax) return false;
+    const starts = floor.rooms.filter((room) => room.type === 'START');
+    if (starts.length !== 1 || !floor.rooms.some((room) => room.type === 'BOSS')) return false;
+    if (floor.rooms.some((room) => room.type === 'MERCHANT' && room.offers.length === 0)) return false;
+    const cells = new Map<string, Room>();
+    for (const room of floor.rooms) for (const [x, y] of cellsOf(room)) cells.set(`${x},${y}`, room);
+    const reached = new Set([starts[0].id]);
+    const queue = [starts[0]];
+    while (queue.length > 0) {
+      const room = queue.shift()!;
+      for (const [x, y] of cellsOf(room)) {
+        for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+          const other = cells.get(`${x + dx},${y + dy}`);
+          if (other && !reached.has(other.id)) {
+            reached.add(other.id);
+            queue.push(other);
+          }
+        }
+      }
+    }
+    return reached.size === floor.rooms.length;
+  }
+
+  // L'étage ouvert se lit dans `layout`, les autres dans leur copie.
+  const allFloors = $derived(floors.map((floor, index) => (index === current ? layout : floor)));
+  const towerEmpty = $derived(allFloors.length === 1 && allFloors[0].rooms.length === 0);
+  const invalidFloors = $derived(towerEmpty ? 0 : allFloors.filter((floor) => !floorValid(floor)).length);
+  // Du sommet au rez-de-chaussée, comme on lit une tour.
+  const stack = $derived(allFloors.map((floor, index) => ({ floor, index })).reverse());
+
+  function commit() {
+    floors[current] = cloneLayout(layout);
+  }
+
+  function selectFloor(index: number) {
+    if (index === current) return;
+    commit();
+    current = index;
+    layout = cloneLayout(floors[index]);
+    selectedId = null;
+  }
+
+  function addFloor() {
+    if (floors.length >= floorsMax) return;
+    commit();
+    floors = [...floors, cloneLayout({ width: layout.width, height: layout.height })];
+    current = floors.length - 1;
+    layout = cloneLayout(floors[current]);
+    selectedId = null;
+    dirty = true;
+  }
+
+  function duplicateFloor() {
+    if (floors.length >= floorsMax) return;
+    commit();
+    const copy = cloneLayout(floors[current]);
+    floors = [...floors.slice(0, current + 1), copy, ...floors.slice(current + 1)];
+    current += 1;
+    layout = cloneLayout(copy);
+    selectedId = null;
+    dirty = true;
+  }
+
+  function moveFloor(delta: number) {
+    const target = current + delta;
+    if (target < 0 || target >= floors.length) return;
+    commit();
+    const next = [...floors];
+    [next[current], next[target]] = [next[target], next[current]];
+    floors = next;
+    current = target;
+    dirty = true;
+  }
+
+  async function removeFloor() {
+    if (floors.length <= 1) {
+      clearMap();
+      return;
+    }
+    const confirmed = await confirmDialog.danger(
+      m.eco_tower_floor_delete_confirm({ floor: current + 1 }),
+      m.eco_tower_floor_delete_confirm_desc(),
+    );
+    if (!confirmed) return;
+    floors = floors.filter((_, index) => index !== current);
+    current = Math.min(current, floors.length - 1);
+    layout = cloneLayout(floors[current]);
+    selectedId = null;
+    dirty = true;
+  }
+
   const selected = $derived(layout.rooms.find((room) => room.id === selectedId) ?? null);
+
+  const frameW = $derived(layout.width * CELL + FRAME * 2);
+  const frameH = $derived(layout.height * CELL + FRAME * 2);
+  // En nombre impair, pour qu'un créneau tombe sur chaque angle.
+  const merlons = $derived(Math.max(5, Math.round(frameW / 44) | 1));
   const foeOptions = $derived.by(() => {
     if (!selected) return [];
     const wantBoss = selected.type === 'BOSS';
@@ -286,6 +403,7 @@
     const w = Math.min(sizeLimits.max, Math.max(sizeLimits.min, Math.trunc(width) || sizeLimits.min));
     const h = Math.min(sizeLimits.max, Math.max(sizeLimits.min, Math.trunc(height) || sizeLimits.min));
     layout = {
+      name: layout.name,
       width: w,
       height: h,
       rooms: layout.rooms.filter((room) => cellsOf(room).every(([x, y]) => x < w && y < h)),
@@ -310,20 +428,31 @@
   }
 
   function loadExample() {
-    layout = exampleLayout();
+    layout = { ...exampleLayout(), name: layout.name };
     selectedId = null;
     dirty = true;
   }
 
   function clearMap() {
-    layout = { width: layout.width, height: layout.height, rooms: [] };
+    layout = { name: layout.name, width: layout.width, height: layout.height, rooms: [] };
     selectedId = null;
     dirty = true;
   }
 
   async function save() {
+    // Un étage de carte vaut bien plus qu'une porte : changer de mode fausse la saison en cours.
+    if (layoutEnabled !== initialEnabled) {
+      const confirmed = await confirmDialog.ask({
+        title: m.eco_tower_mode_switch_confirm(),
+        description: m.eco_tower_mode_switch_confirm_desc(),
+        confirmLabel: m.eco_btn_save(),
+        variant: 'warning',
+      });
+      if (!confirmed) return;
+    }
+    commit();
     await actionState.run(async () => {
-      await saveRpgTowerLayout({ layoutEnabled, layout: layout.rooms.length > 0 ? layout : null });
+      await saveRpgTowerLayout({ layoutEnabled, floors: towerEmpty ? [] : floors });
       dirty = false;
       await onSaved?.();
       return true;
@@ -352,8 +481,20 @@
     </div>
   </div>
 
+  {#if layoutEnabled !== initialEnabled}
+    <p class="text-2xs text-warning flex items-start gap-1.5 bg-warning/10 border border-warning/20 rounded-lg px-3 py-2">
+      <Papicon icon="AlertTriangle" size={12} /> {m.eco_tower_mode_switch_warning()}
+    </p>
+  {/if}
+
   {#if canManage}
     <div class="flex flex-wrap items-end gap-3">
+      <div class="space-y-1">
+        <label for="floorName" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_tower_floor_name()} · {m.eco_tower_floor_label({ floor: current + 1 })}</label>
+        <input id="floorName" type="text" maxlength="40" bind:value={layout.name} disabled={disabled} oninput={() => { dirty = true; }}
+          placeholder={m.eco_tower_floor_name_placeholder()}
+          class="w-56 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none" />
+      </div>
       <div class="space-y-1">
         <label for="mapWidth" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_tower_map_width()}</label>
         <input id="mapWidth" type="number" min={sizeLimits.min} max={sizeLimits.max} value={layout.width} disabled={disabled}
@@ -391,15 +532,81 @@
     <p class="text-2xs text-on-surface-variant/50 -mt-3">{m.eco_tower_map_hint()}</p>
   {/if}
 
-  <div class="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-6">
-    <!-- Carte -->
+  <div class="grid grid-cols-1 xl:grid-cols-[220px_1fr_300px] gap-6">
+    <!-- La tour : un étage par carte, du rez-de-chaussée au sommet -->
+    <div class="space-y-3">
+      <div>
+        <p class="text-sm font-bold flex items-center gap-2"><Papicon icon="Building" size={14} /> {m.eco_tower_floors_title()}</p>
+        <p class="text-2xs text-on-surface-variant/60 leading-relaxed mt-1">{m.eco_tower_floors_desc()}</p>
+      </div>
+      <div>
+        <div class="flex justify-between px-0.5" aria-hidden="true">
+          {#each Array(5) as _}<span class="w-6 h-3 rounded-t-sm bg-outline-variant/35"></span>{/each}
+        </div>
+        <div class="border-x-4 border-b-4 border-t-4 border-outline-variant/35 rounded-b-lg p-1.5 space-y-1.5 bg-outline-variant/5">
+          {#if canManage}
+            <button type="button" onclick={addFloor} disabled={disabled || floors.length >= floorsMax} title={m.eco_tower_floors_max({ max: floorsMax })}
+              class="w-full px-2 py-1.5 rounded-md border border-dashed border-outline-variant/30 text-2xs font-bold flex items-center justify-center gap-1 hover:bg-outline-variant/10 disabled:opacity-40">
+              <Papicon icon="Plus" size={11} /> {m.eco_tower_floor_add()}
+            </button>
+          {/if}
+          {#each stack as entry (entry.index)}
+            {@const valid = towerEmpty || floorValid(entry.floor)}
+            <button type="button" onclick={() => selectFloor(entry.index)}
+              title={valid ? '' : m.eco_tower_floor_invalid()}
+              class="w-full text-left rounded-md px-2.5 py-2 border transition-all {entry.index === current ? 'border-primary bg-primary/15' : 'border-outline-variant/15 bg-surface-container-high/40 hover:border-outline-variant/40'}">
+              <span class="flex items-center justify-between gap-2">
+                <span class="text-2xs font-mono text-on-surface-variant/60">{m.eco_tower_floor_label({ floor: entry.index + 1 })}</span>
+                {#if !valid}<span class="text-warning flex"><Papicon icon="AlertTriangle" size={11} /></span>{/if}
+              </span>
+              <span class="block text-xs font-semibold truncate">{entry.floor.name || '—'}</span>
+              <span class="block text-2xs text-on-surface-variant/50">{m.eco_tower_map_summary({ rooms: entry.floor.rooms.length, max: roomsMax })}</span>
+            </button>
+          {/each}
+        </div>
+        <div class="h-2 mx-[-6px] rounded-sm bg-outline-variant/35" aria-hidden="true"></div>
+      </div>
+      {#if canManage}
+        <div class="grid grid-cols-2 gap-1.5">
+          <button type="button" onclick={() => moveFloor(1)} disabled={disabled || current >= floors.length - 1} class="px-2 py-1.5 rounded-md bg-outline-variant/10 hover:bg-outline-variant/25 text-2xs font-bold flex items-center justify-center gap-1 disabled:opacity-40">
+            <Papicon icon="ArrowUp" size={11} /> {m.eco_tower_floor_up()}
+          </button>
+          <button type="button" onclick={() => moveFloor(-1)} disabled={disabled || current <= 0} class="px-2 py-1.5 rounded-md bg-outline-variant/10 hover:bg-outline-variant/25 text-2xs font-bold flex items-center justify-center gap-1 disabled:opacity-40">
+            <Papicon icon="ArrowDown" size={11} /> {m.eco_tower_floor_down()}
+          </button>
+          <button type="button" onclick={duplicateFloor} disabled={disabled || floors.length >= floorsMax} class="px-2 py-1.5 rounded-md bg-outline-variant/10 hover:bg-outline-variant/25 text-2xs font-bold flex items-center justify-center gap-1 disabled:opacity-40">
+            <Papicon icon="Copy" size={11} /> {m.eco_tower_floor_duplicate()}
+          </button>
+          <button type="button" onclick={removeFloor} disabled={disabled} class="px-2 py-1.5 rounded-md bg-error/10 hover:bg-error/20 text-error text-2xs font-bold flex items-center justify-center gap-1 disabled:opacity-40">
+            <Papicon icon="trash" size={11} /> {m.eco_tower_floor_delete()}
+          </button>
+        </div>
+      {/if}
+    </div>
+
+    <!-- Carte de l'étage ouvert -->
     <div class="bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-3 overflow-auto">
       <svg
-        viewBox="0 0 {layout.width * CELL} {layout.height * CELL}"
+        viewBox="0 0 {frameW} {frameH + CRENEL}"
         class="w-full max-w-[720px] mx-auto select-none touch-none"
         role="grid"
         aria-label={m.eco_tower_map_title()}
       >
+        <!-- La tour en pierre : créneaux, maçonnerie, puis l'étage dans son cadre. -->
+        <defs>
+          <pattern id="towerBricks" width="32" height="16" patternUnits="userSpaceOnUse">
+            <rect width="32" height="16" class="fill-outline-variant/25" />
+            <path d="M0 0.5H32M0 8.5H32M0.5 0V8M16.5 8V16" class="stroke-outline-variant/40" stroke-width="1" fill="none" />
+          </pattern>
+        </defs>
+        {#each Array(merlons) as _, index}
+          {#if index % 2 === 0}
+            <rect x={(frameW / merlons) * index} y="0" width={frameW / merlons} height={CRENEL + 2} fill="url(#towerBricks)" pointer-events="none" />
+          {/if}
+        {/each}
+        <rect x="0" y={CRENEL} width={frameW} height={frameH} rx="6" fill="url(#towerBricks)" pointer-events="none" />
+        <rect x={FRAME - 4} y={CRENEL + FRAME - 4} width={layout.width * CELL + 8} height={layout.height * CELL + 8} rx="6" class="fill-surface-container-low" pointer-events="none" />
+        <g transform="translate({FRAME} {FRAME + CRENEL})">
         {#each Array(layout.height) as _, y}
           {#each Array(layout.width) as __, x}
             <rect
@@ -458,6 +665,7 @@
             {/if}
           </g>
         {/each}
+        </g>
       </svg>
     </div>
 
@@ -551,11 +759,12 @@
 
   {#if canManage}
     <div class="flex items-center justify-end gap-3 pt-4 border-t border-outline-variant/10">
-      {#if dirty}<span class="text-2xs text-warning">{m.eco_tower_map_unsaved()}</span>{/if}
+      {#if invalidFloors > 0}<span class="text-2xs text-warning">{m.eco_tower_floors_invalid()}</span>
+      {:else if dirty}<span class="text-2xs text-warning">{m.eco_tower_map_unsaved()}</span>{/if}
       <button
         type="button"
         onclick={save}
-        disabled={disabled || actionState.state.loading || (layout.rooms.length > 0 && problems.length > 0) || (layoutEnabled && layout.rooms.length === 0)}
+        disabled={disabled || actionState.state.loading || invalidFloors > 0 || (layoutEnabled && towerEmpty)}
         class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-body-sm font-medium rounded-lg transition-all disabled:opacity-50"
       >
         {m.eco_btn_save()}

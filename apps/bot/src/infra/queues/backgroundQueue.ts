@@ -68,6 +68,7 @@ export type BackgroundJobName =
   // Ces trois-la etaient enregistres par `crons.ts` sans figurer ici :
   // le typecheck echouait sur leur handler.
   | 'raid-cycle'
+  | 'tower-idle-expiration'
   | 'clan-weekly-digest'
   | 'campaign-cycle'
   // Meme oubli pour les partenariats : quatre crons planifies sans handler, donc
