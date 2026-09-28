@@ -139,6 +139,7 @@ import {
   getTowerDashboard,
   previewTowerFloor,
   resetTower,
+  simulateTower,
   saveTowerFloors,
   saveTowerReward,
   saveTowerSettings,
@@ -1105,6 +1106,17 @@ export async function handleEconomyRoutes(
         json(res, 200, { image: await previewTowerFloor(guildId, body) });
       } catch (err) {
         towerFailure(err, 'Erreur lors de l\'aperçu de l\'étage.');
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/tower/simulate (ascensions simulées, pour l'équilibrage)
+    if (parts.length === 7 && parts[6] === 'simulate' && method === 'POST') {
+      try {
+        const body = await readJsonBody<{ className?: unknown; runs?: unknown; skills?: unknown; heatMask?: unknown }>(req).catch(() => null);
+        json(res, 200, await simulateTower(guildId, body ?? {}));
+      } catch (err) {
+        towerFailure(err, 'Erreur lors de la simulation.');
       }
       return true;
     }

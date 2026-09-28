@@ -13,10 +13,16 @@ import {
   BLESSED_HEAL,
   BURN_DAMAGE,
   FLOODED_SPEED,
+  HEAT_FAMINE_HEAL,
+  HEAT_FOE_BOOST,
+  HEAT_GREED_PRICE,
+  HEAT_SHARD_BONUS,
+  MENTOR_OFFERS,
   MIMIC_NAME,
   TRAP_DAMAGE,
   TRAP_DODGE,
   mercenaryPrice,
+  mentorPrice,
   BLACKSMITH_BOOST,
   CURSE_ATTACK,
   DISPEL_SKILL_MULTIPLIER,
@@ -44,6 +50,7 @@ import {
   blacksmithPrice,
   type TowerBossMechanic,
   type TowerEventId,
+  type TowerHeat,
   type TowerMechanicChoice,
   type TowerRelicPerk,
   type TowerTrait,
@@ -108,7 +115,7 @@ import {
 } from './rpgTowerMap.js';
 import { towerFloorLayout } from './rpgTowerGen.js';
 
-export type TowerPhase = 'DOORS' | 'COMBAT' | 'LOOT' | 'BLESSING' | 'MERCHANT' | 'EVENT' | 'MERCENARY';
+export type TowerPhase = 'DOORS' | 'COMBAT' | 'LOOT' | 'BLESSING' | 'MERCHANT' | 'EVENT' | 'MERCENARY' | 'MENTOR';
 
 export type TowerLogEntry =
   | { k: 'attack'; dmg: number; crit: boolean }
@@ -203,6 +210,8 @@ export type TowerNotice =
   /** Piège déclenché, ou évité grâce à la vitesse. */
   | { k: 'trap'; dmg: number; dodged: boolean }
   | { k: 'hired'; gold: number }
+  | { k: 'learned'; name: string; emoji: string; gold: number }
+  | { k: 'mentor_empty' }
   | { k: 'campfire'; hp: number }
   | { k: 'potion'; hp: number }
   | { k: 'equipped'; name: string; emoji: string }
@@ -300,6 +309,12 @@ export type TowerState = {
   } | null;
   /** Mercenaire engagé : il combat jusqu'à la fin de l'étage. */
   ally?: boolean;
+  /** Compétences du RPG non achetées au départ, qu'un mentor peut encore enseigner. */
+  skillPool?: TowerSkill[];
+  /** Compétences proposées par le mentor de la salle en cours (identifiants). */
+  mentor?: string[];
+  /** Malédictions choisies au départ, chacune contre plus d'éclats. */
+  heat?: TowerHeat[];
   /** PV brûlés à la dernière action, sur un étage en feu. */
   burned?: number;
 };
@@ -343,7 +358,10 @@ export type TowerAction =
   | { type: 'leave_shop' }
   | { type: 'flee' }
   | { type: 'event'; index: number }
-  | { type: 'hire' };
+  | { type: 'hire' }
+  | { type: 'learn'; index: number }
+  /** Combat automatique contre un monstre ordinaire. */
+  | { type: 'auto' };
 
 export type TowerActionError =
   | 'wrong_phase'
@@ -358,7 +376,8 @@ export type TowerActionError =
   | 'no_reroll'
   | 'no_gear'
   | 'stairs_locked'
-  | 'gate_locked';
+  | 'gate_locked'
+  | 'no_auto';
 
 export class TowerActionRefused extends Error {
   constructor(readonly reason: TowerActionError) {
@@ -370,6 +389,35 @@ export class TowerActionRefused extends Error {
 export type TowerStepResult = { state: TowerState; floor: number; dead: boolean };
 
 const LOG_KEPT = 6;
+
+/**
+ * Combat automatique : attaques enchaînées contre un monstre ordinaire, jamais contre une élite
+ * ou un gardien, avec une garde levée devant un coup puissant annoncé. Il rend la main sous ce
+ * seuil de PV, pour que le joueur boive ou fuie à temps.
+ */
+export const AUTO_STOP_HEALTH = 0.35;
+const AUTO_TURNS_MAX = 40;
+
+function autoFight(
+  state: TowerState,
+  floor: number,
+  rules: TowerRules,
+  rng: TowerRng,
+  floors: readonly TowerLayout[],
+  foes: TowerFoePool,
+): TowerStepResult {
+  const encounter = state.encounter;
+  if (!encounter || encounter.kind !== 'COMBAT') throw new TowerActionRefused('no_auto');
+  if (state.hp < towerStats(state).maxHealth * AUTO_STOP_HEALTH) throw new TowerActionRefused('no_auto');
+  let result: TowerStepResult = { state, floor, dead: false };
+  for (let turn = 0; turn < AUTO_TURNS_MAX; turn++) {
+    result = combatTurn(state, floor, { type: encounter.charging ? 'defend' : 'attack' }, rules, rng, floors, foes);
+    // Fin du combat, nouvelle vague d'épreuve ou PV bas : le joueur reprend la main.
+    if (result.dead || state.phase !== 'COMBAT' || state.encounter !== encounter) break;
+    if (state.hp < towerStats(state).maxHealth * AUTO_STOP_HEALTH) break;
+  }
+  return result;
+}
 /** Chance qu'un coffre mixte (or et objet) contienne vraiment un objet. */
 const CHEST_GEAR_CHANCE = 0.2;
 
@@ -410,11 +458,21 @@ export function combatStats(state: TowerState): TowerEffectiveStats {
   return floorModifier(state) === 'FLOODED' ? { ...stats, speed: Math.max(1, Math.round(stats.speed * FLOODED_SPEED)) } : stats;
 }
 
+export function hasHeat(state: TowerState, heat: TowerHeat): boolean {
+  return state.heat?.includes(heat) === true;
+}
+
+/** Éclats en plus pour la chaleur choisie au départ. */
+export function heatShardBonus(state: TowerState): number {
+  return 1 + HEAT_SHARD_BONUS * (state.heat?.length ?? 0);
+}
+
 function heal(state: TowerState, share: number): number {
   const max = towerStats(state).maxHealth;
   const before = state.hp;
-  // Sur un étage béni, chaque soin rend davantage.
-  const boosted = floorModifier(state) === 'BLESSED' ? share * BLESSED_HEAL : share;
+  // Sur un étage béni, chaque soin rend davantage ; la famine choisie au départ les réduit.
+  const blessed = floorModifier(state) === 'BLESSED' ? share * BLESSED_HEAL : share;
+  const boosted = hasHeat(state, 'FAMINE') ? blessed * HEAT_FAMINE_HEAL : blessed;
   state.hp = Math.min(max, state.hp + Math.floor(max * boosted));
   return state.hp - before;
 }
@@ -487,6 +545,9 @@ function setDoors(state: TowerState, floor: number, rules: TowerRules, rng: Towe
 export function createTowerState(input: {
   base: TowerCoreStats;
   skills: TowerSkill[];
+  /** Compétences laissées au départ, qu'un mentor peut enseigner en cours de route. */
+  skillPool?: TowerSkill[];
+  heat?: TowerHeat[];
   potions: number;
   /** Or de départ, offert par les améliorations. */
   gold?: number;
@@ -505,10 +566,12 @@ export function createTowerState(input: {
     base: input.base,
     hp: input.base.maxHealth,
     gold: Math.max(0, Math.trunc(input.gold ?? 0)),
-    potions: Math.min(MAX_POTIONS, input.potions),
+    potions: input.heat?.includes('DRY') ? 0 : Math.min(MAX_POTIONS, input.potions),
     gear: { ...EMPTY_GEAR },
     blessings: {},
     skills: input.skills,
+    skillPool: input.skillPool ?? [],
+    heat: input.heat ?? [],
     phase: 'DOORS',
     doors: [],
     encounter: null,
@@ -616,7 +679,7 @@ function advance(state: TowerState, floor: number, rules: TowerRules, rng: Tower
  * `blessingEvery` étages gravis, en plus de celles des autels.
  */
 function progress(state: TowerState, floor: number, rules: TowerRules, boss: boolean): number {
-  const bonus = hasPerk(state, 'SHARD_SEEKER') ? 1 + SHARD_SEEKER_BONUS : 1;
+  const bonus = (hasPerk(state, 'SHARD_SEEKER') ? 1 + SHARD_SEEKER_BONUS : 1) * heatShardBonus(state);
   const map = state.map;
   if (!map) {
     state.shards += Math.round(floorShards(floor, rules.shardsPerFloor, boss) * bonus);
@@ -669,7 +732,13 @@ function startEncounter(
 
   const base = towerMonsterStats(level, rules.floorGrowthPercent, kind);
   const shape = foe.shape ?? NEUTRAL_SHAPE;
-  const mult = { health: shape.health * power.factor, attack: shape.attack * power.factor * (1 + CURSE_ATTACK * (state.curse ?? 0)), defense: shape.defense * power.factor, speed: shape.speed };
+  const ferocity = hasHeat(state, 'FEROCIOUS') ? HEAT_FOE_BOOST : 1;
+  const mult = {
+    health: shape.health * power.factor * ferocity,
+    attack: shape.attack * power.factor * ferocity * (1 + CURSE_ATTACK * (state.curse ?? 0)),
+    defense: shape.defense * power.factor,
+    speed: shape.speed,
+  };
   for (const trait of traits) {
     const effect = TRAIT_STATS[trait];
     mult.health *= effect.health ?? 1;
@@ -1175,6 +1244,24 @@ function enterRoom(
     case 'MERCENARY':
       state.phase = 'MERCENARY';
       return floor;
+    case 'MENTOR': {
+      const pool = state.skillPool ?? [];
+      if (pool.length === 0) {
+        // Rien à apprendre : tout a été acheté au départ, ou déjà enseigné.
+        state.notice = { k: 'mentor_empty' };
+        markRoomCleared(state);
+        const next = progress(state, floor, rules, false);
+        advance(state, next, rules, rng);
+        return next;
+      }
+      const offered = [...pool];
+      state.mentor = [];
+      while (state.mentor.length < MENTOR_OFFERS && offered.length > 0) {
+        state.mentor.push(offered.splice(rng.int(offered.length), 1)[0].id);
+      }
+      state.phase = 'MENTOR';
+      return floor;
+    }
     case 'TRAP': {
       // La vitesse fait éviter le piège : une fois sur deux à vitesse égale au mécanisme, un peu
       // moins à vitesse égale aux monstres de l'étage (le mécanisme est 20 % plus vif).
@@ -1204,7 +1291,7 @@ function enterRoom(
       return next;
     }
     case 'MERCHANT':
-      state.merchant = rollMerchantOffers(level, rng, room.offers, room.pricePercent, merchantOf(rules));
+      state.merchant = rollMerchantOffers(level, rng, room.offers, room.pricePercent * (hasHeat(state, 'GREED') ? HEAT_GREED_PRICE : 1), merchantOf(rules));
       state.merchantRerolled = false;
       state.phase = 'MERCHANT';
       return floor;
@@ -1269,7 +1356,9 @@ export function applyTowerAction(
   };
 
   if (state.phase === 'COMBAT') {
-    const result = combatTurn(state, floor, action, rules, rng, floors, foes);
+    const result = action.type === 'auto'
+      ? autoFight(state, floor, rules, rng, floors, foes)
+      : combatTurn(state, floor, action, rules, rng, floors, foes);
     state.rng = rng.state;
     return result;
   }
@@ -1323,7 +1412,7 @@ export function applyTowerAction(
         state.phase = 'EVENT';
         return done(floor);
       }
-      state.merchant = rollMerchantOffers(floor, rng, merchantOf(rules).offers, 100, merchantOf(rules));
+      state.merchant = rollMerchantOffers(floor, rng, merchantOf(rules).offers, hasHeat(state, 'GREED') ? 100 * HEAT_GREED_PRICE : 100, merchantOf(rules));
       state.merchantRerolled = false;
       state.phase = 'MERCHANT';
       return done(floor);
@@ -1354,6 +1443,27 @@ export function applyTowerAction(
       } else if (action.type !== 'leave_shop') {
         throw new TowerActionRefused('wrong_phase');
       }
+      markRoomCleared(state);
+      const next = progress(state, floor, rules, false);
+      advance(state, next, rules, rng);
+      return done(next);
+    }
+
+    case 'MENTOR': {
+      if (action.type === 'learn') {
+        const id = state.mentor?.[action.index];
+        const skill = id ? (state.skillPool ?? []).find((candidate) => candidate.id === id) : undefined;
+        if (!skill) throw new TowerActionRefused('bad_choice');
+        const price = mentorPrice(level);
+        if (state.gold < price) throw new TowerActionRefused('no_gold');
+        state.gold -= price;
+        state.skills = [...state.skills, skill];
+        state.skillPool = (state.skillPool ?? []).filter((candidate) => candidate.id !== skill.id);
+        state.notice = { k: 'learned', name: skill.name, emoji: skill.emoji, gold: price };
+      } else if (action.type !== 'leave_shop') {
+        throw new TowerActionRefused('wrong_phase');
+      }
+      state.mentor = [];
       markRoomCleared(state);
       const next = progress(state, floor, rules, false);
       advance(state, next, rules, rng);

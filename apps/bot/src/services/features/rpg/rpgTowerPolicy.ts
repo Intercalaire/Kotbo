@@ -8,6 +8,7 @@
  */
 
 import type { SkillEffect } from './rpgClasses.js';
+import { RPG_SKILL_NODES } from './rpgSkillTree.js';
 import { RELIC_PERK_CHANCE, TOWER_RELIC_PERKS, type TowerRelicPerk } from './rpgTowerContent.js';
 import { TOWER_FLOORS_AFTER, TOWER_OFFER_KINDS, type TowerFloorsAfter, type TowerOfferKind } from './rpgTowerMap.js';
 
@@ -890,7 +891,26 @@ export type TowerSkill = {
   emoji: string;
   cooldownTurns: number;
   effect: SkillEffect;
+  /** Palier dans l'arbre (1 à 4), qui fixe son prix d'achat ; absent des parties d'avant. */
+  tier?: number;
 };
+
+/**
+ * Prix d'une compétence selon son palier : une compétence du bout de l'arbre coûte le triple
+ * d'une compétence de départ. Les compétences de classe comptent comme les paliers 1 et 2.
+ */
+export const TOWER_SKILL_TIER_PRICE: Record<number, number> = { 1: 1, 2: 1.5, 3: 2, 4: 3 };
+const CLASS_SKILL_TIER2_LEVEL = 12;
+
+export function towerSkillTier(skill: { id: string; levelRequired: number }): number {
+  const node = RPG_SKILL_NODES.find((candidate) => candidate.grantsSkill?.id === skill.id);
+  if (node) return node.tier;
+  return skill.levelRequired >= CLASS_SKILL_TIER2_LEVEL ? 2 : 1;
+}
+
+export function towerSkillPrice(basePrice: number, skill: TowerSkill): number {
+  return Math.round(basePrice * (TOWER_SKILL_TIER_PRICE[skill.tier ?? 1] ?? 1));
+}
 
 /**
  * Une compétence du RPG ramenée à la Tour. Taillées pour des combats isolés, elles écrasaient

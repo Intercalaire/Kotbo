@@ -120,6 +120,32 @@ export function mercenaryPrice(level: number): number {
   return 30 + Math.max(1, level) * 4;
 }
 
+/**
+ * Chaleur : des malédictions que le joueur s'impose au départ, chacune contre plus d'éclats.
+ * FEROCIOUS : monstres plus robustes et plus forts. FAMINE : tous les soins réduits de moitié.
+ * GREED : marchands plus chers. DRY : départ sans potion.
+ */
+export const TOWER_HEATS = ['FEROCIOUS', 'FAMINE', 'GREED', 'DRY'] as const;
+export type TowerHeat = (typeof TOWER_HEATS)[number];
+export const HEAT_SHARD_BONUS = 0.25;
+export const HEAT_FOE_BOOST = 1.2;
+export const HEAT_FAMINE_HEAL = 0.5;
+export const HEAT_GREED_PRICE = 1.5;
+
+/** Chaleur choisie : le bit `i` désigne la i-ème de `TOWER_HEATS`. */
+export function heatsFromMask(mask: number): TowerHeat[] {
+  return TOWER_HEATS.filter((_, index) => (mask & (1 << index)) !== 0);
+}
+
+/**
+ * Mentor : enseigne, contre de l'or, une des compétences du RPG que le joueur n'a pas achetées
+ * au départ. Une seule par salle, parmi quelques-unes proposées.
+ */
+export const MENTOR_OFFERS = 3;
+export function mentorPrice(level: number): number {
+  return 40 + Math.max(1, level) * 5;
+}
+
 /** Piège : dégâts en part des PV max, jamais mortels ; la vitesse permet de l'éviter. */
 export const TRAP_DAMAGE = 0.12;
 export const TRAP_DODGE = { min: 0.1, max: 0.75 } as const;

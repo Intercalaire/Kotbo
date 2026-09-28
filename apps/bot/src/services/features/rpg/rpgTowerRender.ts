@@ -49,6 +49,7 @@ const ROOM_COLOR: Record<TowerRoomType, string> = {
   CHEST: '#eab308',
   MIMIC: '#eab308',
   MERCENARY: '#84cc16',
+  MENTOR: '#f472b6',
   TRAP: '#dc2626',
   CAMPFIRE: '#f97316',
   MERCHANT: '#10b981',
@@ -383,6 +384,28 @@ function glyph(ctx: SKRSContext2D, type: TowerRoomType, cx: number, cy: number, 
       ctx.moveTo(cx + s * 0.45, cy + s * 0.3);
       ctx.lineTo(cx + s * 0.8, cy - s * 0.8);
       ctx.stroke();
+      break;
+    }
+    case 'MENTOR': {
+      // Livre ouvert : deux pages et leur reliure.
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - s * 0.45);
+      ctx.quadraticCurveTo(cx - s * 0.4, cy - s * 0.7, cx - s * 0.85, cy - s * 0.5);
+      ctx.lineTo(cx - s * 0.85, cy + s * 0.6);
+      ctx.quadraticCurveTo(cx - s * 0.4, cy + s * 0.4, cx, cy + s * 0.65);
+      ctx.quadraticCurveTo(cx + s * 0.4, cy + s * 0.4, cx + s * 0.85, cy + s * 0.6);
+      ctx.lineTo(cx + s * 0.85, cy - s * 0.5);
+      ctx.quadraticCurveTo(cx + s * 0.4, cy - s * 0.7, cx, cy - s * 0.45);
+      ctx.closePath();
+      ctx.fill();
+      ctx.save();
+      ctx.strokeStyle = C.floor;
+      ctx.lineWidth = Math.max(1.5, s * 0.12);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - s * 0.45);
+      ctx.lineTo(cx, cy + s * 0.65);
+      ctx.stroke();
+      ctx.restore();
       break;
     }
     case 'WARP_A':

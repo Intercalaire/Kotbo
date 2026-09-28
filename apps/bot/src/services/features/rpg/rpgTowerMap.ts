@@ -20,7 +20,7 @@ import {
 
 export const TOWER_ROOM_TYPES = [
   'START', 'MONSTER', 'ELITE', 'BOSS', 'STAIRS', 'TRIAL', 'GATE', 'SEAL',
-  'CHEST', 'MIMIC', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY',
+  'CHEST', 'MIMIC', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'MENTOR', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY',
 ] as const;
 export type TowerRoomType = (typeof TOWER_ROOM_TYPES)[number];
 
@@ -363,6 +363,21 @@ export function visibleRooms(layout: TowerLayout, pos: string, cleared: readonly
     for (const { room } of roomNeighbors(layout, id, cells)) seen.add(room.id);
   }
   return seen;
+}
+
+/**
+ * Empreinte d'un étage : sa taille et ses salles (position et type). Régler une salle ne la
+ * change pas, déplacer ou retyper une salle si : la carte des morts ne mélange pas deux
+ * versions d'un étage. Le dashboard calcule la même, voir `layoutKey` dans l'éditeur.
+ */
+export function towerLayoutKey(layout: Pick<TowerLayout, 'width' | 'height' | 'rooms'>): string {
+  const text = `${layout.width}x${layout.height}|${layout.rooms.map((room) => `${room.x},${room.y}:${room.type}`).sort().join(';')}`;
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < text.length; index++) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
 }
 
 /** Salle aux réglages par défaut. */

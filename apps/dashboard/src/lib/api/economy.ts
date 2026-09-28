@@ -204,6 +204,22 @@ export async function previewRpgTowerFloor(payload: { layout: unknown; floor: nu
   return dashboardRequest('/economy/tower/preview', { method: 'POST', payload, guildId, errorContext: 'API Error (Preview RPG Tower Floor):' });
 }
 
+export type RpgTowerSimResult = {
+  runs: number;
+  averageFloor: number;
+  medianFloor: number;
+  bestFloor: number;
+  averageRooms: number;
+  averageShards: number;
+  capped: number;
+  deathsByFloor: { floor: number; deaths: number }[];
+  topKillers: { name: string; deaths: number }[];
+};
+
+export async function simulateRpgTower(payload: { className: string | null; runs: number; skills: boolean; heatMask: number }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest<RpgTowerSimResult>('/economy/tower/simulate', { method: 'POST', payload, guildId, errorContext: 'API Error (Simulate RPG Tower):' });
+}
+
 export async function saveRpgTowerReward(reward: Record<string, unknown>, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/tower/rewards', { method: 'POST', successMessage: m.api_ok_save_rpg_tower_reward(), payload: reward, guildId, errorContext: 'API Error (Save RPG Tower Reward):' });
 }
