@@ -14,6 +14,12 @@
   import { isMobile } from '../stores/media.svelte';
   import { userPrefs } from '../stores/userPreferences.svelte';
 
+  /**
+   * `standalone` : rendue hors de MainLayout, sans barre laterale a cote.
+   * Pleine largeur, et sans le bouton qui ouvrirait une navigation absente.
+   */
+  const { standalone = false }: { standalone?: boolean } = $props();
+
   const collapsed = $derived(sidebarStore.collapsed);
 
   let config = $state({ discordClientId: '' });
@@ -126,9 +132,10 @@
 
 <svelte:window />
 
-<header class="app-navbar flex items-center justify-between px-6 bg-surface-container-lowest border-b border-outline-variant h-14 fixed top-0 right-0 z-40 transition-all duration-200 {$isMobile ? 'w-full' : collapsed ? 'w-[calc(100%-4.5rem)]' : 'w-[calc(100%-15rem)]'}">
+<header class="app-navbar flex items-center justify-between px-6 bg-surface-container-lowest border-b border-outline-variant h-14 fixed top-0 right-0 z-40 transition-all duration-200 {$isMobile || standalone ? 'w-full' : collapsed ? 'w-[calc(100%-4.5rem)]' : 'w-[calc(100%-15rem)]'}">
   <div class="app-navbar__leading flex min-w-0 items-center gap-4 server-selector-container relative">
     {#if $isMobile}
+      {#if !standalone}
       <button
         onclick={sidebarStore.toggleMobile}
         class="app-navbar__menu flex items-center justify-center w-8 h-8 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
@@ -138,6 +145,7 @@
       >
         <Papicon icon="menu" size={18} />
       </button>
+      {/if}
 
       <button
         type="button"
@@ -327,6 +335,14 @@
             >
               <Papicon icon="user" size={16} />
               {m.navbar_my_profile()}
+            </a>
+            <a
+              href="/me"
+              class="flex items-center gap-2.5 px-3 py-2 text-sm text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+              onclick={() => userMenuOpen = false}
+            >
+              <Papicon icon="edit" size={16} />
+              {m.me_title()}
             </a>
             <a
               href="/activity"

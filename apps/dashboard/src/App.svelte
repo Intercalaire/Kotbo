@@ -71,7 +71,10 @@
       /^\/\d{17,19}\/rpg\/?$/.test($router.path) ||
       /^\/\d{17,19}\/clan-rpg\/?$/.test($router.path) ||
       /^\/\d{17,19}\/giveaways(\/[A-Za-z0-9_-]+)?\/?$/.test($router.path) ||
-      ($router.path.startsWith("/profile/") && !authStore.isAuthenticated) ||
+      // Un membre sans role de staff n'a pas de tableau de bord autour du
+      // profil : il le voit comme un visiteur, depuis « Mon espace ».
+      ($router.path.startsWith("/profile/") &&
+        (!authStore.isAuthenticated || (authStore.initialized && !authStore.hasGuildAccess))) ||
       $router.path.startsWith("/transcripts/") ||
       $router.path.startsWith("/sanction-evidence/") ||
       $router.path.startsWith("/form/") ||
@@ -96,6 +99,13 @@
   );
   /** Pages qui ne parlent d'aucun serveur en particulier, donc sans garde de guilde. */
   const isGuildAgnosticPage = $derived($router.path === "/servers");
+
+  /**
+   * « Mon espace » : fiche et carte de rang, sans barre laterale. C'est aussi
+   * tout ce qu'il y a a montrer a un compte staff nulle part - l'ecran « acces
+   * refuse » entoure d'une navigation vide ne lui offrait rien a faire.
+   */
+  const isMemberSpace = $derived($router.path === "/me" || noGuildAccess);
 
   const needsActivation = $derived(
     dashboardStore.state.error === "activation_requise",
@@ -677,6 +687,13 @@
           <LazyRoute
             path="/servers"
             load={() => import("./pages/Servers.svelte")}
+          />
+        {:else if isMemberSpace}
+          <!-- Avant le parcours et l'activation : ils concernent le serveur
+               selectionne, pas la fiche de la personne. -->
+          <LazyRoute
+            path="/*"
+            load={() => import("./pages/MemberSpace.svelte")}
           />
         {:else if $router.path === "/activation"}
           <!-- Le chemin des codes : activation offerte, partenariat, reprise
