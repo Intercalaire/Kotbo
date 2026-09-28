@@ -23,6 +23,7 @@ import { assertGuildTitle, grantTitle } from './rpgTitleService.js';
 import { assertFirstKillRole, grantRpgRewardRole } from './rpgFirstKillService.js';
 import { addInventoryQuantity, lockRpgProfile } from './rpgInventoryWrites.js';
 import { awardRpgTeamPoints } from './rpgTeamRewards.js';
+import { trackRpgObjective } from './rpgObjectiveTracker.js';
 import {
   applyTowerAction,
   createTowerState,
@@ -31,12 +32,14 @@ import {
   type TowerActionError,
   TowerActionRefused,
   type TowerFoePool,
+  type TowerGhost,
   type TowerRules,
   type TowerState,
 } from './rpgTowerEngine.js';
 import {
   STARTING_POTIONS,
   TOWER_DEFAULTS,
+  TOWER_RARITIES,
   TOWER_RANGES,
   TOWER_REWARDS_PER_GUILD_MAX,
   applyWeeklyCap,
@@ -57,6 +60,7 @@ import {
   towerWeekStart,
   type TowerCoreStats,
   type TowerEntryMode,
+  type TowerGear,
   type TowerOutcome,
   type TowerSettings,
   type TowerSkill,
@@ -68,6 +72,7 @@ import {
   TOWER_MAP_SIZE,
   normalizeTowerFloors,
   normalizeTowerLayout,
+  startRoom,
   towerLayoutKey,
   type TowerLayout,
 } from './rpgTowerMap.js';
@@ -108,6 +113,8 @@ export type TowerConfigView = TowerSettings & {
   seasonStartedAt: Date;
   /** Étages dessinés dans l'ordre de la montée, relus et validés ; vide si aucun ne passe. */
   floors: TowerLayout[];
+  /** Réserve d'or de la source commune. */
+  fountainGold: number;
 };
 
 export type TowerSettlement = {
@@ -158,7 +165,7 @@ async function withTitleNames(rewards: RpgTowerReward[]): Promise<TowerRewardVie
 
 export async function getTowerConfig(guildId: string): Promise<TowerConfigView> {
   const row = await prisma.rpgTowerConfig.findUnique({ where: { guildId } });
-  if (!row) return { ...TOWER_DEFAULTS, seasonStartedAt: new Date(0), floors: [] };
+  if (!row) return { ...TOWER_DEFAULTS, seasonStartedAt: new Date(0), floors: [], fountainGold: 0 };
   const normalized = normalizeTowerSettings(row as unknown as Record<string, unknown>);
   const settings = normalized.ok ? normalized.value : TOWER_DEFAULTS;
   return {
@@ -166,6 +173,7 @@ export async function getTowerConfig(guildId: string): Promise<TowerConfigView> 
     enabled: row.enabled,
     seasonStartedAt: row.seasonStartedAt,
     floors: readFloors(row.layouts, row.layout),
+    fountainGold: row.fountainGold,
   };
 }
 
@@ -400,6 +408,7 @@ export async function startTowerRun(
     // Toujours un étage : les étages dessinés d'abord, générés ensuite ou à défaut.
     layout: towerFloorLayout(settings.floors, 1, settings.floorsAfter, seed, settings.generatedFog),
   });
+  await attachGhosts(guildId, userId, state, daily);
 
   return prisma.$transaction(async (tx) => {
     // Le verrou du profil Tour sérialise deux clics « Entrer » : sans lui, les deux passaient
@@ -459,6 +468,8 @@ export async function actTowerRun(
 
   const [settings, foes] = await Promise.all([getTowerConfig(guildId), loadFoes(guildId)]);
 
+  // La source commune se lit au moment de l'action : d'autres joueurs y puisent et y versent.
+  state.fountainPool = settings.fountainGold;
   let step: ReturnType<typeof applyTowerAction>;
   try {
     step = applyTowerAction(state, run.floor, action, rulesOf(settings), foes, settings.floors);
@@ -466,6 +477,14 @@ export async function actTowerRun(
     if (err instanceof TowerActionRefused) throw new TowerRefused({ kind: 'action', reason: err.reason });
     throw err;
   }
+  // Nouvel étage : on y pose les fantômes des joueurs tombés sur la même carte.
+  if (step.state.map && (!state.map || towerLayoutKey(step.state.map.layout) !== towerLayoutKey(state.map.layout))) {
+    await attachGhosts(guildId, userId, step.state, run.mode === 'DAILY');
+  }
+  const ghostTaken = step.state.ghostTaken ?? null;
+  step.state.ghostTaken = null;
+  const fountainDelta = step.state.fountainDelta ?? 0;
+  step.state.fountainDelta = 0;
 
   const written = await prisma.rpgTowerRun.updateMany({
     where: { id: run.id, status: 'ACTIVE', version: run.version },
@@ -478,6 +497,13 @@ export async function actTowerRun(
     },
   });
   if (written.count === 0) throw new TowerRefused({ kind: 'stale' });
+  if (ghostTaken) await claimGhost(ghostTaken, userId).catch((err) => logger.warn('RpgTower', `Fantôme ${ghostTaken} non marqué comme repris :`, err));
+  if (fountainDelta !== 0) {
+    await moveFountainGold(guildId, fountainDelta).catch((err) => logger.warn('RpgTower', `Source commune non mise à jour sur ${guildId} :`, err));
+  }
+  // Quêtes « gravir des étages de la Tour » : chaque étage franchi compte.
+  const climbed = step.state.floorsCleared - state.floorsCleared;
+  if (client && climbed > 0) await trackRpgObjective(client, guildId, userId, 'TOWER_FLOORS', climbed);
 
   const updated: RpgTowerRun = {
     ...run,
@@ -583,8 +609,13 @@ async function settleRun(
   const daily = run.mode === 'DAILY';
   const rooms = towerRoomsExplored(state);
   const killedBy = outcome === 'DEAD' ? state.encounter?.name ?? null : null;
+  const ghostGear = bestGhostGear(state);
   const death = outcome === 'DEAD' && state.map
-    ? { deathRoom: state.map.pos, deathFloorKey: towerLayoutKey(state.map.layout) }
+    ? {
+      deathRoom: state.map.pos,
+      deathFloorKey: towerLayoutKey(state.map.layout),
+      ...(ghostGear ? { ghostGear: ghostGear as unknown as Prisma.InputJsonValue } : {}),
+    }
     : {};
   const gear = (['weapon', 'armor', 'relic'] as const)
     .map((slot) => state.gear[slot]?.name)
@@ -914,6 +945,76 @@ export async function getTowerInsights(guildId: string) {
   };
 }
 
+// ─────────────────────────────────────────────────────────────
+// Fantômes
+// ─────────────────────────────────────────────────────────────
+
+/** Un fantôme ne reste que ce temps : au-delà, l'étage a trop changé de visiteurs. */
+const GHOST_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** Fantômes au plus par étage, pour qu'ils restent une surprise. */
+const GHOSTS_PER_FLOOR = 2;
+
+/** La meilleure pièce portée : rareté d'abord, puis la somme des stats. */
+function bestGhostGear(state: TowerState): TowerGear | null {
+  const pieces = Object.values(state.gear).filter((gear): gear is TowerGear => Boolean(gear));
+  const weight = (gear: TowerGear) => TOWER_RARITIES.indexOf(gear.rarity) * 10_000 + gear.attack + gear.defense + gear.speed + gear.maxHealth;
+  return pieces.sort((a, b) => weight(b) - weight(a))[0] ?? null;
+}
+
+/**
+ * Pose sur l'étage en cours les fantômes d'autres joueurs tombés sur la même carte : leur
+ * équipement attend le premier qui remportera la salle. L'ascension du jour, à armes égales,
+ * n'en reçoit ni n'en laisse.
+ */
+async function attachGhosts(guildId: string, userId: string, state: TowerState, daily: boolean): Promise<void> {
+  const map = state.map;
+  if (!map || daily) return;
+  const rows = await prisma.rpgTowerRun.findMany({
+    where: {
+      guildId,
+      mode: 'CLASSIC',
+      status: 'DEAD',
+      deathFloorKey: towerLayoutKey(map.layout),
+      ghostClaimedBy: null,
+      ghostGear: { not: Prisma.DbNull },
+      userId: { not: userId },
+      endedAt: { gte: new Date(Date.now() - GHOST_TTL_MS) },
+    },
+    orderBy: { endedAt: 'desc' },
+    take: 10,
+    select: { id: true, userId: true, deathRoom: true, ghostGear: true },
+  });
+  const ghosts: TowerGhost[] = [];
+  for (const row of rows) {
+    if (ghosts.length >= GHOSTS_PER_FLOOR) break;
+    if (!row.deathRoom || map.cleared.includes(row.deathRoom) || ghosts.some((ghost) => ghost.roomId === row.deathRoom)) continue;
+    if (!map.layout.rooms.some((room) => room.id === row.deathRoom)) continue;
+    ghosts.push({ roomId: row.deathRoom, userId: row.userId, runId: row.id, gear: row.ghostGear as unknown as TowerGear });
+  }
+  map.ghosts = ghosts;
+}
+
+/**
+ * Verse dans la source commune ou y puise. Un retrait ne descend jamais sous zéro : deux
+ * joueurs qui boivent au même instant ne creusent pas la réserve.
+ */
+async function moveFountainGold(guildId: string, delta: number): Promise<void> {
+  if (delta > 0) {
+    await prisma.rpgTowerConfig.upsert({
+      where: { guildId },
+      update: { fountainGold: { increment: delta } },
+      create: { guildId, fountainGold: delta },
+    });
+    return;
+  }
+  await prisma.rpgTowerConfig.updateMany({ where: { guildId, fountainGold: { gte: -delta } }, data: { fountainGold: { decrement: -delta } } });
+}
+
+/** Marque un fantôme comme repris : un seul joueur récupère son équipement. */
+async function claimGhost(runId: string, userId: string): Promise<void> {
+  await prisma.rpgTowerRun.updateMany({ where: { id: runId, ghostClaimedBy: null }, data: { ghostClaimedBy: userId } });
+}
+
 /**
  * Carte des morts : pour chaque étage dessiné, par son empreinte, le nombre de morts par salle.
  * Seules comptent les morts d'un étage identique à celui enregistré.
@@ -1116,7 +1217,8 @@ export async function previewTowerFloor(guildId: string, input: { layout?: unkno
   const layout = normalized.value;
   const floor = Math.max(1, Math.trunc(Number(input.floor) || 1));
   const [settings, locale] = await Promise.all([getTowerConfig(guildId), resolveGuildLocale(guildId)]);
-  const start = layout.rooms.find((room) => room.type === 'START')!;
+  // Départ, ou la première entrée d'un étage à puits ou à entrées au choix.
+  const start = startRoom(layout)!;
   const title = (n: number, name: string) => (name ? m.tower_floor_named({ floor: n, name }, { locale }) : m.tower_floor({ floor: n }, { locale }));
   const nameOf = (n: number) => (n === floor ? layout.name : settings.floors[(n - 1) % Math.max(1, settings.floors.length)]?.name ?? '');
   const ladder = [];

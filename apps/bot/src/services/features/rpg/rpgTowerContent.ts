@@ -146,6 +146,21 @@ export function mentorPrice(level: number): number {
   return 40 + Math.max(1, level) * 5;
 }
 
+/** Embuscade : le monstre frappe avant que le combat ne commence, sans jamais achever. */
+export const AMBUSH_DAMAGE = 0.08;
+
+/**
+ * Source commune : une fontaine partagée par tout le serveur. On y verse de l'or, on y boit
+ * un soin qui puise dans la réserve. Une seule action par visite.
+ */
+export const FOUNTAIN_HEAL = 0.4;
+export function fountainDrinkCost(level: number): number {
+  return 20 + Math.max(1, level) * 2;
+}
+export function fountainDonation(level: number): number {
+  return 10 + Math.max(1, level);
+}
+
 /** Piège : dégâts en part des PV max, jamais mortels ; la vitesse permet de l'éviter. */
 export const TRAP_DAMAGE = 0.12;
 export const TRAP_DODGE = { min: 0.1, max: 0.75 } as const;

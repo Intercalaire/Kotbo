@@ -18,7 +18,7 @@
   import SearchableSelect from '../SearchableSelect.svelte';
   import ToggleSwitch from '../ToggleSwitch.svelte';
 
-  type RoomType = 'START' | 'MONSTER' | 'ELITE' | 'BOSS' | 'STAIRS' | 'TRIAL' | 'GATE' | 'SEAL'
+  type RoomType = 'START' | 'WELL' | 'ENTRANCE' | 'MONSTER' | 'ELITE' | 'AMBUSH' | 'BOSS' | 'STAIRS' | 'EXIT' | 'COLLAPSE' | 'TOLL' | 'TRIAL' | 'GATE' | 'SEAL' | 'FOUNTAIN'
     | 'CHEST' | 'MIMIC' | 'CAMPFIRE' | 'MERCHANT' | 'MERCENARY' | 'MENTOR' | 'SHRINE' | 'EVENT' | 'TRAP' | 'WARP_A' | 'WARP_B' | 'EMPTY';
   type Modifier = 'NONE' | 'FLOODED' | 'BURNING' | 'BLESSED';
   type Category = 'ENTRY' | 'MONSTERS' | 'EXITS' | 'OTHER';
@@ -42,6 +42,8 @@
     powerReward: boolean;
     waves: number;
     trialReward: boolean;
+    collapseSteps: number;
+    tollGold: number;
     mechanic: Mechanic;
     event: EventChoice;
     key: boolean;
@@ -81,22 +83,27 @@
   const FRAME = 18;
   const CRENEL = 22;
   const ROOM_TYPES: RoomType[] = [
-    'START', 'MONSTER', 'ELITE', 'MIMIC', 'BOSS', 'STAIRS', 'TRIAL', 'GATE', 'SEAL',
-    'CHEST', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'MENTOR', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY',
+    'START', 'WELL', 'ENTRANCE', 'MONSTER', 'ELITE', 'MIMIC', 'AMBUSH', 'BOSS', 'STAIRS', 'EXIT', 'COLLAPSE', 'TOLL', 'TRIAL', 'GATE', 'SEAL',
+    'CHEST', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'MENTOR', 'FOUNTAIN', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY',
   ];
   // Ambiances d'étage (miroir de `TOWER_FLOOR_MODIFIERS`).
   const MODIFIERS: Modifier[] = ['NONE', 'FLOODED', 'BURNING', 'BLESSED'];
   // Portails A et B : une seule paire par étage, liée comme par un couloir (miroir de `rpgTowerMap.ts`).
   const isWarp = (type: RoomType) => type === 'WARP_A' || type === 'WARP_B';
   // Sorties d'un étage (miroir de `TOWER_EXIT_TYPES`) : exactement une par étage.
-  const EXITS: RoomType[] = ['BOSS', 'STAIRS', 'GATE'];
+  const EXITS: RoomType[] = ['BOSS', 'STAIRS', 'GATE', 'EXIT', 'COLLAPSE', 'TOLL'];
+  // Entrées (miroir de `TOWER_ENTRY_TYPES`) : un départ, 2 à 4 puits ou 2 à 3 entrées au choix.
+  const ENTRIES: RoomType[] = ['START', 'WELL', 'ENTRANCE'];
+  const isEntry = (type: RoomType) => ENTRIES.includes(type);
+  const WELLS = { min: 2, max: 4 };
+  const ENTRANCES = { min: 2, max: 3 };
   const isExit = (type: RoomType) => EXITS.includes(type);
   // La palette est rangée par familles : on cherche une sortie parmi les sorties, pas dans une liste de quatorze.
   const CATEGORIES: { id: Category; icon: string; types: RoomType[] }[] = [
-    { id: 'ENTRY', icon: 'LogIn', types: ['START'] },
-    { id: 'MONSTERS', icon: 'Swords', types: ['MONSTER', 'ELITE', 'TRIAL', 'MIMIC'] },
-    { id: 'EXITS', icon: 'Flag', types: ['BOSS', 'STAIRS', 'GATE', 'SEAL'] },
-    { id: 'OTHER', icon: 'LayoutGrid', types: ['CHEST', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'MENTOR', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY'] },
+    { id: 'ENTRY', icon: 'LogIn', types: ['START', 'WELL', 'ENTRANCE'] },
+    { id: 'MONSTERS', icon: 'Swords', types: ['MONSTER', 'ELITE', 'TRIAL', 'MIMIC', 'AMBUSH'] },
+    { id: 'EXITS', icon: 'Flag', types: ['BOSS', 'STAIRS', 'GATE', 'SEAL', 'EXIT', 'COLLAPSE', 'TOLL'] },
+    { id: 'OTHER', icon: 'LayoutGrid', types: ['CHEST', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'MENTOR', 'FOUNTAIN', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY'] },
   ];
   // Mêmes valeurs que `rpgTowerContent.ts` côté bot.
   const TRAITS: Trait[] = ['ARMORED', 'VAMPIRIC', 'SWIFT', 'THORNY', 'BERSERK', 'REGENERATING'];
@@ -110,20 +117,28 @@
   const ICON: Record<RoomType, string> = {
     START: 'DoorOpen', MONSTER: 'Swords', ELITE: 'Skull', BOSS: 'Crown', CHEST: 'PackageOpen',
     CAMPFIRE: 'Flame', MERCHANT: 'ShoppingCart', SHRINE: 'Sparkles', EVENT: 'HelpCircle', EMPTY: 'Square',
-    STAIRS: 'ArrowUpCircle', TRIAL: 'Hourglass', GATE: 'Flag', SEAL: 'Target', WARP_A: 'Zap', WARP_B: 'Zap',
+    STAIRS: 'ArrowUpCircle', EXIT: 'ArrowUp', TRIAL: 'Hourglass', GATE: 'Flag', SEAL: 'Target', WARP_A: 'Zap', WARP_B: 'Zap',
     MIMIC: 'Ghost', MERCENARY: 'UserPlus', MENTOR: 'BookOpen', TRAP: 'AlertTriangle',
+    WELL: 'CircleDot', ENTRANCE: 'LogIn', AMBUSH: 'Eye', COLLAPSE: 'TrendingDown', TOLL: 'Coins', FOUNTAIN: 'HeartHandshake',
   };
   const COLOR: Record<RoomType, string> = {
     START: '#64748b', MONSTER: '#ef4444', ELITE: '#a855f7', BOSS: '#f59e0b', CHEST: '#eab308',
     CAMPFIRE: '#f97316', MERCHANT: '#10b981', SHRINE: '#38bdf8', EVENT: '#e879f9', EMPTY: '#94a3b8',
-    STAIRS: '#22d3ee', TRIAL: '#f43f5e', GATE: '#c084fc', SEAL: '#a78bfa', WARP_A: '#2dd4bf', WARP_B: '#14b8a6',
+    STAIRS: '#22d3ee', EXIT: '#34d399', TRIAL: '#f43f5e', GATE: '#c084fc', SEAL: '#a78bfa', WARP_A: '#2dd4bf', WARP_B: '#14b8a6',
     MIMIC: '#ca8a04', MERCENARY: '#84cc16', MENTOR: '#f472b6', TRAP: '#dc2626',
+    WELL: '#64748b', ENTRANCE: '#94a3b8', AMBUSH: '#b91c1c', COLLAPSE: '#fb923c', TOLL: '#facc15', FOUNTAIN: '#38bdf8',
   };
   const OFFERS: OfferKind[] = ['POTION', 'HEAL', 'GEAR'];
 
   function label(type: RoomType): string {
     switch (type) {
       case 'START': return m.eco_tower_room_start();
+      case 'WELL': return m.eco_tower_room_well();
+      case 'ENTRANCE': return m.eco_tower_room_entrance();
+      case 'AMBUSH': return m.eco_tower_room_ambush();
+      case 'COLLAPSE': return m.eco_tower_room_collapse();
+      case 'TOLL': return m.eco_tower_room_toll();
+      case 'FOUNTAIN': return m.eco_tower_room_fountain();
       case 'MONSTER': return m.eco_tower_room_monster();
       case 'ELITE': return m.eco_tower_room_elite();
       case 'BOSS': return m.eco_tower_room_boss();
@@ -133,6 +148,7 @@
       case 'SHRINE': return m.eco_tower_room_shrine();
       case 'EVENT': return m.eco_tower_room_event();
       case 'STAIRS': return m.eco_tower_room_stairs();
+      case 'EXIT': return m.eco_tower_room_exit();
       case 'TRIAL': return m.eco_tower_room_trial();
       case 'GATE': return m.eco_tower_room_gate();
       case 'SEAL': return m.eco_tower_room_seal();
@@ -149,6 +165,12 @@
   function tip(type: RoomType): string {
     switch (type) {
       case 'START': return m.eco_tower_room_start_tip();
+      case 'WELL': return m.eco_tower_room_well_tip();
+      case 'ENTRANCE': return m.eco_tower_room_entrance_tip();
+      case 'AMBUSH': return m.eco_tower_room_ambush_tip();
+      case 'COLLAPSE': return m.eco_tower_room_collapse_tip();
+      case 'TOLL': return m.eco_tower_room_toll_tip();
+      case 'FOUNTAIN': return m.eco_tower_room_fountain_tip();
       case 'MONSTER': return m.eco_tower_room_monster_tip();
       case 'ELITE': return m.eco_tower_room_elite_tip();
       case 'BOSS': return m.eco_tower_room_boss_tip();
@@ -158,6 +180,7 @@
       case 'SHRINE': return m.eco_tower_room_shrine_tip();
       case 'EVENT': return m.eco_tower_room_event_tip();
       case 'STAIRS': return m.eco_tower_room_stairs_tip();
+      case 'EXIT': return m.eco_tower_room_exit_tip();
       case 'TRIAL': return m.eco_tower_room_trial_tip();
       case 'GATE': return m.eco_tower_room_gate_tip();
       case 'SEAL': return m.eco_tower_room_seal_tip();
@@ -178,7 +201,7 @@
     }
     const distance = distances.get(room.id);
     if (distance === undefined) parts.push(m.eco_tower_map_unreachable_tip());
-    else if (room.type !== 'START') parts.push(m.eco_tower_map_distance_tip({ rooms: distance }));
+    else if (!isEntry(room.type)) parts.push(m.eco_tower_map_distance_tip({ rooms: distance }));
     return parts.join('\n');
   }
 
@@ -282,7 +305,7 @@
   function newRoom(x: number, y: number, type: RoomType): Room {
     return {
       id: `${x}-${y}`, x, y, type, foe: null, chest: 'BOTH', healPercent: 35, offers: [...OFFERS], pricePercent: 100,
-      traits: [], powerPercent: 100, powerReward: false, waves: 3, trialReward: true, mechanic: 'RANDOM', event: 'RANDOM', key: false,
+      traits: [], powerPercent: 100, powerReward: false, waves: 3, trialReward: true, collapseSteps: 10, tollGold: 60, mechanic: 'RANDOM', event: 'RANDOM', key: false,
     };
   }
 
@@ -319,6 +342,8 @@
         powerReward: room.powerReward === true,
         waves: room.waves ?? 3,
         trialReward: room.trialReward !== false,
+        collapseSteps: room.collapseSteps ?? 10,
+        tollGold: room.tollGold ?? 60,
         mechanic: room.mechanic ?? 'RANDOM',
         event: room.event ?? 'RANDOM',
         key: room.key === true,
@@ -349,7 +374,7 @@
 
   /** Salles dont la puissance se règle : celles qui opposent un adversaire, épreuve comprise. */
   function hasPower(type: RoomType): boolean {
-    return type === 'MONSTER' || type === 'ELITE' || type === 'BOSS' || type === 'TRIAL';
+    return type === 'MONSTER' || type === 'ELITE' || type === 'BOSS' || type === 'TRIAL' || type === 'AMBUSH' || type === 'COLLAPSE';
   }
 
   // ── Pipette : peindre des salles avec les réglages d'une salle existante ──
@@ -491,10 +516,9 @@
 
   const distances = $derived.by(() => {
     const result = new Map<string, number>();
-    const start = layout.rooms.find((room) => room.type === 'START');
-    if (!start) return result;
-    result.set(start.id, 0);
-    const queue = [start];
+    // Toutes les entrées partent ensemble : un étage à puits se mesure depuis le plus proche.
+    const queue = layout.rooms.filter((room) => isEntry(room.type));
+    for (const room of queue) result.set(room.id, 0);
     while (queue.length > 0) {
       const current = queue.shift()!;
       for (const next of neighbors(current)) {
@@ -564,11 +588,27 @@
     return list;
   }
 
+  /** Règles de l'entrée, mêmes que le serveur : une seule sorte, en nombre permis. */
+  function entryProblems(floor: Layout): string[] {
+    const count = (type: RoomType) => floor.rooms.filter((room) => room.type === type).length;
+    const starts = count('START');
+    const wells = count('WELL');
+    const entrances = count('ENTRANCE');
+    const kinds = [starts, wells, entrances].filter((value) => value > 0).length;
+    if (kinds === 0) return [m.eco_tower_map_need_start()];
+    if (kinds > 1) return [m.eco_tower_map_entry_mixed()];
+    if (starts > 1) return [m.eco_tower_map_need_start()];
+    if (wells > 0 && (wells < WELLS.min || wells > WELLS.max)) return [m.eco_tower_map_wells_count({ min: WELLS.min, max: WELLS.max })];
+    if (entrances > 0 && (entrances < ENTRANCES.min || entrances > ENTRANCES.max)) return [m.eco_tower_map_entrances_count({ min: ENTRANCES.min, max: ENTRANCES.max })];
+    return [];
+  }
+
   const problems = $derived.by(() => {
     const list: string[] = [];
-    if (counts.START !== 1) list.push(m.eco_tower_map_need_start());
+    const entry = entryProblems(layout);
+    list.push(...entry);
     list.push(...exitProblems(layout));
-    if (counts.START === 1 && unreachable > 0) list.push(m.eco_tower_map_unreachable({ count: unreachable }));
+    if (entry.length === 0 && unreachable > 0) list.push(m.eco_tower_map_unreachable({ count: unreachable }));
     if (layout.rooms.some((room) => room.type === 'MERCHANT' && room.offers.length === 0)) list.push(m.eco_tower_map_empty_merchant());
     if (layout.rooms.length > roomsMax) list.push(m.eco_tower_map_too_many({ max: roomsMax }));
     return list;
@@ -578,8 +618,8 @@
   /** Mêmes règles que le serveur : un départ, un gardien, tout relié, aucun marchand vide. */
   function floorValid(floor: Layout): boolean {
     if (floor.rooms.length === 0 || floor.rooms.length > roomsMax) return false;
-    const starts = floor.rooms.filter((room) => room.type === 'START');
-    if (starts.length !== 1 || exitProblems(floor).length > 0) return false;
+    const starts = floor.rooms.filter((room) => isEntry(room.type));
+    if (entryProblems(floor).length > 0 || exitProblems(floor).length > 0) return false;
     if (floor.rooms.some((room) => room.type === 'MERCHANT' && room.offers.length === 0)) return false;
     const cells = new Map<string, Room>();
     for (const room of floor.rooms) for (const [x, y] of cellsOf(room)) cells.set(`${x},${y}`, room);
@@ -608,11 +648,11 @@
   function floorSpan(floor: Layout): { shortest: number; rooms: number } {
     const cells = new Map<string, Room>();
     for (const room of floor.rooms) for (const [x, y] of cellsOf(room)) cells.set(`${x},${y}`, room);
-    const start = floor.rooms.find((room) => room.type === 'START');
-    const rooms = floor.rooms.filter((room) => room.type !== 'START' && room.type !== 'EMPTY').length;
-    if (!start) return { shortest: 0, rooms };
-    const distance = new Map([[start.id, 0]]);
-    const queue = [start];
+    const entries = floor.rooms.filter((room) => isEntry(room.type));
+    const rooms = floor.rooms.filter((room) => !isEntry(room.type) && room.type !== 'EMPTY').length;
+    if (entries.length === 0) return { shortest: 0, rooms };
+    const distance = new Map(entries.map((room) => [room.id, 0]));
+    const queue = [...entries];
     while (queue.length > 0) {
       const room = queue.shift()!;
       for (const other of linkedRooms(floor, room, cells)) {
@@ -738,7 +778,7 @@
 
   /** Outils qui se posent en zone : pas le départ, les sorties, les portails ni le gardien. */
   function fillable(brush: Tool): boolean {
-    return brush === 'ERASE' || (brush !== 'SELECT' && brush !== 'START' && !isExit(brush) && !isWarp(brush));
+    return brush === 'ERASE' || (brush !== 'SELECT' && !isEntry(brush) && !isExit(brush) && !isWarp(brush));
   }
 
   function fillRect() {
@@ -763,6 +803,8 @@
   }
 
   let showDeaths = $state(false);
+  // Numéro de chaque entrée au choix, dans l'ordre où le bot les propose.
+  const entranceNumber = $derived(new Map(layout.rooms.filter((room) => room.type === 'ENTRANCE').map((room, index) => [room.id, index + 1])));
   // Morts de l'étage ouvert tel qu'il est : une salle déplacée ou retypée repart de zéro.
   const floorDeaths = $derived(deathMap[layoutKey(layout)] ?? {});
   const deathsTotal = $derived(Object.values(floorDeaths).reduce((sum, count) => sum + count, 0));
@@ -931,8 +973,9 @@
     // La clé n'est pas un réglage : elle ne se copie pas, et une salle repeinte garde la sienne.
     const room = copied ? { ...copyRoom(copied, x, y), key: sameAnchor && existing!.key } : newRoom(x, y, brush);
     removeAt(cellsOf(room));
-    // Un seul départ et une seule sortie par étage : en poser une nouvelle remplace l'ancienne.
-    if (brush === 'START') layout.rooms = layout.rooms.filter((candidate) => candidate.type !== 'START');
+    // Une seule sortie par étage : en poser une nouvelle remplace l'ancienne. Une seule sorte
+    // d'entrée : en poser une d'une autre sorte retire les autres, et le départ reste unique.
+    if (isEntry(brush)) layout.rooms = layout.rooms.filter((candidate) => !isEntry(candidate.type) || (candidate.type === brush && brush !== 'START'));
     if (isExit(brush)) layout.rooms = layout.rooms.filter((candidate) => !isExit(candidate.type));
     // Une seule paire de portails : poser un portail A (ou B) déplace l'ancien.
     if (isWarp(brush)) layout.rooms = layout.rooms.filter((candidate) => candidate.type !== brush);
@@ -960,8 +1003,8 @@
       painting = false;
       return;
     }
-    // Départ et sortie se posent une fois : glisser ne les répète pas.
-    painting = erasing || (tool !== 'SELECT' && tool !== 'START' && !(tool !== 'ERASE' && (isExit(tool) || isWarp(tool))));
+    // Entrées, sortie et portails se posent un par un : glisser ne les répète pas.
+    painting = erasing || (tool !== 'SELECT' && (tool === 'ERASE' || (!isEntry(tool) && !isExit(tool) && !isWarp(tool))));
     apply(x, y);
   }
 
@@ -1340,9 +1383,15 @@
                 {room.foe ?? 'BOSS'}
               </text>
             {/if}
-            {#if reachable && room.type !== 'START'}
+            {#if reachable && !isEntry(room.type)}
               <text x={room.x * CELL + 11} y={room.y * CELL + 17} font-size="10" font-weight="700" fill="currentColor" class="text-on-surface-variant/70" pointer-events="none">
                 {distances.get(room.id)}
+              </text>
+            {/if}
+            {#if room.type === 'ENTRANCE' || room.type === 'WELL'}
+              <!-- Entrées au choix numérotées comme sur Discord ; un puits, c'est le hasard. -->
+              <text x={room.x * CELL + CELL - 12} y={room.y * CELL + CELL - 10} text-anchor="middle" font-size="13" font-weight="800" fill={COLOR[room.type]} pointer-events="none">
+                {room.type === 'ENTRANCE' ? entranceNumber.get(room.id) : '?'}
               </text>
             {/if}
             {#if isWarp(room.type)}
@@ -1417,7 +1466,7 @@
             <p class="text-sm font-bold flex items-center gap-2" title={tip(selected.type)}><span style="color: {COLOR[selected.type]}" class="flex"><Papicon icon={ICON[selected.type]} size={16} /></span> {label(selected.type)}</p>
             <span class="text-2xs text-on-surface-variant/50 font-mono">{selected.x},{selected.y}</span>
           </div>
-          {#if canManage && selected.type !== 'START' && !isExit(selected.type) && !isWarp(selected.type)}
+          {#if canManage && !isEntry(selected.type) && !isExit(selected.type) && !isWarp(selected.type)}
             <button type="button" onclick={() => pickTemplate(selected!)} disabled={disabled} title={m.eco_tower_map_pipette_tip()}
               class="w-full px-3 py-1.5 rounded-lg text-2xs font-bold border border-outline-variant/15 hover:bg-outline-variant/10 flex items-center justify-center gap-1.5 disabled:opacity-50">
               <Papicon icon="Copy" size={11} /> {m.eco_tower_map_pipette_use()}
@@ -1459,6 +1508,25 @@
                 </div>
               </div>
             {/if}
+          {:else if selected.type === 'AMBUSH'}
+            {@render powerSettings(selected)}
+          {:else if selected.type === 'COLLAPSE'}
+            <div class="space-y-1">
+              <label for="roomCollapse" class="text-xs font-semibold text-on-surface-variant/60">{m.eco_tower_map_collapse_steps()}</label>
+              <input id="roomCollapse" type="number" min="3" max="40" value={selected.collapseSteps} disabled={!canManage || disabled}
+                onchange={(e) => updateSelected({ collapseSteps: Math.min(40, Math.max(3, Number((e.currentTarget as HTMLInputElement).value) || 10)) })}
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none" />
+              <p class="text-2xs text-on-surface-variant/50">{m.eco_tower_map_collapse_hint({ shortest: bossDepth ?? 0 })}</p>
+            </div>
+            {@render powerSettings(selected)}
+          {:else if selected.type === 'TOLL'}
+            <div class="space-y-1">
+              <label for="roomToll" class="text-xs font-semibold text-on-surface-variant/60">{m.eco_tower_map_toll_gold()}</label>
+              <input id="roomToll" type="number" min="1" max="10000" value={selected.tollGold} disabled={!canManage || disabled}
+                onchange={(e) => updateSelected({ tollGold: Math.min(10000, Math.max(1, Number((e.currentTarget as HTMLInputElement).value) || 60)) })}
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none" />
+              <p class="text-2xs text-on-surface-variant/50">{m.eco_tower_map_toll_hint()}</p>
+            </div>
           {:else if selected.type === 'TRIAL'}
             <div class="space-y-1">
               <span class="text-xs font-semibold text-on-surface-variant/60">{m.eco_tower_map_waves()}</span>

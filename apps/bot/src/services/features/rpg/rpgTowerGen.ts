@@ -28,18 +28,20 @@ const HEIGHT = 9;
 const GUARD_ROW = 2;
 
 const PATH_WEIGHTS: Partial<Record<TowerRoomType, number>> = { MONSTER: 64, EMPTY: 17, ELITE: 8, EVENT: 6, TRAP: 5 };
-const BRANCH_END_WEIGHTS: Partial<Record<TowerRoomType, number>> = { MONSTER: 28, ELITE: 23, EVENT: 14, CHEST: 12, MERCHANT: 8, MERCENARY: 6, TRIAL: 5, CAMPFIRE: 5, SHRINE: 4, MENTOR: 4 };
+const BRANCH_END_WEIGHTS: Partial<Record<TowerRoomType, number>> = { MONSTER: 28, ELITE: 23, EVENT: 14, CHEST: 12, MERCHANT: 8, MERCENARY: 6, TRIAL: 5, CAMPFIRE: 5, SHRINE: 4, MENTOR: 4, FOUNTAIN: 3 };
 const BRANCH_WEIGHTS: Partial<Record<TowerRoomType, number>> = { MONSTER: 75, EMPTY: 25 };
 /**
  * Plafond de chaque salle de récompense par étage généré. Sans plafond, un étage pouvait
  * aligner trois autels et trois coffres : bénédictions et objets pleuvaient.
  */
-const ROOM_CAPS: Partial<Record<TowerRoomType, number>> = { SHRINE: 1, CHEST: 2, MERCHANT: 1, MERCENARY: 1, CAMPFIRE: 1, EVENT: 2, ELITE: 2, TRAP: 2, TRIAL: 1, MENTOR: 1 };
+const ROOM_CAPS: Partial<Record<TowerRoomType, number>> = { SHRINE: 1, CHEST: 2, MERCHANT: 1, MERCENARY: 1, CAMPFIRE: 1, EVENT: 2, ELITE: 2, TRAP: 2, TRIAL: 1, MENTOR: 1, FOUNTAIN: 1 };
 const CAP_FALLBACK: Partial<Record<TowerRoomType, TowerRoomType>> = { ELITE: 'MONSTER', EVENT: 'MONSTER', TRAP: 'MONSTER', TRIAL: 'MONSTER' };
 /** Ambiance d'un étage généré : la plupart n'en ont pas. */
 const MODIFIER_WEIGHTS: Record<TowerFloorModifier, number> = { NONE: 70, FLOODED: 10, BURNING: 10, BLESSED: 10 };
 /** Sortie d'un étage généré : le gardien reste la plus fréquente. */
-const EXIT_WEIGHTS: Record<TowerExitType, number> = { BOSS: 60, STAIRS: 20, GATE: 20 };
+const EXIT_WEIGHTS: Record<TowerExitType, number> = { BOSS: 50, STAIRS: 15, GATE: 15, EXIT: 8, COLLAPSE: 7, TOLL: 5 };
+/** Part des couloirs d'un étage généré qui cachent une embuscade. */
+const AMBUSH_CHANCE = 0.15;
 /** Clés d'un escalier scellé et sceaux d'une porte scellée, par étage généré. */
 const LOCKS_PER_FLOOR = 2;
 /** Part des étages générés qui ont une paire de portails. */
@@ -112,7 +114,13 @@ export function generateTowerLayout(seed: number, fog = true, floor = 1): TowerL
     place(x, y, pathType());
   }
   // Une sortie d'une case se pose juste au-dessus de la fin du chemin.
-  if (exit !== 'BOSS') cells.set(key(x, y - 1), newTowerRoom(x, y - 1, exit));
+  // L'escalier qui s'effondre laisse le chemin direct et quelques détours ; le péage suit la hauteur.
+  if (exit !== 'BOSS') {
+    cells.set(key(x, y - 1), newTowerRoom(x, y - 1, exit, {
+      collapseSteps: Math.min(40, path.length + 4),
+      tollGold: 30 + Math.max(1, floor) * 4,
+    }));
+  }
 
   // La dernière salle avant la sortie laisse souvent souffler.
   if (rng.next() < 0.5 && (used.CAMPFIRE ?? 0) === 0) {
@@ -144,8 +152,10 @@ export function generateTowerLayout(seed: number, fog = true, floor = 1): TowerL
   }
 
   // Certains coffres mordent : une mimique garde l'apparence d'un coffre jusqu'à ce qu'on l'ouvre.
+  // Certains couloirs aussi : une embuscade attend dans un couloir d'apparence vide.
   for (const room of [...cells.values()]) {
     if (room.type === 'CHEST' && rng.next() < MIMIC_CHANCE) cells.set(key(room.x, room.y), newTowerRoom(room.x, room.y, 'MIMIC'));
+    else if (room.type === 'EMPTY' && rng.next() < AMBUSH_CHANCE) cells.set(key(room.x, room.y), newTowerRoom(room.x, room.y, 'AMBUSH'));
   }
 
   // Ce qui ouvre la sortie : des clés sur des élites ou des coffres, ou des sceaux gardés.

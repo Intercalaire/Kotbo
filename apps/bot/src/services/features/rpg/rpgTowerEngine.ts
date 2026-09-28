@@ -10,6 +10,10 @@ import { computeAttack, damageThrough } from './rpgCombatMath.js';
 import {
   ALLY_POWER,
   ALTAR_COST,
+  AMBUSH_DAMAGE,
+  FOUNTAIN_HEAL,
+  fountainDonation,
+  fountainDrinkCost,
   BLESSED_HEAL,
   BURN_DAMAGE,
   FLOODED_SPEED,
@@ -101,10 +105,13 @@ import {
   type TowerSkill,
 } from './rpgTowerPolicy.js';
 import {
+  TOWER_COLLAPSE_STEPS,
+  TOWER_TOLL_GOLD,
   TOWER_TRIAL_WAVES,
   exitLocks,
   exitRoom,
   roomNeighbors,
+  entryRooms,
   startRoom,
   type TowerDirection,
   type TowerExitType,
@@ -115,7 +122,7 @@ import {
 } from './rpgTowerMap.js';
 import { towerFloorLayout } from './rpgTowerGen.js';
 
-export type TowerPhase = 'DOORS' | 'COMBAT' | 'LOOT' | 'BLESSING' | 'MERCHANT' | 'EVENT' | 'MERCENARY' | 'MENTOR';
+export type TowerPhase = 'DOORS' | 'COMBAT' | 'LOOT' | 'BLESSING' | 'MERCHANT' | 'EVENT' | 'MERCENARY' | 'MENTOR' | 'ENTRY' | 'TOLL' | 'FOUNTAIN';
 
 export type TowerLogEntry =
   | { k: 'attack'; dmg: number; crit: boolean }
@@ -180,6 +187,8 @@ export type TowerEncounter = {
   lastStandUsed?: boolean;
   /** Un coffre qui était une mimique. */
   mimic?: boolean;
+  /** Le vaincre ouvre la sortie : gardien d'un péage forcé. */
+  opensExit?: boolean;
   /** Puissance réglée sur la salle (1 : normale). */
   power?: number;
   /** Multiplicateur de l'or et de la chance de butin, quand la salle le fait suivre sa puissance. */
@@ -201,6 +210,8 @@ export type TowerNotice =
     climbed: TowerClimb | null;
     /** Clé de l'escalier scellé trouvée sur ce monstre, ou sceau allumé en le battant. */
     lock?: TowerLockProgress | null;
+    /** Joueur tombé dans cette salle, dont l'équipement vient d'être retrouvé. */
+    ghost?: string | null;
   }
   | { k: 'treasure'; gold: number; lock?: TowerLockProgress | null }
   /** Vague suivante d'une épreuve. */
@@ -211,6 +222,11 @@ export type TowerNotice =
   | { k: 'trap'; dmg: number; dodged: boolean }
   | { k: 'hired'; gold: number }
   | { k: 'learned'; name: string; emoji: string; gold: number }
+  | { k: 'ambush'; dmg: number }
+  | { k: 'collapsed' }
+  | { k: 'toll_paid'; gold: number; climbed: TowerClimb | null }
+  | { k: 'fountain_drink'; hp: number; cost: number }
+  | { k: 'fountain_donate'; gold: number }
   | { k: 'mentor_empty' }
   | { k: 'campfire'; hp: number }
   | { k: 'potion'; hp: number }
@@ -251,7 +267,18 @@ export type TowerMapState = {
   prev?: string;
   /** Traits, mécaniques et événements des salles, tirés en arrivant sur l'étage. */
   rooms?: Record<string, TowerRoomInfo>;
+  /**
+   * Fantômes de l'étage : l'équipement laissé par un joueur tombé dans une salle de cette même
+   * carte. Chargés par le service à l'arrivée sur l'étage ; le moteur ne fait que les remettre.
+   */
+  ghosts?: TowerGhost[];
+  /** Pas faits sur l'étage : un escalier qui s'effondre les compte. */
+  steps?: number;
+  /** Entrées entre lesquelles le joueur choisit en arrivant ; vidé une fois le choix fait. */
+  entryChoices?: string[];
 };
+
+export type TowerGhost = { roomId: string; userId: string; runId: string; gear: TowerGear };
 
 /** Salle voisine proposée au joueur. */
 export type TowerMove = { roomId: string; type: TowerRoomType; direction: TowerDirection; cleared: boolean };
@@ -309,12 +336,18 @@ export type TowerState = {
   } | null;
   /** Mercenaire engagé : il combat jusqu'à la fin de l'étage. */
   ally?: boolean;
+  /** Réserve de la source commune du serveur, posée par le service avant chaque action. */
+  fountainPool?: number;
+  /** Or versé (positif) ou puisé (négatif) dans la source à cette action, que le service reporte. */
+  fountainDelta?: number;
   /** Compétences du RPG non achetées au départ, qu'un mentor peut encore enseigner. */
   skillPool?: TowerSkill[];
   /** Compétences proposées par le mentor de la salle en cours (identifiants). */
   mentor?: string[];
   /** Malédictions choisies au départ, chacune contre plus d'éclats. */
   heat?: TowerHeat[];
+  /** Ascension dont le fantôme vient d'être retrouvé : le service la marque comme reprise. */
+  ghostTaken?: string | null;
   /** PV brûlés à la dernière action, sur un étage en feu. */
   burned?: number;
 };
@@ -360,6 +393,12 @@ export type TowerAction =
   | { type: 'event'; index: number }
   | { type: 'hire' }
   | { type: 'learn'; index: number }
+  /** Péage : payer, ou forcer le passage contre son gardien. */
+  | { type: 'pay' }
+  | { type: 'force' }
+  /** Source commune : boire, ou y verser de l'or. */
+  | { type: 'drink' }
+  | { type: 'donate' }
   /** Combat automatique contre un monstre ordinaire. */
   | { type: 'auto' };
 
@@ -377,7 +416,8 @@ export type TowerActionError =
   | 'no_gear'
   | 'stairs_locked'
   | 'gate_locked'
-  | 'no_auto';
+  | 'no_auto'
+  | 'fountain_dry';
 
 export class TowerActionRefused extends Error {
   constructor(readonly reason: TowerActionError) {
@@ -500,7 +540,7 @@ function rollMechanic(choice: TowerMechanicChoice, rng: TowerRng): TowerBossMech
   return choice;
 }
 
-const ROOM_KIND: Partial<Record<TowerRoomType, TowerEncounterKind>> = { MONSTER: 'COMBAT', ELITE: 'ELITE', BOSS: 'BOSS', SEAL: 'ELITE', MIMIC: 'ELITE' };
+const ROOM_KIND: Partial<Record<TowerRoomType, TowerEncounterKind>> = { MONSTER: 'COMBAT', ELITE: 'ELITE', BOSS: 'BOSS', SEAL: 'ELITE', MIMIC: 'ELITE', AMBUSH: 'COMBAT', COLLAPSE: 'BOSS' };
 /** Vagues d'une épreuve : deux combats ordinaires puis une élite. */
 export const TRIAL_WAVES = TOWER_TRIAL_WAVES.default;
 const DOOR_KIND: Partial<Record<TowerDoor, TowerEncounterKind>> = { COMBAT: 'COMBAT', ELITE: 'ELITE', BOSS: 'BOSS' };
@@ -560,6 +600,7 @@ export function createTowerState(input: {
   const map: TowerMapState | null = input.layout && start
     ? { layout: structuredClone(input.layout), depth: 1, pos: start.id, cleared: [start.id] }
     : null;
+  if (map) arrive(map, rng);
   const state: TowerState = {
     v: 1,
     rng: rng.state,
@@ -590,12 +631,35 @@ export function createTowerState(input: {
   };
   if (map) {
     prepareFloor(map, rng);
-    state.moves = computeMoves(state);
+    if (map.entryChoices?.length) state.phase = 'ENTRY';
+    else state.moves = computeMoves(state);
   } else {
     setDoors(state, 1, input.rules, rng);
   }
   state.rng = rng.state;
   return state;
+}
+
+/**
+ * Arrivée sur un étage : au départ s'il y en a un, dans un puits tiré au hasard, ou devant
+ * les entrées au choix, sans encore y être entré.
+ */
+function arrive(map: TowerMapState, rng: TowerRng): void {
+  const entries = entryRooms(map.layout);
+  const choices = entries.filter((room) => room.type === 'ENTRANCE');
+  map.steps = 0;
+  if (choices.length > 0) {
+    map.pos = choices[0].id;
+    map.cleared = [];
+    map.entryChoices = choices.map((room) => room.id);
+    return;
+  }
+  const wells = entries.filter((room) => room.type === 'WELL');
+  const room = entries.find((candidate) => candidate.type === 'START') ?? (wells.length > 0 ? rng.pick(wells) : entries[0]);
+  if (!room) return;
+  map.pos = room.id;
+  map.cleared = [room.id];
+  map.entryChoices = undefined;
 }
 
 function computeMoves(state: TowerState): TowerMove[] {
@@ -623,12 +687,12 @@ function climb(state: TowerState, floor: number, rules: TowerRules, floors: read
   const map = state.map;
   if (!map) return null;
   const next = towerFloorLayout(floors, floor, rules.floorsAfter ?? 'LOOP', state.seed ?? 0, rules.generatedFog ?? true);
-  const start = startRoom(next);
-  if (!start) return null;
+  if (!startRoom(next)) return null;
   map.layout = structuredClone(next);
-  map.pos = start.id;
-  map.cleared = [start.id];
   map.prev = undefined;
+  arrive(map, rng);
+  // Les fantômes appartiennent à une carte : ceux du nouvel étage sont chargés par le service.
+  map.ghosts = [];
   // Le mercenaire ne suit pas l'escalier : il est engagé pour un étage.
   state.ally = false;
   prepareFloor(map, rng);
@@ -659,6 +723,11 @@ function advance(state: TowerState, floor: number, rules: TowerRules, rng: Tower
       return;
     }
     state.blessingDue = false;
+  }
+  if (state.map?.entryChoices?.length) {
+    state.phase = 'ENTRY';
+    state.moves = [];
+    return;
   }
   state.phase = 'DOORS';
   if (state.map) {
@@ -937,6 +1006,16 @@ function exitFloor(state: TowerState, floor: number, rules: TowerRules, floors: 
   return { next, climbed };
 }
 
+/** Retire le fantôme de la salle en cours, et note l'ascension d'où il vient pour le service. */
+function takeGhost(state: TowerState): TowerGhost | null {
+  const map = state.map;
+  const ghost = map?.ghosts?.find((candidate) => candidate.roomId === map.pos) ?? null;
+  if (!map || !ghost) return null;
+  map.ghosts = map.ghosts!.filter((candidate) => candidate !== ghost);
+  state.ghostTaken = ghost.runId;
+  return ghost;
+}
+
 function winEncounter(
   state: TowerState,
   floor: number,
@@ -968,6 +1047,9 @@ function winEncounter(
   const trialPaid = trial?.reward === true;
   const lootChance = trialPaid ? LOOT_CHANCE.BOSS : LOOT_CHANCE[encounter.kind];
   if (encounter.mimic || rng.next() < Math.min(1, lootChance * bounty)) state.pendingLoot = rollTowerGear(level, encounter.kind, rng);
+  // Un joueur est tombé ici : son équipement l'emporte sur le butin du monstre.
+  const ghost = takeGhost(state);
+  if (ghost) state.pendingLoot = ghost.gear;
 
   let healed = heal(state, stats.healAfterCombat);
   if (trialPaid) healed += heal(state, BOSS_VICTORY_HEAL);
@@ -979,11 +1061,13 @@ function winEncounter(
   // Le gardien ferme l'étage. Une épreuve ne le ferme que sur les étages d'avant, où elle était
   // encore une sortie : leur carte, copiée dans la partie, n'a pas d'autre sortie.
   const legacyTrialExit = Boolean(trial && state.map && !exitRoom(state.map.layout));
-  const closesFloor = state.map ? (encounter.kind === 'BOSS' || legacyTrialExit) : isBossStep(state, floor, rules, encounter.kind);
+  const closesFloor = state.map
+    ? (encounter.kind === 'BOSS' || legacyTrialExit || encounter.opensExit === true)
+    : isBossStep(state, floor, rules, encounter.kind);
   state.trial = null;
   if (closesFloor && state.map) {
     const { next, climbed } = exitFloor(state, floor, rules, floors, rng);
-    state.notice = { k: 'victory', name: encounter.name, emoji: encounter.emoji, gold, healed, climbed };
+    state.notice = { k: 'victory', name: encounter.name, emoji: encounter.emoji, gold, healed, climbed, ghost: ghost?.userId ?? null };
     advance(state, next, rules, rng);
     return next;
   }
@@ -991,7 +1075,7 @@ function winEncounter(
   const next = progress(state, floor, rules, closesFloor);
   markRoomCleared(state);
   if (closesFloor) state.safeLeave = true;
-  state.notice = { k: 'victory', name: encounter.name, emoji: encounter.emoji, gold, healed, climbed: null, lock: lockProgress(state) };
+  state.notice = { k: 'victory', name: encounter.name, emoji: encounter.emoji, gold, healed, climbed: null, lock: lockProgress(state), ghost: ghost?.userId ?? null };
   advance(state, next, rules, rng);
   return next;
 }
@@ -1277,6 +1361,33 @@ function enterRoom(
       }
       break;
     }
+    case 'AMBUSH': {
+      // Le couloir n'était pas vide : le monstre frappe d'abord, puis le combat s'engage.
+      const dmg = Math.max(1, Math.floor(towerStats(state).maxHealth * AMBUSH_DAMAGE));
+      const before = state.hp;
+      state.hp = Math.max(1, state.hp - dmg);
+      startEncounter(state, level, 'COMBAT', rules, foes, rng, null, info, roomPower(room));
+      state.notice = { k: 'ambush', dmg: before - state.hp };
+      return floor;
+    }
+    case 'COLLAPSE': {
+      // Tant qu'il tient, l'escalier fait monter ; effondré, un gardien garde le passage.
+      if ((map.steps ?? 0) <= (room.collapseSteps ?? TOWER_COLLAPSE_STEPS.default)) {
+        const { next, climbed } = exitFloor(state, floor, rules, floors, rng);
+        state.notice = { k: 'exit', exit: room.type, climbed };
+        advance(state, next, rules, rng);
+        return next;
+      }
+      startEncounter(state, level, 'BOSS', rules, foes, rng, room.foe, info, roomPower(room));
+      state.notice = { k: 'collapsed' };
+      return floor;
+    }
+    case 'TOLL':
+      state.phase = 'TOLL';
+      return floor;
+    case 'FOUNTAIN':
+      state.phase = 'FOUNTAIN';
+      return floor;
     case 'TRIAL': {
       const power = roomPower(room);
       state.trial = { wave: 1, waves: room.waves ?? TRIAL_WAVES, power: power.factor, powerReward: power.reward, reward: room.trialReward === true };
@@ -1284,7 +1395,8 @@ function enterRoom(
       return floor;
     }
     case 'STAIRS':
-    case 'GATE': {
+    case 'GATE':
+    case 'EXIT': {
       const { next, climbed } = exitFloor(state, floor, rules, floors, rng);
       state.notice = { k: 'exit', exit: room.type, climbed };
       advance(state, next, rules, rng);
@@ -1349,6 +1461,8 @@ export function applyTowerAction(
   const level = towerLevel(state, floor);
   state.notice = null;
   state.burned = 0;
+  state.ghostTaken = null;
+  state.fountainDelta = 0;
 
   const done = (nextFloor: number, dead = false): TowerStepResult => {
     state.rng = rng.state;
@@ -1380,6 +1494,7 @@ export function applyTowerAction(
       if (state.map) {
         const move = state.moves[action.index];
         if (!move) throw new TowerActionRefused('bad_choice');
+        state.map.steps = (state.map.steps ?? 0) + 1;
         return done(enterRoom(state, floor, move, rules, foes, rng, floors));
       }
       const door = state.doors[action.index];
@@ -1440,6 +1555,66 @@ export function applyTowerAction(
         state.gold -= price;
         state.ally = true;
         state.notice = { k: 'hired', gold: price };
+      } else if (action.type !== 'leave_shop') {
+        throw new TowerActionRefused('wrong_phase');
+      }
+      markRoomCleared(state);
+      const next = progress(state, floor, rules, false);
+      advance(state, next, rules, rng);
+      return done(next);
+    }
+
+    case 'ENTRY': {
+      const map = state.map;
+      if (action.type !== 'door' || !map) throw new TowerActionRefused('wrong_phase');
+      const id = map.entryChoices?.[action.index];
+      if (!id) throw new TowerActionRefused('bad_choice');
+      map.pos = id;
+      map.cleared = [id];
+      map.entryChoices = undefined;
+      advance(state, floor, rules, rng);
+      return done(floor);
+    }
+
+    case 'TOLL': {
+      const map = state.map!;
+      const room = map.layout.rooms.find((candidate) => candidate.id === map.pos);
+      const price = room?.tollGold ?? TOWER_TOLL_GOLD.default;
+      if (action.type === 'pay') {
+        if (state.gold < price) throw new TowerActionRefused('no_gold');
+        state.gold -= price;
+        const { next, climbed } = exitFloor(state, floor, rules, floors, rng);
+        state.notice = { k: 'toll_paid', gold: price, climbed };
+        advance(state, next, rules, rng);
+        return done(next);
+      }
+      if (action.type === 'force') {
+        // Le gardien du péage : le vaincre ouvre le passage sans rien payer.
+        startEncounter(state, level, 'ELITE', rules, foes, rng, null, map.rooms?.[map.pos] ?? null, room ? roomPower(room) : undefined);
+        state.encounter!.opensExit = true;
+        return done(floor);
+      }
+      if (action.type !== 'leave_shop') throw new TowerActionRefused('wrong_phase');
+      // Demi-tour : le péage reste là, à payer ou forcer plus tard.
+      retreat(state);
+      advance(state, floor, rules, rng);
+      return done(floor);
+    }
+
+    case 'FOUNTAIN': {
+      const pool = state.fountainPool ?? 0;
+      if (action.type === 'drink') {
+        const cost = fountainDrinkCost(level);
+        if (pool < cost) throw new TowerActionRefused('fountain_dry');
+        if (state.hp >= towerStats(state).maxHealth) throw new TowerActionRefused('hp_full');
+        state.fountainDelta = -cost;
+        state.notice = { k: 'fountain_drink', hp: heal(state, FOUNTAIN_HEAL), cost };
+      } else if (action.type === 'donate') {
+        const gift = fountainDonation(level);
+        if (state.gold < gift) throw new TowerActionRefused('no_gold');
+        state.gold -= gift;
+        state.fountainDelta = gift;
+        state.notice = { k: 'fountain_donate', gold: gift };
       } else if (action.type !== 'leave_shop') {
         throw new TowerActionRefused('wrong_phase');
       }
