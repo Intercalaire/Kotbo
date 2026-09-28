@@ -71,6 +71,7 @@ import { channelhealthCommand } from './commands/admin/channelhealth.js';
 import { simulationCommand } from './commands/admin/simulation.js';
 import { repCommand } from './commands/community/rep.js';
 import { marketCommand } from './commands/economy/market.js';
+import { towerCommand } from './commands/economy/tower.js';
 import { questsCommand } from './commands/community/quests.js';
 import { clanCommand } from './commands/community/clan.js';
 import { parisCommand } from './commands/community/paris.js';
@@ -173,6 +174,7 @@ export const commands: SlashCommandDefinition[] = [
   simulationCommand,
   repCommand,
   marketCommand,
+  towerCommand,
   questsCommand,
   clanCommand,
   parisCommand,
@@ -299,6 +301,7 @@ export const COMMAND_MODULES = new Map<ApplicationCommandDefinition, string>([
   [marketCommand, 'marketplace'],
   [rpgCommand, 'economy'],
   [raidCommand, 'economy'],
+  [towerCommand, 'economy'],
   [dailyCommand, 'economy'],
   [coinsCommand, 'economy'],
   [diceCommand, 'economy'],

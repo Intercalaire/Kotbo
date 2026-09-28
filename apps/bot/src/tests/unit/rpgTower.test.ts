@@ -1,0 +1,311 @@
+import { describe, expect, test } from 'bun:test';
+import {
+  TOWER_BASE_STATS,
+  TowerRng,
+  applyWeeklyCap,
+  computeTowerEntryStats,
+  floorShards,
+  normalizeTowerReward,
+  normalizeTowerSettings,
+  rollBlessingChoices,
+  rollDoors,
+  settleShards,
+  towerMonsterStats,
+  towerWeekStart,
+  type TowerCoreStats,
+  type TowerEntryInput,
+} from '../../services/features/rpg/rpgTowerPolicy.js';
+import {
+  TowerActionRefused,
+  applyTowerAction,
+  createTowerState,
+  type TowerRules,
+  type TowerState,
+} from '../../services/features/rpg/rpgTowerEngine.js';
+import { defaultTowerLayout, normalizeTowerLayout, roomNeighbors, shortestPathToBoss } from '../../services/features/rpg/rpgTowerMap.js';
+
+const RULES: TowerRules = { floorGrowthPercent: 8, bossEvery: 10, blessingEvery: 5, maxBlessings: 6, shardsPerFloor: 2 };
+const FOES = { monsters: [{ name: 'Rat', emoji: '🐀' }], bosses: [{ name: 'Roi Rat', emoji: '👑' }], byName: {} };
+
+function entry(main: number, overrides: Partial<TowerEntryInput> = {}): TowerEntryInput {
+  return {
+    mode: 'COMPRESSED',
+    inheritCapPercent: 80,
+    titleCapPercent: 30,
+    main: { attack: main, defense: main, speed: main, maxHealth: main },
+    title: { attack: 0, defense: 0, speed: 0, maxHealth: 0, critPercent: 0 },
+    classModifiers: { attack: 1, defense: 1, speed: 1, maxHealth: 1 },
+    classPassive: {},
+    vigorLevel: 0,
+    ...overrides,
+  };
+}
+
+const STRONG: TowerCoreStats = {
+  attack: 500, defense: 200, speed: 50, maxHealth: 5000,
+  critChance: 0, armorPiercing: 0, damageReduction: 0, lifesteal: 0, thorns: 0,
+};
+
+describe('statistiques d\'entrée', () => {
+  test('un joueur à un million de stats ne part qu\'avec un avantage borné', () => {
+    const beginner = computeTowerEntryStats(entry(20));
+    const veteran = computeTowerEntryStats(entry(1_000_000));
+    expect(veteran.attack / beginner.attack).toBeLessThan(2);
+    expect(veteran.attack).toBe(Math.round(TOWER_BASE_STATS.attack * 1.5));
+  });
+
+  test('la compression suit les ordres de grandeur, pas la valeur brute', () => {
+    const a = computeTowerEntryStats(entry(200, { inheritCapPercent: 300 })).attack;
+    const b = computeTowerEntryStats(entry(2_000, { inheritCapPercent: 300 })).attack;
+    const c = computeTowerEntryStats(entry(20_000, { inheritCapPercent: 300 })).attack;
+    expect(Math.abs((b - a) - (c - b))).toBeLessThanOrEqual(1);
+  });
+
+  test('le mode RESET ignore les stats du RPG mais garde le titre', () => {
+    const title = { attack: 2_000, defense: 0, speed: 0, maxHealth: 0, critPercent: 10 };
+    const reset = computeTowerEntryStats(entry(1_000_000, { mode: 'RESET', title }));
+    const bare = computeTowerEntryStats(entry(0, { mode: 'RESET' }));
+    expect(bare.attack).toBe(TOWER_BASE_STATS.attack);
+    expect(reset.attack).toBeGreaterThan(bare.attack);
+    expect(reset.attack).toBeLessThanOrEqual(Math.round(TOWER_BASE_STATS.attack * 1.3));
+    expect(reset.critChance).toBeCloseTo(0.15);
+  });
+
+  test('la classe garde son profil et son passif', () => {
+    const mage = computeTowerEntryStats(entry(0, {
+      mode: 'RESET',
+      classModifiers: { attack: 1.35, defense: 0.8, speed: 1, maxHealth: 0.85 },
+      classPassive: { armorPiercing: 0.3 },
+    }));
+    expect(mage.attack).toBe(27);
+    expect(mage.armorPiercing).toBe(0.3);
+  });
+});
+
+describe('étages', () => {
+  test('un étage de boss ne propose que le boss', () => {
+    expect(rollDoors(10, 10, new TowerRng(1))).toEqual(['BOSS']);
+  });
+
+  test('le premier étage ouvre sur un combat et trois portes distinctes', () => {
+    for (let seed = 0; seed < 50; seed++) {
+      const doors = rollDoors(1, 10, new TowerRng(seed));
+      expect(doors[0]).toBe('COMBAT');
+      expect(new Set(doors).size).toBe(3);
+    }
+  });
+
+  test('les monstres ne dépendent que de l\'étage', () => {
+    const first = towerMonsterStats(1, 8, 'COMBAT');
+    const tenth = towerMonsterStats(10, 8, 'COMBAT');
+    expect(tenth.attack / first.attack).toBeCloseTo(Math.pow(1.08, 9), 1);
+    expect(towerMonsterStats(10, 8, 'BOSS').health).toBeGreaterThan(tenth.health);
+  });
+
+  test('le générateur est reproductible', () => {
+    const a = new TowerRng(42);
+    const b = new TowerRng(42);
+    expect([a.next(), a.next(), a.next()]).toEqual([b.next(), b.next(), b.next()]);
+  });
+});
+
+describe('éclats', () => {
+  test('un boss et les dizaines valent plus', () => {
+    expect(floorShards(3, 2, false)).toBe(2);
+    expect(floorShards(12, 2, false)).toBe(4);
+    expect(floorShards(10, 2, true)).toBe(14);
+  });
+
+  test('la mort retient une part, l\'abandon garde tout', () => {
+    expect(settleShards(100, 'LEFT', 50)).toBe(100);
+    expect(settleShards(101, 'DEAD', 50)).toBe(50);
+  });
+
+  test('le plafond hebdomadaire', () => {
+    expect(applyWeeklyCap(50, 0, 0)).toBe(50);
+    expect(applyWeeklyCap(50, 80, 100)).toBe(20);
+    expect(applyWeeklyCap(50, 120, 100)).toBe(0);
+  });
+
+  test('la semaine commence le lundi', () => {
+    expect(towerWeekStart(new Date('2026-10-04T15:00:00Z')).toISOString()).toBe('2026-09-28T00:00:00.000Z');
+    expect(towerWeekStart(new Date('2026-09-28T00:00:00Z')).toISOString()).toBe('2026-09-28T00:00:00.000Z');
+  });
+});
+
+describe('réglages et récompenses', () => {
+  test('les réglages sont bornés', () => {
+    const result = normalizeTowerSettings({ floorGrowthPercent: 500, deathShardPercent: -3, entryMode: 'X' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.floorGrowthPercent).toBe(30);
+    expect(result.value.deathShardPercent).toBe(0);
+    expect(result.value.entryMode).toBe('COMPRESSED');
+  });
+
+  test('une récompense vide ou un titre répétable sont refusés', () => {
+    expect(normalizeTowerReward({ kind: 'SHOP', name: 'Rien' }).ok).toBe(false);
+    expect(normalizeTowerReward({ kind: 'SHOP', name: 'Titre', titleId: 't1', repeatable: true }).ok).toBe(false);
+    expect(normalizeTowerReward({ kind: 'MILESTONE', name: 'Palier', floor: 20, shards: 50 }).ok).toBe(true);
+  });
+
+  test('un palier peut ne donner que des points de clan, de l\'XP ou un objet', () => {
+    const clan = normalizeTowerReward({ kind: 'MILESTONE', name: 'Bannière', floor: 10, clanPoints: 25, titleId: 't1' });
+    expect(clan.ok).toBe(true);
+    if (clan.ok) {
+      expect(clan.value.clanPoints).toBe(25);
+      expect(clan.value.titleId).toBe('t1');
+    }
+    expect(normalizeTowerReward({ kind: 'MILESTONE', name: 'Savoir', floor: 5, xp: 100 }).ok).toBe(true);
+    expect(normalizeTowerReward({ kind: 'SHOP', name: 'Coffre', price: 50, itemName: ' Potion ' }).ok).toBe(true);
+    expect(normalizeTowerReward({ kind: 'MILESTONE', name: 'Rien', floor: 5, clanPoints: -4 }).ok).toBe(false);
+  });
+
+  test('les bénédictions respectent le plafond de variétés', () => {
+    const owned = { might: 1, bulwark: 1 };
+    const choices = rollBlessingChoices(owned, 2, new TowerRng(7));
+    expect(choices.every((id) => id in owned)).toBe(true);
+  });
+});
+
+describe('moteur d\'ascension', () => {
+  function start(base: TowerCoreStats = STRONG): TowerState {
+    return createTowerState({
+      base,
+      skills: [{ id: 'fireball', name: 'Boule de Feu', emoji: '🔥', cooldownTurns: 3, effect: { damageMultiplier: 2.3 } }],
+      potions: 1,
+      seed: 1234,
+      rules: RULES,
+    });
+  }
+
+  function enterCombat(state: TowerState) {
+    return applyTowerAction(state, 1, { type: 'door', index: 0 }, RULES, FOES);
+  }
+
+  test('une ascension commence devant trois portes', () => {
+    const state = start();
+    expect(state.phase).toBe('DOORS');
+    expect(state.doors).toHaveLength(3);
+    expect(state.hp).toBe(STRONG.maxHealth);
+  });
+
+  test('gagner un combat fait monter d\'un étage et rapporte des éclats', () => {
+    let step = enterCombat(start());
+    expect(step.state.phase).toBe('COMBAT');
+    for (let i = 0; i < 50 && step.state.phase === 'COMBAT'; i++) {
+      step = applyTowerAction(step.state, step.floor, { type: 'attack' }, RULES, FOES);
+    }
+    expect(step.floor).toBe(2);
+    expect(step.state.shards).toBeGreaterThan(0);
+    expect(step.state.kills).toBe(1);
+    expect(['DOORS', 'LOOT']).toContain(step.state.phase);
+  });
+
+  test('une compétence en recharge est refusée', () => {
+    const inCombat = enterCombat(start({ ...STRONG, attack: 1 }));
+    const cast = applyTowerAction(inCombat.state, 1, { type: 'skill', id: 'fireball' }, RULES, FOES);
+    expect(cast.state.encounter?.cooldowns.fireball).toBeGreaterThan(0);
+    expect(() => applyTowerAction(cast.state, 1, { type: 'skill', id: 'fireball' }, RULES, FOES)).toThrow(TowerActionRefused);
+  });
+
+  test('l\'état d\'entrée n\'est jamais modifié', () => {
+    const state = start();
+    const snapshot = JSON.stringify(state);
+    enterCombat(state);
+    expect(JSON.stringify(state)).toBe(snapshot);
+  });
+
+  test('une potion à PV pleins est refusée hors combat', () => {
+    expect(() => applyTowerAction(start(), 1, { type: 'potion' }, RULES, FOES)).toThrow(TowerActionRefused);
+  });
+
+  test('tomber à zéro PV met fin à l\'ascension', () => {
+    let step = enterCombat(start({ ...STRONG, attack: 1, defense: 0, maxHealth: 5 }));
+    for (let i = 0; i < 50 && !step.dead; i++) {
+      step = applyTowerAction(step.state, step.floor, { type: 'defend' }, RULES, FOES);
+    }
+    expect(step.dead).toBe(true);
+    expect(step.state.hp).toBe(0);
+  });
+
+  test('une action hors de sa phase est refusée', () => {
+    expect(() => applyTowerAction(start(), 1, { type: 'attack' }, RULES, FOES)).toThrow(TowerActionRefused);
+    expect(() => applyTowerAction(start(), 1, { type: 'door', index: 7 }, RULES, FOES)).toThrow(TowerActionRefused);
+  });
+});
+
+describe('carte de la Tour', () => {
+  const room = (x: number, y: number, type: string, extra: Record<string, unknown> = {}) => ({ x, y, type, ...extra });
+  const SMALL = {
+    width: 4,
+    height: 4,
+    rooms: [room(0, 0, 'START'), room(1, 0, 'CHEST', { chest: 'GOLD' }), room(2, 0, 'BOSS')],
+  };
+
+  test('la carte d\'exemple est valide', () => {
+    const result = normalizeTowerLayout(defaultTowerLayout());
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(shortestPathToBoss(result.value)).toBe(5);
+  });
+
+  test('une carte sans boss, avec deux départs ou une salle isolée est refusée', () => {
+    expect(normalizeTowerLayout({ width: 4, height: 4, rooms: [room(0, 0, 'START'), room(1, 0, 'MONSTER')] }).ok).toBe(false);
+    expect(normalizeTowerLayout({ ...SMALL, rooms: [...SMALL.rooms, room(0, 3, 'START')] }).ok).toBe(false);
+    expect(normalizeTowerLayout({ ...SMALL, rooms: [...SMALL.rooms, room(0, 3, 'MONSTER')] }).ok).toBe(false);
+  });
+
+  test('le boss occupe 2×2 : il ne peut ni déborder ni chevaucher', () => {
+    expect(normalizeTowerLayout({ ...SMALL, rooms: [room(0, 0, 'START'), room(3, 0, 'BOSS')] }).ok).toBe(false);
+    expect(normalizeTowerLayout({ ...SMALL, rooms: [...SMALL.rooms, room(3, 1, 'MONSTER')] }).ok).toBe(false);
+  });
+
+  test('les voisins d\'une grande salle sont comptés une fois', () => {
+    const result = normalizeTowerLayout(SMALL);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(roomNeighbors(result.value, '1-0').map((entry) => entry.room.type).sort()).toEqual(['BOSS', 'START']);
+    expect(roomNeighbors(result.value, '2-0').map((entry) => entry.room.id)).toEqual(['1-0']);
+  });
+
+  test('on avance de salle en salle, on revient sans compter d\'étage, et le boss relance la carte', () => {
+    const layout = normalizeTowerLayout(SMALL);
+    if (!layout.ok) throw new Error(layout.error);
+    let step = {
+      state: createTowerState({ base: STRONG, skills: [], potions: 1, seed: 99, rules: RULES, layout: layout.value }),
+      floor: 1,
+      dead: false,
+    };
+    expect(step.state.moves.map((move) => [move.type, move.direction])).toEqual([['CHEST', 'E']]);
+
+    step = applyTowerAction(step.state, step.floor, { type: 'door', index: 0 }, RULES, FOES);
+    expect(step.floor).toBe(2);
+    expect(step.state.gold).toBeGreaterThan(0);
+    expect(step.state.map?.cleared).toContain('1-0');
+
+    const back = step.state.moves.findIndex((move) => move.type === 'START');
+    const returned = applyTowerAction(step.state, step.floor, { type: 'door', index: back }, RULES, FOES);
+    expect(returned.floor).toBe(2);
+    expect(returned.state.map?.pos).toBe('0-0');
+
+    const boss = step.state.moves.findIndex((move) => move.type === 'BOSS');
+    step = applyTowerAction(step.state, step.floor, { type: 'door', index: boss }, RULES, FOES);
+    expect(step.state.encounter?.kind).toBe('BOSS');
+    for (let i = 0; i < 50 && step.state.phase === 'COMBAT'; i++) {
+      step = applyTowerAction(step.state, step.floor, { type: 'attack' }, RULES, FOES);
+    }
+    expect(step.floor).toBe(3);
+    expect(step.state.map?.section).toBe(2);
+    expect(step.state.map?.pos).toBe('0-0');
+    expect(step.state.map?.cleared).toEqual(['0-0']);
+  });
+
+  test('une salle peut imposer sa créature', () => {
+    const layout = normalizeTowerLayout({ width: 4, height: 4, rooms: [room(0, 0, 'START'), room(1, 0, 'MONSTER', { foe: 'Liche' }), room(2, 0, 'BOSS')] });
+    if (!layout.ok) throw new Error(layout.error);
+    const state = createTowerState({ base: STRONG, skills: [], potions: 1, seed: 5, rules: RULES, layout: layout.value });
+    const foes = { ...FOES, byName: { Liche: { name: 'Liche', emoji: '🧙' } } };
+    const step = applyTowerAction(state, 1, { type: 'door', index: 0 }, RULES, foes);
+    expect(step.state.encounter?.name).toBe('Liche');
+  });
+});
