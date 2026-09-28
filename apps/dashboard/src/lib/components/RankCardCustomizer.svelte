@@ -109,16 +109,15 @@
     return `${value.toLocaleString(getLocale())} / ${achievement.threshold.toLocaleString(getLocale())}`;
   }
 
-  /** Reconstruit la vignette d un fond a partir de la meme recette que le canvas serveur. */
+  /**
+   * Reconstruit la vignette d un fond a partir de la meme recette que le canvas
+   * serveur : le degrade seul, le rendu ne peignant plus les halos.
+   */
   function swatchStyle(preset: RankCardBackgroundPreset): string {
     const base = preset.gradient
       .map((stop) => `${stop.color} ${Math.round(stop.offset * 100)}%`)
       .join(', ');
-    const glows = preset.glows
-      .map((glow) => `radial-gradient(circle at ${Math.round(glow.x * 100)}% ${Math.round(glow.y * 100)}%, ${glow.color}, transparent 60%)`)
-      .join(', ');
-    const layers = glows ? `${glows}, linear-gradient(135deg, ${base})` : `linear-gradient(135deg, ${base})`;
-    return `background: ${layers};`;
+    return `background: linear-gradient(135deg, ${base});`;
   }
 
   function accentStyle(preset: RankCardBackgroundPreset): string {
