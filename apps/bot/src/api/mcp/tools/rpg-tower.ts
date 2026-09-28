@@ -48,6 +48,8 @@ import {
   TOWER_MAP_ROOMS_MAX,
   TOWER_MAP_SIZE,
   TOWER_OFFER_KINDS,
+  TOWER_POWER_PERCENT_RANGE,
+  TOWER_TRIAL_WAVES,
   TOWER_ROOM_TYPES,
   defaultTowerLayout,
   type TowerLayout,
@@ -56,12 +58,16 @@ import {
 const roomSchema = z.object({
   x: z.number().int().min(0),
   y: z.number().int().min(0),
-  type: z.enum(TOWER_ROOM_TYPES).describe("START départ (un seul). Sorties, exactement une par étage : BOSS (gardien, salle 2×2 ancrée en haut à gauche), STAIRS (escalier scellé, ouvert par les clés), TRIAL (épreuve : trois vagues sans fuite), GATE (porte scellée, ouverte par les sceaux). SEAL (sceau gardé par une élite, seulement avec GATE). Autres : MONSTER, ELITE, CHEST, MIMIC (se présente comme un coffre, cache une élite au butin garanti), CAMPFIRE, MERCHANT, MERCENARY (allié payant qui frappe à chaque tour jusqu'à la fin de l'étage), SHRINE (bénédiction), EVENT (choix narratif), TRAP (dégâts à l'entrée, évités selon la vitesse), WARP_A et WARP_B (paire de portails liés : entrer dans l'un permet de passer dans l'autre ; une seule paire par étage, A et B ensemble), EMPTY (couloir)"),
+  type: z.enum(TOWER_ROOM_TYPES).describe("START départ (un seul). Sorties, exactement une par étage : BOSS (gardien, salle 2×2 ancrée en haut à gauche), STAIRS (escalier scellé, ouvert par les clés), GATE (porte scellée, ouverte par les sceaux). SEAL (sceau gardé par une élite, seulement avec GATE). Autres : MONSTER, ELITE, TRIAL (épreuve : plusieurs vagues d'affilée sans fuite, la dernière est une élite ; ne fait pas monter), CHEST, MIMIC (se présente comme un coffre, cache une élite au butin garanti), CAMPFIRE, MERCHANT, MERCENARY (allié payant qui frappe à chaque tour jusqu'à la fin de l'étage), SHRINE (bénédiction), EVENT (choix narratif), TRAP (dégâts à l'entrée, évités selon la vitesse), WARP_A et WARP_B (paire de portails liés : entrer dans l'un permet de passer dans l'autre ; une seule paire par étage, A et B ensemble), EMPTY (couloir)"),
   foe: z.string().nullable().optional().describe('MONSTER/ELITE/BOSS : créature imposée (nom exact du bestiaire), sinon tirée au hasard'),
   traits: z.array(z.enum(TOWER_TRAITS)).max(TOWER_ROOM_TRAITS_MAX).optional().describe('MONSTER/ELITE/BOSS : traits imposés (vide : tirés au hasard ; une élite et un gardien en ont un)'),
+  powerPercent: z.number().int().min(TOWER_POWER_PERCENT_RANGE.min).max(TOWER_POWER_PERCENT_RANGE.max).optional().describe('MONSTER/ELITE/BOSS/TRIAL : puissance en % de la force normale à cette profondeur (100 par défaut ; pour une épreuve, chaque vague). La force suit toujours la montée ; ce réglage la multiplie'),
+  powerReward: z.boolean().optional().describe("MONSTER/ELITE/BOSS/TRIAL : l'or et la chance de butin suivent aussi la puissance (false par défaut : une salle renforcée ne rapporte pas plus)"),
+  waves: z.number().int().min(TOWER_TRIAL_WAVES.min).max(TOWER_TRIAL_WAVES.max).optional().describe('TRIAL : nombre de vagues (3 par défaut), la dernière est une élite'),
+  trialReward: z.boolean().optional().describe("TRIAL : la réussite paie comme un gardien, soin de victoire et chance d'objet du gardien (true par défaut ; false : l'épreuve ne rapporte que ses combats)"),
   mechanic: z.enum(TOWER_MECHANIC_CHOICES).optional().describe('BOSS : mécanique du gardien (RANDOM par défaut, NONE pour aucune)'),
   event: z.enum(TOWER_EVENT_CHOICES).optional().describe('EVENT : événement imposé (RANDOM par défaut)'),
-  key: z.boolean().optional().describe('ELITE/CHEST : garde une clé de l\'escalier scellé (seulement avec STAIRS, au moins une clé requise)'),
+  key: z.boolean().optional().describe('ELITE/CHEST/TRIAL : garde une clé de l\'escalier scellé (seulement avec STAIRS, au moins une clé requise)'),
   chest: z.enum(TOWER_CHEST_KINDS).optional().describe('CHEST : contenu'),
   healPercent: z.number().int().min(5).max(100).optional().describe('CAMPFIRE : soin en % des PV max'),
   offers: z.array(z.enum(TOWER_OFFER_KINDS)).max(4).optional().describe('MERCHANT : articles vendus'),
@@ -246,7 +252,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
     server.registerTool(
       'save_rpg_tower_layout',
       {
-        description: `Dessine les étages de la Tour. Chaque étage est une carte : une grille (${TOWER_MAP_SIZE.min} à ${TOWER_MAP_SIZE.max} cases de côté, ${TOWER_MAP_ROOMS_MAX} salles au plus) où deux salles qui se touchent par un côté communiquent ; une case sans salle est un mur. Il faut un seul départ, exactement une sortie (BOSS gardien, STAIRS escalier scellé avec au moins une clé, TRIAL épreuve, GATE porte scellée avec au moins un SEAL ; au plus une paire de portails WARP_A/WARP_B), et toutes les salles reliées au départ. Battre le gardien fait monter à l'étage suivant ; les ${TOWER_FLOORS_MAX} étages au plus se jouent dans l'ordre, puis la tour reprend au premier, plus dure. \`floors\` remplace toute la tour ; sinon \`floor\` (1 = rez-de-chaussée) désigne l'étage à modifier ou à ajouter à la suite, avec \`name\`, \`width\`, \`height\`, \`rooms\`, ou \`useDefault: true\` pour la carte d'exemple. \`removeFloor\` retire l'étage \`floor\`. Sans aucun étage, la Tour génère les siens. Un joueur garde la carte de l'étage où il se trouve ; les étages suivants suivent la tour enregistrée. Requiert WRITE_MEMBERS.`,
+        description: `Dessine les étages de la Tour. Chaque étage est une carte : une grille (${TOWER_MAP_SIZE.min} à ${TOWER_MAP_SIZE.max} cases de côté, ${TOWER_MAP_ROOMS_MAX} salles au plus) où deux salles qui se touchent par un côté communiquent ; une case sans salle est un mur. Il faut un seul départ, exactement une sortie (BOSS gardien, STAIRS escalier scellé avec au moins une clé, GATE porte scellée avec au moins un SEAL ; au plus une paire de portails WARP_A/WARP_B), et toutes les salles reliées au départ. Battre le gardien fait monter à l'étage suivant ; les ${TOWER_FLOORS_MAX} étages au plus se jouent dans l'ordre, puis la tour reprend au premier, plus dure. \`floors\` remplace toute la tour ; sinon \`floor\` (1 = rez-de-chaussée) désigne l'étage à modifier ou à ajouter à la suite, avec \`name\`, \`width\`, \`height\`, \`rooms\`, ou \`useDefault: true\` pour la carte d'exemple. \`removeFloor\` retire l'étage \`floor\`. Sans aucun étage, la Tour génère les siens. Un joueur garde la carte de l'étage où il se trouve ; les étages suivants suivent la tour enregistrée. Requiert WRITE_MEMBERS.`,
         inputSchema: {
           floors: z.array(floorSchema).max(TOWER_FLOORS_MAX).optional().describe('Remplace tous les étages, dans l\'ordre de la montée'),
           floor: z.number().int().min(1).max(TOWER_FLOORS_MAX).optional().describe('Étage à modifier (1 = premier). Défaut : 1.'),

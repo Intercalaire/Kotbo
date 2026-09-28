@@ -94,13 +94,16 @@ import {
   type TowerSkill,
 } from './rpgTowerPolicy.js';
 import {
+  TOWER_TRIAL_WAVES,
   exitLocks,
+  exitRoom,
   roomNeighbors,
   startRoom,
   type TowerDirection,
   type TowerExitType,
   type TowerFloorsAfter,
   type TowerLayout,
+  type TowerRoom,
   type TowerRoomType,
 } from './rpgTowerMap.js';
 import { towerFloorLayout } from './rpgTowerGen.js';
@@ -170,6 +173,10 @@ export type TowerEncounter = {
   lastStandUsed?: boolean;
   /** Un coffre qui était une mimique. */
   mimic?: boolean;
+  /** Puissance réglée sur la salle (1 : normale). */
+  power?: number;
+  /** Multiplicateur de l'or et de la chance de butin, quand la salle le fait suivre sa puissance. */
+  bounty?: number;
 };
 
 /** Étage atteint en montant : son numéro et le nom de sa carte. */
@@ -282,7 +289,15 @@ export type TowerState = {
   /** Malédictions acceptées : chacune renforce l'attaque des monstres. */
   curse?: number;
   /** Épreuve en cours : vague atteinte sur le total. On n'en fuit pas. */
-  trial?: { wave: number; waves: number } | null;
+  trial?: {
+    wave: number;
+    waves: number;
+    /** Puissance de la salle, appliquée à chaque vague ; absente des parties d'avant ce réglage. */
+    power?: number;
+    powerReward?: boolean;
+    /** La réussite paie comme un gardien. */
+    reward?: boolean;
+  } | null;
   /** Mercenaire engagé : il combat jusqu'à la fin de l'étage. */
   ally?: boolean;
   /** PV brûlés à la dernière action, sur un étage en feu. */
@@ -429,7 +444,7 @@ function rollMechanic(choice: TowerMechanicChoice, rng: TowerRng): TowerBossMech
 
 const ROOM_KIND: Partial<Record<TowerRoomType, TowerEncounterKind>> = { MONSTER: 'COMBAT', ELITE: 'ELITE', BOSS: 'BOSS', SEAL: 'ELITE', MIMIC: 'ELITE' };
 /** Vagues d'une épreuve : deux combats ordinaires puis une élite. */
-export const TRIAL_WAVES = 3;
+export const TRIAL_WAVES = TOWER_TRIAL_WAVES.default;
 const DOOR_KIND: Partial<Record<TowerDoor, TowerEncounterKind>> = { COMBAT: 'COMBAT', ELITE: 'ELITE', BOSS: 'BOSS' };
 
 /**
@@ -624,6 +639,14 @@ function progress(state: TowerState, floor: number, rules: TowerRules, boss: boo
 
 const NEUTRAL_SHAPE = { health: 1, attack: 1, defense: 1, speed: 1 };
 
+type RoomPower = { factor: number; reward: boolean };
+const NORMAL_POWER: RoomPower = { factor: 1, reward: false };
+
+/** Les parties commencées avant ce réglage n'ont pas de puissance sur leurs salles. */
+function roomPower(room: TowerRoom): RoomPower {
+  return { factor: (room.powerPercent ?? 100) / 100, reward: room.powerReward === true };
+}
+
 function startEncounter(
   state: TowerState,
   level: number,
@@ -633,6 +656,8 @@ function startEncounter(
   rng: TowerRng,
   imposed: string | null = null,
   info: TowerRoomInfo | null = null,
+  /** Puissance réglée sur la salle : la force suit toujours la profondeur, puis ce facteur. */
+  power: RoomPower = NORMAL_POWER,
 ): void {
   const pool = kind === 'BOSS'
     ? (foes.bosses.length > 0 ? foes.bosses : FALLBACK_BOSSES)
@@ -644,7 +669,7 @@ function startEncounter(
 
   const base = towerMonsterStats(level, rules.floorGrowthPercent, kind);
   const shape = foe.shape ?? NEUTRAL_SHAPE;
-  const mult = { health: shape.health, attack: shape.attack * (1 + CURSE_ATTACK * (state.curse ?? 0)), defense: shape.defense, speed: shape.speed };
+  const mult = { health: shape.health * power.factor, attack: shape.attack * power.factor * (1 + CURSE_ATTACK * (state.curse ?? 0)), defense: shape.defense * power.factor, speed: shape.speed };
   for (const trait of traits) {
     const effect = TRAIT_STATS[trait];
     mult.health *= effect.health ?? 1;
@@ -672,6 +697,7 @@ function startEncounter(
     mechanic,
     shield,
     minions: 0,
+    ...(power.factor !== 1 ? { power: power.factor, bounty: power.reward ? power.factor : 1 } : {}),
   };
   state.phase = 'COMBAT';
 }
@@ -832,7 +858,7 @@ function lockProgress(state: TowerState): TowerLockProgress | null {
 
 /**
  * Sortie franchie : l'étage est gravi, la carte suivante chargée et le palier est sûr.
- * Sert au gardien, à la dernière vague d'une épreuve, à l'escalier et au portail.
+ * Sert au gardien, à l'escalier et au portail (et à l'épreuve des étages d'avant).
  */
 function exitFloor(state: TowerState, floor: number, rules: TowerRules, floors: readonly TowerLayout[], rng: TowerRng): { next: number; climbed: TowerClimb | null } {
   const next = progress(state, floor, rules, true);
@@ -853,7 +879,8 @@ function winEncounter(
   const encounter = state.encounter!;
   const stats = towerStats(state);
   const level = towerLevel(state, floor);
-  const gold = encounterGold(level, encounter.kind, stats.goldPercent, rng);
+  const bounty = encounter.bounty ?? 1;
+  const gold = Math.round(encounterGold(level, encounter.kind, stats.goldPercent, rng) * bounty);
   state.gold += gold;
   state.kills += 1;
 
@@ -862,21 +889,28 @@ function winEncounter(
   if (trial && trial.wave < trial.waves) {
     trial.wave += 1;
     state.notice = { k: 'wave', wave: trial.wave, waves: trial.waves, gold };
-    startEncounter(state, level, trial.wave === trial.waves ? 'ELITE' : 'COMBAT', rules, foes, rng);
+    const power = { factor: trial.power ?? 1, reward: trial.powerReward === true };
+    startEncounter(state, level, trial.wave === trial.waves ? 'ELITE' : 'COMBAT', rules, foes, rng, null, null, power);
     return floor;
   }
 
-  // Une mimique paie le risque : son butin est garanti.
-  if (encounter.mimic || rng.next() < LOOT_CHANCE[encounter.kind]) state.pendingLoot = rollTowerGear(level, encounter.kind, rng);
+  // Une mimique paie le risque : son butin est garanti. Une épreuve réglée pour payer comme un
+  // gardien en reprend la chance d'objet.
+  const trialPaid = trial?.reward === true;
+  const lootChance = trialPaid ? LOOT_CHANCE.BOSS : LOOT_CHANCE[encounter.kind];
+  if (encounter.mimic || rng.next() < Math.min(1, lootChance * bounty)) state.pendingLoot = rollTowerGear(level, encounter.kind, rng);
 
   let healed = heal(state, stats.healAfterCombat);
+  if (trialPaid) healed += heal(state, BOSS_VICTORY_HEAL);
   if (encounter.kind === 'BOSS') {
     healed += heal(state, BOSS_VICTORY_HEAL);
     if (hasPerk(state, 'GUARDIAN_POTION')) state.potions = Math.min(MAX_POTIONS, state.potions + 1);
   }
 
-  // Le gardien, ou la dernière vague d'une épreuve, ferme l'étage.
-  const closesFloor = state.map ? (encounter.kind === 'BOSS' || Boolean(trial)) : isBossStep(state, floor, rules, encounter.kind);
+  // Le gardien ferme l'étage. Une épreuve ne le ferme que sur les étages d'avant, où elle était
+  // encore une sortie : leur carte, copiée dans la partie, n'a pas d'autre sortie.
+  const legacyTrialExit = Boolean(trial && state.map && !exitRoom(state.map.layout));
+  const closesFloor = state.map ? (encounter.kind === 'BOSS' || legacyTrialExit) : isBossStep(state, floor, rules, encounter.kind);
   state.trial = null;
   if (closesFloor && state.map) {
     const { next, climbed } = exitFloor(state, floor, rules, floors, rng);
@@ -1119,13 +1153,13 @@ function enterRoom(
   const info = map.rooms?.[room.id] ?? null;
   switch (room.type) {
     case 'MONSTER':
-      startEncounter(state, level, 'COMBAT', rules, foes, rng, room.foe, info);
+      startEncounter(state, level, 'COMBAT', rules, foes, rng, room.foe, info, roomPower(room));
       return floor;
     case 'ELITE':
-      startEncounter(state, level, 'ELITE', rules, foes, rng, room.foe, info);
+      startEncounter(state, level, 'ELITE', rules, foes, rng, room.foe, info, roomPower(room));
       return floor;
     case 'BOSS':
-      startEncounter(state, level, 'BOSS', rules, foes, rng, room.foe, info);
+      startEncounter(state, level, 'BOSS', rules, foes, rng, room.foe, info, roomPower(room));
       return floor;
     case 'SEAL':
       // Chaque sceau est gardé par une élite : l'abattre l'allume.
@@ -1156,10 +1190,12 @@ function enterRoom(
       }
       break;
     }
-    case 'TRIAL':
-      state.trial = { wave: 1, waves: TRIAL_WAVES };
-      startEncounter(state, level, 'COMBAT', rules, foes, rng);
+    case 'TRIAL': {
+      const power = roomPower(room);
+      state.trial = { wave: 1, waves: room.waves ?? TRIAL_WAVES, power: power.factor, powerReward: power.reward, reward: room.trialReward === true };
+      startEncounter(state, level, 'COMBAT', rules, foes, rng, null, null, power);
       return floor;
+    }
     case 'STAIRS':
     case 'GATE': {
       const { next, climbed } = exitFloor(state, floor, rules, floors, rng);

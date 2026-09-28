@@ -28,22 +28,30 @@ const HEIGHT = 9;
 const GUARD_ROW = 2;
 
 const PATH_WEIGHTS: Partial<Record<TowerRoomType, number>> = { MONSTER: 64, EMPTY: 17, ELITE: 8, EVENT: 6, TRAP: 5 };
-const BRANCH_END_WEIGHTS: Partial<Record<TowerRoomType, number>> = { MONSTER: 28, ELITE: 23, EVENT: 14, CHEST: 12, MERCHANT: 8, MERCENARY: 6, CAMPFIRE: 5, SHRINE: 4 };
+const BRANCH_END_WEIGHTS: Partial<Record<TowerRoomType, number>> = { MONSTER: 28, ELITE: 23, EVENT: 14, CHEST: 12, MERCHANT: 8, MERCENARY: 6, TRIAL: 5, CAMPFIRE: 5, SHRINE: 4 };
 const BRANCH_WEIGHTS: Partial<Record<TowerRoomType, number>> = { MONSTER: 75, EMPTY: 25 };
 /**
  * Plafond de chaque salle de récompense par étage généré. Sans plafond, un étage pouvait
  * aligner trois autels et trois coffres : bénédictions et objets pleuvaient.
  */
-const ROOM_CAPS: Partial<Record<TowerRoomType, number>> = { SHRINE: 1, CHEST: 2, MERCHANT: 1, MERCENARY: 1, CAMPFIRE: 1, EVENT: 2, ELITE: 2, TRAP: 2 };
-const CAP_FALLBACK: Partial<Record<TowerRoomType, TowerRoomType>> = { ELITE: 'MONSTER', EVENT: 'MONSTER', TRAP: 'MONSTER' };
+const ROOM_CAPS: Partial<Record<TowerRoomType, number>> = { SHRINE: 1, CHEST: 2, MERCHANT: 1, MERCENARY: 1, CAMPFIRE: 1, EVENT: 2, ELITE: 2, TRAP: 2, TRIAL: 1 };
+const CAP_FALLBACK: Partial<Record<TowerRoomType, TowerRoomType>> = { ELITE: 'MONSTER', EVENT: 'MONSTER', TRAP: 'MONSTER', TRIAL: 'MONSTER' };
 /** Ambiance d'un étage généré : la plupart n'en ont pas. */
 const MODIFIER_WEIGHTS: Record<TowerFloorModifier, number> = { NONE: 70, FLOODED: 10, BURNING: 10, BLESSED: 10 };
 /** Sortie d'un étage généré : le gardien reste la plus fréquente. */
-const EXIT_WEIGHTS: Record<TowerExitType, number> = { BOSS: 55, STAIRS: 15, TRIAL: 15, GATE: 15 };
+const EXIT_WEIGHTS: Record<TowerExitType, number> = { BOSS: 60, STAIRS: 20, GATE: 20 };
 /** Clés d'un escalier scellé et sceaux d'une porte scellée, par étage généré. */
 const LOCKS_PER_FLOOR = 2;
 /** Part des étages générés qui ont une paire de portails. */
 const WARP_CHANCE = 0.2;
+/**
+ * Champions : à partir de cet étage, une élite générée peut être renforcée, récompenses
+ * comprises. La chance grandit avec la hauteur, et la puissance aussi, plus haut encore.
+ */
+const CHAMPION_FLOOR = 6;
+const CHAMPION_CHANCE_PER_FLOOR = 0.03;
+const CHAMPION_CHANCE_MAX = 0.35;
+const CHAMPION_STRONG_FLOOR = 20;
 
 function pick(rng: TowerRng, weights: Partial<Record<TowerRoomType, number>>): TowerRoomType {
   return rng.weighted(weights as Record<TowerRoomType, number>);
@@ -54,7 +62,7 @@ export function floorSeed(seed: number, floor: number): number {
   return (Math.imul(seed ^ 0x9e3779b9, 0x85ebca6b) + Math.imul(floor, 0xc2b2ae35)) | 0;
 }
 
-export function generateTowerLayout(seed: number, fog = true): TowerLayout {
+export function generateTowerLayout(seed: number, fog = true, floor = 1): TowerLayout {
   const rng = new TowerRng(seed);
   const exit = rng.weighted(EXIT_WEIGHTS);
   const modifier = rng.weighted(MODIFIER_WEIGHTS);
@@ -172,6 +180,16 @@ export function generateTowerLayout(seed: number, fog = true): TowerLayout {
     }
   }
 
+  // Tirage à part : ajouter les champions ne change pas la forme des étages d'une même graine.
+  if (floor >= CHAMPION_FLOOR) {
+    const champions = new TowerRng(seed ^ 0x5bd1e995);
+    const chance = Math.min(CHAMPION_CHANCE_MAX, (floor - CHAMPION_FLOOR + 1) * CHAMPION_CHANCE_PER_FLOOR);
+    const powerPercent = floor >= CHAMPION_STRONG_FLOOR ? 150 : 125;
+    for (const room of [...cells.values()]) {
+      if (room.type === 'ELITE' && champions.next() < chance) cells.set(key(room.x, room.y), { ...room, powerPercent, powerReward: true });
+    }
+  }
+
   const layout = normalizeTowerLayout({
     name: '',
     fog,
@@ -198,5 +216,5 @@ export function towerFloorLayout(
   fog = true,
 ): TowerLayout {
   if (drawn.length > 0 && (floor <= drawn.length || after === 'LOOP')) return floorLayout(drawn, floor)!;
-  return generateTowerLayout(floorSeed(seed, floor), fog);
+  return generateTowerLayout(floorSeed(seed, floor), fog, floor);
 }

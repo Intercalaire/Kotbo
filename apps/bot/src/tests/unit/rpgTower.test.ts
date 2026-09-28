@@ -42,6 +42,7 @@ import {
   normalizeTowerLayout,
   exitRoom,
   isExitRoom,
+  newTowerRoom,
   roomNeighbors,
   shortestPathToExit,
   visibleRooms,
@@ -517,6 +518,25 @@ describe('carte de la Tour', () => {
     const step = applyTowerAction(state, 1, { type: 'door', index: 0 }, RULES, foes);
     expect(step.state.encounter?.name).toBe('Liche');
   });
+
+  test('la puissance d\'une salle multiplie la force de son adversaire, bornée', () => {
+    const fight = (powerPercent: number, powerReward = false) => {
+      const layout = normalizeTowerLayout({ width: 4, height: 4, rooms: [room(0, 0, 'START'), room(1, 0, 'MONSTER', { powerPercent, powerReward }), room(2, 0, 'BOSS')] });
+      if (!layout.ok) throw new Error(layout.error);
+      const state = createTowerState({ base: STRONG, skills: [], potions: 1, seed: 5, rules: RULES, layout: layout.value });
+      return { room: layout.value.rooms[1], foe: applyTowerAction(state, 1, { type: 'door', index: 0 }, RULES, FOES).state.encounter! };
+    };
+    const normal = fight(100);
+    const doubled = fight(200);
+    expect(doubled.foe.maxHealth).toBeGreaterThan(normal.foe.maxHealth * 1.9);
+    expect(doubled.foe.attack).toBeGreaterThan(normal.foe.attack);
+    expect(doubled.foe.speed).toBe(normal.foe.speed);
+    expect(fight(999).room.powerPercent).toBe(300);
+    // Les récompenses ne suivent que si la salle le demande.
+    expect(doubled.foe.bounty).toBe(1);
+    expect(fight(200, true).foe.bounty).toBe(2);
+    expect(normal.foe.power).toBeUndefined();
+  });
 });
 
 describe('rendu de la tour', () => {
@@ -583,6 +603,27 @@ describe('profondeur de la Tour', () => {
       // Deux élites au plus, et deux de plus quand elles gardent les clés d'un escalier.
       expect(count('ELITE')).toBeLessThanOrEqual(4);
       expect(rooms.filter((room) => isExitRoom(room.type))).toHaveLength(1);
+    }
+  });
+
+  test('des champions apparaissent en hauteur, jamais en bas, sans changer la forme de l\'étage', () => {
+    const champions = (floor: number) => {
+      let count = 0;
+      for (let seed = 0; seed < 80; seed++) {
+        count += generateTowerLayout(floorSeed(seed, floor), true, floor).rooms.filter((room) => room.powerPercent !== 100).length;
+      }
+      return count;
+    };
+    expect(champions(1)).toBe(0);
+    expect(champions(30)).toBeGreaterThan(0);
+    const low = generateTowerLayout(123, true, 1).rooms.map((room) => `${room.id}:${room.type}`);
+    const high = generateTowerLayout(123, true, 30).rooms.map((room) => `${room.id}:${room.type}`);
+    expect(high).toEqual(low);
+    const champion = generateTowerLayout(123, true, 30).rooms.find((room) => room.powerPercent !== 100);
+    if (champion) {
+      expect(champion.type).toBe('ELITE');
+      expect(champion.powerPercent).toBe(150);
+      expect(champion.powerReward).toBe(true);
     }
   });
 
@@ -721,9 +762,12 @@ describe('sorties d\'étage', () => {
   };
 
   test('une carte refuse deux sorties, une clé sans escalier ou un sceau sans portail', () => {
-    expect(normalizeTowerLayout({ width: 4, height: 4, rooms: [room(0, 0, 'START'), room(1, 0, 'TRIAL'), room(0, 1, 'STAIRS'), room(1, 1, 'ELITE', { key: true })] }).ok).toBe(false);
-    expect(normalizeTowerLayout({ width: 4, height: 4, rooms: [room(0, 0, 'START'), room(1, 0, 'TRIAL'), room(0, 1, 'ELITE', { key: true })] }).ok).toBe(false);
-    expect(normalizeTowerLayout({ width: 4, height: 4, rooms: [room(0, 0, 'START'), room(1, 0, 'TRIAL'), room(0, 1, 'SEAL')] }).ok).toBe(false);
+    expect(normalizeTowerLayout({ width: 4, height: 4, rooms: [room(0, 0, 'START'), room(2, 0, 'BOSS'), room(0, 1, 'STAIRS'), room(1, 1, 'ELITE', { key: true })] }).ok).toBe(false);
+    expect(normalizeTowerLayout({ width: 4, height: 4, rooms: [room(0, 0, 'START'), room(2, 0, 'BOSS'), room(0, 1, 'ELITE', { key: true })] }).ok).toBe(false);
+    expect(normalizeTowerLayout({ width: 4, height: 4, rooms: [room(0, 0, 'START'), room(2, 0, 'BOSS'), room(0, 1, 'SEAL')] }).ok).toBe(false);
+    // L'épreuve n'est plus une sortie : seule, elle ne ferme pas l'étage ; elle peut garder une clé.
+    expect(normalizeTowerLayout({ width: 4, height: 4, rooms: [room(0, 0, 'START'), room(1, 0, 'TRIAL')] }).ok).toBe(false);
+    expect(normalizeTowerLayout({ width: 4, height: 4, rooms: [room(0, 0, 'START'), room(1, 0, 'TRIAL', { key: true }), room(0, 1, 'STAIRS')] }).ok).toBe(true);
     expect(normalizeTowerLayout({ width: 4, height: 4, rooms: [room(0, 0, 'START'), room(1, 0, 'STAIRS')] }).ok).toBe(false);
     expect(normalizeTowerLayout({ width: 4, height: 4, rooms: [room(0, 0, 'START'), room(1, 0, 'GATE')] }).ok).toBe(false);
   });
@@ -751,15 +795,43 @@ describe('sorties d\'étage', () => {
     expect(step.floor).toBe(2);
   });
 
-  test('l\'épreuve enchaîne trois vagues sans fuite, puis fait monter', () => {
-    let step = go(begin([room(0, 0, 'START'), room(1, 0, 'TRIAL')]), 'TRIAL');
-    expect(step.state.trial).toEqual({ wave: 1, waves: 3 });
+  // Une épreuve au bout d'un embranchement, le gardien plus loin.
+  const WITH_TRIAL = (extra: Record<string, unknown> = {}) => [room(0, 0, 'START'), room(1, 0, 'TRIAL', extra), room(0, 1, 'EMPTY'), room(0, 2, 'BOSS')];
+
+  test('l\'épreuve enchaîne ses vagues sans fuite, puis la salle est résolue sans monter', () => {
+    let step = go(begin(WITH_TRIAL()), 'TRIAL');
+    expect(step.state.trial).toMatchObject({ wave: 1, waves: 3, reward: true });
     const fighting = step;
     expect(() => applyTowerAction(fighting.state, fighting.floor, { type: 'flee' }, RULES, FOES)).toThrow(TowerActionRefused);
     step = fight(step);
-    expect(step.floor).toBe(2);
+    expect(step.floor).toBe(1);
     expect(step.state.kills).toBe(3);
     expect(step.state.trial).toBeNull();
+    expect(step.state.map?.cleared).toContain('1-0');
+  });
+
+  test('une épreuve règle ses vagues, sa puissance et sa récompense', () => {
+    let step = go(begin(WITH_TRIAL({ waves: 2, powerPercent: 150, trialReward: false })), 'TRIAL');
+    expect(step.state.trial).toMatchObject({ wave: 1, waves: 2, power: 1.5, reward: false });
+    expect(step.state.encounter?.power).toBe(1.5);
+    step = fight(step);
+    expect(step.floor).toBe(1);
+    expect(step.state.kills).toBe(2);
+  });
+
+  test('une épreuve peut garder une clé de l\'escalier', () => {
+    let step = go(begin([room(0, 0, 'START'), room(1, 0, 'TRIAL', { key: true, waves: 2, trialReward: false }), room(0, 1, 'STAIRS')]), 'TRIAL');
+    step = fight(step);
+    expect(step.state.notice).toMatchObject({ k: 'victory', lock: { kind: 'key', done: 1, needed: 1 } });
+    step = go(go(step, 'START'), 'STAIRS');
+    expect(step.floor).toBe(2);
+  });
+
+  test('une partie commencée quand l\'épreuve était une sortie monte encore en la réussissant', () => {
+    const layout = { name: '', width: 4, height: 4, fog: false, modifier: 'NONE' as const, rooms: [newTowerRoom(0, 0, 'START'), newTowerRoom(1, 0, 'TRIAL')] };
+    let step = { state: createTowerState({ base: { ...STRONG, speed: 100 }, skills: [], potions: 1, seed: 11, rules: RULES, layout }), floor: 1, dead: false };
+    step = fight(go(step, 'TRIAL'));
+    expect(step.floor).toBe(2);
   });
 });
 
