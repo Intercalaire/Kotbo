@@ -16,7 +16,8 @@ export async function handleInvitationsRoutes(ctx: ModuleRouteContext): Promise<
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
         if (discordGuild) {
           const { syncGuildInvites } = await import('../../../../services/analytics/inviteService.js');
-          await syncGuildInvites(discordGuild);
+          // 60 s : recharger la page ne relance pas l'appel Discord a chaque fois.
+          await syncGuildInvites(discordGuild, { maxAgeMs: 60_000 });
         }
 
         const invitations = await prisma.guildInvite.findMany({

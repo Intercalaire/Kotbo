@@ -25,7 +25,7 @@ import { cache, getCachedGuild } from '../utils/cache.js';
 import { prendreIntentionVocale } from '../services/moderation/voiceIntentRegistry.js';
 import { recordStaffActivity, syncStaffHierarchyMembership } from '../services/staff/staffManagementService.js';
 import { resolveOnlineMembersCount } from '../services/core/presenceDetectionService.js';
-import { syncGuildInvites, markInviteAsDeleted, recordInvitedMemberLeave } from '../services/analytics/inviteService.js';
+import { syncGuildInvites, syncInvite, markInviteAsDeleted, recordInvitedMemberLeave } from '../services/analytics/inviteService.js';
 import {
   buildMemberCaseActionRow,
   touchMemberJoin,
@@ -1378,7 +1378,7 @@ export function registerAdvancedLogsListener(client: Client): void {
 
   client.on(Events.InviteCreate, async (invite) => {
     if (!isFullGuild(invite.guild)) return;
-    await syncGuildInvites(invite.guild);
+    await syncInvite(invite.guild.id, invite);
     await refreshGuildInviteCache(invite.guild);
   });
 
@@ -1649,7 +1649,13 @@ export function registerAdvancedLogsListener(client: Client): void {
   logger.success('Logs', 'Écouteur de logs avancés enregistré');
 
   for (const guild of client.guilds.cache.values()) {
-    void syncGuildInvites(guild);
     void refreshGuildInviteCache(guild);
   }
+  // Un serveur apres l'autre : lancees toutes ensemble, ces synchronisations
+  // occupaient le pool Postgres au demarrage et ralentissaient tout le reste.
+  void (async () => {
+    for (const guild of client.guilds.cache.values()) {
+      await syncGuildInvites(guild);
+    }
+  })();
 }
