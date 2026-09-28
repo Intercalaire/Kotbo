@@ -3,19 +3,34 @@
 
   Une ligne par sujet - appel de ban, ticket sans prise en charge, double compte
   suspecte, salon de logs supprime - avec son compteur et la page ou le regler.
-  A cote, pour qui configure, ce qui manque encore au parcours de prise en main.
+  A cote, pour qui configure, ce qui manque encore au parcours de prise en main,
+  chaque etape avec sa consigne et un « Me guider » qui montre le champ.
   Le bloc n'est pas dans la grille personnalisable : c'est la raison d'etre de
   la page, pas un widget qu'on range.
+
+  Chaque sujet et chaque etape s'ecarte depuis son menu « ... » : pour
+  l'instant, pour de bon, ou tout le bloc Configuration. Le choix est propre au
+  lecteur et se defait d'un clic en bas du bloc.
 -->
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
+  import {
+    HOME_TASKS_SNOOZE_ONLY,
+    emptyHomeTodoPrefs,
+    normalizeHomeTodoPrefs,
+    type HomeSetupGap,
+    type HomeTodoPrefs,
+  } from '@kotbo/contracts';
   import { authStore } from '../../stores/auth.svelte';
   import { subscribeRealtime } from '../../stores/realtime.svelte';
-  import { fetchHomeTasks, type HomeTask, type HomeTaskKey, type HomeTasksData } from '../../api';
+  import { toast } from '../../stores/toast.svelte';
+  import { fetchHomeTasks, fetchUserSettings, updateUserSettings, type HomeTask, type HomeTaskKey, type HomeTasksData } from '../../api';
+  import { applyHomeTodoPrefs, hideSetupStep, hideTask, pruneSnoozes, snoozeTask } from '../../home/homeTodoPrefs';
+  import { setupStepTitle, setupStepWhy, startSetupGuide } from '../../home/setupGuides';
   import { m, dateLocale } from '../../i18n';
   import Papicon from '../Papicon.svelte';
   import Skeleton from '../Skeleton.svelte';
-  import { Button } from '../ui';
+  import { Button, Menu, type MenuItem } from '../ui';
 
   let {
     /** Incremente par la page pour forcer un rechargement (bouton Actualiser). */
@@ -26,13 +41,23 @@
 
   /** Au-dela, la liste se replie : dix lignes d'affilee ne se lisent plus. */
   const COLLAPSED_SIZE = 6;
-  const SETUP_PREVIEW = 4;
+  /** Chaque etape porte sa consigne et son bouton : au-dela, le bloc deborde. */
+  const SETUP_PREVIEW = 3;
 
   let data = $state<HomeTasksData | null>(null);
   let loading = $state(false);
   let failed = $state(false);
   let expanded = $state(false);
   let loadedGuildId: string | null = null;
+
+  let prefs = $state<HomeTodoPrefs>(emptyHomeTodoPrefs());
+  /**
+   * Tant que les preferences du serveur ne sont pas lues, aucune ecriture :
+   * enregistrer a partir des valeurs vides par defaut effacerait ce que le
+   * lecteur avait masque.
+   */
+  let prefsGuildId = $state<string | null>(null);
+  const prefsReady = $derived(prefsGuildId !== null && prefsGuildId === authStore.selectedGuildId);
 
   const TASK_ICON: Record<HomeTaskKey, string> = {
     bot_permissions: 'lock',
@@ -82,15 +107,38 @@
     info: { tile: 'bg-primary/10 text-primary', badge: 'bg-surface-container-highest text-on-surface-variant', label: m.home_todo_sev_info },
   };
 
-  const tasks = $derived(data?.tasks ?? []);
+  const setup = $derived(data?.setup ?? null);
+  const applied = $derived(applyHomeTodoPrefs(data?.tasks ?? [], setup?.missing ?? null, prefs));
+  const tasks = $derived(applied.tasks);
   const visibleTasks = $derived(expanded ? tasks : tasks.slice(0, COLLAPSED_SIZE));
   const hiddenCount = $derived(Math.max(0, tasks.length - COLLAPSED_SIZE));
-  const setup = $derived(data?.setup ?? null);
+  const setupMissing = $derived(applied.setupMissing);
   const setupPercent = $derived(setup && setup.total > 0 ? Math.round((setup.done / setup.total) * 100) : 0);
+  const hiddenTotal = $derived(applied.hiddenTaskCount + applied.hiddenSetupCount);
 
   $effect(() => {
     count = tasks.length;
   });
+
+  /** Menage des mises en attente perimees, une fois donnees et preferences lues. */
+  function prune() {
+    if (!prefsReady || !data || loadedGuildId !== prefsGuildId) return;
+    const next = pruneSnoozes(prefs, data.tasks);
+    if (next) void persist(next, { quiet: true });
+  }
+
+  async function loadPrefs(guildId: string) {
+    try {
+      const settings = await fetchUserSettings(guildId);
+      if (authStore.selectedGuildId !== guildId) return;
+      prefs = normalizeHomeTodoPrefs(settings?.homeTodoPrefs);
+      prefsGuildId = guildId;
+      prune();
+    } catch {
+      // Sans preferences lues, le bloc s'affiche en entier et les menus
+      // restent fermes : mieux vaut trop montrer qu'ecraser un choix.
+    }
+  }
 
   async function load(force = false) {
     const guildId = authStore.selectedGuildId;
@@ -107,6 +155,7 @@
         data = result;
         failed = false;
         loadedGuildId = guildId;
+        prune();
       } else if (!data) {
         failed = true;
       }
@@ -122,6 +171,80 @@
     void refreshKey;
     if (authStore.selectedGuildId) untrack(() => void load(true));
   });
+
+  $effect(() => {
+    const guildId = authStore.selectedGuildId;
+    if (!guildId) return;
+    untrack(() => {
+      if (prefsGuildId !== guildId) {
+        prefs = emptyHomeTodoPrefs();
+        void loadPrefs(guildId);
+      }
+    });
+  });
+
+  /**
+   * Applique tout de suite, enregistre ensuite. En cas d'echec, on revient a
+   * l'etat d'avant : le lecteur ne doit pas croire masque ce qui reviendra au
+   * prochain chargement.
+   */
+  async function persist(next: HomeTodoPrefs, options: { quiet?: boolean; undoable?: boolean } = {}) {
+    const guildId = authStore.selectedGuildId;
+    if (!prefsReady || !guildId) return;
+    const previous = prefs;
+    prefs = next;
+    try {
+      await updateUserSettings({ homeTodoPrefs: next }, guildId);
+    } catch {
+      if (authStore.selectedGuildId === guildId) prefs = previous;
+      if (!options.quiet) toast.error(m.home_todo_save_error());
+      return;
+    }
+    if (options.undoable) {
+      toast.success(m.home_todo_hidden_toast(), undefined, {
+        label: m.home_todo_undo(),
+        onClick: () => persist(previous),
+      });
+    }
+  }
+
+  function taskMenu(task: HomeTask): MenuItem[] {
+    const items: MenuItem[] = [{
+      label: m.home_todo_snooze(),
+      description: m.home_todo_snooze_desc(),
+      icon: 'clock',
+      onselect: () => persist(snoozeTask(prefs, task), { undoable: true }),
+    }];
+    if (!HOME_TASKS_SNOOZE_ONLY.includes(task.key)) {
+      items.push({
+        label: m.home_todo_hide(),
+        description: m.home_todo_hide_desc(),
+        icon: 'eye-off',
+        onselect: () => persist(hideTask(prefs, task.key), { undoable: true }),
+      });
+    }
+    return items;
+  }
+
+  function setupMenu(gap: HomeSetupGap): MenuItem[] {
+    return [{
+      label: m.home_setup_skip(),
+      description: m.home_setup_skip_desc(),
+      icon: 'eye-off',
+      onselect: () => persist(hideSetupStep(prefs, gap.key), { undoable: true }),
+    }];
+  }
+
+  const setupBlockMenu = $derived<MenuItem[]>([{
+    label: m.home_setup_hide_block(),
+    description: m.home_setup_hide_block_desc(),
+    icon: 'eye-off',
+    onselect: () => persist({ ...prefs, setupHidden: true }, { undoable: true }),
+  }]);
+
+  function restoreAll() {
+    void persist(emptyHomeTodoPrefs());
+  }
 
   // Toute ecriture du dashboard peut vider une file : on relit a chaque
   // changement pousse pour ce serveur. Ce qui arrive depuis Discord (un ticket
@@ -176,7 +299,7 @@
 </script>
 
 <section class="grid grid-cols-1 lg:grid-cols-3 gap-4" aria-labelledby="home-todo-title">
-  <div class="section-card p-5 flex flex-col gap-3 {setup ? 'lg:col-span-2' : 'lg:col-span-3'}">
+  <div class="section-card p-5 flex flex-col gap-3 {setupMissing ? 'lg:col-span-2' : 'lg:col-span-3'}">
     <div class="flex items-center justify-between gap-3">
       <h2 id="home-todo-title" class="text-base font-semibold text-on-surface flex items-center gap-2">
         {m.home_todo_title()}
@@ -209,8 +332,12 @@
           <Papicon icon="check-circle" size={18} />
         </span>
         <div>
-          <p class="text-sm font-medium text-on-surface">{m.home_todo_all_clear()}</p>
-          <p class="text-xs text-on-surface-variant">{m.home_todo_all_clear_sub()}</p>
+          {#if applied.hiddenTaskCount > 0}
+            <p class="text-sm font-medium text-on-surface">{m.home_todo_all_hidden()}</p>
+          {:else}
+            <p class="text-sm font-medium text-on-surface">{m.home_todo_all_clear()}</p>
+            <p class="text-xs text-on-surface-variant">{m.home_todo_all_clear_sub()}</p>
+          {/if}
         </div>
       </div>
     {:else}
@@ -218,17 +345,15 @@
         {#each visibleTasks as task (task.key)}
           {@const tone = SEVERITY_CLASS[task.severity]}
           {@const detail = detailOf(task)}
-          <li>
-            <a
-              href={task.href}
-              class="flex items-center gap-3 px-2 py-2.5 rounded-lg hover:bg-surface-container-high transition-colors group"
-            >
+          {@const title = TASK_TITLE[task.key]()}
+          <li class="flex items-center gap-1 rounded-lg hover:bg-surface-container-high transition-colors group">
+            <a href={task.href} class="flex-1 min-w-0 flex items-center gap-3 pl-2 py-2.5 rounded-lg">
               <span class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 {tone.tile}" aria-hidden="true">
                 <Papicon icon={TASK_ICON[task.key]} size={18} />
               </span>
               <span class="flex-1 min-w-0">
                 <span class="flex items-center gap-2">
-                  <span class="text-sm font-medium text-on-surface truncate">{TASK_TITLE[task.key]()}</span>
+                  <span class="text-sm font-medium text-on-surface truncate">{title}</span>
                   {#if task.severity !== 'info'}
                     <span class="text-2xs font-medium px-1.5 py-0.5 rounded {tone.badge} shrink-0">{tone.label()}</span>
                   {/if}
@@ -242,6 +367,11 @@
                 <Papicon icon="chevron-right" size={16} />
               </span>
             </a>
+            {#if prefsReady}
+              <span class="pr-1 shrink-0">
+                <Menu items={taskMenu(task)} label={m.home_todo_menu({ title })} />
+              </span>
+            {/if}
           </li>
         {/each}
       </ul>
@@ -253,13 +383,25 @@
         </div>
       {/if}
     {/if}
+
+    {#if data && prefsReady && hiddenTotal > 0}
+      <div class="mt-auto pt-3 border-t border-outline-variant flex flex-wrap items-center justify-between gap-2">
+        <p class="text-xs text-on-surface-variant">{m.home_todo_hidden_count({ n: hiddenTotal })}</p>
+        <Button size="sm" variant="ghost" icon="eye" onclick={restoreAll}>{m.home_todo_restore()}</Button>
+      </div>
+    {/if}
   </div>
 
-  {#if setup}
+  {#if setup && setupMissing}
     <div class="section-card p-5 flex flex-col gap-3">
       <div class="flex items-center justify-between gap-3">
         <h2 class="text-base font-semibold text-on-surface">{m.home_setup_title()}</h2>
-        <span class="text-xs text-on-surface-variant">{m.home_setup_progress({ done: setup.done, total: setup.total })}</span>
+        <div class="flex items-center gap-1">
+          <span class="text-xs text-on-surface-variant">{m.home_setup_progress({ done: setup.done, total: setup.total })}</span>
+          {#if prefsReady}
+            <Menu items={setupBlockMenu} label={m.home_setup_block_menu()} />
+          {/if}
+        </div>
       </div>
       <div
         class="h-1.5 w-full rounded-full bg-surface-container-highest overflow-hidden"
@@ -271,23 +413,40 @@
       >
         <div class="h-full rounded-full bg-primary transition-all" style="width: {setupPercent}%"></div>
       </div>
-      <p class="text-xs text-on-surface-variant">{m.home_setup_missing()}</p>
-      <ul class="flex flex-col -mx-2">
-        {#each setup.missing.slice(0, SETUP_PREVIEW) as gap (gap.key)}
-          <li>
-            <a href={gap.href} class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-container-high transition-colors text-sm text-on-surface">
-              <span class="w-1.5 h-1.5 rounded-full bg-warning shrink-0" aria-hidden="true"></span>
-              <span class="flex-1 min-w-0 truncate">{gap.label}{#if gap.detail}<span class="text-on-surface-variant"> · {gap.detail}</span>{/if}</span>
-              <Papicon icon="chevron-right" size={14} class="text-on-surface-variant" />
-            </a>
+      <p class="text-xs text-on-surface-variant">{m.home_setup_intro()}</p>
+      <ul class="flex flex-col gap-2">
+        {#each setupMissing.slice(0, SETUP_PREVIEW) as gap (gap.key)}
+          {@const title = setupStepTitle(gap)}
+          {@const why = setupStepWhy(gap)}
+          <li class="rounded-lg border border-outline-variant p-3 flex flex-col gap-2.5">
+            <div class="flex items-start gap-2">
+              <span class="mt-1.5 w-1.5 h-1.5 rounded-full bg-warning shrink-0" aria-hidden="true"></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-on-surface">{title}</p>
+                {#if why}
+                  <p class="mt-0.5 text-xs text-on-surface-variant leading-relaxed">{why}</p>
+                {/if}
+                {#if gap.detail}
+                  <p class="mt-0.5 text-xs text-warning">{m.home_setup_missing_detail({ detail: gap.detail })}</p>
+                {/if}
+              </div>
+              {#if prefsReady}
+                <span class="-mt-1 -mr-1 shrink-0">
+                  <Menu items={setupMenu(gap)} label={m.home_todo_menu({ title })} />
+                </span>
+              {/if}
+            </div>
+            <div class="pl-3.5">
+              <Button size="sm" variant="secondary" icon="target" onclick={() => startSetupGuide(gap)}>{m.home_setup_guide()}</Button>
+            </div>
           </li>
         {/each}
       </ul>
-      {#if setup.missing.length > SETUP_PREVIEW}
-        <p class="text-xs text-on-surface-variant">{m.home_setup_more({ n: setup.missing.length - SETUP_PREVIEW })}</p>
+      {#if setupMissing.length > SETUP_PREVIEW}
+        <p class="text-xs text-on-surface-variant">{m.home_setup_more_steps({ n: setupMissing.length - SETUP_PREVIEW })}</p>
       {/if}
       <div class="mt-auto pt-1">
-        <Button size="sm" variant="secondary" href="/setup" iconRight="arrow-right">{m.home_setup_continue()}</Button>
+        <Button size="sm" variant="ghost" href="/setup" iconRight="arrow-right">{m.home_setup_continue()}</Button>
       </div>
     </div>
   {/if}
