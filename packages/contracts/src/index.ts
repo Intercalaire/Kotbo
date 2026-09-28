@@ -158,6 +158,20 @@ export {
 export type { HomeWidgetAccess } from './types/homeWidgets.js';
 
 export {
+  HOME_TASK_ACCESS,
+  HOME_TASK_KEYS,
+  compareHomeTasks,
+} from './types/homeTasks.js';
+export type {
+  HomeSetupGap,
+  HomeTask,
+  HomeTaskKey,
+  HomeTaskPreviewItem,
+  HomeTaskSeverity,
+  HomeTasksData,
+} from './types/homeTasks.js';
+
+export {
   PARTNERSHIP_BENEFIT_KINDS,
   PARTNERSHIP_BENEFIT_META,
   PARTNERSHIP_COMMITMENT_KINDS,
