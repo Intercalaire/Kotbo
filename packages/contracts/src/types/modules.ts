@@ -500,7 +500,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     legacyField: 'economyEnabled',
     apiSegments: ['economy', 'rpg', 'shop'],
     paths: ['/economy'],
-    interactionPrefixes: ['rpg:', 'rpg_'],
+    interactionPrefixes: ['rpg:', 'rpg_', 'twr:'],
   },
   {
     key: 'marketplace',

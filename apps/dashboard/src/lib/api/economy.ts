@@ -188,6 +188,34 @@ export async function deleteRpgDungeon(dungeonId: string, guildId = authStore.se
   return dashboardRequest(`/economy/dungeons/${dungeonId}`, { method: 'DELETE', successMessage: m.api_ok_delete_rpg_dungeon(), guildId, errorContext: 'API Error (Delete RPG Dungeon):' });
 }
 
+export async function fetchRpgTower(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/tower', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Tower):' });
+}
+
+export async function saveRpgTowerSettings(settings: Record<string, unknown>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/tower', { method: 'POST', successMessage: m.api_ok_save_rpg_tower(), payload: settings, guildId, errorContext: 'API Error (Save RPG Tower):' });
+}
+
+export async function saveRpgTowerLayout(payload: Record<string, unknown>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/tower/layout', { method: 'POST', successMessage: m.api_ok_save_rpg_tower_layout(), payload, guildId, errorContext: 'API Error (Save RPG Tower Layout):' });
+}
+
+export async function previewRpgTowerFloor(payload: { layout: unknown; floor: number }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/tower/preview', { method: 'POST', payload, guildId, errorContext: 'API Error (Preview RPG Tower Floor):' });
+}
+
+export async function saveRpgTowerReward(reward: Record<string, unknown>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/tower/rewards', { method: 'POST', successMessage: m.api_ok_save_rpg_tower_reward(), payload: reward, guildId, errorContext: 'API Error (Save RPG Tower Reward):' });
+}
+
+export async function deleteRpgTowerReward(rewardId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/economy/tower/rewards/${rewardId}`, { method: 'DELETE', successMessage: m.api_ok_delete_rpg_tower_reward(), guildId, errorContext: 'API Error (Delete RPG Tower Reward):' });
+}
+
+export async function startRpgTowerSeason(options: { resetMilestones: boolean } = { resetMilestones: true }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/tower/season', { method: 'POST', successMessage: m.api_ok_start_rpg_tower_season(), payload: options, guildId, errorContext: 'API Error (Start RPG Tower Season):' });
+}
+
 export async function fetchRpgTitles(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/titles', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Titles):' });
 }
