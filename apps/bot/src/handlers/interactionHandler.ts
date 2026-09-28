@@ -629,6 +629,13 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  // La Tour (/tower) - ascension roguelite, boutique d'éclats, classement
+  if (customId.startsWith('twr:')) {
+    const { handleTowerButton } = await import('../services/features/rpg/rpgTowerPanel.js');
+    await handleTowerButton(client, customId, interaction);
+    return;
+  }
+
   // Hôtel des ventes (/market) - étal, fiche d'annonce, achat, retrait, mise en vente
   if (customId.startsWith('mkt:')) {
     const { handleMarketButton } = await import('../services/economy/marketplacePanel.js');

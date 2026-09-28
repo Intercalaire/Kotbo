@@ -24,6 +24,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
   import RpgEventsPanel from '../lib/components/economy/RpgEventsPanel.svelte';
   import RpgFishPanel from '../lib/components/economy/RpgFishPanel.svelte';
   import RpgDungeonsPanel from '../lib/components/economy/RpgDungeonsPanel.svelte';
+  import RpgTowerPanel from '../lib/components/economy/RpgTowerPanel.svelte';
   import RpgGuildsPanel from '../lib/components/economy/RpgGuildsPanel.svelte';
   import RpgPlayerInventoryModal from '../lib/components/economy/RpgPlayerInventoryModal.svelte';
   import { channelDisplayName } from '../lib/channelUtils';
@@ -109,7 +110,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
   // une seule barre ne laissaient plus voir ce que la page contenait.
   const { section = 'economy' }: { section?: 'economy' | 'rpg' } = $props();
   const ECONOMY_TABS = ['config', 'items', 'blackmarket', 'players'] as const;
-  const RPG_TABS = ['recettes', 'bestiaire', 'donjons', 'peche', 'raid', 'quetes', 'titres', 'aventures', 'guildes'] as const;
+  const RPG_TABS = ['recettes', 'bestiaire', 'donjons', 'tour', 'peche', 'raid', 'quetes', 'titres', 'aventures', 'guildes'] as const;
   const BASE = $derived(section === 'rpg' ? '/rpg' : '/economy');
   const DEFAULT_TAB = $derived(section === 'rpg' ? RPG_TABS[0] : ECONOMY_TABS[0]);
   // Pose par l'effet ci-dessous, avant le premier rendu.
@@ -3276,6 +3277,10 @@ import EmojiText from '../lib/components/EmojiText.svelte';
 
     {#if activeTab === 'donjons'}
       <RpgDungeonsPanel canManage={canManageSettings} disabled={!config.enabled} currencyName={config.currencyName} />
+    {/if}
+
+    {#if activeTab === 'tour'}
+      <RpgTowerPanel canManage={canManageSettings} disabled={!config.enabled} currencyName={config.currencyName} />
     {/if}
 
     {#if activeTab === 'aventures'}

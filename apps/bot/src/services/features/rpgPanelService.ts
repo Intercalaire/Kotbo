@@ -739,6 +739,7 @@ function hubNavOptions(locale: Locale, isAdmin: boolean): { label: string; value
     { label: m.rpg_hub_btn_quests({}, { locale }), value: 'quests', description: m.rpg_hub_nav_quests_desc({}, { locale }), emoji: icon('rpgMap') },
     { label: m.rpg_hub_btn_campaign({}, { locale }), value: 'campaign', description: m.rpg_hub_nav_campaign_desc({}, { locale }), emoji: icon('rpgKey') },
     { label: m.rpg_hub_btn_dungeon({}, { locale }), value: 'dungeon', description: m.rpg_hub_nav_dungeon_desc({}, { locale }), emoji: '🏰' },
+    { label: m.rpg_hub_btn_tower({}, { locale }), value: 'tower', description: m.rpg_hub_nav_tower_desc({}, { locale }), emoji: '🗼' },
     { label: m.rpg_hub_btn_character({}, { locale }), value: 'character', description: m.rpg_hub_nav_character_desc({}, { locale }), emoji: icon('rpgCharacter') },
     { label: m.rpg_hub_btn_skilltree({}, { locale }), value: 'skilltree', description: m.rpg_hub_nav_skilltree_desc({}, { locale }), emoji: icon('rpgEnchant') },
     { label: m.rpg_hub_btn_craft({}, { locale }), value: 'craft', description: m.rpg_hub_nav_craft_desc({}, { locale }), emoji: icon('rpgCraft') },
@@ -7551,6 +7552,10 @@ async function renderSection(
     case 'market': {
       const { buildMarketView } = await import('../economy/marketplacePanel.js');
       return buildMarketView(guildId, ownerId, interaction.guild, locale);
+    }
+    case 'tower': {
+      const { buildTowerHomeView } = await import('./rpg/rpgTowerPanel.js');
+      return buildTowerHomeView(interaction.client, guildId, ownerId, locale);
     }
     case 'admin': {
       if (!isInteractionAdmin(interaction)) {
