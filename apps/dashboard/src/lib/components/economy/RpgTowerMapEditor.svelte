@@ -373,7 +373,7 @@
   /** État d'avant un coup de pinceau : il n'entre dans l'historique que si le coup change la carte. */
   let stroke: Layout | null = null;
   /** Coup de pinceau au clic droit : il efface, quel que soit l'outil. */
-  let erasing = false;
+  let erasing = $state(false);
 
   function capture(): Layout {
     return cloneLayout($state.snapshot(layout) as Layout);
@@ -436,11 +436,12 @@
     } else if (mod && key === 'y') {
       event.preventDefault();
       redo();
-    } else if ((event.key === 'Delete' || event.key === 'Backspace') && selected) {
+    } else if (event.key === 'Delete' && selected) {
       event.preventDefault();
       removeSelected();
     } else if (event.key === 'Escape') {
       selectedId = null;
+      rect = null;
     }
   }
 
@@ -637,6 +638,98 @@
     return { from: low, to: high + own.rooms, healthFrom: monsterHealth(low), healthTo: monsterHealth(high + own.rooms) };
   });
 
+  // ── Miroir et rotation ──────────────────────────────────────────
+  /** Retourne ou tourne l'étage ouvert d'un quart de tour ; le gardien (2×2) garde son ancre en haut à gauche. */
+  function transform(kind: 'FLIP_X' | 'FLIP_Y' | 'ROTATE') {
+    if (!canManage || disabled || layout.rooms.length === 0) return;
+    remember();
+    const w = layout.width;
+    const h = layout.height;
+    const rooms = layout.rooms.map((room) => {
+      const extra = room.type === 'BOSS' ? 1 : 0;
+      const [x, y] = kind === 'FLIP_X' ? [w - 1 - room.x - extra, room.y]
+        : kind === 'FLIP_Y' ? [room.x, h - 1 - room.y - extra]
+        : [h - 1 - room.y - extra, room.x];
+      return { ...room, id: `${x}-${y}`, x, y };
+    });
+    layout = {
+      name: layout.name,
+      fog: layout.fog,
+      modifier: layout.modifier,
+      width: kind === 'ROTATE' ? h : w,
+      height: kind === 'ROTATE' ? w : h,
+      rooms,
+    };
+    selectedId = null;
+    dirty = true;
+  }
+
+  // ── Export / import d'un étage ──────────────────────────────────
+  let importError = $state(false);
+
+  function exportFloor() {
+    const blob = new Blob([JSON.stringify($state.snapshot(layout), null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `tour-etage-${current + 1}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  /** Remplace l'étage ouvert par un fichier exporté ; le bot revalide tout à l'enregistrement. */
+  async function importFloor(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file || !canManage || disabled) return;
+    importError = false;
+    try {
+      const raw = JSON.parse(await file.text());
+      const inRange = (value: unknown) => Number.isInteger(value) && (value as number) >= sizeLimits.min && (value as number) <= sizeLimits.max;
+      if (!raw || !Array.isArray(raw.rooms) || raw.rooms.length > roomsMax || !inRange(raw.width) || !inRange(raw.height)) throw new Error('invalid');
+      const rooms = (raw.rooms as Partial<Room>[])
+        .filter((room) => ROOM_TYPES.includes(room.type as RoomType) && Number.isInteger(room.x) && Number.isInteger(room.y))
+        .map((room) => ({ ...newRoom(room.x!, room.y!, room.type!), ...room, id: `${room.x}-${room.y}` }));
+      remember();
+      layout = cloneLayout({
+        name: typeof raw.name === 'string' ? raw.name.slice(0, 40) : layout.name,
+        fog: raw.fog === true,
+        modifier: MODIFIERS.includes(raw.modifier) ? raw.modifier : 'NONE',
+        width: raw.width,
+        height: raw.height,
+        rooms,
+      });
+      selectedId = null;
+      dirty = true;
+    } catch {
+      importError = true;
+    }
+  }
+
+  // ── Remplissage par zone (Maj+glisser) ──────────────────────────
+  let rect = $state<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  const rectBox = $derived(rect ? {
+    x: Math.min(rect.x0, rect.x1), y: Math.min(rect.y0, rect.y1),
+    w: Math.abs(rect.x1 - rect.x0) + 1, h: Math.abs(rect.y1 - rect.y0) + 1,
+  } : null);
+
+  const rectColor = $derived(erasing || tool === 'ERASE' || tool === 'SELECT' ? '#ef4444' : COLOR[tool]);
+
+  /** Outils qui se posent en zone : pas le départ, les sorties, les portails ni le gardien. */
+  function fillable(brush: Tool): boolean {
+    return brush === 'ERASE' || (brush !== 'SELECT' && brush !== 'START' && !isExit(brush) && !isWarp(brush));
+  }
+
+  function fillRect() {
+    const box = rectBox;
+    rect = null;
+    if (!box) return;
+    for (let y = box.y; y < box.y + box.h; y++) {
+      for (let x = box.x; x < box.x + box.w; x++) apply(x, y);
+    }
+  }
+
   /** Salles dont la puissance est réglée, et ce que ça donne sur la plus forte d'entre elles. */
   const powered = $derived.by(() => {
     const rooms = layout.rooms.filter((room) => hasFoe(room.type) && room.powerPercent !== 100);
@@ -787,14 +880,18 @@
       }
       return;
     }
-    if (existing && existing.type === brush && existing.x === x && existing.y === y) {
-      selectedId = existing.id;
+    const sameAnchor = Boolean(existing && existing.type === brush && existing.x === x && existing.y === y);
+    // Avec la pipette, repeindre une salle du même type lui applique les réglages copiés.
+    const copied = template && template.type === brush ? template : null;
+    if (sameAnchor && !copied) {
+      selectedId = existing!.id;
       return;
     }
     if (brush === 'BOSS' && (x + 1 >= layout.width || y + 1 >= layout.height)) return;
     if (layout.rooms.length >= roomsMax && !existing) return;
 
-    const room = template && template.type === brush ? copyRoom(template, x, y) : newRoom(x, y, brush);
+    // La clé n'est pas un réglage : elle ne se copie pas, et une salle repeinte garde la sienne.
+    const room = copied ? { ...copyRoom(copied, x, y), key: sameAnchor && existing!.key } : newRoom(x, y, brush);
     removeAt(cellsOf(room));
     // Un seul départ et une seule sortie par étage : en poser une nouvelle remplace l'ancienne.
     if (brush === 'START') layout.rooms = layout.rooms.filter((candidate) => candidate.type !== 'START');
@@ -820,13 +917,19 @@
     if (target?.hasPointerCapture?.(event.pointerId)) target.releasePointerCapture(event.pointerId);
     erasing = event.button === 2;
     stroke = capture();
+    if (event.shiftKey && fillable(erasing ? 'ERASE' : tool)) {
+      rect = { x0: x, y0: y, x1: x, y1: y };
+      painting = false;
+      return;
+    }
     // Départ et sortie se posent une fois : glisser ne les répète pas.
     painting = erasing || (tool !== 'SELECT' && tool !== 'START' && !(tool !== 'ERASE' && (isExit(tool) || isWarp(tool))));
     apply(x, y);
   }
 
   function pointerEnter(x: number, y: number) {
-    if (painting) apply(x, y);
+    if (rect) rect = { ...rect, x1: x, y1: y };
+    else if (painting) apply(x, y);
   }
 
   function resize(width: number, height: number) {
@@ -887,7 +990,7 @@
   }
 </script>
 
-<svelte:window onpointerup={() => { painting = false; erasing = false; stroke = null; }} onkeydown={onKeydown} />
+<svelte:window onpointerup={() => { if (rect) fillRect(); painting = false; erasing = false; stroke = null; }} onkeydown={onKeydown} />
 
 <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
   <InlineFeedback state={actionState} />
@@ -935,6 +1038,25 @@
       <button type="button" onclick={clearMap} disabled={disabled} class="px-3 py-2 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50">
         <Papicon icon="trash" size={12} /> {m.eco_tower_map_clear()}
       </button>
+      <div class="flex items-center gap-1 px-1 py-1 rounded-lg bg-outline-variant/10">
+        <button type="button" onclick={() => transform('FLIP_X')} disabled={disabled || layout.rooms.length === 0} title={m.eco_tower_map_flip_x()} aria-label={m.eco_tower_map_flip_x()}
+          class="p-1.5 rounded-md hover:bg-outline-variant/25 flex disabled:opacity-40"><Papicon icon="ArrowLeftRight" size={13} /></button>
+        <button type="button" onclick={() => transform('FLIP_Y')} disabled={disabled || layout.rooms.length === 0} title={m.eco_tower_map_flip_y()} aria-label={m.eco_tower_map_flip_y()}
+          class="p-1.5 rounded-md hover:bg-outline-variant/25 flex disabled:opacity-40"><span class="flex rotate-90"><Papicon icon="ArrowLeftRight" size={13} /></span></button>
+        <button type="button" onclick={() => transform('ROTATE')} disabled={disabled || layout.rooms.length === 0} title={m.eco_tower_map_rotate()} aria-label={m.eco_tower_map_rotate()}
+          class="p-1.5 rounded-md hover:bg-outline-variant/25 flex disabled:opacity-40"><Papicon icon="RefreshCw" size={13} /></button>
+        <span class="w-px h-5 bg-outline-variant/25 mx-0.5" aria-hidden="true"></span>
+        <button type="button" onclick={exportFloor} disabled={layout.rooms.length === 0} title={m.eco_tower_map_export_tip()} aria-label={m.eco_tower_map_export()}
+          class="p-1.5 rounded-md hover:bg-outline-variant/25 flex disabled:opacity-40"><Papicon icon="Download" size={13} /></button>
+        <label title={m.eco_tower_map_import_tip()} aria-label={m.eco_tower_map_import()}
+          class="p-1.5 rounded-md hover:bg-outline-variant/25 flex {disabled ? 'opacity-40 pointer-events-none' : 'cursor-pointer'}">
+          <Papicon icon="UploadCloud" size={13} />
+          <input type="file" accept="application/json,.json" class="hidden" disabled={disabled} onchange={importFloor} />
+        </label>
+      </div>
+      {#if importError}
+        <span class="text-2xs text-error flex items-center gap-1"><Papicon icon="AlertTriangle" size={11} /> {m.eco_tower_map_import_invalid()}</span>
+      {/if}
       <div class="flex items-center gap-2 px-2" title={m.eco_tower_fog_tip()}>
         <ToggleSwitch checked={layout.fog} disabled={disabled} ariaLabel={m.eco_tower_fog()} onToggle={(value: boolean) => { remember(); layout.fog = value; dirty = true; }} />
         <span class="text-xs font-semibold flex items-center gap-1"><Papicon icon="Eye" size={12} /> {m.eco_tower_fog()}</span>
@@ -1178,6 +1300,10 @@
             {/if}
           </g>
         {/each}
+        {#if rectBox}
+          <rect x={rectBox.x * CELL + 2} y={rectBox.y * CELL + 2} width={rectBox.w * CELL - 4} height={rectBox.h * CELL - 4} rx="8"
+            fill={rectColor} fill-opacity="0.15" stroke={rectColor} stroke-width="2" stroke-dasharray="6 4" pointer-events="none" />
+        {/if}
         </g>
       </svg>
     </div>

@@ -604,6 +604,27 @@ describe('profondeur de la Tour', () => {
     }
   });
 
+  test('des champions apparaissent en hauteur, jamais en bas, sans changer la forme de l\'étage', () => {
+    const champions = (floor: number) => {
+      let count = 0;
+      for (let seed = 0; seed < 80; seed++) {
+        count += generateTowerLayout(floorSeed(seed, floor), true, floor).rooms.filter((room) => room.powerPercent !== 100).length;
+      }
+      return count;
+    };
+    expect(champions(1)).toBe(0);
+    expect(champions(30)).toBeGreaterThan(0);
+    const low = generateTowerLayout(123, true, 1).rooms.map((room) => `${room.id}:${room.type}`);
+    const high = generateTowerLayout(123, true, 30).rooms.map((room) => `${room.id}:${room.type}`);
+    expect(high).toEqual(low);
+    const champion = generateTowerLayout(123, true, 30).rooms.find((room) => room.powerPercent !== 100);
+    if (champion) {
+      expect(champion.type).toBe('ELITE');
+      expect(champion.powerPercent).toBe(150);
+      expect(champion.powerReward).toBe(true);
+    }
+  });
+
   test('une ascension sur carte ne monte d\'étage qu\'au gardien', () => {
     const layout = generateTowerLayout(7);
     let step = { state: createTowerState({ base: STRONG, skills: [], potions: 1, seed: 7, rules: RULES, layout }), floor: 1, dead: false };

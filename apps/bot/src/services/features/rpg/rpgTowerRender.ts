@@ -441,6 +441,19 @@ function drawBadge(ctx: SKRSContext2D, cx: number, cy: number, radius: number, c
   ctx.restore();
 }
 
+/** Puissance réglée sur la salle, dans le coin bas droit : rouge si renforcée, verte si affaiblie. */
+function drawPower(ctx: SKRSContext2D, right: number, bottom: number, size: number, percent: number): void {
+  const label = `×${percent / 100}`;
+  ctx.save();
+  ctx.font = canvasFont(size, 'bold');
+  const width = ctx.measureText(label).width + 6;
+  roundRect(ctx, right - width, bottom - size - 4, width, size + 4, 4);
+  ctx.fillStyle = percent > 100 ? '#ef4444' : '#22c55e';
+  ctx.fill();
+  text(ctx, label, right - width / 2, bottom - size / 2 - 2, size, C.sky1, 'center');
+  ctx.restore();
+}
+
 /** Petite clé dorée dans un coin de salle : elle ouvre l'escalier scellé. */
 function drawKey(ctx: SKRSContext2D, x: number, y: number, size: number): void {
   ctx.save();
@@ -636,6 +649,10 @@ function renderMap(input: TowerMapImage): Buffer {
       const badge = input.badges?.[room.id] ?? 0;
       if (badge > 0) drawBadge(ctx, x + size - 2, y + 2, Math.max(7, tile * 0.16), badge);
       if (input.keys?.includes(room.id)) drawKey(ctx, x + 3, y + size - 3, Math.max(8, tile * 0.2));
+      const power = room.powerPercent ?? 100;
+      if (power !== 100 && (room.type === 'MONSTER' || room.type === 'ELITE' || room.type === 'BOSS')) {
+        drawPower(ctx, x + size - 2, y + size - 2, Math.max(9, Math.round(tile * 0.2)), power);
+      }
     }
   }
 
