@@ -28,6 +28,7 @@ import {
 } from '../../../services/analytics/adminAnalyticsService.js';
 import type { AnalyticsDimension } from '@kotbo/contracts';
 import { getDashboardUsage } from '../../../services/analytics/dashboardUsageService.js';
+import { getModuleFleetStats } from '../../../services/analytics/moduleFleetStatsService.js';
 
 import { jsonFailure } from '../../shared/failure.js';
 export async function handleAdminAnalyticsRoutes(
@@ -57,6 +58,16 @@ export async function handleAdminAnalyticsRoutes(
         compare: url.searchParams.get('compare') === 'previous',
       });
       json(res, 200, usage);
+      return true;
+    }
+
+    // GET /api/admin/analytics/module-fleet : activation, usage et performance des modules sur le parc.
+    if (sub === 'module-fleet' && parts.length === 4 && method === 'GET') {
+      const stats = await getModuleFleetStats({
+        from: url.searchParams.get('from'),
+        to: url.searchParams.get('to'),
+      });
+      json(res, 200, stats);
       return true;
     }
 
