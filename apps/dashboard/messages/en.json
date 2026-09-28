@@ -11069,6 +11069,8 @@
   "eco_tower_field_currency": "Currency name",
   "eco_tower_field_shards": "Shards per floor",
   "eco_tower_field_shards_hint": "Earned for each floor climbed, not each room. The value rises every 10 floors and doubles when the floor ends on a defeated guardian.",
+  "eco_tower_field_shards_room": "Shards per room",
+  "eco_tower_field_shards_room_hint": "On top of the floor's shards, for each room resolved: rewards exploration. 0 to only pay the climbed floor.",
   "eco_tower_field_death": "Shards kept on death (%)",
   "eco_tower_field_death_hint": "Dying only keeps this share of the climb's shards.",
   "eco_tower_field_cap": "Weekly cap",

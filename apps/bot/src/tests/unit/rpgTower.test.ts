@@ -1119,6 +1119,20 @@ describe('achats, chaleur, mentor et combat automatique', () => {
     }
   });
 
+  test('les éclats par salle récompensent l\'exploration, en plus de ceux de l\'étage', () => {
+    const rules = { ...RULES, shardsPerRoom: 3 };
+    const layout = normalizeTowerLayout({ width: 4, height: 4, rooms: [room(0, 0, 'START'), room(1, 0, 'CHEST'), room(2, 0, 'EMPTY'), room(3, 0, 'EXIT')] });
+    if (!layout.ok) throw new Error(layout.error);
+    let state = createTowerState({ base: STRONG, skills: [], potions: 1, seed: 5, rules, layout: layout.value });
+    const go = (type: string) => applyTowerAction(state, 1, { type: 'door', index: state.moves.findIndex((candidate) => candidate.type === type) }, rules, FOES);
+    state = go('CHEST').state;
+    if (state.phase === 'LOOT') state = applyTowerAction(state, 1, { type: 'discard' }, rules, FOES).state;
+    expect(state.shards).toBe(3);
+    // Un couloir ne se résout pas : il ne rapporte rien.
+    state = go('EMPTY').state;
+    expect(state.shards).toBe(3);
+  });
+
   test('le simulateur joue des ascensions complètes sans planter', async () => {
     const result = await simulateTowerRuns({
       base: STRONG, skills: [], potions: 2, rules: RULES, foes: FOES, floors: [], floorsAfter: 'GENERATE',

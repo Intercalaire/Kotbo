@@ -386,6 +386,8 @@ export type TowerRules = {
   blessingEvery: number;
   maxBlessings: number;
   shardsPerFloor: number;
+  /** Éclats par salle résolue ; absent des parties d'avant ce réglage. */
+  shardsPerRoom?: number;
   /** Absent : réglages par défaut du marchand. */
   merchant?: TowerMerchantSettings;
   /** Absent : la tour reprend au premier étage dessiné. */
@@ -844,7 +846,11 @@ function progress(state: TowerState, floor: number, rules: TowerRules, boss: boo
   // gravi, doublés quand un gardien le fermait.
   const depth = map.depth ?? floor;
   map.depth = depth + 1;
-  if (!boss) return floor;
+  if (!boss) {
+    // L'exploration peut rapporter aussi, si le serveur le règle : chaque salle résolue.
+    if ((rules.shardsPerRoom ?? 0) > 0) state.shards += Math.round(rules.shardsPerRoom! * bonus);
+    return floor;
+  }
   state.shards += Math.round(floorShards(floor, rules.shardsPerFloor, guardian) * bonus);
   state.floorsCleared += 1;
   if (rules.blessingEvery > 0 && state.floorsCleared % rules.blessingEvery === 0) state.blessingDue = true;

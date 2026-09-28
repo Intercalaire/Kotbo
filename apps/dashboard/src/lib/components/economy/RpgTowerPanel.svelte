@@ -74,6 +74,7 @@
     blessingEvery: number;
     maxBlessings: number;
     shardsPerFloor: number;
+    shardsPerRoom: number;
     deathShardPercent: number;
     leaveShardPercent: number;
     skillPrice: number;
@@ -162,6 +163,7 @@
     blessingEvery: 5,
     maxBlessings: 6,
     shardsPerFloor: 10,
+    shardsPerRoom: 0,
     deathShardPercent: 50,
     leaveShardPercent: 80,
     skillPrice: 10,
@@ -835,6 +837,7 @@
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
             {@render numberField('towerShards', m.eco_tower_field_shards(), m.eco_tower_field_shards_hint(), 'shardsPerFloor', 0, 1000)}
+            {@render numberField('towerShardsRoom', m.eco_tower_field_shards_room(), m.eco_tower_field_shards_room_hint(), 'shardsPerRoom', 0, 1000)}
             {@render numberField('towerDeath', m.eco_tower_field_death(), m.eco_tower_field_death_hint(), 'deathShardPercent', 0, 100)}
             {@render numberField('towerLeave', m.eco_tower_field_leave(), m.eco_tower_field_leave_hint(), 'leaveShardPercent', 0, 100)}
             {@render numberField('towerCap', m.eco_tower_field_cap(), m.eco_tower_field_cap_hint(), 'weeklyShardCap', 0, 1000000)}

@@ -225,6 +225,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
           blessingEvery: range('blessingEvery').describe('Bénédiction tous les N étages gravis, en plus des autels ; 0 pour les autels seuls'),
           maxBlessings: range('maxBlessings'),
           shardsPerFloor: range('shardsPerFloor').describe('Éclats gagnés par étage gravi (pas par salle) ; augmente tous les 10 étages, doublé sur un étage fermé par un gardien'),
+          shardsPerRoom: range('shardsPerRoom').describe('Éclats en plus pour chaque salle résolue, pour récompenser l\'exploration (0 par défaut : seul l\'étage gravi rapporte)'),
           deathShardPercent: range('deathShardPercent').describe('Part des éclats gardée à la mort'),
           leaveShardPercent: range('leaveShardPercent').describe('Part des éclats gardée en quittant hors palier sûr ; juste après un boss, quitter garde tout'),
           weeklyShardCap: range('weeklyShardCap').describe('0 pour aucun plafond'),

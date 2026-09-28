@@ -215,6 +215,7 @@ function rulesOf(settings: TowerSettings): TowerRules {
     blessingEvery: settings.blessingEvery,
     maxBlessings: settings.maxBlessings,
     shardsPerFloor: settings.shardsPerFloor,
+    shardsPerRoom: settings.shardsPerRoom,
     merchant: settings.merchant,
     floorsAfter: settings.floorsAfter,
     generatedFog: settings.generatedFog,
