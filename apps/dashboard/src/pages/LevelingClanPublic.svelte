@@ -1067,7 +1067,7 @@
                       {:else if s.source === 'RPG_FISHBOOK'}
                         <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-500 border border-cyan-500/20"><Papicon icon="Fish" size={10} /> {m.clan_public_source_rpg_fishbook()}</span>
                       {:else if s.source === 'RPG_TOWER'}
-                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20"><Papicon icon="Building" size={10} /> {m.clan_public_source_rpg_tower()}</span>
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg_tower()}</span>
                       {:else if s.source === 'RPG'}
                         <!-- Gains enregistres avant la separation des trois origines. -->
                         <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg()}</span>

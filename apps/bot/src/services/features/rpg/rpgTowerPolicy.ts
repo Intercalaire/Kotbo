@@ -667,6 +667,28 @@ export function rollTowerGear(floor: number, source: TowerLootSource, rng: Tower
   return gear;
 }
 
+/**
+ * Objet d'un fantôme, ramené à la profondeur de celui qui le trouve : il garde son nom, sa
+ * rareté, son pouvoir de relique et son effet, mais ses stats suivent le même barème que le
+ * butin de cette profondeur, au milieu de la fourchette. Sans quoi un joueur tombé très haut
+ * laisserait, sur un étage qui revient en boucle, une arme qui écraserait les débutants.
+ */
+export function rescaleTowerGear(gear: TowerGear, floor: number): TowerGear {
+  const mult = RARITY_MULT[gear.rarity] ?? 1;
+  const scaled: TowerGear = { ...gear };
+  if (gear.slot === 'weapon') {
+    scaled.attack = Math.round((6 + floor * 2.2) * mult);
+    scaled.speed = gear.speed > 0 ? Math.round((1 + floor * 0.4) * mult) : 0;
+  } else if (gear.slot === 'armor') {
+    scaled.defense = Math.round((4 + floor * 1.6) * mult);
+    scaled.maxHealth = Math.round((12 + floor * 5) * mult);
+  } else {
+    // Le pouvoir d'une relique ne dépend que de sa rareté : seule sa vitesse suit la profondeur.
+    scaled.speed = Math.round((2 + floor * 0.6) * mult);
+  }
+  return scaled;
+}
+
 export function scrapValue(floor: number): number {
   return 3 + floor;
 }

@@ -161,6 +161,14 @@ export function fountainDonation(level: number): number {
   return 10 + Math.max(1, level);
 }
 
+/** Oracle : contre de l'or, révèle tout l'étage sous le brouillard, ou montre le chemin de la sortie. */
+export function oraclePrice(level: number): number {
+  return 25 + Math.max(1, level) * 3;
+}
+
+/** Prisonnier : l'or offert par un captif libéré, en multiple d'un coffre de la profondeur. */
+export const CAPTIVE_GOLD = 2;
+
 /** Piège : dégâts en part des PV max, jamais mortels ; la vitesse permet de l'éviter. */
 export const TRAP_DAMAGE = 0.12;
 export const TRAP_DODGE = { min: 0.1, max: 0.75 } as const;
