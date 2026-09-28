@@ -10,7 +10,7 @@ model RpgTowerConfig {
   guildId     String  @id
   enabled     Boolean @default(false)
   name        String  @default("La Tour")
-  emoji       String  @default("🗼")
+  emoji       String  @default("")
   description String  @default("")
 
   /// COMPRESSED : les stats du RPG sont compressées (logarithme) puis plafonnées.
@@ -35,7 +35,13 @@ model RpgTowerConfig {
   idleTimeoutMinutes Int @default(30)
 
   currencyName  String @default("Éclats de Tour")
-  currencyEmoji String @default("💠")
+  currencyEmoji String @default("")
+
+  /// Améliorations permanentes vendues contre des éclats (voir `TowerUpgradeDef`). `null` :
+  /// les améliorations par défaut.
+  upgrades Json?
+  /// Prix et soins du marchand (voir `TowerMerchantSettings`). `null` : réglages par défaut.
+  merchant Json?
 
   /// Carte dessinée depuis le dashboard (voir `rpgTowerMap.ts`). Tant qu'elle n'est pas
   /// activée, la Tour tire ses portes au hasard.
@@ -64,7 +70,7 @@ model RpgTowerReward {
   kind        String
   name        String
   description String  @default("")
-  emoji       String  @default("🎁")
+  emoji       String  @default("")
   /// Prix en éclats (SHOP).
   price       Int     @default(0)
   /// Étage à atteindre (MILESTONE).

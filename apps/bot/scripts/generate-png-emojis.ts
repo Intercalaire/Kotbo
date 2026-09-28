@@ -426,6 +426,15 @@ const EMOJI_CONFIGS: Record<string, EmojiConfig> = {
   ktb_rpg_prev: { type: 'lucide', lucideName: 'chevron-left', color: RPG.steel, fillType: 'none', strokeWidth: 3.5 },
   ktb_rpg_next: { type: 'lucide', lucideName: 'chevron-right', color: RPG.steel, fillType: 'none', strokeWidth: 3.5 },
   ktb_rpg_refresh: { type: 'lucide', lucideName: 'refresh-cw', color: RPG.mint, fillType: 'none', strokeWidth: 3 },
+  ktb_rpg_up: { type: 'lucide', lucideName: 'chevron-up', color: RPG.steel, fillType: 'none', strokeWidth: 3.5 },
+  ktb_rpg_down: { type: 'lucide', lucideName: 'chevron-down', color: RPG.steel, fillType: 'none', strokeWidth: 3.5 },
+
+  // --- La Tour ---
+  ktb_rpg_tower: { type: 'lucide', lucideName: 'tower-control', color: RPG.amethyst, fillType: 'opacity', fillOpacity: 0.3, strokeWidth: 3 },
+  ktb_rpg_shard: { type: 'lucide', lucideName: 'diamond', color: RPG.azure, fillType: 'opacity', fillOpacity: 0.45, strokeWidth: 3 },
+  ktb_rpg_door: { type: 'lucide', lucideName: 'door-open', color: RPG.parchment, fillType: 'none', strokeWidth: 3 },
+  ktb_rpg_chest: { type: 'lucide', lucideName: 'package-open', color: RPG.gold, fillType: 'opacity', fillOpacity: 0.3, strokeWidth: 3 },
+  ktb_rpg_leave: { type: 'lucide', lucideName: 'log-out', color: RPG.steel, fillType: 'none', strokeWidth: 3 },
 
   // --- Jauges segmentées ---
   // Les barres s'écrivaient en carrés Unicode répétés (❤️❤️❤️, ⚡⚡⚡) : dix

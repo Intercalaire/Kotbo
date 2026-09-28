@@ -15,8 +15,7 @@ import {
   FALLBACK_MONSTERS,
   LOOT_CHANCE,
   MAX_POTIONS,
-  MERCHANT_HEAL,
-  POTION_HEAL,
+  TOWER_MERCHANT_DEFAULTS,
   TOWER_MONSTER_CRIT,
   TowerRng,
   effectiveCooldown,
@@ -39,6 +38,7 @@ import {
   type TowerFoeName,
   type TowerGear,
   type TowerGearSet,
+  type TowerMerchantSettings,
   type TowerOffer,
   type TowerSkill,
 } from './rpgTowerPolicy.js';
@@ -136,7 +136,13 @@ export type TowerRules = {
   blessingEvery: number;
   maxBlessings: number;
   shardsPerFloor: number;
+  /** Absent : réglages par défaut du marchand. */
+  merchant?: TowerMerchantSettings;
 };
+
+function merchantOf(rules: TowerRules): TowerMerchantSettings {
+  return rules.merchant ?? TOWER_MERCHANT_DEFAULTS;
+}
 
 export type TowerFoePool = {
   monsters: TowerFoeName[];
@@ -205,6 +211,8 @@ export function createTowerState(input: {
   base: TowerCoreStats;
   skills: TowerSkill[];
   potions: number;
+  /** Or de départ, offert par les améliorations. */
+  gold?: number;
   seed: number;
   rules: TowerRules;
   layout?: TowerLayout | null;
@@ -220,7 +228,7 @@ export function createTowerState(input: {
     rng: rng.state,
     base: input.base,
     hp: input.base.maxHealth,
-    gold: 0,
+    gold: Math.max(0, Math.trunc(input.gold ?? 0)),
     potions: Math.min(MAX_POTIONS, input.potions),
     gear: { ...EMPTY_GEAR },
     blessings: {},
@@ -429,7 +437,7 @@ function combatTurn(state: TowerState, floor: number, action: TowerAction, rules
     case 'potion': {
       if (state.potions <= 0) throw new TowerActionRefused('no_potion');
       state.potions -= 1;
-      log.push({ k: 'potion', hp: heal(state, POTION_HEAL) });
+      log.push({ k: 'potion', hp: heal(state, merchantOf(rules).potionHealPercent / 100) });
       break;
     }
     case 'skill': {
@@ -497,7 +505,7 @@ function enterRoom(state: TowerState, floor: number, move: TowerMove, rules: Tow
       startEncounter(state, floor, 'BOSS', rules, foes, rng, room.foe);
       return floor;
     case 'MERCHANT':
-      state.merchant = rollMerchantOffers(floor, rng, room.offers, room.pricePercent);
+      state.merchant = rollMerchantOffers(floor, rng, room.offers, room.pricePercent, merchantOf(rules));
       state.phase = 'MERCHANT';
       return floor;
     case 'CHEST': {
@@ -557,7 +565,7 @@ export function applyTowerAction(
     if (state.potions <= 0) throw new TowerActionRefused('no_potion');
     if (state.hp >= towerStats(state).maxHealth) throw new TowerActionRefused('hp_full');
     state.potions -= 1;
-    state.notice = { k: 'potion', hp: heal(state, POTION_HEAL) };
+    state.notice = { k: 'potion', hp: heal(state, merchantOf(rules).potionHealPercent / 100) };
     return done(floor);
   }
 
@@ -592,7 +600,7 @@ export function applyTowerAction(
         advance(state, next, rules, rng);
         return done(next);
       }
-      state.merchant = rollMerchantOffers(floor, rng);
+      state.merchant = rollMerchantOffers(floor, rng, merchantOf(rules).offers, 100, merchantOf(rules));
       state.phase = 'MERCHANT';
       return done(floor);
     }
@@ -649,7 +657,7 @@ export function applyTowerAction(
         state.potions += 1;
       } else if (offer.kind === 'HEAL') {
         if (state.hp >= towerStats(state).maxHealth) throw new TowerActionRefused('hp_full');
-        heal(state, MERCHANT_HEAL);
+        heal(state, merchantOf(rules).healPercent / 100);
       } else {
         state.pendingLoot = offer.gear;
       }

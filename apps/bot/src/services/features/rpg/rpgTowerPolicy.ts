@@ -8,6 +8,7 @@
  */
 
 import type { SkillEffect } from './rpgClasses.js';
+import { TOWER_OFFER_KINDS, type TowerOfferKind } from './rpgTowerMap.js';
 
 // ─────────────────────────────────────────────────────────────
 // Réglages
@@ -34,12 +35,15 @@ export type TowerSettings = {
   idleTimeoutMinutes: number;
   currencyName: string;
   currencyEmoji: string;
+  upgrades: TowerUpgradeDef[];
+  merchant: TowerMerchantSettings;
 };
 
 export const TOWER_DEFAULTS: TowerSettings = {
   enabled: false,
   name: 'La Tour',
-  emoji: '🗼',
+  // Vide : le panneau pose alors l'icône de la Tour du bot plutôt qu'un emoji Unicode.
+  emoji: '',
   description: '',
   entryMode: 'COMPRESSED',
   inheritCapPercent: 50,
@@ -53,7 +57,9 @@ export const TOWER_DEFAULTS: TowerSettings = {
   weeklyShardCap: 0,
   idleTimeoutMinutes: 30,
   currencyName: 'Éclats de Tour',
-  currencyEmoji: '💠',
+  currencyEmoji: '',
+  upgrades: defaultTowerUpgrades(),
+  merchant: defaultTowerMerchant(),
 };
 
 export const TOWER_RANGES = {
@@ -101,13 +107,15 @@ export function normalizeTowerSettings(input: Record<string, unknown>): TowerNor
     : TOWER_DEFAULTS.entryMode;
 
   const int = (key: keyof typeof TOWER_RANGES) => clampInt(input[key], TOWER_RANGES[key], TOWER_DEFAULTS[key]);
+  const upgrades = normalizeTowerUpgrades(input.upgrades ?? []);
+  if (!upgrades.ok) return upgrades;
 
   return {
     ok: true,
     value: {
       enabled: input.enabled === true,
       name,
-      emoji: text(input.emoji) || TOWER_DEFAULTS.emoji,
+      emoji: text(input.emoji),
       description,
       entryMode,
       inheritCapPercent: int('inheritCapPercent'),
@@ -121,7 +129,9 @@ export function normalizeTowerSettings(input: Record<string, unknown>): TowerNor
       weeklyShardCap: int('weeklyShardCap'),
       idleTimeoutMinutes: int('idleTimeoutMinutes'),
       currencyName,
-      currencyEmoji: text(input.currencyEmoji) || TOWER_DEFAULTS.currencyEmoji,
+      currencyEmoji: text(input.currencyEmoji),
+      upgrades: input.upgrades === undefined || input.upgrades === null ? defaultTowerUpgrades() : upgrades.value,
+      merchant: normalizeTowerMerchant(input.merchant),
     },
   };
 }
@@ -170,7 +180,7 @@ export function normalizeTowerReward(input: Record<string, unknown>): TowerNorma
     kind,
     name,
     description,
-    emoji: text(input.emoji) || '🎁',
+    emoji: text(input.emoji),
     price: kind === 'SHOP' ? clampInt(input.price, TOWER_REWARD_PRICE_RANGE, 100) : 0,
     floor: kind === 'MILESTONE' ? clampInt(input.floor, TOWER_REWARD_FLOOR_RANGE, 10) : 0,
     // Un palier ne se verse qu'une fois : le rendre répétable n'aurait aucun sens.
@@ -287,11 +297,9 @@ export type TowerEntryInput = {
   title: Record<TowerStatKey, number> & { critPercent: number };
   classModifiers: Record<TowerStatKey, number>;
   classPassive: { damageReduction?: number; bonusCritChance?: number; armorPiercing?: number };
-  /** Niveau de l'amélioration « Vigueur » achetée avec des éclats. */
-  vigorLevel: number;
+  /** Bonus des améliorations achetées avec des éclats, voir `towerUpgradeBonus`. */
+  upgradeBonus?: TowerUpgradeBonus;
 };
-
-export const VIGOR_PER_LEVEL = 0.05;
 
 /**
  * Stats de départ d'une ascension.
@@ -308,15 +316,16 @@ export function computeTowerEntryStats(input: TowerEntryInput): TowerCoreStats {
       ? inheritedShare(input.main[key], base, INHERIT_SLOPE, input.inheritCapPercent)
       : 0;
     const fromTitle = inheritedShare(input.title[key], base, TITLE_SLOPE, input.titleCapPercent);
-    stats[key] = Math.max(1, Math.round(base * (input.classModifiers[key] ?? 1) * (1 + inherited + fromTitle)));
+    const upgraded = 1 + (input.upgradeBonus?.[key] ?? 0);
+    stats[key] = Math.max(1, Math.round(base * (input.classModifiers[key] ?? 1) * (1 + inherited + fromTitle) * upgraded));
   }
-  stats.maxHealth = Math.round(stats.maxHealth * (1 + VIGOR_PER_LEVEL * Math.max(0, input.vigorLevel)));
 
   return {
     ...stats,
     critChance: TOWER_BASE_CRIT
       + (input.classPassive.bonusCritChance ?? 0)
-      + Math.min(TITLE_CRIT_CAP, Math.max(0, input.title.critPercent) / 200),
+      + Math.min(TITLE_CRIT_CAP, Math.max(0, input.title.critPercent) / 200)
+      + (input.upgradeBonus?.critChance ?? 0),
     armorPiercing: input.classPassive.armorPiercing ?? 0,
     damageReduction: input.classPassive.damageReduction ?? 0,
     lifesteal: 0,
@@ -402,25 +411,24 @@ export function treasureGold(floor: number, rng: TowerRng): number {
 
 export const LOOT_CHANCE: Record<TowerEncounterKind, number> = { COMBAT: 0.35, ELITE: 1, BOSS: 1 };
 export const CAMPFIRE_HEAL = 0.35;
-export const POTION_HEAL = 0.35;
 export const BOSS_VICTORY_HEAL = 0.3;
 export const MAX_POTIONS = 5;
 
-/** Nom et emoji d'un adversaire, tirés du bestiaire du serveur. */
+/** Nom et emoji d'un adversaire, tirés du bestiaire du serveur ; vide, le panneau pose une icône. */
 export type TowerFoeName = { name: string; emoji: string };
 
 export const FALLBACK_MONSTERS: TowerFoeName[] = [
-  { name: 'Gobelin des marches', emoji: '👺' },
-  { name: 'Squelette gardien', emoji: '💀' },
-  { name: 'Limace de pierre', emoji: '🐌' },
-  { name: 'Chauve-souris d\'écho', emoji: '🦇' },
-  { name: 'Araignée des combles', emoji: '🕷️' },
+  { name: 'Gobelin des marches', emoji: '' },
+  { name: 'Squelette gardien', emoji: '' },
+  { name: 'Limace de pierre', emoji: '' },
+  { name: 'Chauve-souris d\'écho', emoji: '' },
+  { name: 'Araignée des combles', emoji: '' },
 ];
 
 export const FALLBACK_BOSSES: TowerFoeName[] = [
-  { name: 'Gardien de l\'étage', emoji: '🗿' },
-  { name: 'Liche de la Tour', emoji: '🧙' },
-  { name: 'Golem d\'airain', emoji: '🤖' },
+  { name: 'Gardien de l\'étage', emoji: '' },
+  { name: 'Liche de la Tour', emoji: '' },
+  { name: 'Golem d\'airain', emoji: '' },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -464,24 +472,24 @@ const RARITY_WEIGHTS: Record<TowerLootSource, Record<TowerRarity, number>> = {
 
 const GEAR_NAMES: Record<TowerGearSlot, TowerFoeName[]> = {
   weapon: [
-    { name: 'Lame d\'escalier', emoji: '🗡️' },
-    { name: 'Hache du palier', emoji: '🪓' },
-    { name: 'Arc des meurtrières', emoji: '🏹' },
-    { name: 'Bâton de vigie', emoji: '🪄' },
-    { name: 'Marteau de rampe', emoji: '🔨' },
+    { name: 'Lame d\'escalier', emoji: '' },
+    { name: 'Hache du palier', emoji: '' },
+    { name: 'Arc des meurtrières', emoji: '' },
+    { name: 'Bâton de vigie', emoji: '' },
+    { name: 'Marteau de rampe', emoji: '' },
   ],
   armor: [
-    { name: 'Cotte de gardien', emoji: '🥋' },
-    { name: 'Plastron de pierre', emoji: '🛡️' },
-    { name: 'Manteau des courants d\'air', emoji: '🧥' },
-    { name: 'Brigandine rouillée', emoji: '🦺' },
+    { name: 'Cotte de gardien', emoji: '' },
+    { name: 'Plastron de pierre', emoji: '' },
+    { name: 'Manteau des courants d\'air', emoji: '' },
+    { name: 'Brigandine rouillée', emoji: '' },
   ],
   relic: [
-    { name: 'Œil de la Tour', emoji: '🧿' },
-    { name: 'Clé sans serrure', emoji: '🗝️' },
-    { name: 'Sablier fêlé', emoji: '⏳' },
-    { name: 'Plume d\'aigle', emoji: '🪶' },
-    { name: 'Dent de dragon', emoji: '🦷' },
+    { name: 'Œil de la Tour', emoji: '' },
+    { name: 'Clé sans serrure', emoji: '' },
+    { name: 'Sablier fêlé', emoji: '' },
+    { name: 'Plume d\'aigle', emoji: '' },
+    { name: 'Dent de dragon', emoji: '' },
   ],
 };
 
@@ -552,7 +560,8 @@ export type TowerBlessingEffect = {
 
 export type TowerBlessing = {
   id: string;
-  emoji: string;
+  /** Clé d'icône du bot (`rpgIcons.icon`). */
+  icon: string;
   name: string;
   description: string;
   maxRank: number;
@@ -561,18 +570,18 @@ export type TowerBlessing = {
 };
 
 export const TOWER_BLESSINGS: TowerBlessing[] = [
-  { id: 'might', emoji: '💪', name: 'Puissance', description: '+12 % d\'attaque par rang', maxRank: 3, perRank: { attackPercent: 0.12 } },
-  { id: 'bulwark', emoji: '🧱', name: 'Rempart', description: '+12 % de défense par rang', maxRank: 3, perRank: { defensePercent: 0.12 } },
-  { id: 'vitality', emoji: '❤️', name: 'Vitalité', description: '+15 % de PV max par rang', maxRank: 3, perRank: { maxHealthPercent: 0.15 } },
-  { id: 'swift', emoji: '💨', name: 'Célérité', description: '+12 % de vitesse par rang', maxRank: 3, perRank: { speedPercent: 0.12 } },
-  { id: 'keen', emoji: '🎯', name: 'Œil vif', description: '+5 % de coups critiques par rang', maxRank: 3, perRank: { critChance: 0.05 } },
-  { id: 'leech', emoji: '🩸', name: 'Sangsue', description: '+5 % de vol de vie par rang', maxRank: 3, perRank: { lifesteal: 0.05 } },
-  { id: 'thorns', emoji: '🌵', name: 'Ronces', description: '+10 % de dégâts renvoyés par rang', maxRank: 3, perRank: { thorns: 0.1 } },
-  { id: 'stoneskin', emoji: '🪨', name: 'Peau de pierre', description: '-5 % de dégâts subis par rang', maxRank: 3, perRank: { damageReduction: 0.05 } },
-  { id: 'piercing', emoji: '📌', name: 'Perce-armure', description: '+10 % de défense ignorée par rang', maxRank: 3, perRank: { armorPiercing: 0.1 } },
-  { id: 'second_wind', emoji: '🌬️', name: 'Second souffle', description: 'Rend 8 % des PV après chaque victoire, par rang', maxRank: 3, perRank: { healAfterCombat: 0.08 } },
-  { id: 'greed', emoji: '💰', name: 'Avarice', description: '+25 % d\'or par rang', maxRank: 2, perRank: { goldPercent: 0.25 } },
-  { id: 'focus', emoji: '🧘', name: 'Concentration', description: 'Recharge des compétences réduite d\'un tour', maxRank: 1, perRank: { cooldownReduction: 1 } },
+  { id: 'might', icon: 'rpgAtk', name: 'Puissance', description: '+12 % d\'attaque par rang', maxRank: 3, perRank: { attackPercent: 0.12 } },
+  { id: 'bulwark', icon: 'rpgDef', name: 'Rempart', description: '+12 % de défense par rang', maxRank: 3, perRank: { defensePercent: 0.12 } },
+  { id: 'vitality', icon: 'rpgHp', name: 'Vitalité', description: '+15 % de PV max par rang', maxRank: 3, perRank: { maxHealthPercent: 0.15 } },
+  { id: 'swift', icon: 'rpgSpd', name: 'Célérité', description: '+12 % de vitesse par rang', maxRank: 3, perRank: { speedPercent: 0.12 } },
+  { id: 'keen', icon: 'rpgCrit', name: 'Œil vif', description: '+5 % de coups critiques par rang', maxRank: 3, perRank: { critChance: 0.05 } },
+  { id: 'leech', icon: 'rpgPotion', name: 'Sangsue', description: '+5 % de vol de vie par rang', maxRank: 3, perRank: { lifesteal: 0.05 } },
+  { id: 'thorns', icon: 'shield', name: 'Ronces', description: '+10 % de dégâts renvoyés par rang', maxRank: 3, perRank: { thorns: 0.1 } },
+  { id: 'stoneskin', icon: 'rpgArmor', name: 'Peau de pierre', description: '-5 % de dégâts subis par rang', maxRank: 3, perRank: { damageReduction: 0.05 } },
+  { id: 'piercing', icon: 'rpgSword', name: 'Perce-armure', description: '+10 % de défense ignorée par rang', maxRank: 3, perRank: { armorPiercing: 0.1 } },
+  { id: 'second_wind', icon: 'rpgRest', name: 'Second souffle', description: 'Rend 8 % des PV après chaque victoire, par rang', maxRank: 3, perRank: { healAfterCombat: 0.08 } },
+  { id: 'greed', icon: 'coins', name: 'Avarice', description: '+25 % d\'or par rang', maxRank: 2, perRank: { goldPercent: 0.25 } },
+  { id: 'focus', icon: 'rpgEnergy', name: 'Concentration', description: 'Recharge des compétences réduite d\'un tour', maxRank: 1, perRank: { cooldownReduction: 1 } },
 ];
 
 export function findBlessing(id: string): TowerBlessing | null {
@@ -648,23 +657,87 @@ export type TowerOffer =
   | { kind: 'HEAL'; price: number; sold: boolean }
   | { kind: 'GEAR'; price: number; sold: boolean; gear: TowerGear };
 
-export const MERCHANT_HEAL = 0.4;
+/**
+ * Réglages du marchand : prix de base, hausse par étage et puissance des soins. Les potions
+ * trouvées ou achetées soignent toutes de `potionHealPercent`.
+ */
+export type TowerMerchantSettings = {
+  /** Articles du marchand en mode aléatoire ; une salle de carte choisit les siens. */
+  offers: TowerOfferKind[];
+  potionPrice: number;
+  potionPricePerFloor: number;
+  healPrice: number;
+  healPricePerFloor: number;
+  healPercent: number;
+  gearPrice: number;
+  gearPricePerFloor: number;
+  potionHealPercent: number;
+};
+
+/** Fonction plutôt que constante : `TOWER_DEFAULTS`, plus haut dans le module, en a besoin à l'initialisation. */
+export function defaultTowerMerchant(): TowerMerchantSettings {
+  return {
+    offers: [...TOWER_OFFER_KINDS],
+    potionPrice: 20,
+    potionPricePerFloor: 2,
+    healPrice: 25,
+    healPricePerFloor: 3,
+    healPercent: 40,
+    gearPrice: 40,
+    gearPricePerFloor: 5,
+    potionHealPercent: 35,
+  };
+}
+
+export const TOWER_MERCHANT_DEFAULTS: TowerMerchantSettings = defaultTowerMerchant();
+
+export const TOWER_MERCHANT_RANGES = {
+  potionPrice: { min: 1, max: 100_000 },
+  potionPricePerFloor: { min: 0, max: 10_000 },
+  healPrice: { min: 1, max: 100_000 },
+  healPricePerFloor: { min: 0, max: 10_000 },
+  healPercent: { min: 5, max: 100 },
+  gearPrice: { min: 1, max: 100_000 },
+  gearPricePerFloor: { min: 0, max: 10_000 },
+  potionHealPercent: { min: 5, max: 100 },
+} as const;
+
+export function normalizeTowerMerchant(input: unknown): TowerMerchantSettings {
+  const raw = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
+  const int = (key: keyof typeof TOWER_MERCHANT_RANGES) => clampInt(raw[key], TOWER_MERCHANT_RANGES[key], TOWER_MERCHANT_DEFAULTS[key]);
+  const offers = Array.isArray(raw.offers)
+    ? TOWER_OFFER_KINDS.filter((kind) => (raw.offers as unknown[]).includes(kind))
+    : [...TOWER_MERCHANT_DEFAULTS.offers];
+  return {
+    // Un marchand sans rien à vendre ne serait qu'une porte perdue.
+    offers: offers.length > 0 ? offers : [...TOWER_MERCHANT_DEFAULTS.offers],
+    potionPrice: int('potionPrice'),
+    potionPricePerFloor: int('potionPricePerFloor'),
+    healPrice: int('healPrice'),
+    healPricePerFloor: int('healPricePerFloor'),
+    healPercent: int('healPercent'),
+    gearPrice: int('gearPrice'),
+    gearPricePerFloor: int('gearPricePerFloor'),
+    potionHealPercent: int('potionHealPercent'),
+  };
+}
 
 /**
- * Étal d'un marchand. Sur une carte dessinée, la salle choisit ses articles et leur prix ;
- * sans carte, le marchand vend une potion, des soins et une pièce d'équipement.
+ * Étal d'un marchand. Sur une carte dessinée, la salle choisit ses articles et module leur
+ * prix ; sans carte, le marchand vend les articles des réglages.
  */
 export function rollMerchantOffers(
   floor: number,
   rng: TowerRng,
-  kinds: readonly TowerOffer['kind'][] = ['POTION', 'HEAL', 'GEAR'],
+  kinds: readonly TowerOffer['kind'][] = TOWER_MERCHANT_DEFAULTS.offers,
   pricePercent = 100,
+  merchant: TowerMerchantSettings = TOWER_MERCHANT_DEFAULTS,
 ): TowerOffer[] {
-  const price = (base: number) => Math.max(1, Math.round(base * pricePercent / 100));
+  const price = (base: number, perFloor: number) => Math.max(1, Math.round((base + floor * perFloor) * pricePercent / 100));
   return kinds.map((kind): TowerOffer => {
-    if (kind === 'POTION') return { kind, price: price(20 + floor * 2), sold: false };
-    if (kind === 'HEAL') return { kind, price: price(25 + floor * 3), sold: false };
-    return { kind, price: price(40 + floor * 5), sold: false, gear: rollTowerGear(floor, 'MERCHANT', rng) };
+    if (kind === 'POTION') return { kind, price: price(merchant.potionPrice, merchant.potionPricePerFloor), sold: false };
+    if (kind === 'HEAL') return { kind, price: price(merchant.healPrice, merchant.healPricePerFloor), sold: false };
+    return { kind, price: price(merchant.gearPrice, merchant.gearPricePerFloor), sold: false, gear: rollTowerGear(floor, 'MERCHANT', rng) };
   });
 }
 
@@ -715,24 +788,130 @@ export function applyWeeklyCap(amount: number, alreadyThisWeek: number, cap: num
   return Math.max(0, Math.min(amount, cap - alreadyThisWeek));
 }
 
-export const TOWER_UPGRADES = {
-  potion: { emoji: '🧪', name: 'Besace', description: '+1 potion au départ de chaque ascension', maxLevel: 3, baseCost: 25 },
-  vigor: { emoji: '💗', name: 'Vigueur', description: '+5 % de PV max dans la Tour', maxLevel: 5, baseCost: 40 },
-} as const;
-export type TowerUpgradeKey = keyof typeof TOWER_UPGRADES;
-export const TOWER_UPGRADE_KEYS = Object.keys(TOWER_UPGRADES) as TowerUpgradeKey[];
+/**
+ * Améliorations permanentes achetées avec des éclats, réglées par serveur. Le profil garde
+ * le niveau acheté de chaque amélioration sous son `id` : renommer ou réévaluer une
+ * amélioration garde les niveaux, la supprimer les rend inertes.
+ */
+export const TOWER_UPGRADE_EFFECTS = ['POTION', 'HEALTH', 'ATTACK', 'DEFENSE', 'SPEED', 'CRIT', 'GOLD'] as const;
+export type TowerUpgradeEffect = (typeof TOWER_UPGRADE_EFFECTS)[number];
 
-export function towerUpgradeCost(key: TowerUpgradeKey, currentLevel: number): number {
-  return TOWER_UPGRADES[key].baseCost * Math.pow(2, currentLevel);
+export type TowerUpgradeDef = {
+  id: string;
+  enabled: boolean;
+  /** Vide : le panneau affiche le nom de l'effet dans la langue du joueur. */
+  name: string;
+  emoji: string;
+  description: string;
+  effect: TowerUpgradeEffect;
+  /**
+   * Gain d'un niveau : potions de départ (POTION), pourcentage de la stat (HEALTH, ATTACK,
+   * DEFENSE, SPEED), points de pourcentage de critique (CRIT) ou or de départ (GOLD).
+   */
+  perLevel: number;
+  maxLevel: number;
+  baseCost: number;
+  /** Hausse du prix à chaque niveau, en pourcentage : 100 double le prix. */
+  costGrowthPercent: number;
+};
+
+export const TOWER_UPGRADES_MAX = 10;
+export const TOWER_UPGRADE_PER_LEVEL_RANGES: Record<TowerUpgradeEffect, { min: number; max: number }> = {
+  POTION: { min: 1, max: 5 },
+  HEALTH: { min: 1, max: 100 },
+  ATTACK: { min: 1, max: 100 },
+  DEFENSE: { min: 1, max: 100 },
+  SPEED: { min: 1, max: 100 },
+  CRIT: { min: 1, max: 20 },
+  GOLD: { min: 1, max: 10_000 },
+};
+export const TOWER_UPGRADE_RANGES = {
+  maxLevel: { min: 1, max: 20 },
+  baseCost: { min: 1, max: 1_000_000 },
+  costGrowthPercent: { min: 0, max: 300 },
+} as const;
+const UPGRADE_ID = /^[a-z0-9_-]{1,24}$/;
+
+export function defaultTowerUpgrades(): TowerUpgradeDef[] {
+  return [
+    { id: 'potion', enabled: true, name: '', emoji: '', description: '', effect: 'POTION', perLevel: 1, maxLevel: 3, baseCost: 25, costGrowthPercent: 100 },
+    { id: 'vigor', enabled: true, name: '', emoji: '', description: '', effect: 'HEALTH', perLevel: 5, maxLevel: 5, baseCost: 40, costGrowthPercent: 100 },
+  ];
 }
 
-export function parseTowerUpgrades(value: unknown): Record<TowerUpgradeKey, number> {
+export function normalizeTowerUpgrades(input: unknown): TowerNormalizeResult<TowerUpgradeDef[]> {
+  if (!Array.isArray(input)) return { ok: false, error: 'La liste des améliorations est invalide.' };
+  if (input.length > TOWER_UPGRADES_MAX) return { ok: false, error: `La Tour compte au plus ${TOWER_UPGRADES_MAX} améliorations.` };
+  const seen = new Set<string>();
+  const upgrades: TowerUpgradeDef[] = [];
+  for (const entry of input) {
+    if (!entry || typeof entry !== 'object') return { ok: false, error: 'Amélioration invalide.' };
+    const raw = entry as Record<string, unknown>;
+    const id = text(raw.id).toLowerCase();
+    if (!UPGRADE_ID.test(id)) return { ok: false, error: 'Identifiant d\'amélioration invalide.' };
+    if (seen.has(id)) return { ok: false, error: 'Deux améliorations portent le même identifiant.' };
+    seen.add(id);
+    const effect = TOWER_UPGRADE_EFFECTS.includes(raw.effect as TowerUpgradeEffect) ? (raw.effect as TowerUpgradeEffect) : null;
+    if (!effect) return { ok: false, error: 'Effet d\'amélioration inconnu.' };
+    const name = text(raw.name);
+    if (name.length > TOWER_NAME_MAX) return { ok: false, error: `Le nom ne peut pas dépasser ${TOWER_NAME_MAX} caractères.` };
+    const description = text(raw.description);
+    if (description.length > TOWER_DESCRIPTION_MAX) {
+      return { ok: false, error: `La description ne peut pas dépasser ${TOWER_DESCRIPTION_MAX} caractères.` };
+    }
+    const perLevelRange = TOWER_UPGRADE_PER_LEVEL_RANGES[effect];
+    upgrades.push({
+      id,
+      enabled: raw.enabled !== false,
+      name,
+      emoji: text(raw.emoji),
+      description,
+      effect,
+      perLevel: clampInt(raw.perLevel, perLevelRange, perLevelRange.min),
+      maxLevel: clampInt(raw.maxLevel, TOWER_UPGRADE_RANGES.maxLevel, 1),
+      baseCost: clampInt(raw.baseCost, TOWER_UPGRADE_RANGES.baseCost, 50),
+      costGrowthPercent: clampInt(raw.costGrowthPercent, TOWER_UPGRADE_RANGES.costGrowthPercent, 100),
+    });
+  }
+  return { ok: true, value: upgrades };
+}
+
+export function towerUpgradeCost(upgrade: Pick<TowerUpgradeDef, 'baseCost' | 'costGrowthPercent'>, currentLevel: number): number {
+  return Math.round(upgrade.baseCost * Math.pow(1 + upgrade.costGrowthPercent / 100, currentLevel));
+}
+
+/** Niveaux achetés, bornés au niveau maximal actuel ; une amélioration supprimée n'a plus de niveau. */
+export function parseTowerUpgrades(value: unknown, upgrades: readonly TowerUpgradeDef[]): Record<string, number> {
   const record = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-  const levelOf = (key: TowerUpgradeKey) => {
-    const raw = Number(record[key]);
-    return Number.isFinite(raw) ? Math.min(TOWER_UPGRADES[key].maxLevel, Math.max(0, Math.trunc(raw))) : 0;
-  };
-  return { potion: levelOf('potion'), vigor: levelOf('vigor') };
+  const levels: Record<string, number> = {};
+  for (const upgrade of upgrades) {
+    const raw = Number(record[upgrade.id]);
+    levels[upgrade.id] = Number.isFinite(raw) ? Math.min(upgrade.maxLevel, Math.max(0, Math.trunc(raw))) : 0;
+  }
+  return levels;
+}
+
+export type TowerUpgradeBonus = Record<TowerStatKey, number> & { critChance: number; potions: number; gold: number };
+
+/**
+ * Effet cumulé des améliorations achetées. Une amélioration désactivée ne se vend plus mais
+ * ses niveaux restent acquis : les éclats dépensés ne partent pas en fumée.
+ */
+export function towerUpgradeBonus(upgrades: readonly TowerUpgradeDef[], levels: Record<string, number>): TowerUpgradeBonus {
+  const bonus: TowerUpgradeBonus = { attack: 0, defense: 0, speed: 0, maxHealth: 0, critChance: 0, potions: 0, gold: 0 };
+  for (const upgrade of upgrades) {
+    const gain = upgrade.perLevel * (levels[upgrade.id] ?? 0);
+    switch (upgrade.effect) {
+      case 'POTION': bonus.potions += gain; break;
+      case 'HEALTH': bonus.maxHealth += gain / 100; break;
+      case 'ATTACK': bonus.attack += gain / 100; break;
+      case 'DEFENSE': bonus.defense += gain / 100; break;
+      case 'SPEED': bonus.speed += gain / 100; break;
+      case 'CRIT': bonus.critChance += gain / 100; break;
+      case 'GOLD': bonus.gold += gain; break;
+    }
+  }
+  return bonus;
 }
 
 export const STARTING_POTIONS = 1;
