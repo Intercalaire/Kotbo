@@ -5083,6 +5083,7 @@
   "rp_perm_validate": "Valider",
   "rp_perm_ds": "Mettre en DS",
   "rp_perm_sanction": "Sanctionner",
+  "rp_configured_count": "{count} rôle(s)",
   "iv_never": "Jamais",
   "iv_ago_min": "il y a {n} min",
   "iv_ago_hours": "il y a {n} h",

@@ -5083,6 +5083,7 @@
   "rp_perm_validate": "Validate",
   "rp_perm_ds": "Set to Alt",
   "rp_perm_sanction": "Sanction",
+  "rp_configured_count": "{count} role(s)",
   "iv_never": "Never",
   "iv_ago_min": "{n} min ago",
   "iv_ago_hours": "{n} h ago",
