@@ -237,7 +237,8 @@ export type TowerNotice =
   | { k: 'hired'; gold: number }
   | { k: 'learned'; name: string; emoji: string; gold: number }
   | { k: 'ambush'; dmg: number }
-  | { k: 'wanderer' }
+  /** Un monstre errant attaque ; `before` : ce que venait de rapporter la salle, gardé à l'écran. */
+  | { k: 'wanderer'; before?: TowerNotice | null }
   | { k: 'oracle'; gold: number; revealed: boolean }
   | { k: 'collapsed' }
   | { k: 'toll_paid'; gold: number; climbed: TowerClimb | null }
@@ -632,7 +633,7 @@ function startWandererFight(state: TowerState, level: number, rules: TowerRules,
   const spawn = map.layout.rooms.find((room) => room.id === wanderer.spawn);
   startEncounter(state, level, 'ELITE', rules, foes, rng, spawn?.foe ?? null, map.rooms?.[wanderer.spawn] ?? null, spawn ? roomPower(spawn) : undefined);
   state.encounter!.wanderer = wanderer.spawn;
-  state.notice = { k: 'wanderer' };
+  state.notice = { k: 'wanderer', before: state.notice };
 }
 
 /** Le captif libéré rend ce qu'on attend de lui, ou de l'or quand ce n'est plus possible. */

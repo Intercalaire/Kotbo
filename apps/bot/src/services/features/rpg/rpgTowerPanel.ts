@@ -876,7 +876,11 @@ function noticeLine(notice: TowerNotice | null, locale: Locale): string | null {
       : m.tower_notice_trap({ hp: notice.dmg }, { locale })}`;
     case 'hired': return `${icon('rpgClan')} ${m.tower_notice_hired({ gold: notice.gold, coin: gold }, { locale })}`;
     case 'ambush': return `${icon('warning')} ${m.tower_notice_ambush({ hp: notice.dmg }, { locale })}`;
-    case 'wanderer': return `${icon('warning')} ${m.tower_notice_wanderer({}, { locale })}`;
+    case 'wanderer': {
+      // Le coffre ou le soin de la salle restent annoncés, avant l'attaque qui suit.
+      const before = noticeLine(notice.before ?? null, locale);
+      return `${before ? `${before}\n` : ''}${icon('warning')} ${m.tower_notice_wanderer({}, { locale })}`;
+    }
     case 'oracle': return `${icon('star')} ${notice.revealed
       ? m.tower_notice_oracle_revealed({ gold: notice.gold, coin: gold }, { locale })
       : m.tower_notice_oracle_path({ gold: notice.gold, coin: gold }, { locale })}`;
