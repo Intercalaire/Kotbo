@@ -141,13 +141,15 @@ export async function handleAnalyticsRoutes(
       // purge quand la config change (ex. activation des stats de mots).
       const timezone = await resolveViewTimezone(url.searchParams.get('tz'), guildId);
       const cacheKey = `guild:${guildId}:analytics:advanced:${section}:${timezone}`;
-      const cached = await cache.get<Record<string, unknown>>(cacheKey);
-      if (cached) {
-        json(res, 200, cached);
-        return true;
-      }
-      const data = await getAdvancedAnalytics(guildId, section as never, timezone);
-      await cache.set(cacheKey, data, 300); // 5 min - calculs lourds
+      // wrap() et non get() puis set() : a l'expiration, les onglets du staff
+      // ouverts en meme temps relancaient chacun le calcul complet.
+      // « social » et « channels » agregent 30 jours de message_logs, les plus
+      // couteuses de loin : sur une fenetre de 30 jours, 30 min de retard ne
+      // changent rien a la lecture.
+      const ttlSeconds = section === 'social' || section === 'channels' ? 1800 : 300;
+      const data = await cache.wrap(cacheKey, ttlSeconds, () =>
+        getAdvancedAnalytics(guildId, section as never, timezone),
+      );
       json(res, 200, data);
     } catch (err) {
       logger.error('AnalyticsAPI', `Erreur analytics avancées (${section}):`, err);
