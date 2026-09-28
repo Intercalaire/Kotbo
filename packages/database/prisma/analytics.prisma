@@ -84,6 +84,147 @@ model GuildWordStat {
   @@map("guild_word_stats")
 }
 
+// Contenu des messages : ce que les membres postent (types, emojis, stickers,
+// GIF, mise en forme). Une ligne par (serveur, jour, salon, membre) pour
+// pouvoir filtrer à la fois par salon, catégorie, membre et rôle. Un message
+// posté dans un fil compte pour le salon parent (styleThread le distingue).
+// Aucun texte ni lien n'est stocké : seulement des compteurs.
+model MessageContentDailyStat {
+  id String @id @default(cuid())
+
+  guildId   String
+  dateKey   String // YYYY-MM-DD
+  channelId String
+  userId    String
+
+  messages       Int @default(0)
+  withEmoji      Int @default(0)
+  withMarkdown   Int @default(0)
+  withLink       Int @default(0)
+  withMedia      Int @default(0)
+  // Messages ayant reçu au moins une réaction, comptés au jour du message.
+  reactedMessages Int @default(0)
+
+  // Type principal : chaque message compte dans un seul de ces compteurs.
+  typeText    Int @default(0)
+  typeImage   Int @default(0)
+  typeGif     Int @default(0)
+  typeVideo   Int @default(0)
+  typeSticker Int @default(0)
+  typeFile    Int @default(0)
+  typeAudio   Int @default(0)
+  typeVoice   Int @default(0) // message vocal Discord
+  typePoll    Int @default(0)
+  typeLink    Int @default(0)
+  typeForward Int @default(0)
+
+  styleReply   Int @default(0)
+  styleMention Int @default(0)
+  styleThread  Int @default(0)
+  styleEdited  Int @default(0)
+  emojiOnly    Int @default(0)
+  lenShort     Int @default(0) // moins de 20 caractères
+  lenMedium    Int @default(0)
+  lenLong      Int @default(0) // plus de 200 caractères
+
+  // Messages utilisant chaque style markdown (un message peut en cumuler).
+  mdBold       Int @default(0)
+  mdItalic     Int @default(0)
+  mdUnderline  Int @default(0)
+  mdStrike     Int @default(0)
+  mdSpoiler    Int @default(0)
+  mdInlineCode Int @default(0)
+  mdCodeBlock  Int @default(0)
+  mdQuote      Int @default(0)
+  mdHeading    Int @default(0)
+  mdList       Int @default(0)
+  mdMaskedLink Int @default(0)
+  mdSubtext    Int @default(0)
+
+  // Occurrences d'emojis dans les messages.
+  emojiUnicode  Int @default(0)
+  emojiGuild    Int @default(0)
+  emojiExternal Int @default(0)
+  emojiAnimated Int @default(0)
+
+  stickerGuild    Int @default(0)
+  stickerExternal Int @default(0)
+  stickerStandard Int @default(0)
+
+  gifTenor  Int @default(0)
+  gifGiphy  Int @default(0)
+  gifUpload Int @default(0)
+  gifOther  Int @default(0)
+
+  // Réactions posées par ce membre dans ce salon.
+  reactUnicode  Int @default(0)
+  reactGuild    Int @default(0)
+  reactExternal Int @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, dateKey, channelId, userId])
+  @@index([guildId, userId, dateKey])
+  @@map("message_content_daily_stats")
+}
+
+// Classements de contenu (emojis, stickers, réactions, domaines) par jour.
+// Chaque occurrence incrémente deux lignes : une par salon (userId = "") et
+// une par membre (channelId = ""). Le total serveur est la somme des lignes
+// par salon. Croiser salon ET membre n'est pas prévu : ce serait le produit
+// des deux, pour un gain marginal.
+model ContentItemDailyStat {
+  id String @id @default(cuid())
+
+  guildId   String
+  dateKey   String // YYYY-MM-DD
+  // emoji_unicode | emoji_guild | emoji_external | sticker_guild |
+  // sticker_external | sticker_standard | reaction_unicode | reaction_guild |
+  // reaction_external | domain
+  kind      String
+  key       String // id d'emoji ou de sticker, caractère Unicode, domaine
+  channelId String @default("")
+  userId    String @default("")
+  count     Int    @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, dateKey, kind, key, channelId, userId])
+  @@index([guildId, userId, dateKey])
+  @@map("content_item_daily_stats")
+}
+
+// Provenance des emojis et stickers vus sur les serveurs, partagée entre tous
+// les serveurs : un id n'est résolu qu'une fois, même quand la réponse est
+// « inconnu ». Voir services/analytics/assetSourceService.ts.
+model DiscordAssetSource {
+  id   String @id // id Discord de l'emoji ou du sticker
+  kind String // emoji | sticker
+
+  name     String?
+  animated Boolean @default(false)
+
+  sourceGuildId   String?
+  sourceGuildName String?
+  sourceGuildIcon String?
+
+  status    String    @default("pending") // pending | resolved | unknown
+  attempts  Int       @default(0)
+  checkedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, checkedAt])
+  @@map("discord_asset_sources")
+}
+
 model MemberInvite {
   id String @id @default(cuid())
 
