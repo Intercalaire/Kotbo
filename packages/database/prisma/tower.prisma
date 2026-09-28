@@ -50,8 +50,15 @@ model RpgTowerConfig {
   /// Tant que la carte n'est pas activée, la Tour tire ses portes au hasard.
   layoutEnabled Boolean @default(false)
   layouts       Json    @default("[]")
+  /// Après le dernier étage dessiné : GENERATE (étages générés) ou LOOP (retour au premier).
+  floorsAfter   String  @default("GENERATE")
   /// Ancienne carte unique, d'avant les étages : relue comme premier étage si `layouts` est vide.
   layout        Json?
+
+  /// Ascension du jour : même graine pour tous, stats égales, une tentative par jour.
+  dailyEnabled      Boolean @default(true)
+  /// Salon où annoncer les records de la saison. `null` : aucune annonce.
+  announceChannelId String?
 
   /// Début de la saison en cours : le classement se lit sur `RpgTowerProfile.bestFloor`,
   /// remis à zéro à chaque nouvelle saison.
@@ -117,6 +124,8 @@ model RpgTowerProfile {
   /// Meilleur étage de la saison en cours.
   bestFloor        Int       @default(0)
   bestFloorAt      DateTime?
+  /// Salles explorées lors du record de la saison : départage les égalités d'étages.
+  bestRooms        Int       @default(0)
   bestFloorAllTime Int       @default(0)
   totalRuns        Int       @default(0)
 
@@ -158,6 +167,16 @@ model RpgTowerRun {
 
   shardsEarned Int @default(0)
 
+  /// CLASSIC | DAILY. L'ascension du jour a son propre classement.
+  mode          String  @default("CLASSIC")
+  /// Jour de l'ascension du jour (« 2026-09-28 », UTC).
+  dailyKey      String?
+  /// Bilan écrit à la clôture, pour les classements et les statistiques du dashboard.
+  floorsCleared Int     @default(0)
+  roomsExplored Int     @default(0)
+  /// Monstre qui a fait tomber le joueur.
+  killedBy      String?
+
   startedAt    DateTime  @default(now())
   lastActionAt DateTime  @default(now())
   endedAt      DateTime?
@@ -166,5 +185,6 @@ model RpgTowerRun {
 
   @@index([profileId, status])
   @@index([guildId, userId, status])
+  @@index([guildId, mode, dailyKey])
   @@map("rpg_tower_runs")
 }

@@ -10,6 +10,7 @@ import {
   adjustTowerShards,
   deleteTowerReward,
   getTowerConfig,
+  getTowerDailyLeaderboard,
   getTowerDashboard,
   getTowerPlayerSummary,
   saveTowerFloors,
@@ -29,7 +30,17 @@ import {
   TOWER_UPGRADE_RANGES,
 } from '../../../services/features/rpg/rpgTowerPolicy.js';
 import {
+  TOWER_BOSS_MECHANICS,
+  TOWER_EVENTS,
+  TOWER_EVENT_CHOICES,
+  TOWER_MECHANIC_CHOICES,
+  TOWER_RELIC_PERKS,
+  TOWER_ROOM_TRAITS_MAX,
+  TOWER_TRAITS,
+} from '../../../services/features/rpg/rpgTowerContent.js';
+import {
   TOWER_CHEST_KINDS,
+  TOWER_FLOORS_AFTER,
   TOWER_FLOORS_MAX,
   TOWER_FLOOR_NAME_MAX,
   TOWER_MAP_ROOMS_MAX,
@@ -43,8 +54,11 @@ import {
 const roomSchema = z.object({
   x: z.number().int().min(0),
   y: z.number().int().min(0),
-  type: z.enum(TOWER_ROOM_TYPES).describe('START départ (un seul), MONSTER, ELITE, BOSS (salle 2×2 ancrée en haut à gauche), CHEST, CAMPFIRE, MERCHANT, SHRINE (bénédiction), EMPTY (couloir)'),
+  type: z.enum(TOWER_ROOM_TYPES).describe('START départ (un seul), MONSTER, ELITE, BOSS (gardien, salle 2×2 ancrée en haut à gauche), CHEST, CAMPFIRE, MERCHANT, SHRINE (bénédiction), EVENT (choix narratif), EMPTY (couloir)'),
   foe: z.string().nullable().optional().describe('MONSTER/ELITE/BOSS : créature imposée (nom exact du bestiaire), sinon tirée au hasard'),
+  traits: z.array(z.enum(TOWER_TRAITS)).max(TOWER_ROOM_TRAITS_MAX).optional().describe('MONSTER/ELITE/BOSS : traits imposés (vide : tirés au hasard ; une élite et un gardien en ont un)'),
+  mechanic: z.enum(TOWER_MECHANIC_CHOICES).optional().describe('BOSS : mécanique du gardien (RANDOM par défaut, NONE pour aucune)'),
+  event: z.enum(TOWER_EVENT_CHOICES).optional().describe('EVENT : événement imposé (RANDOM par défaut)'),
   chest: z.enum(TOWER_CHEST_KINDS).optional().describe('CHEST : contenu'),
   healPercent: z.number().int().min(5).max(100).optional().describe('CAMPFIRE : soin en % des PV max'),
   offers: z.array(z.enum(TOWER_OFFER_KINDS)).max(4).optional().describe('MERCHANT : articles vendus'),
@@ -53,6 +67,7 @@ const roomSchema = z.object({
 
 const floorSchema = z.object({
   name: z.string().max(TOWER_FLOOR_NAME_MAX).optional().describe("Nom de l'étage (« Caserne », « Crypte »…)"),
+  fog: z.boolean().optional().describe('Brouillard de guerre : seules les salles visitées et leurs voisines se voient'),
   width: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max),
   height: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max),
   rooms: z.array(roomSchema).max(TOWER_MAP_ROOMS_MAX),
@@ -103,7 +118,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
     server.registerTool(
       'get_rpg_tower',
       {
-        description: "Lit la Tour (mode roguelite du RPG). En portes aléatoires, chaque porte franchie est un étage. Avec la carte activée, chaque étage est une carte dessinée (settings.floors, dans l'ordre de la montée, puis la tour reprend au premier en plus dur) : on monte d'un étage en battant son gardien, et la difficulté croît à chaque salle. Contient : étages dessinés (floors, layoutEnabled) et créatures proposables pour leurs salles (foes), réglages (ouverture, mode d'entrée COMPRESSED ou RESET, plafonds d'héritage et de titre, croissance des monstres, boss et bénédictions, éclats par étage, part gardée à la mort et en partant, plafond hebdomadaire, monnaie), récompenses (boutique d'éclats et paliers d'étage), statistiques, classement de la saison, améliorations permanentes (settings.upgrades) et marchand (settings.merchant) réglables, et le catalogue fixe des bénédictions.",
+        description: "Lit la Tour (mode roguelite du RPG). En portes aléatoires, chaque porte franchie est un étage. Avec la carte activée, chaque étage est une carte (settings.floors, dans l'ordre de la montée ; ensuite settings.floorsAfter : LOOP reprend au premier, GENERATE génère des étages inédits) : on monte d'un étage en battant son gardien, et la difficulté croît à chaque salle. Monstres à traits, gardiens à mécanique, reliques à effets uniques et salles d'événement : voir reference. Contient aussi les statistiques des parties (insights : étage moyen, taux de mort, monstres qui tuent le plus, étage le plus meurtrier) et le classement de l'ascension du jour (daily). Contient : étages dessinés (floors, layoutEnabled) et créatures proposables pour leurs salles (foes), réglages (ouverture, mode d'entrée COMPRESSED ou RESET, plafonds d'héritage et de titre, croissance des monstres, boss et bénédictions, éclats par étage, part gardée à la mort et en partant, plafond hebdomadaire, monnaie), récompenses (boutique d'éclats et paliers d'étage), statistiques, classement de la saison, améliorations permanentes (settings.upgrades) et marchand (settings.merchant) réglables, et le catalogue fixe des bénédictions.",
         inputSchema: {},
         _meta: toolMeta,
       },
@@ -116,6 +131,23 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
             rewardKinds: TOWER_REWARD_KINDS,
             ranges: TOWER_RANGES,
             blessings: TOWER_BLESSINGS.map((blessing) => ({ id: blessing.id, name: blessing.name, description: blessing.description, maxRank: blessing.maxRank })),
+            traits: {
+              list: TOWER_TRAITS,
+              meaning: 'ARMORED défense ×1,8 ; VAMPIRIC se soigne de 30 % des dégâts infligés ; SWIFT vitesse ×1,6 et esquive les coups ; THORNY renvoie 15 % des dégâts reçus ; BERSERK attaque ×1,25 et PV ×0,85 ; REGENERATING rend 5 % des PV par tour. Élites et gardiens en portent un, les monstres ordinaires parfois à partir du niveau 15.',
+            },
+            bossMechanics: {
+              list: TOWER_BOSS_MECHANICS,
+              meaning: 'SHIELD bouclier de 35 % des PV ; SUMMONER un sbire tous les 3 coups (3 au plus, +25 % de dégâts chacun), dispersés par une compétence au multiplicateur 2 ou plus ; PHASES à mi-vie, soin de 20 % et +25 % attaque et défense, une fois.',
+            },
+            relicPerks: {
+              list: TOWER_RELIC_PERKS,
+              meaning: 'Effets uniques de reliques trouvées en ascension (dès la rareté UNCOMMON) : FIRST_STRIKE premier coup critique, LAST_STAND survit une fois à 1 PV, EXECUTE +50 % sous 30 % de PV, GUARDIAN_POTION une potion par gardien, SHARD_SEEKER +20 % d\'éclats.',
+            },
+            events: {
+              list: TOWER_EVENTS,
+              meaning: 'BLOOD_ALTAR 20 % des PV contre une bénédiction ; GAMBLER quitte ou double sur la moitié de l\'or ; SPRING soin de 30 % ou une potion ; BLACKSMITH reforge une arme ou armure (+15 %) contre de l\'or ; CURSED_PACT beaucoup d\'or mais +10 % d\'attaque aux monstres jusqu\'à la fin.',
+            },
+            floorsAfter: TOWER_FLOORS_AFTER,
             upgradeEffects: TOWER_UPGRADE_EFFECTS.map((effect) => ({ effect, perLevel: TOWER_UPGRADE_PER_LEVEL_RANGES[effect] })),
             upgradesMax: TOWER_UPGRADES_MAX,
             merchantRanges: TOWER_MERCHANT_RANGES,
@@ -137,6 +169,22 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
         const resolved = await resolveMember(guildId, member);
         if (!resolved.ok) return resolved.response;
         return ok({ userId: resolved.userId, ...(await getTowerPlayerSummary(guildId, resolved.userId)) });
+      })
+    );
+
+    server.registerTool(
+      'get_rpg_tower_daily',
+      {
+        description: "Classement de l'ascension du jour de la Tour (même tour pour tous, stats égales, une tentative par joueur et par jour) : étages gravis, salles explorées, issue. `day` au format AAAA-MM-JJ (UTC), aujourd'hui par défaut.",
+        inputSchema: {
+          day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+          limit: z.number().int().min(1).max(50).optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_ECONOMY', async ({ day, limit }) => {
+        const leaderboard = await getTowerDailyLeaderboard(guildId, day, limit ?? 10);
+        return ok({ day: day ?? new Date().toISOString().slice(0, 10), leaderboard });
       })
     );
   }
@@ -163,6 +211,9 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
           leaveShardPercent: range('leaveShardPercent').describe('Part des éclats gardée en quittant hors palier sûr ; juste après un boss, quitter garde tout'),
           weeklyShardCap: range('weeklyShardCap').describe('0 pour aucun plafond'),
           idleTimeoutMinutes: range('idleTimeoutMinutes'),
+          floorsAfter: z.enum(TOWER_FLOORS_AFTER).optional().describe('Carte jouée : après le dernier étage dessiné, GENERATE génère des étages inédits (aussi sans aucun étage dessiné), LOOP reprend au premier'),
+          dailyEnabled: z.boolean().optional().describe('Ascension du jour : même tour pour tous, stats égales, une tentative par jour et par joueur, classement séparé'),
+          announceChannelId: z.string().nullable().optional().describe('Salon où annoncer les nouveaux records de la saison ; null pour aucune annonce'),
           currencyName: z.string().optional(),
           currencyEmoji: z.string().optional(),
           upgrades: z.array(upgradeSchema).max(TOWER_UPGRADES_MAX).optional().describe('Remplace la liste complète des améliorations permanentes (lire get_rpg_tower avant de modifier)'),
@@ -199,6 +250,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
           removeFloor: z.boolean().optional().describe('Retire l\'étage `floor`'),
           useDefault: z.boolean().optional().describe('Remplacer l\'étage par la carte d\'exemple'),
           name: z.string().max(TOWER_FLOOR_NAME_MAX).optional(),
+          fog: z.boolean().optional().describe('Brouillard de guerre sur cet étage'),
           width: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max).optional(),
           height: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max).optional(),
           rooms: z.array(roomSchema).max(TOWER_MAP_ROOMS_MAX).optional().describe('Salles de l\'étage. Absent : celles de l\'étage actuel sont gardées.'),
@@ -206,7 +258,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
         },
         _meta: toolMeta,
       },
-      guard('WRITE_MEMBERS', async ({ layoutEnabled, floors, floor, removeFloor, useDefault, name, width, height, rooms, key_name }) => {
+      guard('WRITE_MEMBERS', async ({ layoutEnabled, floors, floor, removeFloor, useDefault, name, fog, width, height, rooms, key_name }) => {
         try {
           let next: unknown[];
           if (floors) {
@@ -218,10 +270,11 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
             if (removeFloor) {
               if (index >= current.length) return err('Cet étage n\'existe pas.');
               current.splice(index, 1);
-            } else if (useDefault || name !== undefined || width || height || rooms) {
+            } else if (useDefault || name !== undefined || fog !== undefined || width || height || rooms) {
               const base: Partial<TowerLayout> = useDefault ? defaultTowerLayout() : current[index] ?? {};
               current[index] = {
                 name: name ?? base.name ?? '',
+                fog: fog ?? base.fog ?? true,
                 width: width ?? base.width ?? TOWER_MAP_SIZE.min,
                 height: height ?? base.height ?? TOWER_MAP_SIZE.min,
                 rooms: (rooms ?? base.rooms ?? []) as TowerLayout['rooms'],

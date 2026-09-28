@@ -44,6 +44,7 @@ const ROOM_COLOR: Record<TowerRoomType, string> = {
   CAMPFIRE: '#f97316',
   MERCHANT: '#10b981',
   SHRINE: '#38bdf8',
+  EVENT: '#e879f9',
   EMPTY: '#64748b',
 };
 
@@ -60,7 +61,14 @@ export type TowerMapImage = {
   targets: readonly string[];
   /** Échelle des étages, du plus haut au plus bas. */
   ladder: TowerLadderEntry[];
+  /** Salles visibles sous le brouillard ; absent : tout l'étage se voit. */
+  visible?: readonly string[] | null;
+  /** Salles dont le monstre porte des traits ou une mécanique, marquées d'une pastille. */
+  badges?: Record<string, number>;
 };
+
+/** Encart de texte à droite de la tour : titre et quelques lignes courtes. */
+export type TowerPanel = { title: string; lines: string[] };
 
 export type TowerShaftImage = {
   kind: 'shaft';
@@ -69,6 +77,7 @@ export type TowerShaftImage = {
   bossEvery: number;
   /** Libellé d'un étage, déjà traduit. */
   floorLabel: (floor: number) => string;
+  panel?: TowerPanel;
 };
 
 export type TowerImageInput = TowerMapImage | TowerShaftImage;
@@ -280,6 +289,13 @@ function glyph(ctx: SKRSContext2D, type: TowerRoomType, cx: number, cy: number, 
       ctx.fill();
       break;
     }
+    case 'EVENT': {
+      ctx.font = canvasFont(Math.round(size * 0.9), 'bold');
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('?', cx, cy + size * 0.04);
+      break;
+    }
     case 'SHRINE': {
       ctx.beginPath();
       for (let i = 0; i < 8; i++) {
@@ -300,6 +316,33 @@ function glyph(ctx: SKRSContext2D, type: TowerRoomType, cx: number, cy: number, 
       ctx.fill();
     }
   }
+  ctx.restore();
+}
+
+/** Pastille d'alerte sur une salle : nombre de traits du monstre qui l'habite. */
+function drawBadge(ctx: SKRSContext2D, cx: number, cy: number, radius: number, count: number): void {
+  ctx.save();
+  ctx.fillStyle = '#ef4444';
+  ctx.strokeStyle = C.sky1;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  text(ctx, String(count), cx, cy + 0.5, Math.round(radius * 1.3), C.text, 'center');
+  ctx.restore();
+}
+
+/** Case sous le brouillard : une brume sombre, jamais tout à fait uniforme. */
+function drawFog(ctx: SKRSContext2D, x: number, y: number, size: number, seed: number): void {
+  ctx.save();
+  ctx.fillStyle = 'rgba(13, 10, 26, 0.92)';
+  ctx.fillRect(x, y, size, size);
+  ctx.fillStyle = 'rgba(167, 159, 191, 0.07)';
+  const offset = (seed % 7) / 7;
+  ctx.beginPath();
+  ctx.arc(x + size * (0.3 + offset * 0.4), y + size * 0.45, size * 0.3, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 }
 
@@ -385,6 +428,8 @@ function renderMap(input: TowerMapImage): Buffer {
   const gx = bodyX + wall;
   const gy = bodyY + wall;
   const cells = occupancy(layout);
+  const visible = input.visible ? new Set(input.visible) : null;
+  const seen = (id: string) => !visible || visible.has(id);
   const center = (x: number, y: number) => ({ x: gx + x * tile + tile / 2, y: gy + y * tile + tile / 2 });
 
   // Couloirs d'abord : les salles les recouvrent, il n'en reste que le passage entre deux.
@@ -394,7 +439,7 @@ function renderMap(input: TowerMapImage): Buffer {
     for (const [x, y] of roomCells(room)) {
       for (const [dx, dy] of [[1, 0], [0, 1]]) {
         const other = cells.get(`${x + dx},${y + dy}`);
-        if (!other) continue;
+        if (!other || !seen(room.id) || !seen(other.id)) continue;
         const a = center(x, y);
         const b = center(x + dx, y + dy);
         if (dx === 1) ctx.fillRect(a.x, a.y - corridor / 2, b.x - a.x, corridor);
@@ -405,6 +450,7 @@ function renderMap(input: TowerMapImage): Buffer {
 
   const inset = Math.max(3, Math.round(tile * 0.08));
   for (const room of layout.rooms) {
+    if (!seen(room.id)) continue;
     const span = room.type === 'BOSS' ? 2 : 1;
     const x = gx + room.x * tile + inset;
     const y = gy + room.y * tile + inset;
@@ -445,6 +491,19 @@ function renderMap(input: TowerMapImage): Buffer {
       ctx.globalAlpha = room.type === 'EMPTY' ? 0.5 : 1;
       glyph(ctx, room.type, cx, cy, size * (span === 2 ? 0.42 : 0.55), color);
       ctx.restore();
+      const badge = input.badges?.[room.id] ?? 0;
+      if (badge > 0) drawBadge(ctx, x + size - 2, y + 2, Math.max(7, tile * 0.16), badge);
+    }
+  }
+
+  // Brouillard : tout ce qui n'est pas une salle visible disparaît sous la brume.
+  if (visible) {
+    for (let y = 0; y < layout.height; y++) {
+      for (let x = 0; x < layout.width; x++) {
+        const room = cells.get(`${x},${y}`);
+        if (room && seen(room.id)) continue;
+        drawFog(ctx, gx + x * tile, gy + y * tile, tile, x * 31 + y * 17);
+      }
     }
   }
 
@@ -504,10 +563,33 @@ function drawLadder(ctx: SKRSContext2D, x: number, y: number, w: number, h: numb
 const SHAFT_BELOW = 2;
 const SHAFT_ABOVE = 3;
 
+const PANEL_WIDTH = 300;
+
+/** Encart de texte à droite, sur fond de parchemin sombre. */
+function drawPanel(ctx: SKRSContext2D, x: number, y: number, w: number, h: number, panel: TowerPanel): void {
+  roundRect(ctx, x, y, w, h, 12);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(196, 168, 255, 0.22)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  const fit = (value: string, size: number, maxWidth: number) => {
+    ctx.font = canvasFont(size, 'bold');
+    let label = value;
+    while (ctx.measureText(label).width > maxWidth && label.length > 4) label = `${label.slice(0, -2)}…`;
+    return label;
+  };
+  text(ctx, fit(panel.title, 20, w - 36), x + 18, y + 30, 20, C.gold);
+  panel.lines.slice(0, 9).forEach((line, index) => {
+    text(ctx, fit(line, 15, w - 36), x + 18, y + 68 + index * 30, 15, index === 0 ? C.text : C.textDim);
+  });
+}
+
 function renderShaft(input: TowerShaftImage): Buffer {
   const bandH = 58;
   const bodyW = 340;
-  const W = 520;
+  const towerW = 520;
+  const W = towerW + (input.panel ? PANEL_WIDTH + 20 : 0);
   const top = 40;
   const rows = SHAFT_ABOVE + 1 + SHAFT_BELOW;
   const H = top + rows * bandH + 90;
@@ -515,7 +597,7 @@ function renderShaft(input: TowerShaftImage): Buffer {
   const ctx = canvas.getContext('2d');
   drawSky(ctx, W, H);
 
-  const bodyX = (W - bodyW) / 2;
+  const bodyX = (towerW - bodyW) / 2;
   const bodyY = top;
   drawBricks(ctx, bodyX, bodyY, bodyW, rows * bandH);
 
@@ -534,7 +616,7 @@ function renderShaft(input: TowerShaftImage): Buffer {
       ctx.fill();
     }
     const boss = input.bossEvery > 0 && floor % input.bossEvery === 0;
-    const cx = W / 2;
+    const cx = towerW / 2;
     const cy = y + bandH / 2 - 2;
     if (status === 'current') {
       roundRect(ctx, bodyX + 4, y + 3, bodyW - 8, bandH - 10, 8);
@@ -554,10 +636,11 @@ function renderShaft(input: TowerShaftImage): Buffer {
   fade.addColorStop(1, 'rgba(13, 10, 26, 0)');
   ctx.fillStyle = fade;
   ctx.fillRect(bodyX - 2, bodyY - 2, bodyW + 4, bandH * 1.6);
-  upArrow(ctx, W / 2, bodyY + 14, 12, C.textDim);
+  upArrow(ctx, towerW / 2, bodyY + 14, 12, C.textDim);
 
   drawBricks(ctx, bodyX - 16, bodyY + rows * bandH, bodyW + 32, 22, C.stoneDark, 11);
-  drawPlaque(ctx, W / 2, bodyY + rows * bandH + 54, input.title);
+  drawPlaque(ctx, towerW / 2, bodyY + rows * bandH + 54, input.title);
+  if (input.panel) drawPanel(ctx, towerW, top, PANEL_WIDTH, rows * bandH, input.panel);
   return canvas.toBuffer('image/png');
 }
 

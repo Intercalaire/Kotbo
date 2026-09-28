@@ -11,14 +11,17 @@
    */
   import { m } from '../../i18n';
   import { createAsyncActionState } from '../../asyncAction.svelte';
-  import { saveRpgTowerLayout } from '../../api';
+  import { previewRpgTowerFloor, saveRpgTowerLayout } from '../../api';
   import { confirmDialog } from '../../stores/confirmDialog.svelte';
   import Papicon from '../Papicon.svelte';
   import InlineFeedback from '../InlineFeedback.svelte';
   import SearchableSelect from '../SearchableSelect.svelte';
   import ToggleSwitch from '../ToggleSwitch.svelte';
 
-  type RoomType = 'START' | 'MONSTER' | 'ELITE' | 'BOSS' | 'CHEST' | 'CAMPFIRE' | 'MERCHANT' | 'SHRINE' | 'EMPTY';
+  type RoomType = 'START' | 'MONSTER' | 'ELITE' | 'BOSS' | 'CHEST' | 'CAMPFIRE' | 'MERCHANT' | 'SHRINE' | 'EVENT' | 'EMPTY';
+  type Trait = 'ARMORED' | 'VAMPIRIC' | 'SWIFT' | 'THORNY' | 'BERSERK' | 'REGENERATING';
+  type Mechanic = 'RANDOM' | 'NONE' | 'SHIELD' | 'SUMMONER' | 'PHASES';
+  type EventChoice = 'RANDOM' | 'BLOOD_ALTAR' | 'GAMBLER' | 'SPRING' | 'BLACKSMITH' | 'CURSED_PACT';
   type ChestKind = 'BOTH' | 'GOLD' | 'GEAR';
   type OfferKind = 'POTION' | 'HEAL' | 'GEAR';
   type Room = {
@@ -31,8 +34,11 @@
     healPercent: number;
     offers: OfferKind[];
     pricePercent: number;
+    traits: Trait[];
+    mechanic: Mechanic;
+    event: EventChoice;
   };
-  type Layout = { name: string; width: number; height: number; rooms: Room[] };
+  type Layout = { name: string; width: number; height: number; fog: boolean; rooms: Room[] };
   type Foe = { name: string; emoji: string; isBoss: boolean; enabled: boolean };
   type Tool = RoomType | 'ERASE' | 'SELECT';
 
@@ -45,6 +51,8 @@
     sizeLimits = { min: 3, max: 12 },
     roomsMax = 100,
     floorsMax = 12,
+    growthPercent = 8,
+    floorsAfter = 'LOOP',
     onSaved,
   }: {
     canManage?: boolean;
@@ -55,6 +63,8 @@
     sizeLimits?: { min: number; max: number };
     roomsMax?: number;
     floorsMax?: number;
+    growthPercent?: number;
+    floorsAfter?: 'GENERATE' | 'LOOP';
     onSaved?: () => void | Promise<void>;
   } = $props();
 
@@ -62,15 +72,23 @@
   // Cadre de pierre autour de la grille et hauteur des créneaux, en unités du dessin.
   const FRAME = 18;
   const CRENEL = 22;
-  const ROOM_TYPES: RoomType[] = ['START', 'MONSTER', 'ELITE', 'BOSS', 'CHEST', 'CAMPFIRE', 'MERCHANT', 'SHRINE', 'EMPTY'];
+  const ROOM_TYPES: RoomType[] = ['START', 'MONSTER', 'ELITE', 'BOSS', 'CHEST', 'CAMPFIRE', 'MERCHANT', 'SHRINE', 'EVENT', 'EMPTY'];
+  // Mêmes valeurs que `rpgTowerContent.ts` côté bot.
+  const TRAITS: Trait[] = ['ARMORED', 'VAMPIRIC', 'SWIFT', 'THORNY', 'BERSERK', 'REGENERATING'];
+  const TRAITS_MAX = 2;
+  const MECHANICS: Mechanic[] = ['RANDOM', 'NONE', 'SHIELD', 'SUMMONER', 'PHASES'];
+  const EVENTS: EventChoice[] = ['RANDOM', 'BLOOD_ALTAR', 'GAMBLER', 'SPRING', 'BLACKSMITH', 'CURSED_PACT'];
+  // Force des monstres (miroir de `towerMonsterStats`) : 70 PV au niveau 1, croissance divisée par deux après 25.
+  const MONSTER_BASE_HEALTH = 70;
+  const GROWTH_KNEE = 25;
   // Mêmes pictogrammes que les emojis d'application du bot sur Discord.
   const ICON: Record<RoomType, string> = {
     START: 'DoorOpen', MONSTER: 'Swords', ELITE: 'Skull', BOSS: 'Crown', CHEST: 'PackageOpen',
-    CAMPFIRE: 'Flame', MERCHANT: 'ShoppingCart', SHRINE: 'Sparkles', EMPTY: 'Square',
+    CAMPFIRE: 'Flame', MERCHANT: 'ShoppingCart', SHRINE: 'Sparkles', EVENT: 'HelpCircle', EMPTY: 'Square',
   };
   const COLOR: Record<RoomType, string> = {
     START: '#64748b', MONSTER: '#ef4444', ELITE: '#a855f7', BOSS: '#f59e0b', CHEST: '#eab308',
-    CAMPFIRE: '#f97316', MERCHANT: '#10b981', SHRINE: '#38bdf8', EMPTY: '#94a3b8',
+    CAMPFIRE: '#f97316', MERCHANT: '#10b981', SHRINE: '#38bdf8', EVENT: '#e879f9', EMPTY: '#94a3b8',
   };
   const OFFERS: OfferKind[] = ['POTION', 'HEAL', 'GEAR'];
 
@@ -84,6 +102,7 @@
       case 'CAMPFIRE': return m.eco_tower_room_campfire();
       case 'MERCHANT': return m.eco_tower_room_merchant();
       case 'SHRINE': return m.eco_tower_room_shrine();
+      case 'EVENT': return m.eco_tower_room_event();
       default: return m.eco_tower_room_empty();
     }
   }
@@ -98,6 +117,7 @@
       case 'CAMPFIRE': return m.eco_tower_room_campfire_tip();
       case 'MERCHANT': return m.eco_tower_room_merchant_tip();
       case 'SHRINE': return m.eco_tower_room_shrine_tip();
+      case 'EVENT': return m.eco_tower_room_event_tip();
       default: return m.eco_tower_room_empty_tip();
     }
   }
@@ -116,20 +136,88 @@
     return m.eco_tower_offer_gear();
   }
 
+  function traitLabel(trait: Trait): string {
+    switch (trait) {
+      case 'ARMORED': return m.eco_tower_trait_armored();
+      case 'VAMPIRIC': return m.eco_tower_trait_vampiric();
+      case 'SWIFT': return m.eco_tower_trait_swift();
+      case 'THORNY': return m.eco_tower_trait_thorny();
+      case 'BERSERK': return m.eco_tower_trait_berserk();
+      default: return m.eco_tower_trait_regenerating();
+    }
+  }
+
+  function traitTip(trait: Trait): string {
+    switch (trait) {
+      case 'ARMORED': return m.eco_tower_trait_armored_tip();
+      case 'VAMPIRIC': return m.eco_tower_trait_vampiric_tip();
+      case 'SWIFT': return m.eco_tower_trait_swift_tip();
+      case 'THORNY': return m.eco_tower_trait_thorny_tip();
+      case 'BERSERK': return m.eco_tower_trait_berserk_tip();
+      default: return m.eco_tower_trait_regenerating_tip();
+    }
+  }
+
+  function mechanicLabel(mechanic: Mechanic): string {
+    switch (mechanic) {
+      case 'RANDOM': return m.eco_tower_choice_random();
+      case 'NONE': return m.eco_tower_choice_none();
+      case 'SHIELD': return m.eco_tower_mechanic_shield();
+      case 'SUMMONER': return m.eco_tower_mechanic_summoner();
+      default: return m.eco_tower_mechanic_phases();
+    }
+  }
+
+  function mechanicTip(mechanic: Mechanic): string {
+    switch (mechanic) {
+      case 'RANDOM': return m.eco_tower_mechanic_random_tip();
+      case 'NONE': return m.eco_tower_mechanic_none_tip();
+      case 'SHIELD': return m.eco_tower_mechanic_shield_tip();
+      case 'SUMMONER': return m.eco_tower_mechanic_summoner_tip();
+      default: return m.eco_tower_mechanic_phases_tip();
+    }
+  }
+
+  function eventLabel(event: EventChoice): string {
+    switch (event) {
+      case 'RANDOM': return m.eco_tower_choice_random();
+      case 'BLOOD_ALTAR': return m.eco_tower_event_blood_altar();
+      case 'GAMBLER': return m.eco_tower_event_gambler();
+      case 'SPRING': return m.eco_tower_event_spring();
+      case 'BLACKSMITH': return m.eco_tower_event_blacksmith();
+      default: return m.eco_tower_event_cursed_pact();
+    }
+  }
+
+  function eventTip(event: EventChoice): string {
+    switch (event) {
+      case 'RANDOM': return m.eco_tower_event_random_tip();
+      case 'BLOOD_ALTAR': return m.eco_tower_event_blood_altar_tip();
+      case 'GAMBLER': return m.eco_tower_event_gambler_tip();
+      case 'SPRING': return m.eco_tower_event_spring_tip();
+      case 'BLACKSMITH': return m.eco_tower_event_blacksmith_tip();
+      default: return m.eco_tower_event_cursed_pact_tip();
+    }
+  }
+
   function newRoom(x: number, y: number, type: RoomType): Room {
-    return { id: `${x}-${y}`, x, y, type, foe: null, chest: 'BOTH', healPercent: 35, offers: [...OFFERS], pricePercent: 100 };
+    return {
+      id: `${x}-${y}`, x, y, type, foe: null, chest: 'BOTH', healPercent: 35, offers: [...OFFERS], pricePercent: 100,
+      traits: [], mechanic: 'RANDOM', event: 'RANDOM',
+    };
   }
 
   function exampleLayout(): Layout {
     const r = newRoom;
     return {
       name: '',
+      fog: true,
       width: 9,
       height: 9,
       rooms: [
         r(3, 8, 'START'), r(3, 7, 'MONSTER'), r(3, 6, 'MONSTER'), r(3, 5, 'CAMPFIRE'),
         r(2, 5, 'MONSTER'), r(1, 5, 'CHEST'), r(4, 5, 'ELITE'), r(5, 5, 'MERCHANT'),
-        r(3, 4, 'EMPTY'), r(2, 2, 'BOSS'), r(4, 4, 'MONSTER'), r(5, 4, 'SHRINE'),
+        r(3, 4, 'EVENT'), r(2, 2, 'BOSS'), r(4, 4, 'MONSTER'), r(5, 4, 'SHRINE'),
         r(6, 4, 'MONSTER'), { ...r(7, 4, 'CHEST'), chest: 'GEAR' },
       ],
     };
@@ -138,9 +226,17 @@
   function cloneLayout(source: Partial<Layout> | null): Layout {
     return {
       name: source?.name ?? '',
+      // Un étage neuf a son brouillard ; un étage enregistré sans ce champ n'en avait pas.
+      fog: source ? source.fog === true : true,
       width: source?.width ?? 7,
       height: source?.height ?? 7,
-      rooms: (source?.rooms ?? []).map((room) => ({ ...room, offers: [...room.offers] })),
+      rooms: (source?.rooms ?? []).map((room) => ({
+        ...room,
+        offers: [...room.offers],
+        traits: [...(room.traits ?? [])],
+        mechanic: room.mechanic ?? 'RANDOM',
+        event: room.event ?? 'RANDOM',
+      })),
     };
   }
 
@@ -156,6 +252,8 @@
   let selectedId = $state<string | null>(null);
   let painting = $state(false);
   let dirty = $state(false);
+  let preview = $state<string | null>(null);
+  let previewing = $state(false);
 
   // ── Géométrie (même règles que le bot) ──────────────────────────
   function cellsOf(room: Pick<Room, 'x' | 'y' | 'type'>): [number, number][] {
@@ -267,6 +365,74 @@
   const invalidFloors = $derived(towerEmpty ? 0 : allFloors.filter((floor) => !floorValid(floor)).length);
   // Du sommet au rez-de-chaussée, comme on lit une tour.
   const stack = $derived(allFloors.map((floor, index) => ({ floor, index })).reverse());
+
+  /** Distance au gardien et salles à résoudre d'un étage, pour estimer la profondeur. */
+  function floorSpan(floor: Layout): { shortest: number; rooms: number } {
+    const cells = new Map<string, Room>();
+    for (const room of floor.rooms) for (const [x, y] of cellsOf(room)) cells.set(`${x},${y}`, room);
+    const start = floor.rooms.find((room) => room.type === 'START');
+    const rooms = floor.rooms.filter((room) => room.type !== 'START' && room.type !== 'EMPTY').length;
+    if (!start) return { shortest: 0, rooms };
+    const distance = new Map([[start.id, 0]]);
+    const queue = [start];
+    while (queue.length > 0) {
+      const room = queue.shift()!;
+      for (const [x, y] of cellsOf(room)) {
+        for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+          const other = cells.get(`${x + dx},${y + dy}`);
+          if (other && !distance.has(other.id)) {
+            distance.set(other.id, distance.get(room.id)! + 1);
+            queue.push(other);
+          }
+        }
+      }
+    }
+    const boss = floor.rooms.filter((room) => room.type === 'BOSS').map((room) => distance.get(room.id)).filter((value): value is number => value !== undefined);
+    return { shortest: boss.length > 0 ? Math.min(...boss) : 0, rooms };
+  }
+
+  function monsterHealth(level: number): number {
+    const rate = growthPercent / 100;
+    const steps = Math.max(0, level - 1);
+    const steep = Math.min(steps, GROWTH_KNEE - 1);
+    return Math.round(MONSTER_BASE_HEALTH * Math.pow(1 + rate, steep) * Math.pow(1 + rate / 2, steps - steep));
+  }
+
+  /**
+   * Difficulté estimée de l'étage ouvert : la force des monstres suit les salles résolues
+   * depuis l'entrée. Au plus bas, le joueur a filé droit au gardien de chaque étage ; au plus
+   * haut, il a tout exploré.
+   */
+  const difficulty = $derived.by(() => {
+    let low = 1;
+    let high = 1;
+    for (let index = 0; index < current; index++) {
+      const span = floorSpan(allFloors[index]);
+      low += span.shortest;
+      high += span.rooms;
+    }
+    const own = floorSpan(layout);
+    return { from: low, to: high + own.rooms, healthFrom: monsterHealth(low), healthTo: monsterHealth(high + own.rooms) };
+  });
+
+  async function openPreview() {
+    previewing = true;
+    try {
+      const res = await previewRpgTowerFloor({ layout, floor: current + 1 });
+      preview = res?.image ?? null;
+    } catch (err) {
+      console.error(err);
+    } finally {
+      previewing = false;
+    }
+  }
+
+  function toggleTrait(trait: Trait) {
+    if (!selected) return;
+    const has = selected.traits.includes(trait);
+    if (!has && selected.traits.length >= TRAITS_MAX) return;
+    updateSelected({ traits: has ? selected.traits.filter((entry) => entry !== trait) : [...selected.traits, trait] });
+  }
 
   function commit() {
     floors[current] = cloneLayout(layout);
@@ -404,6 +570,7 @@
     const h = Math.min(sizeLimits.max, Math.max(sizeLimits.min, Math.trunc(height) || sizeLimits.min));
     layout = {
       name: layout.name,
+      fog: layout.fog,
       width: w,
       height: h,
       rooms: layout.rooms.filter((room) => cellsOf(room).every(([x, y]) => x < w && y < h)),
@@ -428,13 +595,13 @@
   }
 
   function loadExample() {
-    layout = { ...exampleLayout(), name: layout.name };
+    layout = { ...exampleLayout(), name: layout.name, fog: layout.fog };
     selectedId = null;
     dirty = true;
   }
 
   function clearMap() {
-    layout = { name: layout.name, width: layout.width, height: layout.height, rooms: [] };
+    layout = { name: layout.name, fog: layout.fog, width: layout.width, height: layout.height, rooms: [] };
     selectedId = null;
     dirty = true;
   }
@@ -513,6 +680,14 @@
       <button type="button" onclick={clearMap} disabled={disabled} class="px-3 py-2 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50">
         <Papicon icon="trash" size={12} /> {m.eco_tower_map_clear()}
       </button>
+      <div class="flex items-center gap-2 px-2" title={m.eco_tower_fog_tip()}>
+        <ToggleSwitch checked={layout.fog} disabled={disabled} ariaLabel={m.eco_tower_fog()} onToggle={(value: boolean) => { layout.fog = value; dirty = true; }} />
+        <span class="text-xs font-semibold flex items-center gap-1"><Papicon icon="Eye" size={12} /> {m.eco_tower_fog()}</span>
+      </div>
+      <button type="button" onclick={openPreview} disabled={previewing || problems.length > 0 || layout.rooms.length === 0} title={m.eco_tower_preview_tip()}
+        class="px-3 py-2 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50">
+        <Papicon icon="Image" size={12} /> {m.eco_tower_preview_btn()}
+      </button>
     </div>
 
     <!-- Palette -->
@@ -559,13 +734,26 @@
                 <span class="text-2xs font-mono text-on-surface-variant/60">{m.eco_tower_floor_label({ floor: entry.index + 1 })}</span>
                 {#if !valid}<span class="text-warning flex"><Papicon icon="AlertTriangle" size={11} /></span>{/if}
               </span>
-              <span class="block text-xs font-semibold truncate">{entry.floor.name || '—'}</span>
-              <span class="block text-2xs text-on-surface-variant/50">{m.eco_tower_map_summary({ rooms: entry.floor.rooms.length, max: roomsMax })}</span>
+              <span class="flex items-center gap-2">
+                <!-- Vignette de l'étage, pour le reconnaître d'un coup d'œil. -->
+                <svg viewBox="0 0 {entry.floor.width} {entry.floor.height}" class="w-10 h-10 shrink-0 rounded bg-surface-container-low" aria-hidden="true">
+                  {#each entry.floor.rooms as room}
+                    <rect x={room.x + 0.1} y={room.y + 0.1} width={(room.type === 'BOSS' ? 2 : 1) - 0.2} height={(room.type === 'BOSS' ? 2 : 1) - 0.2} rx="0.2" fill={COLOR[room.type]} fill-opacity="0.85" />
+                  {/each}
+                </svg>
+                <span class="min-w-0">
+                  <span class="block text-xs font-semibold truncate">{entry.floor.name || '—'}</span>
+                  <span class="block text-2xs text-on-surface-variant/50">{m.eco_tower_map_summary({ rooms: entry.floor.rooms.length, max: roomsMax })}</span>
+                </span>
+              </span>
             </button>
           {/each}
         </div>
         <div class="h-2 mx-[-6px] rounded-sm bg-outline-variant/35" aria-hidden="true"></div>
       </div>
+      <p class="text-2xs text-on-surface-variant/50 leading-relaxed">
+        {floorsAfter === 'GENERATE' ? m.eco_tower_floors_after_generate_note() : m.eco_tower_floors_after_loop_note()}
+      </p>
       {#if canManage}
         <div class="grid grid-cols-2 gap-1.5">
           <button type="button" onclick={() => moveFloor(1)} disabled={disabled || current >= floors.length - 1} class="px-2 py-1.5 rounded-md bg-outline-variant/10 hover:bg-outline-variant/25 text-2xs font-bold flex items-center justify-center gap-1 disabled:opacity-40">
@@ -688,6 +876,10 @@
             {/each}
           </ul>
         {/if}
+        <p class="text-2xs text-on-surface-variant/70 flex items-start gap-1.5 pt-1" title={m.eco_tower_difficulty_estimate_tip()}>
+          <Papicon icon="Skull" size={11} />
+          {m.eco_tower_difficulty_estimate({ from: difficulty.from, to: difficulty.to, hpFrom: difficulty.healthFrom, hpTo: difficulty.healthTo })}
+        </p>
         <p class="text-2xs text-on-surface-variant/50 leading-relaxed pt-1">{m.eco_tower_map_rules()}</p>
       </div>
 
@@ -711,6 +903,37 @@
                 className="w-full"
                 on:change={(e: any) => updateSelected({ foe: e.detail?.value ?? null })}
               />
+            </div>
+            <div class="space-y-1">
+              <span class="text-xs font-semibold text-on-surface-variant/60" title={m.eco_tower_map_traits_tip()}>{m.eco_tower_map_traits({ max: TRAITS_MAX })}</span>
+              <div class="flex flex-wrap gap-1.5">
+                {#each TRAITS as trait}
+                  <button type="button" disabled={!canManage || disabled || (!selected.traits.includes(trait) && selected.traits.length >= TRAITS_MAX)} title={traitTip(trait)} onclick={() => toggleTrait(trait)}
+                    class="px-2 py-1 rounded-lg text-2xs font-bold border disabled:opacity-40 {selected.traits.includes(trait) ? 'border-error bg-error/15 text-error' : 'border-outline-variant/15'}">{traitLabel(trait)}</button>
+                {/each}
+              </div>
+              <p class="text-2xs text-on-surface-variant/50">{m.eco_tower_map_traits_hint()}</p>
+            </div>
+            {#if selected.type === 'BOSS'}
+              <div class="space-y-1">
+                <span class="text-xs font-semibold text-on-surface-variant/60">{m.eco_tower_map_mechanic()}</span>
+                <div class="flex flex-wrap gap-1.5">
+                  {#each MECHANICS as mechanic}
+                    <button type="button" disabled={!canManage || disabled} title={mechanicTip(mechanic)} onclick={() => updateSelected({ mechanic })}
+                      class="px-2 py-1 rounded-lg text-2xs font-bold border {selected.mechanic === mechanic ? 'border-primary bg-primary/15' : 'border-outline-variant/15'}">{mechanicLabel(mechanic)}</button>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+          {:else if selected.type === 'EVENT'}
+            <div class="space-y-1">
+              <span class="text-xs font-semibold text-on-surface-variant/60">{m.eco_tower_map_event()}</span>
+              <div class="flex flex-wrap gap-1.5">
+                {#each EVENTS as event}
+                  <button type="button" disabled={!canManage || disabled} title={eventTip(event)} onclick={() => updateSelected({ event })}
+                    class="px-2 py-1 rounded-lg text-2xs font-bold border {selected.event === event ? 'border-primary bg-primary/15' : 'border-outline-variant/15'}">{eventLabel(event)}</button>
+                {/each}
+              </div>
             </div>
           {:else if selected.type === 'CHEST'}
             <div class="space-y-1">
@@ -764,7 +987,7 @@
       <button
         type="button"
         onclick={save}
-        disabled={disabled || actionState.state.loading || invalidFloors > 0 || (layoutEnabled && towerEmpty)}
+        disabled={disabled || actionState.state.loading || invalidFloors > 0 || (layoutEnabled && towerEmpty && floorsAfter !== 'GENERATE')}
         class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-body-sm font-medium rounded-lg transition-all disabled:opacity-50"
       >
         {m.eco_btn_save()}
@@ -772,3 +995,17 @@
     </div>
   {/if}
 </div>
+
+{#if preview}
+  <!-- Aperçu : l'image exacte que verront les joueurs en arrivant sur cet étage. -->
+  <div class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" role="presentation" onclick={() => { preview = null; }}>
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-4 max-w-4xl w-full space-y-3" role="dialog" aria-label={m.eco_tower_preview_btn()} tabindex="-1" onclick={(event) => event.stopPropagation()} onkeydown={(event) => { if (event.key === 'Escape') preview = null; }}>
+      <div class="flex items-center justify-between">
+        <p class="text-sm font-bold flex items-center gap-2"><Papicon icon="Image" size={14} /> {m.eco_tower_preview_title()}</p>
+        <button type="button" onclick={() => { preview = null; }} class="px-3 py-1.5 bg-outline-variant/10 hover:bg-outline-variant/25 text-xs font-bold rounded-lg">{m.eco_btn_cancel()}</button>
+      </div>
+      <img src={preview} alt={m.eco_tower_preview_title()} class="w-full rounded-lg" />
+      <p class="text-2xs text-on-surface-variant/60">{m.eco_tower_preview_hint()}</p>
+    </div>
+  </div>
+{/if}

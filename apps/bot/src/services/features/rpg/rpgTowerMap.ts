@@ -8,7 +8,17 @@
  * Les étages se jouent dans l'ordre puis recommencent au premier, plus durs.
  */
 
-export const TOWER_ROOM_TYPES = ['START', 'MONSTER', 'ELITE', 'BOSS', 'CHEST', 'CAMPFIRE', 'MERCHANT', 'SHRINE', 'EMPTY'] as const;
+import {
+  TOWER_EVENT_CHOICES,
+  TOWER_MECHANIC_CHOICES,
+  TOWER_ROOM_TRAITS_MAX,
+  TOWER_TRAITS,
+  type TowerEventChoice,
+  type TowerMechanicChoice,
+  type TowerTrait,
+} from './rpgTowerContent.js';
+
+export const TOWER_ROOM_TYPES = ['START', 'MONSTER', 'ELITE', 'BOSS', 'CHEST', 'CAMPFIRE', 'MERCHANT', 'SHRINE', 'EVENT', 'EMPTY'] as const;
 export type TowerRoomType = (typeof TOWER_ROOM_TYPES)[number];
 
 export const TOWER_CHEST_KINDS = ['BOTH', 'GOLD', 'GEAR'] as const;
@@ -22,6 +32,9 @@ export const TOWER_MAP_ROOMS_MAX = 100;
 export const TOWER_FLOORS_MAX = 12;
 export const TOWER_FLOOR_NAME_MAX = 40;
 export const TOWER_MERCHANT_OFFERS_MAX = 4;
+/** Après le dernier étage dessiné : la tour reprend au premier, ou génère des étages inédits. */
+export const TOWER_FLOORS_AFTER = ['GENERATE', 'LOOP'] as const;
+export type TowerFloorsAfter = (typeof TOWER_FLOORS_AFTER)[number];
 export const TOWER_HEAL_PERCENT_RANGE = { min: 5, max: 100 } as const;
 export const TOWER_PRICE_PERCENT_RANGE = { min: 10, max: 500 } as const;
 const FOE_NAME_MAX = 100;
@@ -41,10 +54,19 @@ export type TowerRoom = {
   offers: TowerOfferKind[];
   /** Prix d'un marchand, en pourcentage du prix normal. */
   pricePercent: number;
+  /** Traits imposés à un monstre, une élite ou un gardien ; vide : tirés au hasard. */
+  traits: TowerTrait[];
+  /** Mécanique d'un gardien. */
+  mechanic: TowerMechanicChoice;
+  /** Événement d'une salle d'événement. */
+  event: TowerEventChoice;
 };
 
-/** `name` : nom de l'étage (« Caserne », « Crypte »…), vide pour un étage sans nom. */
-export type TowerLayout = { name: string; width: number; height: number; rooms: TowerRoom[] };
+/**
+ * `name` : nom de l'étage (« Caserne », « Crypte »…), vide pour un étage sans nom.
+ * `fog` : brouillard de guerre, seules les salles visitées et leurs voisines se voient.
+ */
+export type TowerLayout = { name: string; width: number; height: number; fog: boolean; rooms: TowerRoom[] };
 
 export type TowerDirection = 'N' | 'S' | 'E' | 'W';
 
@@ -160,6 +182,11 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
         ? cell.offers.filter((offer): offer is TowerOfferKind => TOWER_OFFER_KINDS.includes(offer as TowerOfferKind)).slice(0, TOWER_MERCHANT_OFFERS_MAX)
         : [...TOWER_OFFER_KINDS],
       pricePercent: clampInt(cell.pricePercent, TOWER_PRICE_PERCENT_RANGE, 100),
+      traits: (type === 'MONSTER' || type === 'ELITE' || type === 'BOSS') && Array.isArray(cell.traits)
+        ? [...new Set(cell.traits.filter((trait): trait is TowerTrait => TOWER_TRAITS.includes(trait as TowerTrait)))].slice(0, TOWER_ROOM_TRAITS_MAX)
+        : [],
+      mechanic: TOWER_MECHANIC_CHOICES.includes(cell.mechanic as TowerMechanicChoice) ? (cell.mechanic as TowerMechanicChoice) : 'RANDOM',
+      event: TOWER_EVENT_CHOICES.includes(cell.event as TowerEventChoice) ? (cell.event as TowerEventChoice) : 'RANDOM',
     };
     if (type === 'MERCHANT' && room.offers.length === 0) return { ok: false, error: 'Un marchand doit vendre au moins un article.' };
 
@@ -180,7 +207,9 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
 
   const name = typeof raw.name === 'string' ? raw.name.trim() : '';
   if (name.length > TOWER_FLOOR_NAME_MAX) return { ok: false, error: `Le nom d'un étage ne peut pas dépasser ${TOWER_FLOOR_NAME_MAX} caractères.` };
-  const layout: TowerLayout = { name, width, height, rooms };
+  // Absent des cartes d'avant le brouillard : elles restent entièrement visibles.
+  const fog = raw.fog === true;
+  const layout: TowerLayout = { name, width, height, fog, rooms };
   const distances = distancesFromStart(layout);
   if (distances.size !== rooms.length) {
     return { ok: false, error: `${rooms.length - distances.size} salle(s) ne sont reliées à rien depuis le départ.` };
@@ -209,30 +238,50 @@ export function floorLayout(floors: readonly TowerLayout[], floor: number): Towe
   return floors[(Math.max(1, floor) - 1) % floors.length];
 }
 
+/**
+ * Salles visibles sous le brouillard : celles déjà faites, celle du joueur et leurs voisines.
+ * `null` : l'étage n'a pas de brouillard, tout se voit.
+ */
+export function visibleRooms(layout: TowerLayout, pos: string, cleared: readonly string[]): Set<string> | null {
+  if (!layout.fog) return null;
+  const cells = occupancy(layout);
+  const seen = new Set<string>([pos, ...cleared]);
+  for (const id of [pos, ...cleared]) {
+    for (const { room } of roomNeighbors(layout, id, cells)) seen.add(room.id);
+  }
+  return seen;
+}
+
+/** Salle aux réglages par défaut. */
+export function newTowerRoom(x: number, y: number, type: TowerRoomType, extra: Partial<TowerRoom> = {}): TowerRoom {
+  return {
+    id: roomId(x, y), x, y, type, foe: null, chest: 'BOTH', healPercent: 35, offers: [...TOWER_OFFER_KINDS], pricePercent: 100,
+    traits: [], mechanic: 'RANDOM', event: 'RANDOM', ...extra,
+  };
+}
+
 /** Carte proposée par défaut : un couloir, deux embranchements et une grande salle de boss. */
 export function defaultTowerLayout(): TowerLayout {
-  const room = (x: number, y: number, type: TowerRoomType, extra: Partial<TowerRoom> = {}): TowerRoom => ({
-    id: roomId(x, y), x, y, type, foe: null, chest: 'BOTH', healPercent: 35, offers: [...TOWER_OFFER_KINDS], pricePercent: 100, ...extra,
-  });
   return {
     name: '',
+    fog: false,
     width: 9,
     height: 9,
     rooms: [
-      room(3, 8, 'START'),
-      room(3, 7, 'MONSTER'),
-      room(3, 6, 'MONSTER'),
-      room(3, 5, 'CAMPFIRE'),
-      room(2, 5, 'MONSTER'),
-      room(1, 5, 'CHEST'),
-      room(4, 5, 'ELITE'),
-      room(5, 5, 'MERCHANT'),
-      room(3, 4, 'EMPTY'),
-      room(2, 2, 'BOSS'),
-      room(4, 4, 'MONSTER'),
-      room(5, 4, 'SHRINE'),
-      room(6, 4, 'MONSTER'),
-      room(7, 4, 'CHEST', { chest: 'GEAR' }),
+      newTowerRoom(3, 8, 'START'),
+      newTowerRoom(3, 7, 'MONSTER'),
+      newTowerRoom(3, 6, 'MONSTER'),
+      newTowerRoom(3, 5, 'CAMPFIRE'),
+      newTowerRoom(2, 5, 'MONSTER'),
+      newTowerRoom(1, 5, 'CHEST'),
+      newTowerRoom(4, 5, 'ELITE'),
+      newTowerRoom(5, 5, 'MERCHANT'),
+      newTowerRoom(3, 4, 'EVENT'),
+      newTowerRoom(2, 2, 'BOSS'),
+      newTowerRoom(4, 4, 'MONSTER'),
+      newTowerRoom(5, 4, 'SHRINE'),
+      newTowerRoom(6, 4, 'MONSTER'),
+      newTowerRoom(7, 4, 'CHEST', { chest: 'GEAR' }),
     ],
   };
 }

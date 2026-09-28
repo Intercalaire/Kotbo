@@ -200,6 +200,10 @@ export async function saveRpgTowerLayout(payload: Record<string, unknown>, guild
   return dashboardRequest('/economy/tower/layout', { method: 'POST', successMessage: m.api_ok_save_rpg_tower_layout(), payload, guildId, errorContext: 'API Error (Save RPG Tower Layout):' });
 }
 
+export async function previewRpgTowerFloor(payload: { layout: unknown; floor: number }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/tower/preview', { method: 'POST', payload, guildId, errorContext: 'API Error (Preview RPG Tower Floor):' });
+}
+
 export async function saveRpgTowerReward(reward: Record<string, unknown>, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/tower/rewards', { method: 'POST', successMessage: m.api_ok_save_rpg_tower_reward(), payload: reward, guildId, errorContext: 'API Error (Save RPG Tower Reward):' });
 }
