@@ -48,6 +48,8 @@ export type TowerSettings = {
   dailyEnabled: boolean;
   /** Salon où annoncer les records de la saison ; `null` pour ne rien annoncer. */
   announceChannelId: string | null;
+  /** Prix en éclats d'une compétence du RPG, achetée pour une seule ascension. */
+  skillPrice: number;
 };
 
 export const TOWER_DEFAULTS: TowerSettings = {
@@ -77,6 +79,7 @@ export const TOWER_DEFAULTS: TowerSettings = {
   // À activer au dashboard : un classement quotidien n'a de sens que si le serveur le veut.
   dailyEnabled: false,
   announceChannelId: null,
+  skillPrice: 10,
 };
 
 export const TOWER_RANGES = {
@@ -91,6 +94,7 @@ export const TOWER_RANGES = {
   leaveShardPercent: { min: 0, max: 100 },
   weeklyShardCap: { min: 0, max: 1_000_000 },
   idleTimeoutMinutes: { min: 5, max: 1440 },
+  skillPrice: { min: 0, max: 1000 },
 } as const;
 
 export const TOWER_NAME_MAX = 50;
@@ -157,6 +161,7 @@ export function normalizeTowerSettings(input: Record<string, unknown>): TowerNor
       generatedFog: input.generatedFog !== false,
       dailyEnabled: input.dailyEnabled === true,
       announceChannelId: /^\d{15,25}$/.test(text(input.announceChannelId)) ? text(input.announceChannelId) : null,
+      skillPrice: int('skillPrice'),
     },
   };
 }
@@ -886,6 +891,40 @@ export type TowerSkill = {
   cooldownTurns: number;
   effect: SkillEffect;
 };
+
+/**
+ * Une compétence du RPG ramenée à la Tour. Taillées pour des combats isolés, elles écrasaient
+ * une ascension où les combats s'enchaînent sans repos : un vol de vie à 70 % rendait le
+ * joueur quasi immortel. Les dégâts gardent la moitié de leur bonus, le vol de vie et les
+ * soins sont plafonnés, et chaque compétence revient un tour plus tard.
+ */
+export const TOWER_SKILL_TUNING = {
+  damageBonus: 0.5,
+  lifesteal: { factor: 0.35, max: 0.15 },
+  heal: { factor: 0.5, max: 0.12 },
+  armorPiercing: 0.6,
+  defenseMax: 1.5,
+  extraCooldown: 1,
+  minCooldown: 3,
+} as const;
+
+export function towerSkill(skill: TowerSkill): TowerSkill {
+  const t = TOWER_SKILL_TUNING;
+  const e = skill.effect;
+  const round = (value: number) => Math.round(value * 100) / 100;
+  return {
+    ...skill,
+    cooldownTurns: Math.max(t.minCooldown, skill.cooldownTurns + t.extraCooldown),
+    effect: {
+      ...e,
+      damageMultiplier: e.damageMultiplier > 0 ? round(1 + (e.damageMultiplier - 1) * t.damageBonus) : 0,
+      ...(e.lifesteal ? { lifesteal: round(Math.min(t.lifesteal.max, e.lifesteal * t.lifesteal.factor)) } : {}),
+      ...(e.healPercent ? { healPercent: round(Math.min(t.heal.max, e.healPercent * t.heal.factor)) } : {}),
+      ...(e.armorPiercing ? { armorPiercing: round(e.armorPiercing * t.armorPiercing) } : {}),
+      ...(e.defenseMultiplier ? { defenseMultiplier: Math.min(t.defenseMax, e.defenseMultiplier) } : {}),
+    },
+  };
+}
 
 export function effectiveCooldown(cooldownTurns: number, reduction: number): number {
   return Math.max(1, cooldownTurns - reduction);

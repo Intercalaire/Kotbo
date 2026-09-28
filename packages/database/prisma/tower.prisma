@@ -57,6 +57,9 @@ model RpgTowerConfig {
   /// Ancienne carte unique, d'avant les étages : relue comme premier étage si `layouts` est vide.
   layout        Json?
 
+  /// Prix en éclats d'une compétence du RPG, achetée pour une seule ascension.
+  skillPrice    Int     @default(10)
+
   /// Ascension du jour : même graine pour tous, stats égales, une tentative par jour.
   dailyEnabled      Boolean @default(false)
   /// Salon où annoncer les records de la saison. `null` : aucune annonce.

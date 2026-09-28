@@ -86,6 +86,7 @@ import {
   type TowerGearSlot,
   type TowerMerchantSettings,
   type TowerOffer,
+  type TowerSkill,
   type TowerUpgradeDef,
   type TowerUpgradeEffect,
 } from './rpgTowerPolicy.js';
@@ -950,6 +951,7 @@ export async function buildTowerHomeView(client: Client | null, guildId: string,
     [preview.className, preview.titleName ? m.tower_home_title({ title: preview.titleName }, { locale }) : null]
       .filter(Boolean).join(' · ') || null,
     m.tower_home_skills({ skills }, { locale }),
+    preview.skills.length > 0 ? `-# ${m.tower_home_skills_price({ price: config.skillPrice, emoji: shardIcon(config) }, { locale })}` : null,
     `${icon('rpgPotion')} ${m.tower_home_potions({ count: preview.potions }, { locale })}`,
     preview.gold > 0 ? `${icon('coins')} ${m.tower_home_gold({ count: preview.gold }, { locale })}` : null,
   ].filter((line): line is string => Boolean(line)).join('\n'));
@@ -982,6 +984,68 @@ export async function buildTowerHomeView(client: Client | null, guildId: string,
   // Partie close à l'ouverture de l'écran, ou plus tôt par le balayage en l'absence du joueur.
   const closed = expired ?? await takePendingTowerSettlement(guildId, ownerId);
   return closed ? withNote(view, m.tower_expired_note({ minutes: config.idleTimeoutMinutes, shards: closed.shards, emoji: shardIcon(config) }, { locale })) : view;
+}
+
+/** Effet d'une compétence dans la Tour, en une ligne courte. */
+function skillSummary(skill: TowerSkill, locale: Locale): string {
+  const e = skill.effect;
+  const pct = (value: number) => Math.round(value * 100);
+  return [
+    e.damageMultiplier > 0 ? m.tower_skill_damage({ mult: e.damageMultiplier }, { locale }) : null,
+    e.lifesteal ? m.tower_skill_lifesteal({ percent: pct(e.lifesteal) }, { locale }) : null,
+    e.healPercent ? m.tower_skill_heal({ percent: pct(e.healPercent) }, { locale }) : null,
+    e.armorPiercing ? m.tower_skill_pierce({ percent: pct(e.armorPiercing) }, { locale }) : null,
+    e.defenseMultiplier ? m.tower_skill_defense({ mult: e.defenseMultiplier }, { locale }) : null,
+    e.evadeNextAttack ? m.tower_skill_evade({}, { locale }) : null,
+    m.tower_skill_cooldown({ turns: skill.cooldownTurns }, { locale }),
+  ].filter(Boolean).join(' · ');
+}
+
+/**
+ * Préparation d'une ascension : les compétences du RPG s'achètent en éclats, pour cette
+ * ascension seulement. `mask` : compétences cochées (bit `i` pour la i-ème).
+ */
+export async function buildTowerPrepView(guildId: string, ownerId: string, locale: Locale, mask: number): Promise<PanelView> {
+  const [config, profile, preview] = await Promise.all([
+    getTowerConfig(guildId),
+    getOrCreateTowerProfile(guildId, ownerId),
+    previewTowerEntry(guildId, ownerId),
+  ]);
+  const skills = preview.skills.slice(0, 10);
+  const valid = mask & ((1 << skills.length) - 1);
+  const chosen = skills.filter((_, index) => (valid & (1 << index)) !== 0);
+  const cost = chosen.length * config.skillPrice;
+  const emoji = shardIcon(config);
+
+  const container = new ContainerBuilder().setAccentColor(COLOR);
+  textBlock(container, [
+    header(config, m.tower_prep_title({}, { locale })),
+    m.tower_prep_desc({ price: config.skillPrice, emoji }, { locale }),
+    `-# ${m.tower_prep_balance({ shards: profile.shards, emoji }, { locale })}`,
+    '',
+    ...skills.map((skill, index) => {
+      const on = (valid & (1 << index)) !== 0;
+      return `${on ? `${icon('success')} ` : ''}${skill.emoji} **${skill.name}**\n-# ${skillSummary(skill, locale)}`;
+    }),
+  ].join('\n'));
+
+  const toggles = skills.map((skill, index) => {
+    const on = (valid & (1 << index)) !== 0;
+    return button(`twr:prep:${ownerId}:${valid ^ (1 << index)}`, skill.name, on ? ButtonStyle.Success : ButtonStyle.Secondary, skill.emoji || undefined);
+  });
+  const components: PanelRow[] = [];
+  for (let index = 0; index < toggles.length; index += 5) components.push(row(...toggles.slice(index, index + 5)));
+  components.push(row(
+    button(
+      `twr:go:${ownerId}:${valid}`,
+      cost > 0 ? m.tower_btn_enter_paid({ cost, currency: config.currencyName }, { locale }) : m.tower_btn_enter({}, { locale }),
+      ButtonStyle.Primary,
+      icon('rpgDoor'),
+      cost > profile.shards,
+    ),
+    button(`twr:home:${ownerId}`, m.tower_btn_home({}, { locale }), ButtonStyle.Secondary, icon('rpgBack')),
+  ));
+  return { embeds: [], components, container };
 }
 
 /**
@@ -1546,7 +1610,19 @@ export async function handleTowerButton(client: Client, customId: string, intera
       case 'home': await respond(interaction, await buildTowerHomeView(client, guildId, ownerId, locale)); return;
       case 'run': await respond(interaction, await currentView(client, guildId, ownerId, locale)); return;
       case 'enter': {
+        // Des compétences à acheter : on passe par la préparation, sinon on entre tout de suite.
+        const preview = await previewTowerEntry(guildId, ownerId);
+        if (preview.skills.length > 0) {
+          await respond(interaction, await buildTowerPrepView(guildId, ownerId, locale, 0));
+          return;
+        }
         const active = await startTowerRun(client, guildId, ownerId);
+        await respond(interaction, await buildTowerRunView(guildId, ownerId, locale, active));
+        return;
+      }
+      case 'prep': await respond(interaction, await buildTowerPrepView(guildId, ownerId, locale, Number.parseInt(rest[0] ?? '0', 10) || 0)); return;
+      case 'go': {
+        const active = await startTowerRun(client, guildId, ownerId, { skillMask: Number.parseInt(rest[0] ?? '0', 10) || 0 });
         await respond(interaction, await buildTowerRunView(guildId, ownerId, locale, active));
         return;
       }

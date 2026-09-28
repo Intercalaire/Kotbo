@@ -11387,6 +11387,8 @@
   "eco_tower_field_blessing_map_hint": "One blessing every N floors climbed, on top of shrines. 0 for shrines only.",
   "eco_tower_field_leave": "Share kept when leaving (%)",
   "eco_tower_field_leave_hint": "Leaving off a safe landing only keeps this share. Right after a boss, leaving keeps everything.",
+  "eco_tower_field_skill_price": "Skill price",
+  "eco_tower_field_skill_price_hint": "Shards paid at the start to take an RPG skill along for one climb (0: free). In the Tower they are weakened: bonus damage halved, lifesteal and healing capped, longer cooldown. The daily climb is played without them.",
   "eco_tower_season_reset_milestones": "Milestones can be earned again",
   "eco_tower_season_reset_milestones_hint": "The new season makes milestones earnable again for everyone.",
   "eco_tower_floors_title": "The tower",
