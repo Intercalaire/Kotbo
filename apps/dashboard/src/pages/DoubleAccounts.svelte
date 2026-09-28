@@ -5,7 +5,7 @@
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { pageTabItems } from '../lib/config/pageTabs';
-  import { Tabs } from '../lib/components/ui';
+  import { Tabs, FilterPills, Button } from '../lib/components/ui';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { fetchLinkedAccounts, updateLinkedAccountStatus, deleteLinkedAccount, fetchMemberCase, fetchFeatureConfigurations, updateFeatureConfiguration, updateModuleStatus, scanSuspectedDetections, fetchSuspectedDetections, fetchVerificationConfig, updateVerificationConfig, linkDetectedAccount, dismissDetection, restoreDetection, fetchMessageLogStats, updateMessageLogConfig } from '../lib/api';
@@ -206,6 +206,140 @@
       detections = res?.detections ?? [];
     } catch { detections = []; }
     finally { loadingDetections = false; }
+  }
+
+  // ── Filtres et tri des détections ──
+  // Le serveur renvoie au plus 200 suspects : tout se filtre ici, sans aller-retour.
+  type PresenceFilter = 'all' | 'present' | 'left';
+  type RiskFilter = 'all' | 'high' | 'medium' | 'low';
+  type SignalFamily = 'arrival' | 'identity' | 'invites' | 'history' | 'behavior' | 'technical';
+  type DetectionSort = 'score' | 'accountAge' | 'joined' | 'lastSeen' | 'messages' | 'name';
+
+  const SIGNAL_FAMILY: Record<string, SignalFamily> = {
+    young_account: 'arrival', creation_proximity: 'arrival', join_proximity: 'arrival',
+    sequential_ids: 'arrival', repeat_rejoiner: 'arrival', no_profile_picture: 'arrival',
+    username_similarity: 'identity', username_numeric_suffix: 'identity', shared_avatar: 'identity', shared_locale: 'identity',
+    invite_link: 'invites', invite_loop: 'invites', inviter_is_suspected_dc: 'invites', same_inviter_multiple: 'invites',
+    banned_alt: 'history', shared_sanction_history: 'history', cross_server_alt: 'history', cross_server_link: 'history',
+    stylometry_match: 'behavior', ngram_match: 'behavior', activity_heatmap: 'behavior', temporal_exclusivity: 'behavior',
+    cadence_match: 'behavior', daily_pattern: 'behavior', mention_network: 'behavior', never_interact: 'behavior',
+    voice_alternation: 'behavior', low_activity_pair: 'behavior', role_pattern: 'behavior',
+    shared_ip: 'technical', ip_subnet: 'technical', device_fingerprint: 'technical', oauth_connections: 'technical',
+  };
+
+  const SIGNAL_FAMILY_LABEL: Record<SignalFamily, () => string> = {
+    arrival: m.da_signal_family_arrival,
+    identity: m.da_signal_family_identity,
+    invites: m.da_signal_family_invites,
+    history: m.da_signal_family_history,
+    behavior: m.da_signal_family_behavior,
+    technical: m.da_signal_family_technical,
+  };
+
+  /** Sens naturel de chaque tri : le plus inquiétant ou le plus récent d'abord. */
+  const SORT_DEFAULT_DIR: Record<DetectionSort, 'asc' | 'desc'> = {
+    score: 'desc', accountAge: 'asc', joined: 'desc', lastSeen: 'desc', messages: 'desc', name: 'asc',
+  };
+
+  let detectionQuery = $state('');
+  let presenceFilter = $state<PresenceFilter>('all');
+  let riskFilter = $state<RiskFilter>('all');
+  let signalFilter = $state<SignalFamily | 'all'>('all');
+  let altsOnly = $state(false);
+  let detectionSort = $state<DetectionSort>('score');
+  let detectionSortDir = $state<'asc' | 'desc'>('desc');
+
+  function detectionScore(d: DetectionItem): number {
+    return d.evidence?.totalScore ?? 0;
+  }
+
+  function riskOf(d: DetectionItem): Exclude<RiskFilter, 'all'> {
+    const score = detectionScore(d);
+    if (score >= 60) return 'high';
+    if (score >= 30) return 'medium';
+    return 'low';
+  }
+
+  function familiesOf(d: DetectionItem): Set<SignalFamily> {
+    return new Set((d.evidence?.reasons ?? []).map((r) => SIGNAL_FAMILY[r.type]).filter(Boolean));
+  }
+
+  function detectionName(d: DetectionItem): string {
+    return (d.displayName || d.username || d.id).toLowerCase();
+  }
+
+  function timeOf(value: string | null): number | null {
+    if (!value) return null;
+    const ts = new Date(value).getTime();
+    return Number.isNaN(ts) ? null : ts;
+  }
+
+  function sortValue(d: DetectionItem, key: DetectionSort): number | string | null {
+    switch (key) {
+      case 'score': return detectionScore(d);
+      case 'accountAge': return d.accountAgeMs;
+      case 'joined': return timeOf(d.guildJoinedAt);
+      case 'lastSeen': return timeOf(d.lastSeenAt);
+      case 'messages': return d.messageCount;
+      case 'name': return detectionName(d);
+    }
+  }
+
+  /** Familles de signaux présentes, pour ne proposer que des filtres qui ramènent quelque chose. */
+  const signalFamilyCounts = $derived.by(() => {
+    const counts = new Map<SignalFamily, number>();
+    for (const d of detections) {
+      for (const family of familiesOf(d)) counts.set(family, (counts.get(family) ?? 0) + 1);
+    }
+    return counts;
+  });
+
+  const detectionFiltersActive = $derived(
+    detectionQuery.trim() !== '' || presenceFilter !== 'all' || riskFilter !== 'all' || signalFilter !== 'all' || altsOnly,
+  );
+
+  const visibleDetections = $derived.by(() => {
+    const query = detectionQuery.trim().toLowerCase();
+    const filtered = detections.filter((d) => {
+      if (presenceFilter === 'present' && !d.isOnServer) return false;
+      if (presenceFilter === 'left' && d.isOnServer) return false;
+      if (riskFilter !== 'all' && riskOf(d) !== riskFilter) return false;
+      if (signalFilter !== 'all' && !familiesOf(d).has(signalFilter)) return false;
+      if (altsOnly && !d.suspectedAlts?.length) return false;
+      if (query) {
+        const haystack = [
+          d.displayName, d.username, d.id,
+          ...(d.suspectedAlts ?? []).flatMap((alt) => [alt.username, alt.userId]),
+        ].filter(Boolean).join(' ').toLowerCase();
+        if (!haystack.includes(query)) return false;
+      }
+      return true;
+    });
+
+    const direction = detectionSortDir === 'asc' ? 1 : -1;
+    return filtered.sort((a, b) => {
+      const va = sortValue(a, detectionSort);
+      const vb = sortValue(b, detectionSort);
+      // Une valeur inconnue reste en bas, quel que soit le sens.
+      if (va === null && vb === null) return 0;
+      if (va === null) return 1;
+      if (vb === null) return -1;
+      const diff = typeof va === 'string' ? va.localeCompare(vb as string, 'fr') : va - (vb as number);
+      return diff * direction || detectionScore(b) - detectionScore(a);
+    });
+  });
+
+  function changeDetectionSort(key: DetectionSort) {
+    detectionSort = key;
+    detectionSortDir = SORT_DEFAULT_DIR[key];
+  }
+
+  function resetDetectionFilters() {
+    detectionQuery = '';
+    presenceFilter = 'all';
+    riskFilter = 'all';
+    signalFilter = 'all';
+    altsOnly = false;
   }
 
   function formatRelative(value: string | null) {
@@ -849,8 +983,93 @@
         <p class="mt-1 text-xs text-on-surface-variant/50 max-w-sm">{m.da_no_suspect()}</p>
       </div>
     {:else}
+      <!-- Filtres et tri -->
+      <div class="mb-4 space-y-3">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div class="relative min-w-0 flex-1">
+            <Papicon icon="Search" size={14} class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+            <input
+              type="search"
+              bind:value={detectionQuery}
+              placeholder={m.da_detection_search_placeholder()}
+              aria-label={m.da_detection_search_placeholder()}
+              class="input"
+              style="padding-left: 2.25rem"
+            />
+          </div>
+          <FilterPills
+            label={m.da_filter_presence_label()}
+            value={presenceFilter}
+            onchange={(value) => presenceFilter = value}
+            options={[
+              { value: 'all', label: m.da_filter_all(), count: detectionStats.total },
+              { value: 'present', label: m.da_present(), count: detectionStats.onServer },
+              { value: 'left', label: m.da_left(), count: detectionStats.left },
+            ]}
+          />
+        </div>
+
+        <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 lg:items-center">
+          <select bind:value={riskFilter} aria-label={m.da_filter_risk_label()} class="input">
+            <option value="all">{m.da_filter_risk_all()}</option>
+            <option value="high">{m.da_filter_risk_high()}</option>
+            <option value="medium">{m.da_filter_risk_medium()}</option>
+            <option value="low">{m.da_filter_risk_low()}</option>
+          </select>
+          <select bind:value={signalFilter} aria-label={m.da_filter_signal_label()} class="input">
+            <option value="all">{m.da_filter_signal_all()}</option>
+            {#each [...signalFamilyCounts] as [family, count] (family)}
+              <option value={family}>{SIGNAL_FAMILY_LABEL[family]()} ({count})</option>
+            {/each}
+          </select>
+          <div class="flex items-center gap-2">
+            <select
+              value={detectionSort}
+              onchange={(e) => changeDetectionSort(e.currentTarget.value as DetectionSort)}
+              aria-label={m.da_sort_label()}
+              class="input"
+            >
+              <option value="score">{m.da_sort_score()}</option>
+              <option value="accountAge">{m.da_sort_account_age()}</option>
+              <option value="joined">{m.da_sort_joined()}</option>
+              <option value="lastSeen">{m.da_sort_last_seen()}</option>
+              <option value="messages">{m.da_sort_messages()}</option>
+              <option value="name">{m.da_sort_name()}</option>
+            </select>
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={detectionSortDir === 'asc' ? 'arrow-up' : 'arrow-down'}
+              aria-label={detectionSortDir === 'asc' ? m.da_sort_asc() : m.da_sort_desc()}
+              title={detectionSortDir === 'asc' ? m.da_sort_asc() : m.da_sort_desc()}
+              onclick={() => detectionSortDir = detectionSortDir === 'asc' ? 'desc' : 'asc'}
+            />
+          </div>
+          <label class="flex items-center gap-2 text-sm text-on-surface-variant cursor-pointer">
+            <input type="checkbox" bind:checked={altsOnly} class="w-4 h-4 rounded accent-(--primary-color)" />
+            {m.da_filter_alts_only()}
+          </label>
+        </div>
+
+        <div class="flex min-h-8 items-center justify-between gap-3 text-xs text-on-surface-variant">
+          <span>{m.da_detection_count({ shown: visibleDetections.length, total: detections.length })}</span>
+          {#if detectionFiltersActive}
+            <Button size="sm" variant="ghost" icon="X" onclick={resetDetectionFilters}>{m.da_filter_reset()}</Button>
+          {/if}
+        </div>
+      </div>
+
+      {#if visibleDetections.length === 0}
+        <div class="flex flex-col items-center py-16 text-center rounded-lg border border-outline-variant/10 bg-surface-container-low/30">
+          <Papicon icon="SearchX" size={28} class="text-on-surface-variant" />
+          <h3 class="mt-4 text-base font-bold text-on-surface">{m.da_no_detection_filtered()}</h3>
+          <p class="mt-1 text-xs text-on-surface-variant max-w-sm">{m.da_no_detection_filtered_hint()}</p>
+          <Button size="sm" variant="secondary" class="mt-4" onclick={resetDetectionFilters}>{m.da_filter_reset()}</Button>
+        </div>
+      {/if}
+
       <div class="space-y-3">
-        {#each detections as d (d.id)}
+        {#each visibleDetections as d (d.id)}
           <article class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4 transition-all hover:border-primary/20">
             <div class="flex items-start gap-3">
               {#if d.avatarUrl}
