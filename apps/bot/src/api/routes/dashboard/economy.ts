@@ -138,6 +138,7 @@ import {
   deleteTowerReward,
   getTowerDashboard,
   previewTowerFloor,
+  resetTower,
   saveTowerFloors,
   saveTowerReward,
   saveTowerSettings,
@@ -1076,7 +1077,7 @@ export async function handleEconomyRoutes(
     // POST /api/dashboard/guilds/:guildId/economy/tower/layout
     if (parts.length === 7 && parts[6] === 'layout' && method === 'POST') {
       try {
-        const body = await readJsonBody<{ layoutEnabled?: unknown; floors?: unknown; layout?: unknown }>(req);
+        const body = await readJsonBody<{ floors?: unknown; layout?: unknown }>(req);
         if (!body) {
           json(res, 400, { error: 'Corps de requête manquant.' });
           return true;
@@ -1084,8 +1085,8 @@ export async function handleEconomyRoutes(
         const settings = await saveTowerFloors(guildId, body);
         const rooms = settings.floors.reduce((sum, floor) => sum + floor.rooms.length, 0);
         await towerAudit('Étages de la Tour', settings.floors.length > 0
-          ? `${settings.floors.length} étage(s), ${rooms} salles, ${settings.layoutEnabled ? 'jouée' : 'inactive'}`
-          : 'Carte retirée');
+          ? `${settings.floors.length} étage(s), ${rooms} salles`
+          : 'Aucun étage dessiné : étages générés');
         json(res, 200, { settings });
       } catch (err) {
         towerFailure(err, 'Erreur lors de la sauvegarde de la carte.');
@@ -1104,6 +1105,23 @@ export async function handleEconomyRoutes(
         json(res, 200, { image: await previewTowerFloor(guildId, body) });
       } catch (err) {
         towerFailure(err, 'Erreur lors de l\'aperçu de l\'étage.');
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/tower/reset (joueurs, ou toute la Tour)
+    if (parts.length === 7 && parts[6] === 'reset' && method === 'POST') {
+      try {
+        const body = await readJsonBody<{ everything?: unknown }>(req).catch(() => null);
+        const everything = body?.everything === true;
+        const reset = await resetTower(guildId, { everything });
+        await towerAudit(
+          everything ? 'Réinitialisation complète de la Tour' : 'Réinitialisation des joueurs de la Tour',
+          `${reset.profiles} profil(s), ${reset.runs} ascension(s)${everything ? `, ${reset.rewards} récompense(s), réglages et étages` : ''} effacés`,
+        );
+        json(res, 200, { success: true, ...reset });
+      } catch (err) {
+        towerFailure(err, 'Erreur lors de la réinitialisation de la Tour.');
       }
       return true;
     }

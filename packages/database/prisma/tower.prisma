@@ -52,11 +52,13 @@ model RpgTowerConfig {
   layouts       Json    @default("[]")
   /// Après le dernier étage dessiné : GENERATE (étages générés) ou LOOP (retour au premier).
   floorsAfter   String  @default("GENERATE")
+  /// Brouillard de guerre sur les étages générés.
+  generatedFog  Boolean @default(true)
   /// Ancienne carte unique, d'avant les étages : relue comme premier étage si `layouts` est vide.
   layout        Json?
 
   /// Ascension du jour : même graine pour tous, stats égales, une tentative par jour.
-  dailyEnabled      Boolean @default(true)
+  dailyEnabled      Boolean @default(false)
   /// Salon où annoncer les records de la saison. `null` : aucune annonce.
   announceChannelId String?
 

@@ -99,7 +99,6 @@ export class TowerRefused extends Error {
 
 export type TowerConfigView = TowerSettings & {
   seasonStartedAt: Date;
-  layoutEnabled: boolean;
   /** Étages dessinés dans l'ordre de la montée, relus et validés ; vide si aucun ne passe. */
   floors: TowerLayout[];
 };
@@ -152,14 +151,13 @@ async function withTitleNames(rewards: RpgTowerReward[]): Promise<TowerRewardVie
 
 export async function getTowerConfig(guildId: string): Promise<TowerConfigView> {
   const row = await prisma.rpgTowerConfig.findUnique({ where: { guildId } });
-  if (!row) return { ...TOWER_DEFAULTS, seasonStartedAt: new Date(0), layoutEnabled: false, floors: [] };
+  if (!row) return { ...TOWER_DEFAULTS, seasonStartedAt: new Date(0), floors: [] };
   const normalized = normalizeTowerSettings(row as unknown as Record<string, unknown>);
   const settings = normalized.ok ? normalized.value : TOWER_DEFAULTS;
   return {
     ...settings,
     enabled: row.enabled,
     seasonStartedAt: row.seasonStartedAt,
-    layoutEnabled: row.layoutEnabled,
     floors: readFloors(row.layouts, row.layout),
   };
 }
@@ -176,18 +174,7 @@ function readFloors(layouts: Prisma.JsonValue, legacy: Prisma.JsonValue | null):
     .map((result) => result.value);
 }
 
-/** Étages joués par une partie : ceux de la tour quand la carte est active, aucun sinon. */
-function playedFloors(settings: TowerConfigView): TowerLayout[] {
-  return settings.layoutEnabled ? settings.floors : [];
-}
 
-/**
- * La carte est jouée : activée, avec des étages dessinés ou des étages générés. Sans aucun
- * des deux, la Tour tire ses portes au hasard.
- */
-export function mapPlayed(settings: TowerConfigView): boolean {
-  return settings.layoutEnabled && (settings.floors.length > 0 || settings.floorsAfter === 'GENERATE');
-}
 
 /** La Tour n'ouvre que si le module économie, le RPG et la Tour elle-même sont actifs. */
 export async function isTowerOpen(guildId: string): Promise<boolean> {
@@ -212,6 +199,7 @@ function rulesOf(settings: TowerSettings): TowerRules {
     shardsPerFloor: settings.shardsPerFloor,
     merchant: settings.merchant,
     floorsAfter: settings.floorsAfter,
+    generatedFog: settings.generatedFog,
   };
 }
 
@@ -385,7 +373,8 @@ export async function startTowerRun(
     gold: preview.gold,
     seed,
     rules: rulesOf(settings),
-    layout: mapPlayed(settings) ? towerFloorLayout(playedFloors(settings), 1, settings.floorsAfter, seed) : null,
+    // Toujours un étage : les étages dessinés d'abord, générés ensuite ou à défaut.
+    layout: towerFloorLayout(settings.floors, 1, settings.floorsAfter, seed, settings.generatedFog),
   });
 
   return prisma.$transaction(async (tx) => {
@@ -441,7 +430,7 @@ export async function actTowerRun(
 
   let step: ReturnType<typeof applyTowerAction>;
   try {
-    step = applyTowerAction(state, run.floor, action, rulesOf(settings), foes, playedFloors(settings));
+    step = applyTowerAction(state, run.floor, action, rulesOf(settings), foes, settings.floors);
   } catch (err) {
     if (err instanceof TowerActionRefused) throw new TowerRefused({ kind: 'action', reason: err.reason });
     throw err;
@@ -970,26 +959,20 @@ export async function saveTowerReward(
 
 /**
  * Enregistre les étages dessinés, dans l'ordre de la montée. Un étage invalide fait refuser
- * le tout ; activer la carte sans étage aussi. `layout` seul (une carte) reste accepté.
+ * le tout. Aucun étage : la Tour génère les siens. `layout` seul (une carte) reste accepté.
  * L'étage où se trouve un joueur garde sa carte ; les étages qu'il n'a pas atteints suivent
  * la tour enregistrée.
  */
-export async function saveTowerFloors(
-  guildId: string,
-  input: { layoutEnabled?: unknown; floors?: unknown; layout?: unknown },
-): Promise<TowerConfigView> {
-  const enabled = input.layoutEnabled === true;
+export async function saveTowerFloors(guildId: string, input: { floors?: unknown; layout?: unknown }): Promise<TowerConfigView> {
   const raw = Array.isArray(input.floors)
     ? input.floors
     : input.layout !== null && input.layout !== undefined ? [input.layout] : [];
   const normalized = normalizeTowerFloors(raw);
   if (!normalized.ok) throw new TowerError(normalized.error, 400);
-  if (enabled && normalized.value.length === 0 && (await getTowerConfig(guildId)).floorsAfter !== 'GENERATE') {
-    throw new TowerError('Impossible d\'activer la carte sans étage valide ni étages générés.', 400);
-  }
 
   const data = {
-    layoutEnabled: enabled,
+    // Les étages se jouent toujours : l'ancien interrupteur « carte jouée » n'a plus d'effet.
+    layoutEnabled: true,
     layouts: normalized.value as unknown as Prisma.InputJsonValue,
     // L'ancienne carte unique ne sert plus qu'à relire les tours d'avant les étages.
     layout: Prisma.DbNull,
@@ -1060,6 +1043,25 @@ export async function startTowerSeason(guildId: string, options: { resetMileston
     }
   }
   return reset.count;
+}
+
+/**
+ * Remet la Tour à zéro. Toujours : parties en cours et terminées, éclats, améliorations,
+ * records et paliers obtenus de tous les joueurs. Avec `everything`, aussi les réglages, les
+ * étages dessinés et les récompenses. Ce qui a déjà été versé au profil RPG (pièces, XP,
+ * objets, titres, rôles) n'est pas repris.
+ */
+export async function resetTower(guildId: string, options: { everything?: boolean } = {}) {
+  return prisma.$transaction(async (tx) => {
+    const runs = await tx.rpgTowerRun.deleteMany({ where: { guildId } });
+    const profiles = await tx.rpgTowerProfile.deleteMany({ where: { guildId } });
+    let rewards = 0;
+    if (options.everything) {
+      rewards = (await tx.rpgTowerReward.deleteMany({ where: { guildId } })).count;
+      await tx.rpgTowerConfig.deleteMany({ where: { guildId } });
+    }
+    return { runs: runs.count, profiles: profiles.count, rewards };
+  });
 }
 
 /** Fiche Tour d'un joueur, pour les administrateurs. Lecture seule : une partie expirée n'est pas soldée ici. */

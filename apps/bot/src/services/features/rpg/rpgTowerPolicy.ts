@@ -42,6 +42,8 @@ export type TowerSettings = {
   merchant: TowerMerchantSettings;
   /** Après le dernier étage dessiné : étages générés ou retour au premier. */
   floorsAfter: TowerFloorsAfter;
+  /** Brouillard de guerre sur les étages générés ; les étages dessinés ont chacun le leur. */
+  generatedFog: boolean;
   /** Ascension du jour : même graine pour tous, stats égales, une tentative par jour. */
   dailyEnabled: boolean;
   /** Salon où annoncer les records de la saison ; `null` pour ne rien annoncer. */
@@ -71,7 +73,9 @@ export const TOWER_DEFAULTS: TowerSettings = {
   upgrades: defaultTowerUpgrades(),
   merchant: defaultTowerMerchant(),
   floorsAfter: 'GENERATE',
-  dailyEnabled: true,
+  generatedFog: true,
+  // À activer au dashboard : un classement quotidien n'a de sens que si le serveur le veut.
+  dailyEnabled: false,
   announceChannelId: null,
 };
 
@@ -150,7 +154,8 @@ export function normalizeTowerSettings(input: Record<string, unknown>): TowerNor
       floorsAfter: TOWER_FLOORS_AFTER.includes(input.floorsAfter as TowerFloorsAfter)
         ? (input.floorsAfter as TowerFloorsAfter)
         : TOWER_DEFAULTS.floorsAfter,
-      dailyEnabled: input.dailyEnabled !== false,
+      generatedFog: input.generatedFog !== false,
+      dailyEnabled: input.dailyEnabled === true,
       announceChannelId: /^\d{15,25}$/.test(text(input.announceChannelId)) ? text(input.announceChannelId) : null,
     },
   };
@@ -492,7 +497,11 @@ export function treasureGold(floor: number, rng: TowerRng): number {
   return Math.round((10 + floor * 3) * (0.85 + rng.next() * 0.3));
 }
 
-export const LOOT_CHANCE: Record<TowerEncounterKind, number> = { COMBAT: 0.35, ELITE: 1, BOSS: 1 };
+/**
+ * Chance de butin par victoire. Un étage compte une dizaine de combats : à 35 % par monstre,
+ * le joueur changeait d'équipement à chaque salle et ne choisissait plus rien.
+ */
+export const LOOT_CHANCE: Record<TowerEncounterKind, number> = { COMBAT: 0.05, ELITE: 0.2, BOSS: 0.45 };
 export const CAMPFIRE_HEAL = 0.35;
 export const BOSS_VICTORY_HEAL = 0.3;
 export const MAX_POTIONS = 5;
@@ -579,12 +588,13 @@ const RARITY_MULT: Record<TowerRarity, number> = { COMMON: 1, UNCOMMON: 1.2, RAR
 
 export type TowerLootSource = TowerEncounterKind | 'TREASURE' | 'MERCHANT';
 
+/** Raretés du butin : l'épique et le légendaire restent des événements, même sur un gardien. */
 const RARITY_WEIGHTS: Record<TowerLootSource, Record<TowerRarity, number>> = {
-  COMBAT: { COMMON: 60, UNCOMMON: 25, RARE: 10, EPIC: 4, LEGENDARY: 1 },
-  ELITE: { COMMON: 30, UNCOMMON: 35, RARE: 22, EPIC: 10, LEGENDARY: 3 },
-  BOSS: { COMMON: 0, UNCOMMON: 20, RARE: 40, EPIC: 28, LEGENDARY: 12 },
-  TREASURE: { COMMON: 40, UNCOMMON: 30, RARE: 20, EPIC: 8, LEGENDARY: 2 },
-  MERCHANT: { COMMON: 20, UNCOMMON: 40, RARE: 28, EPIC: 10, LEGENDARY: 2 },
+  COMBAT: { COMMON: 83.62, UNCOMMON: 12, RARE: 3.5, EPIC: 0.8, LEGENDARY: 0.08 },
+  ELITE: { COMMON: 74.3, UNCOMMON: 16, RARE: 7.5, EPIC: 2, LEGENDARY: 0.2 },
+  BOSS: { COMMON: 48.7, UNCOMMON: 30, RARE: 15, EPIC: 5.5, LEGENDARY: 0.8 },
+  TREASURE: { COMMON: 78.3, UNCOMMON: 14, RARE: 6, EPIC: 1.5, LEGENDARY: 0.2 },
+  MERCHANT: { COMMON: 70.8, UNCOMMON: 18, RARE: 9, EPIC: 2, LEGENDARY: 0.2 },
 };
 
 const GEAR_NAMES: Record<TowerGearSlot, TowerFoeName[]> = {
