@@ -4,6 +4,7 @@
   import { toast } from '../lib/stores/toast.svelte';
   import {
     searchMessages,
+    formatMessageSearchTotal,
     fetchMessageLogChannels,
     fetchMessageLogStats,
     updateMessageLogConfig,
@@ -22,6 +23,8 @@
 
   let messages = $state<MessageLogEntry[]>([]);
   let total = $state(0);
+  let totalCapped = $state(false);
+  let hasMore = $state(false);
   let offset = $state(0);
   let loading = $state(false);
   let loadingMore = $state(false);
@@ -132,6 +135,8 @@
     try {
       const res = await searchMessages(buildParams(reset ? 0 : offset));
       total = res.total;
+      totalCapped = res.totalCapped;
+      hasMore = res.hasMore;
       messages = reset ? res.messages : [...messages, ...res.messages];
     } catch {
       if (reset) messages = [];
@@ -211,7 +216,7 @@
     const ok = await deleteMessageLog(id);
     if (ok) {
       messages = messages.filter((m) => m.id !== id);
-      total = Math.max(0, total - 1);
+      if (!totalCapped) total = Math.max(0, total - 1);
       pendingDeleteId = null;
     }
   }
@@ -478,7 +483,7 @@
       {/if}
 
       <div class="flex items-center justify-between">
-        <p class="text-sm text-on-surface-variant/70">{m.ms_results_count({ count: total })}</p>
+        <p class="text-sm text-on-surface-variant/70">{m.ms_results_count({ count: formatMessageSearchTotal({ total, totalCapped }) })}</p>
       </div>
 
       <!-- Results -->
@@ -580,7 +585,7 @@
           {/each}
         </div>
 
-        {#if messages.length < total}
+        {#if hasMore}
           <div class="flex justify-center">
             <button
               onclick={loadMore}
