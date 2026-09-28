@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { Route as RouteLegacy, router } from "tinro";
   const Route = RouteLegacy as any;
   import MainLayout from "./lib/components/MainLayout.svelte";
@@ -29,8 +29,11 @@
     resolvePageFeatureKey,
     resolveSecurityRedirect,
   } from "./lib/config/pages";
-  import { m } from "./lib/i18n";
+  import { m, getLocale } from "./lib/i18n";
   import { isDashboardApiError, isExpectedRefusal } from "./lib/api";
+  import { startTelemetry, trackRoute } from "./lib/telemetry/telemetry";
+  import { resolveDashboardTelemetryPage } from "./lib/telemetry/registry";
+  import { themeStore } from "./lib/stores/theme.svelte";
 
   const LEGACY_SECURITY_PATHS = Object.keys(SECURITY_LEGACY_REDIRECTS);
 
@@ -49,6 +52,19 @@
     if (authStore.selectedGuildId) {
       wizard.initialize(authStore.selectedGuildId);
     }
+  });
+
+  // Télémétrie produit : pages, onglets et modules consultés, temps passé
+  // (voir lib/telemetry). Relancé à chaque route et à chaque changement de
+  // serveur ; `startTelemetry` ne démarre qu'une fois.
+  $effect(() => {
+    if (!authStore.initialized || !authStore.isAuthenticated) return;
+    void authStore.selectedGuildId;
+    const path = $router.path;
+    untrack(() => {
+      startTelemetry({ theme: themeStore.mode, locale: getLocale() });
+      trackRoute(resolveDashboardTelemetryPage(path));
+    });
   });
 
   // Seules les pages du chemin critique restent en import statique : elles font
