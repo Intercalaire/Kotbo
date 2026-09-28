@@ -26,6 +26,7 @@ import { prendreIntentionVocale } from '../services/moderation/voiceIntentRegist
 import { recordStaffActivity, syncStaffHierarchyMembership } from '../services/staff/staffManagementService.js';
 import { resolveOnlineMembersCount } from '../services/core/presenceDetectionService.js';
 import { syncGuildInvites, syncInvite, markInviteAsDeleted, recordInvitedMemberLeave } from '../services/analytics/inviteService.js';
+import { inheritSharedProfileFields } from '../services/progression/memberProfileSync.js';
 import {
   buildMemberCaseActionRow,
   touchMemberJoin,
@@ -1226,7 +1227,7 @@ export function registerAdvancedLogsListener(client: Client): void {
       return; // Stop join operations
     }
 
-    void touchMemberJoin(member).catch((error) => {
+    void touchMemberJoin(member).then(() => inheritSharedProfileFields(member.id, member.guild.id)).catch((error) => {
       logger.warn('Casier', `Impossible de synchroniser l'arrivée du membre ${member.id}: ${String(error)}`);
     });
 

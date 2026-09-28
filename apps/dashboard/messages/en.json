@@ -942,7 +942,7 @@
   "me_saved": "Profile saved.",
   "me_save_error": "Couldn't save your profile. Try again in a moment.",
   "me_load_error": "Couldn't load your profile.",
-  "me_no_profile": "Your profile will be created as soon as you post on a server running Kotbo.",
+  "me_no_profile": "You don't share a server running Kotbo yet: your profile will be created as soon as you join one.",
   "me_view_public": "View my profile",
   "me_manage_server": "Run a server? Add Kotbo to it",
   "pf_account_details": "Account Details",

@@ -942,7 +942,7 @@
   "me_saved": "Fiche enregistrée.",
   "me_save_error": "Impossible d'enregistrer votre fiche. Réessayez dans un instant.",
   "me_load_error": "Impossible de charger votre fiche.",
-  "me_no_profile": "Votre fiche sera créée dès que vous aurez écrit sur un serveur équipé de Kotbo.",
+  "me_no_profile": "Aucun serveur équipé de Kotbo en commun : votre fiche sera créée dès que vous en rejoindrez un.",
   "me_view_public": "Voir mon profil",
   "me_manage_server": "Vous gérez un serveur ? Ajoutez-y Kotbo",
   "pf_account_details": "Détails de Compte",
