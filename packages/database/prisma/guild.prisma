@@ -652,6 +652,9 @@ model Guild {
   rpgFish                  RpgFish[]
   rpgFishBookRewards       RpgFishBookReward[]
   rpgDungeons              RpgDungeon[]
+  rpgTowerConfig           RpgTowerConfig?
+  rpgTowerRewards          RpgTowerReward[]
+  rpgTowerProfiles         RpgTowerProfile[]
   rpgBlackMarketSessions   RpgBlackMarketSession[]
   rpgRaidBosses            RpgRaidBoss[]
   rpgRaids                 RpgRaid[]

@@ -144,7 +144,7 @@ export function evaluateCommandRestriction(
 }
 
 /** Commandes du RPG et de son marché, réglées ensemble par le réglage « Salons RPG ». */
-export const RPG_CHANNEL_COMMANDS = ['rpg', 'raid', 'market'] as const;
+export const RPG_CHANNEL_COMMANDS = ['rpg', 'raid', 'market', 'tower'] as const;
 
 const isBlankRule = (rule: CommandRestrictionRule): boolean =>
   rule.enabled
