@@ -25,11 +25,11 @@ export const TOWER_ROOM_TYPES = [
 export type TowerRoomType = (typeof TOWER_ROOM_TYPES)[number];
 
 /**
- * Sorties d'un étage : le gardien à abattre, l'escalier scellé qu'ouvrent les clés de l'étage,
- * l'épreuve (tenir trois vagues sans fuir) ou le portail qu'ouvrent les sceaux allumés. Un
- * étage en a exactement une : cumuler les mécanismes rendrait l'étage illisible.
+ * Sorties d'un étage : le gardien à abattre, l'escalier scellé qu'ouvrent les clés de l'étage
+ * ou le portail qu'ouvrent les sceaux allumés. Un étage en a exactement une : cumuler les
+ * mécanismes rendrait l'étage illisible.
  */
-export const TOWER_EXIT_TYPES = ['BOSS', 'STAIRS', 'TRIAL', 'GATE'] as const;
+export const TOWER_EXIT_TYPES = ['BOSS', 'STAIRS', 'GATE'] as const;
 export type TowerExitType = (typeof TOWER_EXIT_TYPES)[number];
 
 export function isExitRoom(type: TowerRoomType): type is TowerExitType {
@@ -48,7 +48,7 @@ export function isWarpRoom(type: TowerRoomType): boolean {
 
 /** Salles qui peuvent porter une clé de l'escalier scellé. */
 export function canHoldKey(type: TowerRoomType): boolean {
-  return type === 'ELITE' || type === 'CHEST';
+  return type === 'ELITE' || type === 'CHEST' || type === 'TRIAL';
 }
 
 export const TOWER_CHEST_KINDS = ['BOTH', 'GOLD', 'GEAR'] as const;
@@ -101,13 +101,13 @@ export type TowerRoom = {
   powerReward: boolean;
   /** Nombre de vagues d'une épreuve. */
   waves: number;
-  /** Une épreuve réussie paie comme un gardien : soin de victoire et chance d'objet du gardien. */
+  /** Une épreuve réussie paie comme un gardien : soin de victoire et chance d'objet du gardien. Oui par défaut. */
   trialReward: boolean;
   /** Mécanique d'un gardien. */
   mechanic: TowerMechanicChoice;
   /** Événement d'une salle d'événement. */
   event: TowerEventChoice;
-  /** Élite ou coffre qui garde une clé de l'escalier scellé. */
+  /** Élite, coffre ou épreuve qui garde une clé de l'escalier scellé. */
   key: boolean;
 };
 
@@ -232,7 +232,7 @@ function clampInt(value: unknown, range: { min: number; max: number }, fallback:
 
 /**
  * Valide une carte : dimensions, salles dans la grille et sans chevauchement, un seul départ,
- * exactement une sortie (gardien, escalier scellé, épreuve ou portail) avec ce qui l'ouvre, et
+ * exactement une sortie (gardien, escalier scellé ou portail) avec ce qui l'ouvre, et
  * toutes les salles joignables depuis le départ, sortie comprise. Une salle isolée ne
  * pourrait jamais être visitée : c'est presque toujours une erreur de dessin.
  */
@@ -276,7 +276,7 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
       powerPercent: hasTowerPower(type) ? clampInt(cell.powerPercent, TOWER_POWER_PERCENT_RANGE, 100) : 100,
       powerReward: hasTowerPower(type) && cell.powerReward === true,
       waves: type === 'TRIAL' ? clampInt(cell.waves, TOWER_TRIAL_WAVES, TOWER_TRIAL_WAVES.default) : TOWER_TRIAL_WAVES.default,
-      trialReward: type === 'TRIAL' && cell.trialReward === true,
+      trialReward: type === 'TRIAL' && cell.trialReward !== false,
       mechanic: TOWER_MECHANIC_CHOICES.includes(cell.mechanic as TowerMechanicChoice) ? (cell.mechanic as TowerMechanicChoice) : 'RANDOM',
       event: TOWER_EVENT_CHOICES.includes(cell.event as TowerEventChoice) ? (cell.event as TowerEventChoice) : 'RANDOM',
       key: canHoldKey(type) && cell.key === true,
@@ -300,7 +300,7 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
   // mélangerait des mécanismes qui n'ont pas été pensés ensemble.
   const exits = rooms.filter((room) => isExitRoom(room.type));
   if (exits.length === 0) {
-    return { ok: false, error: 'Chaque étage doit avoir une sortie : un gardien, un escalier scellé, une épreuve ou un portail.' };
+    return { ok: false, error: 'Chaque étage doit avoir une sortie : un gardien, un escalier scellé ou un portail.' };
   }
   if (exits.length > 1) return { ok: false, error: 'Un étage n\'a qu\'une seule sortie : retirez les sorties en trop.' };
   const exit = exits[0].type;
@@ -311,7 +311,7 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
   const keys = rooms.filter((room) => room.key).length;
   const seals = rooms.filter((room) => room.type === 'SEAL').length;
   if (exit === 'STAIRS' && keys === 0) {
-    return { ok: false, error: 'L\'escalier scellé s\'ouvre avec des clés : marquez au moins une élite ou un coffre comme porteur de clé.' };
+    return { ok: false, error: 'L\'escalier scellé s\'ouvre avec des clés : marquez au moins une élite, un coffre ou une épreuve comme porteur de clé.' };
   }
   if (exit !== 'STAIRS' && keys > 0) return { ok: false, error: 'Les clés n\'ouvrent qu\'un escalier scellé : retirez-les, ou choisissez cette sortie.' };
   if (exit === 'GATE' && seals === 0) return { ok: false, error: 'Le portail s\'ouvre avec des sceaux : placez au moins une salle de sceau.' };
@@ -369,7 +369,7 @@ export function visibleRooms(layout: TowerLayout, pos: string, cleared: readonly
 export function newTowerRoom(x: number, y: number, type: TowerRoomType, extra: Partial<TowerRoom> = {}): TowerRoom {
   return {
     id: roomId(x, y), x, y, type, foe: null, chest: 'BOTH', healPercent: 35, offers: [...TOWER_OFFER_KINDS], pricePercent: 100,
-    traits: [], powerPercent: 100, powerReward: false, waves: TOWER_TRIAL_WAVES.default, trialReward: false, mechanic: 'RANDOM', event: 'RANDOM', key: false, ...extra,
+    traits: [], powerPercent: 100, powerReward: false, waves: TOWER_TRIAL_WAVES.default, trialReward: true, mechanic: 'RANDOM', event: 'RANDOM', key: false, ...extra,
   };
 }
 

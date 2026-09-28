@@ -96,6 +96,7 @@ import {
 import {
   TOWER_TRIAL_WAVES,
   exitLocks,
+  exitRoom,
   roomNeighbors,
   startRoom,
   type TowerDirection,
@@ -857,7 +858,7 @@ function lockProgress(state: TowerState): TowerLockProgress | null {
 
 /**
  * Sortie franchie : l'étage est gravi, la carte suivante chargée et le palier est sûr.
- * Sert au gardien, à la dernière vague d'une épreuve, à l'escalier et au portail.
+ * Sert au gardien, à l'escalier et au portail (et à l'épreuve des étages d'avant).
  */
 function exitFloor(state: TowerState, floor: number, rules: TowerRules, floors: readonly TowerLayout[], rng: TowerRng): { next: number; climbed: TowerClimb | null } {
   const next = progress(state, floor, rules, true);
@@ -906,8 +907,10 @@ function winEncounter(
     if (hasPerk(state, 'GUARDIAN_POTION')) state.potions = Math.min(MAX_POTIONS, state.potions + 1);
   }
 
-  // Le gardien, ou la dernière vague d'une épreuve, ferme l'étage.
-  const closesFloor = state.map ? (encounter.kind === 'BOSS' || Boolean(trial)) : isBossStep(state, floor, rules, encounter.kind);
+  // Le gardien ferme l'étage. Une épreuve ne le ferme que sur les étages d'avant, où elle était
+  // encore une sortie : leur carte, copiée dans la partie, n'a pas d'autre sortie.
+  const legacyTrialExit = Boolean(trial && state.map && !exitRoom(state.map.layout));
+  const closesFloor = state.map ? (encounter.kind === 'BOSS' || legacyTrialExit) : isBossStep(state, floor, rules, encounter.kind);
   state.trial = null;
   if (closesFloor && state.map) {
     const { next, climbed } = exitFloor(state, floor, rules, floors, rng);

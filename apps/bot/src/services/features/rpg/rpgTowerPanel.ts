@@ -996,7 +996,6 @@ function floorObjective(state: TowerState, locale: Locale): string | null {
   switch (exit.type) {
     case 'STAIRS': return m.tower_objective_stairs({ found: locks.keysFound, needed: locks.keysNeeded }, { locale });
     case 'GATE': return m.tower_objective_gate({ lit: locks.sealsLit, needed: locks.sealsNeeded }, { locale });
-    case 'TRIAL': return m.tower_objective_trial({ waves: exit.waves ?? TRIAL_WAVES }, { locale });
     default: return m.tower_objective_boss({}, { locale });
   }
 }

@@ -87,13 +87,13 @@
   // Portails A et B : une seule paire par étage, liée comme par un couloir (miroir de `rpgTowerMap.ts`).
   const isWarp = (type: RoomType) => type === 'WARP_A' || type === 'WARP_B';
   // Sorties d'un étage (miroir de `TOWER_EXIT_TYPES`) : exactement une par étage.
-  const EXITS: RoomType[] = ['BOSS', 'STAIRS', 'TRIAL', 'GATE'];
+  const EXITS: RoomType[] = ['BOSS', 'STAIRS', 'GATE'];
   const isExit = (type: RoomType) => EXITS.includes(type);
   // La palette est rangée par familles : on cherche une sortie parmi les sorties, pas dans une liste de quatorze.
   const CATEGORIES: { id: Category; icon: string; types: RoomType[] }[] = [
     { id: 'ENTRY', icon: 'LogIn', types: ['START'] },
-    { id: 'MONSTERS', icon: 'Swords', types: ['MONSTER', 'ELITE', 'MIMIC'] },
-    { id: 'EXITS', icon: 'Flag', types: ['BOSS', 'STAIRS', 'TRIAL', 'GATE', 'SEAL'] },
+    { id: 'MONSTERS', icon: 'Swords', types: ['MONSTER', 'ELITE', 'TRIAL', 'MIMIC'] },
+    { id: 'EXITS', icon: 'Flag', types: ['BOSS', 'STAIRS', 'GATE', 'SEAL'] },
     { id: 'OTHER', icon: 'LayoutGrid', types: ['CHEST', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY'] },
   ];
   // Mêmes valeurs que `rpgTowerContent.ts` côté bot.
@@ -278,7 +278,7 @@
   function newRoom(x: number, y: number, type: RoomType): Room {
     return {
       id: `${x}-${y}`, x, y, type, foe: null, chest: 'BOTH', healPercent: 35, offers: [...OFFERS], pricePercent: 100,
-      traits: [], powerPercent: 100, powerReward: false, waves: 3, trialReward: false, mechanic: 'RANDOM', event: 'RANDOM', key: false,
+      traits: [], powerPercent: 100, powerReward: false, waves: 3, trialReward: true, mechanic: 'RANDOM', event: 'RANDOM', key: false,
     };
   }
 
@@ -314,7 +314,7 @@
         powerPercent: room.powerPercent ?? 100,
         powerReward: room.powerReward === true,
         waves: room.waves ?? 3,
-        trialReward: room.trialReward === true,
+        trialReward: room.trialReward !== false,
         mechanic: room.mechanic ?? 'RANDOM',
         event: room.event ?? 'RANDOM',
         key: room.key === true,
@@ -1488,7 +1488,7 @@
           {:else}
             <p class="text-2xs text-on-surface-variant/60">{m.eco_tower_map_no_option()}</p>
           {/if}
-          {#if selected.type === 'ELITE' || selected.type === 'CHEST'}
+          {#if selected.type === 'ELITE' || selected.type === 'CHEST' || selected.type === 'TRIAL'}
             <label class="flex items-start gap-2 text-xs pt-1" title={m.eco_tower_map_key_tip()}>
               <input type="checkbox" checked={selected.key} disabled={!canManage || disabled} onchange={() => updateSelected({ key: !selected!.key })} />
               <span><span class="font-semibold flex items-center gap-1"><Papicon icon="Lock" size={11} /> {m.eco_tower_map_key()}</span>
