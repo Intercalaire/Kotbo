@@ -128,6 +128,53 @@ export async function handleAnalyticsRoutes(
     return false;
   }
 
+  // GET …/analytics/{content|activity|channel-tree|filters} et …/analytics/categories/:id
+  // Nouvelle page Analytics : période (`period` ou `startDate`/`endDate`) et
+  // filtres (`channel`, `role`, `excludeStaff`, `userId`).
+  if ((parts.length === 6 && ['content', 'activity', 'channel-tree', 'filters'].includes(parts[5]!))
+    || (parts.length === 7 && parts[5] === 'categories')) {
+    const service = await import('../../../services/analytics/contentAnalyticsService.js');
+    const section = parts[5]!;
+    try {
+      if (section === 'filters') {
+        json(res, 200, await cache.wrap(`guild:${guildId}:analytics:filters`, 60, () => service.getFilterOptions(client, guildId)));
+        return true;
+      }
+      const range = service.parseRange(url.searchParams);
+      if (section === 'categories') {
+        const categoryId = parts[6]!;
+        if (!/^\d{17,20}$/.test(categoryId)) {
+          json(res, 400, { error: 'Identifiant de catégorie invalide' });
+          return true;
+        }
+        const data = await cache.wrap(`guild:${guildId}:analytics:category:${categoryId}:${range.start}:${range.end}`, 300, () =>
+          service.getCategoryDetail(client, guildId, categoryId, range));
+        if (!data) json(res, 404, { error: 'Catégorie introuvable' });
+        else json(res, 200, data);
+        return true;
+      }
+      if (section === 'channel-tree') {
+        json(res, 200, await cache.wrap(`guild:${guildId}:analytics:channel-tree:${range.start}:${range.end}`, 300, () =>
+          service.getChannelTree(client, guildId, range)));
+        return true;
+      }
+      const scope = await service.resolveScope(client, guildId, url.searchParams);
+      const scopeKey = service.scopeCacheKey(scope, range);
+      if (section === 'content') {
+        json(res, 200, await cache.wrap(`guild:${guildId}:analytics:content:${scopeKey}`, 300, () =>
+          service.getContentAnalytics(client, guildId, range, scope)));
+      } else {
+        const includeBots = url.searchParams.get('includeBots') === '1';
+        json(res, 200, await cache.wrap(`guild:${guildId}:analytics:activity:${scopeKey}:${includeBots ? 'b' : ''}`, 120, () =>
+          service.getActivityAnalytics(client, guildId, range, scope, includeBots)));
+      }
+    } catch (err) {
+      logger.error('AnalyticsAPI', `Erreur analytics (${section}):`, err);
+      jsonFailure(res, err, 'Erreur lors du calcul des statistiques', 'AnalyticsAPI');
+    }
+    return true;
+  }
+
   // GET /api/dashboard/guilds/:guildId/analytics/advanced?section=<retention|activity|churn|channels|social|words|moderation>
   if (parts.length === 6 && parts[5] === 'advanced') {
     const section = url.searchParams.get('section') ?? '';
