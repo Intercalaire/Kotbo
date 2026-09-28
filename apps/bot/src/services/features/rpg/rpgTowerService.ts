@@ -70,10 +70,13 @@ import {
   TOWER_FLOORS_MAX,
   TOWER_MAP_ROOMS_MAX,
   TOWER_MAP_SIZE,
+  entryRooms,
   normalizeTowerFloors,
   normalizeTowerLayout,
+  roomNeighbors,
   startRoom,
   towerLayoutKey,
+  visibleRooms,
   type TowerLayout,
 } from './rpgTowerMap.js';
 import { heatsFromMask } from './rpgTowerContent.js';
@@ -1225,14 +1228,21 @@ export async function previewTowerFloor(guildId: string, input: { layout?: unkno
   for (let n = floor + 2; n >= Math.max(1, floor - 2); n--) {
     ladder.push({ label: title(n, nameOf(n)), status: n === floor ? 'current' as const : n > floor ? 'next' as const : 'done' as const });
   }
+  // Ce que voit le joueur en arrivant : sous le brouillard, seulement l'entrée et ses voisines ;
+  // devant des entrées au choix, seulement ces entrées, sans y être encore.
+  const choices = entryRooms(layout).filter((room) => room.type === 'ENTRANCE').map((room) => room.id);
+  const cleared = choices.length > 0 ? [] : [start.id];
+  const visible = !layout.fog ? null : choices.length > 0 ? new Set(choices) : visibleRooms(layout, start.id, cleared);
+  const targets = choices.length > 0 ? choices : roomNeighbors(layout, start.id).map(({ room }) => room.id);
   const image = await renderTowerImage({
     kind: 'map',
     title: title(floor, layout.name),
     layout,
     pos: start.id,
-    cleared: [start.id],
-    targets: [],
+    cleared,
+    targets,
     ladder,
+    visible: visible ? [...visible] : null,
   });
   if (!image) throw new TowerError('Le rendu de l\'aperçu a échoué.', 500);
   return `data:image/png;base64,${image.toString('base64')}`;
