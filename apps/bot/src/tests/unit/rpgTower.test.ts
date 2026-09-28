@@ -73,7 +73,8 @@ describe('statistiques d\'entrée', () => {
     const beginner = computeTowerEntryStats(entry(20));
     const veteran = computeTowerEntryStats(entry(1_000_000));
     expect(veteran.attack / beginner.attack).toBeLessThan(2);
-    expect(veteran.attack).toBe(Math.round(TOWER_BASE_STATS.attack * 1.5));
+    // Plafond d'héritage du fixture : 80 %.
+    expect(veteran.attack).toBe(Math.round(TOWER_BASE_STATS.attack * 1.8));
   });
 
   test('la compression suit les ordres de grandeur, pas la valeur brute', () => {
