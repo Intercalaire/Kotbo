@@ -190,8 +190,55 @@ function patchFlags(flags: unknown): unknown {
   return [flags, IsComponentsV2];
 }
 
+/**
+ * Marque (cle Symbol non enumerable) posee sur une charge utile pour que les
+ * prototypes patches la laissent EXACTEMENT telle quelle : ni conversion en
+ * Components V2, ni drapeau IsComponentsV2 ajoute.
+ *
+ * Forme retenue : une cle Symbol issue du registre global, plutot qu'un champ
+ * texte ou un `Symbol()` local.
+ * - une cle Symbol ne peut collisionner avec aucun champ de l'API Discord et
+ *   n'apparait ni dans `JSON.stringify`, ni dans `Object.keys` ;
+ * - declaree non enumerable, elle ne suit pas non plus un `{ ...payload }` ;
+ * - `Symbol.for` survit a deux copies du module chargees dans des registres de
+ *   modules separes (bundling, `bun test --isolate`), la ou un `Symbol()` local
+ *   donnerait deux marques incompatibles. Meme convention que
+ *   `Symbol.for('kotbo.guildContext')` plus bas dans ce fichier.
+ * Elle est retiree de la charge avant l'appel d'origine a discord.js, qui
+ * rejetterait un champ inconnu.
+ */
+const SANS_CONVERSION_V2 = Symbol.for('kotbo.sansConversionV2');
+
+/** Marque une charge utile pour que les prototypes patches la laissent EXACTEMENT telle quelle. */
+export function sansConversionV2<T extends object>(payload: T): T {
+  Object.defineProperty(payload, SANS_CONVERSION_V2, {
+    value: true,
+    enumerable: false,
+    configurable: true,
+    writable: true,
+  });
+  return payload;
+}
+
+function estSansConversionV2(options: unknown): boolean {
+  return !!options && typeof options === 'object'
+    && (options as Record<symbol, unknown>)[SANS_CONVERSION_V2] === true;
+}
+
 function transformPayload(options: unknown): unknown {
   if (!options || typeof options !== 'object') {
+    return options;
+  }
+
+  // Echappatoire explicite de l'appelant : la charge repart telle quelle.
+  //
+  // La marque N'EST PAS retiree. La supprimer ici la rendait a usage unique :
+  // une meme charge construite une fois puis envoyee deux fois — un envoi,
+  // puis une edition — repartait en conversion V2 au second passage, et le
+  // panneau basculait de V1 a V2 tout seul. La retirer n'avait de toute facon
+  // aucune utilite : une cle Symbol non enumerable n'apparait ni dans
+  // `JSON.stringify`, ni dans `Object.keys` — discord.js ne la voit jamais.
+  if (estSansConversionV2(options)) {
     return options;
   }
 
@@ -257,13 +304,33 @@ function isV2Message(message: unknown): boolean {
   return typeof flags?.has === 'function' && flags.has(discord.MessageFlags.IsComponentsV2);
 }
 
+/**
+ * Vrai si ce message porte deja le drapeau IsComponentsV2.
+ *
+ * CONTRAINTE DURE (API Discord) : le drapeau IsComponentsV2 ne peut pas etre
+ * RETIRE d'un message existant. Une edition qui l'omet ne fait pas repasser le
+ * message en embeds classiques : elle est refusee. Un panneau deja poste en V2
+ * est donc definitivement en V2.
+ *
+ * CE QUE L'APPELANT DOIT FAIRE quand cette fonction renvoie vrai : garder le
+ * rendu V2 pour CE message-la (donc ne PAS marquer la charge avec
+ * `sansConversionV2`, l'edition echouerait), et ne faire prendre effet au
+ * reglage V1 qu'au prochain panneau cree - en repostant un message neuf si le
+ * rendu V1 est exige tout de suite. Ne jamais tenter l'edition « pour voir ».
+ */
+export function messageEstV2(message: unknown): boolean {
+  return isV2Message(message);
+}
+
 // update()/edit() target an existing message: if that message is already
 // Components V2, Discord rejects legacy fields (content/embeds) even when
 // transformPayload left them alone (e.g. content-only payloads with no
 // embeds). Convert content into a TextDisplay so the update stays valid.
 export function transformUpdatePayload(options: unknown, targetMessage: unknown): unknown {
+  // Lu AVANT transformPayload, qui consomme la marque au passage.
+  const sansConversion = estSansConversionV2(options);
   const transformed = transformPayload(options);
-  if (!isV2Message(targetMessage)) {
+  if (sansConversion || !isV2Message(targetMessage)) {
     return transformed;
   }
 

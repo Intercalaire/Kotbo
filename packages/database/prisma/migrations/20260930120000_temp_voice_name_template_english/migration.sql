@@ -1,0 +1,12 @@
+-- Le client a choisi l'anglais pour son serveur. Les noms de salons vocaux
+-- temporaires generes par defaut etaient restes en francais ("Salon de
+-- {user}") alors que ce sont des noms REELS, visibles par tous les membres,
+-- pas un texte d'interface reserve aux moderateurs.
+--
+-- Seule la valeur par defaut de la colonne change ici. `ALTER COLUMN ...
+-- SET DEFAULT` ne touche que les lignes creees APRES cette migration : les
+-- serveurs qui ont deja une valeur enregistree dans "tempVoiceNameTemplate"
+-- (le defaut d'origine y compris, une fois copie a la creation de la ligne)
+-- gardent leur valeur telle quelle. Aucun salon existant n'est renomme par
+-- cette migration.
+ALTER TABLE "guilds" ALTER COLUMN "tempVoiceNameTemplate" SET DEFAULT '🔊 {user}''s channel';

@@ -64,6 +64,16 @@
   type TempVoiceAccessResponders = 'OWNER' | 'OWNER_AND_STAFF';
   type TempVoiceAccessNotifyVia = 'VOICE' | 'DM' | 'CHANNEL';
   type TempVoiceReservationOverflow = 'ASK' | 'NOTHING' | 'MOVE' | 'DISCONNECT';
+  /**
+   * Réglages de présentation du panneau, configurables par serveur — cinq
+   * champs ajoutés au même titre que les permissions modérateur ci-dessous,
+   * dans le même objet `tempVoiceModPermissions`.
+   */
+  type TempVoicePanelMode = 'CLASSIC' | 'FLAT';
+  type TempVoiceStateLayout = 'GRID3' | 'GRID2' | 'TABLE' | 'CARDS';
+  type TempVoiceStateColors = 'NEUTRAL' | 'DARK' | 'LIGHT';
+  type TempVoicePanelComponents = 'V1' | 'V2';
+  type TempVoiceReservationFallback = 'MEMBERS' | 'ANY_ROLE' | 'FORBIDDEN';
 
   interface TempVoiceAccessRequestConfig {
     enabled: boolean;
@@ -90,6 +100,30 @@
     reservationOverflow: TempVoiceReservationOverflow;
     /** Salon vers lequel déplacer quand la décision est `MOVE`. */
     reservationFallbackChannelId: string | null;
+    /** Portes séparées (CLASSIC) ou tout sur un écran (FLAT). Défaut `CLASSIC`. */
+    panelMode: TempVoicePanelMode;
+    /** Mise en page des six valeurs d'état. Seule GRID3 en V1 est native. Défaut `GRID3`. */
+    stateLayout: TempVoiceStateLayout;
+    /** Palette de l'image d'état ; sans effet pour GRID3 en V1. Défaut `NEUTRAL`. */
+    stateColors: TempVoiceStateColors;
+    /** Embed classique (V1) ou Components V2 (V2, rendu actuel). Défaut `V2`. */
+    panelComponents: TempVoicePanelComponents;
+    /**
+     * Bouton « Réserver » pour qui n'a aucun rôle réservable. Défaut `ANY_ROLE`.
+     * Nommé `reservationFallbackMode` (pas `reservationFallback`) pour matcher
+     * la colonne Prisma `TempVoiceModPermissionsConfig.reservationFallbackMode` :
+     * un nom différent ferait voyager le réglage jusqu'au bot sans jamais être
+     * reconnu par `normalizeTempVoiceModPermissionsInput`.
+     */
+    reservationFallbackMode: TempVoiceReservationFallback;
+    /**
+     * Interrupteur de secours de la personnalisation par générateur. Défaut
+     * `false` : au déploiement, aucun serveur existant ne change de
+     * comportement. Le couper IGNORE les surcharges des générateurs
+     * additionnels, il ne les EFFACE PAS — elles restent dans
+     * `tempVoiceGenerators` et reviennent telles quelles au rallumage.
+     */
+    perGeneratorPresentation: boolean;
   }
 
   /** `@default` du modèle Prisma `TempVoiceAccessRequestConfig`. */
@@ -121,6 +155,12 @@
       reservableRoleIds: [],
       reservationOverflow: 'ASK',
       reservationFallbackChannelId: null,
+      panelMode: 'CLASSIC',
+      stateLayout: 'GRID3',
+      stateColors: 'NEUTRAL',
+      panelComponents: 'V2',
+      reservationFallbackMode: 'ANY_ROLE',
+      perGeneratorPresentation: false,
     };
   }
 
@@ -166,6 +206,92 @@
     { key: 'DISCONNECT', label: () => m.cm_ar_reservation_overflow_disconnect() },
   ];
 
+  /**
+   * Les quatre axes de présentation du panneau, en cartes-radio avec une aide
+   * PAR OPTION — même forme que `NOTIFY_MODES` ci-dessus, et que la maquette de
+   * référence (`blocMode`/`blocFormat`/`blocCouleurs`) : le choix et ce qu'il
+   * coûte se lisent ensemble, au lieu d'un `<select>` surmontant une aide
+   * partagée qui ne décrivait que l'option déjà sélectionnée.
+   */
+  const PANEL_COMPONENTS_MODES: Array<{ key: TempVoicePanelComponents; label: () => string; hints: Array<() => string> }> = [
+    { key: 'V2', label: () => m.cm_tv_panel_components_v2(), hints: [] },
+    {
+      key: 'V1',
+      label: () => m.cm_tv_panel_components_v1(),
+      // Les deux limites de V1, dites AVANT le clic : Discord ne retire jamais
+      // le drapeau Components V2 d'un message qui le porte déjà (les panneaux
+      // en place restent en V2), et les sous-panneaux éphémères restent en V2
+      // de toute façon.
+      hints: [
+        () => m.cm_tv_panel_components_v1_limit_channels(),
+        () => m.cm_tv_panel_components_v1_limit_ephemeral(),
+      ],
+    },
+  ];
+
+  const PANEL_MODES: Array<{ key: TempVoicePanelMode; label: () => string; hint: () => string }> = [
+    { key: 'CLASSIC', label: () => m.cm_tv_panel_mode_classic(), hint: () => m.cm_tv_panel_mode_classic_hint() },
+    { key: 'FLAT', label: () => m.cm_tv_panel_mode_flat(), hint: () => m.cm_tv_panel_mode_flat_hint() },
+  ];
+
+  const STATE_LAYOUT_MODES: Array<{ key: TempVoiceStateLayout; label: () => string; hint: () => string }> = [
+    { key: 'GRID3', label: () => m.cm_tv_panel_state_layout_grid3(), hint: () => m.cm_tv_panel_state_layout_grid3_hint() },
+    { key: 'GRID2', label: () => m.cm_tv_panel_state_layout_grid2(), hint: () => m.cm_tv_panel_state_layout_grid2_hint() },
+    { key: 'TABLE', label: () => m.cm_tv_panel_state_layout_table(), hint: () => m.cm_tv_panel_state_layout_table_hint() },
+    { key: 'CARDS', label: () => m.cm_tv_panel_state_layout_cards(), hint: () => m.cm_tv_panel_state_layout_cards_hint() },
+  ];
+
+  const STATE_COLORS_MODES: Array<{ key: TempVoiceStateColors; label: () => string; hint: () => string }> = [
+    { key: 'NEUTRAL', label: () => m.cm_tv_panel_state_colors_neutral(), hint: () => m.cm_tv_panel_state_colors_neutral_hint() },
+    { key: 'DARK', label: () => m.cm_tv_panel_state_colors_dark(), hint: () => m.cm_tv_panel_state_colors_dark_hint() },
+    { key: 'LIGHT', label: () => m.cm_tv_panel_state_colors_light(), hint: () => m.cm_tv_panel_state_colors_light_hint() },
+  ];
+
+  /** Même liste que les trois `<option>` du réglage serveur (plus bas dans le
+   *  template) — extraite en tableau pour être réutilisée par le sélecteur de
+   *  surcharge par générateur, qui a aussi besoin d'en tirer un libellé. */
+  const RESERVATION_FALLBACK_MODES: Array<{ key: TempVoiceReservationFallback; label: () => string }> = [
+    { key: 'ANY_ROLE', label: () => m.cm_tv_panel_reservation_fallback_any_role() },
+    { key: 'MEMBERS', label: () => m.cm_tv_panel_reservation_fallback_members() },
+    { key: 'FORBIDDEN', label: () => m.cm_tv_panel_reservation_fallback_forbidden() },
+  ];
+
+  /** Libellé d'une valeur dans une des listes ci-dessus, pour l'option
+   *  « Hérite du serveur (X) » du sélecteur de surcharge : la clé brute en
+   *  repli, jamais une chaîne vide, si la liste ne la reconnaît pas. */
+  function labelFor<T extends string>(key: T, options: Array<{ key: T; label: () => string }>): string {
+    return options.find((o) => o.key === key)?.label() ?? key;
+  }
+
+  /** Nombre de champs que CE générateur surcharge — sert à la pastille de la
+   *  liste (`m.cm_tv_panel_per_gen_badge_overrides`) sans ouvrir sa carte. */
+  function generatorOverrideCount(generator: TempVoiceGenerator): number {
+    const keys = ['panelMode', 'stateLayout', 'stateColors', 'panelComponents', 'reservationFallbackMode'] as const;
+    return keys.filter((key) => generator[key] != null).length;
+  }
+
+  /**
+   * La règle RÉELLE du bot : `etatRenduNativement`
+   * (apps/bot/src/events/tempVoice.ts:960). Discord range les six valeurs
+   * lui-même, en champs « inline » d'embed, si la disposition est GRID3 ET que
+   * les composants sont V1 OU que la teinte est restée celle livrée (NEUTRAL,
+   * second terme de `PRESENTATION_PAR_DEFAUT`). Tout le reste part en PNG rendu
+   * côté bot.
+   *
+   * La page annonçait `stateLayout === 'GRID3' && panelComponents === 'V1'` :
+   * dans la configuration PAR DÉFAUT (V2 + GRID3 + NEUTRAL) elle affichait donc
+   * « rendu en image (PNG) » alors que le bot rend nativement — l'aide disait
+   * le contraire du produit. Une seule combinaison sur 24 diffère entre les
+   * deux conditions, et c'est justement celle de tous les serveurs en service.
+   */
+  function stateRenderedNatively(
+    stateLayout: TempVoiceStateLayout,
+    stateColors: TempVoiceStateColors,
+    panelComponents: TempVoicePanelComponents,
+  ): boolean {
+    return stateLayout === 'GRID3' && (panelComponents === 'V1' || stateColors === 'NEUTRAL');
+  }
+
   // Config State
   let config = $state({
     autoThreadEnabled: false,
@@ -175,29 +301,29 @@
       categoryId: '',
       memberEnabled: false,
       memberChannelId: '',
-      memberTemplate: '👤 Membres : {count}',
+      memberTemplate: '👤 Members: {count}',
       botEnabled: false,
       botChannelId: '',
-      botTemplate: '🤖 Bots : {count}',
+      botTemplate: '🤖 Bots: {count}',
       roleEnabled: false,
       roleChannelId: '',
-      roleTemplate: '👑 Staff : {count}',
+      roleTemplate: '👑 Staff: {count}',
       roleTargetId: '',
       channelEnabled: false,
       channelChannelId: '',
-      channelTemplate: '💬 Salons : {count}',
+      channelTemplate: '💬 Channels: {count}',
       categoryEnabled: false,
       categoryChannelId: '',
-      categoryTemplate: '📁 Catégories : {count}',
+      categoryTemplate: '📁 Categories: {count}',
       activityEnabled: false,
       activityChannelId: '',
-      activityTemplate: '📈 Actifs 24h : {count}',
+      activityTemplate: '📈 Active 24h: {count}',
       customStats: [] as any[],
     },
     tempVoiceEnabled: false,
     tempVoiceChannelId: '',
     tempVoiceCategoryId: '',
-    tempVoiceNameTemplate: '🔊 Salon de {user}',
+    tempVoiceNameTemplate: '🔊 {user}\'s channel',
     tempVoiceRequiredRoleId: '',
     tempVoiceDefaults: defaultTempVoicePolicy(),
     tempVoiceGenerators: [] as TempVoiceGenerator[],
@@ -218,29 +344,29 @@
       categoryId: '',
       memberEnabled: false,
       memberChannelId: '',
-      memberTemplate: '👤 Membres : {count}',
+      memberTemplate: '👤 Members: {count}',
       botEnabled: false,
       botChannelId: '',
-      botTemplate: '🤖 Bots : {count}',
+      botTemplate: '🤖 Bots: {count}',
       roleEnabled: false,
       roleChannelId: '',
-      roleTemplate: '👑 Staff : {count}',
+      roleTemplate: '👑 Staff: {count}',
       roleTargetId: '',
       channelEnabled: false,
       channelChannelId: '',
-      channelTemplate: '💬 Salons : {count}',
+      channelTemplate: '💬 Channels: {count}',
       categoryEnabled: false,
       categoryChannelId: '',
-      categoryTemplate: '📁 Catégories : {count}',
+      categoryTemplate: '📁 Categories: {count}',
       activityEnabled: false,
       activityChannelId: '',
-      activityTemplate: '📈 Actifs 24h : {count}',
+      activityTemplate: '📈 Active 24h: {count}',
       customStats: [] as any[],
     },
     tempVoiceEnabled: false,
     tempVoiceChannelId: '',
     tempVoiceCategoryId: '',
-    tempVoiceNameTemplate: '🔊 Salon de {user}',
+    tempVoiceNameTemplate: '🔊 {user}\'s channel',
     tempVoiceRequiredRoleId: '',
     tempVoiceDefaults: defaultTempVoicePolicy(),
     tempVoiceGenerators: [] as TempVoiceGenerator[],
@@ -251,6 +377,33 @@
     honeypotSanction: 'TIMEOUT',
     honeypotReinvite: false,
   })));
+
+  /**
+   * La teinte ne peut JAMAIS rien changer QUE pour GRID3 en V1 : là, Discord
+   * range les six valeurs dans les champs d'un embed, sans image, quelle que
+   * soit la teinte choisie (`dispositionNative`, tempVoiceService.ts:1985).
+   *
+   * C'est cette condition-là qui grise le champ, et NON `stateRenderedNatively`
+   * : avec le défaut V2 + GRID3 + NEUTRAL le rendu est bien natif, mais passer
+   * la teinte à DARK ou LIGHT le fait justement basculer en image. Griser sur
+   * « rendu natif » enfermerait le serveur sur NEUTRAL sans aucun moyen d'en
+   * sortir — le réglage deviendrait inatteignable depuis la page.
+   */
+  const stateColorsInert = $derived(
+    config.tempVoiceModPermissions.stateLayout === 'GRID3'
+      && config.tempVoiceModPermissions.panelComponents === 'V1',
+  );
+
+  /**
+   * La combinaison réglée EN CE MOMENT part-elle en image ? Une seule
+   * constante, lue par l'aide du groupe « mise en page » : c'est ce que le bot
+   * fera, pas une paraphrase de la règle recopiée dans le balisage.
+   */
+  const stateNative = $derived(stateRenderedNatively(
+    config.tempVoiceModPermissions.stateLayout,
+    config.tempVoiceModPermissions.stateColors,
+    config.tempVoiceModPermissions.panelComponents,
+  ));
 
   $effect(() => {
     const dirty = JSON.stringify(config) !== JSON.stringify(savedConfig);
@@ -317,7 +470,22 @@
 
   const featureLabel = (key: string) =>
     featureLabels[key]
-      ?? (key === 'sticky' ? 'Message collé' : key === 'tempVoiceGenerator' ? 'Générateur vocal' : key);
+      // `sticky` et `tempVoiceGenerator` sont ajoutés par la route dans
+      // `channel.features` mais ABSENTS de son dictionnaire `features` : ce
+      // repli est donc le seul libellé qu'ils auront jamais.
+      ?? (key === 'sticky' ? m.cm_bc_feature_sticky() : key === 'tempVoiceGenerator' ? m.cm_bc_feature_generator() : key);
+
+  /**
+   * Ce que ce salon porte en plus des cases à cocher : le message collé et le
+   * générateur vocal demandent un contenu (le texte, le gabarit de nom) qu'une
+   * case ne peut pas saisir, et se règlent dans leur onglet.
+   */
+  function alsoCarriedItems(ch: ChannelRow): string {
+    const items: string[] = [];
+    if (ch.features.includes('sticky')) items.push(m.cm_bc_also_sticky());
+    if (ch.features.includes('tempVoiceGenerator')) items.push(m.cm_bc_also_generator());
+    return items.join(', ');
+  }
 
   const visibleByChannel = $derived(
     byChannelQuery.trim()
@@ -335,7 +503,7 @@
       byChannel = data?.channels ?? [];
       featureLabels = data?.features ?? {};
     } catch {
-      toast.error('Chargement des salons impossible');
+      toast.error(m.cm_bc_load_failed());
     } finally {
       byChannelLoading = false;
     }
@@ -351,41 +519,41 @@
       // n'aurait aucun moyen de deviner.
       await loadByChannel();
     } catch (err) {
-      toast.error(errorMessage(err) || 'Modification impossible');
+      toast.error(errorMessage(err) || m.cm_bc_toggle_failed());
     } finally {
       featureBusy = null;
     }
   }
 
   async function renameChannel(ch: ChannelRow) {
-    const name = window.prompt(`Nouveau nom pour #${ch.name}`, ch.name);
+    const name = window.prompt(m.cm_bc_rename_prompt({ name: ch.name }), ch.name);
     if (!name || name.trim() === ch.name) return;
 
     try {
       await renameDiscordChannel(ch.id, name.trim());
-      toast.success('Salon renommé');
+      toast.success(m.cm_channel_renamed());
       await loadByChannel();
     } catch (err) {
-      toast.error(errorMessage(err) || 'Renommage impossible');
+      toast.error(errorMessage(err) || m.cm_rename_failed());
     }
   }
 
   async function removeChannel(ch: ChannelRow) {
     const confirmed = await confirmDialog.ask({
-      title: `Supprimer #${ch.name} ?`,
-      description: 'Le salon et tous ses messages sont définitivement perdus. Cette action est irréversible.',
-      confirmLabel: 'Supprimer',
+      title: m.cm_bc_delete_confirm_title({ name: ch.name }),
+      description: m.cm_bc_delete_confirm_desc(),
+      confirmLabel: m.common_delete(),
       variant: 'danger',
     });
     if (!confirmed) return;
 
     try {
       await deleteDiscordChannel(ch.id);
-      toast.success('Salon supprimé');
+      toast.success(m.cm_bc_deleted());
       expandedChannelId = null;
       await loadByChannel();
     } catch (err) {
-      toast.error(errorMessage(err) || 'Suppression impossible');
+      toast.error(errorMessage(err) || m.cm_bc_delete_failed());
     }
   }
 
@@ -718,7 +886,7 @@
         config.tempVoiceEnabled = res.tempVoiceEnabled ?? false;
         config.tempVoiceChannelId = res.tempVoiceChannelId ?? '';
         config.tempVoiceCategoryId = res.tempVoiceCategoryId ?? '';
-        config.tempVoiceNameTemplate = res.tempVoiceNameTemplate || '🔊 Salon de {user}';
+        config.tempVoiceNameTemplate = res.tempVoiceNameTemplate || '🔊 {user}\'s channel';
         config.tempVoiceRequiredRoleId = res.tempVoiceRequiredRoleId ?? '';
         config.tempVoiceDefaults = { ...defaultTempVoicePolicy(), ...(res.tempVoiceDefaults ?? {}) };
         config.tempVoiceGenerators = Array.isArray(res.tempVoiceGenerators)
@@ -782,9 +950,13 @@
         honeypotChannelId: config.honeypotChannelId || null,
         honeypotSanction: config.honeypotSanction,
         honeypotReinvite: config.honeypotReinvite,
-      } as any);
+      });
 
-      if (!res || !res.ok) throw new Error(m.cm_save_api_error());
+      // `res.error` d'abord : la route nomme le champ qu'elle refuse
+      // (`panelSettingError` : « Palette de l'état (stateColors): "X" is not a
+      // valid value. Nothing was saved. »). « API save error » seul ne disait
+      // pas lequel des vingt-et-un champs du corps avait été rejeté.
+      if (!res || !res.ok) throw new Error(res?.error || m.cm_save_api_error());
 
       // Update local state with resolved (auto-created) values from backend
       if (res.resolved) {
@@ -867,16 +1039,13 @@
         <section class="bg-surface-container-low/30 border border-outline-variant/10 p-5 lg:p-6 rounded-xl space-y-4">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 class="text-sm font-semibold text-on-surface">Fonctionnalités par salon</h3>
-              <p class="text-body-sm text-on-surface-variant mt-0.5">
-                Chaque salon et ce qui y est actif. Les fonctionnalités uniques (comptage,
-                salon piège…) se déplacent : les activer ici les retire du salon précédent.
-              </p>
+              <h3 class="text-sm font-semibold text-on-surface">{m.cm_bc_title()}</h3>
+              <p class="text-body-sm text-on-surface-variant mt-0.5">{m.cm_bc_desc()}</p>
             </div>
             <input
               type="text"
               bind:value={byChannelQuery}
-              placeholder="Filtrer un salon…"
+              placeholder={m.cm_bc_filter_placeholder()}
               class="w-full sm:w-56 bg-surface-container-high text-sm px-4 py-2 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none"
             />
           </div>
@@ -884,7 +1053,7 @@
           {#if byChannelLoading}
             <div class="flex justify-center py-8"><LoadingHint context="config" /></div>
           {:else if visibleByChannel.length === 0}
-            <p class="text-body-sm text-on-surface-variant/70 py-8 text-center">Aucun salon ne correspond au filtre.</p>
+            <p class="text-body-sm text-on-surface-variant/70 py-8 text-center">{m.cm_no_channel_matches_search()}</p>
           {:else}
             <div class="space-y-1.5">
               {#each visibleByChannel as ch (ch.id)}
@@ -936,11 +1105,7 @@
                            que d'en faire une case à cocher trompeuse. -->
                       {#if ch.features.includes('sticky') || ch.features.includes('tempVoiceGenerator')}
                         <p class="text-2xs text-on-surface-variant/70">
-                          Ce salon porte aussi :
-                          {#if ch.features.includes('sticky')}<span class="text-on-surface">un message collé</span>{/if}
-                          {#if ch.features.includes('sticky') && ch.features.includes('tempVoiceGenerator')}, {/if}
-                          {#if ch.features.includes('tempVoiceGenerator')}<span class="text-on-surface">un générateur de salon vocal</span>{/if}.
-                          Ils se configurent dans leur onglet dédié.
+                          {m.cm_bc_also_carries({ items: alsoCarriedItems(ch) })}
                         </p>
                       {/if}
 
@@ -951,11 +1116,11 @@
                           bg-surface-container text-on-surface border border-outline-variant/40
                           hover:border-outline-variant disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           disabled={!ch.manageable}
-                          title={ch.manageable ? '' : 'Le bot ne peut pas modifier ce salon'}
+                          title={ch.manageable ? '' : m.cm_bc_cannot_edit()}
                           onclick={() => renameChannel(ch)}
                         >
                           <Papicon icon="pencil" size={13} />
-                          Renommer
+                          {m.cm_rename_title()}
                         </button>
                         <button
                           type="button"
@@ -963,11 +1128,11 @@
                           bg-error/10 text-error border border-error/30 hover:bg-error/20
                           disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           disabled={!ch.manageable}
-                          title={ch.manageable ? '' : 'Le bot ne peut pas supprimer ce salon'}
+                          title={ch.manageable ? '' : m.cm_bc_cannot_delete()}
                           onclick={() => removeChannel(ch)}
                         >
                           <Papicon icon="trash" size={13} />
-                          Supprimer
+                          {m.common_delete()}
                         </button>
                       </div>
                     </div>
@@ -1743,7 +1908,7 @@
                         enabled: true,
                         type: 'members',
                         channelId: '',
-                        template: '👤 Membres : {count}',
+                        template: '👤 Members: {count}',
                         roleTargetId: '',
                         goalTarget: 1000
                       }
@@ -1881,11 +2046,56 @@
                   <p class="text-xs text-on-surface-variant/60">{m.cm_additional_generators_desc()}</p>
                 </div>
 
+                <!-- Un sélecteur de surcharge de présentation, réutilisé cinq
+                     fois par carte de générateur : la valeur en cours
+                     (`current`, absente/`null` = hérite), la valeur du serveur
+                     (`serverValue`, pour l'option « Hérite ») et la liste des
+                     valeurs possibles. `onSelect('')` retire la clé au lieu de
+                     la poser à `undefined` : `lireSurchargesPresentation`
+                     (tempVoiceService.ts) distingue absente (hérite) de
+                     posée-mais-fausse. -->
+                {#snippet presentationOverrideSelect(
+                  id: string,
+                  labelText: string,
+                  current: string | null | undefined,
+                  serverValue: string,
+                  options: Array<{ key: string; label: () => string }>,
+                  onSelect: (value: string) => void,
+                )}
+                  <div class="space-y-1">
+                    <label for={id} class="text-2xs font-bold text-on-surface-variant/60 block">{labelText}</label>
+                    <select
+                      {id}
+                      value={current ?? ''}
+                      onchange={(e) => onSelect((e.currentTarget as HTMLSelectElement).value)}
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-2xs outline-none focus:ring-1 focus:ring-primary/30"
+                    >
+                      <option value="">{m.cm_tv_panel_per_gen_inherit({ value: labelFor(serverValue, options) })}</option>
+                      {#each options as opt (opt.key)}
+                        <option value={opt.key}>{opt.label()}</option>
+                      {/each}
+                    </select>
+                  </div>
+                {/snippet}
+
                 <div class="grid grid-cols-1 gap-6">
                   {#each config.tempVoiceGenerators as generator, index}
                     <div class="p-5 bg-surface-container-high/10 border border-outline-variant/5 rounded-xl space-y-4 transition-all">
                       <div class="flex items-center justify-between border-b border-outline-variant/10 pb-3 mb-2">
-                        <span class="text-xs font-semibold text-primary">{m.cm_generator_n({ n: index + 2 })}</span>
+                        <span class="flex items-center gap-2">
+                          <span class="text-xs font-semibold text-primary">{m.cm_generator_n({ n: index + 2 })}</span>
+                          {#if config.tempVoiceModPermissions.perGeneratorPresentation}
+                            {#if generatorOverrideCount(generator) > 0}
+                              <span class="text-2xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                                {m.cm_tv_panel_per_gen_badge_overrides({ count: generatorOverrideCount(generator) })}
+                              </span>
+                            {:else}
+                              <span class="text-2xs font-semibold px-2 py-0.5 rounded-full bg-surface-container-high/40 text-on-surface-variant/60">
+                                {m.cm_tv_panel_per_gen_badge_inherits()}
+                              </span>
+                            {/if}
+                          {/if}
+                        </span>
                         <button
                           type="button"
                           onclick={() => {
@@ -1984,6 +2194,62 @@
                         availableRoles={autoAllowableRoles}
                         idPrefix="temp-voice-gen-{index}"
                       />
+
+                      <!-- Surcharge de présentation : seulement si
+                           l'interrupteur du bloc "Panel presentation"
+                           ci-dessous est coché. Interrupteur coupé, cette carte
+                           est identique à ce qu'elle affichait avant cette
+                           fonctionnalité. -->
+                      {#if config.tempVoiceModPermissions.perGeneratorPresentation}
+                        <div class="border-t border-outline-variant/10 pt-4 mt-2 space-y-3">
+                          <div>
+                            <span class="text-xs font-bold text-on-surface/80 block">{m.cm_tv_panel_per_gen_override_title()}</span>
+                            <p class="text-2xs text-on-surface-variant/40">{m.cm_tv_panel_per_gen_override_desc()}</p>
+                          </div>
+                          <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                            {@render presentationOverrideSelect(
+                              `gen-${index}-panel-mode`,
+                              m.cm_tv_panel_mode_label(),
+                              generator.panelMode,
+                              config.tempVoiceModPermissions.panelMode,
+                              PANEL_MODES,
+                              (v) => { if (v) generator.panelMode = v as TempVoicePanelMode; else delete generator.panelMode; },
+                            )}
+                            {@render presentationOverrideSelect(
+                              `gen-${index}-panel-components`,
+                              m.cm_tv_panel_components_label(),
+                              generator.panelComponents,
+                              config.tempVoiceModPermissions.panelComponents,
+                              PANEL_COMPONENTS_MODES,
+                              (v) => { if (v) generator.panelComponents = v as TempVoicePanelComponents; else delete generator.panelComponents; },
+                            )}
+                            {@render presentationOverrideSelect(
+                              `gen-${index}-state-layout`,
+                              m.cm_tv_panel_state_layout_label(),
+                              generator.stateLayout,
+                              config.tempVoiceModPermissions.stateLayout,
+                              STATE_LAYOUT_MODES,
+                              (v) => { if (v) generator.stateLayout = v as TempVoiceStateLayout; else delete generator.stateLayout; },
+                            )}
+                            {@render presentationOverrideSelect(
+                              `gen-${index}-state-colors`,
+                              m.cm_tv_panel_state_colors_label(),
+                              generator.stateColors,
+                              config.tempVoiceModPermissions.stateColors,
+                              STATE_COLORS_MODES,
+                              (v) => { if (v) generator.stateColors = v as TempVoiceStateColors; else delete generator.stateColors; },
+                            )}
+                            {@render presentationOverrideSelect(
+                              `gen-${index}-reservation-fallback`,
+                              m.cm_tv_panel_reservation_fallback_label(),
+                              generator.reservationFallbackMode,
+                              config.tempVoiceModPermissions.reservationFallbackMode,
+                              RESERVATION_FALLBACK_MODES,
+                              (v) => { if (v) generator.reservationFallbackMode = v as TempVoiceReservationFallback; else delete generator.reservationFallbackMode; },
+                            )}
+                          </div>
+                        </div>
+                      {/if}
                     </div>
                   {/each}
 
@@ -1996,7 +2262,7 @@
                           {
                             channelId: '',
                             categoryId: '',
-                            nameTemplate: '🔊 Salon de {user}',
+                            nameTemplate: '🔊 {user}\'s channel',
                             requiredRoleId: '',
                             ...defaultTempVoicePolicy()
                           }
@@ -2234,6 +2500,171 @@
                 {/each}
               </div>
             {/if}
+          </section>
+
+          <!-- Présentation du panneau : mode, mise en page de l'état, palette et
+               composants (V1/V2) — configurable par serveur, comme le reste de
+               tempVoiceModPermissions envoyé en entier à la sauvegarde. Reste
+               dans le même {#if config.tempVoiceEnabled} que la section
+               voisine : les salons temporaires désactivés, l'onglet ne garde
+               que l'interrupteur, pas un bloc de réglages orphelin. -->
+          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-5 lg:p-6 rounded-xl space-y-4 mt-6">
+            <div>
+              <h3 class="text-sm font-semibold text-on-surface">{m.cm_tv_panel_title()}</h3>
+              <p class="text-2xs text-on-surface-variant/60 mt-0.5">{m.cm_tv_panel_desc()}</p>
+            </div>
+
+            <!-- Interrupteur de secours : coupé (défaut), les 5 réglages
+                 ci-dessous valent pour TOUS les générateurs et les surcharges
+                 des additionnels ne sont même pas lues côté bot
+                 (`presentationPourGenerateur`, tempVoiceService.ts) — l'écran
+                 reste identique à celui d'avant cette fonctionnalité. Le
+                 couper n'efface rien : les surcharges restent dans
+                 `tempVoiceGenerators` et reviennent telles quelles au
+                 rallumage. -->
+            <div class="flex items-center justify-between gap-4 p-4 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl max-w-3xl">
+              <div class="space-y-0.5">
+                <label for="per-generator-presentation-toggle" class="text-xs font-bold text-on-surface/80 block">{m.cm_tv_panel_per_gen_toggle_label()}</label>
+                <p class="text-2xs text-on-surface-variant/60">{m.cm_tv_panel_per_gen_toggle_hint()}</p>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <input
+                  id="per-generator-presentation-toggle"
+                  type="checkbox"
+                  bind:checked={config.tempVoiceModPermissions.perGeneratorPresentation}
+                  class="w-10 h-6 bg-surface-container-high rounded-full relative appearance-none cursor-pointer transition-all border border-outline-variant/20 checked:bg-primary before:content-[''] before:absolute before:h-4 before:w-4 before:rounded-full before:bg-white before:top-0.5 before:left-0.5 checked:before:translate-x-4 before:transition-all"
+                />
+              </div>
+            </div>
+
+            <!-- Cartes-radio, une par option, comme la maquette et comme
+                 « Prévenir par » dans l'onglet voisin : le choix et ce qu'il
+                 coûte se lisent ensemble, sans ouvrir un menu déroulant. -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl items-start">
+              <div class="space-y-2">
+                <span class="text-xs font-bold text-on-surface/80 block">{m.cm_tv_panel_components_label()}</span>
+                <div class="space-y-2">
+                  {#each PANEL_COMPONENTS_MODES as mode (mode.key)}
+                    <label
+                      for="tv-panel-components-{mode.key}"
+                      class="flex flex-col gap-1 border rounded-lg px-4 py-3 cursor-pointer transition-all {config.tempVoiceModPermissions.panelComponents === mode.key
+                        ? 'bg-primary/10 border-primary/40'
+                        : 'bg-surface-container-high/20 border-outline-variant/10 hover:border-primary/20'}"
+                    >
+                      <span class="flex items-center gap-2 text-xs font-bold text-on-surface">
+                        <input
+                          id="tv-panel-components-{mode.key}"
+                          type="radio"
+                          value={mode.key}
+                          bind:group={config.tempVoiceModPermissions.panelComponents}
+                          class="accent-primary w-3.5 h-3.5"
+                        />
+                        {mode.label()}
+                      </span>
+                      {#each mode.hints as hint}
+                        <span class="text-2xs text-on-surface-variant/60 leading-relaxed">{hint()}</span>
+                      {/each}
+                    </label>
+                  {/each}
+                </div>
+                <p class="text-2xs text-on-surface-variant/40">{m.cm_tv_panel_components_hint()}</p>
+              </div>
+
+              <div class="space-y-2">
+                <span class="text-xs font-bold text-on-surface/80 block">{m.cm_tv_panel_mode_label()}</span>
+                <div class="space-y-2">
+                  {#each PANEL_MODES as mode (mode.key)}
+                    <label
+                      for="tv-panel-mode-{mode.key}"
+                      class="flex flex-col gap-1 border rounded-lg px-4 py-3 cursor-pointer transition-all {config.tempVoiceModPermissions.panelMode === mode.key
+                        ? 'bg-primary/10 border-primary/40'
+                        : 'bg-surface-container-high/20 border-outline-variant/10 hover:border-primary/20'}"
+                    >
+                      <span class="flex items-center gap-2 text-xs font-bold text-on-surface">
+                        <input
+                          id="tv-panel-mode-{mode.key}"
+                          type="radio"
+                          value={mode.key}
+                          bind:group={config.tempVoiceModPermissions.panelMode}
+                          class="accent-primary w-3.5 h-3.5"
+                        />
+                        {mode.label()}
+                      </span>
+                      <span class="text-2xs text-on-surface-variant/60 leading-relaxed">{mode.hint()}</span>
+                    </label>
+                  {/each}
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <span class="text-xs font-bold text-on-surface/80 block">{m.cm_tv_panel_state_layout_label()}</span>
+                <div class="space-y-2">
+                  {#each STATE_LAYOUT_MODES as mode (mode.key)}
+                    <label
+                      for="tv-state-layout-{mode.key}"
+                      class="flex flex-col gap-1 border rounded-lg px-4 py-3 cursor-pointer transition-all {config.tempVoiceModPermissions.stateLayout === mode.key
+                        ? 'bg-primary/10 border-primary/40'
+                        : 'bg-surface-container-high/20 border-outline-variant/10 hover:border-primary/20'}"
+                    >
+                      <span class="flex items-center gap-2 text-xs font-bold text-on-surface">
+                        <input
+                          id="tv-state-layout-{mode.key}"
+                          type="radio"
+                          value={mode.key}
+                          bind:group={config.tempVoiceModPermissions.stateLayout}
+                          class="accent-primary w-3.5 h-3.5"
+                        />
+                        {mode.label()}
+                      </span>
+                      <span class="text-2xs text-on-surface-variant/60 leading-relaxed">{mode.hint()}</span>
+                    </label>
+                  {/each}
+                </div>
+                <!-- Ce que le bot fera de la combinaison réglée EN CE MOMENT
+                     (disposition + teinte + composants), et non une paraphrase
+                     de la règle : `stateNative` est la seule source, alignée sur
+                     `etatRenduNativement` côté bot. -->
+                <p class="text-2xs text-on-surface-variant/40">
+                  {stateNative
+                    ? m.cm_tv_panel_state_layout_native_hint()
+                    : m.cm_tv_panel_state_layout_image_hint()}
+                </p>
+              </div>
+
+              <div class="space-y-2">
+                <span class="text-xs font-bold text-on-surface/80 block">{m.cm_tv_panel_state_colors_label()}</span>
+                <div class="space-y-2">
+                  {#each STATE_COLORS_MODES as mode (mode.key)}
+                    <label
+                      for="tv-state-colors-{mode.key}"
+                      class="flex flex-col gap-1 border rounded-lg px-4 py-3 transition-all {stateColorsInert
+                        ? 'opacity-40 cursor-not-allowed bg-surface-container-high/20 border-outline-variant/10'
+                        : config.tempVoiceModPermissions.stateColors === mode.key
+                          ? 'bg-primary/10 border-primary/40 cursor-pointer'
+                          : 'bg-surface-container-high/20 border-outline-variant/10 hover:border-primary/20 cursor-pointer'}"
+                    >
+                      <span class="flex items-center gap-2 text-xs font-bold text-on-surface">
+                        <input
+                          id="tv-state-colors-{mode.key}"
+                          type="radio"
+                          value={mode.key}
+                          disabled={stateColorsInert}
+                          bind:group={config.tempVoiceModPermissions.stateColors}
+                          class="accent-primary w-3.5 h-3.5 disabled:cursor-not-allowed"
+                        />
+                        {mode.label()}
+                      </span>
+                      <span class="text-2xs text-on-surface-variant/60 leading-relaxed">{mode.hint()}</span>
+                    </label>
+                  {/each}
+                </div>
+                <p class="text-2xs text-on-surface-variant/40">
+                  {stateColorsInert
+                    ? m.cm_tv_panel_state_colors_hint_disabled()
+                    : m.cm_tv_panel_state_colors_hint()}
+                </p>
+              </div>
+            </div>
           </section>
         {/if}
 
@@ -2483,6 +2914,25 @@
                 </div>
               {/if}
             </div>
+
+            <!-- Troisième réglage de la MÊME mécanique : quel bouton
+                 « Réserver » voit quelqu'un qui n'a aucun des rôles réservables
+                 listés juste au-dessus. Il vivait dans « Créer son salon »
+                 (Présentation du panneau) : on réglait les rôles ici et leur
+                 repli deux onglets plus loin, sans que rien ne relie les deux. -->
+            <div class="space-y-1.5 max-w-xl">
+              <label for="tv-reservation-fallback-select" class="text-xs font-bold text-on-surface/80 block">{m.cm_tv_panel_reservation_fallback_label()}</label>
+              <select
+                id="tv-reservation-fallback-select"
+                bind:value={config.tempVoiceModPermissions.reservationFallbackMode}
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
+              >
+                <option value="ANY_ROLE">{m.cm_tv_panel_reservation_fallback_any_role()}</option>
+                <option value="MEMBERS">{m.cm_tv_panel_reservation_fallback_members()}</option>
+                <option value="FORBIDDEN">{m.cm_tv_panel_reservation_fallback_forbidden()}</option>
+              </select>
+              <p class="text-2xs text-on-surface-variant/40">{m.cm_tv_panel_reservation_fallback_hint()}</p>
+            </div>
           </div>
         </section>
 
@@ -2524,15 +2974,30 @@
                   <button
                     type="button"
                     onclick={async () => {
-                      const res = await updateChannelsManagementConfig({
-                        honeypotEnabled: true,
-                        honeypotChannelId: null,
-                        createHoneypotChannel: true,
-                      } as any);
-                      if (res?.resolved?.honeypotChannelId) {
-                        config.honeypotChannelId = res.resolved.honeypotChannelId;
-                        savedConfig = JSON.parse(JSON.stringify(config));
-                        toast.success(m.cm_honeypot_created());
+                      try {
+                        const res = await updateChannelsManagementConfig({
+                          honeypotEnabled: true,
+                          honeypotChannelId: null,
+                          createHoneypotChannel: true,
+                        });
+                        if (res?.resolved?.honeypotChannelId) {
+                          config.honeypotChannelId = res.resolved.honeypotChannelId;
+                          // SEULS les deux champs que cette requête a réellement
+                          // écrits passent dans l'instantané. Un
+                          // `savedConfig = structuredClone(config)` marquait
+                          // TOUTE la page comme enregistrée : les cinq réglages
+                          // du panneau, les permissions, le sticky… tout ce qui
+                          // attendait « Enregistrer » disparaissait au prochain
+                          // rechargement, sans un mot.
+                          savedConfig.honeypotChannelId = config.honeypotChannelId;
+                          savedConfig.honeypotEnabled = true;
+                          toast.success(m.cm_honeypot_created());
+                        }
+                      } catch (err) {
+                        // Sans ce catch, un refus de la route (400/403) partait
+                        // en rejet non traité : le clic ne faisait rien et rien
+                        // ne le disait.
+                        toast.error(errorMessage(err) || m.cm_save_api_error());
                       }
                     }}
                     disabled={saveAction.state.loading || loading}

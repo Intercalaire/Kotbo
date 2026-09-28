@@ -38,6 +38,15 @@ export interface TempVoiceGenerator {
   policy: TempVoicePolicy;
   /** `generators[0]` n'est pas forcément le principal : un serveur peut n'avoir que des additionnels. */
   primary: boolean;
+  /**
+   * Ce que ce générateur impose à la présentation du panneau, champ par champ.
+   *
+   * Absent, ou clé absente : ce champ hérite du réglage du serveur. Et rien de
+   * tout ceci n'est même regardé tant que
+   * `TempVoiceModPermissionsConfig.perGeneratorPresentation` est faux — voir
+   * `presentationPourGenerateur`, qui porte la règle et son court-circuit.
+   */
+  surchargesPresentation?: SurchargesPresentation;
 }
 
 export interface StoredTempVoiceGenerator {
@@ -50,9 +59,25 @@ export interface StoredTempVoiceGenerator {
   autoAllowRoleIds?: string[];
   textChat?: TempVoiceTextChatMode;
   ownerPowers?: TempVoiceOwnerPower[];
+  /**
+   * Les cinq surcharges de présentation, sous les noms que porte la colonne du
+   * serveur (`panelMode`, ...) et non sous leurs noms applicatifs : le JSON se
+   * relit alors à côté de `temp_voice_mod_permissions_configs` sans table de
+   * correspondance dans la tête de qui le lit.
+   *
+   * Toutes optionnelles, et c'est le fond du modèle : une clé absente hérite,
+   * elle ne vaut pas « impose le défaut ». Elles vivent dans le JSON
+   * `Guild.tempVoiceGenerators`, donc aucune migration n'est nécessaire pour en
+   * ajouter, en retirer ou en changer une.
+   */
+  panelMode?: ModePanneau;
+  stateLayout?: DispositionEtat;
+  stateColors?: TeinteEtat;
+  panelComponents?: JeuComposants;
+  reservationFallbackMode?: RepliReservation;
 }
 
-export const DEFAULT_NAME_TEMPLATE = '🔊 Salon de {user}';
+export const DEFAULT_NAME_TEMPLATE = "🔊 {user}'s channel";
 
 export function defaultTempVoicePolicy(): TempVoicePolicy {
   return {
@@ -147,6 +172,13 @@ export function normalizeTempVoiceGeneratorsInput(
       autoAllowRoleIds: policy.autoAllowRoleIds,
       textChat: policy.textChat,
       ownerPowers: policy.ownerPowers,
+      // Sans cette ligne, les surcharges de présentation seraient effacées à
+      // CHAQUE enregistrement — cette fonction reconstruit un objet neuf et
+      // laisse tomber tout ce qu'elle ne nomme pas. Un administrateur qui touche
+      // au gabarit de nom d'un générateur perdrait au passage sa présentation,
+      // sans rien voir. Les valeurs hors énumération ne ressortent pas : une
+      // clé invalide vaut une clé absente, donc « hérite du serveur ».
+      ...ecrireSurchargesPresentation(lireSurchargesPresentation(entry)),
     });
 
     if (normalized.length >= MAX_ADDITIONAL_GENERATORS) break;
@@ -198,6 +230,10 @@ export function resolveTempVoiceGenerators(
         requiredRoleId: typeof entry.requiredRoleId === 'string' ? entry.requiredRoleId : undefined,
         policy: normalizeTempVoicePolicy(entry, everyoneRoleId),
         primary: false,
+        // Bornées à leurs énumérations, et seulement celles réellement posées :
+        // une clé absente ou inconnue n'apparaît pas, pour que l'héritage la
+        // distingue d'une clé qui impose le défaut du serveur.
+        surchargesPresentation: lireSurchargesPresentation(entry),
       });
     }
   }
@@ -402,8 +438,10 @@ export const CHANNEL_PATCHES = {
   clearReservation: { Connect: null, SendMessages: null },
   /** @deprecated Ancien nom de `ownerOnly`, gardé le temps que les panneaux en place migrent. */
   closeChat: { SendMessages: false },
-  /** @deprecated Ancien nom de `everyone`, gardé le temps que les panneaux en place migrent. */
-  openChat: { SendMessages: null },
+  /** @deprecated Ancien nom de `everyone`, gardé le temps que les panneaux en place
+   *  migrent. Il suit `everyone` : l'ancien bouton « Chat » et le nouveau mode doivent
+   *  ouvrir le chat de la même façon. (repris de la PR #533) */
+  openChat: { SendMessages: true },
   /** Bannissement : couper la seule connexion laisse lire et écrire dans le chat. */
   ban: { Connect: false, ViewChannel: false, SendMessages: false },
 
@@ -412,8 +450,9 @@ export const CHANNEL_PATCHES = {
   // rendue par `surchargesModeEcriture()`. Deux modes portaient déjà ces bits
   // sans porter de nom ; les deux autres sont neufs.
 
-  /** « Tout le monde » — l'ancien `openChat`. Rendre le droit à la catégorie, jamais l'accorder. */
-  everyone: { SendMessages: null },
+  /** « Everyone » — le droit d'écrire est ACCORDÉ, pas rendu à la catégorie : le libellé
+   *  le promet, et une catégorie qui le refusait fermait le chat. (repris de la PR #533) */
+  everyone: { SendMessages: true },
   /** « Ceux qui sont en vocal » — @everyone est refusé, la présence pose une surcharge nominative. */
   inVoice: { SendMessages: false },
   /** « Moi seul » — l'ancien `closeChat`, complété par `ownerChatPatch(true, …)`. */
@@ -619,20 +658,20 @@ export interface LibelleModeEcriture {
 export const LIBELLES_MODES_ECRITURE: Readonly<Record<ModeEcriture, LibelleModeEcriture>> = {
   everyone: {
     emoji: '🌍',
-    libelle: 'Tout le monde',
-    description: "N'importe qui voyant le salon peut écrire.",
+    libelle: 'Everyone',
+    description: 'Anyone who can see the channel can write.',
   },
   inVoice: {
-    libelle: 'Ceux qui sont en vocal',
-    description: "Le chat suit la pièce : on écrit tant qu'on est connecté.",
+    libelle: 'Those in voice',
+    description: 'The chat follows the room: you can write as long as you\'re connected.',
   },
   ownerOnly: {
-    libelle: 'Moi seul',
-    description: "Personne d'autre ne peut écrire.",
+    libelle: 'Me only',
+    description: 'No one else can write.',
   },
   nobody: {
-    libelle: 'Personne',
-    description: "Y compris moi. Le salon devient un mur d'affichage.",
+    libelle: 'No one',
+    description: 'Including me. The channel becomes a display-only board.',
   },
 };
 
@@ -685,9 +724,12 @@ export function surchargesModeEcriture(
 ): SurchargesModeEcriture {
   switch (mode) {
     case 'everyone':
+      // « Everyone » ACCORDE le droit d'ecrire des deux cotes. Le rendre a la
+      // categorie le retirait des qu'elle le refusait — le mode promettait
+      // l'inverse de ce qu'il faisait. (repris de la PR #533)
       return {
-        everyone: restoreFromCategory(CHANNEL_PATCHES.everyone, categorieEveryone),
-        proprietaire: ownerChatPatch(false, categorieProprietaire),
+        everyone: { SendMessages: true },
+        proprietaire: ownerChatPatch(true, categorieProprietaire),
         suitLaPresence: false,
       };
     case 'ownerOnly':
@@ -772,11 +814,11 @@ export function enregistrerRenommage(historique: readonly number[], maintenant: 
 
 /** « ✏️ Renommer (2/2) » au repos, « ✏️ Renommer (0/2 · 6 min) » une fois épuisé. */
 export function libelleRenommer(quota: QuotaRenommage, maintenant: number): string {
-  if (quota.restants > 0) return `✏️ Renommer (${quota.restants}/${RENOMMAGES_PAR_FENETRE})`;
+  if (quota.restants > 0) return `✏️ Rename (${quota.restants}/${RENOMMAGES_PAR_FENETRE})`;
   const reste = Math.max(0, (quota.libereA ?? maintenant) - maintenant);
   // Arrondi au-dessus : annoncer « 0 min » sur un bouton grisé serait un mensonge.
   const minutes = Math.max(1, Math.ceil(reste / 60_000));
-  return `✏️ Renommer (0/${RENOMMAGES_PAR_FENETRE} · ${minutes} min)`;
+  return `✏️ Rename (0/${RENOMMAGES_PAR_FENETRE} · ${minutes} min)`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -914,7 +956,7 @@ export function peutRepondreDemande(role: RoleAgissant, repondeurs: RepondeurDem
   return {
     autorise: false,
     motif: 'adminsSeulement',
-    raison: "Sur ce serveur, seul le propriétaire du salon répond aux demandes d'accès.",
+    raison: 'On this server, only the channel owner can respond to access requests.',
   };
 }
 
@@ -1319,14 +1361,14 @@ interface SujetReglage {
 
 /** De quoi écrire la phrase de la maquette : « Le mode d'écriture et la
  *  réservation sont réservés aux admins sur ce serveur. » */
-const SUJETS_REGLAGES: Readonly<Record<ReglageModerateur, SujetReglage>> = {
-  renommer: { sujet: 'le renommage', genre: 'm' },
-  limite: { sujet: 'la limite de places', genre: 'f' },
-  verrouiller: { sujet: 'le verrouillage', genre: 'm' },
-  modeEcriture: { sujet: "le mode d'écriture", genre: 'm' },
-  reserver: { sujet: 'la réservation', genre: 'f' },
-  expulserBannir: { sujet: "l'expulsion et le bannissement", genre: 'pluriel' },
-  transferer: { sujet: 'le transfert de propriété', genre: 'm' },
+export const SUJETS_REGLAGES: Readonly<Record<ReglageModerateur, SujetReglage>> = {
+  renommer: { sujet: 'renaming', genre: 'm' },
+  limite: { sujet: 'the member limit', genre: 'f' },
+  verrouiller: { sujet: 'locking', genre: 'm' },
+  modeEcriture: { sujet: 'the chat mode', genre: 'm' },
+  reserver: { sujet: 'reservations', genre: 'pluriel' },
+  expulserBannir: { sujet: 'kicking and banning', genre: 'pluriel' },
+  transferer: { sujet: 'the ownership transfer', genre: 'm' },
 };
 
 function majuscule(texte: string): string {
@@ -1345,13 +1387,14 @@ export function raisonAdminsSeulement(reglages: readonly ReglageModerateur[]): s
   const liste =
     sujets.length === 1
       ? (sujets[0] as string)
-      : `${sujets.slice(0, -1).join(', ')} et ${sujets[sujets.length - 1] as string}`;
+      : `${sujets.slice(0, -1).join(', ')} and ${sujets[sujets.length - 1] as string}`;
 
   const premier = SUJETS_REGLAGES[uniques[0] as ReglageModerateur];
   const pluriel = uniques.length > 1 || premier.genre === 'pluriel';
-  const verbe = pluriel ? 'sont réservés' : premier.genre === 'f' ? 'est réservée' : 'est réservé';
+  // L'anglais n'accorde pas en genre : seul le nombre decide du verbe.
+  const verbe = pluriel ? 'are reserved' : 'is reserved';
 
-  return `${majuscule(liste)} ${verbe} aux admins sur ce serveur.`;
+  return `${majuscule(liste)} ${verbe} for admins on this server.`;
 }
 
 /** Ce qu'un modérateur ne peut pas toucher sur ce serveur, pour l'encart unique. */
@@ -1393,8 +1436,8 @@ export function peutAgir(
 ): VerdictAction {
   if (role === 'proprietaire') {
     // Jamais un bouton mort : chez lui, ces deux-là n'ont pas de sens.
-    if (action === 'recuperer') return refus('dejaProprietaire', 'Tu es déjà propriétaire de ce salon.');
-    if (action === 'demanderAcces') return refus('dejaProprietaire', 'Tu es déjà chez toi dans ce salon.');
+    if (action === 'recuperer') return refus('dejaProprietaire', 'You already own this channel.');
+    if (action === 'demanderAcces') return refus('dejaProprietaire', 'You are already home in this channel.');
     return AUTORISE;
   }
 
@@ -1425,7 +1468,7 @@ export interface CibleMembre {
 }
 
 function designation(cible: CibleMembre): string {
-  return cible.nom ?? 'Cette personne';
+  return cible.nom ?? 'This person';
 }
 
 /**
@@ -1446,15 +1489,15 @@ export function peutAgirSurCible(
     if (cible.estSoiMeme) {
       return refus(
         'cibleSoiMeme',
-        action === 'expulser' ? "Tu ne peux pas t'expulser toi-même." : 'Tu ne peux pas te bannir toi-même.',
+        action === 'expulser' ? "You can't kick yourself." : "You can't ban yourself.",
       );
     }
     if (cible.estStaff) {
       return refus(
         'cibleStaff',
         cible.nom
-          ? `${cible.nom} fait partie du staff : il ne peut être ni expulsé ni banni.`
-          : 'Cette personne fait partie du staff : elle ne peut être ni expulsée ni bannie.',
+          ? `${cible.nom} is part of the staff: they can't be kicked or banned.`
+          : "This person is part of the staff: they can't be kicked or banned.",
       );
     }
   }
@@ -1462,7 +1505,7 @@ export function peutAgirSurCible(
   // Bannir quelqu'un qui n'est pas là a du sens — il ne verra plus le salon.
   // L'expulser, non.
   if (action === 'expulser' && !cible.dansLeSalon) {
-    return refus('cibleHorsSalon', `${designation(cible)} n'est pas dans le salon.`);
+    return refus('cibleHorsSalon', `${designation(cible)} is not in the channel.`);
   }
 
   // « Autoriser » et « Retirer l'acces » ecrivent une surcharge de confiance.
@@ -1474,17 +1517,17 @@ export function peutAgirSurCible(
     return refus(
       'cibleDejaProprietaire',
       cible.nom
-        ? `${cible.nom} est propriétaire du salon : son accès ne vient pas d'une autorisation.`
-        : "Cette personne est propriétaire du salon : son accès ne vient pas d'une autorisation.",
+        ? `${cible.nom} owns the channel: their access doesn't come from a permission.`
+        : "This person owns the channel: their access doesn't come from a permission.",
     );
   }
 
   if (action === 'transferer') {
     if (cible.estSoiMeme) {
-      return refus('cibleSoiMeme', 'Tu ne peux pas te transférer le salon à toi-même.');
+      return refus('cibleSoiMeme', "You can't transfer the channel to yourself.");
     }
     if (cible.estProprietaire) {
-      return refus('cibleDejaProprietaire', `${designation(cible)} est déjà propriétaire du salon.`);
+      return refus('cibleDejaProprietaire', `${designation(cible)} already owns the channel.`);
     }
   }
 
@@ -1499,13 +1542,13 @@ export function libelleActionMembre(
 ): string {
   switch (action) {
     case 'expulser':
-      return 'Expulser';
+      return 'Kick';
     case 'bannir':
-      return 'Bannir';
+      return 'Ban';
     case 'autoriser':
-      return cible.autorise ? "Retirer l'accès" : 'Autoriser';
+      return cible.autorise ? 'Remove access' : 'Allow';
     case 'transferer':
-      return 'Lui donner le salon';
+      return 'Transfer the channel';
   }
 }
 
@@ -1876,5 +1919,326 @@ export class RegistreOriginesSurcharge {
 
   get taille(): number {
     return this.origines.size;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. La présentation du panneau : mode, disposition, teinte, jeu de composants
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Le panneau « classique » (embed + boutons) ou la maquette « FLAT » (une seule
+ *  carte compacte). Les deux restent servables : rien ne force une migration. */
+export const MODES_PANNEAU = ['CLASSIC', 'FLAT'] as const;
+export type ModePanneau = (typeof MODES_PANNEAU)[number];
+
+/** Comment l'état du salon (occupants, réglages actifs) est rangé à l'écran. */
+export const DISPOSITIONS_ETAT = ['GRID3', 'GRID2', 'TABLE', 'CARDS'] as const;
+export type DispositionEtat = (typeof DISPOSITIONS_ETAT)[number];
+
+/** La teinte du rendu, indépendante du thème Discord de qui regarde. */
+export const TEINTES_ETAT = ['NEUTRAL', 'DARK', 'LIGHT'] as const;
+export type TeinteEtat = (typeof TEINTES_ETAT)[number];
+
+/** V1 = les composants Discord historiques (embed + rows) ; V2 = les
+ *  Components V2 (conteneurs, sections, médias) sortis depuis. */
+export const JEUX_COMPOSANTS = ['V1', 'V2'] as const;
+export type JeuComposants = (typeof JEUX_COMPOSANTS)[number];
+
+/** Repli quand la personne qui clique « Réserver » ne porte aucun rôle
+ *  réservable — voir `planReservation` plus bas, qui en fait usage. */
+export const REPLIS_RESERVATION = ['MEMBERS', 'ANY_ROLE', 'FORBIDDEN'] as const;
+export type RepliReservation = (typeof REPLIS_RESERVATION)[number];
+
+export interface ReglagesPresentation {
+  mode: ModePanneau;
+  disposition: DispositionEtat;
+  teinte: TeinteEtat;
+  composants: JeuComposants;
+  repliReservation: RepliReservation;
+}
+
+/** Le comportement livré avant ces cinq réglages : panneau classique, grille à
+ *  trois colonnes, teinte neutre, Components V2 — et, pour qui n'a aucun rôle
+ *  réservable, un menu qui proposait déjà n'importe quel rôle du serveur. */
+export const PRESENTATION_PAR_DEFAUT: ReglagesPresentation = {
+  mode: 'CLASSIC',
+  disposition: 'GRID3',
+  teinte: 'NEUTRAL',
+  composants: 'V2',
+  repliReservation: 'ANY_ROLE',
+};
+
+/**
+ * Le dashboard écrit soit la ligne de base telle que `packages/database` la
+ * stocke (`panelMode`, `stateLayout`, `stateColors`, `panelComponents`,
+ * `reservationFallbackMode`), soit l'objet déjà formé (`mode`, `disposition`,
+ * `teinte`, `composants`, `repliReservation`) — les deux cohabitent tant que
+ * tous les appelants n'ont pas basculé sur le second. Priorité figée entre les
+ * deux : la forme applicative (`mode`, `disposition`, ...) gagne dès qu'elle
+ * est présente, y compris quand ELLE est invalide — un `panelMode` pourtant
+ * valide se fait alors ignorer au profit du défaut. Ce n'est pas un oubli,
+ * c'est l'ordre du `??` choisi ci-dessous pour qu'une migration vers la forme
+ * applicative n'ait pas besoin d'effacer l'ancienne pour prendre effet. Un
+ * champ absent, mal typé ou inventé retombe sur son défaut, jamais sur une
+ * autre valeur qui agirait à sa place : un réglage corrompu ne doit ni
+ * changer de rendu ni élargir une restriction. Les dix champs sont lus par
+ * simple accès, donc à travers la chaîne de prototypes comme partout ailleurs
+ * dans ce fichier : ni une ligne Prisma ni un `JSON.parse` ne posent quoi que
+ * ce soit sur le prototype, et la liste blanche borne de toute façon la sortie
+ * à un réglage d'affichage valide — rien qui élargisse un accès.
+ */
+export function normaliserReglagesPresentation(raw: unknown): ReglagesPresentation {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ...PRESENTATION_PAR_DEFAUT };
+  const ligne = raw as Record<string, unknown>;
+
+  const modeBrut = ligne.mode ?? ligne.panelMode;
+  const mode = MODES_PANNEAU.includes(modeBrut as ModePanneau)
+    ? (modeBrut as ModePanneau)
+    : PRESENTATION_PAR_DEFAUT.mode;
+
+  const dispositionBrute = ligne.disposition ?? ligne.stateLayout;
+  const disposition = DISPOSITIONS_ETAT.includes(dispositionBrute as DispositionEtat)
+    ? (dispositionBrute as DispositionEtat)
+    : PRESENTATION_PAR_DEFAUT.disposition;
+
+  const teinteBrute = ligne.teinte ?? ligne.stateColors;
+  const teinte = TEINTES_ETAT.includes(teinteBrute as TeinteEtat)
+    ? (teinteBrute as TeinteEtat)
+    : PRESENTATION_PAR_DEFAUT.teinte;
+
+  const composantsBrut = ligne.composants ?? ligne.panelComponents;
+  const composants = JEUX_COMPOSANTS.includes(composantsBrut as JeuComposants)
+    ? (composantsBrut as JeuComposants)
+    : PRESENTATION_PAR_DEFAUT.composants;
+
+  const repliBrut = ligne.repliReservation ?? ligne.reservationFallbackMode;
+  const repliReservation = REPLIS_RESERVATION.includes(repliBrut as RepliReservation)
+    ? (repliBrut as RepliReservation)
+    : PRESENTATION_PAR_DEFAUT.repliReservation;
+
+  return { mode, disposition, teinte, composants, repliReservation };
+}
+
+/**
+ * L'interrupteur de secours de la personnalisation par générateur, lu sur la
+ * MÊME ligne que les cinq réglages ci-dessus.
+ *
+ * `=== true` et non `Boolean(...)` : une ligne d'avant la colonne, un `null`, un
+ * `"true"` textuel ou n'importe quel autre type valent FAUX — le comportement
+ * livré. Un réglage illisible ne doit pas allumer tout seul une personnalisation
+ * que personne n'a demandée ; le sens de la panne va vers le comportement
+ * actuel, jamais vers le nouveau.
+ */
+export function presentationParGenerateurActive(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
+  return (raw as Record<string, unknown>).perGeneratorPresentation === true;
+}
+
+/**
+ * Ce qu'un générateur surcharge de la présentation du serveur.
+ *
+ * Une clé ABSENTE veut dire « hérite du serveur », et ce n'est pas la même chose
+ * qu'une clé présente valant le défaut du serveur : c'est précisément pour ça
+ * que `normaliserReglagesPresentation` NE SERT PAS ici. Lui comble chaque trou
+ * avec le défaut, ce qui transformerait « hérite » en « impose CLASSIC » — un
+ * serveur réglé en FLAT verrait tous ses générateurs additionnels le ramener en
+ * CLASSIC sans que personne n'ait rien réglé.
+ */
+export type SurchargesPresentation = Partial<ReglagesPresentation>;
+
+/**
+ * Les surcharges réellement posées sur un générateur, bornées à leurs
+ * énumérations.
+ *
+ * Deux écritures possibles, comme pour `normaliserReglagesPresentation` : les
+ * noms de colonne (`panelMode`, ...) que le JSON porte, et les noms applicatifs
+ * (`mode`, ...), la forme applicative gagnant quand elle est là.
+ *
+ * Une valeur INCONNUE est traitée comme ABSENTE, pas comme une erreur : le champ
+ * hérite alors du serveur. Refuser le générateur entier pour un réglage
+ * d'affichage fautif priverait le serveur de ses salons temporaires.
+ *
+ * ⚠️ Aucune clé n'est jamais posée à `undefined` — seulement omise. C'est ce qui
+ * rend l'étalement de `presentationPourGenerateur` sûr : `{ mode: undefined }`
+ * écraserait le réglage du serveur au lieu d'en hériter.
+ */
+export function lireSurchargesPresentation(raw: unknown): SurchargesPresentation {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const ligne = raw as Record<string, unknown>;
+  const surcharges: SurchargesPresentation = {};
+
+  const modeBrut = ligne.mode ?? ligne.panelMode;
+  if (MODES_PANNEAU.includes(modeBrut as ModePanneau)) surcharges.mode = modeBrut as ModePanneau;
+
+  const dispositionBrute = ligne.disposition ?? ligne.stateLayout;
+  if (DISPOSITIONS_ETAT.includes(dispositionBrute as DispositionEtat)) {
+    surcharges.disposition = dispositionBrute as DispositionEtat;
+  }
+
+  const teinteBrute = ligne.teinte ?? ligne.stateColors;
+  if (TEINTES_ETAT.includes(teinteBrute as TeinteEtat)) surcharges.teinte = teinteBrute as TeinteEtat;
+
+  const composantsBrut = ligne.composants ?? ligne.panelComponents;
+  if (JEUX_COMPOSANTS.includes(composantsBrut as JeuComposants)) {
+    surcharges.composants = composantsBrut as JeuComposants;
+  }
+
+  const repliBrut = ligne.repliReservation ?? ligne.reservationFallbackMode;
+  if (REPLIS_RESERVATION.includes(repliBrut as RepliReservation)) {
+    surcharges.repliReservation = repliBrut as RepliReservation;
+  }
+
+  return surcharges;
+}
+
+/** L'inverse de `lireSurchargesPresentation` : la forme rangée dans le JSON
+ *  `Guild.tempVoiceGenerators`, sous les noms de colonne. Une surcharge absente
+ *  reste absente — elle ne devient pas `null`, qui vaudrait la même chose mais
+ *  encombrerait le JSON d'autant de clés que de champs non réglés. */
+export function ecrireSurchargesPresentation(
+  surcharges: SurchargesPresentation,
+): Pick<
+  StoredTempVoiceGenerator,
+  'panelMode' | 'stateLayout' | 'stateColors' | 'panelComponents' | 'reservationFallbackMode'
+> {
+  return {
+    ...(surcharges.mode ? { panelMode: surcharges.mode } : {}),
+    ...(surcharges.disposition ? { stateLayout: surcharges.disposition } : {}),
+    ...(surcharges.teinte ? { stateColors: surcharges.teinte } : {}),
+    ...(surcharges.composants ? { panelComponents: surcharges.composants } : {}),
+    ...(surcharges.repliReservation ? { reservationFallbackMode: surcharges.repliReservation } : {}),
+  };
+}
+
+/**
+ * LA règle d'héritage, et la seule. Tout ce qui a besoin de la présentation d'un
+ * salon passe par ici : deux chemins de résolution finiraient par diverger, et
+ * le panneau public n'afficherait plus ce que ses sous-panneaux proposent.
+ *
+ * ⚠️ LE COURT-CIRCUIT EST LA PREMIÈRE LIGNE, et c'est la sortie de secours :
+ * tant que `parGenerateur` est faux, le réglage du serveur est rendu TEL QUEL et
+ * pas une seule surcharge n'est lue. Couper l'interrupteur depuis le dashboard
+ * suffit donc à ramener un serveur à son comportement d'avant, sans
+ * redéploiement — et sans rien perdre : les surcharges restent dans le JSON du
+ * générateur et reviennent telles quelles au rallumage.
+ *
+ * Générateur absent — salon d'avant la colonne `generatorChannelId`, ou
+ * générateur supprimé depuis — ou générateur sans aucune surcharge : le réglage
+ * du serveur, sans erreur. Le panneau doit sortir dans tous les cas.
+ */
+export function presentationPourGenerateur(
+  presentationServeur: ReglagesPresentation,
+  generateur: Pick<TempVoiceGenerator, 'surchargesPresentation'> | null | undefined,
+  parGenerateur: boolean,
+): ReglagesPresentation {
+  if (!parGenerateur) return presentationServeur;
+
+  const surcharges = generateur?.surchargesPresentation;
+  if (!surcharges) return presentationServeur;
+
+  // Étalement sûr parce que `lireSurchargesPresentation` OMET les clés non
+  // réglées au lieu de les poser à `undefined` : ici, une clé à `undefined`
+  // écraserait le réglage du serveur au lieu d'en hériter.
+  return { ...presentationServeur, ...surcharges };
+}
+
+/**
+ * Vrai UNIQUEMENT pour GRID3 en V1 : c'est la seule disposition que Discord
+ * sait rendre nativement, via les champs « inline » de l'embed. Discord n'a
+ * aucun composant de colonnes en V2 — GRID2, TABLE, CARDS, et GRID3 lui-même
+ * une fois en V2, passent donc tous par une image PNG rendue côté bot.
+ */
+export function dispositionNative(p: Pick<ReglagesPresentation, 'disposition' | 'composants'>): boolean {
+  return p.disposition === 'GRID3' && p.composants === 'V1';
+}
+
+/** Le seul état mutable de ce fichier, exception assumée à sa pureté : la
+ *  signature de `nomFichierEtat` ne reçoit ni horloge ni source d'aléa, or
+ *  Discord met les pièces jointes en cache par NOM — réutiliser un nom sert
+ *  l'ancienne image et le réglage paraît inopérant. Le compteur ne dépend ni
+ *  de l'heure, ni du processus, ni de l'environnement : le nom rendu est donc
+ *  reproductible, et un test peut l'asserter en entier plutôt qu'à la regex.
+ *  Plafond assumé et NON traité : un redémarrage du bot le remet à zéro, donc
+ *  le premier nom d'après-redémarrage répète le premier nom d'avant. Y mêler
+ *  un jeton d'instance (PID, horodatage) ferait lire l'environnement à une
+ *  couche qui n'a pas le droit — à reprendre seulement si un panneau périmé
+ *  est réellement observé après un redémarrage. */
+let compteurFichierEtat = 0;
+
+/**
+ * Nom du fichier joint au panneau : le compteur garantit qu'il diffère à
+ * chaque appel même à réglages identiques ; les réglages en clair permettent à
+ * un humain de savoir ce qu'il regarde sans ouvrir l'image. Tout ce qui n'est
+ * pas `[a-z0-9]` devient un tiret — les points aussi, sinon un `salonId`
+ * hostile y glisserait une séquence `..`, et ces images s'écrivent bien sur
+ * disque dans `apps/bot/assets/temp-voice-panel/`.
+ */
+export function nomFichierEtat(graine: { salonId: string; disposition: DispositionEtat; teinte: TeinteEtat }): string {
+  compteurFichierEtat += 1;
+  const brut = `etat-${graine.salonId}-${graine.disposition}-${graine.teinte}-${compteurFichierEtat}`;
+  return `${brut.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.png`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. Le repli de réservation : que proposer à qui n'a aucun rôle réservable
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PlanReservation =
+  | { type: 'role_unique'; roleId: string }
+  | { type: 'menu_roles'; roleIds: readonly string[] }
+  | { type: 'membres' }
+  | { type: 'tous_roles' }
+  | { type: 'interdit' };
+
+/**
+ * Ce que doit faire le bouton « Réserver » pour la personne qui clique.
+ *
+ * `rolesReservables` vide vaut « aucune restriction » — c'est déjà le sens de
+ * `reservableRoleIds` vide dans `packages/database/prisma/temp-voice-access.prisma`
+ * — donc le repli ne s'applique pas dans ce cas et le résultat est toujours
+ * `tous_roles`. Sinon on déduplique `rolesReservables` puis on croise avec les
+ * rôles de la cible, dans l'ORDRE de `rolesReservables` pour qu'un menu à
+ * plusieurs rôles soit déterministe d'un appel à l'autre. Aucun plafond n'est
+ * reposé ici : le résultat est un sous-ensemble de `rolesReservables`, que
+ * `normaliserConfigReservation` borne déjà à `MAX_ROLES_RESERVABLES`, et un
+ * `.slice` de plus ne retirerait donc jamais rien — sauf à mentir, en ôtant
+ * sans le dire des rôles que la personne porte vraiment. Un rôle possédé, on
+ * bascule ; plusieurs, on propose un menu limité à CEUX-là, pas tous les rôles
+ * du serveur ; aucun, le repli tranche.
+ */
+export function planReservation(
+  rolesDeLaCible: readonly string[],
+  rolesReservables: readonly string[],
+  repli: RepliReservation,
+): PlanReservation {
+  if (rolesReservables.length === 0) return { type: 'tous_roles' };
+
+  const cible = new Set(rolesDeLaCible);
+  // Dédoublonné d'abord : un doublon dans rolesReservables ferait un
+  // menu_roles à deux options de même valeur, qu'un RoleSelect Discord refuse
+  // (Invalid Form Body / BASE_TYPE_DUPLICATE) — le bouton « Réserver » ne
+  // répondrait plus. Ordonné selon rolesReservables (et non selon
+  // rolesDeLaCible) pour que le menu reste déterministe, quel que soit
+  // l'ordre où Discord donne les rôles.
+  const possedes = [...new Set(rolesReservables)].filter((roleId) => cible.has(roleId));
+
+  if (possedes.length === 1) return { type: 'role_unique', roleId: possedes[0] };
+  if (possedes.length > 1) return { type: 'menu_roles', roleIds: possedes };
+
+  switch (repli) {
+    case 'MEMBERS':
+      return { type: 'membres' };
+    case 'FORBIDDEN':
+      return { type: 'interdit' };
+    // `ANY_ROLE` et, délibérément, TOUTE valeur hors union. Contrairement à
+    // `planDebordement`, cette fonction est appelée directement avec la valeur
+    // de `reservationFallbackMode`, une colonne `String` Prisma sans enum en
+    // base : un cast d'appelant y ferait passer n'importe quoi, et un switch
+    // exhaustif sans `default` rendrait alors `undefined` — le bouton lèverait
+    // un TypeError sur `plan.type` au lieu de retomber sur le comportement
+    // livré. On retombe donc sur le défaut, `PRESENTATION_PAR_DEFAUT
+    // .repliReservation` : un réglage corrompu n'élargit ni ne restreint rien.
+    default:
+      return { type: 'tous_roles' };
   }
 }
