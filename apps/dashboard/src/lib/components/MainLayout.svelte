@@ -7,6 +7,7 @@
   import TutorialWelcome from './TutorialWelcome.svelte';
   import TutorialChecklist from './TutorialChecklist.svelte';
   import PageTip from './PageTip.svelte';
+  import GuideSpotlight from './GuideSpotlight.svelte';
   import MobileTopBar from './mobile/MobileTopBar.svelte';
   import MobileTabBar from './mobile/MobileTabBar.svelte';
   import MobileNavSheet from './mobile/MobileNavSheet.svelte';
@@ -261,4 +262,5 @@
   <UnsavedChangesBar />
   <TutorialWelcome />
   <TutorialChecklist />
+  <GuideSpotlight />
 </div>
