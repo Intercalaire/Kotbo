@@ -43,6 +43,9 @@ const ROOM_COLOR: Record<TowerRoomType, string> = {
   TOLL: '#facc15',
   FOUNTAIN: '#38bdf8',
   AMBUSH: '#94a3b8',
+  WANDERER: '#94a3b8',
+  PRISONER: '#a3e635',
+  ORACLE: '#c4b5fd',
   MONSTER: '#ef4444',
   ELITE: '#a855f7',
   BOSS: '#f59e0b',
@@ -84,6 +87,10 @@ export type TowerMapImage = {
   badges?: Record<string, number>;
   /** Salles qui gardent une clé de l'escalier scellé. */
   keys?: readonly string[];
+  /** Salles où se tient un monstre errant. */
+  wanderers?: readonly string[];
+  /** Chemin vers la sortie montré par un oracle. */
+  path?: readonly string[];
 };
 
 /** Encart de texte à droite de la tour : titre et quelques lignes courtes. */
@@ -301,6 +308,35 @@ function glyph(ctx: SKRSContext2D, type: TowerRoomType, cx: number, cy: number, 
       ctx.arc(cx, cy, s * 0.4, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
+      break;
+    }
+    case 'PRISONER': {
+      // Des barreaux.
+      for (const dx of [-0.5, 0, 0.5]) {
+        ctx.beginPath();
+        ctx.moveTo(cx + s * dx, cy - s * 0.8);
+        ctx.lineTo(cx + s * dx, cy + s * 0.8);
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.8, cy - s * 0.8);
+      ctx.lineTo(cx + s * 0.8, cy - s * 0.8);
+      ctx.moveTo(cx - s * 0.8, cy + s * 0.8);
+      ctx.lineTo(cx + s * 0.8, cy + s * 0.8);
+      ctx.stroke();
+      break;
+    }
+    case 'ORACLE': {
+      // Un œil ouvert.
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.85, cy);
+      ctx.quadraticCurveTo(cx, cy - s * 0.75, cx + s * 0.85, cy);
+      ctx.quadraticCurveTo(cx, cy + s * 0.75, cx - s * 0.85, cy);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, s * 0.28, 0, Math.PI * 2);
+      ctx.fill();
       break;
     }
     case 'FOUNTAIN': {
@@ -727,7 +763,7 @@ function renderMap(input: TowerMapImage): Buffer {
     if (!seen(room.id)) continue;
     const span = room.type === 'BOSS' ? 2 : 1;
     // Une mimique se dessine en coffre, une embuscade en couloir : rien ne les trahit avant.
-    const shown: TowerRoomType = room.type === 'MIMIC' ? 'CHEST' : room.type === 'AMBUSH' ? 'EMPTY' : room.type;
+    const shown: TowerRoomType = room.type === 'MIMIC' ? 'CHEST' : room.type === 'AMBUSH' || room.type === 'WANDERER' ? 'EMPTY' : room.type;
     const x = gx + room.x * tile + inset;
     const y = gy + room.y * tile + inset;
     const size = span * tile - inset * 2;
@@ -747,6 +783,16 @@ function renderMap(input: TowerMapImage): Buffer {
     ctx.lineWidth = span === 2 ? 3 : 2;
     ctx.stroke();
     ctx.globalAlpha = 1;
+
+    // Chemin de l'oracle : un liseré doré jusqu'à la sortie.
+    if (input.path?.includes(room.id)) {
+      ctx.save();
+      ctx.strokeStyle = C.gold;
+      ctx.lineWidth = 3;
+      roundRect(ctx, x - 1, y - 1, size + 2, size + 2, span === 2 ? 13 : 8);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     if (input.targets.includes(room.id)) {
       ctx.save();
@@ -771,8 +817,8 @@ function renderMap(input: TowerMapImage): Buffer {
       if (badge > 0) drawBadge(ctx, x + size - 2, y + 2, Math.max(7, tile * 0.16), badge);
       if (input.keys?.includes(room.id)) drawKey(ctx, x + 3, y + size - 3, Math.max(8, tile * 0.2));
       const power = room.powerPercent ?? 100;
-      // Une embuscade renforcée ne s'annonce pas plus qu'une autre.
-      if (power !== 100 && hasTowerPower(room.type) && room.type !== 'AMBUSH') {
+      // Une embuscade ou le repaire d'un errant ne s'annoncent pas, renforcés ou non.
+      if (power !== 100 && hasTowerPower(room.type) && room.type !== 'AMBUSH' && room.type !== 'WANDERER') {
         drawPower(ctx, x + size - 2, y + size - 2, Math.max(9, Math.round(tile * 0.2)), power);
       }
     }
@@ -787,6 +833,25 @@ function renderMap(input: TowerMapImage): Buffer {
         drawFog(ctx, gx + x * tile, gy + y * tile, tile, x * 31 + y * 17);
       }
     }
+  }
+
+  // Monstres errants : un œil rouge dans la salle où ils se tiennent, s'ils sont en vue.
+  for (const id of input.wanderers ?? []) {
+    const room = layout.rooms.find((candidate) => candidate.id === id);
+    if (!room || !seen(room.id) || room.id === input.pos) continue;
+    const cx = gx + (room.x + 0.5) * tile;
+    const cy = gy + (room.y + 0.5) * tile;
+    const r = tile * 0.22;
+    ctx.save();
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, r * 1.4, r, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = C.sky1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 
   // Pas de pion tant que le joueur n'est pas entré : devant les entrées au choix, il n'est nulle part.

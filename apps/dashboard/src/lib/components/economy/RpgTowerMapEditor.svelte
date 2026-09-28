@@ -18,10 +18,11 @@
   import SearchableSelect from '../SearchableSelect.svelte';
   import ToggleSwitch from '../ToggleSwitch.svelte';
 
-  type RoomType = 'START' | 'WELL' | 'ENTRANCE' | 'MONSTER' | 'ELITE' | 'AMBUSH' | 'BOSS' | 'STAIRS' | 'EXIT' | 'COLLAPSE' | 'TOLL' | 'TRIAL' | 'GATE' | 'SEAL' | 'FOUNTAIN'
+  type RoomType = 'START' | 'WELL' | 'ENTRANCE' | 'MONSTER' | 'ELITE' | 'AMBUSH' | 'WANDERER' | 'PRISONER' | 'BOSS' | 'STAIRS' | 'EXIT' | 'COLLAPSE' | 'TOLL' | 'TRIAL' | 'GATE' | 'SEAL' | 'FOUNTAIN' | 'ORACLE'
     | 'CHEST' | 'MIMIC' | 'CAMPFIRE' | 'MERCHANT' | 'MERCENARY' | 'MENTOR' | 'SHRINE' | 'EVENT' | 'TRAP' | 'WARP_A' | 'WARP_B' | 'EMPTY';
   type Modifier = 'NONE' | 'FLOODED' | 'BURNING' | 'BLESSED';
-  type Category = 'ENTRY' | 'MONSTERS' | 'EXITS' | 'OTHER';
+  type Captive = 'RANDOM' | 'GOLD' | 'POTION' | 'ALLY';
+  type Category = 'ENTRY' | 'MONSTERS' | 'EXITS' | 'NPC' | 'OTHER';
   type Trait = 'ARMORED' | 'VAMPIRIC' | 'SWIFT' | 'THORNY' | 'BERSERK' | 'REGENERATING';
   type Mechanic = 'RANDOM' | 'NONE' | 'SHIELD' | 'SUMMONER' | 'PHASES';
   type EventChoice = 'RANDOM' | 'BLOOD_ALTAR' | 'GAMBLER' | 'SPRING' | 'BLACKSMITH' | 'CURSED_PACT';
@@ -44,6 +45,8 @@
     trialReward: boolean;
     collapseSteps: number;
     tollGold: number;
+    wanderRadius: number;
+    captive: Captive;
     mechanic: Mechanic;
     event: EventChoice;
     key: boolean;
@@ -83,8 +86,8 @@
   const FRAME = 18;
   const CRENEL = 22;
   const ROOM_TYPES: RoomType[] = [
-    'START', 'WELL', 'ENTRANCE', 'MONSTER', 'ELITE', 'MIMIC', 'AMBUSH', 'BOSS', 'STAIRS', 'EXIT', 'COLLAPSE', 'TOLL', 'TRIAL', 'GATE', 'SEAL',
-    'CHEST', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'MENTOR', 'FOUNTAIN', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY',
+    'START', 'WELL', 'ENTRANCE', 'MONSTER', 'ELITE', 'MIMIC', 'AMBUSH', 'WANDERER', 'PRISONER', 'BOSS', 'STAIRS', 'EXIT', 'COLLAPSE', 'TOLL', 'TRIAL', 'GATE', 'SEAL',
+    'CHEST', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'MENTOR', 'ORACLE', 'FOUNTAIN', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY',
   ];
   // Ambiances d'étage (miroir de `TOWER_FLOOR_MODIFIERS`).
   const MODIFIERS: Modifier[] = ['NONE', 'FLOODED', 'BURNING', 'BLESSED'];
@@ -101,9 +104,11 @@
   // La palette est rangée par familles : on cherche une sortie parmi les sorties, pas dans une liste de quatorze.
   const CATEGORIES: { id: Category; icon: string; types: RoomType[] }[] = [
     { id: 'ENTRY', icon: 'LogIn', types: ['START', 'WELL', 'ENTRANCE'] },
-    { id: 'MONSTERS', icon: 'Swords', types: ['MONSTER', 'ELITE', 'TRIAL', 'MIMIC', 'AMBUSH'] },
+    { id: 'MONSTERS', icon: 'Swords', types: ['MONSTER', 'ELITE', 'TRIAL', 'MIMIC', 'AMBUSH', 'WANDERER', 'PRISONER'] },
     { id: 'EXITS', icon: 'Flag', types: ['BOSS', 'STAIRS', 'GATE', 'SEAL', 'EXIT', 'COLLAPSE', 'TOLL'] },
-    { id: 'OTHER', icon: 'LayoutGrid', types: ['CHEST', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'MENTOR', 'FOUNTAIN', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY'] },
+    // Le prisonnier est aussi un PNJ : on le trouve qu'on pense « combat » ou « personnage ».
+    { id: 'NPC', icon: 'Users', types: ['MERCHANT', 'MERCENARY', 'MENTOR', 'ORACLE', 'PRISONER'] },
+    { id: 'OTHER', icon: 'LayoutGrid', types: ['CHEST', 'CAMPFIRE', 'FOUNTAIN', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY'] },
   ];
   // Mêmes valeurs que `rpgTowerContent.ts` côté bot.
   const TRAITS: Trait[] = ['ARMORED', 'VAMPIRIC', 'SWIFT', 'THORNY', 'BERSERK', 'REGENERATING'];
@@ -120,6 +125,7 @@
     STAIRS: 'ArrowUpCircle', EXIT: 'ArrowUp', TRIAL: 'Hourglass', GATE: 'Flag', SEAL: 'Target', WARP_A: 'Zap', WARP_B: 'Zap',
     MIMIC: 'Ghost', MERCENARY: 'UserPlus', MENTOR: 'BookOpen', TRAP: 'AlertTriangle',
     WELL: 'CircleDot', ENTRANCE: 'LogIn', AMBUSH: 'Eye', COLLAPSE: 'TrendingDown', TOLL: 'Coins', FOUNTAIN: 'HeartHandshake',
+    WANDERER: 'Route', PRISONER: 'Lock', ORACLE: 'Compass',
   };
   const COLOR: Record<RoomType, string> = {
     START: '#64748b', MONSTER: '#ef4444', ELITE: '#a855f7', BOSS: '#f59e0b', CHEST: '#eab308',
@@ -127,6 +133,7 @@
     STAIRS: '#22d3ee', EXIT: '#34d399', TRIAL: '#f43f5e', GATE: '#c084fc', SEAL: '#a78bfa', WARP_A: '#2dd4bf', WARP_B: '#14b8a6',
     MIMIC: '#ca8a04', MERCENARY: '#84cc16', MENTOR: '#f472b6', TRAP: '#dc2626',
     WELL: '#64748b', ENTRANCE: '#94a3b8', AMBUSH: '#b91c1c', COLLAPSE: '#fb923c', TOLL: '#facc15', FOUNTAIN: '#38bdf8',
+    WANDERER: '#ef4444', PRISONER: '#a3e635', ORACLE: '#c4b5fd',
   };
   const OFFERS: OfferKind[] = ['POTION', 'HEAL', 'GEAR'];
 
@@ -139,6 +146,9 @@
       case 'COLLAPSE': return m.eco_tower_room_collapse();
       case 'TOLL': return m.eco_tower_room_toll();
       case 'FOUNTAIN': return m.eco_tower_room_fountain();
+      case 'WANDERER': return m.eco_tower_room_wanderer();
+      case 'PRISONER': return m.eco_tower_room_prisoner();
+      case 'ORACLE': return m.eco_tower_room_oracle();
       case 'MONSTER': return m.eco_tower_room_monster();
       case 'ELITE': return m.eco_tower_room_elite();
       case 'BOSS': return m.eco_tower_room_boss();
@@ -171,6 +181,9 @@
       case 'COLLAPSE': return m.eco_tower_room_collapse_tip();
       case 'TOLL': return m.eco_tower_room_toll_tip();
       case 'FOUNTAIN': return m.eco_tower_room_fountain_tip();
+      case 'WANDERER': return m.eco_tower_room_wanderer_tip();
+      case 'PRISONER': return m.eco_tower_room_prisoner_tip();
+      case 'ORACLE': return m.eco_tower_room_oracle_tip();
       case 'MONSTER': return m.eco_tower_room_monster_tip();
       case 'ELITE': return m.eco_tower_room_elite_tip();
       case 'BOSS': return m.eco_tower_room_boss_tip();
@@ -225,6 +238,7 @@
       case 'ENTRY': return m.eco_tower_category_entry();
       case 'MONSTERS': return m.eco_tower_category_monsters();
       case 'EXITS': return m.eco_tower_category_exits();
+      case 'NPC': return m.eco_tower_category_npc();
       default: return m.eco_tower_category_other();
     }
   }
@@ -234,6 +248,7 @@
       case 'ENTRY': return m.eco_tower_category_entry_tip();
       case 'MONSTERS': return m.eco_tower_category_monsters_tip();
       case 'EXITS': return m.eco_tower_category_exits_tip();
+      case 'NPC': return m.eco_tower_category_npc_tip();
       default: return m.eco_tower_category_other_tip();
     }
   }
@@ -305,7 +320,7 @@
   function newRoom(x: number, y: number, type: RoomType): Room {
     return {
       id: `${x}-${y}`, x, y, type, foe: null, chest: 'BOTH', healPercent: 35, offers: [...OFFERS], pricePercent: 100,
-      traits: [], powerPercent: 100, powerReward: false, waves: 3, trialReward: true, collapseSteps: 10, tollGold: 60, mechanic: 'RANDOM', event: 'RANDOM', key: false,
+      traits: [], powerPercent: 100, powerReward: false, waves: 3, trialReward: true, collapseSteps: 10, tollGold: 60, wanderRadius: 3, captive: 'RANDOM', mechanic: 'RANDOM', event: 'RANDOM', key: false,
     };
   }
 
@@ -344,6 +359,8 @@
         trialReward: room.trialReward !== false,
         collapseSteps: room.collapseSteps ?? 10,
         tollGold: room.tollGold ?? 60,
+        wanderRadius: room.wanderRadius ?? 3,
+        captive: room.captive ?? 'RANDOM',
         mechanic: room.mechanic ?? 'RANDOM',
         event: room.event ?? 'RANDOM',
         key: room.key === true,
@@ -374,7 +391,7 @@
 
   /** Salles dont la puissance se règle : celles qui opposent un adversaire, épreuve comprise. */
   function hasPower(type: RoomType): boolean {
-    return type === 'MONSTER' || type === 'ELITE' || type === 'BOSS' || type === 'TRIAL' || type === 'AMBUSH' || type === 'COLLAPSE';
+    return type === 'MONSTER' || type === 'ELITE' || type === 'BOSS' || type === 'TRIAL' || type === 'AMBUSH' || type === 'COLLAPSE' || type === 'WANDERER' || type === 'PRISONER';
   }
 
   // ── Pipette : peindre des salles avec les réglages d'une salle existante ──
@@ -802,6 +819,39 @@
     return (hash >>> 0).toString(36);
   }
 
+  // ── Monstre errant : sa zone de patrouille (miroir de `wanderZone` et `canWanderInto`) ──
+  const WALKABLE: RoomType[] = ['EMPTY', 'WANDERER', 'MONSTER', 'ELITE', 'AMBUSH', 'TRAP'];
+  const wanderCells = $derived.by(() => {
+    const cells = new Set<string>();
+    if (!selected || selected.type !== 'WANDERER') return cells;
+    const distance = new Map<string, number>([[selected.id, 0]]);
+    const queue: Room[] = [selected];
+    while (queue.length > 0) {
+      const room = queue.shift()!;
+      if (WALKABLE.includes(room.type)) cells.add(room.id);
+      if (distance.get(room.id)! >= selected.wanderRadius) continue;
+      for (const [x, y] of cellsOf(room)) {
+        for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+          const other = occupied.get(`${x + dx},${y + dy}`);
+          if (!other || distance.has(other.id)) continue;
+          distance.set(other.id, distance.get(room.id)! + 1);
+          queue.push(other);
+        }
+      }
+    }
+    return cells;
+  });
+
+  const CAPTIVES: Captive[] = ['RANDOM', 'GOLD', 'POTION', 'ALLY'];
+  function captiveLabel(captive: Captive): string {
+    switch (captive) {
+      case 'GOLD': return m.eco_tower_captive_gold();
+      case 'POTION': return m.eco_tower_captive_potion();
+      case 'ALLY': return m.eco_tower_captive_ally();
+      default: return m.eco_tower_captive_random();
+    }
+  }
+
   let showDeaths = $state(false);
   // Numéro de chaque entrée au choix, dans l'ordre où le bot les propose.
   const entranceNumber = $derived(new Map(layout.rooms.filter((room) => room.type === 'ENTRANCE').map((room, index) => [room.id, index + 1])));
@@ -917,7 +967,9 @@
   const merlons = $derived(Math.max(5, Math.round(frameW / 44) | 1));
   const foeOptions = $derived.by(() => {
     if (!selected) return [];
-    const wantBoss = selected.type === 'BOSS';
+    // Le gardien d'un escalier effondré est un gardien comme un autre : il se choisit parmi les boss.
+    const wantBoss = selected.type === 'BOSS' || selected.type === 'COLLAPSE';
+    // Errant et geôlier sont des monstres ordinaires, renforcés par la Tour.
     return foes
       .filter((foe) => foe.isBoss === wantBoss)
       .map((foe) => ({ id: foe.name, name: `${foe.emoji} ${foe.name}${foe.enabled ? '' : ` · ${m.eco_tower_map_foe_disabled()}`}` }));
@@ -1404,6 +1456,11 @@
                 <Papicon icon="Lock" size={14} />
               </g>
             {/if}
+            {#if wanderCells.has(room.id)}
+              <!-- Zone de patrouille de l'errant sélectionné : là où il peut passer. -->
+              <rect x={room.x * CELL + 3} y={room.y * CELL + 3} width={span * CELL - 6} height={span * CELL - 6} rx="11"
+                fill="#ef4444" fill-opacity="0.12" stroke="#ef4444" stroke-width="2" stroke-dasharray="3 3" pointer-events="none" />
+            {/if}
             {#if showDeaths && (floorDeaths[room.id] ?? 0) > 0}
               {@const deaths = floorDeaths[room.id]}
               <rect x={room.x * CELL + 5} y={room.y * CELL + 5} width={span * CELL - 10} height={span * CELL - 10} rx={room.type === 'BOSS' ? 18 : 10}
@@ -1473,7 +1530,40 @@
             </button>
           {/if}
 
-          {#if selected.type === 'MONSTER' || selected.type === 'ELITE' || selected.type === 'BOSS'}
+          {#if selected.type === 'MONSTER' || selected.type === 'ELITE' || selected.type === 'BOSS' || selected.type === 'COLLAPSE' || selected.type === 'WANDERER' || selected.type === 'PRISONER'}
+            {#if selected.type === 'WANDERER'}
+              <div class="space-y-1">
+                <span class="text-xs font-semibold text-on-surface-variant/60">{m.eco_tower_map_wander_radius()} · <span class="font-mono">{selected.wanderRadius}</span></span>
+                <div class="flex flex-wrap gap-1.5">
+                  {#each [1, 2, 3, 4, 5, 6] as radius}
+                    <button type="button" disabled={!canManage || disabled} onclick={() => updateSelected({ wanderRadius: radius })}
+                      class="px-2.5 py-1 rounded-lg text-2xs font-bold border font-mono {selected.wanderRadius === radius ? 'border-primary bg-primary/15' : 'border-outline-variant/15'}">{radius}</button>
+                  {/each}
+                </div>
+                <p class="text-2xs text-on-surface-variant/50">{m.eco_tower_map_wander_hint({ rooms: wanderCells.size })}</p>
+              </div>
+            {/if}
+            {#if selected.type === 'PRISONER'}
+              <div class="space-y-1">
+                <span class="text-xs font-semibold text-on-surface-variant/60">{m.eco_tower_map_captive()}</span>
+                <div class="flex flex-wrap gap-1.5">
+                  {#each CAPTIVES as captive}
+                    <button type="button" disabled={!canManage || disabled} onclick={() => updateSelected({ captive })}
+                      class="px-2 py-1 rounded-lg text-2xs font-bold border {selected.captive === captive ? 'border-primary bg-primary/15' : 'border-outline-variant/15'}">{captiveLabel(captive)}</button>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+            {#if selected.type === 'COLLAPSE'}
+              <div class="space-y-1">
+                <label for="roomCollapse" class="text-xs font-semibold text-on-surface-variant/60">{m.eco_tower_map_collapse_steps()}</label>
+                <input id="roomCollapse" type="number" min="3" max="40" value={selected.collapseSteps} disabled={!canManage || disabled}
+                  onchange={(e) => updateSelected({ collapseSteps: Math.min(40, Math.max(3, Number((e.currentTarget as HTMLInputElement).value) || 10)) })}
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none" />
+                <p class="text-2xs text-on-surface-variant/50">{m.eco_tower_map_collapse_hint({ shortest: bossDepth ?? 0 })}</p>
+              </div>
+              <p class="text-xs font-semibold pt-1">{m.eco_tower_map_collapse_guardian()}</p>
+            {/if}
             <div class="space-y-1">
               <span class="text-xs font-semibold text-on-surface-variant/60">{m.eco_tower_map_foe()}</span>
               <SearchableSelect
@@ -1497,7 +1587,7 @@
               </div>
               <p class="text-2xs text-on-surface-variant/50">{m.eco_tower_map_traits_hint()}</p>
             </div>
-            {#if selected.type === 'BOSS'}
+            {#if selected.type === 'BOSS' || selected.type === 'COLLAPSE'}
               <div class="space-y-1">
                 <span class="text-xs font-semibold text-on-surface-variant/60">{m.eco_tower_map_mechanic()}</span>
                 <div class="flex flex-wrap gap-1.5">
@@ -1509,15 +1599,6 @@
               </div>
             {/if}
           {:else if selected.type === 'AMBUSH'}
-            {@render powerSettings(selected)}
-          {:else if selected.type === 'COLLAPSE'}
-            <div class="space-y-1">
-              <label for="roomCollapse" class="text-xs font-semibold text-on-surface-variant/60">{m.eco_tower_map_collapse_steps()}</label>
-              <input id="roomCollapse" type="number" min="3" max="40" value={selected.collapseSteps} disabled={!canManage || disabled}
-                onchange={(e) => updateSelected({ collapseSteps: Math.min(40, Math.max(3, Number((e.currentTarget as HTMLInputElement).value) || 10)) })}
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none" />
-              <p class="text-2xs text-on-surface-variant/50">{m.eco_tower_map_collapse_hint({ shortest: bossDepth ?? 0 })}</p>
-            </div>
             {@render powerSettings(selected)}
           {:else if selected.type === 'TOLL'}
             <div class="space-y-1">

@@ -45,6 +45,7 @@ import {
   towerLevel,
   towerStats,
   type TowerAction,
+  type TowerCaptiveGift,
   type TowerLockProgress,
   type TowerLogEntry,
   type TowerMapState,
@@ -80,6 +81,7 @@ import {
   fountainDonation,
   fountainDrinkCost,
   heatsFromMask,
+  oraclePrice,
   mentorPrice,
   mercenaryPrice,
   type TowerBossMechanic,
@@ -246,8 +248,11 @@ const ROOM_ICON: Record<TowerRoomType, string> = {
   WELL: 'rpgDoor',
   ENTRANCE: 'rpgDoor',
   FOUNTAIN: 'rpgPotion',
-  // Une embuscade se présente comme un couloir.
+  // Une embuscade et le repaire d'un errant se présentent comme des couloirs.
   AMBUSH: 'dot',
+  WANDERER: 'dot',
+  PRISONER: 'rpgKey',
+  ORACLE: 'star',
   TRIAL: 'rpgWar',
   GATE: 'rpgTower',
   SEAL: 'rpgShard',
@@ -270,7 +275,7 @@ const ROOM_ICON: Record<TowerRoomType, string> = {
  * Glyphes de la mini-carte. Elle reste en Unicode : un emoji d'application pèse une trentaine
  * de caractères, et une grille de 12×12 dépasserait la limite de texte d'un message.
  */
-const MINIMAP_GLYPH: Record<Exclude<TowerRoomType, 'MIMIC' | 'AMBUSH'>, string> = {
+const MINIMAP_GLYPH: Record<Exclude<TowerRoomType, 'MIMIC' | 'AMBUSH' | 'WANDERER'>, string> = {
   START: '🚪',
   MONSTER: '👹',
   ELITE: '💀',
@@ -287,6 +292,8 @@ const MINIMAP_GLYPH: Record<Exclude<TowerRoomType, 'MIMIC' | 'AMBUSH'>, string> 
   WELL: '◌',
   ENTRANCE: '▽',
   FOUNTAIN: '≈',
+  PRISONER: 'Ｐ',
+  ORACLE: '◈',
   TRIAL: 'Ｔ',
   GATE: 'Ｇ',
   SEAL: '◎',
@@ -299,9 +306,10 @@ const MINIMAP_GLYPH: Record<Exclude<TowerRoomType, 'MIMIC' | 'AMBUSH'>, string> 
 };
 
 /** Ce que le joueur croit voir : une mimique passe pour un coffre. */
-function disguised(type: TowerRoomType): Exclude<TowerRoomType, 'MIMIC' | 'AMBUSH'> {
+function disguised(type: TowerRoomType): Exclude<TowerRoomType, 'MIMIC' | 'AMBUSH' | 'WANDERER'> {
   if (type === 'MIMIC') return 'CHEST';
-  if (type === 'AMBUSH') return 'EMPTY';
+  // Une embuscade se cache en couloir ; le repaire d'un errant n'est qu'un couloir, lui se déplace.
+  if (type === 'AMBUSH' || type === 'WANDERER') return 'EMPTY';
   return type;
 }
 
@@ -325,6 +333,8 @@ function roomLabel(type: TowerRoomType, locale: Locale): string {
     case 'WELL': return m.tower_room_well({}, { locale });
     case 'ENTRANCE': return m.tower_room_entrance({}, { locale });
     case 'FOUNTAIN': return m.tower_room_fountain({}, { locale });
+    case 'PRISONER': return m.tower_room_prisoner({}, { locale });
+    case 'ORACLE': return m.tower_room_oracle({}, { locale });
     case 'TRIAL': return m.tower_room_trial({}, { locale });
     case 'GATE': return m.tower_room_gate({}, { locale });
     case 'SEAL': return m.tower_room_seal({}, { locale });
@@ -355,6 +365,8 @@ function roomDescription(type: TowerRoomType, locale: Locale, waves: number = TR
     case 'WELL':
     case 'ENTRANCE': return m.tower_room_entry_desc({}, { locale });
     case 'FOUNTAIN': return m.tower_room_fountain_desc({}, { locale });
+    case 'PRISONER': return m.tower_room_prisoner_desc({}, { locale });
+    case 'ORACLE': return m.tower_room_oracle_desc({}, { locale });
     case 'TRIAL': return m.tower_room_trial_desc({ waves }, { locale });
     case 'GATE': return m.tower_room_gate_desc({}, { locale });
     case 'SEAL': return m.tower_room_seal_desc({}, { locale });
@@ -428,9 +440,14 @@ function moveLine(move: TowerMove, info: TowerRoomInfo | undefined, map: TowerMa
     exitStatus(move.type, map, room, locale),
     room?.key ? `${icon('rpgKey')} ${m.tower_room_holds_key({}, { locale })}` : '',
     !hidden && map.ghosts?.some((ghost) => ghost.roomId === move.roomId) ? `${icon('rpgBoss')} ${m.tower_room_ghost({}, { locale })}` : '',
+    map.oraclePath?.includes(move.roomId) ? `${icon('star')} ${m.tower_room_oracle_path({}, { locale })}` : '',
     room && !hidden && !standing ? powerLine((room.powerPercent ?? 100) / 100, room.powerReward === true, locale) : '',
   ].filter(Boolean);
-  return `${icon(DIRECTION_ICON[move.direction])} ${icon(ROOM_ICON[disguised(move.type)])} **${roomLabel(move.type, locale)}** — ${status}${extras.length > 0 ? `\n-# ${extras.join(' · ')}` : ''}`;
+  // Un monstre errant se tient dans la salle : on le verra avant d'y entrer.
+  const wanderer = map.wanderers?.some((candidate) => candidate.pos === move.roomId)
+    ? `\n-# ${icon('warning')} **${m.tower_room_wanderer_here({}, { locale })}**`
+    : '';
+  return `${icon(DIRECTION_ICON[move.direction])} ${icon(ROOM_ICON[disguised(move.type)])} **${roomLabel(move.type, locale)}** — ${status}${extras.length > 0 ? `\n-# ${extras.join(' · ')}` : ''}${wanderer}`;
 }
 
 function modifierName(modifier: TowerFloorModifier, locale: Locale): string {
@@ -453,6 +470,13 @@ function modifierDescription(modifier: TowerFloorModifier, locale: Locale): stri
 
 function exitName(exit: TowerExitType, locale: Locale): string {
   return exit === 'BOSS' ? doorLabel('BOSS', locale) : roomLabel(exit, locale);
+}
+
+/** Ce qu'a rendu le captif libéré. */
+function captiveLine(gift: TowerCaptiveGift, coin: string, locale: Locale): string {
+  if (gift.kind === 'ALLY') return m.tower_captive_ally({}, { locale });
+  if (gift.kind === 'POTION') return m.tower_captive_potion({}, { locale });
+  return m.tower_captive_gold({ gold: gift.amount, coin }, { locale });
 }
 
 /** Clé trouvée ou sceau allumé, à la suite d'un retour de victoire ou de coffre. */
@@ -727,8 +751,9 @@ async function towerImage(state: TowerState, floor: number, config: TowerConfigV
     const map = state.map;
     // Devant les entrées au choix, toutes se voient, et rien d'autre sous le brouillard.
     const entries = state.phase === 'ENTRY' ? map.entryChoices ?? [] : [];
-    const visible = entries.length > 0 && map.layout.fog ? new Set(entries) : visibleRooms(map.layout, map.pos, map.cleared);
-    const mimics = new Set(map.layout.rooms.filter((room) => room.type === 'MIMIC' || room.type === 'AMBUSH').map((room) => room.id));
+    // Révélé par un oracle, l'étage se voit en entier.
+    const visible = map.revealed ? null : entries.length > 0 && map.layout.fog ? new Set(entries) : visibleRooms(map.layout, map.pos, map.cleared);
+    const mimics = new Set(map.layout.rooms.filter((room) => room.type === 'MIMIC' || room.type === 'AMBUSH' || room.type === 'WANDERER').map((room) => room.id));
     const badges = Object.fromEntries(Object.entries(map.rooms ?? {})
       .filter(([id]) => !mimics.has(id))
       .map(([id, info]) => [id, info.traits.length + (info.mechanic ? 1 : 0)] as const)
@@ -746,6 +771,8 @@ async function towerImage(state: TowerState, floor: number, config: TowerConfigV
       visible: visible ? [...visible] : null,
       badges,
       keys: map.layout.rooms.filter((room) => room.key && !map.cleared.includes(room.id)).map((room) => room.id),
+      wanderers: (map.wanderers ?? []).map((wanderer) => wanderer.pos),
+      path: map.oraclePath ?? [],
     });
   }
   return renderTowerImage({
@@ -821,9 +848,10 @@ function noticeLine(notice: TowerNotice | null, locale: Locale): string | null {
         : m.tower_notice_victory({ emoji: foe, name: notice.name, gold: notice.gold, coin: gold }, { locale });
       // Un joueur tombé ici : son équipement est dans l'écran de butin qui suit.
       const ghost = notice.ghost ? `\n> ${icon('rpgChest')} ${m.tower_notice_ghost({ user: `<@${notice.ghost}>` }, { locale })}` : '';
+      const freed = notice.captive ? `\n> ${icon('rpgKey')} ${captiveLine(notice.captive, gold, locale)}` : '';
       return notice.climbed
-        ? `${line}${ghost}\n> ${icon('rpgUp')} ${m.tower_notice_climbed({ floor: floorTitle(notice.climbed.floor, notice.climbed.name, locale) }, { locale })}`
-        : `${line}${ghost}${lockLine(notice.lock, locale)}`;
+        ? `${line}${ghost}${freed}\n> ${icon('rpgUp')} ${m.tower_notice_climbed({ floor: floorTitle(notice.climbed.floor, notice.climbed.name, locale) }, { locale })}`
+        : `${line}${ghost}${freed}${lockLine(notice.lock, locale)}`;
     }
     case 'treasure': return `${icon('rpgChest')} ${notice.gold > 0
       ? m.tower_notice_treasure({ gold: notice.gold, coin: gold }, { locale })
@@ -848,6 +876,14 @@ function noticeLine(notice: TowerNotice | null, locale: Locale): string | null {
       : m.tower_notice_trap({ hp: notice.dmg }, { locale })}`;
     case 'hired': return `${icon('rpgClan')} ${m.tower_notice_hired({ gold: notice.gold, coin: gold }, { locale })}`;
     case 'ambush': return `${icon('warning')} ${m.tower_notice_ambush({ hp: notice.dmg }, { locale })}`;
+    case 'wanderer': {
+      // Le coffre ou le soin de la salle restent annoncés, avant l'attaque qui suit.
+      const before = noticeLine(notice.before ?? null, locale);
+      return `${before ? `${before}\n` : ''}${icon('warning')} ${m.tower_notice_wanderer({}, { locale })}`;
+    }
+    case 'oracle': return `${icon('star')} ${notice.revealed
+      ? m.tower_notice_oracle_revealed({ gold: notice.gold, coin: gold }, { locale })
+      : m.tower_notice_oracle_path({ gold: notice.gold, coin: gold }, { locale })}`;
     case 'collapsed': return `${icon('warning')} ${m.tower_notice_collapsed({}, { locale })}`;
     case 'toll_paid': return `${icon('coins')} ${m.tower_notice_toll_paid({ gold: notice.gold, coin: gold }, { locale })}${notice.climbed
       ? `\n> ${m.tower_notice_climbed({ floor: floorTitle(notice.climbed.floor, notice.climbed.name, locale) }, { locale })}`
@@ -1465,13 +1501,28 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
       break;
     }
 
+    case 'ORACLE': {
+      const price = oraclePrice(level);
+      const fog = state.map?.layout.fog === true;
+      textBlock(container, [
+        `### ${icon('star')} ${m.tower_room_oracle({}, { locale })}`,
+        fog ? m.tower_oracle_desc_fog({ price, coin: icon('coins') }, { locale }) : m.tower_oracle_desc_path({ price, coin: icon('coins') }, { locale }),
+      ].join('\n'));
+      components.push(row(
+        button(actId(ownerId, version, 're'), m.tower_btn_oracle({ price }, { locale }), ButtonStyle.Success, icon('star'), state.gold < price),
+        button(actId(ownerId, version, 'ml'), m.tower_btn_leave_shop({}, { locale }), ButtonStyle.Secondary, icon('rpgDoor')),
+      ));
+      components.push(runControls(ownerId, state, version, locale));
+      break;
+    }
+
     case 'FOUNTAIN': {
       const cost = fountainDrinkCost(level);
       const gift = fountainDonation(level);
       const pool = config.fountainGold;
       textBlock(container, [
         `### ${icon('rpgPotion')} ${m.tower_room_fountain({}, { locale })}`,
-        m.tower_fountain_desc({ pool, coin: icon('coins'), percent: Math.round(FOUNTAIN_HEAL * 100) }, { locale }),
+        m.tower_fountain_desc({ pool, coin: icon('coins'), percent: Math.round(FOUNTAIN_HEAL * 100), cost, gift }, { locale }),
       ].join('\n'));
       components.push(row(
         button(actId(ownerId, version, 'dk'), m.tower_btn_fountain_drink({ cost }, { locale }), ButtonStyle.Success, icon('rpgPotion'), pool < cost || state.hp >= towerStats(state).maxHealth),
@@ -1787,6 +1838,7 @@ function parseActionCode(code: string): TowerAction | null {
   if (code === 'fc') return { type: 'force' };
   if (code === 'dk') return { type: 'drink' };
   if (code === 'dn') return { type: 'donate' };
+  if (code === 're') return { type: 'reveal' };
   if (code.startsWith('s-')) return { type: 'skill', id: code.slice(2) };
   const index = Number.parseInt(code.slice(1), 10);
   if (!Number.isInteger(index) || index < 0 || index > 4) return null;

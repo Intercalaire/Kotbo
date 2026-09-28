@@ -11,6 +11,8 @@ import {
   ALLY_POWER,
   ALTAR_COST,
   AMBUSH_DAMAGE,
+  CAPTIVE_GOLD,
+  oraclePrice,
   FOUNTAIN_HEAL,
   fountainDonation,
   fountainDrinkCost,
@@ -86,6 +88,7 @@ import {
   rollBlessingChoices,
   rollDoors,
   rollMerchantOffers,
+  rescaleTowerGear,
   rollTowerGear,
   scrapValue,
   towerDodgeChance,
@@ -108,11 +111,16 @@ import {
   TOWER_COLLAPSE_STEPS,
   TOWER_TOLL_GOLD,
   TOWER_TRIAL_WAVES,
+  TOWER_WANDER_RADIUS,
+  canWanderInto,
+  entryRooms,
   exitLocks,
   exitRoom,
+  pathBetween,
   roomNeighbors,
-  entryRooms,
   startRoom,
+  wanderZone,
+  type TowerCaptiveKind,
   type TowerDirection,
   type TowerExitType,
   type TowerFloorsAfter,
@@ -122,7 +130,7 @@ import {
 } from './rpgTowerMap.js';
 import { towerFloorLayout } from './rpgTowerGen.js';
 
-export type TowerPhase = 'DOORS' | 'COMBAT' | 'LOOT' | 'BLESSING' | 'MERCHANT' | 'EVENT' | 'MERCENARY' | 'MENTOR' | 'ENTRY' | 'TOLL' | 'FOUNTAIN';
+export type TowerPhase = 'DOORS' | 'COMBAT' | 'LOOT' | 'BLESSING' | 'MERCHANT' | 'EVENT' | 'MERCENARY' | 'MENTOR' | 'ENTRY' | 'TOLL' | 'FOUNTAIN' | 'ORACLE';
 
 export type TowerLogEntry =
   | { k: 'attack'; dmg: number; crit: boolean }
@@ -189,6 +197,10 @@ export type TowerEncounter = {
   mimic?: boolean;
   /** Le vaincre ouvre la sortie : gardien d'un péage forcé. */
   opensExit?: boolean;
+  /** Monstre errant (sa case de départ) : vaincu, il quitte l'étage. */
+  wanderer?: string;
+  /** Geôlier d'un prisonnier : le vaincre libère le captif. */
+  captive?: TowerCaptiveKind;
   /** Puissance réglée sur la salle (1 : normale). */
   power?: number;
   /** Multiplicateur de l'or et de la chance de butin, quand la salle le fait suivre sa puissance. */
@@ -212,6 +224,8 @@ export type TowerNotice =
     lock?: TowerLockProgress | null;
     /** Joueur tombé dans cette salle, dont l'équipement vient d'être retrouvé. */
     ghost?: string | null;
+    /** Captif libéré en battant son geôlier, et ce qu'il a rendu. */
+    captive?: TowerCaptiveGift | null;
   }
   | { k: 'treasure'; gold: number; lock?: TowerLockProgress | null }
   /** Vague suivante d'une épreuve. */
@@ -223,6 +237,9 @@ export type TowerNotice =
   | { k: 'hired'; gold: number }
   | { k: 'learned'; name: string; emoji: string; gold: number }
   | { k: 'ambush'; dmg: number }
+  /** Un monstre errant attaque ; `before` : ce que venait de rapporter la salle, gardé à l'écran. */
+  | { k: 'wanderer'; before?: TowerNotice | null }
+  | { k: 'oracle'; gold: number; revealed: boolean }
   | { k: 'collapsed' }
   | { k: 'toll_paid'; gold: number; climbed: TowerClimb | null }
   | { k: 'fountain_drink'; hp: number; cost: number }
@@ -276,9 +293,20 @@ export type TowerMapState = {
   steps?: number;
   /** Entrées entre lesquelles le joueur choisit en arrivant ; vidé une fois le choix fait. */
   entryChoices?: string[];
+  /** Monstres errants encore en vie sur l'étage. */
+  wanderers?: TowerWanderer[];
+  /** Un oracle a révélé l'étage sous le brouillard. */
+  revealed?: boolean;
+  /** Chemin vers la sortie montré par un oracle, sur un étage sans brouillard. */
+  oraclePath?: string[];
 };
 
 export type TowerGhost = { roomId: string; userId: string; runId: string; gear: TowerGear };
+
+/** Monstre errant encore en vie : sa case de départ (ses réglages) et sa position. */
+export type TowerWanderer = { spawn: string; pos: string; radius: number };
+
+export type TowerCaptiveGift = { kind: 'GOLD' | 'POTION' | 'ALLY'; amount: number };
 
 /** Salle voisine proposée au joueur. */
 export type TowerMove = { roomId: string; type: TowerRoomType; direction: TowerDirection; cleared: boolean };
@@ -399,6 +427,8 @@ export type TowerAction =
   /** Source commune : boire, ou y verser de l'or. */
   | { type: 'drink' }
   | { type: 'donate' }
+  /** Oracle : payer pour voir l'étage. */
+  | { type: 'reveal' }
   /** Combat automatique contre un monstre ordinaire. */
   | { type: 'auto' };
 
@@ -540,7 +570,9 @@ function rollMechanic(choice: TowerMechanicChoice, rng: TowerRng): TowerBossMech
   return choice;
 }
 
-const ROOM_KIND: Partial<Record<TowerRoomType, TowerEncounterKind>> = { MONSTER: 'COMBAT', ELITE: 'ELITE', BOSS: 'BOSS', SEAL: 'ELITE', MIMIC: 'ELITE', AMBUSH: 'COMBAT', COLLAPSE: 'BOSS' };
+const ROOM_KIND: Partial<Record<TowerRoomType, TowerEncounterKind>> = {
+  MONSTER: 'COMBAT', ELITE: 'ELITE', BOSS: 'BOSS', SEAL: 'ELITE', MIMIC: 'ELITE', AMBUSH: 'COMBAT', COLLAPSE: 'BOSS', WANDERER: 'ELITE', PRISONER: 'ELITE',
+};
 /** Vagues d'une épreuve : deux combats ordinaires puis une élite. */
 export const TRIAL_WAVES = TOWER_TRIAL_WAVES.default;
 const DOOR_KIND: Partial<Record<TowerDoor, TowerEncounterKind>> = { COMBAT: 'COMBAT', ELITE: 'ELITE', BOSS: 'BOSS' };
@@ -566,6 +598,58 @@ function prepareFloor(map: TowerMapState, rng: TowerRng): void {
     }
   }
   map.rooms = rooms;
+  map.wanderers = map.layout.rooms
+    .filter((room) => room.type === 'WANDERER')
+    .map((room) => ({ spawn: room.id, pos: room.id, radius: room.wanderRadius ?? TOWER_WANDER_RADIUS.default }));
+  map.revealed = false;
+  map.oraclePath = undefined;
+}
+
+/**
+ * Un pas des monstres errants, après celui du joueur : chacun reste ou passe dans une salle
+ * voisine de sa zone où il peut aller. S'il entre dans la salle du joueur, il l'attaque.
+ */
+function moveWanderers(state: TowerState, rng: TowerRng): TowerWanderer | null {
+  const map = state.map;
+  if (!map?.wanderers?.length) return null;
+  let caught: TowerWanderer | null = null;
+  for (const wanderer of map.wanderers) {
+    const zone = wanderZone(map.layout, wanderer.spawn, wanderer.radius);
+    const options = roomNeighbors(map.layout, wanderer.pos)
+      .filter(({ room, direction }) => direction !== 'WARP' && zone.has(room.id)
+        && (room.id === map.pos || canWanderInto(room, map.cleared))
+        && !map.wanderers!.some((other) => other !== wanderer && other.pos === room.id))
+      .map(({ room }) => room.id);
+    // Rester sur place est un choix comme un autre : il rôde, il ne fonce pas.
+    const next = rng.pick([wanderer.pos, ...options]);
+    wanderer.pos = next;
+    if (next === map.pos && !caught) caught = wanderer;
+  }
+  return caught;
+}
+
+function startWandererFight(state: TowerState, level: number, rules: TowerRules, foes: TowerFoePool, rng: TowerRng, wanderer: TowerWanderer): void {
+  const map = state.map!;
+  const spawn = map.layout.rooms.find((room) => room.id === wanderer.spawn);
+  startEncounter(state, level, 'ELITE', rules, foes, rng, spawn?.foe ?? null, map.rooms?.[wanderer.spawn] ?? null, spawn ? roomPower(spawn) : undefined);
+  state.encounter!.wanderer = wanderer.spawn;
+  state.notice = { k: 'wanderer', before: state.notice };
+}
+
+/** Le captif libéré rend ce qu'on attend de lui, ou de l'or quand ce n'est plus possible. */
+function freeCaptive(state: TowerState, kind: TowerCaptiveKind, level: number, rng: TowerRng): TowerCaptiveGift {
+  const wanted = kind === 'RANDOM' ? rng.pick(['GOLD', 'POTION', 'ALLY'] as const) : kind;
+  if (wanted === 'ALLY' && !state.ally) {
+    state.ally = true;
+    return { kind: 'ALLY', amount: 0 };
+  }
+  if (wanted === 'POTION' && state.potions < MAX_POTIONS) {
+    state.potions += 1;
+    return { kind: 'POTION', amount: 1 };
+  }
+  const gold = treasureGold(level, rng) * CAPTIVE_GOLD;
+  state.gold += gold;
+  return { kind: 'GOLD', amount: gold };
 }
 
 function rollDoorInfo(doors: TowerDoor[], level: number, rng: TowerRng): TowerRoomInfo[] {
@@ -1047,9 +1131,14 @@ function winEncounter(
   const trialPaid = trial?.reward === true;
   const lootChance = trialPaid ? LOOT_CHANCE.BOSS : LOOT_CHANCE[encounter.kind];
   if (encounter.mimic || rng.next() < Math.min(1, lootChance * bounty)) state.pendingLoot = rollTowerGear(level, encounter.kind, rng);
+  // Un monstre errant vaincu quitte l'étage ; un geôlier vaincu libère son captif.
+  if (encounter.wanderer && state.map?.wanderers) {
+    state.map.wanderers = state.map.wanderers.filter((wanderer) => wanderer.spawn !== encounter.wanderer);
+  }
+  const captive = encounter.captive ? freeCaptive(state, encounter.captive, level, rng) : null;
   // Un joueur est tombé ici : son équipement l'emporte sur le butin du monstre.
   const ghost = takeGhost(state);
-  if (ghost) state.pendingLoot = ghost.gear;
+  if (ghost) state.pendingLoot = rescaleTowerGear(ghost.gear, level);
 
   let healed = heal(state, stats.healAfterCombat);
   if (trialPaid) healed += heal(state, BOSS_VICTORY_HEAL);
@@ -1067,7 +1156,7 @@ function winEncounter(
   state.trial = null;
   if (closesFloor && state.map) {
     const { next, climbed } = exitFloor(state, floor, rules, floors, rng);
-    state.notice = { k: 'victory', name: encounter.name, emoji: encounter.emoji, gold, healed, climbed, ghost: ghost?.userId ?? null };
+    state.notice = { k: 'victory', name: encounter.name, emoji: encounter.emoji, gold, healed, climbed, ghost: ghost?.userId ?? null, captive };
     advance(state, next, rules, rng);
     return next;
   }
@@ -1075,7 +1164,7 @@ function winEncounter(
   const next = progress(state, floor, rules, closesFloor);
   markRoomCleared(state);
   if (closesFloor) state.safeLeave = true;
-  state.notice = { k: 'victory', name: encounter.name, emoji: encounter.emoji, gold, healed, climbed: null, lock: lockProgress(state), ghost: ghost?.userId ?? null };
+  state.notice = { k: 'victory', name: encounter.name, emoji: encounter.emoji, gold, healed, climbed: null, lock: lockProgress(state), ghost: ghost?.userId ?? null, captive };
   advance(state, next, rules, rng);
   return next;
 }
@@ -1385,6 +1474,13 @@ function enterRoom(
     case 'TOLL':
       state.phase = 'TOLL';
       return floor;
+    case 'PRISONER':
+      startEncounter(state, level, 'ELITE', rules, foes, rng, room.foe, info, roomPower(room));
+      state.encounter!.captive = room.captive ?? 'RANDOM';
+      return floor;
+    case 'ORACLE':
+      state.phase = 'ORACLE';
+      return floor;
     case 'FOUNTAIN':
       state.phase = 'FOUNTAIN';
       return floor;
@@ -1495,7 +1591,22 @@ export function applyTowerAction(
         const move = state.moves[action.index];
         if (!move) throw new TowerActionRefused('bad_choice');
         state.map.steps = (state.map.steps ?? 0) + 1;
-        return done(enterRoom(state, floor, move, rules, foes, rng, floors));
+        // Un monstre errant rôde dans la salle visée : c'est lui qu'on trouve.
+        const lurking = state.map.wanderers?.find((wanderer) => wanderer.pos === move.roomId);
+        if (lurking) {
+          state.map.prev = state.map.pos;
+          state.map.pos = move.roomId;
+          startWandererFight(state, level, rules, foes, rng, lurking);
+          return done(floor);
+        }
+        const next = enterRoom(state, floor, move, rules, foes, rng, floors);
+        // Rien ne retient le joueur : les errants font leur pas, et peuvent tomber sur lui.
+        if (state.phase === 'DOORS' && next === floor) {
+          const caught = moveWanderers(state, rng);
+          if (caught) startWandererFight(state, level, rules, foes, rng, caught);
+          else state.moves = computeMoves(state);
+        }
+        return done(next);
       }
       const door = state.doors[action.index];
       if (!door) throw new TowerActionRefused('bad_choice');
@@ -1599,6 +1710,29 @@ export function applyTowerAction(
       retreat(state);
       advance(state, floor, rules, rng);
       return done(floor);
+    }
+
+    case 'ORACLE': {
+      const map = state.map!;
+      if (action.type === 'reveal') {
+        const price = oraclePrice(level);
+        if (state.gold < price) throw new TowerActionRefused('no_gold');
+        state.gold -= price;
+        // Sous le brouillard, tout l'étage apparaît ; sans brouillard, le chemin de la sortie.
+        if (map.layout.fog) {
+          map.revealed = true;
+        } else {
+          const exit = exitRoom(map.layout);
+          map.oraclePath = exit ? pathBetween(map.layout, map.pos, exit.id) ?? undefined : undefined;
+        }
+        state.notice = { k: 'oracle', gold: price, revealed: map.layout.fog };
+      } else if (action.type !== 'leave_shop') {
+        throw new TowerActionRefused('wrong_phase');
+      }
+      markRoomCleared(state);
+      const next = progress(state, floor, rules, false);
+      advance(state, next, rules, rng);
+      return done(next);
     }
 
     case 'FOUNTAIN': {

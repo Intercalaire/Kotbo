@@ -991,6 +991,9 @@ describe('achats, chaleur, mentor et combat automatique', () => {
     let step = move(state, 'MONSTER');
     for (let turn = 0; turn < 50 && step.state.phase === 'COMBAT'; turn++) step = applyTowerAction(step.state, 1, { type: 'attack' }, RULES, FOES);
     expect(step.state.pendingLoot?.name).toBe('Lame du disparu');
+    // Ramenée à la profondeur de celui qui la trouve : même rareté, stats de ce niveau.
+    expect(step.state.pendingLoot?.rarity).toBe('EPIC');
+    expect(step.state.pendingLoot?.attack).toBeLessThan(40);
     expect(step.state.ghostTaken).toBe('run-1');
     expect(step.state.map?.ghosts).toEqual([]);
     expect(step.state.notice).toMatchObject({ k: 'victory', ghost: '42' });
@@ -1066,6 +1069,54 @@ describe('achats, chaleur, mentor et combat automatique', () => {
     const gave = applyTowerAction(visit.state, 1, { type: 'donate' }, RULES, FOES);
     expect(gave.state.fountainDelta).toBeGreaterThan(0);
     expect(gave.state.gold).toBeLessThan(100);
+  });
+
+  const win = (step: ReturnType<typeof applyTowerAction>) => {
+    for (let turn = 0; turn < 60 && step.state.phase === 'COMBAT'; turn++) step = applyTowerAction(step.state, step.floor, { type: 'attack' }, RULES, FOES);
+    return step;
+  };
+
+  test('battre le geôlier libère le captif, qui rend ce qu\'on attend de lui', () => {
+    const fight = move(start([room(0, 0, 'START'), room(1, 0, 'PRISONER', { captive: 'POTION' }), room(2, 0, 'EXIT')]), 'PRISONER');
+    expect(fight.state.encounter?.captive).toBe('POTION');
+    const done = win(fight);
+    expect(done.state.notice).toMatchObject({ k: 'victory', captive: { kind: 'POTION' } });
+    expect(done.state.potions).toBe(3);
+  });
+
+  test('l\'oracle lève le brouillard, ou montre le chemin sans brouillard', () => {
+    const rooms = [room(0, 0, 'START'), room(1, 0, 'ORACLE'), room(2, 0, 'EMPTY'), room(3, 0, 'EXIT')];
+    const plain = move(start(rooms, { gold: 200 }), 'ORACLE');
+    expect(plain.state.phase).toBe('ORACLE');
+    const shown = applyTowerAction(plain.state, 1, { type: 'reveal' }, RULES, FOES);
+    expect(shown.state.map?.oraclePath).toEqual(['2-0', '3-0']);
+    expect(shown.state.gold).toBeLessThan(200);
+    const layout = normalizeTowerLayout({ width: 4, height: 4, fog: true, rooms });
+    if (!layout.ok) throw new Error(layout.error);
+    const foggy = createTowerState({ base: STRONG, skills: [], potions: 1, seed: 3, rules: RULES, layout: layout.value, gold: 200 });
+    const revealed = applyTowerAction(move(foggy, 'ORACLE').state, 1, { type: 'reveal' }, RULES, FOES);
+    expect(revealed.state.map?.revealed).toBe(true);
+  });
+
+  test('un monstre errant attaque qui entre dans sa salle, et quitte l\'étage une fois vaincu', () => {
+    const state = start([room(0, 0, 'START'), room(1, 0, 'EMPTY'), room(2, 0, 'WANDERER', { wanderRadius: 1 }), room(3, 0, 'EMPTY'), room(3, 1, 'EXIT')]);
+    expect(state.map?.wanderers).toEqual([{ spawn: '2-0', pos: '2-0', radius: 1 }]);
+    state.map!.wanderers![0].pos = '1-0';
+    const caught = move(state, 'EMPTY');
+    expect(caught.state.encounter?.wanderer).toBe('2-0');
+    expect(caught.state.notice).toMatchObject({ k: 'wanderer' });
+    const done = win(caught);
+    expect(done.state.map?.wanderers).toEqual([]);
+  });
+
+  test('un monstre errant ne quitte jamais sa zone ni ses cases permises', () => {
+    let state = start([room(0, 0, 'START'), room(1, 0, 'EMPTY'), room(2, 0, 'WANDERER', { wanderRadius: 1 }), room(3, 0, 'EMPTY'), room(3, 1, 'CHEST'), room(3, 2, 'EXIT')]);
+    for (let index = 0; index < 20; index++) {
+      const step = move(state, index % 2 === 0 ? 'EMPTY' : 'START');
+      if (step.state.phase !== 'DOORS') break;
+      expect(['1-0', '2-0', '3-0']).toContain(step.state.map!.wanderers![0].pos);
+      state = step.state;
+    }
   });
 
   test('le simulateur joue des ascensions complètes sans planter', async () => {

@@ -19,8 +19,8 @@ import {
 } from './rpgTowerContent.js';
 
 export const TOWER_ROOM_TYPES = [
-  'START', 'WELL', 'ENTRANCE', 'MONSTER', 'ELITE', 'AMBUSH', 'BOSS', 'STAIRS', 'EXIT', 'COLLAPSE', 'TOLL', 'TRIAL', 'GATE', 'SEAL',
-  'CHEST', 'MIMIC', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'MENTOR', 'FOUNTAIN', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY',
+  'START', 'WELL', 'ENTRANCE', 'MONSTER', 'ELITE', 'AMBUSH', 'WANDERER', 'PRISONER', 'BOSS', 'STAIRS', 'EXIT', 'COLLAPSE', 'TOLL', 'TRIAL', 'GATE', 'SEAL',
+  'CHEST', 'MIMIC', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'MENTOR', 'ORACLE', 'FOUNTAIN', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY',
 ] as const;
 export type TowerRoomType = (typeof TOWER_ROOM_TYPES)[number];
 
@@ -75,7 +75,47 @@ export const TOWER_TRIAL_WAVES = { min: 2, max: 5, default: 3 } as const;
 
 /** Salles dont la puissance se règle : celles qui opposent un adversaire, épreuve comprise. */
 export function hasTowerPower(type: TowerRoomType): boolean {
-  return type === 'MONSTER' || type === 'ELITE' || type === 'BOSS' || type === 'TRIAL' || type === 'AMBUSH' || type === 'COLLAPSE';
+  return type === 'MONSTER' || type === 'ELITE' || type === 'BOSS' || type === 'TRIAL' || type === 'AMBUSH' || type === 'COLLAPSE'
+    || type === 'WANDERER' || type === 'PRISONER';
+}
+
+/** Salles dont la créature se choisit : celles qui opposent un adversaire désigné. */
+export function hasTowerFoe(type: TowerRoomType): boolean {
+  return type === 'MONSTER' || type === 'ELITE' || type === 'BOSS' || type === 'COLLAPSE' || type === 'WANDERER' || type === 'PRISONER';
+}
+
+/** Rayon de patrouille d'un monstre errant, en salles depuis sa case de départ. */
+export const TOWER_WANDER_RADIUS = { min: 1, max: 6, default: 3 } as const;
+/** Ce que rend le captif d'une salle de prisonnier une fois libéré. */
+export const TOWER_CAPTIVE_KINDS = ['RANDOM', 'GOLD', 'POTION', 'ALLY'] as const;
+export type TowerCaptiveKind = (typeof TOWER_CAPTIVE_KINDS)[number];
+
+/**
+ * Cases où un monstre errant peut passer : les couloirs et les salles de combat déjà faites.
+ * Jamais une entrée, une sortie, un PNJ, un coffre ni une salle encore à résoudre : il ne
+ * vole le contenu de personne et ne bloque aucun passage obligé.
+ */
+export function canWanderInto(room: TowerRoom, cleared: readonly string[]): boolean {
+  if (room.type === 'EMPTY' || room.type === 'WANDERER') return true;
+  const fought = room.type === 'MONSTER' || room.type === 'ELITE' || room.type === 'AMBUSH' || room.type === 'TRAP';
+  return fought && cleared.includes(room.id);
+}
+
+/** Salles de la zone de patrouille d'un monstre errant : à `radius` salles au plus de sa case. */
+export function wanderZone(layout: TowerLayout, spawnId: string, radius: number): Set<string> {
+  const cells = occupancy(layout);
+  const distances = new Map<string, number>([[spawnId, 0]]);
+  const queue = [spawnId];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (distances.get(current)! >= radius) continue;
+    for (const { room, direction } of roomNeighbors(layout, current, cells)) {
+      if (direction === 'WARP' || distances.has(room.id)) continue;
+      distances.set(room.id, distances.get(current)! + 1);
+      queue.push(room.id);
+    }
+  }
+  return new Set(distances.keys());
 }
 
 /**
@@ -126,6 +166,10 @@ export type TowerRoom = {
   collapseSteps: number;
   /** Péage : or à payer pour passer, sans quoi il faut forcer le passage. */
   tollGold: number;
+  /** Monstre errant : rayon de sa zone de patrouille. */
+  wanderRadius: number;
+  /** Prisonnier : ce que rend le captif une fois libéré. */
+  captive: TowerCaptiveKind;
   /** Une épreuve réussie paie comme un gardien : soin de victoire et chance d'objet du gardien. Oui par défaut. */
   trialReward: boolean;
   /** Mécanique d'un gardien. */
@@ -225,21 +269,30 @@ export function distancesFromStart(layout: TowerLayout): Map<string, number> {
   return distances;
 }
 
-/** Salles à franchir d'une salle à une autre, en passant par l'étage ; `null` si injoignable. */
-export function roomDistance(layout: TowerLayout, fromId: string, toId: string): number | null {
+/** Plus court chemin d'une salle à une autre, salles d'arrivée comprises ; `null` si injoignable. */
+export function pathBetween(layout: TowerLayout, fromId: string, toId: string): string[] | null {
   const cells = occupancy(layout);
-  const distances = new Map<string, number>([[fromId, 0]]);
+  const previous = new Map<string, string | null>([[fromId, null]]);
   const queue = [fromId];
   while (queue.length > 0) {
     const current = queue.shift()!;
-    if (current === toId) return distances.get(current)!;
+    if (current === toId) {
+      const path: string[] = [];
+      for (let step: string | null = current; step !== null && step !== fromId; step = previous.get(step) ?? null) path.unshift(step);
+      return path;
+    }
     for (const { room } of roomNeighbors(layout, current, cells)) {
-      if (distances.has(room.id)) continue;
-      distances.set(room.id, distances.get(current)! + 1);
+      if (previous.has(room.id)) continue;
+      previous.set(room.id, current);
       queue.push(room.id);
     }
   }
   return null;
+}
+
+/** Salles à franchir d'une salle à une autre, en passant par l'étage ; `null` si injoignable. */
+export function roomDistance(layout: TowerLayout, fromId: string, toId: string): number | null {
+  return pathBetween(layout, fromId, toId)?.length ?? null;
 }
 
 /** Plus court chemin du départ jusqu'à la sortie de l'étage, en salles franchies. */
@@ -308,7 +361,7 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
       x,
       y,
       type,
-      foe: (type === 'MONSTER' || type === 'ELITE' || type === 'BOSS' || type === 'COLLAPSE') && typeof cell.foe === 'string' && cell.foe.trim()
+      foe: hasTowerFoe(type) && typeof cell.foe === 'string' && cell.foe.trim()
         ? cell.foe.trim().slice(0, FOE_NAME_MAX)
         : null,
       chest: TOWER_CHEST_KINDS.includes(cell.chest as TowerChestKind) ? (cell.chest as TowerChestKind) : 'BOTH',
@@ -317,7 +370,7 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
         ? cell.offers.filter((offer): offer is TowerOfferKind => TOWER_OFFER_KINDS.includes(offer as TowerOfferKind)).slice(0, TOWER_MERCHANT_OFFERS_MAX)
         : [...TOWER_OFFER_KINDS],
       pricePercent: clampInt(cell.pricePercent, TOWER_PRICE_PERCENT_RANGE, 100),
-      traits: (type === 'MONSTER' || type === 'ELITE' || type === 'BOSS' || type === 'COLLAPSE' || type === 'AMBUSH') && Array.isArray(cell.traits)
+      traits: (hasTowerFoe(type) || type === 'AMBUSH') && Array.isArray(cell.traits)
         ? [...new Set(cell.traits.filter((trait): trait is TowerTrait => TOWER_TRAITS.includes(trait as TowerTrait)))].slice(0, TOWER_ROOM_TRAITS_MAX)
         : [],
       powerPercent: hasTowerPower(type) ? clampInt(cell.powerPercent, TOWER_POWER_PERCENT_RANGE, 100) : 100,
@@ -326,6 +379,8 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
       trialReward: type === 'TRIAL' && cell.trialReward !== false,
       collapseSteps: clampInt(cell.collapseSteps, TOWER_COLLAPSE_STEPS, TOWER_COLLAPSE_STEPS.default),
       tollGold: clampInt(cell.tollGold, TOWER_TOLL_GOLD, TOWER_TOLL_GOLD.default),
+      wanderRadius: clampInt(cell.wanderRadius, TOWER_WANDER_RADIUS, TOWER_WANDER_RADIUS.default),
+      captive: TOWER_CAPTIVE_KINDS.includes(cell.captive as TowerCaptiveKind) ? (cell.captive as TowerCaptiveKind) : 'RANDOM',
       mechanic: TOWER_MECHANIC_CHOICES.includes(cell.mechanic as TowerMechanicChoice) ? (cell.mechanic as TowerMechanicChoice) : 'RANDOM',
       event: TOWER_EVENT_CHOICES.includes(cell.event as TowerEventChoice) ? (cell.event as TowerEventChoice) : 'RANDOM',
       key: canHoldKey(type) && cell.key === true,
@@ -446,7 +501,8 @@ export function newTowerRoom(x: number, y: number, type: TowerRoomType, extra: P
   return {
     id: roomId(x, y), x, y, type, foe: null, chest: 'BOTH', healPercent: 35, offers: [...TOWER_OFFER_KINDS], pricePercent: 100,
     traits: [], powerPercent: 100, powerReward: false, waves: TOWER_TRIAL_WAVES.default, trialReward: true,
-    collapseSteps: TOWER_COLLAPSE_STEPS.default, tollGold: TOWER_TOLL_GOLD.default, mechanic: 'RANDOM', event: 'RANDOM', key: false, ...extra,
+    collapseSteps: TOWER_COLLAPSE_STEPS.default, tollGold: TOWER_TOLL_GOLD.default,
+    wanderRadius: TOWER_WANDER_RADIUS.default, captive: 'RANDOM', mechanic: 'RANDOM', event: 'RANDOM', key: false, ...extra,
   };
 }
 

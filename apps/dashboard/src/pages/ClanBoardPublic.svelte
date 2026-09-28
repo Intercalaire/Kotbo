@@ -1093,7 +1093,7 @@
                         {:else if s.source === 'RPG_FISHBOOK'}
                           <span class="text-2xs font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-500 shrink-0">{m.clan_public_source_rpg_fishbook()}</span>
                         {:else if s.source === 'RPG_TOWER'}
-                          <span class="text-2xs font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-500 shrink-0">{m.clan_public_source_rpg_tower()}</span>
+                          <span class="text-2xs font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-fuchsia-500/10 text-fuchsia-500 shrink-0">{m.clan_public_source_rpg_tower()}</span>
                         {:else if s.source === 'RPG'}
                           <!-- Gains enregistres avant la separation des trois origines. -->
                           <span class="text-2xs font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-fuchsia-500/10 text-fuchsia-500 shrink-0">{m.clan_public_source_rpg()}</span>
