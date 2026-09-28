@@ -42,9 +42,21 @@ type AutoRoleConfig = Pick<
   | 'statusScanScope'
 >;
 
+/**
+ * Marqueur mis en cache pour une guilde sans config : `null` n'est pas
+ * stockable, et sans ce marqueur chaque changement de présence d'un serveur
+ * sans config relançait la requête (la plus fréquente du bot).
+ */
+type NoAutoRoleConfig = { __none: true };
+
+function isNoConfigMarker(value: unknown): value is NoAutoRoleConfig {
+  return typeof value === 'object' && value !== null && (value as { __none?: unknown }).__none === true;
+}
+
 /** Config d'auto-rôle d'une guilde, ou null si la guilde n'en a aucune. */
 export async function getAutoRoleConfig(guildId: string): Promise<AutoRoleConfig | null> {
-  const cached = await cache.get<AutoRoleConfig>(cacheKey(guildId));
+  const cached = await cache.get<AutoRoleConfig | NoAutoRoleConfig>(cacheKey(guildId));
+  if (isNoConfigMarker(cached)) return null;
   if (cached) return cached;
 
   const config = await prisma.welcomeConfig.findUnique({
@@ -59,9 +71,14 @@ export async function getAutoRoleConfig(guildId: string): Promise<AutoRoleConfig
     },
   }).catch((err) => {
     logger.error('ServerTagRole', `Lecture de la config d'auto-rôle de ${guildId} impossible`, err);
-    return null;
+    return undefined;
   });
-  if (!config) return null;
+  // Erreur de lecture : pas de mise en cache, la prochaine présence réessaiera.
+  if (config === undefined) return null;
+  if (config === null) {
+    await cache.set(cacheKey(guildId), { __none: true } satisfies NoAutoRoleConfig, CONFIG_TTL_SECONDS);
+    return null;
+  }
 
   await cache.set(cacheKey(guildId), config, CONFIG_TTL_SECONDS);
   return config;
