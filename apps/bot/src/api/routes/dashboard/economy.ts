@@ -137,6 +137,7 @@ import {
   TowerError,
   deleteTowerReward,
   getTowerDashboard,
+  previewTowerFloor,
   saveTowerFloors,
   saveTowerReward,
   saveTowerSettings,
@@ -1038,13 +1039,17 @@ export async function handleEconomyRoutes(
       try {
         const dashboard = await getTowerDashboard(guildId);
         const discordGuild = client.guilds.cache.get(guildId);
-        const leaderboard = dashboard.leaderboard.map((entry) => ({
-          ...entry,
-          displayName: discordGuild?.members.cache.get(entry.userId)?.displayName
-            ?? client.users.cache.get(entry.userId)?.username
-            ?? entry.userId,
-        }));
-        json(res, 200, { ...dashboard, leaderboard });
+        const who = (userId: string) => {
+          const member = discordGuild?.members.cache.get(userId);
+          const user = member?.user ?? client.users.cache.get(userId);
+          return {
+            displayName: member?.displayName ?? user?.username ?? userId,
+            avatarUrl: member?.displayAvatarURL({ size: 64 }) ?? user?.displayAvatarURL({ size: 64 }) ?? null,
+          };
+        };
+        const leaderboard = dashboard.leaderboard.map((entry) => ({ ...entry, ...who(entry.userId) }));
+        const daily = { ...dashboard.daily, leaderboard: dashboard.daily.leaderboard.map((entry) => ({ ...entry, ...who(entry.userId) })) };
+        json(res, 200, { ...dashboard, leaderboard, daily });
       } catch (err) {
         towerFailure(err, 'Erreur lors de la récupération de la Tour.');
       }
@@ -1084,6 +1089,21 @@ export async function handleEconomyRoutes(
         json(res, 200, { settings });
       } catch (err) {
         towerFailure(err, 'Erreur lors de la sauvegarde de la carte.');
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/tower/preview (image d'un étage, pour l'éditeur)
+    if (parts.length === 7 && parts[6] === 'preview' && method === 'POST') {
+      try {
+        const body = await readJsonBody<{ layout?: unknown; floor?: unknown }>(req);
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant.' });
+          return true;
+        }
+        json(res, 200, { image: await previewTowerFloor(guildId, body) });
+      } catch (err) {
+        towerFailure(err, 'Erreur lors de l\'aperçu de l\'étage.');
       }
       return true;
     }

@@ -16,8 +16,11 @@ import {
   settleShards,
   TOWER_DODGE_CAP,
   TOWER_GROWTH_KNEE,
+  towerDailySeed,
+  towerDayKey,
   towerDodgeChance,
   towerFloorGrowth,
+  towerFoeShape,
   towerMonsterStats,
   towerUpgradeBonus,
   towerUpgradeCost,
@@ -39,7 +42,9 @@ import {
   normalizeTowerLayout,
   roomNeighbors,
   shortestPathToBoss,
+  visibleRooms,
 } from '../../services/features/rpg/rpgTowerMap.js';
+import { floorSeed, generateTowerLayout, towerFloorLayout } from '../../services/features/rpg/rpgTowerGen.js';
 import { renderTowerImage } from '../../services/features/rpg/rpgTowerRender.js';
 
 const RULES: TowerRules = { floorGrowthPercent: 8, bossEvery: 10, blessingEvery: 5, maxBlessings: 6, shardsPerFloor: 2 };
@@ -535,5 +540,111 @@ describe('rendu de la tour', () => {
       const image = await renderTowerImage({ kind: 'shaft', title: 'La Tour', floor, bossEvery: 10, floorLabel: (value) => `Étage ${value}` });
       expect(isPng(image)).toBe(true);
     }
+  });
+});
+
+describe('profondeur de la Tour', () => {
+  function start(base: TowerCoreStats = STRONG): TowerState {
+    return createTowerState({ base, skills: [], potions: 1, seed: 4321, rules: RULES });
+  }
+
+  test('les étages générés sont valides, reliés et reproductibles', () => {
+    for (let seed = 0; seed < 60; seed++) {
+      const layout = generateTowerLayout(floorSeed(seed, seed + 1));
+      const checked = normalizeTowerLayout(layout);
+      expect(checked.ok).toBe(true);
+      expect(layout.fog).toBe(true);
+      expect(layout.rooms.filter((room) => room.type === 'START')).toHaveLength(1);
+      expect(layout.rooms.some((room) => room.type === 'BOSS')).toBe(true);
+    }
+    expect(generateTowerLayout(42)).toEqual(generateTowerLayout(42));
+  });
+
+  test('après les étages dessinés : la boucle ou des étages générés', () => {
+    const drawn = [{ ...defaultTowerLayout(), name: 'A' }];
+    expect(towerFloorLayout(drawn, 2, 'LOOP', 1)?.name).toBe('A');
+    expect(towerFloorLayout(drawn, 2, 'GENERATE', 1)?.name).toBe('');
+    expect(towerFloorLayout([], 1, 'GENERATE', 1)).not.toBeNull();
+    expect(towerFloorLayout([], 1, 'LOOP', 1)).toBeNull();
+  });
+
+  test('le brouillard ne montre que les salles faites, la sienne et leurs voisines', () => {
+    const layout = { ...defaultTowerLayout(), fog: true };
+    const visible = visibleRooms(layout, '3-8', ['3-8']);
+    expect(visible && [...visible].sort()).toEqual(['3-7', '3-8']);
+    expect(visibleRooms({ ...layout, fog: false }, '3-8', [])).toBeNull();
+  });
+
+  test('un trait se voit avant le combat et change le monstre', () => {
+    const plain = start();
+    plain.doorInfo = [{ traits: [], mechanic: null, event: null }, ...(plain.doorInfo ?? []).slice(1)];
+    const armored = start();
+    armored.doorInfo = [{ traits: ['ARMORED'], mechanic: null, event: null }, ...(armored.doorInfo ?? []).slice(1)];
+    const a = applyTowerAction(plain, 1, { type: 'door', index: 0 }, RULES, FOES).state.encounter!;
+    const b = applyTowerAction(armored, 1, { type: 'door', index: 0 }, RULES, FOES).state.encounter!;
+    expect(b.traits).toEqual(['ARMORED']);
+    expect(b.defense).toBeGreaterThan(a.defense);
+  });
+
+  test('le bouclier d\'un gardien encaisse avant ses PV', () => {
+    const fighting = applyTowerAction(start(), 1, { type: 'door', index: 0 }, RULES, FOES).state;
+    fighting.encounter!.shield = 1_000_000;
+    const health = fighting.encounter!.health;
+    const step = applyTowerAction(fighting, 1, { type: 'attack' }, RULES, FOES);
+    expect(step.state.encounter?.health).toBe(health);
+    expect(step.state.encounter?.log.some((entry) => entry.k === 'shield')).toBe(true);
+  });
+
+  test('la relique Dernier rempart évite une fois la mort', () => {
+    const fighting = applyTowerAction(start({ ...STRONG, attack: 1, speed: 1, defense: 0 }), 1, { type: 'door', index: 0 }, RULES, FOES).state;
+    fighting.gear.relic = {
+      slot: 'relic', name: 'Sablier', emoji: '', rarity: 'LEGENDARY',
+      attack: 0, defense: 0, speed: 0, maxHealth: 0, critChance: 0, lifesteal: 0, thorns: 0, armorPiercing: 0,
+      perk: 'LAST_STAND',
+    };
+    fighting.hp = 1;
+    const step = applyTowerAction(fighting, 1, { type: 'attack' }, RULES, FOES);
+    expect(step.dead).toBe(false);
+    expect(step.state.hp).toBe(1);
+    expect(step.state.encounter?.lastStandUsed).toBe(true);
+  });
+
+  test('le parieur double ou divise l\'or, et l\'autel de sang bénit', () => {
+    const gambling = start();
+    gambling.phase = 'EVENT';
+    gambling.event = { id: 'GAMBLER' };
+    gambling.gold = 100;
+    const bet = applyTowerAction(gambling, 1, { type: 'event', index: 0 }, RULES, FOES);
+    expect([50, 150]).toContain(bet.state.gold);
+    expect(bet.state.notice).toMatchObject({ k: 'event', id: 'GAMBLER', amount: 50 });
+
+    const altar = start();
+    altar.phase = 'EVENT';
+    altar.event = { id: 'BLOOD_ALTAR' };
+    const offered = applyTowerAction(altar, 1, { type: 'event', index: 0 }, RULES, FOES);
+    expect(offered.state.hp).toBe(STRONG.maxHealth - Math.floor(STRONG.maxHealth * 0.2));
+    expect(offered.state.phase).toBe('BLESSING');
+  });
+
+  test('le forgeron refuse sans pièce à reforger', () => {
+    const forge = start();
+    forge.phase = 'EVENT';
+    forge.event = { id: 'BLACKSMITH' };
+    forge.gold = 10_000;
+    expect(() => applyTowerAction(forge, 1, { type: 'event', index: 0 }, RULES, FOES)).toThrow(TowerActionRefused);
+  });
+
+  test('le profil d\'une créature change sa façon de combattre, pas sa force', () => {
+    const golem = towerFoeShape({ health: 700, attack: 10, defense: 30, speed: 5 });
+    expect(golem.health * golem.attack * golem.defense).toBeCloseTo(1);
+    expect(golem.health).toBeGreaterThan(golem.attack);
+    expect(golem.speed).toBeLessThan(1);
+  });
+
+  test('l\'ascension du jour a la même graine pour tout le serveur le même jour', () => {
+    const day = towerDayKey(new Date('2026-09-28T15:00:00Z'));
+    expect(day).toBe('2026-09-28');
+    expect(towerDailySeed('123', day)).toBe(towerDailySeed('123', day));
+    expect(towerDailySeed('123', day)).not.toBe(towerDailySeed('123', '2026-09-29'));
   });
 });

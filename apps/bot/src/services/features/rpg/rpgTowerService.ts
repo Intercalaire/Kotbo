@@ -7,10 +7,12 @@
  * or, bénédictions) ne rejoint le profil RPG ; seuls les éclats restent, et ce qu'ils achètent.
  */
 
-import type { Client } from 'discord.js';
+import { EmbedBuilder, type Client } from 'discord.js';
 import { Prisma, type RpgTowerReward, type RpgTowerRun } from '@prisma/client';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
+import { resolveGuildLocale } from '../../../utils/i18n.js';
+import * as m from '../../../lib/paraglide/messages.js';
 import { checkLevelUp, getOrCreateEconomyConfig, getOrCreateRpgProfile } from '../economyService.js';
 import { loadAvailableSkills, loadEffectiveStats, seedDefaultMonsters } from '../combatService.js';
 import { getRpgClass } from './rpgClasses.js';
@@ -22,6 +24,7 @@ import { awardRpgTeamPoints } from './rpgTeamRewards.js';
 import {
   applyTowerAction,
   createTowerState,
+  towerRoomsExplored,
   type TowerAction,
   type TowerActionError,
   TowerActionRefused,
@@ -42,6 +45,9 @@ import {
   parseTowerUpgrades,
   settleShards,
   towerUpgradeBonus,
+  towerDailySeed,
+  towerDayKey,
+  towerFoeShape,
   towerUpgradeCost,
   towerWeekStart,
   type TowerCoreStats,
@@ -55,11 +61,12 @@ import {
   TOWER_FLOORS_MAX,
   TOWER_MAP_ROOMS_MAX,
   TOWER_MAP_SIZE,
-  floorLayout,
   normalizeTowerFloors,
   normalizeTowerLayout,
   type TowerLayout,
 } from './rpgTowerMap.js';
+import { towerFloorLayout } from './rpgTowerGen.js';
+import { renderTowerImage } from './rpgTowerRender.js';
 
 export class TowerError extends Error {
   constructor(message: string, readonly status: number) {
@@ -78,7 +85,9 @@ export type TowerRefusal =
   | { kind: 'shards'; price: number; balance: number }
   | { kind: 'owned' }
   | { kind: 'unavailable' }
-  | { kind: 'upgrade_max' };
+  | { kind: 'upgrade_max' }
+  | { kind: 'daily_disabled' }
+  | { kind: 'daily_done' };
 
 /** Refus d'une action de joueur, traduit par le panneau dans la langue du joueur. */
 export class TowerRefused extends Error {
@@ -113,6 +122,14 @@ export type TowerSettlement = {
   expired: boolean;
   /** Vrai quand un autre appel l'avait déjà soldée : rien n'a été versé cette fois. */
   alreadySettled?: boolean;
+  /** Salles explorées, qui départagent le classement. Absent des bilans d'avant ce champ. */
+  roomsExplored?: number;
+  /** Monstre qui a fait tomber le joueur. */
+  killedBy?: string | null;
+  /** Équipement porté à la fin, par nom. */
+  gear?: string[];
+  /** Ascension du jour. */
+  daily?: boolean;
 };
 
 export type ActiveTowerRun = { run: RpgTowerRun; state: TowerState };
@@ -164,6 +181,14 @@ function playedFloors(settings: TowerConfigView): TowerLayout[] {
   return settings.layoutEnabled ? settings.floors : [];
 }
 
+/**
+ * La carte est jouée : activée, avec des étages dessinés ou des étages générés. Sans aucun
+ * des deux, la Tour tire ses portes au hasard.
+ */
+export function mapPlayed(settings: TowerConfigView): boolean {
+  return settings.layoutEnabled && (settings.floors.length > 0 || settings.floorsAfter === 'GENERATE');
+}
+
 /** La Tour n'ouvre que si le module économie, le RPG et la Tour elle-même sont actifs. */
 export async function isTowerOpen(guildId: string): Promise<boolean> {
   const [economy, tower] = await Promise.all([getOrCreateEconomyConfig(guildId), getTowerConfig(guildId)]);
@@ -186,6 +211,7 @@ function rulesOf(settings: TowerSettings): TowerRules {
     maxBlessings: settings.maxBlessings,
     shardsPerFloor: settings.shardsPerFloor,
     merchant: settings.merchant,
+    floorsAfter: settings.floorsAfter,
   };
 }
 
@@ -195,10 +221,12 @@ async function loadFoes(guildId: string): Promise<TowerFoePool> {
   // donjon réserve ses boss. Le tirage au hasard, lui, ne pioche que dans les actives.
   const monsters = await listGuildMonsters(guildId, { includeDisabled: true });
   const enabled = monsters.filter((monster) => monster.enabled);
+  // Chaque créature garde le profil de sa fiche : robuste, rapide ou brutale, à force égale.
+  const foe = (monster: (typeof monsters)[number]) => ({ name: monster.name, emoji: monster.emoji, shape: towerFoeShape(monster) });
   return {
-    monsters: enabled.filter((monster) => !monster.isBoss).map(({ name, emoji }) => ({ name, emoji })),
-    bosses: enabled.filter((monster) => monster.isBoss).map(({ name, emoji }) => ({ name, emoji })),
-    byName: Object.fromEntries(monsters.map(({ name, emoji }) => [name, { name, emoji }])),
+    monsters: enabled.filter((monster) => !monster.isBoss).map(foe),
+    bosses: enabled.filter((monster) => monster.isBoss).map(foe),
+    byName: Object.fromEntries(monsters.map((monster) => [monster.name, foe(monster)])),
   };
 }
 
@@ -241,7 +269,7 @@ export type TowerEntryPreview = {
  * Ce avec quoi le joueur entrerait dans la Tour : ses stats compressées, les compétences de
  * sa classe et de son arbre, et ses potions de départ.
  */
-export async function previewTowerEntry(guildId: string, userId: string): Promise<TowerEntryPreview> {
+export async function previewTowerEntry(guildId: string, userId: string, options: { daily?: boolean } = {}): Promise<TowerEntryPreview> {
   const [settings, rpgProfile, towerProfile] = await Promise.all([
     getTowerConfig(guildId),
     getOrCreateRpgProfile(guildId, userId),
@@ -255,27 +283,31 @@ export async function previewTowerEntry(guildId: string, userId: string): Promis
   ]);
 
   const rpgClass = getRpgClass(rpgProfile.className);
-  const bonus = towerUpgradeBonus(settings.upgrades, parseTowerUpgrades(towerProfile.upgrades, settings.upgrades));
+  // L'ascension du jour se joue à armes égales : ni héritage du RPG, ni titre, ni amélioration.
+  // Seules la classe et ses compétences distinguent les joueurs.
+  const daily = options.daily === true;
+  const bonus = daily ? null : towerUpgradeBonus(settings.upgrades, parseTowerUpgrades(towerProfile.upgrades, settings.upgrades));
+  const mode: TowerEntryMode = daily ? 'RESET' : settings.entryMode;
 
   const stats = computeTowerEntryStats({
-    mode: settings.entryMode,
+    mode,
     inheritCapPercent: settings.inheritCapPercent,
-    titleCapPercent: settings.titleCapPercent,
+    titleCapPercent: daily ? 0 : settings.titleCapPercent,
     main: { attack: main.attack, defense: main.defense, speed: main.speed, maxHealth: main.maxHealth },
     title: {
-      attack: title?.attackBonus ?? 0,
-      defense: title?.defenseBonus ?? 0,
-      speed: title?.speedBonus ?? 0,
-      maxHealth: title?.healthBonus ?? 0,
-      critPercent: title?.critBonus ?? 0,
+      attack: daily ? 0 : title?.attackBonus ?? 0,
+      defense: daily ? 0 : title?.defenseBonus ?? 0,
+      speed: daily ? 0 : title?.speedBonus ?? 0,
+      maxHealth: daily ? 0 : title?.healthBonus ?? 0,
+      critPercent: daily ? 0 : title?.critBonus ?? 0,
     },
     classModifiers: rpgClass?.modifiers ?? { attack: 1, defense: 1, speed: 1, maxHealth: 1 },
     classPassive: rpgClass?.passive ?? {},
-    upgradeBonus: bonus,
+    upgradeBonus: bonus ?? undefined,
   });
 
   return {
-    mode: settings.entryMode,
+    mode,
     stats,
     main: { attack: main.attack, defense: main.defense, speed: main.speed, maxHealth: main.maxHealth },
     skills: skills.map((skill) => ({
@@ -285,9 +317,9 @@ export async function previewTowerEntry(guildId: string, userId: string): Promis
       cooldownTurns: skill.cooldownTurns,
       effect: skill.effect,
     })),
-    potions: STARTING_POTIONS + bonus.potions,
-    gold: bonus.gold,
-    titleName: title?.name ?? null,
+    potions: STARTING_POTIONS + (bonus?.potions ?? 0),
+    gold: bonus?.gold ?? 0,
+    titleName: daily ? null : title?.name ?? null,
     className: rpgClass ? `${rpgClass.emoji} ${rpgClass.name}` : null,
   };
 }
@@ -320,26 +352,40 @@ export async function getActiveTowerRun(
 // Partie
 // ─────────────────────────────────────────────────────────────
 
-export async function startTowerRun(client: Client | null, guildId: string, userId: string): Promise<ActiveTowerRun> {
+/**
+ * Ouvre une ascension. `daily` : l'ascension du jour, même graine pour tout le serveur et une
+ * seule tentative par joueur et par jour ; elle a son propre classement et ne compte ni pour
+ * la saison ni pour les paliers.
+ */
+export async function startTowerRun(
+  client: Client | null,
+  guildId: string,
+  userId: string,
+  options: { daily?: boolean } = {},
+): Promise<ActiveTowerRun> {
   if (!(await isTowerOpen(guildId))) throw new TowerRefused({ kind: 'disabled' });
+  const daily = options.daily === true;
 
   const { active } = await getActiveTowerRun(client, guildId, userId);
   if (active) throw new TowerRefused({ kind: 'active_run' });
 
   const [settings, preview, towerProfile] = await Promise.all([
     getTowerConfig(guildId),
-    previewTowerEntry(guildId, userId),
+    previewTowerEntry(guildId, userId, { daily }),
     getOrCreateTowerProfile(guildId, userId),
   ]);
+  if (daily && !settings.dailyEnabled) throw new TowerRefused({ kind: 'daily_disabled' });
 
+  const dayKey = towerDayKey(new Date());
+  const seed = daily ? towerDailySeed(guildId, dayKey) : newTowerSeed();
   const state = createTowerState({
     base: preview.stats,
     skills: preview.skills,
     potions: preview.potions,
     gold: preview.gold,
-    seed: newTowerSeed(),
+    seed,
     rules: rulesOf(settings),
-    layout: floorLayout(playedFloors(settings), 1),
+    layout: mapPlayed(settings) ? towerFloorLayout(playedFloors(settings), 1, settings.floorsAfter, seed) : null,
   });
 
   return prisma.$transaction(async (tx) => {
@@ -348,6 +394,10 @@ export async function startTowerRun(client: Client | null, guildId: string, user
     await tx.$queryRaw`SELECT 1 FROM "rpg_tower_profiles" WHERE "id" = ${towerProfile.id} FOR UPDATE`;
     const running = await tx.rpgTowerRun.count({ where: { profileId: towerProfile.id, status: 'ACTIVE' } });
     if (running > 0) throw new TowerRefused({ kind: 'active_run' });
+    if (daily) {
+      const played = await tx.rpgTowerRun.count({ where: { profileId: towerProfile.id, mode: 'DAILY', dailyKey: dayKey } });
+      if (played > 0) throw new TowerRefused({ kind: 'daily_done' });
+    }
 
     const run = await tx.rpgTowerRun.create({
       data: {
@@ -355,6 +405,8 @@ export async function startTowerRun(client: Client | null, guildId: string, user
         guildId,
         userId,
         state: state as unknown as Prisma.InputJsonValue,
+        mode: daily ? 'DAILY' : 'CLASSIC',
+        dailyKey: daily ? dayKey : null,
       },
     });
     await tx.rpgTowerProfile.update({ where: { id: towerProfile.id }, data: { totalRuns: { increment: 1 } } });
@@ -508,11 +560,17 @@ async function settleRun(
   const kept = settleShards(state.shards, outcome, settings.deathShardPercent, settings.leaveShardPercent, state.safeLeave === true);
   const now = new Date();
   const weekStart = towerWeekStart(now);
+  const daily = run.mode === 'DAILY';
+  const rooms = towerRoomsExplored(state);
+  const killedBy = outcome === 'DEAD' ? state.encounter?.name ?? null : null;
+  const gear = (['weapon', 'armor', 'relic'] as const)
+    .map((slot) => state.gear[slot]?.name)
+    .filter((name): name is string => Boolean(name));
 
   const result = await prisma.$transaction(async (tx) => {
     const closed = await tx.rpgTowerRun.updateMany({
       where: { id: run.id, status: 'ACTIVE' },
-      data: { status: outcome, endedAt: now, shardsEarned: kept },
+      data: { status: outcome, endedAt: now, shardsEarned: kept, floorsCleared: state.floorsCleared, roomsExplored: rooms, killedBy },
     });
     if (closed.count === 0) return null;
 
@@ -521,10 +579,18 @@ async function settleRun(
     const sameWeek = profile.weekStart !== null && profile.weekStart.getTime() === weekStart.getTime();
     const weekSoFar = sameWeek ? profile.weekShards : 0;
     const granted = applyWeeklyCap(kept, weekSoFar, settings.weeklyShardCap);
-    const inSeason = run.startedAt.getTime() >= settings.seasonStartedAt.getTime();
-    const newBest = inSeason && state.floorsCleared > profile.bestFloor;
+    // L'ascension du jour, à stats égales, a son propre classement : elle ne touche ni à la
+    // saison, ni aux records, ni aux paliers.
+    const inSeason = !daily && run.startedAt.getTime() >= settings.seasonStartedAt.getTime();
+    // À étages égaux, les salles explorées départagent : sur carte, les égalités sont fréquentes.
+    const newBest = inSeason && (state.floorsCleared > profile.bestFloor
+      || (state.floorsCleared === profile.bestFloor && state.floorsCleared > 0 && rooms > profile.bestRooms));
+    const top = newBest
+      ? await tx.rpgTowerProfile.aggregate({ where: { guildId: run.guildId, id: { not: profile.id } }, _max: { bestFloor: true } })
+      : null;
+    const serverRecord = newBest && state.floorsCleared > (top?._max.bestFloor ?? 0);
 
-    const milestones = await tx.rpgTowerReward.findMany({
+    const milestones = daily ? [] : await tx.rpgTowerReward.findMany({
       where: {
         guildId: run.guildId,
         kind: 'MILESTONE',
@@ -543,13 +609,13 @@ async function settleRun(
         lifetimeShards: { increment: granted + milestoneShards },
         weekShards: weekSoFar + granted,
         weekStart,
-        ...(newBest ? { bestFloor: state.floorsCleared, bestFloorAt: now } : {}),
-        ...(state.floorsCleared > profile.bestFloorAllTime ? { bestFloorAllTime: state.floorsCleared } : {}),
+        ...(newBest ? { bestFloor: state.floorsCleared, bestRooms: rooms, bestFloorAt: now } : {}),
+        ...(!daily && state.floorsCleared > profile.bestFloorAllTime ? { bestFloorAllTime: state.floorsCleared } : {}),
         ...(milestones.length > 0 ? { claimedRewardIds: { push: milestones.map((reward) => reward.id) } } : {}),
       },
     });
 
-    return { granted, newBest, milestones };
+    return { granted, newBest, serverRecord, milestones };
   });
 
   if (!result) {
@@ -567,7 +633,17 @@ async function settleRun(
       milestones: [],
       expired,
       alreadySettled: true,
+      roomsExplored: rooms,
+      killedBy,
+      gear,
+      daily,
     };
+  }
+
+  if (result.serverRecord && client && settings.announceChannelId) {
+    await announceRecord(client, run.guildId, settings, run.userId, state.floorsCleared).catch((err) => {
+      logger.warn('RpgTower', `Annonce du record non envoyée sur ${run.guildId} :`, err);
+    });
   }
 
   for (const reward of result.milestones) {
@@ -587,7 +663,38 @@ async function settleRun(
     newBest: result.newBest,
     milestones: await withTitleNames(result.milestones),
     expired,
+    roomsExplored: rooms,
+    killedBy,
+    gear,
+    daily,
   };
+}
+
+/** Nouveau record de la saison sur le serveur : annoncé dans le salon choisi, sans notifier personne. */
+async function announceRecord(client: Client, guildId: string, settings: TowerConfigView, userId: string, floors: number): Promise<void> {
+  const channel = await client.channels.fetch(settings.announceChannelId!).catch(() => null);
+  if (!channel?.isTextBased() || !channel.isSendable()) {
+    logger.warn('RpgTower', `Salon d'annonce de la Tour injoignable pour ${guildId}.`);
+    return;
+  }
+  const locale = await resolveGuildLocale(guildId);
+  const image = await renderTowerImage({
+    kind: 'shaft',
+    title: settings.name,
+    floor: Math.max(1, floors),
+    bossEvery: settings.bossEvery,
+    floorLabel: (value) => m.tower_floor({ floor: value }, { locale }),
+  });
+  const embed = new EmbedBuilder()
+    .setTitle(m.tower_announce_title({ name: settings.name }, { locale }))
+    .setDescription(m.tower_announce_desc({ user: `<@${userId}>`, floors }, { locale }))
+    .setColor(0x8b5cf6);
+  if (image) embed.setImage('attachment://tour.png');
+  await channel.send({
+    embeds: [embed],
+    files: image ? [{ attachment: image, name: 'tour.png' }] : [],
+    allowedMentions: { parse: [] },
+  });
 }
 
 const IDLE_SWEEP_BATCH = 200;
@@ -729,10 +836,59 @@ export async function buyTowerUpgrade(guildId: string, userId: string, id: strin
 export async function getTowerLeaderboard(guildId: string, limit = 10) {
   return prisma.rpgTowerProfile.findMany({
     where: { guildId, bestFloor: { gt: 0 } },
-    orderBy: [{ bestFloor: 'desc' }, { bestFloorAt: 'asc' }],
+    orderBy: [{ bestFloor: 'desc' }, { bestRooms: 'desc' }, { bestFloorAt: 'asc' }],
     take: limit,
-    select: { userId: true, bestFloor: true, bestFloorAt: true, totalRuns: true },
+    select: { userId: true, bestFloor: true, bestRooms: true, bestFloorAt: true, totalRuns: true },
   });
+}
+
+/** Classement de l'ascension du jour : étages, puis salles explorées, puis le plus tôt fini. */
+export async function getTowerDailyLeaderboard(guildId: string, dayKey = towerDayKey(new Date()), limit = 10) {
+  return prisma.rpgTowerRun.findMany({
+    where: { guildId, mode: 'DAILY', dailyKey: dayKey, status: { not: 'ACTIVE' } },
+    orderBy: [{ floorsCleared: 'desc' }, { roomsExplored: 'desc' }, { endedAt: 'asc' }],
+    take: limit,
+    select: { userId: true, floorsCleared: true, roomsExplored: true, status: true, endedAt: true },
+  });
+}
+
+/** Le joueur a-t-il déjà joué l'ascension du jour ? */
+export async function hasPlayedDaily(guildId: string, userId: string, dayKey = towerDayKey(new Date())): Promise<boolean> {
+  return (await prisma.rpgTowerRun.count({ where: { guildId, userId, mode: 'DAILY', dailyKey: dayKey } })) > 0;
+}
+
+/**
+ * Ce que disent les parties terminées : étage moyen, part des morts, monstres qui tuent le
+ * plus et étage où l'on tombe le plus. De quoi repérer un étage ou un monstre mal réglé.
+ */
+export async function getTowerInsights(guildId: string) {
+  const finished = { guildId, mode: 'CLASSIC', status: { in: ['DEAD', 'LEFT'] } };
+  const [totals, deaths, killers, deadliest] = await Promise.all([
+    prisma.rpgTowerRun.aggregate({ where: finished, _avg: { floorsCleared: true }, _count: { _all: true } }),
+    prisma.rpgTowerRun.count({ where: { guildId, mode: 'CLASSIC', status: 'DEAD' } }),
+    prisma.rpgTowerRun.groupBy({
+      by: ['killedBy'],
+      where: { guildId, mode: 'CLASSIC', status: 'DEAD', killedBy: { not: null } },
+      _count: { _all: true },
+      orderBy: { _count: { killedBy: 'desc' } },
+      take: 3,
+    }),
+    prisma.rpgTowerRun.groupBy({
+      by: ['floor'],
+      where: { guildId, mode: 'CLASSIC', status: 'DEAD' },
+      _count: { _all: true },
+      orderBy: { _count: { floor: 'desc' } },
+      take: 1,
+    }),
+  ]);
+  const count = totals._count._all;
+  return {
+    finishedRuns: count,
+    averageFloor: Math.round((totals._avg.floorsCleared ?? 0) * 10) / 10,
+    deathRate: count > 0 ? Math.round((deaths / count) * 100) : 0,
+    topKillers: killers.map((row) => ({ name: row.killedBy ?? '', deaths: row._count._all })),
+    deadliestFloor: deadliest[0] ? { floor: deadliest[0].floor, deaths: deadliest[0]._count._all } : null,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -740,7 +896,7 @@ export async function getTowerLeaderboard(guildId: string, limit = 10) {
 // ─────────────────────────────────────────────────────────────
 
 export async function getTowerDashboard(guildId: string) {
-  const [settings, rewards, players, runs, activeRuns, leaderboard, foes] = await Promise.all([
+  const [settings, rewards, players, runs, activeRuns, leaderboard, foes, insights, daily] = await Promise.all([
     getTowerConfig(guildId),
     prisma.rpgTowerReward.findMany({ where: { guildId }, orderBy: [{ kind: 'asc' }, { floor: 'asc' }, { price: 'asc' }] }),
     prisma.rpgTowerProfile.count({ where: { guildId } }),
@@ -748,13 +904,17 @@ export async function getTowerDashboard(guildId: string) {
     prisma.rpgTowerRun.count({ where: { guildId, status: 'ACTIVE' } }),
     getTowerLeaderboard(guildId, 10),
     listTowerFoeChoices(guildId),
+    getTowerInsights(guildId),
+    getTowerDailyLeaderboard(guildId),
   ]);
   return {
     settings,
     rewards,
     foes,
     stats: { players, runs, activeRuns, bestFloor: leaderboard[0]?.bestFloor ?? 0 },
+    insights,
     leaderboard,
+    daily: { dayKey: towerDayKey(new Date()), leaderboard: daily },
     limits: { rewardsMax: TOWER_REWARDS_PER_GUILD_MAX, mapSize: TOWER_MAP_SIZE, mapRoomsMax: TOWER_MAP_ROOMS_MAX, floorsMax: TOWER_FLOORS_MAX },
   };
 }
@@ -824,7 +984,9 @@ export async function saveTowerFloors(
     : input.layout !== null && input.layout !== undefined ? [input.layout] : [];
   const normalized = normalizeTowerFloors(raw);
   if (!normalized.ok) throw new TowerError(normalized.error, 400);
-  if (enabled && normalized.value.length === 0) throw new TowerError('Impossible d\'activer la carte sans étage valide.', 400);
+  if (enabled && normalized.value.length === 0 && (await getTowerConfig(guildId)).floorsAfter !== 'GENERATE') {
+    throw new TowerError('Impossible d\'activer la carte sans étage valide ni étages générés.', 400);
+  }
 
   const data = {
     layoutEnabled: enabled,
@@ -834,6 +996,36 @@ export async function saveTowerFloors(
   };
   await prisma.rpgTowerConfig.upsert({ where: { guildId }, update: data, create: { guildId, ...data } });
   return getTowerConfig(guildId);
+}
+
+/**
+ * Aperçu de l'image que verront les joueurs en arrivant sur un étage, pour l'éditeur du
+ * dashboard. La carte envoyée n'a pas besoin d'être enregistrée ; elle doit être valide.
+ */
+export async function previewTowerFloor(guildId: string, input: { layout?: unknown; floor?: unknown }): Promise<string> {
+  const normalized = normalizeTowerLayout(input.layout);
+  if (!normalized.ok) throw new TowerError(normalized.error, 400);
+  const layout = normalized.value;
+  const floor = Math.max(1, Math.trunc(Number(input.floor) || 1));
+  const [settings, locale] = await Promise.all([getTowerConfig(guildId), resolveGuildLocale(guildId)]);
+  const start = layout.rooms.find((room) => room.type === 'START')!;
+  const title = (n: number, name: string) => (name ? m.tower_floor_named({ floor: n, name }, { locale }) : m.tower_floor({ floor: n }, { locale }));
+  const nameOf = (n: number) => (n === floor ? layout.name : settings.floors[(n - 1) % Math.max(1, settings.floors.length)]?.name ?? '');
+  const ladder = [];
+  for (let n = floor + 2; n >= Math.max(1, floor - 2); n--) {
+    ladder.push({ label: title(n, nameOf(n)), status: n === floor ? 'current' as const : n > floor ? 'next' as const : 'done' as const });
+  }
+  const image = await renderTowerImage({
+    kind: 'map',
+    title: title(floor, layout.name),
+    layout,
+    pos: start.id,
+    cleared: [start.id],
+    targets: [],
+    ladder,
+  });
+  if (!image) throw new TowerError('Le rendu de l\'aperçu a échoué.', 500);
+  return `data:image/png;base64,${image.toString('base64')}`;
 }
 
 export async function deleteTowerReward(guildId: string, rewardId: string): Promise<RpgTowerReward> {
@@ -855,7 +1047,7 @@ export async function startTowerSeason(guildId: string, options: { resetMileston
     update: { seasonStartedAt: now },
     create: { guildId, seasonStartedAt: now },
   });
-  const reset = await prisma.rpgTowerProfile.updateMany({ where: { guildId }, data: { bestFloor: 0, bestFloorAt: null } });
+  const reset = await prisma.rpgTowerProfile.updateMany({ where: { guildId }, data: { bestFloor: 0, bestRooms: 0, bestFloorAt: null } });
 
   if (options.resetMilestones !== false) {
     const milestones = await prisma.rpgTowerReward.findMany({ where: { guildId, kind: 'MILESTONE' }, select: { id: true } });

@@ -44,9 +44,17 @@ import {
   type TowerMapState,
   type TowerMove,
   type TowerNotice,
+  type TowerRoomInfo,
   type TowerState,
 } from './rpgTowerEngine.js';
-import { floorLayout, occupancy, type TowerDirection, type TowerRoomType } from './rpgTowerMap.js';
+import { floorLayout, occupancy, visibleRooms, type TowerDirection, type TowerRoomType } from './rpgTowerMap.js';
+import {
+  blacksmithPrice,
+  type TowerBossMechanic,
+  type TowerEventId,
+  type TowerRelicPerk,
+  type TowerTrait,
+} from './rpgTowerContent.js';
 import { TOWER_IMAGE_FILENAME, renderTowerImage, type TowerLadderEntry } from './rpgTowerRender.js';
 import {
   MAX_POTIONS,
@@ -73,9 +81,12 @@ import {
   getActiveTowerRun,
   getOrCreateTowerProfile,
   getTowerConfig,
+  getTowerDailyLeaderboard,
   getTowerLeaderboard,
+  hasPlayedDaily,
   getTowerShop,
   isTowerOpen,
+  mapPlayed,
   previewTowerEntry,
   startTowerRun,
   takePendingTowerSettlement,
@@ -161,6 +172,7 @@ const DOOR_ICON: Record<TowerDoor, string> = {
   TREASURE: 'rpgChest',
   CAMPFIRE: 'rpgRest',
   MERCHANT: 'rpgShop',
+  EVENT: 'rpgMap',
   BOSS: 'crown',
 };
 
@@ -171,6 +183,7 @@ function doorLabel(door: TowerDoor, locale: Locale): string {
     case 'TREASURE': return m.tower_door_treasure({}, { locale });
     case 'CAMPFIRE': return m.tower_door_campfire({}, { locale });
     case 'MERCHANT': return m.tower_door_merchant({}, { locale });
+    case 'EVENT': return m.tower_door_event({}, { locale });
     default: return m.tower_door_boss({}, { locale });
   }
 }
@@ -182,6 +195,7 @@ function doorDescription(door: TowerDoor, locale: Locale): string {
     case 'TREASURE': return m.tower_door_treasure_desc({}, { locale });
     case 'CAMPFIRE': return m.tower_door_campfire_desc({}, { locale });
     case 'MERCHANT': return m.tower_door_merchant_desc({}, { locale });
+    case 'EVENT': return m.tower_door_event_desc({}, { locale });
     default: return m.tower_door_boss_desc({}, { locale });
   }
 }
@@ -195,6 +209,7 @@ const ROOM_ICON: Record<TowerRoomType, string> = {
   CAMPFIRE: 'rpgRest',
   MERCHANT: 'rpgShop',
   SHRINE: 'rpgEnchant',
+  EVENT: 'rpgMap',
   EMPTY: 'dot',
 };
 
@@ -211,6 +226,7 @@ const MINIMAP_GLYPH: Record<TowerRoomType, string> = {
   CAMPFIRE: '🔥',
   MERCHANT: '🛒',
   SHRINE: '✨',
+  EVENT: '？',
   EMPTY: '⬜',
 };
 
@@ -226,6 +242,7 @@ function roomLabel(type: TowerRoomType, locale: Locale): string {
     case 'CAMPFIRE': return doorLabel('CAMPFIRE', locale);
     case 'MERCHANT': return doorLabel('MERCHANT', locale);
     case 'SHRINE': return m.tower_room_shrine({}, { locale });
+    case 'EVENT': return doorLabel('EVENT', locale);
     default: return m.tower_room_empty({}, { locale });
   }
 }
@@ -240,6 +257,7 @@ function roomDescription(type: TowerRoomType, locale: Locale): string {
     case 'CAMPFIRE': return m.tower_room_campfire_desc({}, { locale });
     case 'MERCHANT': return doorDescription('MERCHANT', locale);
     case 'SHRINE': return m.tower_room_shrine_desc({}, { locale });
+    case 'EVENT': return doorDescription('EVENT', locale);
     default: return m.tower_room_empty_desc({}, { locale });
   }
 }
@@ -250,12 +268,14 @@ function roomDescription(type: TowerRoomType, locale: Locale): string {
  */
 function miniMap(map: TowerMapState): string {
   const cells = occupancy(map.layout);
+  const visible = visibleRooms(map.layout, map.pos, map.cleared);
   const rows: string[] = [];
   for (let y = 0; y < map.layout.height; y++) {
     let line = '';
     for (let x = 0; x < map.layout.width; x++) {
       const room = cells.get(`${x},${y}`);
-      if (!room) line += '⬛';
+      // Sous le brouillard, une salle inconnue se confond avec un mur.
+      if (!room || (visible && !visible.has(room.id))) line += '⬛';
       else if (room.id === map.pos) line += '🧍';
       else if (map.cleared.includes(room.id) && room.type !== 'START' && room.type !== 'EMPTY') line += '🟩';
       else line += MINIMAP_GLYPH[room.type];
@@ -265,11 +285,141 @@ function miniMap(map: TowerMapState): string {
   return rows.join('\n');
 }
 
-function moveLine(move: TowerMove, locale: Locale): string {
+function moveLine(move: TowerMove, info: TowerRoomInfo | undefined, locale: Locale): string {
   const status = move.cleared
     ? `*${m.tower_room_visited({}, { locale })}*`
     : roomDescription(move.type, locale);
-  return `${icon(DIRECTION_ICON[move.direction])} ${icon(ROOM_ICON[move.type])} **${roomLabel(move.type, locale)}** — ${status}`;
+  const known = move.cleared ? '' : roomInfoLine(info, locale);
+  return `${icon(DIRECTION_ICON[move.direction])} ${icon(ROOM_ICON[move.type])} **${roomLabel(move.type, locale)}** — ${status}${known ? `\n-# ${known}` : ''}`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Traits, mécaniques, reliques et événements
+// ─────────────────────────────────────────────────────────────
+
+const TRAIT_ICON: Record<TowerTrait, string> = {
+  ARMORED: 'rpgArmor',
+  VAMPIRIC: 'rpgHp',
+  SWIFT: 'rpgSpd',
+  THORNY: 'shield',
+  BERSERK: 'rpgAtk',
+  REGENERATING: 'rpgRest',
+};
+
+function traitName(trait: TowerTrait, locale: Locale): string {
+  switch (trait) {
+    case 'ARMORED': return m.tower_trait_armored({}, { locale });
+    case 'VAMPIRIC': return m.tower_trait_vampiric({}, { locale });
+    case 'SWIFT': return m.tower_trait_swift({}, { locale });
+    case 'THORNY': return m.tower_trait_thorny({}, { locale });
+    case 'BERSERK': return m.tower_trait_berserk({}, { locale });
+    default: return m.tower_trait_regenerating({}, { locale });
+  }
+}
+
+function traitDescription(trait: TowerTrait, locale: Locale): string {
+  switch (trait) {
+    case 'ARMORED': return m.tower_trait_armored_desc({}, { locale });
+    case 'VAMPIRIC': return m.tower_trait_vampiric_desc({}, { locale });
+    case 'SWIFT': return m.tower_trait_swift_desc({}, { locale });
+    case 'THORNY': return m.tower_trait_thorny_desc({}, { locale });
+    case 'BERSERK': return m.tower_trait_berserk_desc({}, { locale });
+    default: return m.tower_trait_regenerating_desc({}, { locale });
+  }
+}
+
+function mechanicName(mechanic: TowerBossMechanic, locale: Locale): string {
+  switch (mechanic) {
+    case 'SHIELD': return m.tower_mechanic_shield({}, { locale });
+    case 'SUMMONER': return m.tower_mechanic_summoner({}, { locale });
+    default: return m.tower_mechanic_phases({}, { locale });
+  }
+}
+
+function mechanicDescription(mechanic: TowerBossMechanic, locale: Locale): string {
+  switch (mechanic) {
+    case 'SHIELD': return m.tower_mechanic_shield_desc({}, { locale });
+    case 'SUMMONER': return m.tower_mechanic_summoner_desc({}, { locale });
+    default: return m.tower_mechanic_phases_desc({}, { locale });
+  }
+}
+
+function perkName(perk: TowerRelicPerk, locale: Locale): string {
+  switch (perk) {
+    case 'FIRST_STRIKE': return m.tower_perk_first_strike({}, { locale });
+    case 'LAST_STAND': return m.tower_perk_last_stand({}, { locale });
+    case 'EXECUTE': return m.tower_perk_execute({}, { locale });
+    case 'GUARDIAN_POTION': return m.tower_perk_guardian_potion({}, { locale });
+    default: return m.tower_perk_shard_seeker({}, { locale });
+  }
+}
+
+function perkDescription(perk: TowerRelicPerk, locale: Locale): string {
+  switch (perk) {
+    case 'FIRST_STRIKE': return m.tower_perk_first_strike_desc({}, { locale });
+    case 'LAST_STAND': return m.tower_perk_last_stand_desc({}, { locale });
+    case 'EXECUTE': return m.tower_perk_execute_desc({}, { locale });
+    case 'GUARDIAN_POTION': return m.tower_perk_guardian_potion_desc({}, { locale });
+    default: return m.tower_perk_shard_seeker_desc({}, { locale });
+  }
+}
+
+function eventTitle(id: TowerEventId, locale: Locale): string {
+  switch (id) {
+    case 'BLOOD_ALTAR': return m.tower_event_blood_altar({}, { locale });
+    case 'GAMBLER': return m.tower_event_gambler({}, { locale });
+    case 'SPRING': return m.tower_event_spring({}, { locale });
+    case 'BLACKSMITH': return m.tower_event_blacksmith({}, { locale });
+    default: return m.tower_event_cursed_pact({}, { locale });
+  }
+}
+
+function eventDescription(id: TowerEventId, level: number, locale: Locale): string {
+  switch (id) {
+    case 'BLOOD_ALTAR': return m.tower_event_blood_altar_desc({}, { locale });
+    case 'GAMBLER': return m.tower_event_gambler_desc({}, { locale });
+    case 'SPRING': return m.tower_event_spring_desc({}, { locale });
+    case 'BLACKSMITH': return m.tower_event_blacksmith_desc({ price: blacksmithPrice(level) }, { locale });
+    default: return m.tower_event_cursed_pact_desc({}, { locale });
+  }
+}
+
+/** Libellés des deux options d'un événement : le pari, puis l'option sans risque. */
+function eventOptions(id: TowerEventId, level: number, locale: Locale): [string, string] {
+  const leave = m.tower_event_leave({}, { locale });
+  switch (id) {
+    case 'BLOOD_ALTAR': return [m.tower_event_blood_altar_opt({}, { locale }), leave];
+    case 'GAMBLER': return [m.tower_event_gambler_opt({}, { locale }), leave];
+    case 'SPRING': return [m.tower_event_spring_opt_heal({}, { locale }), m.tower_event_spring_opt_potion({}, { locale })];
+    case 'BLACKSMITH': return [m.tower_event_blacksmith_opt({ price: blacksmithPrice(level) }, { locale }), leave];
+    default: return [m.tower_event_cursed_pact_opt({}, { locale }), leave];
+  }
+}
+
+/** Issue d'un événement, pour la ligne de retour en tête de l'écran suivant. */
+function eventOutcome(notice: Extract<TowerNotice, { k: 'event' }>, locale: Locale): string {
+  const coin = icon('coins');
+  if (notice.option === 1 && notice.id !== 'SPRING') return m.tower_event_result_leave({}, { locale });
+  switch (notice.id) {
+    case 'BLOOD_ALTAR': return m.tower_event_result_blood_altar({ hp: notice.amount }, { locale });
+    case 'GAMBLER': return notice.won
+      ? m.tower_event_result_gambler_won({ gold: notice.amount, coin }, { locale })
+      : m.tower_event_result_gambler_lost({ gold: notice.amount, coin }, { locale });
+    case 'SPRING': return notice.option === 0
+      ? m.tower_event_result_spring_heal({ hp: notice.amount }, { locale })
+      : m.tower_event_result_spring_potion({}, { locale });
+    case 'BLACKSMITH': return m.tower_event_result_blacksmith({ name: notice.item ?? '', gold: notice.amount, coin }, { locale });
+    default: return m.tower_event_result_cursed_pact({ gold: notice.amount, coin }, { locale });
+  }
+}
+
+/** Ce qu'on sait d'une salle ou d'une porte avant d'y entrer : traits, mécanique, événement. */
+function roomInfoLine(info: TowerRoomInfo | undefined | null, locale: Locale): string {
+  if (!info) return '';
+  const parts = info.traits.map((trait) => `${icon(TRAIT_ICON[trait])} ${traitName(trait, locale)}`);
+  if (info.mechanic) parts.push(`${icon('crown')} ${mechanicName(info.mechanic, locale)}`);
+  if (info.event) parts.push(`${icon('rpgMap')} ${eventTitle(info.event, locale)}`);
+  return parts.join(' · ');
 }
 
 function slotLabel(slot: TowerGearSlot, locale: Locale): string {
@@ -297,7 +447,8 @@ function gearStats(gear: TowerGear, locale: Locale): string {
 
 function gearLine(gear: TowerGear | null, locale: Locale): string {
   if (!gear) return `*${m.tower_slot_empty({}, { locale })}*`;
-  return `${rarityIcon(gear.rarity)} ${icon(SLOT_ICON[gear.slot])} **${gear.name}** · ${gearStats(gear, locale)}`;
+  const perk = gear.perk ? `\n-# ${icon('star')} **${perkName(gear.perk, locale)}** — ${perkDescription(gear.perk, locale)}` : '';
+  return `${rarityIcon(gear.rarity)} ${icon(SLOT_ICON[gear.slot])} **${gear.name}** · ${gearStats(gear, locale)}${perk}`;
 }
 
 const GEAR_DIFF_KEYS = ['attack', 'defense', 'maxHealth', 'speed', 'critChance', 'lifesteal', 'thorns', 'armorPiercing'] as const;
@@ -393,14 +544,21 @@ function towerLadder(state: TowerState, floor: number, config: TowerConfigView, 
 /** Image de la tour pour l'écran de déplacement ; `null` si le rendu échoue. */
 async function towerImage(state: TowerState, floor: number, config: TowerConfigView, locale: Locale): Promise<Buffer | null> {
   if (state.map) {
+    const map = state.map;
+    const visible = visibleRooms(map.layout, map.pos, map.cleared);
+    const badges = Object.fromEntries(Object.entries(map.rooms ?? {})
+      .map(([id, info]) => [id, info.traits.length + (info.mechanic ? 1 : 0)] as const)
+      .filter(([, count]) => count > 0));
     return renderTowerImage({
       kind: 'map',
-      title: floorTitle(floor, state.map.layout.name, locale),
-      layout: state.map.layout,
-      pos: state.map.pos,
-      cleared: state.map.cleared,
+      title: floorTitle(floor, map.layout.name, locale),
+      layout: map.layout,
+      pos: map.pos,
+      cleared: map.cleared,
       targets: state.moves.filter((move) => !move.cleared).map((move) => move.roomId),
       ladder: towerLadder(state, floor, config, locale),
+      visible: visible ? [...visible] : null,
+      badges,
     });
   }
   return renderTowerImage({
@@ -451,6 +609,16 @@ function logLine(entry: TowerLogEntry, encounter: { name: string; emoji: string;
     case 'charge': return `${icon('rpgBoss')} ${m.tower_log_charge({ emoji: foe.emoji, name: foe.name }, { locale })}`;
     case 'enrage': return `${icon('rpgAtk')} ${m.tower_log_enrage({ emoji: foe.emoji, name: foe.name }, { locale })}`;
     case 'thorns': return m.rpg_fight_thorns_log({ dmg: entry.dmg, emoji: foe.emoji, name: foe.name }, { locale });
+    case 'foeDodged': return `${icon('rpgSpd')} ${m.tower_log_foe_dodged({ emoji: foe.emoji, name: foe.name }, { locale })}`;
+    case 'shield': return `${icon('shield')} ${m.tower_log_shield({ dmg: entry.dmg }, { locale })}`;
+    case 'shieldBroken': return `${icon('shield')} **${m.tower_log_shield_broken({ emoji: foe.emoji, name: foe.name }, { locale })}**`;
+    case 'summon': return `${icon('rpgBoss')} ${m.tower_log_summon({ emoji: foe.emoji, name: foe.name, count: entry.count }, { locale })}`;
+    case 'dispel': return `${icon('rpgEnchant')} ${m.tower_log_dispel({}, { locale })}`;
+    case 'phase': return `${icon('crown')} **${m.tower_log_phase({ emoji: foe.emoji, name: foe.name }, { locale })}**`;
+    case 'regen': return `${icon('rpgRest')} ${m.tower_log_regen({ emoji: foe.emoji, name: foe.name, hp: entry.hp }, { locale })}`;
+    case 'drain': return `${icon('rpgHp')} ${m.tower_log_drain({ emoji: foe.emoji, name: foe.name, hp: entry.hp }, { locale })}`;
+    case 'spikes': return `${icon('shield')} ${m.tower_log_spikes({ dmg: entry.dmg }, { locale })}`;
+    case 'lastStand': return `${icon('star')} **${m.tower_log_last_stand({}, { locale })}**`;
   }
 }
 
@@ -481,6 +649,7 @@ function noticeLine(notice: TowerNotice | null, locale: Locale): string | null {
     case 'bought': return `${icon('rpgShop')} ${m.tower_notice_bought({}, { locale })}`;
     case 'fled': return `${icon('rpgLeave')} ${m.tower_notice_fled({ gold: notice.gold, coin: gold }, { locale })}`;
     case 'rerolled': return `${icon('rpgRefresh')} ${m.tower_notice_rerolled({}, { locale })}`;
+    case 'event': return `${icon('rpgMap')} ${eventOutcome(notice, locale)}`;
   }
 }
 
@@ -495,6 +664,8 @@ export function towerRefusalText(refusal: TowerRefusal, config: TowerConfigView,
     case 'owned': return m.tower_refused_owned({}, { locale });
     case 'unavailable': return m.tower_refused_unavailable({}, { locale });
     case 'upgrade_max': return m.tower_refused_upgrade_max({}, { locale });
+    case 'daily_disabled': return m.tower_refused_daily_disabled({}, { locale });
+    case 'daily_done': return m.tower_refused_daily_done({}, { locale });
     case 'action': {
       switch (refusal.reason) {
         case 'skill_cooldown': return m.tower_refused_cooldown({}, { locale });
@@ -505,6 +676,7 @@ export function towerRefusalText(refusal: TowerRefusal, config: TowerConfigView,
         case 'potions_full': return m.tower_refused_potions_full({ max: MAX_POTIONS }, { locale });
         case 'no_flee': return m.tower_refused_no_flee({}, { locale });
         case 'no_reroll': return m.tower_refused_no_reroll({}, { locale });
+        case 'no_gear': return m.tower_refused_no_gear({}, { locale });
         default: return m.tower_refused_stale({}, { locale });
       }
     }
@@ -571,17 +743,47 @@ export async function buildTowerHomeView(client: Client | null, guildId: string,
   // D'abord la partie : une partie expirée est soldée ici, et le profil lu ensuite doit
   // déjà compter les éclats qu'elle vient de verser.
   const { active, expired } = await getActiveTowerRun(client, guildId, ownerId);
-  const [profile, preview] = await Promise.all([
+  const [profile, preview, dailyDone] = await Promise.all([
     getOrCreateTowerProfile(guildId, ownerId),
     previewTowerEntry(guildId, ownerId),
+    config.dailyEnabled ? hasPlayedDaily(guildId, ownerId) : Promise.resolve(true),
   ]);
 
   const container = new ContainerBuilder().setAccentColor(COLOR);
+  const rules = !mapPlayed(config)
+    ? m.tower_rules_random({}, { locale })
+    : config.floors.length > 0
+      ? m.tower_rules_map({ floors: config.floors.length }, { locale })
+      : m.tower_rules_generated({}, { locale });
   textBlock(container, [
     header(config),
     config.description || m.tower_default_description({}, { locale }),
-    `-# ${config.layoutEnabled && config.floors.length > 0 ? m.tower_rules_map({ floors: config.floors.length }, { locale }) : m.tower_rules_random({}, { locale })}`,
+    `-# ${rules}`,
   ].join('\n'));
+
+  // La tour vue de face, le record du joueur éclairé : on voit d'un coup jusqu'où il est monté.
+  const files: NonNullable<PanelView['files']> = [];
+  const image = await renderTowerImage({
+    kind: 'shaft',
+    title: config.name,
+    floor: Math.max(1, profile.bestFloor),
+    bossEvery: mapPlayed(config) ? 0 : config.bossEvery,
+    floorLabel: (value) => m.tower_floor({ floor: value }, { locale }),
+    panel: {
+      title: m.tower_panel_record({ floors: profile.bestFloor }, { locale }),
+      lines: [
+        m.tower_panel_all_time({ floors: profile.bestFloorAllTime }, { locale }),
+        m.tower_panel_runs({ runs: profile.totalRuns }, { locale }),
+        m.tower_panel_shards({ shards: profile.shards, currency: config.currencyName }, { locale }),
+      ],
+    },
+  });
+  if (image) {
+    files.push({ attachment: image, name: TOWER_IMAGE_FILENAME });
+    container.addMediaGalleryComponents(new MediaGalleryBuilder().addItems(
+      new MediaGalleryItemBuilder({ media: { url: `attachment://${TOWER_IMAGE_FILENAME}` } }),
+    ));
+  }
   separator(container);
 
   textBlock(container, [
@@ -627,8 +829,21 @@ export async function buildTowerHomeView(client: Client | null, guildId: string,
       ...(economy.rpgEnabled ? [button(`rpg:nav:${ownerId}:hub`, m.rpg_hub_btn_back({}, { locale }), ButtonStyle.Secondary, icon('rpgBack'))] : []),
     ),
   ];
+  if (config.dailyEnabled) {
+    textBlock(container, `-# ${icon('rpgDaily')} ${m.tower_home_daily_hint({}, { locale })}`);
+    components.push(row(
+      button(
+        `twr:daily:${ownerId}`,
+        dailyDone ? m.tower_btn_daily_done({}, { locale }) : m.tower_btn_daily({}, { locale }),
+        ButtonStyle.Success,
+        icon('rpgDaily'),
+        dailyDone || active !== null,
+      ),
+      button(`twr:dtop:${ownerId}`, m.tower_btn_daily_top({}, { locale }), ButtonStyle.Secondary, icon('trophy')),
+    ));
+  }
 
-  const view: PanelView = { embeds: [], components, container };
+  const view: PanelView = { embeds: [], components, container, files };
   // Partie close à l'ouverture de l'écran, ou plus tôt par le balayage en l'absence du joueur.
   const closed = expired ?? await takePendingTowerSettlement(guildId, ownerId);
   return closed ? withNote(view, m.tower_expired_note({ minutes: config.idleTimeoutMinutes, shards: closed.shards, emoji: shardIcon(config) }, { locale })) : view;
@@ -700,7 +915,7 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
         if (details.length > 0) textBlock(container, details.join('\n'));
         textBlock(container, [
           `### ${m.tower_moves_title({}, { locale })}`,
-          ...moves.map((move) => moveLine(move, locale)),
+          ...moves.map((move) => moveLine(move, state.map?.rooms?.[move.roomId], locale)),
         ].join('\n'));
         if (moves.length > 0) {
           components.push(row(...moves.map((move, index) => button(
@@ -717,7 +932,10 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
       if (details.length > 0) textBlock(container, details.join('\n'));
       textBlock(container, [
         `### ${m.tower_doors_title({}, { locale })}`,
-        ...state.doors.map((door) => `${icon(DOOR_ICON[door])} **${doorLabel(door, locale)}** — ${doorDescription(door, locale)}`),
+        ...state.doors.map((door, index) => {
+          const known = roomInfoLine(state.doorInfo?.[index], locale);
+          return `${icon(DOOR_ICON[door])} **${doorLabel(door, locale)}** — ${doorDescription(door, locale)}${known ? `\n-# ${known}` : ''}`;
+        }),
       ].join('\n'));
       components.push(row(...state.doors.map((door, index) =>
         button(actId(ownerId, version, `d${index}`), doorLabel(door, locale), door === 'BOSS' ? ButtonStyle.Danger : ButtonStyle.Primary, icon(DOOR_ICON[door])))));
@@ -730,10 +948,15 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
       const kind = foe.kind === 'BOSS' ? ` ${icon('crown')}` : foe.kind === 'ELITE' ? ` ${icon('rpgBoss')}` : '';
       const enraged = foe.enraged ? ` · **${m.tower_combat_enraged({}, { locale })}**` : '';
       const log = foe.log.map((entry) => logLine(entry, foe, locale));
+      const traits = (foe.traits ?? []).map((trait) => `${icon(TRAIT_ICON[trait])} **${traitName(trait, locale)}** : ${traitDescription(trait, locale)}`);
+      const mechanic = foe.mechanic ? `${icon('crown')} **${mechanicName(foe.mechanic, locale)}** : ${mechanicDescription(foe.mechanic, locale)}` : null;
+      const shield = (foe.shield ?? 0) > 0 ? `${icon('shield')} ${m.tower_combat_shield({ shield: foe.shield ?? 0 }, { locale })}` : null;
+      const minions = (foe.minions ?? 0) > 0 ? `${icon('rpgBoss')} ${m.tower_combat_minions({ count: foe.minions ?? 0 }, { locale })}` : null;
       textBlock(container, [
         `### ${foeIcon(foe)} ${foe.name}${kind}`,
         combatHpBar(foe.health, foe.maxHealth),
         `-# ${icon('rpgAtk')} ${foe.attack} · ${icon('rpgDef')} ${foe.defense} · ${icon('rpgSpd')} ${foe.speed}${enraged}`,
+        ...[...traits, mechanic, shield, minions].filter((line): line is string => line !== null).map((line) => `-# ${line}`),
         '',
         log.length > 0 ? log.join('\n') : m.rpg_fight_combat_start_log({}, { locale }),
         foe.charging ? `\n${icon('warning')} **${m.tower_combat_charging({ name: foe.name }, { locale })}**` : null,
@@ -793,6 +1016,26 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
       break;
     }
 
+    case 'EVENT': {
+      const event = state.event;
+      if (!event) break;
+      const [risky, safe] = eventOptions(event.id, level, locale);
+      textBlock(container, [
+        `### ${icon('rpgMap')} ${eventTitle(event.id, locale)}`,
+        eventDescription(event.id, level, locale),
+      ].join('\n'));
+      // Ce qui rendrait le pari impossible est désactivé plutôt que refusé après coup.
+      const riskyBlocked = (event.id === 'GAMBLER' && state.gold < 2)
+        || (event.id === 'BLACKSMITH' && (state.gold < blacksmithPrice(level) || (!state.gear.weapon && !state.gear.armor)));
+      const safeBlocked = event.id === 'SPRING' && state.potions >= MAX_POTIONS;
+      components.push(row(
+        button(actId(ownerId, version, 'e0'), risky, ButtonStyle.Primary, icon('rpgMap'), riskyBlocked),
+        button(actId(ownerId, version, 'e1'), safe, ButtonStyle.Secondary, icon('rpgDoor'), safeBlocked),
+      ));
+      components.push(runControls(ownerId, state, version, locale));
+      break;
+    }
+
     case 'MERCHANT': {
       const merchant = runMerchant(state, config);
       const offerLabel = (offer: TowerOffer) => {
@@ -848,10 +1091,11 @@ export async function buildTowerSettlementView(guildId: string, ownerId: string,
     : settlement.expired ? m.tower_end_expired({}, { locale }) : m.tower_end_left({}, { locale });
 
   const lines = [
-    header(config, title),
+    header(config, settlement.daily ? `${m.tower_daily_title({}, { locale })} · ${title}` : title),
     `${icon('rpgTower')} ${m.tower_end_summary({ floors: settlement.floorsCleared, kills: settlement.kills }, { locale })}`,
     m.tower_end_shards({ shards: settlement.shards, emoji: shardIcon(config), currency: config.currencyName }, { locale }),
   ];
+  if (settlement.killedBy) lines.push(`${icon('rpgBoss')} ${m.tower_end_killed_by({ name: settlement.killedBy }, { locale })}`);
   if (settlement.lostToDeath > 0) lines.push(`-# ${m.tower_end_lost_death({ shards: settlement.lostToDeath, percent: 100 - config.deathShardPercent }, { locale })}`);
   // Bilans écrits avant l'ajout de ce champ : il peut manquer.
   if ((settlement.lostToLeave ?? 0) > 0) lines.push(`-# ${m.tower_end_lost_leave({ shards: settlement.lostToLeave, percent: 100 - config.leaveShardPercent }, { locale })}`);
@@ -866,9 +1110,37 @@ export async function buildTowerSettlementView(guildId: string, ownerId: string,
   }
   textBlock(container, lines.join('\n'));
 
+  // Le bilan en image : l'étage atteint dans la tour, et l'essentiel de la partie à côté.
+  const files: NonNullable<PanelView['files']> = [];
+  const image = await renderTowerImage({
+    kind: 'shaft',
+    title: config.name,
+    floor: Math.max(1, settlement.floorsCleared),
+    bossEvery: mapPlayed(config) ? 0 : config.bossEvery,
+    floorLabel: (value) => m.tower_floor({ floor: value }, { locale }),
+    panel: {
+      title,
+      lines: [
+        m.tower_panel_floors({ floors: settlement.floorsCleared }, { locale }),
+        m.tower_panel_rooms({ rooms: settlement.roomsExplored ?? settlement.floorsCleared }, { locale }),
+        m.tower_panel_kills({ kills: settlement.kills }, { locale }),
+        m.tower_panel_shards({ shards: settlement.shards, currency: config.currencyName }, { locale }),
+        settlement.killedBy ? m.tower_end_killed_by({ name: settlement.killedBy }, { locale }) : '',
+        ...(settlement.gear ?? []),
+      ].filter(Boolean),
+    },
+  });
+  if (image) {
+    files.push({ attachment: image, name: TOWER_IMAGE_FILENAME });
+    container.addMediaGalleryComponents(new MediaGalleryBuilder().addItems(
+      new MediaGalleryItemBuilder({ media: { url: `attachment://${TOWER_IMAGE_FILENAME}` } }),
+    ));
+  }
+
   return {
     embeds: [],
     container,
+    files,
     components: [row(
       button(`twr:enter:${ownerId}`, m.tower_btn_again({}, { locale }), ButtonStyle.Success, icon('rpgDoor')),
       button(`twr:shop:${ownerId}:0`, m.tower_btn_shop({}, { locale }), ButtonStyle.Primary, icon('rpgShop')),
@@ -1000,7 +1272,8 @@ async function buildTowerLeaderboardView(guildId: string, ownerId: string, local
   ]);
   const container = new ContainerBuilder().setAccentColor(COLOR);
   const lines = top.map((entry, index) =>
-    `${index < 3 ? rankEmoji(index + 1) : `**${index + 1}.**`} <@${entry.userId}> — ${m.tower_top_floors({ floors: entry.bestFloor }, { locale })}`);
+    `${index < 3 ? rankEmoji(index + 1) : `**${index + 1}.**`} <@${entry.userId}> — ${m.tower_top_floors({ floors: entry.bestFloor }, { locale })}`
+    + (entry.bestRooms > 0 ? ` · ${m.tower_top_rooms({ rooms: entry.bestRooms }, { locale })}` : ''));
 
   textBlock(container, [
     header(config, m.tower_top_title({}, { locale })),
@@ -1011,6 +1284,22 @@ async function buildTowerLeaderboardView(guildId: string, ownerId: string, local
     m.tower_top_you({ floors: profile.bestFloor }, { locale }),
   ].filter((line): line is string => line !== null).join('\n'));
 
+  return { embeds: [], container, components: [row(button(`twr:home:${ownerId}`, m.tower_btn_home({}, { locale }), ButtonStyle.Secondary, icon('rpgBack')))] };
+}
+
+/** Classement de l'ascension du jour. */
+async function buildTowerDailyView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  const [config, top] = await Promise.all([getTowerConfig(guildId), getTowerDailyLeaderboard(guildId)]);
+  const container = new ContainerBuilder().setAccentColor(COLOR);
+  const lines = top.map((entry, index) =>
+    `${index < 3 ? rankEmoji(index + 1) : `**${index + 1}.**`} <@${entry.userId}> — ${m.tower_top_floors({ floors: entry.floorsCleared }, { locale })}`
+    + ` · ${m.tower_top_rooms({ rooms: entry.roomsExplored }, { locale })}`);
+  textBlock(container, [
+    header(config, m.tower_daily_title({}, { locale })),
+    `-# ${m.tower_daily_rules({}, { locale })}`,
+    '',
+    lines.length > 0 ? lines.join('\n') : `*${m.tower_daily_empty({}, { locale })}*`,
+  ].join('\n'));
   return { embeds: [], container, components: [row(button(`twr:home:${ownerId}`, m.tower_btn_home({}, { locale }), ButtonStyle.Secondary, icon('rpgBack')))] };
 }
 
@@ -1033,6 +1322,7 @@ function parseActionCode(code: string): TowerAction | null {
   if (code.startsWith('d')) return { type: 'door', index };
   if (code.startsWith('b')) return { type: 'bless', index };
   if (code.startsWith('m')) return { type: 'buy', index };
+  if (code.startsWith('e')) return { type: 'event', index };
   return null;
 }
 
@@ -1115,6 +1405,12 @@ export async function handleTowerButton(client: Client, customId: string, intera
         return;
       }
       case 'top': await respond(interaction, await buildTowerLeaderboardView(guildId, ownerId, locale)); return;
+      case 'daily': {
+        const active = await startTowerRun(client, guildId, ownerId, { daily: true });
+        await respond(interaction, await buildTowerRunView(guildId, ownerId, locale, active));
+        return;
+      }
+      case 'dtop': await respond(interaction, await buildTowerDailyView(guildId, ownerId, locale)); return;
       default: return;
     }
   } catch (err) {

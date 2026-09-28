@@ -8,7 +8,8 @@
  */
 
 import type { SkillEffect } from './rpgClasses.js';
-import { TOWER_OFFER_KINDS, type TowerOfferKind } from './rpgTowerMap.js';
+import { RELIC_PERK_CHANCE, TOWER_RELIC_PERKS, type TowerRelicPerk } from './rpgTowerContent.js';
+import { TOWER_FLOORS_AFTER, TOWER_OFFER_KINDS, type TowerFloorsAfter, type TowerOfferKind } from './rpgTowerMap.js';
 
 // ─────────────────────────────────────────────────────────────
 // Réglages
@@ -39,6 +40,12 @@ export type TowerSettings = {
   currencyEmoji: string;
   upgrades: TowerUpgradeDef[];
   merchant: TowerMerchantSettings;
+  /** Après le dernier étage dessiné : étages générés ou retour au premier. */
+  floorsAfter: TowerFloorsAfter;
+  /** Ascension du jour : même graine pour tous, stats égales, une tentative par jour. */
+  dailyEnabled: boolean;
+  /** Salon où annoncer les records de la saison ; `null` pour ne rien annoncer. */
+  announceChannelId: string | null;
 };
 
 export const TOWER_DEFAULTS: TowerSettings = {
@@ -63,6 +70,9 @@ export const TOWER_DEFAULTS: TowerSettings = {
   currencyEmoji: '',
   upgrades: defaultTowerUpgrades(),
   merchant: defaultTowerMerchant(),
+  floorsAfter: 'GENERATE',
+  dailyEnabled: true,
+  announceChannelId: null,
 };
 
 export const TOWER_RANGES = {
@@ -137,6 +147,11 @@ export function normalizeTowerSettings(input: Record<string, unknown>): TowerNor
       currencyEmoji: text(input.currencyEmoji),
       upgrades: input.upgrades === undefined || input.upgrades === null ? defaultTowerUpgrades() : upgrades.value,
       merchant: normalizeTowerMerchant(input.merchant),
+      floorsAfter: TOWER_FLOORS_AFTER.includes(input.floorsAfter as TowerFloorsAfter)
+        ? (input.floorsAfter as TowerFloorsAfter)
+        : TOWER_DEFAULTS.floorsAfter,
+      dailyEnabled: input.dailyEnabled !== false,
+      announceChannelId: /^\d{15,25}$/.test(text(input.announceChannelId)) ? text(input.announceChannelId) : null,
     },
   };
 }
@@ -254,6 +269,21 @@ export function newTowerSeed(): number {
   return Math.floor(Math.random() * 0x7fffffff);
 }
 
+/** Jour de l'ascension du jour, en UTC : « 2026-09-28 ». */
+export function towerDayKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/** Graine de l'ascension du jour, la même pour tout le serveur pendant la journée (FNV-1a). */
+export function towerDailySeed(guildId: string, dayKey: string): number {
+  let hash = 0x811c9dc5;
+  for (const char of `${guildId}:${dayKey}`) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash | 0;
+}
+
 // ─────────────────────────────────────────────────────────────
 // Statistiques d'entrée
 // ─────────────────────────────────────────────────────────────
@@ -342,7 +372,7 @@ export function computeTowerEntryStats(input: TowerEntryInput): TowerCoreStats {
 // Étages et monstres
 // ─────────────────────────────────────────────────────────────
 
-export const TOWER_DOORS = ['COMBAT', 'ELITE', 'TREASURE', 'CAMPFIRE', 'MERCHANT', 'BOSS'] as const;
+export const TOWER_DOORS = ['COMBAT', 'ELITE', 'TREASURE', 'CAMPFIRE', 'MERCHANT', 'EVENT', 'BOSS'] as const;
 export type TowerDoor = (typeof TOWER_DOORS)[number];
 export type TowerEncounterKind = 'COMBAT' | 'ELITE' | 'BOSS';
 
@@ -352,6 +382,7 @@ const DOOR_WEIGHTS: Record<Exclude<TowerDoor, 'BOSS'>, number> = {
   TREASURE: 12,
   CAMPFIRE: 13,
   MERCHANT: 12,
+  EVENT: 10,
 };
 
 export function isBossFloor(floor: number, bossEvery: number): boolean {
@@ -466,8 +497,40 @@ export const CAMPFIRE_HEAL = 0.35;
 export const BOSS_VICTORY_HEAL = 0.3;
 export const MAX_POTIONS = 5;
 
+/**
+ * Profil d'une créature : la répartition de ses stats dans le bestiaire, à puissance égale.
+ * Un golem y est plus robuste et plus lent, un assassin plus fragile et plus dangereux, sans
+ * qu'aucun des deux ne soit plus fort qu'un autre monstre du même étage.
+ */
+export type TowerFoeShape = { health: number; attack: number; defense: number; speed: number };
+
 /** Nom et emoji d'un adversaire, tirés du bestiaire du serveur ; vide, le panneau pose une icône. */
-export type TowerFoeName = { name: string; emoji: string };
+export type TowerFoeName = { name: string; emoji: string; shape?: TowerFoeShape };
+
+const SHAPE_RANGE = { min: 0.7, max: 1.4 } as const;
+const SPEED_SHAPE_RANGE = { min: 0.8, max: 1.3 } as const;
+
+/**
+ * Profil tiré des stats d'une fiche du bestiaire, rapportées aux stats de base d'un monstre de
+ * la Tour. Santé, attaque et défense sont bornées puis ramenées à un produit de 1 : le profil
+ * change la manière de combattre, jamais la difficulté.
+ */
+export function towerFoeShape(monster: { health: number; attack: number; defense: number; speed: number }): TowerFoeShape {
+  const ratio = (value: number, base: number) => Math.max(0.01, value) / base;
+  const h = ratio(monster.health, 70);
+  const a = ratio(monster.attack, 13);
+  const d = ratio(monster.defense, 6);
+  const mean = Math.cbrt(h * a * d);
+  const clamp = (value: number, range: { min: number; max: number }) => Math.min(range.max, Math.max(range.min, value));
+  const raw = { health: clamp(h / mean, SHAPE_RANGE), attack: clamp(a / mean, SHAPE_RANGE), defense: clamp(d / mean, SHAPE_RANGE) };
+  const norm = Math.cbrt(raw.health * raw.attack * raw.defense);
+  return {
+    health: raw.health / norm,
+    attack: raw.attack / norm,
+    defense: raw.defense / norm,
+    speed: clamp(ratio(monster.speed, 9) / mean, SPEED_SHAPE_RANGE),
+  };
+}
 
 export const FALLBACK_MONSTERS: TowerFoeName[] = [
   { name: 'Gobelin des marches', emoji: '' },
@@ -505,6 +568,8 @@ export type TowerGear = {
   lifesteal: number;
   thorns: number;
   armorPiercing: number;
+  /** Effet unique d'une relique. */
+  perk?: TowerRelicPerk;
 };
 
 export type TowerGearSet = Record<TowerGearSlot, TowerGear | null>;
@@ -581,6 +646,7 @@ export function rollTowerGear(floor: number, source: TowerLootSource, rng: Tower
     gear.speed = Math.round((2 + floor * 0.6) * roll());
     const power = rng.pick(Object.keys(RELIC_POWER) as RelicPower[]);
     gear[power] = Math.round(RELIC_POWER[power] * mult * 100) / 100;
+    if (rng.next() < (RELIC_PERK_CHANCE[rarity] ?? 0)) gear.perk = rng.pick(TOWER_RELIC_PERKS);
   }
   return gear;
 }

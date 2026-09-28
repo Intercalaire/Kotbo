@@ -8,6 +8,7 @@
    */
   import { onMount } from 'svelte';
   import { m } from '../../i18n';
+  import { channelDisplayName } from '../../channelUtils';
   import { confirmDialog } from '../../stores/confirmDialog.svelte';
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import { createAsyncActionState } from '../../asyncAction.svelte';
@@ -78,6 +79,9 @@
     currencyEmoji: string;
     upgrades: Upgrade[];
     merchant: Merchant;
+    floorsAfter: 'GENERATE' | 'LOOP';
+    dailyEnabled: boolean;
+    announceChannelId: string | null;
     seasonStartedAt?: string;
     layoutEnabled?: boolean;
     floors?: any[];
@@ -103,7 +107,15 @@
   type RewardDraft = Omit<Reward, 'id'> & { id?: string };
   type NumericSetting = { [K in keyof Settings]-?: Settings[K] extends number ? K : never }[keyof Settings];
   type NumericMerchant = { [K in keyof Merchant]-?: Merchant[K] extends number ? K : never }[keyof Merchant];
-  type LeaderboardEntry = { userId: string; displayName: string; bestFloor: number; totalRuns: number };
+  type LeaderboardEntry = { userId: string; displayName: string; avatarUrl?: string | null; bestFloor: number; bestRooms?: number; totalRuns: number };
+  type DailyEntry = { userId: string; displayName: string; avatarUrl?: string | null; floorsCleared: number; roomsExplored: number; status: string };
+  type Insights = {
+    finishedRuns: number;
+    averageFloor: number;
+    deathRate: number;
+    topKillers: { name: string; deaths: number }[];
+    deadliestFloor: { floor: number; deaths: number } | null;
+  };
   type Tab = 'general' | 'map' | 'shop' | 'merchant' | 'milestones' | 'leaderboard';
 
   // Mêmes valeurs que `rpgTowerPolicy.ts` côté bot.
@@ -154,6 +166,9 @@
     currencyEmoji: '',
     upgrades: defaultUpgrades(),
     merchant: { ...MERCHANT_DEFAULTS, offers: [...OFFERS] },
+    floorsAfter: 'GENERATE',
+    dailyEnabled: true,
+    announceChannelId: null,
   };
 
   const BASE_ATTACK = 20;
@@ -172,6 +187,11 @@
   let stats = $state({ players: 0, runs: 0, activeRuns: 0, bestFloor: 0 });
   let limits = $state<{ rewardsMax: number; mapSize?: { min: number; max: number }; mapRoomsMax?: number; floorsMax?: number }>({ rewardsMax: 40 });
   let resetMilestones = $state(true);
+  let insights = $state<Insights | null>(null);
+  let dailyBoard = $state<DailyEntry[]>([]);
+  const channels = $derived(((dashboardStore.state.discordChannels ?? []) as any[]).map((channel) => ({ id: channel.id, name: channelDisplayName(channel) })));
+  // Barre de progression du classement : chacun rapporté au premier.
+  const topFloor = $derived(Math.max(1, leaderboard[0]?.bestFloor ?? 1));
   let foes = $state<{ name: string; emoji: string; isBoss: boolean; enabled: boolean }[]>([]);
   // Recrée l'éditeur après chaque chargement, pour qu'il reparte de la carte enregistrée.
   let mapVersion = $state(0);
@@ -299,6 +319,8 @@
         if (res.stats) stats = res.stats;
         if (res.limits) limits = res.limits;
         foes = res.foes ?? [];
+        insights = res.insights ?? null;
+        dailyBoard = res.daily?.leaderboard ?? [];
         mapVersion += 1;
       }
     } catch (err) {
@@ -544,6 +566,38 @@
       {/each}
     </div>
 
+    {#if insights && insights.finishedRuns > 0}
+      <!-- Ce que disent les parties terminées : de quoi repérer un étage ou un monstre mal réglé. -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-4" title={m.eco_tower_insight_average_tip()}>
+          <p class="text-2xs text-on-surface-variant/60 flex items-center gap-1"><Papicon icon="Building" size={11} /> {m.eco_tower_insight_average()}</p>
+          <p class="text-xl font-bold mt-1">{insights.averageFloor}</p>
+        </div>
+        <div class="bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-4" title={m.eco_tower_insight_deaths_tip()}>
+          <p class="text-2xs text-on-surface-variant/60 flex items-center gap-1"><Papicon icon="Skull" size={11} /> {m.eco_tower_insight_deaths()}</p>
+          <p class="text-xl font-bold mt-1">{insights.deathRate} %</p>
+          <div class="h-1.5 rounded-full bg-outline-variant/15 mt-2 overflow-hidden"><div class="h-full bg-error/70" style="width: {insights.deathRate}%"></div></div>
+        </div>
+        <div class="bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-4" title={m.eco_tower_insight_killers_tip()}>
+          <p class="text-2xs text-on-surface-variant/60 flex items-center gap-1"><Papicon icon="Swords" size={11} /> {m.eco_tower_insight_killers()}</p>
+          {#if insights.topKillers.length > 0}
+            <ol class="mt-1 space-y-0.5 text-xs">
+              {#each insights.topKillers as killer}
+                <li class="flex justify-between gap-2"><span class="truncate font-semibold">{killer.name}</span><span class="text-on-surface-variant/60">{killer.deaths}</span></li>
+              {/each}
+            </ol>
+          {:else}
+            <p class="text-xs text-on-surface-variant/50 mt-1">—</p>
+          {/if}
+        </div>
+        <div class="bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-4" title={m.eco_tower_insight_deadliest_tip()}>
+          <p class="text-2xs text-on-surface-variant/60 flex items-center gap-1"><Papicon icon="Flame" size={11} /> {m.eco_tower_insight_deadliest()}</p>
+          <p class="text-xl font-bold mt-1">{insights.deadliestFloor ? m.eco_tower_milestone_floor({ floor: insights.deadliestFloor.floor }) : '—'}</p>
+          {#if insights.deadliestFloor}<p class="text-2xs text-on-surface-variant/60">{m.eco_tower_insight_deadliest_count({ count: insights.deadliestFloor.deaths })}</p>{/if}
+        </div>
+      </div>
+    {/if}
+
     <Tabs label={m.eco_tower_tabs_label()} {tabs} active={tab} onchange={(id) => { tab = id as Tab; }} />
 
     {#if tab === 'general'}
@@ -565,6 +619,7 @@
             <li>{m.eco_tower_guide_boss()}</li>
             <li>{m.eco_tower_guide_growth()}</li>
             <li>{m.eco_tower_guide_combat()}</li>
+            <li>{m.eco_tower_guide_depth()}</li>
             <li>{m.eco_tower_guide_milestones()}</li>
             <li>{m.eco_tower_guide_start()}</li>
           </ul>
@@ -655,6 +710,45 @@
           </div>
         </div>
 
+        <!-- Montée et communauté -->
+        <div class="space-y-3 pt-2 border-t border-outline-variant/5">
+          <h4 class="text-sm font-bold">{m.eco_tower_climb_title()}</h4>
+          <div class="space-y-1">
+            <p class={labelClass}>{m.eco_tower_floors_after()}</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {#each [
+                { value: 'GENERATE' as const, title: m.eco_tower_floors_after_generate(), desc: m.eco_tower_floors_after_generate_desc() },
+                { value: 'LOOP' as const, title: m.eco_tower_floors_after_loop(), desc: m.eco_tower_floors_after_loop_desc() },
+              ] as option}
+                <button type="button" disabled={!canManage || disabled} title={option.desc} onclick={() => { settings.floorsAfter = option.value; }}
+                  class="text-left p-4 rounded-xl border transition-all {settings.floorsAfter === option.value ? 'border-primary bg-primary/10' : 'border-outline-variant/10 bg-surface-container-high/30 hover:border-outline-variant/30'}">
+                  <p class="text-sm font-bold">{option.title}</p>
+                  <p class="text-2xs text-on-surface-variant/60 mt-1 leading-relaxed">{option.desc}</p>
+                </button>
+              {/each}
+            </div>
+          </div>
+          <div class="flex items-center justify-between gap-4 bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-4">
+            <div>
+              <p class="text-sm font-bold flex items-center gap-2"><Papicon icon="CalendarDays" size={14} /> {m.eco_tower_daily_title()}</p>
+              <p class="text-2xs text-on-surface-variant/60 mt-1 leading-relaxed max-w-xl">{m.eco_tower_daily_desc()}</p>
+            </div>
+            <ToggleSwitch checked={settings.dailyEnabled} disabled={!canManage || disabled} ariaLabel={m.eco_tower_daily_title()} onToggle={(value: boolean) => { settings.dailyEnabled = value; }} />
+          </div>
+          <div class="space-y-1" title={m.eco_tower_announce_hint()}>
+            <span class={labelClass}>{m.eco_tower_announce_channel()}</span>
+            <SearchableSelect
+              value={settings.announceChannelId}
+              options={channels}
+              placeholder={m.eco_tower_announce_none()}
+              clearable={true}
+              className="w-full"
+              on:change={(e: any) => { settings.announceChannelId = e.detail?.value ?? null; }}
+            />
+            <p class="text-2xs text-on-surface-variant/50 leading-relaxed ml-2">{m.eco_tower_announce_hint()}</p>
+          </div>
+        </div>
+
         <!-- Éclats -->
         <div class="space-y-3 pt-2 border-t border-outline-variant/5">
           <h4 class="text-sm font-bold">{m.eco_tower_shards_title()}</h4>
@@ -689,6 +783,8 @@
           initialFloors={settings.floors ?? []}
           initialEnabled={settings.layoutEnabled ?? false}
           floorsMax={limits.floorsMax ?? 12}
+          growthPercent={Number(settings.floorGrowthPercent) || 8}
+          floorsAfter={settings.floorsAfter}
           {foes}
           sizeLimits={limits.mapSize ?? { min: 3, max: 12 }}
           roomsMax={limits.mapRoomsMax ?? 100}
@@ -913,14 +1009,42 @@
         {:else}
           <ol class="space-y-1.5">
             {#each leaderboard as entry, index (entry.userId)}
-              <li class="flex items-center gap-3 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs">
-                <span class="w-6 text-right font-mono text-on-surface-variant/50">{index + 1}.</span>
-                <span class="flex-1 font-semibold truncate">{entry.displayName}</span>
-                <span class="text-on-surface-variant/60">{m.eco_tower_leaderboard_runs({ runs: entry.totalRuns })}</span>
-                <span class="font-bold text-warning">{m.eco_tower_milestone_floor({ floor: entry.bestFloor })}</span>
+              <li class="relative overflow-hidden flex items-center gap-3 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs">
+                <div class="absolute inset-y-0 left-0 bg-warning/10 pointer-events-none" style="width: {Math.round((entry.bestFloor / topFloor) * 100)}%"></div>
+                <span class="relative w-6 text-right font-mono text-on-surface-variant/50">{index + 1}.</span>
+                {#if entry.avatarUrl}
+                  <img src={entry.avatarUrl} alt="" class="relative w-6 h-6 rounded-full" loading="lazy" />
+                {:else}
+                  <span class="relative w-6 h-6 rounded-full bg-outline-variant/20 flex items-center justify-center"><Papicon icon="users" size={11} /></span>
+                {/if}
+                <span class="relative flex-1 font-semibold truncate">{entry.displayName}</span>
+                <span class="relative text-on-surface-variant/60">{m.eco_tower_leaderboard_runs({ runs: entry.totalRuns })}</span>
+                {#if entry.bestRooms}<span class="relative text-on-surface-variant/60" title={m.eco_tower_leaderboard_rooms_tip()}>{m.eco_tower_leaderboard_rooms({ rooms: entry.bestRooms })}</span>{/if}
+                <span class="relative font-bold text-warning">{m.eco_tower_milestone_floor({ floor: entry.bestFloor })}</span>
               </li>
             {/each}
           </ol>
+        {/if}
+
+        {#if settings.dailyEnabled}
+          <div class="pt-4 border-t border-outline-variant/10 space-y-2">
+            <h4 class="text-sm font-bold flex items-center gap-2"><Papicon icon="CalendarDays" size={14} /> {m.eco_tower_daily_board_title()}</h4>
+            {#if dailyBoard.length === 0}
+              <p class="text-xs text-on-surface-variant/60 italic">{m.eco_tower_daily_board_empty()}</p>
+            {:else}
+              <ol class="space-y-1.5">
+                {#each dailyBoard as entry, index (entry.userId)}
+                  <li class="flex items-center gap-3 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs">
+                    <span class="w-6 text-right font-mono text-on-surface-variant/50">{index + 1}.</span>
+                    {#if entry.avatarUrl}<img src={entry.avatarUrl} alt="" class="w-6 h-6 rounded-full" loading="lazy" />{/if}
+                    <span class="flex-1 font-semibold truncate">{entry.displayName}</span>
+                    <span class="text-on-surface-variant/60">{m.eco_tower_leaderboard_rooms({ rooms: entry.roomsExplored })}</span>
+                    <span class="font-bold text-warning">{m.eco_tower_milestone_floor({ floor: entry.floorsCleared })}</span>
+                  </li>
+                {/each}
+              </ol>
+            {/if}
+          </div>
         {/if}
       </div>
     {/if}
