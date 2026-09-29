@@ -108,7 +108,25 @@ export type TowerShaftImage = {
   panel?: TowerPanel;
 };
 
-export type TowerImageInput = TowerMapImage | TowerShaftImage;
+/** Marqueurs de la carte, expliqués dans le guide. */
+export type TowerLegendMarker = 'PAWN' | 'TARGET' | 'CLEARED' | 'KEY' | 'BADGE' | 'POWER' | 'WANDERER' | 'PATH' | 'PENNANT' | 'FOG';
+
+/**
+ * Une ligne de légende : une salle telle que la carte la dessine, ou un marqueur. `locked` : salle
+ * piégée pas encore rencontrée, sous cadenas. `hidden` : salle piégée découverte, dessinée sous
+ * son apparence avec un avertissement.
+ */
+export type TowerLegendEntry =
+  | { room: TowerRoomType; label: string; locked?: boolean; hidden?: TowerRoomType }
+  | { marker: TowerLegendMarker; label: string };
+
+export type TowerLegendImage = {
+  kind: 'legend';
+  title: string;
+  entries: TowerLegendEntry[];
+};
+
+export type TowerImageInput = TowerMapImage | TowerShaftImage | TowerLegendImage;
 
 // ─────────────────────────────────────────────────────────────
 // Décor
@@ -699,6 +717,48 @@ function pawn(ctx: SKRSContext2D, cx: number, cy: number, size: number): void {
   ctx.restore();
 }
 
+/** Monstre errant : un œil rouge dans la salle où il se tient. */
+function drawWandererEye(ctx: SKRSContext2D, cx: number, cy: number, r: number): void {
+  ctx.save();
+  ctx.fillStyle = '#ef4444';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, r * 1.4, r, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = C.sky1;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** Cadenas d'une salle piégée pas encore rencontrée, dans le guide. */
+function drawLock(ctx: SKRSContext2D, cx: number, cy: number, size: number): void {
+  ctx.save();
+  ctx.strokeStyle = C.textDim;
+  ctx.fillStyle = C.textDim;
+  ctx.lineWidth = Math.max(2, size * 0.12);
+  ctx.beginPath();
+  ctx.arc(cx, cy - size * 0.1, size * 0.22, Math.PI, 0);
+  ctx.stroke();
+  roundRect(ctx, cx - size * 0.32, cy - size * 0.1, size * 0.64, size * 0.5, size * 0.08);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** Point d'exclamation rouge : ce qui se cache derrière l'apparence d'une salle piégée. */
+function drawWarning(ctx: SKRSContext2D, cx: number, cy: number, radius: number): void {
+  ctx.save();
+  ctx.fillStyle = '#ef4444';
+  ctx.strokeStyle = C.sky1;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  text(ctx, '!', cx, cy + 0.5, Math.round(radius * 1.4), C.text, 'center');
+  ctx.restore();
+}
+
 function upArrow(ctx: SKRSContext2D, cx: number, cy: number, size: number, color: string): void {
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -861,19 +921,7 @@ function renderMap(input: TowerMapImage): Buffer {
   for (const id of input.wanderers ?? []) {
     const room = layout.rooms.find((candidate) => candidate.id === id);
     if (!room || !seen(room.id) || room.id === input.pos) continue;
-    const cx = gx + (room.x + 0.5) * tile;
-    const cy = gy + (room.y + 0.5) * tile;
-    const r = tile * 0.22;
-    ctx.save();
-    ctx.fillStyle = '#ef4444';
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, r * 1.4, r, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = C.sky1;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * 0.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    drawWandererEye(ctx, gx + (room.x + 0.5) * tile, gy + (room.y + 0.5) * tile, tile * 0.22);
   }
 
   // Pas de pion tant que le joueur n'est pas entré : devant les entrées au choix, il n'est nulle part.
@@ -1014,9 +1062,124 @@ function renderShaft(input: TowerShaftImage): Buffer {
   return canvas.toBuffer('image/png');
 }
 
+// ─────────────────────────────────────────────────────────────
+// Légende du guide des salles
+// ─────────────────────────────────────────────────────────────
+
+const LEGEND_COLUMNS = 2;
+const LEGEND_TILE = 46;
+const LEGEND_ROW = 62;
+const LEGEND_COLUMN_W = 330;
+
+/**
+ * Légende du guide : chaque salle dessinée comme sur la carte, avec les mêmes couleurs et les
+ * mêmes pictogrammes, pour que le joueur y reconnaisse ce qu'il voit en jeu.
+ */
+function renderLegend(input: TowerLegendImage): Buffer {
+  const rows = Math.max(1, Math.ceil(input.entries.length / LEGEND_COLUMNS));
+  const margin = 28;
+  const top = 76;
+  const W = margin * 2 + LEGEND_COLUMNS * LEGEND_COLUMN_W;
+  const H = top + rows * LEGEND_ROW + margin;
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext('2d');
+
+  drawSky(ctx, W, H);
+  drawBricks(ctx, margin - 10, top - 14, W - (margin - 10) * 2, rows * LEGEND_ROW + 20, C.stoneDark, 12);
+  drawPlaque(ctx, W / 2, 36, input.title);
+
+  input.entries.forEach((entry, index) => {
+    const column = index % LEGEND_COLUMNS;
+    const row = Math.floor(index / LEGEND_COLUMNS);
+    const x = margin + column * LEGEND_COLUMN_W + 6;
+    const y = top + row * LEGEND_ROW + (LEGEND_ROW - LEGEND_TILE) / 2;
+    drawLegendTile(ctx, entry, x, y, LEGEND_TILE);
+
+    ctx.font = canvasFont(17, 'bold');
+    const maxWidth = LEGEND_COLUMN_W - LEGEND_TILE - 30;
+    let label = entry.label;
+    while (ctx.measureText(label).width > maxWidth && label.length > 4) label = `${label.slice(0, -2)}…`;
+    const locked = 'room' in entry && entry.locked === true;
+    text(ctx, label, x + LEGEND_TILE + 14, y + LEGEND_TILE / 2, 17, locked ? C.textDim : C.text);
+  });
+
+  return canvas.toBuffer('image/png');
+}
+
+function drawLegendTile(ctx: SKRSContext2D, entry: TowerLegendEntry, x: number, y: number, size: number): void {
+  const cx = x + size / 2;
+  const cy = y + size / 2;
+  roundRect(ctx, x, y, size, size, 7);
+  ctx.fillStyle = C.floor;
+  ctx.fill();
+
+  if ('marker' in entry) {
+    ctx.strokeStyle = C.corridor;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    switch (entry.marker) {
+      case 'PAWN': pawn(ctx, cx, cy, size * 0.55); break;
+      case 'TARGET':
+        ctx.save();
+        ctx.setLineDash([5, 4]);
+        ctx.strokeStyle = C.text;
+        roundRect(ctx, x - 2, y - 2, size + 4, size + 4, 9);
+        ctx.stroke();
+        ctx.restore();
+        break;
+      case 'CLEARED': checkMark(ctx, cx, cy, size * 0.42); break;
+      case 'KEY': drawKey(ctx, x + 6, y + size - 6, Math.max(8, size * 0.4)); break;
+      case 'BADGE': drawBadge(ctx, cx, cy, size * 0.2, 1); break;
+      case 'POWER': drawPower(ctx, x + size - 4, y + size - 4, 12, 150); break;
+      case 'WANDERER': drawWandererEye(ctx, cx, cy, size * 0.22); break;
+      case 'PATH':
+        ctx.save();
+        ctx.strokeStyle = C.gold;
+        ctx.lineWidth = 3;
+        roundRect(ctx, x - 1, y - 1, size + 2, size + 2, 8);
+        ctx.stroke();
+        ctx.restore();
+        break;
+      case 'PENNANT': drawPennant(ctx, cx - size * 0.2, cy - size * 0.3, size * 0.6); break;
+      case 'FOG': drawFog(ctx, x, y, size, 3); break;
+    }
+    return;
+  }
+
+  if (entry.locked) {
+    drawFog(ctx, x, y, size, 5);
+    ctx.strokeStyle = C.corridor;
+    ctx.lineWidth = 2;
+    roundRect(ctx, x, y, size, size, 7);
+    ctx.stroke();
+    drawLock(ctx, cx, cy, size * 0.6);
+    return;
+  }
+
+  // Une salle piégée se dessine sous son apparence : c'est ce que le joueur verra sur la carte.
+  const shown = entry.hidden ?? entry.room;
+  const color = ROOM_COLOR[shown];
+  ctx.save();
+  ctx.globalAlpha = shown === 'EMPTY' ? 0.14 : 0.3;
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = 0.9;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.save();
+  ctx.globalAlpha = shown === 'EMPTY' ? 0.5 : 1;
+  glyph(ctx, shown, cx, cy, size * 0.55, color);
+  ctx.restore();
+  if (entry.hidden) drawWarning(ctx, x + size - 3, y + 3, Math.max(7, size * 0.17));
+}
+
 export async function renderTowerImage(input: TowerImageInput): Promise<Buffer | null> {
   try {
     ensureCanvasFonts();
+    if (input.kind === 'legend') return renderLegend(input);
     return input.kind === 'map' ? renderMap(input) : renderShaft(input);
   } catch (error) {
     logger.error('RpgTower', 'Rendu de la tour en échec :', error);
