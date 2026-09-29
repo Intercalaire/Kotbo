@@ -40,6 +40,7 @@ import {
 import {
   AUTO_STOP_HEALTH,
   TRIAL_WAVES,
+  canFlee,
   combatStats,
   heatShardBonus,
   floorModifier,
@@ -1489,8 +1490,8 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
           : []),
         button(actId(ownerId, version, 'def'), m.rpg_fight_btn_defend({}, { locale }), foe.charging ? ButtonStyle.Success : ButtonStyle.Secondary, icon('rpgDef')),
         button(actId(ownerId, version, 'pot'), m.rpg_fight_btn_potion({ count: state.potions }, { locale }), ButtonStyle.Success, icon('rpgPotion'), state.potions === 0 || state.hp >= maxHealth),
-        // On ne fuit ni un gardien ni une épreuve.
-        ...(foe.kind === 'BOSS' || state.trial ? [] : [button(actId(ownerId, version, 'fl'), m.tower_btn_flee({}, { locale }), ButtonStyle.Danger, icon('rpgLeave'))]),
+        // On ne fuit ni un gardien, ni une épreuve, ni une embuscade.
+        ...(!canFlee(state, foe) ? [] : [button(actId(ownerId, version, 'fl'), m.tower_btn_flee({}, { locale }), ButtonStyle.Danger, icon('rpgLeave'))]),
       ));
       if (state.skills.length > 0) {
         components.push(row(...state.skills.slice(0, 5).map((skill) => {

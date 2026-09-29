@@ -46,6 +46,7 @@ import {
   TOWER_FLOOR_DEPTH_MAX,
   TowerActionRefused,
   applyTowerAction,
+  canFlee,
   towerRunFloorLayout,
   createTowerState,
   towerLevel,
@@ -984,6 +985,18 @@ describe('profondeur de la Tour', () => {
         expect(state.map!.fire).not.toContain('1-0');
       }
       expect(state.map!.fire!.length).toBeGreaterThan(1);
+    });
+
+    test('on ne fuit pas une embuscade', () => {
+      const layout = corridor('BURNING');
+      layout.modifier = 'NONE';
+      layout.rooms = layout.rooms.map((room) => (room.id === '1-0' ? { ...room, type: 'AMBUSH' as const } : room));
+      let state = createTowerState({ base: STRONG, skills: [], potions: 1, seed: 3, rules: RULES, layout });
+      state = walk(state, '1-0');
+      expect(state.phase).toBe('COMBAT');
+      expect(state.encounter!.ambush).toBe(true);
+      expect(canFlee(state, state.encounter!)).toBe(false);
+      expect(() => applyTowerAction(state, 1, { type: 'flee' }, RULES, FOES)).toThrow(TowerActionRefused);
     });
 
     test('entrer dans une salle en feu brûle, même déjà faite', () => {

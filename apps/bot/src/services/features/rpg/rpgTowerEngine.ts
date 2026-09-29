@@ -213,6 +213,8 @@ export type TowerEncounter = {
   opensExit?: boolean;
   /** Monstre errant (sa case de départ) : vaincu, il quitte l'étage. */
   wanderer?: string;
+  /** Embuscade : pris au piège, le joueur ne peut pas fuir. */
+  ambush?: boolean;
   /** Geôlier d'un prisonnier : le vaincre libère le captif. */
   captive?: TowerCaptiveKind;
   /** Puissance réglée sur la salle (1 : normale). */
@@ -1362,6 +1364,11 @@ function winEncounter(
   return next;
 }
 
+/** Un combat se fuit, sauf un gardien, une épreuve ou une embuscade. */
+export function canFlee(state: TowerState, encounter: TowerEncounter): boolean {
+  return encounter.kind !== 'BOSS' && !state.trial && encounter.ambush !== true;
+}
+
 /** Fuite : retour à la salle d'où l'on vient sur une carte, de nouvelles portes au même étage sinon. */
 function retreat(state: TowerState): void {
   const map = state.map;
@@ -1387,10 +1394,10 @@ function combatTurn(
   // Les postures ne durent qu'un tour ennemi.
   encounter.defenseMultiplier = 1;
 
-  // On ne fuit ni un boss ni une épreuve. Fuir laisse au monstre un dernier coup et coûte une
-  // part de l'or.
+  // On ne fuit ni un boss, ni une épreuve, ni une embuscade. Fuir laisse au monstre un dernier
+  // coup et coûte une part de l'or.
   if (action.type === 'flee') {
-    if (encounter.kind === 'BOSS' || state.trial) throw new TowerActionRefused('no_flee');
+    if (!canFlee(state, encounter)) throw new TowerActionRefused('no_flee');
     monsterStrike(state, encounter, stats, rng, log);
     encounter.log = [...encounter.log, ...log].slice(-LOG_KEPT);
     if (state.hp <= 0) return { state, floor, dead: true };
@@ -1661,6 +1668,8 @@ function enterRoom(
       const before = state.hp;
       state.hp = Math.max(1, state.hp - dmg);
       startEncounter(state, level, 'COMBAT', rules, foes, rng, null, info, roomPower(room));
+      // Pris au piège : pas de fuite, sans quoi revenir rejouait le coup d'entrée à l'infini.
+      state.encounter!.ambush = true;
       // Nuit sans lune : l'embuscade est plus dangereuse à repérer, elle paie d'autant.
       if (floorModifier(state) === 'MOONLESS') state.encounter!.bounty = (state.encounter!.bounty ?? 1) * MOONLESS_AMBUSH_BOUNTY;
       state.notice = { k: 'ambush', dmg: before - state.hp };
