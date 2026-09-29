@@ -1328,9 +1328,9 @@ export async function currentTowerDay(guildId: string, now = new Date()): Promis
 }
 
 /**
- * Podium du défi de la veille : les trois premiers reçoivent leurs éclats, une seule fois par
- * jour et par serveur. On attend que plus aucune ascension de la veille ne soit en cours : le
- * classement ne bougera plus. Appelé régulièrement par une tâche planifiée.
+ * Podium du défi : les trois premiers de la veille reçoivent leurs éclats, une seule fois par
+ * jour et par serveur, dès que plus aucune ascension de la veille n'est en cours. Un podium de
+ * l'avant-veille resté impayé est rattrapé sans attendre. Appelé par une tâche planifiée.
  */
 export async function payTowerDailyPodiums(now = new Date()): Promise<number> {
   const configs = await prisma.rpgTowerConfig.findMany({
@@ -1341,33 +1341,48 @@ export async function payTowerDailyPodiums(now = new Date()): Promise<number> {
   for (const config of configs) {
     try {
       const yesterday = previousTowerDayKey(await currentTowerDay(config.guildId, now));
-      if (!yesterday || config.dailyPaidKey === yesterday) continue;
-      const running = await prisma.rpgTowerRun.count({ where: { guildId: config.guildId, mode: 'DAILY', dailyKey: yesterday, status: 'ACTIVE' } });
-      if (running > 0) continue;
-      const podium = (await getTowerDailyLeaderboard(config.guildId, yesterday, TOWER_DAILY_PODIUM_SHARDS.length))
-        .filter((entry) => entry.floorsCleared > 0);
-      await prisma.$transaction(async (tx) => {
-        // Réservé d'abord : deux passages simultanés ne paient pas deux fois.
-        const claimed = await tx.rpgTowerConfig.updateMany({
-          where: { guildId: config.guildId, OR: [{ dailyPaidKey: null }, { dailyPaidKey: { not: yesterday } }] },
-          data: { dailyPaidKey: yesterday },
-        });
-        if (claimed.count === 0) return;
-        for (const [index, entry] of podium.entries()) {
-          const shards = TOWER_DAILY_PODIUM_SHARDS[index];
-          await tx.rpgTowerProfile.update({
-            where: { guildId_userId: { guildId: config.guildId, userId: entry.userId } },
-            data: { shards: { increment: shards }, lifetimeShards: { increment: shards } },
-          });
+      if (!yesterday) continue;
+      // L'avant-veille d'abord : une ascension de la veille gardée ouverte toute une journée ne
+      // doit pas priver son podium de paiement. Les clés AAAA-MM-JJ se comparent comme du texte.
+      for (const day of [previousTowerDayKey(yesterday), yesterday]) {
+        if (!day || (config.dailyPaidKey !== null && config.dailyPaidKey >= day)) continue;
+        // La veille : on attend que ses dernières ascensions soient closes, le classement ne
+        // bougera plus. L'avant-veille se paie sans attendre, sur ce qui est fini.
+        if (day === yesterday) {
+          const running = await prisma.rpgTowerRun.count({ where: { guildId: config.guildId, mode: 'DAILY', dailyKey: day, status: 'ACTIVE' } });
+          if (running > 0) break;
         }
-        paid += podium.length;
-      });
+        paid += await payTowerDailyPodium(config.guildId, day);
+        config.dailyPaidKey = day;
+      }
     } catch (err) {
       logger.error('RpgTower', `Podium du défi non versé sur ${config.guildId} :`, err);
     }
   }
   if (paid > 0) logger.info('RpgTower', `${paid} place(s) de podium du défi payée(s).`);
   return paid;
+}
+
+/** Paie le podium du défi du jour `day`, s'il ne l'a pas déjà été ; renvoie les places payées. */
+async function payTowerDailyPodium(guildId: string, day: string): Promise<number> {
+  const podium = (await getTowerDailyLeaderboard(guildId, day, TOWER_DAILY_PODIUM_SHARDS.length))
+    .filter((entry) => entry.floorsCleared > 0);
+  return prisma.$transaction(async (tx) => {
+    // Réservé d'abord : deux passages simultanés ne paient pas deux fois.
+    const claimed = await tx.rpgTowerConfig.updateMany({
+      where: { guildId, OR: [{ dailyPaidKey: null }, { dailyPaidKey: { lt: day } }] },
+      data: { dailyPaidKey: day },
+    });
+    if (claimed.count === 0) return 0;
+    for (const [index, entry] of podium.entries()) {
+      const shards = TOWER_DAILY_PODIUM_SHARDS[index];
+      await tx.rpgTowerProfile.update({
+        where: { guildId_userId: { guildId, userId: entry.userId } },
+        data: { shards: { increment: shards }, lifetimeShards: { increment: shards } },
+      });
+    }
+    return podium.length;
+  });
 }
 
 /** Classement de l'ascension du jour : étages, puis salles explorées, puis le plus tôt fini. */
