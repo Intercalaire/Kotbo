@@ -38,7 +38,7 @@
 
   type EntryMode = 'COMPRESSED' | 'RESET';
   type OfferKind = 'POTION' | 'HEAL' | 'GEAR';
-  type UpgradeEffect = 'POTION' | 'HEALTH' | 'ATTACK' | 'DEFENSE' | 'SPEED' | 'CRIT' | 'GOLD';
+  type UpgradeEffect = 'POTION' | 'HEALTH' | 'ATTACK' | 'DEFENSE' | 'SPEED' | 'CRIT' | 'GOLD' | 'FORTUNE';
   type Upgrade = {
     id: string;
     enabled: boolean;
@@ -138,11 +138,11 @@
   type Tab = 'general' | 'map' | 'shop' | 'merchant' | 'milestones' | 'leaderboard' | 'simulation' | 'clan';
 
   // Mêmes valeurs que `rpgTowerPolicy.ts` côté bot.
-  const UPGRADE_EFFECTS: UpgradeEffect[] = ['POTION', 'HEALTH', 'ATTACK', 'DEFENSE', 'SPEED', 'CRIT', 'GOLD'];
+  const UPGRADE_EFFECTS: UpgradeEffect[] = ['POTION', 'HEALTH', 'ATTACK', 'DEFENSE', 'SPEED', 'CRIT', 'GOLD', 'FORTUNE'];
   const UPGRADE_ICON: Record<UpgradeEffect, string> = {
-    POTION: 'FlaskConical', HEALTH: 'Heart', ATTACK: 'Swords', DEFENSE: 'Shield', SPEED: 'Zap', CRIT: 'Target', GOLD: 'Coins',
+    POTION: 'FlaskConical', HEALTH: 'Heart', ATTACK: 'Swords', DEFENSE: 'Shield', SPEED: 'Zap', CRIT: 'Target', GOLD: 'Coins', FORTUNE: 'Sparkles',
   };
-  const PER_LEVEL_MAX: Record<UpgradeEffect, number> = { POTION: 5, HEALTH: 100, ATTACK: 100, DEFENSE: 100, SPEED: 100, CRIT: 20, GOLD: 10000 };
+  const PER_LEVEL_MAX: Record<UpgradeEffect, number> = { POTION: 5, HEALTH: 100, ATTACK: 100, DEFENSE: 100, SPEED: 100, CRIT: 20, GOLD: 10000, FORTUNE: 10 };
   const UPGRADES_MAX = 10;
   const OFFERS: OfferKind[] = ['POTION', 'HEAL', 'GEAR'];
   const MERCHANT_DEFAULTS: Merchant = {
@@ -327,6 +327,7 @@
       case 'DEFENSE': return m.eco_tower_upgrade_effect_DEFENSE();
       case 'SPEED': return m.eco_tower_upgrade_effect_SPEED();
       case 'CRIT': return m.eco_tower_upgrade_effect_CRIT();
+      case 'FORTUNE': return m.eco_tower_upgrade_effect_FORTUNE();
       default: return m.eco_tower_upgrade_effect_GOLD();
     }
   }
@@ -339,6 +340,7 @@
       case 'DEFENSE': return m.eco_tower_upgrade_unit_DEFENSE();
       case 'SPEED': return m.eco_tower_upgrade_unit_SPEED();
       case 'CRIT': return m.eco_tower_upgrade_unit_CRIT();
+      case 'FORTUNE': return m.eco_tower_upgrade_unit_FORTUNE();
       default: return m.eco_tower_upgrade_unit_GOLD();
     }
   }
