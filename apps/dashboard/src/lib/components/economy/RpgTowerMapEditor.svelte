@@ -68,6 +68,7 @@
     growthPercent = 8,
     floorsAfter = 'LOOP',
     onSaved,
+    saveFloors = (floors: Layout[]) => saveRpgTowerLayout({ floors }),
   }: {
     canManage?: boolean;
     disabled?: boolean;
@@ -80,6 +81,8 @@
     growthPercent?: number;
     floorsAfter?: 'GENERATE' | 'LOOP';
     onSaved?: () => void | Promise<void>;
+    /** Enregistrement des étages : ceux de la Tour par défaut, ceux de la Tour de clan sinon. */
+    saveFloors?: (floors: Layout[]) => Promise<unknown>;
   } = $props();
 
   const CELL = 56;
@@ -1183,7 +1186,7 @@
     commit();
     await actionState.run(async () => {
       // Aucun étage dessiné : la Tour génère les siens.
-      await saveRpgTowerLayout({ floors: towerEmpty ? [] : floors });
+      await saveFloors(towerEmpty ? [] : floors);
       dirty = false;
       await onSaved?.();
       return true;

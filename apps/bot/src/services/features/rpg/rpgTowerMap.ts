@@ -478,6 +478,18 @@ export function normalizeTowerFloors(input: unknown): TowerFloorsResult {
   return { ok: true, value: floors };
 }
 
+/**
+ * Étages enregistrés, relus un à un : un étage qui ne passe plus la validation est écarté
+ * plutôt que de fermer toute la tour.
+ */
+export function readTowerFloors(value: unknown): TowerLayout[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => normalizeTowerLayout(entry))
+    .filter((result): result is { ok: true; value: TowerLayout } => result.ok)
+    .map((result, index) => (index === 0 ? { ...result.value, variant: false } : result.value));
+}
+
 /** Index des cartes de chaque étage dessiné : une carte `variant` rejoint l'étage d'avant. */
 function towerFloorGroups(floors: readonly TowerLayout[]): number[][] {
   const groups: number[][] = [];

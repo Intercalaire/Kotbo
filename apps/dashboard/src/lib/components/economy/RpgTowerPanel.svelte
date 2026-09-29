@@ -32,6 +32,7 @@
   import ToggleSwitch from '../ToggleSwitch.svelte';
   import Tabs from '../ui/Tabs.svelte';
   import RpgTowerMapEditor from './RpgTowerMapEditor.svelte';
+  import RpgClanTowerPanel from './RpgClanTowerPanel.svelte';
 
   const { canManage = false, disabled = false, currencyName = '' }: { canManage?: boolean; disabled?: boolean; currencyName?: string } = $props();
 
@@ -126,7 +127,7 @@
   };
   /** Bilan d'une carte dessinée : `variant` vide pour un étage sans variante, `chance` en %. */
   type CardStats = { index: number; floor: number; variant: string; chance?: number; name: string; arrivals: number; cleared: number; deaths: number; left?: number };
-  type Tab = 'general' | 'map' | 'shop' | 'merchant' | 'milestones' | 'leaderboard' | 'simulation';
+  type Tab = 'general' | 'map' | 'shop' | 'merchant' | 'milestones' | 'leaderboard' | 'simulation' | 'clan';
 
   // Mêmes valeurs que `rpgTowerPolicy.ts` côté bot.
   const UPGRADE_EFFECTS: UpgradeEffect[] = ['POTION', 'HEALTH', 'ATTACK', 'DEFENSE', 'SPEED', 'CRIT', 'GOLD'];
@@ -235,6 +236,7 @@
     { id: 'milestones', label: m.eco_tower_tab_milestones(), icon: 'Trophy', badge: milestones.length || undefined },
     { id: 'leaderboard', label: m.eco_tower_tab_leaderboard(), icon: 'Medal' },
     { id: 'simulation', label: m.eco_tower_tab_simulation(), icon: 'FlaskConical' },
+    { id: 'clan', label: m.eco_tower_tab_clan(), icon: 'Users' },
   ]);
 
   // ── Simulation d'équilibrage ────────────────────────────────────
@@ -938,6 +940,8 @@
           onSaved={load}
         />
       {/key}
+    {:else if tab === 'clan'}
+      <RpgClanTowerPanel {canManage} {disabled} {foes} {limits} growthPercent={Number(settings.floorGrowthPercent) || 8} />
     {:else if tab === 'shop'}
       <!-- Améliorations permanentes -->
       <div class={cardClass}>

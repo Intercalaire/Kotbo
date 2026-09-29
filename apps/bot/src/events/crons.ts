@@ -253,6 +253,11 @@ export async function registerCrons(client: Client): Promise<void> {
       const { runRaidCycle } = await import('../services/features/rpg/rpgRaidService.js');
       await runRaidCycle(client);
     },
+    'clan-tower-cycle': async () => {
+      logger.debug('Cron', 'Cycle de la Tour de clan (ouverture, clôture)...');
+      const { runClanTowerCycle } = await import('../services/features/rpg/rpgClanTowerService.js');
+      await runClanTowerCycle(client);
+    },
     'tower-idle-expiration': async () => {
       logger.debug('Cron', 'Clôture des ascensions de la Tour inactives...');
       const { expireIdleTowerRuns } = await import('../services/features/rpg/rpgTowerService.js');
@@ -550,6 +555,14 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('raid-cycle', async () => {
       const { runRaidCycle } = await import('../services/features/rpg/rpgRaidService.js');
       await runRaidCycle(client);
+    }, 1000);
+  });
+
+  // La Tour de clan : ouverture de la semaine, annonce et clôture (toutes les minutes)
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('clan-tower-cycle', async () => {
+      const { runClanTowerCycle } = await import('../services/features/rpg/rpgClanTowerService.js');
+      await runClanTowerCycle(client);
     }, 1000);
   });
 

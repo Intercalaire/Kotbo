@@ -146,6 +146,12 @@ import {
   startTowerSeason,
 } from '../../../services/features/rpg/rpgTowerService.js';
 import {
+  ClanTowerError,
+  getClanTowerDashboard,
+  saveClanTowerFloors,
+  saveClanTowerSettings,
+} from '../../../services/features/rpg/rpgClanTowerService.js';
+import {
   isGamblingCommand,
   normalizeCommandRestrictions,
   readCommandChannels,
@@ -1019,7 +1025,7 @@ export async function handleEconomyRoutes(
   // La Tour : réglages du mode roguelite, récompenses et saisons du classement.
   if (subAction === 'tower') {
     const towerFailure = (err: unknown, fallback: string) => {
-      if (err instanceof TowerError) {
+      if (err instanceof TowerError || err instanceof ClanTowerError) {
         json(res, err.status, { error: err.message });
         return;
       }
@@ -1091,6 +1097,64 @@ export async function handleEconomyRoutes(
         json(res, 200, { settings });
       } catch (err) {
         towerFailure(err, 'Erreur lors de la sauvegarde de la carte.');
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/economy/tower/clan (Tour de clan : réglages, semaine en cours)
+    if (parts.length === 7 && parts[6] === 'clan' && method === 'GET') {
+      try {
+        const dashboard = await getClanTowerDashboard(guildId);
+        const discordGuild = client.guilds.cache.get(guildId);
+        const nameOf = (userId: string) => discordGuild?.members.cache.get(userId)?.displayName ?? client.users.cache.get(userId)?.username ?? userId;
+        const current = dashboard.current
+          ? {
+            ...dashboard.current,
+            standings: dashboard.current.standings.map((standing) => ({
+              ...standing,
+              climbers: standing.climbers.map((climber) => ({ ...climber, displayName: nameOf(climber.userId) })),
+            })),
+          }
+          : null;
+        json(res, 200, { ...dashboard, current });
+      } catch (err) {
+        towerFailure(err, 'Erreur lors de la récupération de la Tour de clan.');
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/tower/clan (réglages de la Tour de clan)
+    if (parts.length === 7 && parts[6] === 'clan' && method === 'POST') {
+      try {
+        const body = await readJsonBody<Record<string, unknown>>(req);
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant.' });
+          return true;
+        }
+        const settings = await saveClanTowerSettings(guildId, body);
+        await towerAudit('Réglages de la Tour de clan', `${settings.name} (${settings.enabled ? 'activée' : 'désactivée'}, ${settings.pointsPerFloor} pts par étage)`);
+        json(res, 200, { settings });
+      } catch (err) {
+        towerFailure(err, 'Erreur lors de la sauvegarde de la Tour de clan.');
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/economy/tower/clan/layout (étages de la Tour de clan)
+    if (parts.length === 8 && parts[6] === 'clan' && parts[7] === 'layout' && method === 'POST') {
+      try {
+        const body = await readJsonBody<{ floors?: unknown }>(req);
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant.' });
+          return true;
+        }
+        const settings = await saveClanTowerFloors(guildId, body);
+        await towerAudit('Étages de la Tour de clan', settings.floors.length > 0
+          ? `${settings.floors.length} carte(s), ${settings.floors.reduce((sum, floor) => sum + floor.rooms.length, 0)} salles`
+          : 'Aucun étage dessiné : étages générés');
+        json(res, 200, { settings });
+      } catch (err) {
+        towerFailure(err, 'Erreur lors de la sauvegarde des étages de la Tour de clan.');
       }
       return true;
     }

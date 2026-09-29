@@ -657,6 +657,8 @@ model Guild {
   rpgTowerConfig           RpgTowerConfig?
   rpgTowerRewards          RpgTowerReward[]
   rpgTowerProfiles         RpgTowerProfile[]
+  rpgClanTowerConfig       RpgClanTowerConfig?
+  rpgClanTowerEvents       RpgClanTowerEvent[]
   rpgBlackMarketSessions   RpgBlackMarketSession[]
   rpgRaidBosses            RpgRaidBoss[]
   rpgRaids                 RpgRaid[]

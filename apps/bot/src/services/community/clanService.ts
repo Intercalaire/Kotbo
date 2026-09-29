@@ -58,7 +58,9 @@ export type ClanContributionSource =
   // Une série du carnet de pêche terminée : un palier atteint une fois par joueur.
   | 'RPG_FISHBOOK'
   // Un palier ou un article de la Tour, le mode roguelite du RPG.
-  | 'RPG_TOWER';
+  | 'RPG_TOWER'
+  // Un étage conquis ou le podium de la Tour de clan hebdomadaire.
+  | 'RPG_TOWER_CLAN';
 
 /**
  * Crédite des points de clan pour une saison et renvoie le montant réellement
@@ -192,6 +194,8 @@ export async function logClanContribution(
   season: number,
   credit?: number,
   feedGroup?: ClanPointsFeedGroup,
+  /** Faux : le gain n'est pas relayé sur Discord, l'appelant y publie son propre bilan. */
+  relay = true,
 ): Promise<void> {
   try {
     const creditShare = credit && credit > 0 ? Math.floor(credit) : null;
@@ -199,7 +203,7 @@ export async function logClanContribution(
     await prisma.clanContributionEvent.create({
       data: { guildId, clanId, userId, amount, source, season, credit: creditShare },
     });
-    queueClanPointsFeed(guildId, { clanId, userId, amount, source, credit: creditShare }, feedGroup);
+    if (relay) queueClanPointsFeed(guildId, { clanId, userId, amount, source, credit: creditShare }, feedGroup);
   } catch (err) {
     logger.error('ClanService', `Erreur lors de la journalisation d'un gain de clan (${clanId}, ${userId}):`, err);
   }

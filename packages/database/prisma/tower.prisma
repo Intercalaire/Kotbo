@@ -176,10 +176,15 @@ model RpgTowerRun {
 
   shardsEarned Int @default(0)
 
-  /// CLASSIC | DAILY. L'ascension du jour a son propre classement.
+  /// CLASSIC | DAILY | CLAN. L'ascension du jour a son propre classement ; celle de la Tour de
+  /// clan compte pour son clan (voir `RpgClanTowerEvent`).
   mode          String  @default("CLASSIC")
-  /// Jour de l'ascension du jour (« 2026-09-28 », UTC).
+  /// Jour de l'ascension du jour (« 2026-09-28 », UTC), ou tentative de la Tour de clan
+  /// (« clan:<événement>:<jour> »).
   dailyKey      String?
+  /// Tour de clan : l'événement et le clan du joueur à son entrée.
+  clanEventId   String?
+  clanId        String?
   /// Bilan écrit à la clôture, pour les classements et les statistiques du dashboard.
   floorsCleared Int     @default(0)
   roomsExplored Int     @default(0)
@@ -207,5 +212,89 @@ model RpgTowerRun {
   @@index([guildId, userId, status])
   @@index([guildId, mode, dailyKey])
   @@index([guildId, deathFloorKey])
+  @@index([clanEventId, userId])
   @@map("rpg_tower_runs")
+}
+
+// ============================================================================
+// TOUR DE CLAN
+// ============================================================================
+
+/// Réglages de la Tour de clan : une tour à part, ouverte chaque semaine, que les clans du
+/// serveur (rôles Discord, jamais les guildes RPG) gravissent chacun de leur côté.
+///
+/// Tout le monde y entre à égalité, comme dans l'ascension du jour, et rien n'en sort : ni
+/// éclats, ni équipement, ni record. Seuls les étages conquis par le clan comptent.
+model RpgClanTowerConfig {
+  guildId String  @id
+  enabled Boolean @default(false)
+  name    String  @default("Tour de clan")
+
+  /// Étages dessinés, au même format que ceux de la Tour (voir `rpgTowerMap.ts`).
+  layouts      Json    @default("[]")
+  /// Après le dernier étage dessiné : GENERATE (étages générés) ou LOOP (retour au premier).
+  floorsAfter  String  @default("GENERATE")
+  generatedFog Boolean @default(true)
+
+  /// Ouverture hebdomadaire, sur le fuseau du serveur : 0 = dimanche, 6 = samedi.
+  weekday       Int @default(6)
+  hour          Int @default(18)
+  durationHours Int @default(48)
+
+  /// Points de clan (source RPG_TOWER_CLAN) par étage conquis, au membre qui l'a conquis.
+  pointsPerFloor Int   @default(10)
+  /// Bonus du podium, versés au clan entier à la clôture : 1er, 2e, 3e.
+  podiumPoints   Int[] @default([150, 100, 50])
+
+  /// Salon où annoncer l'ouverture. `null` : aucune annonce.
+  announceChannelId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("rpg_clan_tower_configs")
+}
+
+/// Une semaine de Tour de clan. Même graine pour tous les clans : ils gravissent les mêmes
+/// étages, variantes comprises, et leur classement se compare.
+model RpgClanTowerEvent {
+  id       String   @id @default(cuid())
+  guildId  String
+  startsAt DateTime
+  endsAt   DateTime
+  seed     Int
+  /// OPEN | CLOSED
+  status   String   @default("OPEN")
+  announcedAt DateTime?
+  closedAt    DateTime?
+  /// Bilan écrit à la clôture : classement, points versés par clan.
+  results     Json?
+
+  createdAt DateTime @default(now())
+
+  guild     Guild                  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  conquests RpgClanTowerConquest[]
+
+  @@unique([guildId, startsAt])
+  @@index([guildId, status])
+  @@map("rpg_clan_tower_events")
+}
+
+/// Étage conquis par un clan pendant un événement : le premier de ses membres à le franchir.
+/// Un étage ne se conquiert qu'une fois par clan.
+model RpgClanTowerConquest {
+  id          String   @id @default(cuid())
+  eventId     String
+  clanId      String
+  floor       Int
+  userId      String
+  conqueredAt DateTime @default(now())
+
+  event RpgClanTowerEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, clanId, floor])
+  @@index([eventId, clanId])
+  @@map("rpg_clan_tower_conquests")
 }

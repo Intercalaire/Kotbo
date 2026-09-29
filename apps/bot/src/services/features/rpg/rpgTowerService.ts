@@ -25,6 +25,14 @@ import { addInventoryQuantity, lockRpgProfile } from './rpgInventoryWrites.js';
 import { awardRpgTeamPoints } from './rpgTeamRewards.js';
 import { trackRpgObjective } from './rpgObjectiveTracker.js';
 import {
+  clansEnabled,
+  getClanTowerConfig,
+  getOpenClanTowerEvent,
+  recordClanTowerConquests,
+  resolveMemberClan,
+} from './rpgClanTowerService.js';
+import { clanTowerAttemptKey, nextClanTowerAttempt } from './rpgClanTowerPolicy.js';
+import {
   applyTowerAction,
   createTowerState,
   towerRoomsExplored,
@@ -105,7 +113,11 @@ export type TowerRefusal =
   | { kind: 'unavailable' }
   | { kind: 'upgrade_max' }
   | { kind: 'daily_disabled' }
-  | { kind: 'daily_done' };
+  | { kind: 'daily_done' }
+  /** Tour de clan : fermée cette semaine, joueur sans clan, ou tentative du jour déjà jouée. */
+  | { kind: 'clan_closed' }
+  | { kind: 'clan_none' }
+  | { kind: 'clan_done'; next: Date | null };
 
 /** Refus d'une action de joueur, traduit par le panneau dans la langue du joueur. */
 export class TowerRefused extends Error {
@@ -149,6 +161,8 @@ export type TowerSettlement = {
   gear?: string[];
   /** Ascension du jour. */
   daily?: boolean;
+  /** Ascension de la Tour de clan : ni éclats, ni record, ni paliers. */
+  clan?: boolean;
 };
 
 export type ActiveTowerRun = { run: RpgTowerRun; state: TowerState };
@@ -196,6 +210,26 @@ function readFloors(layouts: Prisma.JsonValue, legacy: Prisma.JsonValue | null):
 }
 
 
+
+/**
+ * Réglages d'une partie selon son mode. Une ascension de la Tour de clan joue les étages de
+ * celle-ci, sans éclats ni source commune : rien de ce qu'elle rapporte ne sort de la semaine.
+ */
+export async function getTowerPlayConfig(guildId: string, mode: string): Promise<TowerConfigView> {
+  const settings = await getTowerConfig(guildId);
+  if (mode !== 'CLAN') return settings;
+  const clan = await getClanTowerConfig(guildId);
+  return {
+    ...settings,
+    name: clan.name,
+    floors: clan.floors,
+    floorsAfter: clan.floorsAfter,
+    generatedFog: clan.generatedFog,
+    shardsPerFloor: 0,
+    shardsPerRoom: 0,
+    fountainGold: 0,
+  };
+}
 
 /** La Tour n'ouvre que si le module économie, le RPG et la Tour elle-même sont actifs. */
 export async function isTowerOpen(guildId: string): Promise<boolean> {
@@ -355,7 +389,7 @@ export async function getActiveTowerRun(
   });
   if (!run) return { active: null, expired: null };
 
-  const settings = await getTowerConfig(guildId);
+  const settings = await getTowerPlayConfig(guildId, run.mode);
   const state = parseState(run.state);
   if (!isExpired(run, settings.idleTimeoutMinutes)) return { active: { run, state }, expired: null };
 
@@ -383,23 +417,26 @@ export async function startTowerRun(
   client: Client | null,
   guildId: string,
   userId: string,
-  options: { daily?: boolean; skillMask?: number; heatMask?: number } = {},
+  options: { daily?: boolean; clan?: boolean; skillMask?: number; heatMask?: number } = {},
 ): Promise<ActiveTowerRun> {
   if (!(await isTowerOpen(guildId))) throw new TowerRefused({ kind: 'disabled' });
-  const daily = options.daily === true;
+  const clanRun = options.clan === true;
+  // La Tour de clan se joue à égalité, comme l'ascension du jour : sans héritage ni compétence.
+  const daily = options.daily === true || clanRun;
 
   const { active } = await getActiveTowerRun(client, guildId, userId);
   if (active) throw new TowerRefused({ kind: 'active_run' });
 
+  const clanEntry = clanRun ? await clanTowerEntry(client, guildId, userId) : null;
   const [settings, preview, towerProfile] = await Promise.all([
-    getTowerConfig(guildId),
+    getTowerPlayConfig(guildId, clanRun ? 'CLAN' : 'CLASSIC'),
     previewTowerEntry(guildId, userId, { daily }),
     getOrCreateTowerProfile(guildId, userId),
   ]);
-  if (daily && !settings.dailyEnabled) throw new TowerRefused({ kind: 'daily_disabled' });
+  if (!clanRun && daily && !settings.dailyEnabled) throw new TowerRefused({ kind: 'daily_disabled' });
 
-  const dayKey = towerDayKey(new Date());
-  const seed = daily ? towerDailySeed(guildId, dayKey) : newTowerSeed();
+  const dayKey = clanEntry ? clanEntry.attemptKey : towerDayKey(new Date());
+  const seed = clanEntry ? clanEntry.event.seed : daily ? towerDailySeed(guildId, dayKey) : newTowerSeed();
   const skills = pickTowerSkills(preview.skills, options.skillMask ?? 0);
   const skillCost = skills.reduce((sum, skill) => sum + towerSkillPrice(settings.skillPrice, skill), 0);
   const state = createTowerState({
@@ -417,6 +454,7 @@ export async function startTowerRun(
   });
   await attachGhosts(guildId, userId, state, daily);
 
+  const mode = clanRun ? 'CLAN' : daily ? 'DAILY' : 'CLASSIC';
   return prisma.$transaction(async (tx) => {
     // Le verrou du profil Tour sérialise deux clics « Entrer » : sans lui, les deux passaient
     // le contrôle de partie active et ouvraient chacun une ascension.
@@ -424,8 +462,8 @@ export async function startTowerRun(
     const running = await tx.rpgTowerRun.count({ where: { profileId: towerProfile.id, status: 'ACTIVE' } });
     if (running > 0) throw new TowerRefused({ kind: 'active_run' });
     if (daily) {
-      const played = await tx.rpgTowerRun.count({ where: { profileId: towerProfile.id, mode: 'DAILY', dailyKey: dayKey } });
-      if (played > 0) throw new TowerRefused({ kind: 'daily_done' });
+      const played = await tx.rpgTowerRun.count({ where: { profileId: towerProfile.id, mode, dailyKey: dayKey } });
+      if (played > 0) throw clanEntry ? new TowerRefused({ kind: 'clan_done', next: clanEntry.next }) : new TowerRefused({ kind: 'daily_done' });
     }
     if (skillCost > 0) {
       const fresh = await tx.rpgTowerProfile.findUniqueOrThrow({ where: { id: towerProfile.id }, select: { shards: true } });
@@ -438,8 +476,10 @@ export async function startTowerRun(
         guildId,
         userId,
         state: state as unknown as Prisma.InputJsonValue,
-        mode: daily ? 'DAILY' : 'CLASSIC',
+        mode,
         dailyKey: daily ? dayKey : null,
+        clanEventId: clanEntry?.event.id ?? null,
+        clanId: clanEntry?.clanId ?? null,
       },
     });
     await tx.rpgTowerProfile.update({
@@ -448,6 +488,19 @@ export async function startTowerRun(
     });
     return { run, state };
   });
+}
+
+/**
+ * Ce qu'il faut pour entrer dans la Tour de clan : un événement ouvert, les clans du serveur
+ * actifs, un clan au joueur et sa tentative du jour encore libre.
+ */
+async function clanTowerEntry(client: Client | null, guildId: string, userId: string) {
+  const [settings, clans, event] = await Promise.all([getClanTowerConfig(guildId), clansEnabled(guildId), getOpenClanTowerEvent(guildId)]);
+  if (!settings.enabled || !clans || !event || !client) throw new TowerRefused({ kind: 'clan_closed' });
+  const clan = await resolveMemberClan(client, guildId, userId);
+  if (!clan) throw new TowerRefused({ kind: 'clan_none' });
+  const now = new Date();
+  return { event, clanId: clan.id, attemptKey: clanTowerAttemptKey(event.id, event.startsAt, now), next: nextClanTowerAttempt(event.startsAt, event.endsAt, now) };
 }
 
 type LoadedRun = { kind: 'expired'; settlement: TowerSettlement } | { kind: 'active'; active: ActiveTowerRun };
@@ -473,9 +526,15 @@ export async function actTowerRun(
   if (loaded.kind === 'expired') return { active: null, settlement: loaded.settlement };
   const { run, state } = loaded.active;
 
-  const [settings, foes] = await Promise.all([getTowerConfig(guildId), loadFoes(guildId)]);
+  const [settings, foes] = await Promise.all([getTowerPlayConfig(guildId, run.mode), loadFoes(guildId)]);
+  const clanRun = run.mode === 'CLAN';
+  // La semaine est finie : l'ascension de clan se termine là, sans plus rien conquérir.
+  if (clanRun && await clanEventOver(run.clanEventId)) {
+    return { active: null, settlement: await settleRun(client, run, state, 'LEFT', settings, false) };
+  }
 
   // La source commune se lit au moment de l'action : d'autres joueurs y puisent et y versent.
+  // La Tour de clan n'y a pas accès : rien n'en sort, rien n'y entre.
   state.fountainPool = settings.fountainGold;
   let step: ReturnType<typeof applyTowerAction>;
   try {
@@ -486,7 +545,7 @@ export async function actTowerRun(
   }
   // Nouvel étage : on y pose les fantômes des joueurs tombés sur la même carte.
   if (step.state.map && (!state.map || towerLayoutKey(step.state.map.layout) !== towerLayoutKey(state.map.layout))) {
-    await attachGhosts(guildId, userId, step.state, run.mode === 'DAILY');
+    await attachGhosts(guildId, userId, step.state, run.mode !== 'CLASSIC');
   }
   const ghostTaken = step.state.ghostTaken ?? null;
   step.state.ghostTaken = null;
@@ -505,12 +564,18 @@ export async function actTowerRun(
   });
   if (written.count === 0) throw new TowerRefused({ kind: 'stale' });
   if (ghostTaken) await claimGhost(ghostTaken, userId).catch((err) => logger.warn('RpgTower', `Fantôme ${ghostTaken} non marqué comme repris :`, err));
-  if (fountainDelta !== 0) {
+  if (fountainDelta !== 0 && !clanRun) {
     await moveFountainGold(guildId, fountainDelta).catch((err) => logger.warn('RpgTower', `Source commune non mise à jour sur ${guildId} :`, err));
+  }
+  const climbed = step.state.floorsCleared - state.floorsCleared;
+  // Tour de clan : le premier du clan à franchir un étage le conquiert pour lui.
+  if (clanRun && climbed > 0 && run.clanEventId && run.clanId) {
+    const eventId = run.clanEventId;
+    await recordClanTowerConquests(eventId, run.clanId, userId, { from: state.floorsCleared, to: step.state.floorsCleared })
+      .catch((err) => logger.warn('RpgTower', `Conquête de la Tour de clan non enregistrée (${eventId}) :`, err));
   }
   // Quêtes de la Tour : étages franchis, monstres et gardiens vaincus, à part de ceux du RPG.
   if (client) {
-    const climbed = step.state.floorsCleared - state.floorsCleared;
     const bosses = (step.state.bossKills ?? 0) - (state.bossKills ?? 0);
     const monsters = step.state.kills - state.kills - bosses;
     if (climbed > 0) await trackRpgObjective(client, guildId, userId, 'TOWER_FLOORS', climbed);
@@ -540,7 +605,43 @@ export async function abandonTowerRun(client: Client | null, guildId: string, us
   if (loaded.kind === 'expired') return loaded.settlement;
   const { run, state } = loaded.active;
   if (state.phase === 'COMBAT') throw new TowerRefused({ kind: 'in_combat' });
-  return settleRun(client, run, state, 'LEFT', await getTowerConfig(guildId), false);
+  return settleRun(client, run, state, 'LEFT', await getTowerPlayConfig(guildId, run.mode), false);
+}
+
+export type ClanTowerStatus = {
+  name: string;
+  endsAt: Date;
+  eventId: string;
+  clan: { id: string; name: string } | null;
+  /** Tentative du jour déjà jouée. */
+  played: boolean;
+  /** Prochaine tentative, `null` si l'événement ferme avant. */
+  next: Date | null;
+};
+
+/** Tour de clan vue par un joueur, pour le bouton de `/tour` : `null` hors de la semaine. */
+export async function getClanTowerStatus(client: Client | null, guildId: string, userId: string): Promise<ClanTowerStatus | null> {
+  const [settings, clans, event] = await Promise.all([getClanTowerConfig(guildId), clansEnabled(guildId), getOpenClanTowerEvent(guildId)]);
+  if (!settings.enabled || !clans || !event) return null;
+  const now = new Date();
+  const [clan, played] = await Promise.all([
+    client ? resolveMemberClan(client, guildId, userId) : Promise.resolve(null),
+    prisma.rpgTowerRun.count({ where: { guildId, userId, mode: 'CLAN', dailyKey: clanTowerAttemptKey(event.id, event.startsAt, now) } }),
+  ]);
+  return {
+    name: settings.name,
+    endsAt: event.endsAt,
+    eventId: event.id,
+    clan,
+    played: played > 0,
+    next: nextClanTowerAttempt(event.startsAt, event.endsAt, now),
+  };
+}
+
+async function clanEventOver(eventId: string | null): Promise<boolean> {
+  if (!eventId) return true;
+  const event = await prisma.rpgClanTowerEvent.findUnique({ where: { id: eventId }, select: { status: true, endsAt: true } });
+  return !event || event.status !== 'OPEN' || event.endsAt.getTime() <= Date.now();
 }
 
 /** Objet du catalogue désigné par son nom : celui du serveur l'emporte sur le livré du même nom. */
@@ -616,6 +717,7 @@ async function settleRun(
   settings: TowerConfigView,
   expired: boolean,
 ): Promise<TowerSettlement> {
+  if (run.mode === 'CLAN') return settleClanRun(run, state, outcome, expired);
   const kept = settleShards(state.shards, outcome, settings.deathShardPercent, settings.leaveShardPercent, state.safeLeave === true);
   const now = new Date();
   const weekStart = towerWeekStart(now);
@@ -746,6 +848,43 @@ async function settleRun(
   };
 }
 
+/**
+ * Clôt une ascension de la Tour de clan. Rien n'en sort : ni éclats, ni record, ni paliers,
+ * ni fantôme. Ce qu'elle a rapporté, les étages conquis, est déjà inscrit pour le clan.
+ */
+async function settleClanRun(run: RpgTowerRun, state: TowerState, outcome: TowerOutcome, expired: boolean): Promise<TowerSettlement> {
+  const rooms = towerRoomsExplored(state);
+  const killedBy = outcome === 'DEAD' ? state.encounter?.name ?? null : null;
+  const closed = await prisma.rpgTowerRun.updateMany({
+    where: { id: run.id, status: 'ACTIVE' },
+    data: {
+      status: outcome,
+      endedAt: new Date(),
+      shardsEarned: 0,
+      floorsCleared: state.floorsCleared,
+      roomsExplored: rooms,
+      killedBy,
+      floorKeys: state.floorKeys ?? [],
+    },
+  });
+  return {
+    outcome,
+    floorsCleared: state.floorsCleared,
+    kills: state.kills,
+    shards: 0,
+    lostToDeath: 0,
+    lostToLeave: 0,
+    lostToCap: 0,
+    newBest: false,
+    milestones: [],
+    expired,
+    ...(closed.count === 0 ? { alreadySettled: true } : {}),
+    roomsExplored: rooms,
+    killedBy,
+    clan: true,
+  };
+}
+
 /** Nouveau record de la saison sur le serveur : annoncé dans le salon choisi, sans notifier personne. */
 async function announceRecord(client: Client, guildId: string, settings: TowerConfigView, userId: string, floors: number): Promise<void> {
   const channel = await client.channels.fetch(settings.announceChannelId!).catch(() => null);
@@ -794,10 +933,11 @@ export async function expireIdleTowerRuns(client: Client | null): Promise<number
   const configs = new Map<string, TowerConfigView>();
   let closed = 0;
   for (const run of candidates) {
-    let settings = configs.get(run.guildId);
+    const configKey = `${run.guildId}:${run.mode === 'CLAN' ? 'CLAN' : 'TOWER'}`;
+    let settings = configs.get(configKey);
     if (!settings) {
-      settings = await getTowerConfig(run.guildId);
-      configs.set(run.guildId, settings);
+      settings = await getTowerPlayConfig(run.guildId, run.mode);
+      configs.set(configKey, settings);
     }
     if (!isExpired(run, settings.idleTimeoutMinutes, now)) continue;
     const state = parseState(run.state);
