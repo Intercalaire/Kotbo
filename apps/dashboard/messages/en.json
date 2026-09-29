@@ -11501,6 +11501,7 @@
   "eco_tower_floors_after_loop_note": "After the last drawn floor, the climb starts over from the first, harder.",
   "eco_tower_fog": "Fog",
   "eco_tower_fog_tip": "Fog of war on this floor: players only see visited rooms and their neighbors.",
+  "eco_tower_fog_forced_tip": "The mist forces fog on this floor. Without it, the setting chosen here comes back.",
   "eco_tower_insight_average": "Average floor",
   "eco_tower_insight_average_tip": "Floors climbed on average by finished climbs (daily climb excluded).",
   "eco_tower_insight_deadliest": "Deadliest floor",

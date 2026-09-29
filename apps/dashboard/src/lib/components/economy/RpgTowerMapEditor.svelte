@@ -1339,8 +1339,9 @@
       {#if importError}
         <span class="text-2xs text-error flex items-center gap-1"><Papicon icon="AlertTriangle" size={11} /> {m.eco_tower_map_import_invalid()}</span>
       {/if}
-      <div class="flex items-center gap-2 px-2" title={m.eco_tower_fog_tip()}>
-        <ToggleSwitch checked={layout.fog} disabled={disabled} ariaLabel={m.eco_tower_fog()} onToggle={(value: boolean) => { remember(); layout.fog = value; dirty = true; }} />
+      <!-- La brume impose le brouillard sans toucher au réglage : il revient tel quel sans elle. -->
+      <div class="flex items-center gap-2 px-2" title={layout.modifier === 'MIST' ? m.eco_tower_fog_forced_tip() : m.eco_tower_fog_tip()}>
+        <ToggleSwitch checked={layout.fog || layout.modifier === 'MIST'} disabled={disabled || layout.modifier === 'MIST'} ariaLabel={m.eco_tower_fog()} onToggle={(value: boolean) => { remember(); layout.fog = value; dirty = true; }} />
         <span class="text-xs font-semibold flex items-center gap-1"><Papicon icon="Eye" size={12} /> {m.eco_tower_fog()}</span>
       </div>
       <div class="flex items-center gap-2 px-2 {current === 0 ? 'opacity-50' : ''}" title={current === 0 ? m.eco_tower_floor_variant_first() : m.eco_tower_floor_variant_tip()}>

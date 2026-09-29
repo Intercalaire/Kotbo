@@ -11501,6 +11501,7 @@
   "eco_tower_floors_after_loop_note": "Après le dernier étage dessiné, la montée reprend au premier, en plus dur.",
   "eco_tower_fog": "Brouillard",
   "eco_tower_fog_tip": "Brouillard de guerre sur cet étage : le joueur ne voit que les salles visitées et leurs voisines.",
+  "eco_tower_fog_forced_tip": "La brume impose le brouillard sur cet étage. Sans elle, le réglage choisi ici revient.",
   "eco_tower_insight_average": "Étage moyen",
   "eco_tower_insight_average_tip": "Étages gravis en moyenne par les ascensions terminées (hors ascension du jour).",
   "eco_tower_insight_deadliest": "Étage le plus meurtrier",
