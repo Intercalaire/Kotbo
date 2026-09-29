@@ -572,6 +572,8 @@ export async function actTowerRun(
   // La source commune se lit au moment de l'action : d'autres joueurs y puisent et y versent.
   // La Tour de clan n'y a pas accès : rien n'en sort, rien n'y entre.
   state.fountainPool = settings.fountainGold;
+  // Verser dans une source fermée retirait l'or du joueur sans le mettre nulle part.
+  if (clanRun && action.type === 'donate') throw new TowerRefused({ kind: 'action', reason: 'wrong_phase' });
   let step: ReturnType<typeof applyTowerAction>;
   try {
     step = applyTowerAction(state, run.floor, action, rulesOf(settings), foes, settings.floors);
@@ -592,21 +594,25 @@ export async function actTowerRun(
   const fountainDelta = step.state.fountainDelta ?? 0;
   step.state.fountainDelta = 0;
 
-  const written = await prisma.rpgTowerRun.updateMany({
-    where: { id: run.id, status: 'ACTIVE', version: run.version },
-    data: {
-      state: step.state as unknown as Prisma.InputJsonValue,
-      floor: step.floor,
-      version: { increment: 1 },
-      lastActionAt: new Date(),
-      shardsEarned: step.state.shards,
-    },
+  // L'action et la source commune s'écrivent ensemble : quand un autre joueur vient de vider
+  // la source, la gorgée est refusée au lieu d'être offerte.
+  await prisma.$transaction(async (tx) => {
+    const written = await tx.rpgTowerRun.updateMany({
+      where: { id: run.id, status: 'ACTIVE', version: run.version },
+      data: {
+        state: step.state as unknown as Prisma.InputJsonValue,
+        floor: step.floor,
+        version: { increment: 1 },
+        lastActionAt: new Date(),
+        shardsEarned: step.state.shards,
+      },
+    });
+    if (written.count === 0) throw new TowerRefused({ kind: 'stale' });
+    if (fountainDelta !== 0 && !clanRun && !(await moveFountainGold(tx, guildId, fountainDelta))) {
+      throw new TowerRefused({ kind: 'action', reason: 'fountain_dry' });
+    }
   });
-  if (written.count === 0) throw new TowerRefused({ kind: 'stale' });
   if (ghostTaken) await claimGhost(ghostTaken, userId).catch((err) => logger.warn('RpgTower', `Fantôme ${ghostTaken} non marqué comme repris :`, err));
-  if (fountainDelta !== 0 && !clanRun) {
-    await moveFountainGold(guildId, fountainDelta).catch((err) => logger.warn('RpgTower', `Source commune non mise à jour sur ${guildId} :`, err));
-  }
   const climbed = step.state.floorsCleared - state.floorsCleared;
   if (clanRun && run.clanEventId && run.clanId) {
     const eventId = run.clanEventId;
@@ -1346,18 +1352,20 @@ async function attachGhosts(guildId: string, userId: string, state: TowerState, 
 
 /**
  * Verse dans la source commune ou y puise. Un retrait ne descend jamais sous zéro : deux
- * joueurs qui boivent au même instant ne creusent pas la réserve.
+ * joueurs qui boivent au même instant ne creusent pas la réserve. Renvoie `false` quand la
+ * réserve ne suffit plus, pour que l'appelant annule la gorgée.
  */
-async function moveFountainGold(guildId: string, delta: number): Promise<void> {
+async function moveFountainGold(tx: Prisma.TransactionClient, guildId: string, delta: number): Promise<boolean> {
   if (delta > 0) {
-    await prisma.rpgTowerConfig.upsert({
+    await tx.rpgTowerConfig.upsert({
       where: { guildId },
       update: { fountainGold: { increment: delta } },
       create: { guildId, fountainGold: delta },
     });
-    return;
+    return true;
   }
-  await prisma.rpgTowerConfig.updateMany({ where: { guildId, fountainGold: { gte: -delta } }, data: { fountainGold: { decrement: -delta } } });
+  const taken = await tx.rpgTowerConfig.updateMany({ where: { guildId, fountainGold: { gte: -delta } }, data: { fountainGold: { decrement: -delta } } });
+  return taken.count > 0;
 }
 
 /** Marque un fantôme comme repris : un seul joueur récupère son équipement. */

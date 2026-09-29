@@ -1578,7 +1578,8 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
       ].join('\n'));
       components.push(row(
         button(actId(ownerId, version, 'dk'), m.tower_btn_fountain_drink({ cost }, { locale }), ButtonStyle.Success, icon('rpgPotion'), pool < cost || state.hp >= towerStats(state).maxHealth),
-        button(actId(ownerId, version, 'dn'), m.tower_btn_fountain_donate({ gift }, { locale }), ButtonStyle.Primary, icon('coins'), state.gold < gift),
+        // La Tour de clan n'a pas accès à la source : y verser ferait perdre l'or pour rien.
+        button(actId(ownerId, version, 'dn'), m.tower_btn_fountain_donate({ gift }, { locale }), ButtonStyle.Primary, icon('coins'), state.gold < gift || run.mode === 'CLAN'),
         button(actId(ownerId, version, 'ml'), m.tower_btn_leave_shop({}, { locale }), ButtonStyle.Secondary, icon('rpgDoor')),
       ));
       components.push(runControls(ownerId, state, version, locale));
