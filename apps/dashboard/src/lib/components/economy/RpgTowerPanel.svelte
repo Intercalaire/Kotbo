@@ -111,8 +111,10 @@
     stat: RewardStat | null;
     statAmount: number;
     maxPurchases: number;
+    limitPeriod: LimitPeriod;
     enabled: boolean;
   };
+  type LimitPeriod = 'NEVER' | 'DAILY' | 'WEEKLY';
   type RewardStat = 'POINTS' | 'ATTACK' | 'DEFENSE' | 'SPEED' | 'HEALTH' | 'RANDOM';
   type RewardDraft = Omit<Reward, 'id'> & { id?: string };
   type NumericSetting = { [K in keyof Settings]-?: Settings[K] extends number ? K : never }[keyof Settings];
@@ -456,12 +458,33 @@
       stat: null,
       statAmount: 1,
       maxPurchases: 0,
+      limitPeriod: 'NEVER',
       enabled: true,
     };
   }
 
   function openEdit(reward: Reward) {
-    editing = { ...reward, stat: reward.stat ?? null, statAmount: reward.statAmount || 1, maxPurchases: reward.maxPurchases ?? 0 };
+    editing = {
+      ...reward,
+      stat: reward.stat ?? null,
+      statAmount: reward.statAmount || 1,
+      maxPurchases: reward.maxPurchases ?? 0,
+      limitPeriod: reward.limitPeriod ?? 'NEVER',
+    };
+  }
+
+  const LIMIT_PERIODS: LimitPeriod[] = ['NEVER', 'DAILY', 'WEEKLY'];
+
+  function limitPeriodLabel(period: LimitPeriod): string {
+    if (period === 'DAILY') return m.eco_tower_limit_daily();
+    if (period === 'WEEKLY') return m.eco_tower_limit_weekly();
+    return m.eco_tower_limit_never();
+  }
+
+  function limitBadge(reward: Reward): string {
+    if (reward.limitPeriod === 'DAILY') return m.eco_tower_reward_max_purchases_daily({ max: reward.maxPurchases });
+    if (reward.limitPeriod === 'WEEKLY') return m.eco_tower_reward_max_purchases_weekly({ max: reward.maxPurchases });
+    return m.eco_tower_reward_max_purchases({ max: reward.maxPurchases });
   }
 
   /** Statistiques du profil RPG qu'une récompense peut monter, dans l'ordre du menu. */
@@ -504,6 +527,7 @@
         stat: draft.stat || null,
         statAmount: Number(draft.statAmount) || 1,
         maxPurchases: Number(draft.maxPurchases) || 0,
+        limitPeriod: draft.limitPeriod || 'NEVER',
         titleId: draft.titleId || null,
         roleId: draft.roleId || null,
       });
@@ -664,7 +688,7 @@
       {#if reward.titleId}<span class="font-semibold text-warning flex items-center gap-1"><Papicon icon="award" size={11} /> {titleName(reward.titleId)}</span>{/if}
       {#if reward.roleId}<span class="font-semibold text-primary">{roleName(reward.roleId)}</span>{/if}
       {#if reward.repeatable}<span class="text-on-surface-variant/60">{m.eco_tower_reward_repeatable()}</span>{/if}
-      {#if reward.repeatable && reward.maxPurchases > 0}<span class="text-on-surface-variant/60">{m.eco_tower_reward_max_purchases({ max: reward.maxPurchases })}</span>{/if}
+      {#if reward.repeatable && reward.maxPurchases > 0}<span class="text-on-surface-variant/60">{limitBadge(reward)}</span>{/if}
     </div>
     {#if canManage}
       <div class="flex items-center justify-end gap-2 pt-2 border-t border-outline-variant/5">
@@ -1374,10 +1398,17 @@
             <ToggleSwitch checked={editing.repeatable} onToggle={(value: boolean) => { if (editing) editing.repeatable = value; }} />
           </div>
           {#if editing.repeatable}
-            <div class="col-span-2 space-y-1">
+            <div class="space-y-1">
               <label for="rewardMaxPurchases" class={labelClass}>{m.eco_tower_field_max_purchases()}</label>
               <input id="rewardMaxPurchases" type="number" min="0" bind:value={editing.maxPurchases} class={inputClass} />
               <p class="text-2xs text-on-surface-variant/50 leading-relaxed ml-2">{m.eco_tower_field_max_purchases_hint()}</p>
+            </div>
+            <div class="space-y-1">
+              <label for="rewardLimitPeriod" class={labelClass}>{m.eco_tower_field_limit_period()}</label>
+              <select id="rewardLimitPeriod" bind:value={editing.limitPeriod} disabled={!(Number(editing.maxPurchases) > 0)} class={inputClass}>
+                {#each LIMIT_PERIODS as period}<option value={period}>{limitPeriodLabel(period)}</option>{/each}
+              </select>
+              <p class="text-2xs text-on-surface-variant/50 leading-relaxed ml-2">{m.eco_tower_field_limit_period_hint()}</p>
             </div>
           {/if}
         {:else}
