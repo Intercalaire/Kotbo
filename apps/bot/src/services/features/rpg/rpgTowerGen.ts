@@ -14,6 +14,7 @@ import {
   floorLayout,
   newTowerRoom,
   normalizeTowerLayout,
+  towerFloorCount,
   type TowerExitType,
   type TowerFloorModifier,
   type TowerFloorsAfter,
@@ -237,6 +238,6 @@ export function towerFloorLayout(
   /** Brouillard des étages générés. */
   fog = true,
 ): TowerLayout {
-  if (drawn.length > 0 && (floor <= drawn.length || after === 'LOOP')) return floorLayout(drawn, floor)!;
+  if (drawn.length > 0 && (floor <= towerFloorCount(drawn) || after === 'LOOP')) return floorLayout(drawn, floor, seed)!;
   return generateTowerLayout(floorSeed(seed, floor), fog, floor);
 }

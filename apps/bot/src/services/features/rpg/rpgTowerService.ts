@@ -71,10 +71,13 @@ import {
   TOWER_MAP_ROOMS_MAX,
   TOWER_MAP_SIZE,
   entryRooms,
+  floorLayout,
   normalizeTowerFloors,
   normalizeTowerLayout,
   roomNeighbors,
   startRoom,
+  towerCardTags,
+  towerFloorLabel,
   towerLayoutKey,
   visibleRooms,
   type TowerLayout,
@@ -924,10 +927,12 @@ export async function hasPlayedDaily(guildId: string, userId: string, dayKey = t
 /**
  * Ce que disent les parties terminées : étage moyen, part des morts, monstres qui tuent le
  * plus et étage où l'on tombe le plus. De quoi repérer un étage ou un monstre mal réglé.
+ * Un étage à variantes est départagé par variante (« 3-E ») : la carte de la mort est
+ * reconnue à son empreinte, tant qu'elle n'a pas été redessinée depuis.
  */
-export async function getTowerInsights(guildId: string) {
+export async function getTowerInsights(guildId: string, floors: readonly TowerLayout[]) {
   const finished = { guildId, mode: 'CLASSIC', status: { in: ['DEAD', 'LEFT'] } };
-  const [totals, deaths, killers, deadliest] = await Promise.all([
+  const [totals, deaths, killers, deathRows] = await Promise.all([
     prisma.rpgTowerRun.aggregate({ where: finished, _avg: { floorsCleared: true }, _count: { _all: true } }),
     prisma.rpgTowerRun.count({ where: { guildId, mode: 'CLASSIC', status: 'DEAD' } }),
     prisma.rpgTowerRun.groupBy({
@@ -938,20 +943,31 @@ export async function getTowerInsights(guildId: string) {
       take: 3,
     }),
     prisma.rpgTowerRun.groupBy({
-      by: ['floor'],
+      by: ['floor', 'deathFloorKey'],
       where: { guildId, mode: 'CLASSIC', status: 'DEAD' },
       _count: { _all: true },
-      orderBy: { _count: { floor: 'desc' } },
-      take: 1,
     }),
   ]);
   const count = totals._count._all;
+
+  const tags = towerCardTags(floors);
+  const cardByKey = new Map(floors.map((layout, index) => [towerLayoutKey(layout), index]));
+  const byLabel = new Map<string, { floor: number; variant: string; label: string; name: string; deaths: number }>();
+  for (const row of deathRows) {
+    const card = row.deathFloorKey ? cardByKey.get(row.deathFloorKey) : undefined;
+    const variant = card === undefined ? '' : tags[card].variant;
+    const label = towerFloorLabel(row.floor, variant);
+    const entry = byLabel.get(label) ?? { floor: row.floor, variant, label, name: card === undefined ? '' : floors[card].name, deaths: 0 };
+    entry.deaths += row._count._all;
+    byLabel.set(label, entry);
+  }
+  const deadliest = [...byLabel.values()].sort((a, b) => b.deaths - a.deaths || a.floor - b.floor)[0] ?? null;
   return {
     finishedRuns: count,
     averageFloor: Math.round((totals._avg.floorsCleared ?? 0) * 10) / 10,
     deathRate: count > 0 ? Math.round((deaths / count) * 100) : 0,
     topKillers: killers.map((row) => ({ name: row.killedBy ?? '', deaths: row._count._all })),
-    deadliestFloor: deadliest[0] ? { floor: deadliest[0].floor, deaths: deadliest[0]._count._all } : null,
+    deadliestFloor: deadliest,
   };
 }
 
@@ -1119,7 +1135,7 @@ async function runSimulation(guildId: string, input: { className?: unknown; runs
 // ─────────────────────────────────────────────────────────────
 
 export async function getTowerDashboard(guildId: string) {
-  const [settings, rewards, players, runs, activeRuns, leaderboard, foes, insights, daily] = await Promise.all([
+  const [settings, rewards, players, runs, activeRuns, leaderboard, foes, daily] = await Promise.all([
     getTowerConfig(guildId),
     prisma.rpgTowerReward.findMany({ where: { guildId }, orderBy: [{ kind: 'asc' }, { floor: 'asc' }, { price: 'asc' }] }),
     prisma.rpgTowerProfile.count({ where: { guildId } }),
@@ -1127,10 +1143,9 @@ export async function getTowerDashboard(guildId: string) {
     prisma.rpgTowerRun.count({ where: { guildId, status: 'ACTIVE' } }),
     getTowerLeaderboard(guildId, 10),
     listTowerFoeChoices(guildId),
-    getTowerInsights(guildId),
     getTowerDailyLeaderboard(guildId),
   ]);
-  const deathMap = await getTowerDeathMap(guildId, settings.floors);
+  const [deathMap, insights] = await Promise.all([getTowerDeathMap(guildId, settings.floors), getTowerInsights(guildId, settings.floors)]);
   return {
     settings,
     deathMap,
@@ -1230,7 +1245,7 @@ export async function previewTowerFloor(guildId: string, input: { layout?: unkno
   // Départ, ou la première entrée d'un étage à puits ou à entrées au choix.
   const start = startRoom(layout)!;
   const title = (n: number, name: string) => (name ? m.tower_floor_named({ floor: n, name }, { locale }) : m.tower_floor({ floor: n }, { locale }));
-  const nameOf = (n: number) => (n === floor ? layout.name : settings.floors[(n - 1) % Math.max(1, settings.floors.length)]?.name ?? '');
+  const nameOf = (n: number) => (n === floor ? layout.name : floorLayout(settings.floors, n)?.name ?? '');
   const ladder = [];
   for (let n = floor + 2; n >= Math.max(1, floor - 2); n--) {
     ladder.push({ label: title(n, nameOf(n)), status: n === floor ? 'current' as const : n > floor ? 'next' as const : 'done' as const });

@@ -119,7 +119,8 @@
     averageFloor: number;
     deathRate: number;
     topKillers: { name: string; deaths: number }[];
-    deadliestFloor: { floor: number; deaths: number } | null;
+    /** `label` : « 3-E » pour une variante, « 2 » pour un étage sans variante. */
+    deadliestFloor: { floor: number; variant?: string; label?: string; name?: string; deaths: number } | null;
   };
   type Tab = 'general' | 'map' | 'shop' | 'merchant' | 'milestones' | 'leaderboard' | 'simulation';
 
@@ -652,8 +653,12 @@
         </div>
         <div class="bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-4" title={m.eco_tower_insight_deadliest_tip()}>
           <p class="text-2xs text-on-surface-variant/60 flex items-center gap-1"><Papicon icon="Flame" size={11} /> {m.eco_tower_insight_deadliest()}</p>
-          <p class="text-xl font-bold mt-1">{insights.deadliestFloor ? m.eco_tower_milestone_floor({ floor: insights.deadliestFloor.floor }) : '—'}</p>
-          {#if insights.deadliestFloor}<p class="text-2xs text-on-surface-variant/60">{m.eco_tower_insight_deadliest_count({ count: insights.deadliestFloor.deaths })}</p>{/if}
+          <p class="text-xl font-bold mt-1">{insights.deadliestFloor ? m.eco_tower_milestone_floor({ floor: insights.deadliestFloor.label ?? insights.deadliestFloor.floor }) : '—'}</p>
+          {#if insights.deadliestFloor}
+            <p class="text-2xs text-on-surface-variant/60">
+              {#if insights.deadliestFloor.name}<span class="font-semibold">{insights.deadliestFloor.name}</span> · {/if}{m.eco_tower_insight_deadliest_count({ count: insights.deadliestFloor.deaths })}
+            </p>
+          {/if}
         </div>
       </div>
     {/if}
@@ -1224,6 +1229,47 @@
               </ol>
             </div>
           </div>
+          {#if simResult.cards && simResult.cards.length > 0}
+            <div class="bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-4 space-y-2">
+              <div>
+                <p class="text-xs font-semibold flex items-center gap-1.5"><Papicon icon="Layers" size={12} /> {m.eco_tower_sim_cards()}</p>
+                <p class="text-2xs text-on-surface-variant/60 mt-0.5">{m.eco_tower_sim_cards_desc()}</p>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-2xs">
+                  <thead>
+                    <tr class="text-left text-on-surface-variant/60">
+                      <th class="py-1 pr-3 font-semibold">{m.eco_tower_sim_card()}</th>
+                      <th class="py-1 px-2 font-semibold text-right">{m.eco_tower_sim_card_arrivals()}</th>
+                      <th class="py-1 px-2 font-semibold text-right">{m.eco_tower_sim_card_cleared()}</th>
+                      <th class="py-1 px-2 font-semibold text-right">{m.eco_tower_sim_card_deaths()}</th>
+                      <th class="py-1 pl-2 font-semibold w-1/3">{m.eco_tower_sim_card_death_rate()}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {#each simResult.cards as card (card.index)}
+                      {@const rate = card.arrivals > 0 ? Math.round((card.deaths / card.arrivals) * 100) : 0}
+                      <tr class="border-t border-outline-variant/10">
+                        <td class="py-1.5 pr-3">
+                          <span class="font-mono font-semibold">{m.eco_tower_milestone_floor({ floor: card.variant ? `${card.floor}-${card.variant}` : card.floor })}</span>
+                          {#if card.name}<span class="text-on-surface-variant/60"> · {card.name}</span>{/if}
+                        </td>
+                        <td class="py-1.5 px-2 text-right font-mono">{card.arrivals}</td>
+                        <td class="py-1.5 px-2 text-right font-mono">{card.cleared}</td>
+                        <td class="py-1.5 px-2 text-right font-mono">{card.deaths}</td>
+                        <td class="py-1.5 pl-2">
+                          <div class="flex items-center gap-2">
+                            <div class="flex-1 h-2 rounded-full bg-outline-variant/10 overflow-hidden"><div class="h-full bg-error/70" style="width: {rate}%"></div></div>
+                            <span class="w-9 text-right font-mono">{card.arrivals > 0 ? `${rate} %` : '—'}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {/if}
           {#if simResult.capped > 0}
             <p class="text-2xs text-on-surface-variant/60 flex items-start gap-1.5"><Papicon icon="Info" size={11} /> {m.eco_tower_sim_capped({ count: simResult.capped })}</p>
           {/if}

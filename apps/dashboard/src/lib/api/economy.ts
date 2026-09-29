@@ -214,6 +214,8 @@ export type RpgTowerSimResult = {
   capped: number;
   deathsByFloor: { floor: number; deaths: number }[];
   topKillers: { name: string; deaths: number }[];
+  /** Chaque carte dessinée, variantes à part (`variant` vide pour un étage sans variante). */
+  cards?: { index: number; floor: number; variant: string; name: string; arrivals: number; cleared: number; deaths: number }[];
 };
 
 export async function simulateRpgTower(payload: { className: string | null; runs: number; skills: boolean; heatMask: number }, guildId = authStore.selectedGuildId) {

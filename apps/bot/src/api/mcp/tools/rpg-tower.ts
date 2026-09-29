@@ -56,6 +56,7 @@ import {
   TOWER_TRIAL_WAVES,
   TOWER_ROOM_TYPES,
   defaultTowerLayout,
+  towerFloorCount,
   type TowerLayout,
 } from '../../../services/features/rpg/rpgTowerMap.js';
 
@@ -86,6 +87,7 @@ const floorSchema = z.object({
   name: z.string().max(TOWER_FLOOR_NAME_MAX).optional().describe("Nom de l'étage (« Caserne », « Crypte »…)"),
   fog: z.boolean().optional().describe('Brouillard de guerre : seules les salles visitées et leurs voisines se voient'),
   modifier: z.enum(TOWER_FLOOR_MODIFIERS).optional().describe('Ambiance : NONE, FLOODED (vitesse -20 %), BURNING (chaque nouvelle salle brûle 3 % des PV), BLESSED (soins +25 %)'),
+  variant: z.boolean().optional().describe("Variante de la carte précédente : les deux forment un même étage et l'une est tirée au sort à chaque montée. Ignoré sur la première carte."),
   width: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max),
   height: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max),
   rooms: z.array(roomSchema).max(TOWER_MAP_ROOMS_MAX),
@@ -136,7 +138,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
     server.registerTool(
       'get_rpg_tower',
       {
-        description: "Lit la Tour (mode roguelite du RPG). Chaque étage est une carte : d'abord les étages dessinés (settings.floors, dans l'ordre de la montée), ensuite selon settings.floorsAfter la boucle sur les étages dessinés (LOOP) ou des étages générés (GENERATE) ; sans étage dessiné, tous sont générés. On monte d'un étage en battant son gardien, et la difficulté croît à chaque salle. Monstres à traits, gardiens à mécanique, reliques à effets uniques et salles d'événement : voir reference. Contient aussi les statistiques des parties (insights : étage moyen, taux de mort, monstres qui tuent le plus, étage le plus meurtrier) et le classement de l'ascension du jour (daily). Contient : étages dessinés (floors) et créatures proposables pour leurs salles (foes), réglages (ouverture, mode d'entrée COMPRESSED ou RESET, plafonds d'héritage et de titre, croissance des monstres, boss et bénédictions, éclats par étage, part gardée à la mort et en partant, plafond hebdomadaire, monnaie), récompenses (boutique d'éclats et paliers d'étage), statistiques, classement de la saison, améliorations permanentes (settings.upgrades) et marchand (settings.merchant) réglables, et le catalogue fixe des bénédictions.",
+        description: "Lit la Tour (mode roguelite du RPG). Chaque étage est une carte : d'abord les étages dessinés (settings.floors, dans l'ordre de la montée), ensuite selon settings.floorsAfter la boucle sur les étages dessinés (LOOP) ou des étages générés (GENERATE) ; sans étage dessiné, tous sont générés. On monte d'un étage en battant son gardien, et la difficulté croît à chaque salle. Monstres à traits, gardiens à mécanique, reliques à effets uniques et salles d'événement : voir reference. Contient aussi les statistiques des parties (insights : étage moyen, taux de mort, monstres qui tuent le plus, étage le plus meurtrier avec sa variante : label « 3-E » ou « 2 » pour un étage sans variante) et le classement de l'ascension du jour (daily). Contient : étages dessinés (floors) et créatures proposables pour leurs salles (foes), réglages (ouverture, mode d'entrée COMPRESSED ou RESET, plafonds d'héritage et de titre, croissance des monstres, boss et bénédictions, éclats par étage, part gardée à la mort et en partant, plafond hebdomadaire, monnaie), récompenses (boutique d'éclats et paliers d'étage), statistiques, classement de la saison, améliorations permanentes (settings.upgrades) et marchand (settings.merchant) réglables, et le catalogue fixe des bénédictions.",
         inputSchema: {},
         _meta: toolMeta,
       },
@@ -262,15 +264,16 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
     server.registerTool(
       'save_rpg_tower_layout',
       {
-        description: `Dessine les étages de la Tour. Chaque étage est une carte : une grille (${TOWER_MAP_SIZE.min} à ${TOWER_MAP_SIZE.max} cases de côté, ${TOWER_MAP_ROOMS_MAX} salles au plus) où deux salles qui se touchent par un côté communiquent ; une case sans salle est un mur. Il faut un seul départ, exactement une sortie (BOSS gardien, STAIRS escalier scellé avec au moins une clé, GATE porte scellée avec au moins un SEAL, EXIT escalier ouvert, COLLAPSE escalier qui s'effondre, TOLL péage ; entrée : un START, 2 à 4 WELL ou 2 à 3 ENTRANCE ; au plus une paire de portails WARP_A/WARP_B), et toutes les salles reliées au départ. Battre le gardien fait monter à l'étage suivant ; les ${TOWER_FLOORS_MAX} étages au plus se jouent dans l'ordre, puis la tour reprend au premier, plus dure. \`floors\` remplace toute la tour ; sinon \`floor\` (1 = rez-de-chaussée) désigne l'étage à modifier ou à ajouter à la suite, avec \`name\`, \`width\`, \`height\`, \`rooms\`, ou \`useDefault: true\` pour la carte d'exemple. \`removeFloor\` retire l'étage \`floor\`. Sans aucun étage, la Tour génère les siens. Un joueur garde la carte de l'étage où il se trouve ; les étages suivants suivent la tour enregistrée. Requiert WRITE_MEMBERS.`,
+        description: `Dessine les étages de la Tour. Chaque étage est une carte : une grille (${TOWER_MAP_SIZE.min} à ${TOWER_MAP_SIZE.max} cases de côté, ${TOWER_MAP_ROOMS_MAX} salles au plus) où deux salles qui se touchent par un côté communiquent ; une case sans salle est un mur. Il faut un seul départ, exactement une sortie (BOSS gardien, STAIRS escalier scellé avec au moins une clé, GATE porte scellée avec au moins un SEAL, EXIT escalier ouvert, COLLAPSE escalier qui s'effondre, TOLL péage ; entrée : un START, 2 à 4 WELL ou 2 à 3 ENTRANCE ; au plus une paire de portails WARP_A/WARP_B), et toutes les salles reliées au départ. Battre le gardien fait monter à l'étage suivant ; les étages se jouent dans l'ordre, puis la tour reprend au premier, plus dure. Une carte marquée \`variant\` est une variante de la carte d'avant : elles forment un même étage et l'une d'elles est tirée au sort à chaque montée (${TOWER_FLOORS_MAX} cartes au plus, variantes comprises). \`floors\` remplace toute la tour ; sinon \`floor\` (1 = première carte, variantes comptées) désigne la carte à modifier ou à ajouter à la suite, avec \`name\`, \`variant\`, \`width\`, \`height\`, \`rooms\`, ou \`useDefault: true\` pour la carte d'exemple. \`removeFloor\` retire la carte \`floor\`. Sans aucun étage, la Tour génère les siens. Un joueur garde la carte de l'étage où il se trouve ; les étages suivants suivent la tour enregistrée. Requiert WRITE_MEMBERS.`,
         inputSchema: {
           floors: z.array(floorSchema).max(TOWER_FLOORS_MAX).optional().describe('Remplace tous les étages, dans l\'ordre de la montée'),
-          floor: z.number().int().min(1).max(TOWER_FLOORS_MAX).optional().describe('Étage à modifier (1 = premier). Défaut : 1.'),
+          floor: z.number().int().min(1).max(TOWER_FLOORS_MAX).optional().describe('Carte à modifier (1 = première, variantes comptées). Défaut : 1.'),
           removeFloor: z.boolean().optional().describe('Retire l\'étage `floor`'),
           useDefault: z.boolean().optional().describe('Remplacer l\'étage par la carte d\'exemple'),
           name: z.string().max(TOWER_FLOOR_NAME_MAX).optional(),
           fog: z.boolean().optional().describe('Brouillard de guerre sur cet étage'),
           modifier: z.enum(TOWER_FLOOR_MODIFIERS).optional().describe('Ambiance de cet étage : NONE, FLOODED, BURNING ou BLESSED'),
+          variant: z.boolean().optional().describe("Variante de la carte précédente : les deux forment un même étage et l'une est tirée au sort à chaque montée. Ignoré sur la première carte."),
           width: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max).optional(),
           height: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max).optional(),
           rooms: z.array(roomSchema).max(TOWER_MAP_ROOMS_MAX).optional().describe('Salles de l\'étage. Absent : celles de l\'étage actuel sont gardées.'),
@@ -278,7 +281,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
         },
         _meta: toolMeta,
       },
-      guard('WRITE_MEMBERS', async ({ floors, floor, removeFloor, useDefault, name, fog, modifier, width, height, rooms, key_name }) => {
+      guard('WRITE_MEMBERS', async ({ floors, floor, removeFloor, useDefault, name, fog, modifier, variant, width, height, rooms, key_name }) => {
         try {
           let next: unknown[];
           if (floors) {
@@ -290,12 +293,13 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
             if (removeFloor) {
               if (index >= current.length) return err('Cet étage n\'existe pas.');
               current.splice(index, 1);
-            } else if (useDefault || name !== undefined || fog !== undefined || modifier !== undefined || width || height || rooms) {
+            } else if (useDefault || name !== undefined || fog !== undefined || modifier !== undefined || variant !== undefined || width || height || rooms) {
               const base: Partial<TowerLayout> = useDefault ? defaultTowerLayout() : current[index] ?? {};
               current[index] = {
                 name: name ?? base.name ?? '',
                 fog: fog ?? base.fog ?? true,
                 modifier: modifier ?? base.modifier ?? 'NONE',
+                variant: variant ?? base.variant ?? false,
                 width: width ?? base.width ?? TOWER_MAP_SIZE.min,
                 height: height ?? base.height ?? TOWER_MAP_SIZE.min,
                 rooms: (rooms ?? base.rooms ?? []) as TowerLayout['rooms'],
@@ -305,7 +309,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
           }
           const settings = await saveTowerFloors(guildId, { floors: next });
           const roomCount = settings.floors.reduce((sum, entry) => sum + entry.rooms.length, 0);
-          await audit(key_name, 'Étages de la Tour MCP', 'Carte', `${settings.floors.length} étage(s), ${roomCount} salles`);
+          await audit(key_name, 'Étages de la Tour MCP', 'Carte', `${towerFloorCount(settings.floors)} étage(s), ${settings.floors.length} carte(s), ${roomCount} salles`);
           return ok({ ok: true, floors: settings.floors });
         } catch (e) {
           return fail(e);

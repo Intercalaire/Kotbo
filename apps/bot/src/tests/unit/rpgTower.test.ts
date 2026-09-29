@@ -49,6 +49,9 @@ import {
   newTowerRoom,
   roomNeighbors,
   shortestPathToExit,
+  towerCardTags,
+  towerFloorCount,
+  towerFloorLabel,
   visibleRooms,
 } from '../../services/features/rpg/rpgTowerMap.js';
 import { floorSeed, generateTowerLayout, towerFloorLayout } from '../../services/features/rpg/rpgTowerGen.js';
@@ -498,6 +501,45 @@ describe('carte de la Tour', () => {
     expect(floorLayout([a, b], 2)?.name).toBe('B');
     expect(floorLayout([a, b], 3)?.name).toBe('A');
     expect(floorLayout([], 3)).toBeNull();
+  });
+
+  test('les variantes d\'un étage partagent son numéro et sont tirées selon la graine', () => {
+    const a = { ...defaultTowerLayout(), name: 'A' };
+    const a2 = { ...defaultTowerLayout(), name: 'A2', variant: true };
+    const b = { ...defaultTowerLayout(), name: 'B' };
+    const floors = [a, a2, b];
+    expect(towerFloorCount(floors)).toBe(2);
+    expect(floorLayout(floors, 2, 7)?.name).toBe('B');
+    const firsts = new Set<string>();
+    for (let seed = 0; seed < 40; seed++) {
+      const first = floorLayout(floors, 1, seed)!.name;
+      // Une même partie retombe toujours sur la même variante.
+      expect(floorLayout(floors, 1, seed)!.name).toBe(first);
+      firsts.add(first);
+    }
+    expect([...firsts].sort()).toEqual(['A', 'A2']);
+    expect(towerFloorLayout(floors, 3, 'GENERATE', 1).name).toBe('');
+    expect(['A', 'A2']).toContain(towerFloorLayout(floors, 3, 'LOOP', 1).name);
+  });
+
+  test('chaque carte porte son étage et sa lettre de variante', () => {
+    const floors = [
+      defaultTowerLayout(),
+      { ...defaultTowerLayout(), variant: true },
+      defaultTowerLayout(),
+      defaultTowerLayout(),
+      { ...defaultTowerLayout(), variant: true },
+      { ...defaultTowerLayout(), variant: true },
+    ];
+    const labels = towerCardTags(floors).map((tag) => towerFloorLabel(tag.floor, tag.variant));
+    expect(labels).toEqual(['1-A', '1-B', '2', '3-A', '3-B', '3-C']);
+  });
+
+  test('la première carte ne peut pas être une variante', () => {
+    const result = normalizeTowerFloors([{ ...defaultTowerLayout(), variant: true }, { ...defaultTowerLayout(), variant: true }]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.map((layout) => layout.variant)).toEqual([false, true]);
   });
 
   test('un étage invalide est signalé par son numéro', () => {
@@ -1144,5 +1186,22 @@ describe('achats, chaleur, mentor et combat automatique', () => {
     });
     expect(result.runs).toBe(3);
     expect(result.averageFloor).toBeGreaterThanOrEqual(0);
+    expect(result.cards).toEqual([]);
+  });
+
+  test('le simulateur compte chaque variante à part', async () => {
+    const floors = [
+      { ...defaultTowerLayout(), name: 'A' },
+      { ...defaultTowerLayout(), name: 'A2', variant: true },
+      { ...defaultTowerLayout(), name: 'B' },
+    ];
+    const result = await simulateTowerRuns({
+      base: STRONG, skills: [], potions: 2, rules: RULES, foes: FOES, floors, floorsAfter: 'GENERATE',
+      generatedFog: true, heat: [], deathShardPercent: 50, runs: 20, seed: 7,
+    });
+    expect(result.cards.map((card) => [card.floor, card.variant])).toEqual([[1, 'A'], [1, 'B'], [2, '']]);
+    // Chaque ascension arrive sur une seule des deux variantes du premier étage.
+    expect(result.cards[0].arrivals + result.cards[1].arrivals).toBe(20);
+    for (const card of result.cards) expect(card.cleared + card.deaths).toBeLessThanOrEqual(card.arrivals);
   });
 });

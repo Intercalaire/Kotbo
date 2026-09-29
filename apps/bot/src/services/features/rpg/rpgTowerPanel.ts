@@ -63,6 +63,7 @@ import {
   isExitRoom,
   occupancy,
   roomDistance,
+  towerFloorCount,
   visibleRooms,
   type TowerDirection,
   type TowerExitType,
@@ -739,7 +740,7 @@ function towerLadder(state: TowerState, floor: number, config: TowerConfigView, 
   const floors = config.floors;
   const entries: TowerLadderEntry[] = [];
   for (let n = floor + 2; n >= Math.max(1, floor - 2); n--) {
-    const name = n === floor ? state.map?.layout.name ?? '' : floorLayout(floors, n)?.name ?? '';
+    const name = n === floor ? state.map?.layout.name ?? '' : floorLayout(floors, n, state.seed ?? 0)?.name ?? '';
     entries.push({ label: floorTitle(n, name, locale), status: n === floor ? 'current' : n > floor ? 'next' : 'done' });
   }
   return entries;
@@ -998,7 +999,7 @@ export async function buildTowerHomeView(client: Client | null, guildId: string,
 
   const container = new ContainerBuilder().setAccentColor(COLOR);
   const rules = config.floors.length > 0
-    ? m.tower_rules_map({ floors: config.floors.length }, { locale })
+    ? m.tower_rules_map({ floors: towerFloorCount(config.floors) }, { locale })
     : m.tower_rules_generated({}, { locale });
   textBlock(container, [
     header(config),

@@ -51,7 +51,8 @@
     event: EventChoice;
     key: boolean;
   };
-  type Layout = { name: string; width: number; height: number; fog: boolean; modifier: Modifier; rooms: Room[] };
+  /** `variant` : variante de la carte d'avant, tirée au sort avec elle pour un même étage. */
+  type Layout = { name: string; width: number; height: number; fog: boolean; modifier: Modifier; variant: boolean; rooms: Room[] };
   type Foe = { name: string; emoji: string; isBoss: boolean; enabled: boolean };
   type Tool = RoomType | 'ERASE' | 'SELECT';
 
@@ -330,6 +331,7 @@
       name: '',
       fog: true,
       modifier: 'NONE',
+      variant: false,
       width: 9,
       height: 9,
       rooms: [
@@ -347,6 +349,7 @@
       // Un étage neuf a son brouillard ; un étage enregistré sans ce champ n'en avait pas.
       fog: source ? source.fog === true : true,
       modifier: source?.modifier ?? 'NONE',
+      variant: source?.variant === true,
       width: source?.width ?? 7,
       height: source?.height ?? 7,
       rooms: (source?.rooms ?? []).map((room) => ({
@@ -661,6 +664,32 @@
   // Du sommet au rez-de-chaussée, comme on lit une tour.
   const stack = $derived(allFloors.map((floor, index) => ({ floor, index })).reverse());
 
+  /** Numéro d'étage de chaque carte, et sa lettre de variante (« A », « B »…) quand l'étage en a plusieurs. */
+  const floorTags = $derived.by(() => {
+    const tags: { floor: number; variant: string }[] = [];
+    let floor = 0;
+    let rank = 0;
+    for (const [index, entry] of allFloors.entries()) {
+      if (index === 0 || !entry.variant) {
+        floor += 1;
+        rank = 0;
+      } else {
+        rank += 1;
+      }
+      tags.push({ floor, variant: String.fromCharCode(65 + rank) });
+    }
+    const sizes = new Map<number, number>();
+    for (const tag of tags) sizes.set(tag.floor, (sizes.get(tag.floor) ?? 0) + 1);
+    return tags.map((tag) => ({ floor: tag.floor, variant: (sizes.get(tag.floor) ?? 1) > 1 ? tag.variant : '' }));
+  });
+  const floorCount = $derived(floorTags.length > 0 ? floorTags[floorTags.length - 1].floor : 0);
+
+  function floorTitle(index: number): string {
+    const tag = floorTags[index];
+    if (!tag) return m.eco_tower_floor_label({ floor: index + 1 });
+    return tag.variant ? m.eco_tower_floor_variant_label({ floor: tag.floor, variant: tag.variant }) : m.eco_tower_floor_label({ floor: tag.floor });
+  }
+
   /** Distance au gardien et salles à résoudre d'un étage, pour estimer la profondeur. */
   function floorSpan(floor: Layout): { shortest: number; rooms: number } {
     const cells = new Map<string, Room>();
@@ -696,15 +725,24 @@
    * haut, il a tout exploré.
    */
   const difficulty = $derived.by(() => {
+    // Les étages d'en dessous, variantes comprises : au plus bas la plus courte, au plus haut la plus longue.
     let low = 1;
     let high = 1;
-    for (let index = 0; index < current; index++) {
-      const span = floorSpan(allFloors[index]);
+    const below = new Map<number, { shortest: number; rooms: number }>();
+    const own = floorTags[current]?.floor ?? current + 1;
+    for (const [index, floor] of allFloors.entries()) {
+      const tag = floorTags[index]?.floor ?? index + 1;
+      if (tag >= own) continue;
+      const span = floorSpan(floor);
+      const seen = below.get(tag);
+      below.set(tag, seen ? { shortest: Math.min(seen.shortest, span.shortest), rooms: Math.max(seen.rooms, span.rooms) } : span);
+    }
+    for (const span of below.values()) {
       low += span.shortest;
       high += span.rooms;
     }
-    const own = floorSpan(layout);
-    return { from: low, to: high + own.rooms, healthFrom: monsterHealth(low), healthTo: monsterHealth(high + own.rooms) };
+    const mine = floorSpan(layout);
+    return { from: low, to: high + mine.rooms, healthFrom: monsterHealth(low), healthTo: monsterHealth(high + own.rooms) };
   });
 
   // ── Miroir et rotation ──────────────────────────────────────────
@@ -725,6 +763,7 @@
       name: layout.name,
       fog: layout.fog,
       modifier: layout.modifier,
+      variant: layout.variant,
       width: kind === 'ROTATE' ? h : w,
       height: kind === 'ROTATE' ? w : h,
       rooms,
@@ -773,6 +812,7 @@
         name: typeof raw.name === 'string' ? raw.name.slice(0, 40) : layout.name,
         fog: raw.fog === true,
         modifier: MODIFIERS.includes(raw.modifier) ? raw.modifier : 'NONE',
+        variant: layout.variant,
         width: raw.width,
         height: raw.height,
         rooms,
@@ -878,7 +918,7 @@
   async function openPreview() {
     previewing = true;
     try {
-      const res = await previewRpgTowerFloor({ layout, floor: current + 1 });
+      const res = await previewRpgTowerFloor({ layout, floor: floorTags[current]?.floor ?? current + 1 });
       preview = res?.image ?? null;
     } catch (err) {
       console.error(err);
@@ -896,6 +936,12 @@
 
   function commit() {
     floors[current] = cloneLayout(layout);
+  }
+
+  /** La première carte ouvre la tour : elle ne peut pas être la variante d'une autre. */
+  function anchorFirst() {
+    if (floors[0]?.variant) floors[0] = { ...floors[0], variant: false };
+    if (current === 0) layout.variant = false;
   }
 
   function selectFloor(index: number) {
@@ -938,6 +984,7 @@
     [next[current], next[target]] = [next[target], next[current]];
     floors = next;
     current = target;
+    anchorFirst();
     dirty = true;
   }
 
@@ -947,13 +994,14 @@
       return;
     }
     const confirmed = await confirmDialog.danger(
-      m.eco_tower_floor_delete_confirm({ floor: current + 1 }),
+      m.eco_tower_floor_delete_confirm({ floor: floorTitle(current) }),
       m.eco_tower_floor_delete_confirm_desc(),
     );
     if (!confirmed) return;
     floors = floors.filter((_, index) => index !== current);
     current = Math.min(current, floors.length - 1);
     layout = cloneLayout(floors[current]);
+    anchorFirst();
     selectedId = null;
     resetHistory();
     dirty = true;
@@ -1073,6 +1121,7 @@
       name: layout.name,
       fog: layout.fog,
       modifier: layout.modifier,
+      variant: layout.variant,
       width: w,
       height: h,
       rooms: layout.rooms.filter((room) => cellsOf(room).every(([x, y]) => x < w && y < h)),
@@ -1099,14 +1148,14 @@
 
   function loadExample() {
     remember();
-    layout = { ...exampleLayout(), name: layout.name, fog: layout.fog, modifier: layout.modifier };
+    layout = { ...exampleLayout(), name: layout.name, fog: layout.fog, modifier: layout.modifier, variant: layout.variant };
     selectedId = null;
     dirty = true;
   }
 
   function clearMap() {
     remember();
-    layout = { name: layout.name, fog: layout.fog, modifier: layout.modifier, width: layout.width, height: layout.height, rooms: [] };
+    layout = { name: layout.name, fog: layout.fog, modifier: layout.modifier, variant: layout.variant, width: layout.width, height: layout.height, rooms: [] };
     selectedId = null;
     dirty = true;
   }
@@ -1161,14 +1210,14 @@
     {towerEmpty
       ? m.eco_tower_map_status_generated()
       : floorsAfter === 'GENERATE'
-        ? m.eco_tower_map_status_then_generated({ floors: floors.length })
-        : m.eco_tower_map_status_then_loop({ floors: floors.length })}
+        ? m.eco_tower_map_status_then_generated({ floors: floorCount })
+        : m.eco_tower_map_status_then_loop({ floors: floorCount })}
   </p>
 
   {#if canManage}
     <div class="flex flex-wrap items-end gap-3">
       <div class="space-y-1">
-        <label for="floorName" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_tower_floor_name()} · {m.eco_tower_floor_label({ floor: current + 1 })}</label>
+        <label for="floorName" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_tower_floor_name()} · {floorTitle(current)}</label>
         <input id="floorName" type="text" maxlength="40" bind:value={layout.name} disabled={disabled} oninput={() => { dirty = true; }}
           placeholder={m.eco_tower_floor_name_placeholder()}
           class="w-56 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none" />
@@ -1213,6 +1262,10 @@
       <div class="flex items-center gap-2 px-2" title={m.eco_tower_fog_tip()}>
         <ToggleSwitch checked={layout.fog} disabled={disabled} ariaLabel={m.eco_tower_fog()} onToggle={(value: boolean) => { remember(); layout.fog = value; dirty = true; }} />
         <span class="text-xs font-semibold flex items-center gap-1"><Papicon icon="Eye" size={12} /> {m.eco_tower_fog()}</span>
+      </div>
+      <div class="flex items-center gap-2 px-2 {current === 0 ? 'opacity-50' : ''}" title={current === 0 ? m.eco_tower_floor_variant_first() : m.eco_tower_floor_variant_tip()}>
+        <ToggleSwitch checked={layout.variant} disabled={disabled || current === 0} ariaLabel={m.eco_tower_floor_variant()} onToggle={(value: boolean) => { remember(); layout.variant = value; dirty = true; }} />
+        <span class="text-xs font-semibold flex items-center gap-1"><Papicon icon="Copy" size={12} /> {m.eco_tower_floor_variant()}</span>
       </div>
       <div class="space-y-1" title={m.eco_tower_modifier_tip()}>
         <label for="floorModifier" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_tower_modifier()}</label>
@@ -1316,7 +1369,7 @@
               title={valid ? '' : m.eco_tower_floor_invalid()}
               class="w-full text-left rounded-md px-2.5 py-2 border transition-all {entry.index === current ? 'border-primary bg-primary/15' : 'border-outline-variant/15 bg-surface-container-high/40 hover:border-outline-variant/40'}">
               <span class="flex items-center justify-between gap-2">
-                <span class="text-2xs font-mono text-on-surface-variant/60">{m.eco_tower_floor_label({ floor: entry.index + 1 })}</span>
+                <span class="text-2xs font-mono text-on-surface-variant/60">{floorTitle(entry.index)}</span>
                 {#if !valid}<span class="text-warning flex"><Papicon icon="AlertTriangle" size={11} /></span>{/if}
               </span>
               <span class="flex items-center gap-2">

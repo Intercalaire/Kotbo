@@ -1086,7 +1086,7 @@ export async function handleEconomyRoutes(
         const settings = await saveTowerFloors(guildId, body);
         const rooms = settings.floors.reduce((sum, floor) => sum + floor.rooms.length, 0);
         await towerAudit('Étages de la Tour', settings.floors.length > 0
-          ? `${settings.floors.length} étage(s), ${rooms} salles`
+          ? `${settings.floors.length} carte(s), ${rooms} salles`
           : 'Aucun étage dessiné : étages générés');
         json(res, 200, { settings });
       } catch (err) {
