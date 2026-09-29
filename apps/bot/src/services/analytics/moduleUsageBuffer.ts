@@ -20,7 +20,6 @@ import crypto from 'node:crypto';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { isAnalyticsCollectionEnabled } from './analyticsConsent.js';
-import type { KotboModule } from './moduleStatsService.js';
 
 const SEP = '\u0001';
 const FLUSH_INTERVAL_MS =
@@ -42,9 +41,24 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/**
+ * Interactions déjà comptées par leur commande (`wrapModuleTracking`) : le
+ * suivi central d'index.ts les saute, sans quoi elles compteraient deux fois.
+ */
+const trackedTargets = new WeakSet<object>();
+
+export function markModuleExecutionTracked(target: unknown): void {
+  if (target && typeof target === 'object') trackedTargets.add(target);
+}
+
+export function wasModuleExecutionTracked(target: unknown): boolean {
+  return !!target && typeof target === 'object' && trackedTargets.has(target);
+}
+
 export type ModuleExecution = {
   guildId: string;
-  moduleName: KotboModule;
+  /** Clé du registre des modules (`tickets`, `leveling`…), ou `core` pour une commande générale. */
+  moduleName: string;
   actionType: 'command' | 'api' | 'event';
   userId?: string;
   durationMs: number;
