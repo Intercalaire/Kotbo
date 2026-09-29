@@ -94,7 +94,13 @@ import {
   type TowerRelicPerk,
   type TowerTrait,
 } from './rpgTowerContent.js';
-import { TOWER_IMAGE_FILENAME, renderTowerImage, type TowerLadderEntry } from './rpgTowerRender.js';
+import {
+  TOWER_IMAGE_FILENAME,
+  renderTowerImage,
+  type TowerLadderEntry,
+  type TowerLegendEntry,
+  type TowerLegendMarker,
+} from './rpgTowerRender.js';
 import {
   MAX_POTIONS,
   TOWER_GEAR_SLOTS,
@@ -1884,13 +1890,15 @@ async function buildTowerDailyView(guildId: string, ownerId: string, locale: Loc
  * Pages du guide : ce que fait chaque salle, rangé comme on la rencontre. Les salles piégées
  * (`TOWER_HIDDEN_ROOMS`) restent sous cadenas tant que le joueur n'est pas tombé dessus.
  */
-const GUIDE_PAGES: { title: (locale: Locale) => string; rooms: TowerRoomType[] }[] = [
+const GUIDE_ROOM_PAGES: { title: (locale: Locale) => string; rooms: TowerRoomType[] }[] = [
   { title: (locale) => m.tower_guide_page_paths({}, { locale }), rooms: ['START', 'WELL', 'ENTRANCE', 'BOSS', 'STAIRS', 'GATE', 'SEAL', 'EXIT', 'COLLAPSE', 'TOLL', 'WARP_A'] },
   { title: (locale) => m.tower_guide_page_fights({}, { locale }), rooms: ['MONSTER', 'ELITE', 'TRIAL', 'PRISONER', 'TRAP', 'MIMIC', 'AMBUSH', 'WANDERER'] },
   { title: (locale) => m.tower_guide_page_help({}, { locale }), rooms: ['CHEST', 'CAMPFIRE', 'SHRINE', 'MERCHANT', 'MERCENARY', 'MENTOR', 'ORACLE', 'FOUNTAIN', 'EVENT', 'EMPTY'] },
 ];
-/** Dernière page : les ambiances d'étage, qui ne sont pas des salles. */
-const GUIDE_MODIFIERS_PAGE = GUIDE_PAGES.length;
+/** Après les salles : les marqueurs de la carte, puis les ambiances d'étage. */
+const GUIDE_MARKERS_PAGE = GUIDE_ROOM_PAGES.length;
+const GUIDE_MODIFIERS_PAGE = GUIDE_MARKERS_PAGE + 1;
+const GUIDE_MARKERS: TowerLegendMarker[] = ['PAWN', 'TARGET', 'CLEARED', 'KEY', 'BADGE', 'POWER', 'WANDERER', 'PATH', 'PENNANT', 'FOG'];
 
 function hiddenRoomName(room: TowerHiddenRoom, locale: Locale): string {
   switch (room) {
@@ -1912,47 +1920,115 @@ function isHiddenRoom(type: TowerRoomType): type is TowerHiddenRoom {
   return (TOWER_HIDDEN_ROOMS as readonly string[]).includes(type);
 }
 
-function guideLine(type: TowerRoomType, known: ReadonlySet<TowerHiddenRoom>, locale: Locale): string {
-  if (isHiddenRoom(type)) {
-    return known.has(type)
-      ? `${icon('warning')} **${hiddenRoomName(type, locale)}** — ${hiddenRoomDescription(type, locale)}`
-      : `${icon('lock')} **???** — *${m.tower_guide_locked({}, { locale })}*`;
+function markerName(marker: TowerLegendMarker, locale: Locale): string {
+  switch (marker) {
+    case 'PAWN': return m.tower_guide_marker_pawn({}, { locale });
+    case 'TARGET': return m.tower_guide_marker_target({}, { locale });
+    case 'CLEARED': return m.tower_guide_marker_cleared({}, { locale });
+    case 'KEY': return m.tower_guide_marker_key({}, { locale });
+    case 'BADGE': return m.tower_guide_marker_badge({}, { locale });
+    case 'POWER': return m.tower_guide_marker_power({}, { locale });
+    case 'WANDERER': return m.tower_guide_marker_wanderer({}, { locale });
+    case 'PATH': return m.tower_guide_marker_path({}, { locale });
+    case 'PENNANT': return m.tower_guide_marker_pennant({}, { locale });
+    default: return m.tower_guide_fog({}, { locale });
   }
-  // Les deux portails se lisent ensemble : une seule ligne pour la paire.
-  const label = type === 'WARP_A' ? m.tower_guide_warps({}, { locale }) : roomLabel(type, locale);
-  return `${icon(ROOM_ICON[type])} **${label}** — ${roomDescription(type, locale)}`;
 }
 
-/** Guide des salles : une page par famille, plus les ambiances d'étage. */
+function markerDescription(marker: TowerLegendMarker, locale: Locale): string {
+  switch (marker) {
+    case 'PAWN': return m.tower_guide_marker_pawn_desc({}, { locale });
+    case 'TARGET': return m.tower_guide_marker_target_desc({}, { locale });
+    case 'CLEARED': return m.tower_guide_marker_cleared_desc({}, { locale });
+    case 'KEY': return m.tower_guide_marker_key_desc({}, { locale });
+    case 'BADGE': return m.tower_guide_marker_badge_desc({}, { locale });
+    case 'POWER': return m.tower_guide_marker_power_desc({}, { locale });
+    case 'WANDERER': return m.tower_guide_marker_wanderer_desc({}, { locale });
+    case 'PATH': return m.tower_guide_marker_path_desc({}, { locale });
+    case 'PENNANT': return m.tower_guide_marker_pennant_desc({}, { locale });
+    default: return m.tower_guide_fog_desc({}, { locale });
+  }
+}
+
+/** Nom et description d'une salle du guide, et sa case dans la légende. */
+function guideRoom(type: TowerRoomType, known: ReadonlySet<TowerHiddenRoom>, locale: Locale): { name: string; description: string; legend: TowerLegendEntry } {
+  if (isHiddenRoom(type)) {
+    if (!known.has(type)) {
+      return { name: '???', description: `*${m.tower_guide_locked({}, { locale })}*`, legend: { room: type, label: '???', locked: true } };
+    }
+    const name = hiddenRoomName(type, locale);
+    return { name, description: hiddenRoomDescription(type, locale), legend: { room: type, label: name, hidden: disguised(type) } };
+  }
+  // Les deux portails se lisent ensemble : une seule ligne pour la paire.
+  const name = type === 'WARP_A' ? m.tower_guide_warps({}, { locale }) : roomLabel(type, locale);
+  return { name, description: roomDescription(type, locale), legend: { room: type, label: name } };
+}
+
+/**
+ * Guide des salles : une page par famille de salles, une pour les marqueurs de la carte et
+ * une pour les ambiances. La légende en image reprend les couleurs et les pictogrammes de la
+ * carte ; le texte dessous détaille chaque case.
+ */
 async function buildTowerGuideView(guildId: string, ownerId: string, locale: Locale, page: number): Promise<PanelView> {
   const [config, discovered] = await Promise.all([getTowerConfig(guildId), getTowerDiscoveries(guildId, ownerId)]);
   const known = new Set(discovered);
   const current = Math.min(GUIDE_MODIFIERS_PAGE, Math.max(0, page));
   const container = new ContainerBuilder().setAccentColor(COLOR);
+  const files: NonNullable<PanelView['files']> = [];
 
-  let title: string;
-  let lines: string[];
-  if (current === GUIDE_MODIFIERS_PAGE) {
-    title = m.tower_guide_page_modifiers({}, { locale });
-    lines = (['FLOODED', 'BURNING', 'BLESSED'] as const).map((modifier) =>
-      `**${modifierName(modifier, locale)}** — ${modifierDescription(modifier, locale)}`);
-    lines.push(`**${m.tower_guide_fog({}, { locale })}** — ${m.tower_guide_fog_desc({}, { locale })}`);
-  } else {
-    title = GUIDE_PAGES[current].title(locale);
-    lines = GUIDE_PAGES[current].rooms.map((type) => guideLine(type, known, locale));
-    const hidden = GUIDE_PAGES[current].rooms.filter(isHiddenRoom);
+  const titles = [
+    ...GUIDE_ROOM_PAGES.map((entry) => entry.title(locale)),
+    m.tower_guide_page_markers({}, { locale }),
+    m.tower_guide_page_modifiers({}, { locale }),
+  ];
+  const title = titles[current];
+  const entries: { name: string; description: string }[] = [];
+  let legend: TowerLegendEntry[] = [];
+  let footer: string | null = null;
+
+  if (current < GUIDE_MARKERS_PAGE) {
+    const rooms = GUIDE_ROOM_PAGES[current].rooms.map((type) => guideRoom(type, known, locale));
+    entries.push(...rooms);
+    legend = rooms.map((room) => room.legend);
+    const hidden = GUIDE_ROOM_PAGES[current].rooms.filter(isHiddenRoom);
     if (hidden.length > 0) {
-      lines.push('', `-# ${m.tower_guide_hidden_count({ found: hidden.filter((room) => known.has(room)).length, total: hidden.length }, { locale })}`);
+      footer = m.tower_guide_hidden_count({ found: hidden.filter((room) => known.has(room)).length, total: hidden.length }, { locale });
+    }
+  } else if (current === GUIDE_MARKERS_PAGE) {
+    for (const marker of GUIDE_MARKERS) {
+      const name = markerName(marker, locale);
+      entries.push({ name, description: markerDescription(marker, locale) });
+      legend.push({ marker, label: name });
+    }
+  } else {
+    for (const modifier of ['FLOODED', 'BURNING', 'BLESSED'] as const) {
+      entries.push({ name: modifierName(modifier, locale), description: modifierDescription(modifier, locale) });
     }
   }
-  textBlock(container, [header(config, `${m.tower_guide_title({}, { locale })} · ${title}`), `-# ${m.tower_guide_intro({}, { locale })}`, '', ...lines].join('\n'));
 
-  const tabs = [...GUIDE_PAGES.map((entry) => entry.title), (value: Locale) => m.tower_guide_page_modifiers({}, { locale: value })];
+  textBlock(container, [header(config, `${m.tower_guide_title({}, { locale })} · ${title}`), `-# ${m.tower_guide_intro({}, { locale })}`].join('\n'));
+  if (legend.length > 0) {
+    const image = await renderTowerImage({ kind: 'legend', title, entries: legend });
+    if (image) {
+      files.push({ attachment: image, name: TOWER_IMAGE_FILENAME });
+      container.addMediaGalleryComponents(new MediaGalleryBuilder().addItems(
+        new MediaGalleryItemBuilder({ media: { url: `attachment://${TOWER_IMAGE_FILENAME}` } }),
+      ));
+    }
+  }
+  separator(container);
+  // Le nom sur sa ligne, la description dessous en petit : une liste qui se lit d'un coup d'œil.
+  textBlock(container, [
+    ...entries.map((entry) => `**${entry.name}**\n-# ${entry.description}`),
+    ...(footer ? ['', `-# ${footer}`] : []),
+  ].join('\n'));
+
   return {
     embeds: [],
     container,
+    files,
     components: [
-      row(...tabs.map((label, index) => button(`twr:guide:${ownerId}:${index}`, label(locale), index === current ? ButtonStyle.Primary : ButtonStyle.Secondary, undefined, index === current))),
+      row(...titles.map((label, index) => button(`twr:guide:${ownerId}:${index}`, label, index === current ? ButtonStyle.Primary : ButtonStyle.Secondary, undefined, index === current))),
       row(button(`twr:home:${ownerId}`, m.tower_btn_home({}, { locale }), ButtonStyle.Secondary, icon('rpgBack'))),
     ],
   };
