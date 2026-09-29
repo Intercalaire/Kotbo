@@ -27,14 +27,25 @@ import { trackRpgObjective } from './rpgObjectiveTracker.js';
 import {
   clansEnabled,
   getClanTowerConfig,
+  getClanTowerTotals,
   getOpenClanTowerEvent,
+  loadClanTowerRooms,
   recordClanTowerConquests,
+  recordClanTowerRooms,
   resolveMemberClan,
 } from './rpgClanTowerService.js';
-import { clanTowerAttemptKey, nextClanTowerAttempt } from './rpgClanTowerPolicy.js';
 import {
+  applyClanTowerBonus,
+  clanTowerAttemptKey,
+  clanTowerBonus,
+  nextClanTowerAttempt,
+  type ClanTowerBonus,
+} from './rpgClanTowerPolicy.js';
+import {
+  applyClanConquests,
   applyTowerAction,
   createTowerState,
+  isConquerableRoom,
   towerRoomsExplored,
   type TowerAction,
   type TowerActionError,
@@ -79,6 +90,7 @@ import {
   TOWER_MAP_ROOMS_MAX,
   TOWER_MAP_SIZE,
   entryRooms,
+  exitRoom,
   floorLayout,
   normalizeTowerFloors,
   normalizeTowerLayout,
@@ -440,12 +452,13 @@ export async function startTowerRun(
   const skills = pickTowerSkills(preview.skills, options.skillMask ?? 0);
   const skillCost = skills.reduce((sum, skill) => sum + towerSkillPrice(settings.skillPrice, skill), 0);
   const state = createTowerState({
-    base: preview.stats,
+    // Tour de clan : les paliers déjà franchis par le clan renforcent l'entrée.
+    base: clanEntry ? applyClanTowerBonus(preview.stats, clanEntry.bonus) : preview.stats,
     skills,
     // Les compétences laissées au départ restent à la portée d'un mentor, contre de l'or.
     skillPool: preview.skills.filter((skill) => !skills.includes(skill)),
     heat: daily ? [] : heatsFromMask(options.heatMask ?? 0),
-    potions: preview.potions,
+    potions: preview.potions + (clanEntry?.bonus.potions ?? 0),
     gold: preview.gold,
     seed,
     rules: rulesOf(settings),
@@ -453,6 +466,7 @@ export async function startTowerRun(
     layout: towerFloorLayout(settings.floors, 1, settings.floorsAfter, seed, settings.generatedFog),
   });
   await attachGhosts(guildId, userId, state, daily);
+  if (clanEntry) await attachClanConquests(clanEntry.event.id, clanEntry.clanId, 1, state);
 
   const mode = clanRun ? 'CLAN' : daily ? 'DAILY' : 'CLASSIC';
   return prisma.$transaction(async (tx) => {
@@ -500,7 +514,14 @@ async function clanTowerEntry(client: Client | null, guildId: string, userId: st
   const clan = await resolveMemberClan(client, guildId, userId);
   if (!clan) throw new TowerRefused({ kind: 'clan_none' });
   const now = new Date();
-  return { event, clanId: clan.id, attemptKey: clanTowerAttemptKey(event.id, event.startsAt, now), next: nextClanTowerAttempt(event.startsAt, event.endsAt, now) };
+  const totals = await getClanTowerTotals(event.id);
+  return {
+    event,
+    clanId: clan.id,
+    attemptKey: clanTowerAttemptKey(event.id, event.startsAt, now),
+    next: nextClanTowerAttempt(event.startsAt, event.endsAt, now),
+    bonus: clanTowerBonus(totals.get(clan.id) ?? 0, settings.milestones),
+  };
 }
 
 type LoadedRun = { kind: 'expired'; settlement: TowerSettlement } | { kind: 'active'; active: ActiveTowerRun };
@@ -547,6 +568,10 @@ export async function actTowerRun(
   if (step.state.map && (!state.map || towerLayoutKey(step.state.map.layout) !== towerLayoutKey(state.map.layout))) {
     await attachGhosts(guildId, userId, step.state, run.mode !== 'CLASSIC');
   }
+  // Tour de clan : sur le nouvel étage, ce que le clan y a déjà conquis reste vaincu.
+  if (clanRun && run.clanEventId && run.clanId && step.floor !== run.floor) {
+    await attachClanConquests(run.clanEventId, run.clanId, step.floor, step.state);
+  }
   const ghostTaken = step.state.ghostTaken ?? null;
   step.state.ghostTaken = null;
   const fountainDelta = step.state.fountainDelta ?? 0;
@@ -568,11 +593,19 @@ export async function actTowerRun(
     await moveFountainGold(guildId, fountainDelta).catch((err) => logger.warn('RpgTower', `Source commune non mise à jour sur ${guildId} :`, err));
   }
   const climbed = step.state.floorsCleared - state.floorsCleared;
-  // Tour de clan : le premier du clan à franchir un étage le conquiert pour lui.
-  if (clanRun && climbed > 0 && run.clanEventId && run.clanId) {
+  if (clanRun && run.clanEventId && run.clanId) {
     const eventId = run.clanEventId;
-    await recordClanTowerConquests(eventId, run.clanId, userId, { from: state.floorsCleared, to: step.state.floorsCleared })
-      .catch((err) => logger.warn('RpgTower', `Conquête de la Tour de clan non enregistrée (${eventId}) :`, err));
+    // Le premier du clan à franchir un étage le conquiert pour lui.
+    if (climbed > 0) {
+      await recordClanTowerConquests(eventId, run.clanId, userId, { from: state.floorsCleared, to: step.state.floorsCleared })
+        .catch((err) => logger.warn('RpgTower', `Conquête de la Tour de clan non enregistrée (${eventId}) :`, err));
+    }
+    // Les salles vaincues le restent pour tout le clan.
+    const won = conqueredRooms(state, step.state, climbed > 0);
+    if (won.length > 0 && state.map) {
+      await recordClanTowerRooms(eventId, run.clanId, userId, run.floor, towerLayoutKey(state.map.layout), won)
+        .catch((err) => logger.warn('RpgTower', `Salles de la Tour de clan non enregistrées (${eventId}) :`, err));
+    }
   }
   // Quêtes de la Tour : étages franchis, monstres et gardiens vaincus, à part de ceux du RPG.
   if (client) {
@@ -617,6 +650,9 @@ export type ClanTowerStatus = {
   played: boolean;
   /** Prochaine tentative, `null` si l'événement ferme avant. */
   next: Date | null;
+  /** Étages gravis au total par le clan du joueur, et ce que ses paliers lui valent. */
+  totalFloors: number;
+  bonus: ClanTowerBonus;
 };
 
 /** Tour de clan vue par un joueur, pour le bouton de `/tour` : `null` hors de la semaine. */
@@ -624,11 +660,15 @@ export async function getClanTowerStatus(client: Client | null, guildId: string,
   const [settings, clans, event] = await Promise.all([getClanTowerConfig(guildId), clansEnabled(guildId), getOpenClanTowerEvent(guildId)]);
   if (!settings.enabled || !clans || !event) return null;
   const now = new Date();
-  const [clan, played] = await Promise.all([
+  const [clan, played, totals] = await Promise.all([
     client ? resolveMemberClan(client, guildId, userId) : Promise.resolve(null),
     prisma.rpgTowerRun.count({ where: { guildId, userId, mode: 'CLAN', dailyKey: clanTowerAttemptKey(event.id, event.startsAt, now) } }),
+    getClanTowerTotals(event.id),
   ]);
+  const totalFloors = clan ? totals.get(clan.id) ?? 0 : 0;
   return {
+    totalFloors,
+    bonus: clanTowerBonus(totalFloors, settings.milestones),
     name: settings.name,
     endsAt: event.endsAt,
     eventId: event.id,
@@ -636,6 +676,33 @@ export async function getClanTowerStatus(client: Client | null, guildId: string,
     played: played > 0,
     next: nextClanTowerAttempt(event.startsAt, event.endsAt, now),
   };
+}
+
+/** Pose sur l'étage `floor` de la partie les salles que le clan y a déjà conquises. */
+async function attachClanConquests(eventId: string, clanId: string, floor: number, state: TowerState): Promise<void> {
+  const map = state.map;
+  if (!map) return;
+  const rooms = await loadClanTowerRooms(eventId, clanId, floor, towerLayoutKey(map.layout)).catch((err) => {
+    logger.warn('RpgTower', `Salles conquises de la Tour de clan non chargées (${eventId}) :`, err);
+    return [];
+  });
+  if (rooms.length > 0) applyClanConquests(state, rooms);
+}
+
+/**
+ * Salles de l'étage de départ que l'action vient de vaincre : un adversaire battu sur place,
+ * ou la sortie quand l'action a fait monter (elle est alors la dernière salle résolue).
+ */
+function conqueredRooms(before: TowerState, after: TowerState, climbed: boolean): string[] {
+  const map = before.map;
+  if (!map) return [];
+  const type = (id: string) => map.layout.rooms.find((room) => room.id === id)?.type;
+  if (climbed) {
+    const exit = exitRoom(map.layout);
+    return exit && !map.conquered?.includes(exit.id) ? [exit.id] : [];
+  }
+  const cleared = after.map?.cleared ?? [];
+  return cleared.filter((id) => !map.cleared.includes(id) && isConquerableRoom(type(id) ?? 'EMPTY'));
 }
 
 async function clanEventOver(eventId: string | null): Promise<boolean> {

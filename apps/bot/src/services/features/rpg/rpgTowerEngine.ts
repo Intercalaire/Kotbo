@@ -116,6 +116,7 @@ import {
   entryRooms,
   exitLocks,
   exitRoom,
+  isExitRoom,
   pathBetween,
   roomNeighbors,
   startRoom,
@@ -232,7 +233,7 @@ export type TowerNotice =
   /** Vague suivante d'une épreuve. */
   | { k: 'wave'; wave: number; waves: number; gold: number }
   /** Sortie franchie sans combat : escalier ouvert ou portail. */
-  | { k: 'exit'; exit: TowerExitType; climbed: TowerClimb | null }
+  | { k: 'exit'; exit: TowerExitType; climbed: TowerClimb | null; conquered?: boolean }
   /** Piège déclenché, ou évité grâce à la vitesse. */
   | { k: 'trap'; dmg: number; dodged: boolean }
   | { k: 'hired'; gold: number }
@@ -300,6 +301,11 @@ export type TowerMapState = {
   revealed?: boolean;
   /** Chemin vers la sortie montré par un oracle, sur un étage sans brouillard. */
   oraclePath?: string[];
+  /**
+   * Tour de clan : salles déjà conquises par le clan du joueur sur cet étage. Elles restent
+   * vaincues, et une sortie conquise se franchit sans rien affronter. Posées par le service.
+   */
+  conquered?: string[];
 };
 
 export type TowerGhost = { roomId: string; userId: string; runId: string; gear: TowerGear };
@@ -767,6 +773,29 @@ function computeMoves(state: TowerState): TowerMove[] {
     direction,
     cleared: map.cleared.includes(room.id),
   }));
+}
+
+/**
+ * Salles conquises par le clan sur l'étage où arrive le joueur : les salles d'adversaire se
+ * traversent comme déjà faites (une clé ou un sceau y compte déjà), la sortie reste à franchir
+ * mais s'ouvre sans combat ni condition.
+ */
+export function applyClanConquests(state: TowerState, roomIds: readonly string[]): void {
+  const map = state.map;
+  if (!map) return;
+  const ids = new Set(map.layout.rooms.map((room) => room.id));
+  map.conquered = roomIds.filter((id) => ids.has(id));
+  for (const id of map.conquered) {
+    const room = map.layout.rooms.find((candidate) => candidate.id === id)!;
+    if (!isExitRoom(room.type) && !map.cleared.includes(id)) map.cleared.push(id);
+  }
+  // Les portes proposées disent maintenant ce qui est déjà vaincu.
+  if (!map.entryChoices?.length) state.moves = computeMoves(state);
+}
+
+/** Salles que le clan conquiert en les résolvant : celles qui opposent un adversaire. */
+export function isConquerableRoom(type: TowerRoomType): boolean {
+  return type === 'ELITE' || type === 'TRIAL' || type === 'SEAL' || type === 'PRISONER' || isExitRoom(type);
 }
 
 function markRoomCleared(state: TowerState): void {
@@ -1399,13 +1428,22 @@ function enterRoom(
   const room = map.layout.rooms.find((candidate) => candidate.id === move.roomId);
   if (!room) throw new TowerActionRefused('bad_choice');
 
+  // Sortie conquise par le clan : ni verrou, ni gardien, ni péage, on monte.
+  const conqueredExit = isExitRoom(room.type) && map.conquered?.includes(room.id) === true;
   // Une sortie scellée se refuse avant d'y mettre les pieds : le joueur reste où il est.
   const locks = exitLocks(map.layout, map.cleared);
-  if (room.type === 'STAIRS' && locks.keysFound < locks.keysNeeded) throw new TowerActionRefused('stairs_locked');
-  if (room.type === 'GATE' && locks.sealsLit < locks.sealsNeeded) throw new TowerActionRefused('gate_locked');
+  if (!conqueredExit && room.type === 'STAIRS' && locks.keysFound < locks.keysNeeded) throw new TowerActionRefused('stairs_locked');
+  if (!conqueredExit && room.type === 'GATE' && locks.sealsLit < locks.sealsNeeded) throw new TowerActionRefused('gate_locked');
 
   map.prev = map.pos;
   map.pos = room.id;
+
+  if (conqueredExit) {
+    const { next, climbed } = exitFloor(state, floor, rules, floors, rng);
+    state.notice = { k: 'exit', exit: room.type as TowerExitType, climbed, conquered: true };
+    advance(state, next, rules, rng);
+    return next;
+  }
 
   if (map.cleared.includes(room.id)) {
     advance(state, floor, rules, rng);

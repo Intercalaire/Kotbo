@@ -1,13 +1,19 @@
 import { describe, expect, test } from 'bun:test';
 import {
   CLAN_TOWER_DEFAULTS,
+  applyClanTowerBonus,
   clanTowerAttemptIndex,
   clanTowerAttemptKey,
   clanTowerAwards,
+  clanTowerBonus,
+  clanTowerMilestonesValid,
   nextClanTowerAttempt,
   normalizeClanTowerSettings,
   rankClanTower,
 } from '../../services/features/rpg/rpgClanTowerPolicy.js';
+import type { TowerCoreStats } from '../../services/features/rpg/rpgTowerPolicy.js';
+import { applyClanConquests, applyTowerAction, createTowerState, type TowerRules } from '../../services/features/rpg/rpgTowerEngine.js';
+import { newTowerRoom, normalizeTowerLayout, type TowerLayout } from '../../services/features/rpg/rpgTowerMap.js';
 
 const HOUR = 60 * 60 * 1000;
 const start = new Date('2026-10-03T16:00:00Z');
@@ -26,6 +32,26 @@ describe('réglages de la Tour de clan', () => {
 
   test('un nom vide reprend le nom par défaut', () => {
     expect(normalizeClanTowerSettings({ name: '   ' }).name).toBe(CLAN_TOWER_DEFAULTS.name);
+  });
+});
+
+describe('paliers collectifs', () => {
+  test('chaque palier franchi ajoute son bonus aux précédents', () => {
+    expect(clanTowerBonus(0, [10, 25, 50])).toEqual({ reached: 0, potions: 0, healthPercent: 0, attackPercent: 0, next: 10 });
+    expect(clanTowerBonus(27, [10, 25, 50])).toEqual({ reached: 2, potions: 1, healthPercent: 10, attackPercent: 0, next: 50 });
+    expect(clanTowerBonus(80, [10, 25, 50])).toMatchObject({ reached: 3, attackPercent: 10, next: null });
+  });
+
+  test('le bonus renforce les stats d\'entrée', () => {
+    const stats = applyClanTowerBonus({ attack: 20, maxHealth: 150, speed: 10 }, clanTowerBonus(60, [10, 25, 50]));
+    expect(stats).toEqual({ attack: 22, maxHealth: 165, speed: 10 });
+  });
+
+  test('des paliers qui ne croissent pas sont refusés en bloc', () => {
+    expect(normalizeClanTowerSettings({ milestones: [30, 20, 50] }).milestones).toEqual(CLAN_TOWER_DEFAULTS.milestones);
+    expect(normalizeClanTowerSettings({ milestones: [5, 15, 40] }).milestones).toEqual([5, 15, 40]);
+    expect(clanTowerMilestonesValid([10, 10, 20])).toBe(false);
+    expect(clanTowerMilestonesValid([10, 20])).toBe(false);
   });
 });
 
@@ -71,5 +97,49 @@ describe('classement et points', () => {
 
   test('aucune conquête, aucun classement', () => {
     expect(rankClanTower([])).toEqual([]);
+  });
+});
+
+describe('salles conquises par le clan', () => {
+  const RULES: TowerRules = { floorGrowthPercent: 8, bossEvery: 10, blessingEvery: 5, maxBlessings: 6, shardsPerFloor: 0 };
+  const FOES = { monsters: [{ name: 'Rat', emoji: '' }], bosses: [{ name: 'Roi Rat', emoji: '' }], byName: {} };
+  const BASE: TowerCoreStats = {
+    attack: 20, defense: 10, speed: 10, maxHealth: 150,
+    critChance: 0, armorPiercing: 0, damageReduction: 0, lifesteal: 0, thorns: 0,
+  };
+
+  function layout(rooms: ReturnType<typeof newTowerRoom>[], width = 3, height = 3): TowerLayout {
+    const result = normalizeTowerLayout({ name: '', width, height, fog: false, modifier: 'NONE', rooms });
+    if (!result.ok) throw new Error(result.error);
+    return result.value;
+  }
+
+  test('un gardien conquis laisse monter sans combat', () => {
+    const floor = layout([newTowerRoom(0, 2, 'START'), newTowerRoom(0, 0, 'BOSS')]);
+    const state = createTowerState({ base: BASE, skills: [], potions: 1, seed: 3, rules: RULES, layout: floor });
+    applyClanConquests(state, ['0-0']);
+    const door = state.moves.findIndex((move) => move.type === 'BOSS');
+    const step = applyTowerAction(state, 1, { type: 'door', index: door }, RULES, FOES, [floor]);
+    expect(step.state.encounter).toBeNull();
+    expect(step.floor).toBe(2);
+    expect(step.state.floorsCleared).toBe(1);
+    expect(step.state.notice).toMatchObject({ k: 'exit', exit: 'BOSS', conquered: true });
+  });
+
+  test('une élite conquise se traverse, et sa clé compte déjà', () => {
+    const floor = layout([
+      newTowerRoom(0, 0, 'START'),
+      newTowerRoom(1, 0, 'ELITE', { key: true }),
+      newTowerRoom(2, 0, 'STAIRS'),
+    ]);
+    const state = createTowerState({ base: BASE, skills: [], potions: 1, seed: 3, rules: RULES, layout: floor });
+    applyClanConquests(state, ['1-0', 'inconnue']);
+    expect(state.map!.conquered).toEqual(['1-0']);
+    expect(state.map!.cleared).toContain('1-0');
+    expect(state.moves.find((move) => move.roomId === '1-0')?.cleared).toBe(true);
+    let step = applyTowerAction(state, 1, { type: 'door', index: state.moves.findIndex((move) => move.type === 'ELITE') }, RULES, FOES, [floor]);
+    expect(step.state.encounter).toBeNull();
+    step = applyTowerAction(step.state, step.floor, { type: 'door', index: step.state.moves.findIndex((move) => move.type === 'STAIRS') }, RULES, FOES, [floor]);
+    expect(step.floor).toBe(2);
   });
 });

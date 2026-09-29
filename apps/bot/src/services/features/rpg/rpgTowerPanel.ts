@@ -137,6 +137,7 @@ import {
   type TowerSettlement,
 } from './rpgTowerService.js';
 import { listClanTowerStandings } from './rpgClanTowerService.js';
+import type { ClanTowerBonus } from './rpgClanTowerPolicy.js';
 
 const COLOR = RPG_COLORS.combat;
 const REWARDS_PER_PAGE = 4;
@@ -431,16 +432,19 @@ function exitStatus(type: TowerRoomType, map: TowerMapState, room: TowerRoom | u
 function moveLine(move: TowerMove, info: TowerRoomInfo | undefined, map: TowerMapState, locale: Locale): string {
   const room = map.layout.rooms.find((candidate) => candidate.id === move.roomId);
   // Passer par un portail se lit comme un déplacement à part : on change de coin de l'étage.
+  const conquered = map.conquered?.includes(move.roomId) === true;
   const status = move.direction === 'WARP'
     ? m.tower_move_warp({}, { locale })
-    : move.cleared
+    : conquered
+      ? `*${m.tower_room_conquered({}, { locale })}*`
+      : move.cleared
       ? `*${m.tower_room_visited({}, { locale })}*`
       : roomDescription(move.type, locale, room?.waves);
   // Mimique et embuscade se font passer pour autre chose : traits, fantôme ou puissance les
   // trahiraient. Un escalier encore debout ne dit rien de son gardien de secours.
   const hidden = move.type === 'MIMIC' || move.type === 'AMBUSH';
   const standing = move.type === 'COLLAPSE' && room !== undefined && collapseLeft(map, room) > 0;
-  const extras = move.cleared ? [] : [
+  const extras = move.cleared || conquered ? [] : [
     hidden || standing ? '' : roomInfoLine(info, locale),
     exitStatus(move.type, map, room, locale),
     room?.key ? `${icon('rpgKey')} ${m.tower_room_holds_key({}, { locale })}` : '',
@@ -778,6 +782,7 @@ async function towerImage(state: TowerState, floor: number, config: TowerConfigV
       keys: map.layout.rooms.filter((room) => room.key && !map.cleared.includes(room.id)).map((room) => room.id),
       wanderers: (map.wanderers ?? []).map((wanderer) => wanderer.pos),
       path: map.oraclePath ?? [],
+      conquered: map.conquered ?? [],
     });
   }
   return renderTowerImage({
@@ -862,7 +867,9 @@ function noticeLine(notice: TowerNotice | null, locale: Locale): string | null {
       ? m.tower_notice_treasure({ gold: notice.gold, coin: gold }, { locale })
       : m.tower_notice_chest_item({}, { locale })}${lockLine(notice.lock, locale)}`;
     case 'wave': return `${icon('rpgWar')} ${m.tower_notice_wave({ wave: notice.wave, waves: notice.waves, gold: notice.gold, coin: gold }, { locale })}`;
-    case 'exit': return `${icon('rpgUp')} ${m.tower_notice_exit({ exit: exitName(notice.exit, locale) }, { locale })}${notice.climbed
+    case 'exit': return `${icon('rpgUp')} ${notice.conquered
+      ? m.tower_notice_exit_conquered({ exit: exitName(notice.exit, locale) }, { locale })
+      : m.tower_notice_exit({ exit: exitName(notice.exit, locale) }, { locale })}${notice.climbed
       ? `\n> ${m.tower_notice_climbed({ floor: floorTitle(notice.climbed.floor, notice.climbed.name, locale) }, { locale })}`
       : ''}`;
     case 'campfire': return `${icon('rpgRest')} ${m.tower_notice_campfire({ hp: notice.hp }, { locale })}`;
@@ -1106,9 +1113,12 @@ export async function buildTowerHomeView(client: Client | null, guildId: string,
   }
   // La Tour de clan n'apparaît que pendant sa semaine.
   if (clanTower) {
-    textBlock(container, `-# ${icon('trophy')} ${clanTower.clan
-      ? m.tower_home_clan_hint({ name: clanTower.name, clan: clanTower.clan.name, end: discordTime(clanTower.endsAt, 'F') }, { locale })
-      : m.tower_home_clan_no_clan({ name: clanTower.name }, { locale })}`);
+    textBlock(container, [
+      `-# ${icon('trophy')} ${clanTower.clan
+        ? m.tower_home_clan_hint({ name: clanTower.name, clan: clanTower.clan.name, end: discordTime(clanTower.endsAt, 'F') }, { locale })
+        : m.tower_home_clan_no_clan({ name: clanTower.name }, { locale })}`,
+      clanTower.clan ? `-# ${clanMilestoneLine(clanTower.totalFloors, clanTower.bonus, locale)}` : null,
+    ].filter(Boolean).join('\n'));
     components.push(row(
       button(
         `twr:clan:${ownerId}`,
@@ -1862,6 +1872,20 @@ async function buildTowerDailyView(guildId: string, ownerId: string, locale: Loc
   return { embeds: [], container, components: [row(button(`twr:home:${ownerId}`, m.tower_btn_home({}, { locale }), ButtonStyle.Secondary, icon('rpgBack')))] };
 }
 
+/** Paliers collectifs du clan : étages gravis au total, bonus acquis et prochain palier. */
+function clanMilestoneLine(total: number, bonus: ClanTowerBonus, locale: Locale): string {
+  const parts = [
+    bonus.potions > 0 ? m.tower_clan_bonus_potions({ count: bonus.potions }, { locale }) : '',
+    bonus.healthPercent > 0 ? m.tower_clan_bonus_health({ percent: bonus.healthPercent }, { locale }) : '',
+    bonus.attackPercent > 0 ? m.tower_clan_bonus_attack({ percent: bonus.attackPercent }, { locale }) : '',
+  ].filter(Boolean);
+  return [
+    m.tower_clan_total({ floors: total }, { locale }),
+    parts.length > 0 ? m.tower_clan_bonus({ bonus: parts.join(', ') }, { locale }) : m.tower_clan_bonus_none({}, { locale }),
+    bonus.next !== null ? m.tower_clan_next_milestone({ floors: bonus.next }, { locale }) : '',
+  ].filter(Boolean).join(' · ');
+}
+
 /** Classement de la Tour de clan en cours. */
 async function buildClanTowerView(client: Client, guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
   const [config, status] = await Promise.all([getTowerPlayConfig(guildId, 'CLAN'), getClanTowerStatus(client, guildId, ownerId)]);
@@ -1876,12 +1900,15 @@ async function buildClanTowerView(client: Client, guildId: string, ownerId: stri
     `${standing.rank <= 3 ? rankEmoji(standing.rank) : `**${standing.rank}.**`} **${escapeMarkdown(standing.name)}** — ${m.tower_top_floors({ floors: standing.floors }, { locale })}`
     + (standing.climbers[0] ? ` · <@${standing.climbers[0].userId}>` : ''));
   const mine = status.clan ? standings.find((standing) => standing.clanId === status.clan!.id) : undefined;
+  const you = status.clan
+    ? ['', m.tower_clan_top_you({ clan: escapeMarkdown(status.clan.name), floors: mine?.floors ?? 0 }, { locale }), `-# ${clanMilestoneLine(status.totalFloors, status.bonus, locale)}`]
+    : [];
   textBlock(container, [
     header(config, m.tower_clan_top_title({}, { locale })),
     `-# ${m.tower_clan_top_rules({ end: discordTime(status.endsAt, 'F') }, { locale })}`,
     '',
     lines.length > 0 ? lines.join('\n') : `*${m.tower_clan_top_empty({}, { locale })}*`,
-    ...(status.clan ? ['', m.tower_clan_top_you({ clan: escapeMarkdown(status.clan.name), floors: mine?.floors ?? 0 }, { locale })] : []),
+    ...you,
   ].join('\n'));
   return { embeds: [], container, components: [back] };
 }

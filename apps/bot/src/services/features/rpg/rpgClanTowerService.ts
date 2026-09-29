@@ -21,6 +21,8 @@ import { normalizeTowerFloors, readTowerFloors, type TowerLayout } from './rpgTo
 import {
   CLAN_TOWER_DEFAULTS,
   clanTowerAwards,
+  clanTowerBonus,
+  clanTowerMilestonesValid,
   normalizeClanTowerSettings,
   rankClanTower,
   type ClanTowerAward,
@@ -44,6 +46,10 @@ export async function getClanTowerConfig(guildId: string): Promise<ClanTowerConf
 }
 
 export async function saveClanTowerSettings(guildId: string, input: Record<string, unknown>): Promise<ClanTowerConfigView> {
+  // Ramenés en silence à l'ancienne valeur, des paliers mal ordonnés feraient croire à un réglage enregistré.
+  if (input.milestones !== undefined && !(Array.isArray(input.milestones) && clanTowerMilestonesValid(input.milestones))) {
+    throw new ClanTowerError('Les trois paliers collectifs doivent être croissants : chacun au-dessus du précédent.', 400);
+  }
   const data = normalizeClanTowerSettings(input, await getClanTowerConfig(guildId));
   await prisma.rpgClanTowerConfig.upsert({ where: { guildId }, update: data, create: { guildId, ...data } });
   return getClanTowerConfig(guildId);
@@ -103,6 +109,45 @@ export async function recordClanTowerConquests(
   if (data.length === 0) return 0;
   const created = await prisma.rpgClanTowerConquest.createMany({ data, skipDuplicates: true });
   return created.count;
+}
+
+/**
+ * Étages gravis au total par les membres de chaque clan pendant l'événement, tentatives en
+ * cours comprises : c'est ce qui fait franchir les paliers collectifs. Une partie à l'étage
+ * `floor` en a gravi `floor - 1`.
+ */
+export async function getClanTowerTotals(eventId: string): Promise<Map<string, number>> {
+  const rows = await prisma.rpgTowerRun.groupBy({
+    by: ['clanId'],
+    where: { clanEventId: eventId, clanId: { not: null } },
+    _sum: { floor: true },
+    _count: { _all: true },
+  });
+  return new Map(rows.map((row) => [row.clanId!, Math.max(0, (row._sum.floor ?? 0) - row._count._all)]));
+}
+
+/** Salles conquises par le clan sur un étage, pour cette carte-là. */
+export async function loadClanTowerRooms(eventId: string, clanId: string, floor: number, layoutKey: string): Promise<string[]> {
+  const rows = await prisma.rpgClanTowerRoom.findMany({ where: { eventId, clanId, floor, layoutKey }, select: { roomId: true } });
+  return rows.map((row) => row.roomId);
+}
+
+/** Salles qu'un membre vient de vaincre : elles le restent pour tout son clan. */
+export async function recordClanTowerRooms(
+  eventId: string,
+  clanId: string,
+  userId: string,
+  floor: number,
+  layoutKey: string,
+  roomIds: readonly string[],
+): Promise<void> {
+  if (roomIds.length === 0) return;
+  const event = await prisma.rpgClanTowerEvent.findUnique({ where: { id: eventId }, select: { status: true, endsAt: true } });
+  if (!event || event.status !== 'OPEN' || event.endsAt.getTime() <= Date.now()) return;
+  await prisma.rpgClanTowerRoom.createMany({
+    data: roomIds.map((roomId) => ({ eventId, clanId, floor, layoutKey, roomId, userId })),
+    skipDuplicates: true,
+  });
 }
 
 export async function getClanTowerStandings(eventId: string): Promise<ClanTowerStanding[]> {
@@ -309,7 +354,9 @@ export async function getClanTowerDashboard(guildId: string) {
     prisma.rpgClanTowerEvent.findFirst({ where: { guildId, status: 'CLOSED' }, orderBy: { startsAt: 'desc' } }),
   ]);
   const names = new Map((await prisma.clan.findMany({ where: { guildId }, select: { id: true, name: true } })).map((clan) => [clan.id, clan.name]));
-  const standings = open ? await getClanTowerStandings(open.id) : [];
+  const [standings, totals] = open
+    ? await Promise.all([getClanTowerStandings(open.id), getClanTowerTotals(open.id)])
+    : [[], new Map<string, number>()];
   const timezone = await resolveGuildTimezone(guildId);
   const next = planNextRaidWindow(new Date(), { weekday: settings.weekday, hour: settings.hour, durationHours: settings.durationHours }, timezone);
   return {
@@ -325,6 +372,8 @@ export async function getClanTowerDashboard(guildId: string) {
           floors: standing.floors,
           rank: standing.rank,
           climbers: standing.climbers.slice(0, 3),
+          totalFloors: totals.get(standing.clanId) ?? 0,
+          milestones: clanTowerBonus(totals.get(standing.clanId) ?? 0, settings.milestones).reached,
         })),
       }
       : null,

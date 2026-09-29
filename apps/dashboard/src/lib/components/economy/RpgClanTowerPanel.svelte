@@ -27,10 +27,19 @@
     durationHours: number;
     pointsPerFloor: number;
     podiumPoints: number[];
+    milestones: number[];
     announceChannelId: string | null;
     floors?: any[];
   };
-  type Standing = { clanId: string; name: string; floors: number; rank: number; climbers: { userId: string; floors: number; displayName?: string }[] };
+  type Standing = {
+    clanId: string;
+    name: string;
+    floors: number;
+    rank: number;
+    climbers: { userId: string; floors: number; displayName?: string }[];
+    totalFloors?: number;
+    milestones?: number;
+  };
   type Award = { clanId: string; name: string; rank: number; floors: number; total: number };
 
   const {
@@ -57,8 +66,16 @@
     durationHours: 48,
     pointsPerFloor: 10,
     podiumPoints: [150, 100, 50],
+    milestones: [10, 25, 50],
     announceChannelId: null,
   };
+
+  /** Bonus des paliers collectifs, dans l'ordre (mêmes valeurs que `CLAN_TOWER_MILESTONE_BONUSES` côté bot). */
+  const MILESTONE_BONUSES = [
+    () => m.eco_clan_tower_milestone_bonus_1(),
+    () => m.eco_clan_tower_milestone_bonus_2(),
+    () => m.eco_clan_tower_milestone_bonus_3(),
+  ];
 
   const WEEKDAYS = [
     () => m.eco_clan_tower_day_0(), () => m.eco_clan_tower_day_1(), () => m.eco_clan_tower_day_2(), () => m.eco_clan_tower_day_3(),
@@ -66,7 +83,7 @@
   ];
 
   const actionState = createAsyncActionState();
-  let settings = $state<Settings>({ ...DEFAULTS, podiumPoints: [...DEFAULTS.podiumPoints] });
+  let settings = $state<Settings>({ ...DEFAULTS, podiumPoints: [...DEFAULTS.podiumPoints], milestones: [...DEFAULTS.milestones] });
   let clansEnabled = $state(true);
   let current = $state<{ startsAt: string; endsAt: string; standings: Standing[] } | null>(null);
   let last = $state<{ endsAt: string; results: { awards?: Award[] } | null } | null>(null);
@@ -90,7 +107,12 @@
       const res = await fetchRpgClanTower();
       if (res) {
         const loaded = res.settings ?? {};
-        settings = { ...DEFAULTS, ...loaded, podiumPoints: [...(loaded.podiumPoints ?? DEFAULTS.podiumPoints)] };
+        settings = {
+          ...DEFAULTS,
+          ...loaded,
+          podiumPoints: [...(loaded.podiumPoints ?? DEFAULTS.podiumPoints)],
+          milestones: [...(loaded.milestones ?? DEFAULTS.milestones)],
+        };
         clansEnabled = res.clansEnabled !== false;
         current = res.current ?? null;
         last = res.last ?? null;
@@ -110,6 +132,7 @@
     const payload: Record<string, unknown> = {
       ...settings,
       podiumPoints: settings.podiumPoints.map((value) => Number(value) || 0),
+      milestones: settings.milestones.map((value) => Number(value) || 0),
     };
     delete payload.floors;
     await actionState.run(async () => {
@@ -153,6 +176,7 @@
                 <span class="font-semibold truncate">{standing.name}</span>
               </span>
               <span class="flex items-center gap-3 shrink-0">
+                {#if standing.totalFloors !== undefined}<span class="text-2xs text-on-surface-variant/60" title={m.eco_clan_tower_total_tip()}>{m.eco_clan_tower_total({ floors: standing.totalFloors, reached: standing.milestones ?? 0 })}</span>{/if}
                 {#if standing.climbers[0]}<span class="text-2xs text-on-surface-variant/60">{standing.climbers[0].displayName ?? standing.climbers[0].userId} · {standing.climbers[0].floors}</span>{/if}
                 <span class="font-bold">{m.eco_tower_milestone_floor({ floor: standing.floors })}</span>
               </span>
@@ -234,6 +258,19 @@
         {/each}
       </div>
       <p class="text-2xs text-on-surface-variant/50 leading-relaxed ml-2">{m.eco_clan_tower_points_hint()}</p>
+    </div>
+
+    <div class="space-y-3 pt-2 border-t border-outline-variant/5">
+      <h4 class="text-sm font-bold">{m.eco_clan_tower_milestones_title()}</h4>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {#each [0, 1, 2] as index}
+          <div class="space-y-1">
+            <label for="clanTowerMilestone{index}" class={labelClass}>{m.eco_clan_tower_milestone({ rank: index + 1, bonus: MILESTONE_BONUSES[index]() })}</label>
+            <input id="clanTowerMilestone{index}" type="number" min="1" max="10000" bind:value={settings.milestones[index]} disabled={!canManage || disabled} class={inputClass} />
+          </div>
+        {/each}
+      </div>
+      <p class="text-2xs text-on-surface-variant/50 leading-relaxed ml-2">{m.eco_clan_tower_milestones_hint()}</p>
     </div>
 
     <div class="space-y-3 pt-2 border-t border-outline-variant/5">

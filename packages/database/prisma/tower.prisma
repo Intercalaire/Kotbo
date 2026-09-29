@@ -245,6 +245,9 @@ model RpgClanTowerConfig {
   pointsPerFloor Int   @default(10)
   /// Bonus du podium, versés au clan entier à la clôture : 1er, 2e, 3e.
   podiumPoints   Int[] @default([150, 100, 50])
+  /// Paliers collectifs : étages gravis au total par les membres d'un clan pendant la semaine.
+  /// Chacun renforce les tentatives suivantes du clan (voir `CLAN_TOWER_MILESTONE_BONUSES`).
+  milestones     Int[] @default([10, 25, 50])
 
   /// Salon où annoncer l'ouverture. `null` : aucune annonce.
   announceChannelId String?
@@ -276,6 +279,7 @@ model RpgClanTowerEvent {
 
   guild     Guild                  @relation(fields: [guildId], references: [id], onDelete: Cascade)
   conquests RpgClanTowerConquest[]
+  rooms     RpgClanTowerRoom[]
 
   @@unique([guildId, startsAt])
   @@index([guildId, status])
@@ -297,4 +301,24 @@ model RpgClanTowerConquest {
   @@unique([eventId, clanId, floor])
   @@index([eventId, clanId])
   @@map("rpg_clan_tower_conquests")
+}
+
+/// Salle conquise par un clan : gardien, élite, épreuve, sceau, prisonnier ou sortie. Elle reste
+/// vaincue pour tout le clan jusqu'à la fin de l'événement. `layoutKey` (voir `towerLayoutKey`)
+/// lie la salle à une carte : un étage redessiné en cours de semaine repart de zéro.
+model RpgClanTowerRoom {
+  id          String   @id @default(cuid())
+  eventId     String
+  clanId      String
+  floor       Int
+  layoutKey   String
+  roomId      String
+  userId      String
+  conqueredAt DateTime @default(now())
+
+  event RpgClanTowerEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, clanId, floor, layoutKey, roomId])
+  @@index([eventId, clanId, floor])
+  @@map("rpg_clan_tower_rooms")
 }

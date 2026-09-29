@@ -15,6 +15,7 @@ export const CLAN_TOWER_RANGES = {
   durationHours: { min: 24, max: 96 },
   pointsPerFloor: { min: 0, max: 1_000 },
   podiumPoints: { min: 0, max: 100_000 },
+  milestones: { min: 1, max: 10_000 },
 } as const;
 
 export const CLAN_TOWER_NAME_MAX = 40;
@@ -33,6 +34,8 @@ export type ClanTowerSettings = {
   durationHours: number;
   pointsPerFloor: number;
   podiumPoints: number[];
+  /** Paliers collectifs, croissants : étages gravis au total par le clan. */
+  milestones: number[];
   announceChannelId: string | null;
 };
 
@@ -46,6 +49,7 @@ export const CLAN_TOWER_DEFAULTS: ClanTowerSettings = {
   durationHours: 48,
   pointsPerFloor: 10,
   podiumPoints: [150, 100, 50],
+  milestones: [10, 25, 50],
   announceChannelId: null,
 };
 
@@ -59,6 +63,7 @@ function clampInt(value: unknown, range: { min: number; max: number }, fallback:
 export function normalizeClanTowerSettings(input: Record<string, unknown>, base: ClanTowerSettings = CLAN_TOWER_DEFAULTS): ClanTowerSettings {
   const name = typeof input.name === 'string' ? input.name.trim().slice(0, CLAN_TOWER_NAME_MAX) : base.name;
   const podium = Array.isArray(input.podiumPoints) ? input.podiumPoints : base.podiumPoints;
+  const milestones = Array.isArray(input.milestones) ? input.milestones : base.milestones;
   const channel = input.announceChannelId === undefined ? base.announceChannelId : input.announceChannelId;
   return {
     enabled: typeof input.enabled === 'boolean' ? input.enabled : base.enabled,
@@ -71,7 +76,66 @@ export function normalizeClanTowerSettings(input: Record<string, unknown>, base:
     pointsPerFloor: clampInt(input.pointsPerFloor, CLAN_TOWER_RANGES.pointsPerFloor, base.pointsPerFloor),
     podiumPoints: Array.from({ length: CLAN_TOWER_PODIUM_SIZE }, (_, index) =>
       clampInt(podium[index], CLAN_TOWER_RANGES.podiumPoints, 0)),
+    milestones: normalizeMilestones(milestones, base.milestones),
     announceChannelId: typeof channel === 'string' && /^\d{5,25}$/.test(channel) ? channel : null,
+  };
+}
+
+/**
+ * Trois paliers strictement croissants. Une suite qui ne l'est pas (un palier plus bas que le
+ * précédent) rendrait le deuxième bonus plus facile que le premier : on la refuse en bloc.
+ */
+function normalizeMilestones(input: readonly unknown[], fallback: number[]): number[] {
+  const values = Array.from({ length: CLAN_TOWER_MILESTONE_BONUSES.length }, (_, index) =>
+    clampInt(input[index], CLAN_TOWER_RANGES.milestones, 0));
+  return clanTowerMilestonesValid(values) ? values : [...fallback];
+}
+
+/** Paliers utilisables : un par bonus, chacun au-dessus du précédent. */
+export function clanTowerMilestonesValid(values: readonly unknown[]): boolean {
+  if (values.length !== CLAN_TOWER_MILESTONE_BONUSES.length) return false;
+  const numbers = values.map((value) => clampInt(value, CLAN_TOWER_RANGES.milestones, 0));
+  return numbers.every((value, index) => value > 0 && (index === 0 || value > numbers[index - 1]));
+}
+
+/**
+ * Bonus des paliers collectifs, dans l'ordre : chaque palier atteint ajoute le sien aux
+ * suivants. Ils valent pour toute tentative commencée après, jamais pour celle en cours.
+ */
+export const CLAN_TOWER_MILESTONE_BONUSES = [
+  { potions: 1, healthPercent: 0, attackPercent: 0 },
+  { potions: 0, healthPercent: 10, attackPercent: 0 },
+  { potions: 0, healthPercent: 0, attackPercent: 10 },
+] as const;
+
+export type ClanTowerBonus = {
+  /** Paliers atteints. */
+  reached: number;
+  potions: number;
+  healthPercent: number;
+  attackPercent: number;
+  /** Prochain palier, `null` une fois le dernier atteint. */
+  next: number | null;
+};
+
+export function clanTowerBonus(totalFloors: number, milestones: readonly number[]): ClanTowerBonus {
+  const reached = milestones.filter((threshold) => totalFloors >= threshold).length;
+  const earned = CLAN_TOWER_MILESTONE_BONUSES.slice(0, reached);
+  return {
+    reached,
+    potions: earned.reduce((sum, bonus) => sum + bonus.potions, 0),
+    healthPercent: earned.reduce((sum, bonus) => sum + bonus.healthPercent, 0),
+    attackPercent: earned.reduce((sum, bonus) => sum + bonus.attackPercent, 0),
+    next: milestones[reached] ?? null,
+  };
+}
+
+/** Stats d'entrée renforcées par les paliers du clan. */
+export function applyClanTowerBonus<T extends { attack: number; maxHealth: number }>(stats: T, bonus: ClanTowerBonus): T {
+  return {
+    ...stats,
+    attack: Math.round(stats.attack * (1 + bonus.attackPercent / 100)),
+    maxHealth: Math.round(stats.maxHealth * (1 + bonus.healthPercent / 100)),
   };
 }
 
