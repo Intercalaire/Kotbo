@@ -279,7 +279,7 @@ const ROOM_ICON: Record<TowerRoomType, string> = {
 
 /**
  * Glyphes de la mini-carte. Elle reste en Unicode : un emoji d'application pèse une trentaine
- * de caractères, et une grille de 12×12 dépasserait la limite de texte d'un message.
+ * de caractères, et une grille de 20×20 dépasserait la limite de texte d'un message.
  */
 const MINIMAP_GLYPH: Record<Exclude<TowerRoomType, 'MIMIC' | 'AMBUSH' | 'WANDERER'>, string> = {
   START: '🚪',
@@ -387,7 +387,7 @@ function roomDescription(type: TowerRoomType, locale: Locale, waves: number = TR
 
 /**
  * Carte de l'étage en emojis, en repli de l'image : salles restantes par type, salles faites en vert, murs en
- * noir, le joueur en personnage. Une ligne par rangée de la grille, 12 cases au plus.
+ * noir, le joueur en personnage. Une ligne par rangée de la grille, 20 cases au plus.
  */
 function miniMap(map: TowerMapState): string {
   const cells = occupancy(map.layout);

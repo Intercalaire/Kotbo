@@ -59,10 +59,10 @@ export type TowerChestKind = (typeof TOWER_CHEST_KINDS)[number];
 export const TOWER_OFFER_KINDS = ['POTION', 'HEAL', 'GEAR'] as const;
 export type TowerOfferKind = (typeof TOWER_OFFER_KINDS)[number];
 
-export const TOWER_MAP_SIZE = { min: 3, max: 12 } as const;
-export const TOWER_MAP_ROOMS_MAX = 100;
+export const TOWER_MAP_SIZE = { min: 3, max: 20 } as const;
+export const TOWER_MAP_ROOMS_MAX = 300;
 /** Cartes dessinées au plus, variantes comprises. */
-export const TOWER_FLOORS_MAX = 24;
+export const TOWER_FLOORS_MAX = 300;
 /** Poids d'une carte au tirage entre les variantes de son étage : 1 face à 9, elle sort une fois sur dix. */
 export const TOWER_VARIANT_WEIGHT = { min: 1, max: 100, default: 10 } as const;
 export const TOWER_FLOOR_NAME_MAX = 40;
@@ -468,7 +468,7 @@ export type TowerFloorsResult = { ok: true; value: TowerLayout[] } | { ok: false
 /** Valide la liste des étages dessinés, dans l'ordre de la montée. */
 export function normalizeTowerFloors(input: unknown): TowerFloorsResult {
   if (!Array.isArray(input)) return { ok: false, error: 'La liste des étages est invalide.' };
-  if (input.length > TOWER_FLOORS_MAX) return { ok: false, error: `La Tour compte au plus ${TOWER_FLOORS_MAX} étages dessinés.` };
+  if (input.length > TOWER_FLOORS_MAX) return { ok: false, error: `La Tour compte au plus ${TOWER_FLOORS_MAX} cartes dessinées, variantes comprises.` };
   const floors: TowerLayout[] = [];
   for (const [index, entry] of input.entries()) {
     const result = normalizeTowerLayout(entry);
@@ -484,6 +484,28 @@ export function normalizeTowerFloors(input: unknown): TowerFloorsResult {
  */
 export function readTowerFloors(value: unknown): TowerLayout[] {
   if (!Array.isArray(value)) return [];
+  return readFloorsUncached(value);
+}
+
+/**
+ * Même lecture, gardée tant que les étages n'ont pas été réenregistrés (`stamp` : date de leur
+ * dernier enregistrement). `load` ne va chercher les étages en base qu'en cas de besoin : une tour de plusieurs
+ * centaines de cartes pèse des mégaoctets, qu'on ne relit pas à chaque bouton pressé.
+ */
+const floorsCache = new Map<string, { stamp: number; floors: TowerLayout[] }>();
+const FLOORS_CACHE_MAX = 500;
+
+export async function readTowerFloorsCached(key: string, stamp: Date, load: () => Promise<unknown>): Promise<TowerLayout[]> {
+  const hit = floorsCache.get(key);
+  if (hit && hit.stamp === stamp.getTime()) return hit.floors;
+  const floors = readTowerFloors(await load());
+  floorsCache.delete(key);
+  if (floorsCache.size >= FLOORS_CACHE_MAX) floorsCache.delete(floorsCache.keys().next().value!);
+  floorsCache.set(key, { stamp: stamp.getTime(), floors });
+  return floors;
+}
+
+function readFloorsUncached(value: unknown[]): TowerLayout[] {
   return value
     .map((entry) => normalizeTowerLayout(entry))
     .filter((result): result is { ok: true; value: TowerLayout } => result.ok)

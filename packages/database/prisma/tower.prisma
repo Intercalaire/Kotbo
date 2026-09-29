@@ -58,6 +58,9 @@ model RpgTowerConfig {
   generatedFog  Boolean @default(true)
   /// Ancienne carte unique, d'avant les étages : relue comme premier étage si `layouts` est vide.
   layout        Json?
+  /// Dernier enregistrement des étages : le bot ne relit `layouts`, qui pèse des mégaoctets
+  /// sur une grande tour, que quand cette date a bougé.
+  floorsUpdatedAt DateTime @default(now())
 
   /// Prix en éclats d'une compétence du RPG, achetée pour une seule ascension.
   skillPrice    Int     @default(10)
@@ -232,6 +235,8 @@ model RpgClanTowerConfig {
 
   /// Étages dessinés, au même format que ceux de la Tour (voir `rpgTowerMap.ts`).
   layouts      Json    @default("[]")
+  /// Dernier enregistrement des étages (voir `RpgTowerConfig.floorsUpdatedAt`).
+  floorsUpdatedAt DateTime @default(now())
   /// Après le dernier étage dessiné : GENERATE (étages générés) ou LOOP (retour au premier).
   floorsAfter  String  @default("GENERATE")
   generatedFog Boolean @default(true)

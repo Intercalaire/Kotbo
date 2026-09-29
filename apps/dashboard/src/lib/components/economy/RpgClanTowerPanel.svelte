@@ -309,12 +309,12 @@
       {canManage}
       {disabled}
       initialFloors={settings.floors ?? []}
-      floorsMax={limits.floorsMax ?? 24}
+      floorsMax={limits.floorsMax ?? 300}
       {growthPercent}
       floorsAfter={settings.floorsAfter}
       {foes}
-      sizeLimits={limits.mapSize ?? { min: 3, max: 12 }}
-      roomsMax={limits.mapRoomsMax ?? 100}
+      sizeLimits={limits.mapSize ?? { min: 3, max: 20 }}
+      roomsMax={limits.mapRoomsMax ?? 300}
       saveFloors={(floors) => saveRpgClanTowerLayout({ floors })}
       onSaved={load}
     />

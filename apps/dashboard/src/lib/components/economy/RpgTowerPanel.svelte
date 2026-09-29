@@ -930,13 +930,13 @@
           {canManage}
           {disabled}
           initialFloors={settings.floors ?? []}
-          floorsMax={limits.floorsMax ?? 12}
+          floorsMax={limits.floorsMax ?? 300}
           growthPercent={Number(settings.floorGrowthPercent) || 8}
           floorsAfter={settings.floorsAfter}
           {foes}
           {deathMap}
-          sizeLimits={limits.mapSize ?? { min: 3, max: 12 }}
-          roomsMax={limits.mapRoomsMax ?? 100}
+          sizeLimits={limits.mapSize ?? { min: 3, max: 20 }}
+          roomsMax={limits.mapRoomsMax ?? 300}
           onSaved={load}
         />
       {/key}
