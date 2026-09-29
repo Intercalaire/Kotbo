@@ -55,7 +55,11 @@ import {
   exitRoom,
   isExitRoom,
   newTowerRoom,
+  resolveTowerTheme,
   roomNeighbors,
+  startRoom,
+  TOWER_FLOOR_MODIFIERS,
+  TOWER_FLOOR_THEMES,
   shortestPathToExit,
   towerCardTags,
   towerFloorCount,
@@ -804,6 +808,30 @@ describe('profondeur de la Tour', () => {
       expect(exitRoom(layout)).not.toBeNull();
     }
     expect(generateTowerLayout(42)).toEqual(generateTowerLayout(42));
+  });
+
+  test('le décor d\'un étage se choisit, ou suit la hauteur', () => {
+    const chosen = normalizeTowerLayout({ ...generateTowerLayout(3), theme: 'CRYPT' });
+    expect(chosen.ok && chosen.value.theme).toBe('CRYPT');
+    const unknown = normalizeTowerLayout({ ...generateTowerLayout(3), theme: 'LAVA' });
+    expect(unknown.ok && unknown.value.theme).toBe('AUTO');
+    expect(resolveTowerTheme('AUTO', 1)).toBe('STONE');
+    expect(resolveTowerTheme(undefined, 15)).toBe('MOSS');
+    expect(resolveTowerTheme('AUTO', 70)).toBe('ABYSS');
+    expect(resolveTowerTheme('ICE', 1)).toBe('ICE');
+  });
+
+  test('chaque ambiance et chaque décor se dessinent', async () => {
+    const base = generateTowerLayout(11);
+    const start = startRoom(base)!;
+    for (const modifier of TOWER_FLOOR_MODIFIERS) {
+      for (const theme of TOWER_FLOOR_THEMES) {
+        const image = await renderTowerImage({
+          kind: 'map', title: 'Étage', floor: 30, layout: { ...base, modifier, theme }, pos: start.id, cleared: [start.id], targets: [], ladder: [],
+        });
+        expect(image).not.toBeNull();
+      }
+    }
   });
 
   test('un étage dans la brume a toujours du brouillard', () => {

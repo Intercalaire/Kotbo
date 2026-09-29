@@ -791,6 +791,7 @@ async function towerImage(state: TowerState, floor: number, config: TowerConfigV
       title: modifierName(map.layout.modifier ?? 'NONE', locale)
         ? `${floorTitle(floor, map.layout.name, locale)} · ${modifierName(map.layout.modifier ?? 'NONE', locale)}`
         : floorTitle(floor, map.layout.name, locale),
+      floor,
       layout: map.layout,
       pos: map.pos,
       cleared: map.cleared,
@@ -2061,6 +2062,7 @@ async function buildTowerGuideView(guildId: string, ownerId: string, locale: Loc
     for (const modifier of TOWER_FLOOR_MODIFIERS.filter((entry) => entry !== 'NONE')) {
       entries.push({ name: modifierName(modifier, locale), description: modifierDescription(modifier, locale) });
     }
+    footer = m.tower_guide_ambience_footer({}, { locale });
   }
 
   textBlock(container, [header(config, `${m.tower_guide_title({}, { locale })} · ${title}`), `-# ${m.tower_guide_intro({}, { locale })}`].join('\n'));

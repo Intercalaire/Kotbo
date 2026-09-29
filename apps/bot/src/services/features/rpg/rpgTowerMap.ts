@@ -202,9 +202,37 @@ export const TOWER_FLOOR_MODIFIERS = ['NONE', 'FLOODED', 'BURNING', 'BLESSED', '
 export type TowerFloorModifier = (typeof TOWER_FLOOR_MODIFIERS)[number];
 
 /**
+ * Décor d'un étage, sans effet sur le jeu : pierre, mousse, crypte, glace, forge, arcanes ou
+ * abîme. AUTO suit la hauteur, pour que la montée se sente sans lire le numéro de l'étage.
+ * Le nom d'un étage ne sert qu'à le repérer : il ne décide pas de son décor.
+ */
+export const TOWER_FLOOR_THEMES = ['AUTO', 'STONE', 'MOSS', 'CRYPT', 'ICE', 'FORGE', 'ARCANE', 'ABYSS'] as const;
+export type TowerFloorTheme = (typeof TOWER_FLOOR_THEMES)[number];
+export type TowerResolvedTheme = Exclude<TowerFloorTheme, 'AUTO'>;
+
+/** Décor suivi par AUTO, du bas vers le haut : `from` est le premier étage de chaque tranche. */
+export const TOWER_DEPTH_THEMES: readonly { from: number; theme: TowerResolvedTheme }[] = [
+  { from: 1, theme: 'STONE' },
+  { from: 10, theme: 'MOSS' },
+  { from: 20, theme: 'CRYPT' },
+  { from: 30, theme: 'ICE' },
+  { from: 40, theme: 'FORGE' },
+  { from: 50, theme: 'ARCANE' },
+  { from: 70, theme: 'ABYSS' },
+];
+
+export function resolveTowerTheme(theme: TowerFloorTheme | undefined, floor: number): TowerResolvedTheme {
+  if (theme && theme !== 'AUTO') return theme;
+  let resolved: TowerResolvedTheme = 'STONE';
+  for (const band of TOWER_DEPTH_THEMES) if (floor >= band.from) resolved = band.theme;
+  return resolved;
+}
+
+/**
  * `name` : nom de l'étage (« Caserne », « Crypte »…), vide pour un étage sans nom.
  * `fog` : brouillard de guerre, seules les salles visitées et leurs voisines se voient.
  * `modifier` : ambiance de l'étage.
+ * `theme` : décor de l'étage, AUTO (selon la hauteur) quand il manque.
  * `variant` : variante de l'étage dessiné juste avant ; les deux partagent un même numéro
  * d'étage et l'un d'eux est tiré au sort. Toujours faux sur la première carte.
  * `weight` : poids de la carte dans ce tirage, sans effet sur un étage sans variante.
@@ -215,6 +243,7 @@ export type TowerLayout = {
   height: number;
   fog: boolean;
   modifier: TowerFloorModifier;
+  theme?: TowerFloorTheme;
   variant?: boolean;
   weight?: number;
   rooms: TowerRoom[];
@@ -465,7 +494,8 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
   // dans la brume en a toujours : c'est tout l'effet.
   const fog = raw.fog === true || modifier === 'MIST';
   const weight = clampInt(raw.weight, TOWER_VARIANT_WEIGHT, TOWER_VARIANT_WEIGHT.default);
-  const layout: TowerLayout = { name, width, height, fog, modifier, variant: raw.variant === true, weight, rooms };
+  const theme = TOWER_FLOOR_THEMES.includes(raw.theme as TowerFloorTheme) ? (raw.theme as TowerFloorTheme) : 'AUTO';
+  const layout: TowerLayout = { name, width, height, fog, modifier, theme, variant: raw.variant === true, weight, rooms };
   const distances = distancesFromStart(layout);
   if (distances.size !== rooms.length) {
     return { ok: false, error: `${rooms.length - distances.size} salle(s) ne sont reliées à rien depuis le départ.` };

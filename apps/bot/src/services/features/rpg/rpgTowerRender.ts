@@ -13,7 +13,18 @@
 import { createCanvas, type SKRSContext2D } from '@napi-rs/canvas';
 import { logger } from '../../../utils/logger.js';
 import { canvasFont, ensureCanvasFonts } from '../../../utils/canvasFonts.js';
-import { hasTowerPower, isEntryRoom, occupancy, roomCells, type TowerLayout, type TowerRoomType } from './rpgTowerMap.js';
+import {
+  hasTowerPower,
+  isEntryRoom,
+  occupancy,
+  resolveTowerTheme,
+  roomCells,
+  towerLayoutKey,
+  type TowerFloorModifier,
+  type TowerLayout,
+  type TowerResolvedTheme,
+  type TowerRoomType,
+} from './rpgTowerMap.js';
 
 export const TOWER_IMAGE_FILENAME = 'tour.png';
 
@@ -34,6 +45,34 @@ const C = {
   lit: '#f4b860',
   done: '#4ade80',
 } as const;
+
+/**
+ * Décor d'un étage : la pierre, le ciel et la bannière changent, jamais la couleur des salles,
+ * qui reste le repère du joueur d'un étage à l'autre.
+ */
+type Palette = {
+  sky1: string;
+  sky2: string;
+  stone: string;
+  stoneDark: string;
+  stoneLight: string;
+  floor: string;
+  corridor: string;
+  banner: string;
+  /** Flamme des torches murales. */
+  torch: string;
+  stars: number;
+};
+
+const PALETTES: Record<TowerResolvedTheme, Palette> = {
+  STONE: { sky1: C.sky1, sky2: C.sky2, stone: C.stone, stoneDark: C.stoneDark, stoneLight: C.stoneLight, floor: C.floor, corridor: C.corridor, banner: C.accent, torch: '#f59e0b', stars: 70 },
+  MOSS: { sky1: '#0a1412', sky2: '#1b2e2a', stone: '#445248', stoneDark: '#2e3a32', stoneLight: '#5a6d5c', floor: '#243029', corridor: '#34463a', banner: '#22c55e', torch: '#f59e0b', stars: 60 },
+  CRYPT: { sky1: '#0c0a10', sky2: '#1f1a26', stone: '#3f3a44', stoneDark: '#2a262e', stoneLight: '#57505e', floor: '#221e27', corridor: '#332d3a', banner: '#94a3b8', torch: '#a3e635', stars: 45 },
+  ICE: { sky1: '#08121f', sky2: '#1a2f4a', stone: '#566a80', stoneDark: '#3d4d61', stoneLight: '#7b93ad', floor: '#243245', corridor: '#3a4d66', banner: '#38bdf8', torch: '#67e8f9', stars: 90 },
+  FORGE: { sky1: '#160806', sky2: '#3a150c', stone: '#4d3a36', stoneDark: '#34261f', stoneLight: '#6b4f45', floor: '#2b1f1b', corridor: '#45302a', banner: '#f97316', torch: '#ef4444', stars: 30 },
+  ARCANE: { sky1: '#0f0620', sky2: '#2d1457', stone: '#4b3f6b', stoneDark: '#32294a', stoneLight: '#66578f', floor: '#271f3d', corridor: '#3d3160', banner: '#e879f9', torch: '#c084fc', stars: 110 },
+  ABYSS: { sky1: '#020205', sky2: '#0d0b1c', stone: '#2e2b3a', stoneDark: '#1d1b27', stoneLight: '#403c52', floor: '#17151f', corridor: '#26233a', banner: '#6366f1', torch: '#818cf8', stars: 160 },
+};
 
 const ROOM_COLOR: Record<TowerRoomType, string> = {
   START: '#94a3b8',
@@ -74,6 +113,8 @@ export type TowerMapImage = {
   kind: 'map';
   /** Titre posé sur le socle de la tour, par exemple « Étage 7 · Crypte ». */
   title: string;
+  /** Étage affiché : le décor AUTO suit la hauteur. */
+  floor?: number;
   layout: TowerLayout;
   pos: string;
   cleared: readonly string[];
@@ -132,11 +173,14 @@ export type TowerImageInput = TowerMapImage | TowerShaftImage | TowerLegendImage
 // Décor
 // ─────────────────────────────────────────────────────────────
 
-/** Étoiles à positions fixes : la même tour ne scintille pas différemment à chaque clic. */
-function drawSky(ctx: SKRSContext2D, w: number, h: number): void {
+/**
+ * Ciel étoilé, à positions fixes : la même tour ne scintille pas différemment à chaque clic.
+ * `moon` : position de la lune, absente d'une nuit sans lune.
+ */
+function drawSky(ctx: SKRSContext2D, w: number, h: number, palette: Palette = PALETTES.STONE, moon: { x: number; y: number } | null = null): void {
   const sky = ctx.createLinearGradient(0, 0, 0, h);
-  sky.addColorStop(0, C.sky1);
-  sky.addColorStop(1, C.sky2);
+  sky.addColorStop(0, palette.sky1);
+  sky.addColorStop(1, palette.sky2);
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, w, h);
   let seed = 7;
@@ -145,12 +189,35 @@ function drawSky(ctx: SKRSContext2D, w: number, h: number): void {
     return seed / 2147483647;
   };
   ctx.fillStyle = C.star;
-  for (let i = 0; i < 70; i++) {
+  for (let i = 0; i < palette.stars; i++) {
     const r = next() < 0.85 ? 1 : 1.8;
     ctx.beginPath();
     ctx.arc(next() * w, next() * h * 0.8, r, 0, Math.PI * 2);
     ctx.fill();
   }
+  if (moon) drawMoon(ctx, moon.x, moon.y, 15, palette.sky1);
+}
+
+/** Croissant de lune, avec son halo. */
+function drawMoon(ctx: SKRSContext2D, cx: number, cy: number, r: number, sky: string): void {
+  ctx.save();
+  const halo = ctx.createRadialGradient(cx, cy, r * 0.5, cx, cy, r * 2.6);
+  halo.addColorStop(0, 'rgba(254, 243, 199, 0.22)');
+  halo.addColorStop(1, 'rgba(254, 243, 199, 0)');
+  ctx.fillStyle = halo;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 2.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fef3c7';
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  // Le croissant : l'ombre du ciel mord dans la lune.
+  ctx.fillStyle = sky;
+  ctx.beginPath();
+  ctx.arc(cx + r * 0.45, cy - r * 0.2, r * 0.85, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 /** Maçonnerie en quinconce sur un rectangle. */
@@ -182,25 +249,28 @@ function drawBricks(ctx: SKRSContext2D, x: number, y: number, w: number, h: numb
 }
 
 /** Créneaux sur le haut de la tour, en nombre impair pour tomber juste aux deux angles. */
-function drawBattlements(ctx: SKRSContext2D, x: number, y: number, w: number, height: number): void {
+function drawBattlements(ctx: SKRSContext2D, x: number, y: number, w: number, height: number, palette: Palette = PALETTES.STONE): { x: number; w: number }[] {
   let count = Math.max(5, Math.round(w / 38));
   if (count % 2 === 0) count += 1;
   const unit = w / count;
+  const merlons: { x: number; w: number }[] = [];
   for (let i = 0; i < count; i += 2) {
-    drawBricks(ctx, x + i * unit, y, unit, height, C.stoneLight, 12);
+    drawBricks(ctx, x + i * unit, y, unit, height, palette.stoneLight, 12);
+    merlons.push({ x: x + i * unit, w: unit });
   }
-  drawBricks(ctx, x - 6, y + height, w + 12, 12, C.stoneLight, 12);
+  drawBricks(ctx, x - 6, y + height, w + 12, 12, palette.stoneLight, 12);
+  return merlons;
 }
 
 /** Mât et bannière au sommet. */
-function drawBanner(ctx: SKRSContext2D, cx: number, baseY: number): void {
+function drawBanner(ctx: SKRSContext2D, cx: number, baseY: number, color: string = C.accent): void {
   ctx.strokeStyle = C.textDim;
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(cx, baseY);
   ctx.lineTo(cx, baseY - 46);
   ctx.stroke();
-  ctx.fillStyle = C.accent;
+  ctx.fillStyle = color;
   ctx.beginPath();
   ctx.moveTo(cx, baseY - 46);
   ctx.lineTo(cx + 34, baseY - 38);
@@ -230,11 +300,11 @@ function text(ctx: SKRSContext2D, value: string, x: number, y: number, size: num
 }
 
 /** Plaque de titre sur le socle. */
-function drawPlaque(ctx: SKRSContext2D, cx: number, cy: number, label: string): void {
+function drawPlaque(ctx: SKRSContext2D, cx: number, cy: number, label: string, background: string = C.stoneDark): void {
   ctx.font = canvasFont(18, 'bold');
   const width = Math.max(160, ctx.measureText(label).width + 44);
   roundRect(ctx, cx - width / 2, cy - 18, width, 36, 8);
-  ctx.fillStyle = C.stoneDark;
+  ctx.fillStyle = background;
   ctx.fill();
   ctx.strokeStyle = C.gold;
   ctx.lineWidth = 2;
@@ -770,6 +840,555 @@ function upArrow(ctx: SKRSContext2D, cx: number, cy: number, size: number, color
 }
 
 // ─────────────────────────────────────────────────────────────
+// Ambiance : effets d'étage et décor, sans rien changer à ce que la carte dit
+// ─────────────────────────────────────────────────────────────
+
+/** Géométrie de la tour dessinée, partagée par les couches d'ambiance. */
+type Scene = {
+  W: number;
+  H: number;
+  bodyX: number;
+  bodyY: number;
+  bodyW: number;
+  bodyH: number;
+  /** Épaisseur du mur autour des salles. */
+  wall: number;
+  top: number;
+  crenel: number;
+  palette: Palette;
+  theme: TowerResolvedTheme;
+  modifier: TowerFloorModifier;
+  /** Graine tirée de la carte : le décor d'un étage reste le même d'un clic à l'autre. */
+  seed: number;
+};
+
+function layoutSeed(layout: TowerLayout): number {
+  return parseInt(towerLayoutKey(layout), 36) | 0;
+}
+
+/** Hasard reproductible (mulberry32). */
+function seeded(seed: number): () => number {
+  let state = seed | 0;
+  return () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function hashText(value: string, seed: number): number {
+  let hash = seed ^ 0x811c9dc5;
+  for (let index = 0; index < value.length; index++) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash | 0;
+}
+
+function withAlpha(hex: string, alpha: number): string {
+  const value = parseInt(hex.slice(1), 16);
+  return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
+}
+
+/** Flamme en goutte, pointe en haut. */
+function flame(ctx: SKRSContext2D, cx: number, baseY: number, w: number, h: number, color: string): void {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(cx, baseY - h);
+  ctx.quadraticCurveTo(cx + w * 0.7, baseY - h * 0.35, cx + w * 0.45, baseY);
+  ctx.lineTo(cx - w * 0.45, baseY);
+  ctx.quadraticCurveTo(cx - w * 0.7, baseY - h * 0.35, cx, baseY - h);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/** Derrière la tour : lueurs, pluie, neige, braises et brume du ciel. */
+function drawAmbienceBehind(ctx: SKRSContext2D, scene: Scene): void {
+  const { W, H, bodyX, bodyW, top } = scene;
+  const rng = seeded(scene.seed ^ 0x2545f491);
+  ctx.save();
+  switch (scene.modifier) {
+    case 'BLESSED': {
+      const cx = bodyX + bodyW / 2;
+      const glow = ctx.createRadialGradient(cx, top, 10, cx, top, bodyW * 0.9);
+      glow.addColorStop(0, 'rgba(251, 191, 36, 0.35)');
+      glow.addColorStop(1, 'rgba(251, 191, 36, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = 'rgba(253, 230, 138, 0.14)';
+      ctx.lineWidth = 6;
+      for (let ray = 0; ray < 9; ray++) {
+        const angle = Math.PI * (1.05 + ray * 0.1);
+        ctx.beginPath();
+        ctx.moveTo(cx, top);
+        ctx.lineTo(cx + Math.cos(angle) * W, top + Math.sin(angle) * W);
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'BURNING': {
+      const heat = ctx.createLinearGradient(0, H * 0.35, 0, H);
+      heat.addColorStop(0, 'rgba(249, 115, 22, 0)');
+      heat.addColorStop(1, 'rgba(249, 115, 22, 0.4)');
+      ctx.fillStyle = heat;
+      ctx.fillRect(0, 0, W, H);
+      for (let i = 0; i < 40; i++) {
+        ctx.fillStyle = rng() < 0.5 ? 'rgba(251, 146, 60, 0.8)' : 'rgba(253, 224, 71, 0.7)';
+        ctx.beginPath();
+        ctx.arc(rng() * W, rng() * H, 1 + rng() * 1.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'FLOODED': {
+      ctx.strokeStyle = 'rgba(125, 211, 252, 0.28)';
+      ctx.lineWidth = 1.2;
+      for (let i = 0; i < 90; i++) {
+        const x = rng() * W;
+        const y = rng() * H;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - 4, y + 12);
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'FROST': {
+      ctx.fillStyle = 'rgba(241, 245, 249, 0.85)';
+      for (let i = 0; i < 70; i++) {
+        ctx.beginPath();
+        ctx.arc(rng() * W, rng() * H, 0.8 + rng() * 1.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'MIST': {
+      for (let band = 0; band < 5; band++) {
+        const y = H * (0.15 + band * 0.18) + rng() * 20;
+        const mist = ctx.createLinearGradient(0, y - 30, 0, y + 30);
+        mist.addColorStop(0, 'rgba(226, 232, 240, 0)');
+        mist.addColorStop(0.5, 'rgba(226, 232, 240, 0.24)');
+        mist.addColorStop(1, 'rgba(226, 232, 240, 0)');
+        ctx.fillStyle = mist;
+        ctx.fillRect(0, y - 30, W, 60);
+      }
+      break;
+    }
+    case 'MOONLESS':
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.fillRect(0, 0, W, H);
+      break;
+    default:
+      break;
+  }
+  ctx.restore();
+}
+
+/** Décor des murs : torches, toiles d'araignée et touches propres au décor de l'étage. */
+function drawWallDecor(ctx: SKRSContext2D, scene: Scene): void {
+  const { bodyX, bodyY, bodyW, bodyH, wall, palette, theme, top, crenel } = scene;
+  const rng = seeded(scene.seed ^ 0x68e31da4);
+  ctx.save();
+
+  // Touches du décor, sur les murs d'enceinte et le socle.
+  const wallSpots = (count: number) => Array.from({ length: count }, () => {
+    const side = rng();
+    if (side < 0.35) return { x: bodyX + rng() * wall, y: bodyY + rng() * bodyH };
+    if (side < 0.7) return { x: bodyX + bodyW - rng() * wall, y: bodyY + rng() * bodyH };
+    return { x: bodyX - 14 + rng() * (bodyW + 28), y: bodyY + bodyH + rng() * 22 };
+  });
+  switch (theme) {
+    case 'MOSS':
+      for (const spot of wallSpots(16)) {
+        ctx.fillStyle = rng() < 0.5 ? 'rgba(74, 222, 128, 0.35)' : 'rgba(34, 197, 94, 0.45)';
+        ctx.beginPath();
+        ctx.ellipse(spot.x, spot.y, 5 + rng() * 7, 3 + rng() * 4, rng() * Math.PI, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Lierre qui pend du chemin de ronde.
+      ctx.strokeStyle = 'rgba(74, 222, 128, 0.55)';
+      ctx.lineWidth = 2;
+      for (let vine = 0; vine < 5; vine++) {
+        const x = bodyX + 10 + rng() * (bodyW - 20);
+        const length = 14 + rng() * 26;
+        ctx.beginPath();
+        ctx.moveTo(x, top + crenel + 12);
+        ctx.quadraticCurveTo(x + 6, top + crenel + 12 + length / 2, x - 2, top + crenel + 12 + length);
+        ctx.stroke();
+      }
+      break;
+    case 'CRYPT': {
+      // Crânes posés sur le socle.
+      const skulls = 3;
+      for (let index = 0; index < skulls; index++) {
+        const x = bodyX + bodyW * ((index + 0.5) / skulls) + (rng() - 0.5) * 30;
+        drawSkull(ctx, x, bodyY + bodyH + 11, 7, 'rgba(226, 232, 240, 0.8)');
+      }
+      break;
+    }
+    case 'ICE':
+      ctx.strokeStyle = 'rgba(186, 230, 253, 0.55)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(bodyX + 1, bodyY + 1, bodyW - 2, bodyH - 2);
+      drawIcicles(ctx, bodyX - 6, top + crenel + 12, bodyW + 12, rng, 'rgba(186, 230, 253, 0.8)');
+      break;
+    case 'FORGE':
+      ctx.shadowColor = '#f97316';
+      ctx.shadowBlur = 8;
+      ctx.strokeStyle = 'rgba(251, 146, 60, 0.8)';
+      ctx.lineWidth = 1.6;
+      for (const spot of wallSpots(7)) drawCrack(ctx, spot.x, spot.y, 16, rng);
+      break;
+    case 'ARCANE':
+      ctx.shadowColor = '#e879f9';
+      ctx.shadowBlur = 10;
+      ctx.strokeStyle = 'rgba(232, 121, 249, 0.75)';
+      ctx.lineWidth = 1.5;
+      for (const spot of wallSpots(6)) drawRune(ctx, spot.x, spot.y, 6, rng);
+      break;
+    case 'ABYSS':
+      ctx.shadowColor = '#6366f1';
+      ctx.shadowBlur = 10;
+      ctx.strokeStyle = 'rgba(129, 140, 248, 0.6)';
+      ctx.lineWidth = 2;
+      for (const spot of wallSpots(6)) drawCrack(ctx, spot.x, spot.y, 22, rng);
+      break;
+    default:
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.lineWidth = 1.4;
+      for (const spot of wallSpots(5)) drawCrack(ctx, spot.x, spot.y, 14, rng);
+      break;
+  }
+  ctx.restore();
+
+  // Toiles d'araignée dans un ou deux angles de l'enceinte.
+  const corners = [
+    { x: bodyX, y: bodyY, dx: 1, dy: 1 },
+    { x: bodyX + bodyW, y: bodyY, dx: -1, dy: 1 },
+    { x: bodyX, y: bodyY + bodyH, dx: 1, dy: -1 },
+    { x: bodyX + bodyW, y: bodyY + bodyH, dx: -1, dy: -1 },
+  ];
+  for (const corner of corners) {
+    if (rng() < 0.45) drawCobweb(ctx, corner.x, corner.y, corner.dx, corner.dy, wall * 1.3);
+  }
+
+  // Torches sur les deux murs, à hauteur tirée de la carte.
+  for (const x of [bodyX + wall / 2, bodyX + bodyW - wall / 2]) {
+    const count = bodyH > 260 ? 2 : 1;
+    for (let index = 0; index < count; index++) {
+      const y = bodyY + bodyH * ((index + 0.5) / count) + (rng() - 0.5) * bodyH * 0.2;
+      drawTorch(ctx, x, y, palette.torch);
+    }
+  }
+}
+
+/** Par-dessus la maçonnerie, sous les salles : neige, flammes, eau, brume, lumière. */
+function drawAmbienceFront(ctx: SKRSContext2D, scene: Scene, merlons: { x: number; w: number }[]): void {
+  const { W, H, bodyX, bodyY, bodyW, bodyH, wall, top, crenel } = scene;
+  const rng = seeded(scene.seed ^ 0x1b873593);
+  ctx.save();
+  switch (scene.modifier) {
+    case 'FROST': {
+      ctx.fillStyle = 'rgba(248, 250, 252, 0.92)';
+      for (const merlon of merlons) {
+        roundRect(ctx, merlon.x - 1, top - 3, merlon.w + 2, 7, 3);
+        ctx.fill();
+      }
+      roundRect(ctx, bodyX - 7, top + crenel - 3, bodyW + 14, 6, 3);
+      ctx.fill();
+      drawIcicles(ctx, bodyX - 6, top + crenel + 12, bodyW + 12, rng, 'rgba(224, 242, 254, 0.9)');
+      // Givre sur l'enceinte.
+      ctx.strokeStyle = 'rgba(224, 242, 254, 0.35)';
+      ctx.lineWidth = wall * 0.6;
+      ctx.strokeRect(bodyX + wall * 0.3, bodyY + wall * 0.3, bodyW - wall * 0.6, bodyH - wall * 0.6);
+      break;
+    }
+    case 'BURNING': {
+      const scorch = ctx.createLinearGradient(0, bodyY + bodyH * 0.6, 0, bodyY + bodyH);
+      scorch.addColorStop(0, 'rgba(0, 0, 0, 0)');
+      scorch.addColorStop(1, 'rgba(0, 0, 0, 0.35)');
+      ctx.fillStyle = scorch;
+      ctx.fillRect(bodyX, bodyY, bodyW, bodyH);
+      const baseY = bodyY + bodyH + 22;
+      for (let x = bodyX - 10; x < bodyX + bodyW + 14; x += 16) {
+        const h = 18 + rng() * 22;
+        flame(ctx, x + rng() * 6, baseY, 16, h, 'rgba(239, 68, 68, 0.85)');
+        flame(ctx, x + 3 + rng() * 4, baseY, 10, h * 0.7, 'rgba(251, 146, 60, 0.9)');
+        flame(ctx, x + 4 + rng() * 3, baseY, 5, h * 0.4, 'rgba(253, 224, 71, 0.95)');
+      }
+      break;
+    }
+    case 'FLOODED': {
+      const waterTop = bodyY + bodyH - wall * 0.6;
+      const water = ctx.createLinearGradient(0, waterTop, 0, H);
+      water.addColorStop(0, 'rgba(56, 189, 248, 0.35)');
+      water.addColorStop(1, 'rgba(14, 116, 144, 0.6)');
+      ctx.fillStyle = water;
+      ctx.fillRect(0, waterTop, W, H - waterTop);
+      ctx.strokeStyle = 'rgba(186, 230, 253, 0.6)';
+      ctx.lineWidth = 2;
+      for (let row = 0; row < 3; row++) {
+        const y = waterTop + 4 + row * 14;
+        ctx.beginPath();
+        for (let x = 0; x <= W; x += 4) {
+          const wave = y + Math.sin((x + row * 17) / 11) * 2.5;
+          if (x === 0) ctx.moveTo(x, wave);
+          else ctx.lineTo(x, wave);
+        }
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'BLESSED': {
+      ctx.strokeStyle = 'rgba(251, 191, 36, 0.45)';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(bodyX + 1.5, bodyY + 1.5, bodyW - 3, bodyH - 3);
+      for (let i = 0; i < 12; i++) drawSparkle(ctx, bodyX + rng() * bodyW, top + rng() * (crenel + 12), 3 + rng() * 3);
+      break;
+    }
+    case 'MIST': {
+      ctx.fillStyle = 'rgba(226, 232, 240, 0.14)';
+      ctx.fillRect(bodyX - 14, top, bodyW + 28, bodyY + bodyH + 22 - top);
+      // Volutes au pied de la tour et le long des murs.
+      for (let i = 0; i < 14; i++) {
+        const x = bodyX - 20 + rng() * (bodyW + 40);
+        const y = i < 8 ? bodyY + bodyH - 10 + rng() * 30 : bodyY + rng() * bodyH;
+        const puff = ctx.createRadialGradient(x, y, 2, x, y, 34);
+        puff.addColorStop(0, 'rgba(226, 232, 240, 0.28)');
+        puff.addColorStop(1, 'rgba(226, 232, 240, 0)');
+        ctx.fillStyle = puff;
+        ctx.beginPath();
+        ctx.arc(x, y, 34, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'MOONLESS':
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+      ctx.fillRect(bodyX - 14, top, bodyW + 28, bodyY + bodyH + 22 - top);
+      break;
+    default:
+      break;
+  }
+  ctx.restore();
+}
+
+function drawIcicles(ctx: SKRSContext2D, x: number, y: number, w: number, rng: () => number, color: string): void {
+  ctx.fillStyle = color;
+  for (let ix = x + 4; ix < x + w - 4; ix += 9 + rng() * 8) {
+    const length = 5 + rng() * 12;
+    ctx.beginPath();
+    ctx.moveTo(ix - 3, y);
+    ctx.lineTo(ix + 3, y);
+    ctx.lineTo(ix, y + length);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function drawCrack(ctx: SKRSContext2D, x: number, y: number, length: number, rng: () => number): void {
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  let cx = x;
+  let cy = y;
+  for (let step = 0; step < 3; step++) {
+    cx += (rng() - 0.5) * length * 0.6;
+    cy += length / 3;
+    ctx.lineTo(cx, cy);
+  }
+  ctx.stroke();
+}
+
+function drawRune(ctx: SKRSContext2D, cx: number, cy: number, r: number, rng: () => number): void {
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+  const angle = rng() * Math.PI;
+  ctx.beginPath();
+  ctx.moveTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
+  ctx.lineTo(cx - Math.cos(angle) * r, cy - Math.sin(angle) * r);
+  ctx.moveTo(cx, cy - r * 0.6);
+  ctx.lineTo(cx, cy + r * 0.6);
+  ctx.stroke();
+}
+
+function drawSparkle(ctx: SKRSContext2D, cx: number, cy: number, r: number): void {
+  ctx.fillStyle = 'rgba(253, 230, 138, 0.9)';
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - r);
+  ctx.lineTo(cx + r * 0.25, cy - r * 0.25);
+  ctx.lineTo(cx + r, cy);
+  ctx.lineTo(cx + r * 0.25, cy + r * 0.25);
+  ctx.lineTo(cx, cy + r);
+  ctx.lineTo(cx - r * 0.25, cy + r * 0.25);
+  ctx.lineTo(cx - r, cy);
+  ctx.lineTo(cx - r * 0.25, cy - r * 0.25);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawSkull(ctx: SKRSContext2D, cx: number, cy: number, r: number, color: string): void {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(cx, cy - r * 0.15, r, Math.PI, 0);
+  ctx.lineTo(cx + r * 0.65, cy + r * 0.7);
+  ctx.lineTo(cx - r * 0.65, cy + r * 0.7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = 'rgba(15, 12, 24, 0.9)';
+  for (const dx of [-0.38, 0.38]) {
+    ctx.beginPath();
+    ctx.arc(cx + dx * r, cy, r * 0.24, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawCobweb(ctx: SKRSContext2D, x: number, y: number, dx: number, dy: number, size: number): void {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(226, 232, 240, 0.4)';
+  ctx.lineWidth = 1;
+  const spokes = 4;
+  for (let spoke = 0; spoke <= spokes; spoke++) {
+    const angle = (spoke / spokes) * (Math.PI / 2);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(angle) * size * dx, y + Math.sin(angle) * size * dy);
+    ctx.stroke();
+  }
+  for (const ring of [0.4, 0.7, 1]) {
+    ctx.beginPath();
+    for (let spoke = 0; spoke <= spokes; spoke++) {
+      const angle = (spoke / spokes) * (Math.PI / 2);
+      const px = x + Math.cos(angle) * size * ring * dx;
+      const py = y + Math.sin(angle) * size * ring * dy;
+      if (spoke === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawTorch(ctx: SKRSContext2D, cx: number, cy: number, color: string): void {
+  ctx.save();
+  const glow = ctx.createRadialGradient(cx, cy - 6, 1, cx, cy - 6, 22);
+  glow.addColorStop(0, withAlpha(color, 0.45));
+  glow.addColorStop(1, withAlpha(color, 0));
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(cx, cy - 6, 22, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#5b4636';
+  ctx.fillRect(cx - 2, cy - 2, 4, 10);
+  ctx.fillStyle = '#3f3128';
+  ctx.fillRect(cx - 4, cy - 3, 8, 3);
+  flame(ctx, cx, cy - 3, 8, 12, color);
+  flame(ctx, cx, cy - 3, 4, 7, 'rgba(254, 243, 199, 0.9)');
+  ctx.restore();
+}
+
+/** Accessoires des salles vides, par décor. */
+const ROOM_PROPS: Record<TowerResolvedTheme, readonly RoomProp[]> = {
+  STONE: ['bones', 'crack', 'web', 'pebbles'],
+  MOSS: ['moss', 'mushroom', 'pebbles', 'bones'],
+  CRYPT: ['skull', 'bones', 'web', 'candle'],
+  ICE: ['crystal', 'crack', 'pebbles', 'bones'],
+  FORGE: ['ember', 'crack', 'pebbles', 'bones'],
+  ARCANE: ['rune', 'crystal', 'candle', 'web'],
+  ABYSS: ['crack', 'bones', 'rune', 'skull'],
+};
+type RoomProp = 'bones' | 'crack' | 'web' | 'pebbles' | 'moss' | 'mushroom' | 'skull' | 'candle' | 'crystal' | 'ember' | 'rune';
+
+function drawRoomProp(ctx: SKRSContext2D, scene: Scene, id: string, x: number, y: number, size: number): void {
+  const rng = seeded(hashText(id, scene.seed));
+  // Une salle vide sur trois reste nue : un décor partout ne se remarquerait plus.
+  if (rng() < 0.33) return;
+  const props = ROOM_PROPS[scene.theme];
+  const prop = props[Math.floor(rng() * props.length)];
+  const s = size * 0.13;
+  const cx = x + size * 0.24;
+  const cy = y + size * 0.76;
+  ctx.save();
+  ctx.globalAlpha = 0.65;
+  switch (prop) {
+    case 'bones':
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = Math.max(1.5, s * 0.35);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(cx - s, cy + s * 0.4);
+      ctx.lineTo(cx + s, cy - s * 0.4);
+      ctx.moveTo(cx - s, cy - s * 0.4);
+      ctx.lineTo(cx + s, cy + s * 0.4);
+      ctx.stroke();
+      break;
+    case 'crack':
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.lineWidth = 1.4;
+      drawCrack(ctx, cx, cy - s * 1.2, s * 2.4, rng);
+      break;
+    case 'web':
+      drawCobweb(ctx, x + 1, y + size - 1, 1, -1, size * 0.34);
+      break;
+    case 'pebbles':
+      ctx.fillStyle = '#94a3b8';
+      for (const [dx, dy, r] of [[-0.6, 0.2, 0.45], [0.3, 0.4, 0.35], [0.5, -0.3, 0.3]] as const) {
+        ctx.beginPath();
+        ctx.arc(cx + dx * s, cy + dy * s, r * s, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    case 'moss':
+      ctx.fillStyle = '#4ade80';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, s * 1.2, s * 0.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case 'mushroom':
+      ctx.fillStyle = '#fef3c7';
+      ctx.fillRect(cx - s * 0.18, cy - s * 0.2, s * 0.36, s * 0.8);
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.arc(cx, cy - s * 0.2, s * 0.6, Math.PI, 0);
+      ctx.fill();
+      break;
+    case 'skull':
+      drawSkull(ctx, cx, cy, s * 0.8, '#e2e8f0');
+      break;
+    case 'candle':
+      ctx.fillStyle = '#fef3c7';
+      ctx.fillRect(cx - s * 0.25, cy - s * 0.5, s * 0.5, s * 1.1);
+      flame(ctx, cx, cy - s * 0.5, s * 0.5, s * 0.9, '#fbbf24');
+      break;
+    case 'crystal':
+      ctx.fillStyle = scene.theme === 'ARCANE' ? '#e879f9' : '#7dd3fc';
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - s * 1.2);
+      ctx.lineTo(cx + s * 0.5, cy);
+      ctx.lineTo(cx, cy + s * 0.5);
+      ctx.lineTo(cx - s * 0.5, cy);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case 'ember':
+      ctx.fillStyle = '#fb923c';
+      for (const [dx, dy] of [[-0.5, 0.2], [0.2, 0.5], [0.5, -0.2]] as const) {
+        ctx.beginPath();
+        ctx.arc(cx + dx * s, cy + dy * s, s * 0.28, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    case 'rune':
+      ctx.strokeStyle = scene.theme === 'ABYSS' ? '#818cf8' : '#e879f9';
+      ctx.lineWidth = 1.4;
+      drawRune(ctx, cx, cy, s * 0.8, rng);
+      break;
+  }
+  ctx.restore();
+}
+
+// ─────────────────────────────────────────────────────────────
 // Vue de l'étage en cours (carte dessinée)
 // ─────────────────────────────────────────────────────────────
 
@@ -789,15 +1408,22 @@ function renderMap(input: TowerMapImage): Buffer {
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
 
-  drawSky(ctx, W, H);
+  const theme = resolveTowerTheme(layout.theme, input.floor ?? 1);
+  const palette = PALETTES[theme];
+  const modifier = layout.modifier ?? 'NONE';
   const bodyX = margin;
   const bodyY = top + crenel + 12;
-  drawBanner(ctx, bodyX + bodyW / 2, top);
-  drawBattlements(ctx, bodyX, top, bodyW, crenel);
-  drawBricks(ctx, bodyX, bodyY, bodyW, bodyH);
+  const scene: Scene = { W, H, bodyX, bodyY, bodyW, bodyH, wall, top, crenel, palette, theme, modifier, seed: layoutSeed(layout) };
+  drawSky(ctx, W, H, palette, modifier === 'MOONLESS' ? null : { x: bodyX + bodyW - 34, y: 34 });
+  drawAmbienceBehind(ctx, scene);
+  drawBanner(ctx, bodyX + bodyW / 2, top, palette.banner);
+  const merlons = drawBattlements(ctx, bodyX, top, bodyW, crenel, palette);
+  drawBricks(ctx, bodyX, bodyY, bodyW, bodyH, palette.stone);
   // Socle, plus large que le fût.
-  drawBricks(ctx, bodyX - 14, bodyY + bodyH, bodyW + 28, 22, C.stoneDark, 11);
-  drawPlaque(ctx, bodyX + bodyW / 2, bodyY + bodyH + 44, input.title);
+  drawBricks(ctx, bodyX - 14, bodyY + bodyH, bodyW + 28, 22, palette.stoneDark, 11);
+  drawWallDecor(ctx, scene);
+  drawAmbienceFront(ctx, scene, merlons);
+  drawPlaque(ctx, bodyX + bodyW / 2, bodyY + bodyH + 44, input.title, palette.stoneDark);
 
   const gx = bodyX + wall;
   const gy = bodyY + wall;
@@ -807,7 +1433,7 @@ function renderMap(input: TowerMapImage): Buffer {
   const center = (x: number, y: number) => ({ x: gx + x * tile + tile / 2, y: gy + y * tile + tile / 2 });
 
   // Couloirs d'abord : les salles les recouvrent, il n'en reste que le passage entre deux.
-  ctx.fillStyle = C.corridor;
+  ctx.fillStyle = palette.corridor;
   const corridor = tile * 0.36;
   for (const room of layout.rooms) {
     for (const [x, y] of roomCells(room)) {
@@ -852,7 +1478,7 @@ function renderMap(input: TowerMapImage): Buffer {
     const cleared = input.cleared.includes(room.id) && !isEntryRoom(room.type);
 
     roundRect(ctx, x, y, size, size, span === 2 ? 12 : 7);
-    ctx.fillStyle = C.floor;
+    ctx.fillStyle = palette.floor;
     ctx.fill();
     ctx.save();
     ctx.globalAlpha = cleared ? 0.12 : shown === 'EMPTY' ? 0.14 : 0.3;
@@ -888,6 +1514,8 @@ function renderMap(input: TowerMapImage): Buffer {
     const cx = x + size / 2;
     const cy = y + size / 2;
     if (input.conquered?.includes(room.id)) drawPennant(ctx, x + 3, y + 3, Math.max(9, tile * 0.22));
+    // Une salle vide garde un bout de décor dans un coin, tiré de la carte : il ne bouge pas.
+    if (shown === 'EMPTY') drawRoomProp(ctx, scene, room.id, x, y, size);
     if (cleared) {
       checkMark(ctx, cx, cy, size * 0.42);
     } else {
@@ -1004,6 +1632,7 @@ function drawPanel(ctx: SKRSContext2D, x: number, y: number, w: number, h: numbe
 }
 
 function renderShaft(input: TowerShaftImage): Buffer {
+  const palette = PALETTES[resolveTowerTheme('AUTO', input.floor)];
   const bandH = 58;
   const bodyW = 340;
   const towerW = 520;
@@ -1013,11 +1642,11 @@ function renderShaft(input: TowerShaftImage): Buffer {
   const H = top + rows * bandH + 90;
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
-  drawSky(ctx, W, H);
+  drawSky(ctx, W, H, palette, { x: towerW - 46, y: 30 });
 
   const bodyX = (towerW - bodyW) / 2;
   const bodyY = top;
-  drawBricks(ctx, bodyX, bodyY, bodyW, rows * bandH);
+  drawBricks(ctx, bodyX, bodyY, bodyW, rows * bandH, palette.stone);
 
   for (let row = 0; row < rows; row++) {
     const floor = input.floor + SHAFT_ABOVE - row;
@@ -1030,7 +1659,7 @@ function renderShaft(input: TowerShaftImage): Buffer {
     // Fenêtres : éclairées sur l'étage du joueur, tièdes en dessous, noires au-dessus.
     for (const wx of [bodyX + 40, bodyX + bodyW - 70]) {
       roundRect(ctx, wx, y + 12, 30, bandH - 26, 12);
-      ctx.fillStyle = status === 'current' ? C.lit : status === 'done' ? 'rgba(244, 184, 96, 0.3)' : C.sky1;
+      ctx.fillStyle = status === 'current' ? C.lit : status === 'done' ? 'rgba(244, 184, 96, 0.3)' : palette.sky1;
       ctx.fill();
     }
     const boss = input.bossEvery > 0 && floor % input.bossEvery === 0;
@@ -1050,14 +1679,14 @@ function renderShaft(input: TowerShaftImage): Buffer {
 
   // La tour se perd dans la nuit : on ne voit jamais son sommet.
   const fade = ctx.createLinearGradient(0, bodyY, 0, bodyY + bandH * 1.6);
-  fade.addColorStop(0, C.sky1);
-  fade.addColorStop(1, 'rgba(13, 10, 26, 0)');
+  fade.addColorStop(0, palette.sky1);
+  fade.addColorStop(1, withAlpha(palette.sky1, 0));
   ctx.fillStyle = fade;
   ctx.fillRect(bodyX - 2, bodyY - 2, bodyW + 4, bandH * 1.6);
   upArrow(ctx, towerW / 2, bodyY + 14, 12, C.textDim);
 
-  drawBricks(ctx, bodyX - 16, bodyY + rows * bandH, bodyW + 32, 22, C.stoneDark, 11);
-  drawPlaque(ctx, towerW / 2, bodyY + rows * bandH + 54, input.title);
+  drawBricks(ctx, bodyX - 16, bodyY + rows * bandH, bodyW + 32, 22, palette.stoneDark, 11);
+  drawPlaque(ctx, towerW / 2, bodyY + rows * bandH + 54, input.title, palette.stoneDark);
   if (input.panel) drawPanel(ctx, towerW, top, PANEL_WIDTH, rows * bandH, input.panel);
   return canvas.toBuffer('image/png');
 }

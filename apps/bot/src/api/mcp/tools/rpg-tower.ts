@@ -50,6 +50,7 @@ import {
   TOWER_WANDER_RADIUS,
   TOWER_FLOORS_AFTER,
   TOWER_FLOOR_MODIFIERS,
+  TOWER_FLOOR_THEMES,
   TOWER_FLOORS_MAX,
   TOWER_FLOOR_NAME_MAX,
   TOWER_MAP_ROOMS_MAX,
@@ -91,6 +92,7 @@ export const floorSchema = z.object({
   name: z.string().max(TOWER_FLOOR_NAME_MAX).optional().describe("Nom de l'étage (« Caserne », « Crypte »…)"),
   fog: z.boolean().optional().describe('Brouillard de guerre : seules les salles visitées et leurs voisines se voient'),
   modifier: z.enum(TOWER_FLOOR_MODIFIERS).optional().describe('Ambiance : NONE, FLOODED (vitesse -20 %), BURNING (chaque nouvelle salle brûle 3 % des PV), BLESSED (soins +25 %), MIST (brouillard forcé, coffres +25 % d\'or), FROST (premier coup de chaque combat -50 %, des deux côtés), MOONLESS (errants deux fois plus rapides, embuscades +50 %)'),
+  theme: z.enum(TOWER_FLOOR_THEMES).optional().describe('Décor de l\'étage, sans effet sur le jeu : AUTO (suit la hauteur : pierre, mousse, crypte, glace, forge, arcanes, abîme), STONE, MOSS, CRYPT, ICE, FORGE, ARCANE ou ABYSS'),
   variant: z.boolean().optional().describe("Variante de la carte précédente : les deux forment un même étage et l'une est tirée au sort à chaque montée. Ignoré sur la première carte."),
   weight: z.number().int().min(TOWER_VARIANT_WEIGHT.min).max(TOWER_VARIANT_WEIGHT.max).optional().describe(`Poids de la carte au tirage entre les variantes de son étage (${TOWER_VARIANT_WEIGHT.min} à ${TOWER_VARIANT_WEIGHT.max}, défaut ${TOWER_VARIANT_WEIGHT.default}) : 1 face à 9, elle sort une fois sur dix.`),
   width: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max),
@@ -134,6 +136,7 @@ export type TowerFloorsEdit = {
   name?: string;
   fog?: boolean;
   modifier?: TowerLayout['modifier'];
+  theme?: TowerLayout['theme'];
   variant?: boolean;
   weight?: number;
   width?: number;
@@ -156,13 +159,14 @@ export function editTowerFloors(existing: readonly TowerLayout[], input: TowerFl
     current.splice(index, 1);
     return current;
   }
-  const { useDefault, name, fog, modifier, variant, weight, width, height, rooms } = input;
-  if (useDefault || name !== undefined || fog !== undefined || modifier !== undefined || variant !== undefined || weight !== undefined || width || height || rooms) {
+  const { useDefault, name, fog, modifier, theme, variant, weight, width, height, rooms } = input;
+  if (useDefault || name !== undefined || fog !== undefined || modifier !== undefined || theme !== undefined || variant !== undefined || weight !== undefined || width || height || rooms) {
     const base: Partial<TowerLayout> = useDefault ? defaultTowerLayout() : current[index] ?? {};
     current[index] = {
       name: name ?? base.name ?? '',
       fog: fog ?? base.fog ?? true,
       modifier: modifier ?? base.modifier ?? 'NONE',
+      theme: theme ?? base.theme ?? 'AUTO',
       variant: variant ?? base.variant ?? false,
       weight: weight ?? base.weight ?? TOWER_VARIANT_WEIGHT.default,
       width: width ?? base.width ?? TOWER_MAP_SIZE.min,
@@ -327,6 +331,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
           name: z.string().max(TOWER_FLOOR_NAME_MAX).optional(),
           fog: z.boolean().optional().describe('Brouillard de guerre sur cet étage'),
           modifier: z.enum(TOWER_FLOOR_MODIFIERS).optional().describe('Ambiance de cet étage : NONE, FLOODED, BURNING, BLESSED, MIST, FROST ou MOONLESS'),
+          theme: z.enum(TOWER_FLOOR_THEMES).optional().describe('Décor de l\'étage, sans effet sur le jeu : AUTO (suit la hauteur : pierre, mousse, crypte, glace, forge, arcanes, abîme), STONE, MOSS, CRYPT, ICE, FORGE, ARCANE ou ABYSS'),
           variant: z.boolean().optional().describe("Variante de la carte précédente : les deux forment un même étage et l'une est tirée au sort à chaque montée. Ignoré sur la première carte."),
           weight: z.number().int().min(TOWER_VARIANT_WEIGHT.min).max(TOWER_VARIANT_WEIGHT.max).optional().describe(`Poids de la carte au tirage entre les variantes de son étage (${TOWER_VARIANT_WEIGHT.min} à ${TOWER_VARIANT_WEIGHT.max}, défaut ${TOWER_VARIANT_WEIGHT.default}) : 1 face à 9, elle sort une fois sur dix.`),
           width: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max).optional(),

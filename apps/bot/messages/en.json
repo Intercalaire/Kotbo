@@ -3213,6 +3213,7 @@
   "tower_guide_page_fights": "Fights",
   "tower_guide_page_help": "Help",
   "tower_guide_page_modifiers": "Atmospheres",
+  "tower_guide_ambience_footer": "Each ambience shows on the map: waves, flames, golden glow, mist, frost or pitch-black night. The tower's stone also changes as you climb (stone, moss, crypt, ice, forge, arcane, then the abyss), unless the server picked a floor's look. Torches, bones, cobwebs and other props are just decoration.",
   "tower_guide_locked": "trapped room, not met yet",
   "tower_guide_warps": "Portals A and B",
   "tower_guide_mimic": "Mimic",

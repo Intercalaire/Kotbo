@@ -3213,6 +3213,7 @@
   "tower_guide_page_fights": "Combats",
   "tower_guide_page_help": "Aides",
   "tower_guide_page_modifiers": "Ambiances",
+  "tower_guide_ambience_footer": "Chaque ambiance se voit sur la carte : vagues, flammes, lueur dorée, brume, givre ou nuit noire. La pierre de la tour change aussi en montant (pierre, mousse, crypte, glace, forge, arcanes, puis l'abîme), sauf si le serveur a choisi le décor d'un étage. Torches, os, toiles et autres décors ne font que décorer.",
   "tower_guide_locked": "salle piégée, pas encore rencontrée",
   "tower_guide_warps": "Portails A et B",
   "tower_guide_mimic": "Mimique",

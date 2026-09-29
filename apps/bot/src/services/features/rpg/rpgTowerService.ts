@@ -1674,6 +1674,7 @@ export async function previewTowerFloor(guildId: string, input: { layout?: unkno
   const image = await renderTowerImage({
     kind: 'map',
     title: title(floor, layout.name),
+    floor,
     layout,
     pos: start.id,
     cleared,
