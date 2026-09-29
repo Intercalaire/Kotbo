@@ -111,6 +111,7 @@
     stat: RewardStat | null;
     statAmount: number;
     maxEnergy: number;
+    reclassVouchers: number;
     maxPurchases: number;
     limitPeriod: LimitPeriod;
     enabled: boolean;
@@ -459,6 +460,7 @@
       stat: null,
       statAmount: 1,
       maxEnergy: 0,
+      reclassVouchers: 0,
       maxPurchases: 0,
       limitPeriod: 'NEVER',
       enabled: true,
@@ -471,6 +473,7 @@
       stat: reward.stat ?? null,
       statAmount: reward.statAmount || 1,
       maxEnergy: reward.maxEnergy ?? 0,
+      reclassVouchers: reward.reclassVouchers ?? 0,
       maxPurchases: reward.maxPurchases ?? 0,
       limitPeriod: reward.limitPeriod ?? 'NEVER',
     };
@@ -530,6 +533,7 @@
         stat: draft.stat || null,
         statAmount: Number(draft.statAmount) || 1,
         maxEnergy: Number(draft.maxEnergy) || 0,
+        reclassVouchers: Number(draft.reclassVouchers) || 0,
         maxPurchases: Number(draft.maxPurchases) || 0,
         limitPeriod: draft.limitPeriod || 'NEVER',
         titleId: draft.titleId || null,
@@ -689,6 +693,7 @@
       {#if reward.itemName}<span class="font-semibold flex items-center gap-1"><Papicon icon="package" size={11} /> {reward.itemName}</span>{/if}
       {#if reward.stat}<span class="text-error font-bold flex items-center gap-1"><Papicon icon="TrendingUp" size={11} /> {statBadge(reward)}</span>{/if}
       {#if reward.maxEnergy > 0}<span class="text-warning font-bold flex items-center gap-1"><Papicon icon="Zap" size={11} /> {m.eco_tower_reward_max_energy({ amount: reward.maxEnergy.toLocaleString() })}</span>{/if}
+      {#if reward.reclassVouchers > 0}<span class="text-primary font-bold flex items-center gap-1"><Papicon icon="RefreshCw" size={11} /> {m.eco_tower_reward_reclass_vouchers({ count: reward.reclassVouchers })}</span>{/if}
       {#if reward.shards > 0}<span class="text-primary font-bold flex items-center gap-1">+{reward.shards} {@render shardIcon(11)}</span>{/if}
       {#if reward.titleId}<span class="font-semibold text-warning flex items-center gap-1"><Papicon icon="award" size={11} /> {titleName(reward.titleId)}</span>{/if}
       {#if reward.roleId}<span class="font-semibold text-primary">{roleName(reward.roleId)}</span>{/if}
@@ -1479,6 +1484,11 @@
           <label for="rewardMaxEnergy" class={labelClass}>{m.eco_tower_field_max_energy()}</label>
           <input id="rewardMaxEnergy" type="number" min="0" max="2000000" bind:value={editing.maxEnergy} class={inputClass} />
           <p class="text-2xs text-on-surface-variant/50 leading-relaxed ml-2">{m.eco_tower_field_max_energy_hint()}</p>
+        </div>
+        <div class="col-span-2 space-y-1">
+          <label for="rewardReclassVouchers" class={labelClass}>{m.eco_tower_field_reclass_vouchers()}</label>
+          <input id="rewardReclassVouchers" type="number" min="0" max="10" bind:value={editing.reclassVouchers} class={inputClass} />
+          <p class="text-2xs text-on-surface-variant/50 leading-relaxed ml-2">{m.eco_tower_field_reclass_vouchers_hint()}</p>
         </div>
         <div class="col-span-2 space-y-1">
           <span class={labelClass}>{m.eco_fish_reward_role()}</span>
