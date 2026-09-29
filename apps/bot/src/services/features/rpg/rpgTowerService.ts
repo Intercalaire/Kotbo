@@ -505,9 +505,15 @@ export async function actTowerRun(
   if (fountainDelta !== 0) {
     await moveFountainGold(guildId, fountainDelta).catch((err) => logger.warn('RpgTower', `Source commune non mise à jour sur ${guildId} :`, err));
   }
-  // Quêtes « gravir des étages de la Tour » : chaque étage franchi compte.
-  const climbed = step.state.floorsCleared - state.floorsCleared;
-  if (client && climbed > 0) await trackRpgObjective(client, guildId, userId, 'TOWER_FLOORS', climbed);
+  // Quêtes de la Tour : étages franchis, monstres et gardiens vaincus, à part de ceux du RPG.
+  if (client) {
+    const climbed = step.state.floorsCleared - state.floorsCleared;
+    const bosses = (step.state.bossKills ?? 0) - (state.bossKills ?? 0);
+    const monsters = step.state.kills - state.kills - bosses;
+    if (climbed > 0) await trackRpgObjective(client, guildId, userId, 'TOWER_FLOORS', climbed);
+    if (monsters > 0) await trackRpgObjective(client, guildId, userId, 'TOWER_MONSTER_KILLS', monsters);
+    if (bosses > 0) await trackRpgObjective(client, guildId, userId, 'TOWER_BOSS_KILLS', bosses);
+  }
 
   const updated: RpgTowerRun = {
     ...run,

@@ -331,6 +331,8 @@ export type TowerState = {
   shards: number;
   floorsCleared: number;
   kills: number;
+  /** Gardiens parmi `kills`. Absent des parties d'avant ce champ. */
+  bossKills?: number;
   notice: TowerNotice | null;
   /** Carte dessinée, `null` en mode aléatoire. */
   map: TowerMapState | null;
@@ -709,6 +711,7 @@ export function createTowerState(input: {
     shards: 0,
     floorsCleared: 0,
     kills: 0,
+    bossKills: 0,
     notice: null,
     map,
     moves: [],
@@ -1131,6 +1134,7 @@ function winEncounter(
   const gold = Math.round(encounterGold(level, encounter.kind, stats.goldPercent, rng) * bounty);
   state.gold += gold;
   state.kills += 1;
+  if (encounter.kind === 'BOSS') state.bossKills = (state.bossKills ?? 0) + 1;
 
   // Épreuve : tant qu'il reste des vagues, la suivante arrive aussitôt, sans butin ni répit.
   const trial = state.trial;

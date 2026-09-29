@@ -5867,6 +5867,8 @@
   "eco_quest_obj_adventures": "aventures résolues",
   "eco_quest_obj_daily": "récompenses quotidiennes",
   "eco_quest_obj_tower_floors": "étages de la Tour gravis",
+  "eco_quest_obj_tower_monsters": "monstres vaincus dans la Tour",
+  "eco_quest_obj_tower_bosses": "gardiens vaincus dans la Tour",
   "eco_quest_modal_create": "Nouvelle quête",
   "eco_quest_modal_edit": "Modifier {name}",
   "eco_quest_enabled_desc": "Une quête inactive n'est plus proposée et cesse de compter.",

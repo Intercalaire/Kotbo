@@ -5867,6 +5867,8 @@
   "eco_quest_obj_adventures": "adventures resolved",
   "eco_quest_obj_daily": "daily rewards",
   "eco_quest_obj_tower_floors": "Tower floors climbed",
+  "eco_quest_obj_tower_monsters": "monsters defeated in the Tower",
+  "eco_quest_obj_tower_bosses": "guardians defeated in the Tower",
   "eco_quest_modal_create": "New quest",
   "eco_quest_modal_edit": "Edit {name}",
   "eco_quest_enabled_desc": "A disabled quest is no longer offered and stops counting.",

@@ -741,6 +741,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     ADVENTURES_COMPLETED: m.eco_quest_obj_adventures,
     DAILY_CLAIMS: m.eco_quest_obj_daily,
     TOWER_FLOORS: m.eco_quest_obj_tower_floors,
+    TOWER_MONSTER_KILLS: m.eco_quest_obj_tower_monsters,
+    TOWER_BOSS_KILLS: m.eco_quest_obj_tower_bosses,
   };
 
   function questObjectiveLabel(objective: string): string {

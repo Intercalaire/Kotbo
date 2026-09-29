@@ -481,6 +481,9 @@ describe('carte de la Tour', () => {
     }
     expect(step.floor).toBe(2);
     expect(step.state.floorsCleared).toBe(1);
+    // Le gardien compte à part des monstres, pour les quêtes de la Tour.
+    expect(step.state.bossKills).toBe(1);
+    expect(step.state.kills).toBeGreaterThan(1);
     expect(step.state.map?.layout.name).toBe('Crypte');
     expect(step.state.map?.pos).toBe('0-0');
     expect(step.state.map?.cleared).toEqual(['0-0']);
