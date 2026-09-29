@@ -5783,6 +5783,7 @@
   "rpg_public_solo_title": "Adventurer leaderboard",
   "rpg_public_solo_empty": "Nobody has started the adventure yet.",
   "rpg_public_solo_line": "lvl {level} · {monsters} monsters · {bosses} bosses",
+  "rpg_public_solo_tower": "best floor {floor}",
   "rpg_public_solo_quests": "Personal quests running",
   "rpg_public_summary": "{engaged} of {total} clan(s) engaged",
   "rpg_public_summary_bosses": "{count} boss(es) down",

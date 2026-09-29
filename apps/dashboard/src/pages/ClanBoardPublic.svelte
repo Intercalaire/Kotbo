@@ -1452,7 +1452,7 @@
                       level: player.level,
                       monsters: player.monstersKilled,
                       bosses: player.bossesKilled,
-                    })}
+                    })}{#if player.towerFloor != null} · {m.rpg_public_solo_tower({ floor: player.towerFloor })}{/if}
                   </span>
                 </div>
               {/each}

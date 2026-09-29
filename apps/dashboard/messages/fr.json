@@ -5783,6 +5783,7 @@
   "rpg_public_solo_title": "Classement des aventuriers",
   "rpg_public_solo_empty": "Personne n'a encore commencé l'aventure.",
   "rpg_public_solo_line": "niv. {level} · {monsters} monstres · {bosses} boss",
+  "rpg_public_solo_tower": "étage max {floor}",
   "rpg_public_solo_quests": "Quêtes personnelles en cours",
   "rpg_public_summary": "{engaged} clan(s) engagé(s) sur {total}",
   "rpg_public_summary_bosses": "{count} boss abattu(s)",
