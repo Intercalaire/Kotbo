@@ -17,7 +17,7 @@ import * as m from '../../../lib/paraglide/messages.js';
 import { CLAN_WIDE_USER_ID } from '../../community/clanPointsFeedPolicy.js';
 import { planNextRaidWindow } from './rpgRaidPolicy.js';
 import { newTowerSeed } from './rpgTowerPolicy.js';
-import { normalizeTowerFloors, readTowerFloors, type TowerLayout } from './rpgTowerMap.js';
+import { normalizeTowerFloors, readTowerFloorsCached, type TowerLayout } from './rpgTowerMap.js';
 import {
   CLAN_TOWER_DEFAULTS,
   clanTowerAwards,
@@ -40,9 +40,12 @@ export class ClanTowerError extends Error {
 }
 
 export async function getClanTowerConfig(guildId: string): Promise<ClanTowerConfigView> {
-  const row = await prisma.rpgClanTowerConfig.findUnique({ where: { guildId } });
+  // Sans les étages : ils ne sont relus que s'ils ont changé depuis la dernière lecture.
+  const row = await prisma.rpgClanTowerConfig.findUnique({ where: { guildId }, omit: { layouts: true } });
   if (!row) return { ...CLAN_TOWER_DEFAULTS, floors: [] };
-  return { ...normalizeClanTowerSettings(row as unknown as Record<string, unknown>), floors: readTowerFloors(row.layouts) };
+  const floors = await readTowerFloorsCached(`clan:${guildId}`, row.floorsUpdatedAt, async () =>
+    (await prisma.rpgClanTowerConfig.findUnique({ where: { guildId }, select: { layouts: true } }))?.layouts ?? []);
+  return { ...normalizeClanTowerSettings(row as unknown as Record<string, unknown>), floors };
 }
 
 export async function saveClanTowerSettings(guildId: string, input: Record<string, unknown>): Promise<ClanTowerConfigView> {
@@ -62,8 +65,8 @@ export async function saveClanTowerSettings(guildId: string, input: Record<strin
 export async function saveClanTowerFloors(guildId: string, input: { floors?: unknown }): Promise<ClanTowerConfigView> {
   const normalized = normalizeTowerFloors(Array.isArray(input.floors) ? input.floors : []);
   if (!normalized.ok) throw new ClanTowerError(normalized.error, 400);
-  const layouts = normalized.value as unknown as Prisma.InputJsonValue;
-  await prisma.rpgClanTowerConfig.upsert({ where: { guildId }, update: { layouts }, create: { guildId, layouts } });
+  const data = { layouts: normalized.value as unknown as Prisma.InputJsonValue, floorsUpdatedAt: new Date() };
+  await prisma.rpgClanTowerConfig.upsert({ where: { guildId }, update: data, create: { guildId, ...data } });
   return getClanTowerConfig(guildId);
 }
 

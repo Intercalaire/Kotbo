@@ -62,9 +62,9 @@
     initialFloors = [],
     foes = [],
     deathMap = {},
-    sizeLimits = { min: 3, max: 12 },
-    roomsMax = 100,
-    floorsMax = 12,
+    sizeLimits = { min: 3, max: 20 },
+    roomsMax = 300,
+    floorsMax = 300,
     growthPercent = 8,
     floorsAfter = 'LOOP',
     onSaved,
@@ -668,7 +668,9 @@
   // L'étage ouvert se lit dans `layout`, les autres dans leur copie.
   const allFloors = $derived(floors.map((floor, index) => (index === current ? layout : floor)));
   const towerEmpty = $derived(allFloors.length === 1 && allFloors[0].rooms.length === 0);
-  const invalidFloors = $derived(towerEmpty ? 0 : allFloors.filter((floor) => !floorValid(floor)).length);
+  // Validité de chaque carte, calculée une fois : la colonne en affiche des centaines.
+  const validity = $derived(allFloors.map((floor) => towerEmpty || floorValid(floor)));
+  const invalidFloors = $derived(validity.filter((valid) => !valid).length);
   // Du sommet au rez-de-chaussée, comme on lit une tour.
   const stack = $derived(allFloors.map((floor, index) => ({ floor, index })).reverse());
 
@@ -702,6 +704,38 @@
     }));
   });
   const floorCount = $derived(floorTags.length > 0 ? floorTags[floorTags.length - 1].floor : 0);
+
+  // Au-delà, la colonne passe en lignes compactes, sans vignette : des centaines de cartes restent lisibles.
+  const COMPACT_FROM = 30;
+  const compact = $derived(floors.length > COMPACT_FROM);
+  let stackList = $state<HTMLDivElement | null>(null);
+  let jumpTo = $state<number | null>(null);
+
+  // La carte ouverte reste visible dans la colonne, même au bout d'une longue tour.
+  // Seule la colonne défile : `scrollIntoView` ferait aussi bouger la page à l'ouverture.
+  $effect(() => {
+    const list = stackList;
+    const row = list?.querySelector<HTMLElement>(`[data-index="${current}"]`);
+    if (!list || !row) return;
+    const top = row.offsetTop - list.offsetTop;
+    if (top < list.scrollTop) list.scrollTop = top;
+    else if (top + row.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = top + row.offsetHeight - list.clientHeight;
+  });
+
+  /** Ouvre la première carte de l'étage `floor` (variante A s'il en a plusieurs). */
+  function jumpToFloor() {
+    const target = Number(jumpTo);
+    if (!Number.isInteger(target) || target < 1) return;
+    const index = floorTags.findIndex((tag) => tag.floor === target);
+    selectFloor(index >= 0 ? index : floors.length - 1);
+  }
+
+  /** Ouvre la prochaine carte à corriger après celle ouverte, en reprenant au début. */
+  function nextInvalid() {
+    const order = [...validity.keys()].map((offset) => (current + 1 + offset) % validity.length);
+    const index = order.find((candidate) => !validity[candidate]);
+    if (index !== undefined) selectFloor(index);
+  }
 
   function floorTitle(index: number): string {
     const tag = floorTags[index];
@@ -1393,32 +1427,61 @@
               <Papicon icon="Plus" size={11} /> {m.eco_tower_floor_add()}
             </button>
           {/if}
-          {#each stack as entry (entry.index)}
-            {@const valid = towerEmpty || floorValid(entry.floor)}
-            <button type="button" onclick={() => selectFloor(entry.index)}
-              title={valid ? '' : m.eco_tower_floor_invalid()}
-              class="w-full text-left rounded-md px-2.5 py-2 border transition-all {entry.index === current ? 'border-primary bg-primary/15' : 'border-outline-variant/15 bg-surface-container-high/40 hover:border-outline-variant/40'}">
-              <span class="flex items-center justify-between gap-2">
-                <span class="text-2xs font-mono text-on-surface-variant/60">{floorTitle(entry.index)}{#if floorTags[entry.index]?.variant} · {floorTags[entry.index].chance} %{/if}</span>
-                {#if !valid}<span class="text-warning flex"><Papicon icon="AlertTriangle" size={11} /></span>{/if}
-              </span>
-              <span class="flex items-center gap-2">
-                <!-- Vignette de l'étage, pour le reconnaître d'un coup d'œil. -->
-                <svg viewBox="0 0 {entry.floor.width} {entry.floor.height}" class="w-10 h-10 shrink-0 rounded bg-surface-container-low" aria-hidden="true">
-                  {#each entry.floor.rooms as room}
-                    <rect x={room.x + 0.1} y={room.y + 0.1} width={(room.type === 'BOSS' ? 2 : 1) - 0.2} height={(room.type === 'BOSS' ? 2 : 1) - 0.2} rx="0.2" fill={COLOR[room.type]} fill-opacity="0.85" />
-                  {/each}
-                </svg>
-                <span class="min-w-0">
-                  <span class="block text-xs font-semibold truncate">{entry.floor.name || '—'}</span>
-                  <span class="block text-2xs text-on-surface-variant/50">{m.eco_tower_map_summary({ rooms: entry.floor.rooms.length, max: roomsMax })}</span>
-                </span>
-              </span>
-            </button>
-          {/each}
+          <div bind:this={stackList} class="max-h-[60vh] overflow-y-auto space-y-1.5 pr-0.5">
+            {#each stack as entry (entry.index)}
+              {@const valid = validity[entry.index] ?? true}
+              {#if compact}
+                <!-- Longue tour : une ligne par carte, sans vignette. -->
+                <button type="button" data-index={entry.index} onclick={() => selectFloor(entry.index)}
+                  title={valid ? '' : m.eco_tower_floor_invalid()}
+                  class="w-full text-left rounded-md px-2 py-1 border transition-all flex items-center gap-2 {entry.index === current ? 'border-primary bg-primary/15' : 'border-outline-variant/15 bg-surface-container-high/40 hover:border-outline-variant/40'}">
+                  <span class="text-2xs font-mono text-on-surface-variant/60 shrink-0">{floorTitle(entry.index)}</span>
+                  <span class="text-2xs font-semibold truncate flex-1">{entry.floor.name || '—'}</span>
+                  {#if floorTags[entry.index]?.variant}<span class="text-2xs text-on-surface-variant/50 shrink-0">{floorTags[entry.index].chance} %</span>{/if}
+                  {#if !valid}<span class="text-warning flex shrink-0"><Papicon icon="AlertTriangle" size={11} /></span>{/if}
+                </button>
+              {:else}
+                <button type="button" data-index={entry.index} onclick={() => selectFloor(entry.index)}
+                  title={valid ? '' : m.eco_tower_floor_invalid()}
+                  class="w-full text-left rounded-md px-2.5 py-2 border transition-all {entry.index === current ? 'border-primary bg-primary/15' : 'border-outline-variant/15 bg-surface-container-high/40 hover:border-outline-variant/40'}">
+                  <span class="flex items-center justify-between gap-2">
+                    <span class="text-2xs font-mono text-on-surface-variant/60">{floorTitle(entry.index)}{#if floorTags[entry.index]?.variant} · {floorTags[entry.index].chance} %{/if}</span>
+                    {#if !valid}<span class="text-warning flex"><Papicon icon="AlertTriangle" size={11} /></span>{/if}
+                  </span>
+                  <span class="flex items-center gap-2">
+                    <!-- Vignette de l'étage, pour le reconnaître d'un coup d'œil. -->
+                    <svg viewBox="0 0 {entry.floor.width} {entry.floor.height}" class="w-10 h-10 shrink-0 rounded bg-surface-container-low" aria-hidden="true">
+                      {#each entry.floor.rooms as room}
+                        <rect x={room.x + 0.1} y={room.y + 0.1} width={(room.type === 'BOSS' ? 2 : 1) - 0.2} height={(room.type === 'BOSS' ? 2 : 1) - 0.2} rx="0.2" fill={COLOR[room.type]} fill-opacity="0.85" />
+                      {/each}
+                    </svg>
+                    <span class="min-w-0">
+                      <span class="block text-xs font-semibold truncate">{entry.floor.name || '—'}</span>
+                      <span class="block text-2xs text-on-surface-variant/50">{m.eco_tower_map_summary({ rooms: entry.floor.rooms.length, max: roomsMax })}</span>
+                    </span>
+                  </span>
+                </button>
+              {/if}
+            {/each}
+          </div>
         </div>
         <div class="h-2 mx-[-6px] rounded-sm bg-outline-variant/35" aria-hidden="true"></div>
       </div>
+      <p class="text-2xs text-on-surface-variant/60">{m.eco_tower_floors_count({ cards: floors.length, floors: floorCount, max: floorsMax })}</p>
+      {#if floors.length > 1}
+        <div class="flex items-center gap-1.5">
+          <input type="number" min="1" max={floorCount} bind:value={jumpTo} placeholder={m.eco_tower_floor_jump_placeholder()} aria-label={m.eco_tower_floor_jump()}
+            onkeydown={(event) => { if (event.key === 'Enter') jumpToFloor(); }}
+            class="w-20 bg-surface-container-high/40 border border-outline-variant/10 rounded-md px-2 py-1 text-2xs focus:outline-none" />
+          <button type="button" onclick={jumpToFloor} class="px-2 py-1 rounded-md bg-outline-variant/10 hover:bg-outline-variant/25 text-2xs font-bold">{m.eco_tower_floor_jump()}</button>
+          {#if invalidFloors > 0}
+            <button type="button" onclick={nextInvalid} title={m.eco_tower_floor_next_invalid()} aria-label={m.eco_tower_floor_next_invalid()}
+              class="ml-auto px-2 py-1 rounded-md bg-warning/10 hover:bg-warning/20 text-warning text-2xs font-bold flex items-center gap-1">
+              <Papicon icon="AlertTriangle" size={11} /> {invalidFloors}
+            </button>
+          {/if}
+        </div>
+      {/if}
       <p class="text-2xs text-on-surface-variant/50 leading-relaxed">
         {floorsAfter === 'GENERATE' ? m.eco_tower_floors_after_generate_note() : m.eco_tower_floors_after_loop_note()}
       </p>

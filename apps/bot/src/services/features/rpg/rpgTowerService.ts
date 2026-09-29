@@ -94,6 +94,7 @@ import {
   floorLayout,
   normalizeTowerFloors,
   normalizeTowerLayout,
+  readTowerFloorsCached,
   roomNeighbors,
   startRoom,
   towerCardTags,
@@ -196,7 +197,8 @@ async function withTitleNames(rewards: RpgTowerReward[]): Promise<TowerRewardVie
 // ─────────────────────────────────────────────────────────────
 
 export async function getTowerConfig(guildId: string): Promise<TowerConfigView> {
-  const row = await prisma.rpgTowerConfig.findUnique({ where: { guildId } });
+  // Sans les étages : ils ne sont relus que s'ils ont changé, voir `readFloors`.
+  const row = await prisma.rpgTowerConfig.findUnique({ where: { guildId }, omit: { layouts: true, layout: true } });
   if (!row) return { ...TOWER_DEFAULTS, seasonStartedAt: new Date(0), floors: [], fountainGold: 0 };
   const normalized = normalizeTowerSettings(row as unknown as Record<string, unknown>);
   const settings = normalized.ok ? normalized.value : TOWER_DEFAULTS;
@@ -204,7 +206,7 @@ export async function getTowerConfig(guildId: string): Promise<TowerConfigView> 
     ...settings,
     enabled: row.enabled,
     seasonStartedAt: row.seasonStartedAt,
-    floors: readFloors(row.layouts, row.layout),
+    floors: await readFloors(guildId, row.floorsUpdatedAt),
     fountainGold: row.fountainGold,
   };
 }
@@ -213,12 +215,12 @@ export async function getTowerConfig(guildId: string): Promise<TowerConfigView> 
  * Étages enregistrés. Un étage qui ne passe plus la validation est écarté plutôt que de
  * fermer toute la tour ; l'ancienne carte unique, d'avant les étages, sert de premier étage.
  */
-function readFloors(layouts: Prisma.JsonValue, legacy: Prisma.JsonValue | null): TowerLayout[] {
-  const source = Array.isArray(layouts) && layouts.length > 0 ? layouts : legacy ? [legacy] : [];
-  return source
-    .map((entry) => normalizeTowerLayout(entry))
-    .filter((result): result is { ok: true; value: TowerLayout } => result.ok)
-    .map((result) => result.value);
+function readFloors(guildId: string, updatedAt: Date): Promise<TowerLayout[]> {
+  return readTowerFloorsCached(`tower:${guildId}`, updatedAt, async () => {
+    const row = await prisma.rpgTowerConfig.findUnique({ where: { guildId }, select: { layouts: true, layout: true } });
+    if (!row) return [];
+    return Array.isArray(row.layouts) && row.layouts.length > 0 ? row.layouts : row.layout ? [row.layout] : [];
+  });
 }
 
 
@@ -1492,6 +1494,7 @@ export async function saveTowerFloors(guildId: string, input: { floors?: unknown
     layouts: normalized.value as unknown as Prisma.InputJsonValue,
     // L'ancienne carte unique ne sert plus qu'à relire les tours d'avant les étages.
     layout: Prisma.DbNull,
+    floorsUpdatedAt: new Date(),
   };
   await prisma.rpgTowerConfig.upsert({ where: { guildId }, update: data, create: { guildId, ...data } });
   return getTowerConfig(guildId);
