@@ -56,7 +56,7 @@ async function towerFloors(guildId: string, userIds: string[]): Promise<Map<stri
 }
 
 function towerSuffix(floors: Map<string, number> | null, userId: string): string {
-  return floors ? ` | 🗼 étage ${floors.get(userId) ?? 0}` : '';
+  return floors ? ` | étage max ${floors.get(userId) ?? 0}` : '';
 }
 
 function medal(index: number): string {
