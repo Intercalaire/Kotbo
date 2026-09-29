@@ -1130,6 +1130,9 @@ export async function buyTowerReward(client: Client | null, guildId: string, use
   if (!reward || reward.guildId !== guildId || reward.kind !== 'SHOP' || !reward.enabled) {
     throw new TowerRefused({ kind: 'unavailable' });
   }
+  // Ce que la récompense donne doit encore exister avant de débiter : un objet retiré du
+  // catalogue, un titre ou un rôle supprimé faisaient payer le joueur pour rien.
+  if (!(await rewardStillGrantable(client, guildId, reward))) throw new TowerRefused({ kind: 'unavailable' });
   const profile = await getOrCreateTowerProfile(guildId, userId);
 
   await prisma.$transaction(async (tx) => {
@@ -1148,6 +1151,14 @@ export async function buyTowerReward(client: Client | null, guildId: string, use
 
   await grantRewardToPlayer(client, guildId, userId, reward, `Tour : achat de ${reward.name}`);
   return reward;
+}
+
+/** Objet, titre et rôle de la récompense sont-ils toujours là ? */
+async function rewardStillGrantable(client: Client | null, guildId: string, reward: RpgTowerReward): Promise<boolean> {
+  if (reward.itemName && !(await findGuildItem(prisma, guildId, reward.itemName))) return false;
+  if (reward.titleId && !(await assertGuildTitle(guildId, reward.titleId).then(() => true, () => false))) return false;
+  if (reward.roleId && client && !(await assertFirstKillRole(client, guildId, reward.roleId).then(() => true, () => false))) return false;
+  return true;
 }
 
 export async function buyTowerUpgrade(guildId: string, userId: string, id: string): Promise<{ upgrade: TowerUpgradeDef; level: number }> {
