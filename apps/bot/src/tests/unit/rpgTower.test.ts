@@ -814,6 +814,14 @@ describe('profondeur de la Tour', () => {
     expect(towerDailySeed('123', day)).toBe(towerDailySeed('123', day));
     expect(towerDailySeed('123', day)).not.toBe(towerDailySeed('123', '2026-09-29'));
   });
+
+  test('l\'ascension du jour change à minuit dans le fuseau du serveur', () => {
+    const lateEvening = new Date('2026-09-28T23:30:00Z');
+    expect(towerDayKey(lateEvening)).toBe('2026-09-28');
+    expect(towerDayKey(lateEvening, 'Europe/Paris')).toBe('2026-09-29');
+    // Un fuseau inconnu ne casse rien : on retombe sur UTC.
+    expect(towerDayKey(lateEvening, 'Pas/Un_Fuseau')).toBe('2026-09-28');
+  });
 });
 
 describe('difficulté d\'une grande carte', () => {

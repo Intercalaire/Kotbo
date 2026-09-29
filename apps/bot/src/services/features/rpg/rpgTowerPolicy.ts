@@ -285,9 +285,16 @@ export function newTowerSeed(): number {
   return Math.floor(Math.random() * 0x7fffffff);
 }
 
-/** Jour de l'ascension du jour, en UTC : « 2026-09-28 ». */
-export function towerDayKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
+/**
+ * Jour de l'ascension du jour, « 2026-09-28 », dans le fuseau du serveur : elle change à
+ * minuit pour ses joueurs, comme la Tour de clan, et non à minuit UTC.
+ */
+export function towerDayKey(date: Date, timeZone = 'UTC'): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+  } catch {
+    return date.toISOString().slice(0, 10);
+  }
 }
 
 /** Graine de l'ascension du jour, la même pour tout le serveur pendant la journée (FNV-1a). */

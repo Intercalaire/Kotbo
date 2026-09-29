@@ -12,6 +12,7 @@ import { Prisma, type RpgTowerReward, type RpgTowerRun } from '@prisma/client';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { resolveGuildLocale } from '../../../utils/i18n.js';
+import { resolveGuildTimezone } from '../../../utils/timezone.js';
 import * as m from '../../../lib/paraglide/messages.js';
 import { checkLevelUp, getOrCreateEconomyConfig, getOrCreateRpgProfile } from '../economyService.js';
 import { loadAvailableSkills, loadEffectiveStats, seedDefaultMonsters } from '../combatService.js';
@@ -451,7 +452,7 @@ export async function startTowerRun(
   ]);
   if (!clanRun && daily && !settings.dailyEnabled) throw new TowerRefused({ kind: 'daily_disabled' });
 
-  const dayKey = clanEntry ? clanEntry.attemptKey : towerDayKey(new Date());
+  const dayKey = clanEntry ? clanEntry.attemptKey : await currentTowerDay(guildId);
   const seed = clanEntry ? clanEntry.event.seed : daily ? towerDailySeed(guildId, dayKey) : newTowerSeed();
   const skills = pickTowerSkills(preview.skills, options.skillMask ?? 0);
   const skillCost = skills.reduce((sum, skill) => sum + towerSkillPrice(settings.skillPrice, skill), 0);
@@ -1172,10 +1173,15 @@ export async function getTowerLeaderboard(guildId: string, limit = 10) {
   });
 }
 
+/** Jour en cours de l'ascension du jour, dans le fuseau du serveur. */
+export async function currentTowerDay(guildId: string, now = new Date()): Promise<string> {
+  return towerDayKey(now, await resolveGuildTimezone(guildId));
+}
+
 /** Classement de l'ascension du jour : étages, puis salles explorées, puis le plus tôt fini. */
-export async function getTowerDailyLeaderboard(guildId: string, dayKey = towerDayKey(new Date()), limit = 10) {
+export async function getTowerDailyLeaderboard(guildId: string, dayKey?: string, limit = 10) {
   return prisma.rpgTowerRun.findMany({
-    where: { guildId, mode: 'DAILY', dailyKey: dayKey, status: { not: 'ACTIVE' } },
+    where: { guildId, mode: 'DAILY', dailyKey: dayKey ?? await currentTowerDay(guildId), status: { not: 'ACTIVE' } },
     orderBy: [{ floorsCleared: 'desc' }, { roomsExplored: 'desc' }, { endedAt: 'asc' }],
     take: limit,
     select: { userId: true, floorsCleared: true, roomsExplored: true, status: true, endedAt: true },
@@ -1183,8 +1189,9 @@ export async function getTowerDailyLeaderboard(guildId: string, dayKey = towerDa
 }
 
 /** Le joueur a-t-il déjà joué l'ascension du jour ? */
-export async function hasPlayedDaily(guildId: string, userId: string, dayKey = towerDayKey(new Date())): Promise<boolean> {
-  return (await prisma.rpgTowerRun.count({ where: { guildId, userId, mode: 'DAILY', dailyKey: dayKey } })) > 0;
+export async function hasPlayedDaily(guildId: string, userId: string, dayKey?: string): Promise<boolean> {
+  const key = dayKey ?? await currentTowerDay(guildId);
+  return (await prisma.rpgTowerRun.count({ where: { guildId, userId, mode: 'DAILY', dailyKey: key } })) > 0;
 }
 
 /**
@@ -1466,7 +1473,7 @@ export async function getTowerDashboard(guildId: string) {
     stats: { players, runs, activeRuns, bestFloor: leaderboard[0]?.bestFloor ?? 0 },
     insights,
     leaderboard,
-    daily: { dayKey: towerDayKey(new Date()), leaderboard: daily },
+    daily: { dayKey: await currentTowerDay(guildId), leaderboard: daily },
     limits: { rewardsMax: TOWER_REWARDS_PER_GUILD_MAX, mapSize: TOWER_MAP_SIZE, mapRoomsMax: TOWER_MAP_ROOMS_MAX, floorsMax: TOWER_FLOORS_MAX },
   };
 }

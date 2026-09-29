@@ -10,6 +10,7 @@ import {
   adjustTowerShards,
   deleteTowerReward,
   getTowerConfig,
+  currentTowerDay,
   getTowerDailyLeaderboard,
   getTowerDashboard,
   getTowerPlayerSummary,
@@ -244,7 +245,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
     server.registerTool(
       'get_rpg_tower_daily',
       {
-        description: "Classement de l'ascension du jour de la Tour (même tour pour tous, stats égales, une tentative par joueur et par jour) : étages gravis, salles explorées, issue. `day` au format AAAA-MM-JJ (UTC), aujourd'hui par défaut.",
+        description: "Classement de l'ascension du jour de la Tour (même tour pour tous, stats égales, une tentative par joueur et par jour) : étages gravis, salles explorées, issue. `day` au format AAAA-MM-JJ, dans le fuseau du serveur, aujourd'hui par défaut.",
         inputSchema: {
           day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
           limit: z.number().int().min(1).max(50).optional(),
@@ -252,8 +253,9 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
         _meta: toolMeta,
       },
       guard('READ_ECONOMY', async ({ day, limit }) => {
-        const leaderboard = await getTowerDailyLeaderboard(guildId, day, limit ?? 10);
-        return ok({ day: day ?? new Date().toISOString().slice(0, 10), leaderboard });
+        const dayKey = day ?? await currentTowerDay(guildId);
+        const leaderboard = await getTowerDailyLeaderboard(guildId, dayKey, limit ?? 10);
+        return ok({ day: dayKey, leaderboard });
       })
     );
   }
