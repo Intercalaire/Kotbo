@@ -74,7 +74,7 @@ import {
   visibleRooms,
   type TowerLayout,
 } from '../../services/features/rpg/rpgTowerMap.js';
-import { MIST_LIFT_STEPS } from '../../services/features/rpg/rpgTowerContent.js';
+import { MIST_LIFT_ROOMS } from '../../services/features/rpg/rpgTowerContent.js';
 import { floorSeed, generateTowerLayout, towerFloorLayout } from '../../services/features/rpg/rpgTowerGen.js';
 import { renderTowerImage } from '../../services/features/rpg/rpgTowerRender.js';
 import { gaugeNumber } from '../../services/features/rpg/rpgIcons.js';
@@ -1003,14 +1003,20 @@ describe('profondeur de la Tour', () => {
       expect(walk(state, '1-0').burned).toBeGreaterThan(0);
     });
 
-    test('la brume se lève au bout de quelques pas', () => {
+    test('la brume se lève après assez de salles explorées, pas en faisant des allers-retours', () => {
       let state = createTowerState({ base: STRONG, skills: [], potions: 1, seed: 3, rules: RULES, layout: corridor('MIST') });
-      let lifted = 0;
-      for (let i = 1; i <= 10; i++) {
-        state = walk(state, state.map!.pos === '0-0' ? '1-0' : '0-0');
-        if (state.weather === 'mist_lifted') lifted = i;
+      // Vingt allers-retours entre deux salles : une seule salle explorée, la brume reste.
+      for (let i = 0; i < 20; i++) state = walk(state, state.map!.pos === '0-0' ? '1-0' : '0-0');
+      expect(state.map!.layout.modifier).toBe('MIST');
+      // Puis on avance vraiment : huit salles nouvelles, et elle se lève au pas suivant.
+      state = walk(state, '1-0');
+      for (const id of ['2-0', '3-0', '4-0', '5-0', '6-0', '6-1', '5-1']) {
+        state = walk(state, id);
+        expect(state.map!.layout.modifier).toBe('MIST');
       }
-      expect(lifted).toBe(MIST_LIFT_STEPS);
+      expect(state.map!.cleared.length - 1).toBe(MIST_LIFT_ROOMS);
+      state = walk(state, '4-1');
+      expect(state.weather).toBe('mist_lifted');
       expect(state.map!.layout.modifier).toBe('NONE');
       expect(state.map!.mistLifted).toBe(true);
     });

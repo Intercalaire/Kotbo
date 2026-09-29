@@ -3003,7 +3003,7 @@
   "tower_modifier_flooded": "Flooded floor",
   "tower_modifier_flooded_desc": "the water slows you down (speed -20%)",
   "tower_modifier_mist": "Misty floor",
-  "tower_modifier_mist_desc": "the mist hides the floor, but chests give more gold (+25%); it lifts after 8 steps",
+  "tower_modifier_mist_desc": "the mist hides the floor, but chests give more gold (+25%); it lifts after 8 rooms explored",
   "tower_modifier_frost": "Frozen floor",
   "tower_modifier_frost_desc": "the first hit of each fight is softened, yours and the monster's (-50%)",
   "tower_modifier_moonless": "Moonless night",

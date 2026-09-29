@@ -11362,7 +11362,7 @@
   "eco_tower_modifier_burning": "En feu (se propage d'une salle à chaque pas, 3 % des PV par salle en feu)",
   "eco_tower_modifier_flooded": "Inondé (vitesse -20 %)",
   "eco_tower_modifier_frost": "Gelé (premier coup de chaque combat -50 %, des deux côtés)",
-  "eco_tower_modifier_mist": "Brume (brouillard forcé, coffres +25 % d'or, se lève au bout de 8 pas)",
+  "eco_tower_modifier_mist": "Brume (brouillard forcé, coffres +25 % d'or, se lève après 8 salles explorées)",
   "eco_tower_modifier_moonless": "Nuit sans lune (errants deux fois plus rapides, embuscades +50 %)",
   "eco_tower_modifier_none": "Aucune",
   "eco_tower_modifier_tip": "Ambiance de l'étage : elle change la façon de le parcourir sans ajouter de salle.",

@@ -3003,7 +3003,7 @@
   "tower_modifier_flooded": "Étage inondé",
   "tower_modifier_flooded_desc": "l'eau vous ralentit (vitesse -20 %)",
   "tower_modifier_mist": "Étage dans la brume",
-  "tower_modifier_mist_desc": "la brume cache l'étage, mais les coffres rapportent plus d'or (+25 %) ; elle se lève au bout de 8 pas",
+  "tower_modifier_mist_desc": "la brume cache l'étage, mais les coffres rapportent plus d'or (+25 %) ; elle se lève après 8 salles explorées",
   "tower_modifier_frost": "Étage gelé",
   "tower_modifier_frost_desc": "le premier coup de chaque combat est amorti, le vôtre comme celui du monstre (-50 %)",
   "tower_modifier_moonless": "Nuit sans lune",

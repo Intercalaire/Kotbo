@@ -20,7 +20,7 @@ import {
   BURN_DAMAGE,
   FIRE_START_DISTANCE,
   FROST_FIRST_HIT,
-  MIST_LIFT_STEPS,
+  MIST_LIFT_ROOMS,
   MIST_CHEST_GOLD,
   MOONLESS_AMBUSH_BOUNTY,
   MOONLESS_WANDERER_STEPS,
@@ -700,13 +700,18 @@ function prepareFloor(map: TowerMapState, rng: TowerRng): void {
 
 /**
  * Le temps de l'étage change à chaque pas du joueur : le feu gagne une salle voisine, la brume
- * finit par se lever. Ni la salle du joueur ni celle où il va ne s'embrasent sous ses pieds, ni
- * une entrée : il reste toujours un endroit sûr.
+ * se lève au premier pas après la dernière salle explorée qu'il lui fallait. Ni la salle du
+ * joueur ni celle où il va ne s'embrasent sous ses pieds, ni une entrée : il reste toujours un
+ * endroit sûr.
  */
 function weatherStep(state: TowerState, target: string, rng: TowerRng): void {
   const map = state.map;
   if (!map) return;
-  if (map.layout.modifier === 'MIST' && (map.steps ?? 0) >= MIST_LIFT_STEPS) {
+  const explored = map.cleared.filter((id) => {
+    const room = map.layout.rooms.find((candidate) => candidate.id === id);
+    return room !== undefined && !isEntryRoom(room.type);
+  }).length;
+  if (map.layout.modifier === 'MIST' && explored >= MIST_LIFT_ROOMS) {
     map.layout.modifier = 'NONE';
     map.mistLifted = true;
     state.weather = 'mist_lifted';

@@ -181,8 +181,12 @@ export const BURN_DAMAGE = 0.03;
 export const BLESSED_HEAL = 1.25;
 /** Étage dans la brume : le brouillard est forcé, mais les coffres rapportent plus d'or. */
 export const MIST_CHEST_GOLD = 1.25;
-/** Pas sur l'étage au bout desquels la brume se lève, avec son brouillard et son bonus. */
-export const MIST_LIFT_STEPS = 8;
+/**
+ * Salles explorées sur l'étage (résolues, entrées non comprises) au bout desquelles la brume
+ * se lève, avec son brouillard et son bonus. Des salles, pas des pas : faire des allers-retours
+ * ne la lève pas.
+ */
+export const MIST_LIFT_ROOMS = 8;
 /** Étage en feu : le feu part d'une salle à au moins cette distance de l'entrée. */
 export const FIRE_START_DISTANCE = 3;
 /** Étage gelé : le premier coup de chaque combat, d'un côté comme de l'autre, est amorti. */
