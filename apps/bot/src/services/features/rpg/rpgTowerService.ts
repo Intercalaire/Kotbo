@@ -87,6 +87,7 @@ import {
 } from './rpgTowerPolicy.js';
 import {
   TOWER_FLOORS_MAX,
+  TOWER_HIDDEN_ROOMS,
   TOWER_MAP_ROOMS_MAX,
   TOWER_MAP_SIZE,
   entryRooms,
@@ -101,6 +102,7 @@ import {
   towerFloorLabel,
   towerLayoutKey,
   visibleRooms,
+  type TowerHiddenRoom,
   type TowerLayout,
 } from './rpgTowerMap.js';
 import { heatsFromMask } from './rpgTowerContent.js';
@@ -536,7 +538,12 @@ async function loadRunForAction(client: Client | null, guildId: string, userId: 
   return { kind: 'active', active };
 }
 
-export type TowerActResult = { active: ActiveTowerRun | null; settlement: TowerSettlement | null };
+export type TowerActResult = {
+  active: ActiveTowerRun | null;
+  settlement: TowerSettlement | null;
+  /** Salles piégées que le joueur vient de rencontrer pour la première fois. */
+  discovered?: TowerHiddenRoom[];
+};
 
 export async function actTowerRun(
   client: Client | null,
@@ -618,6 +625,15 @@ export async function actTowerRun(
     if (bosses > 0) await trackRpgObjective(client, guildId, userId, 'TOWER_BOSS_KILLS', bosses);
   }
 
+  // Guide des salles : une salle piégée rencontrée y est dévoilée pour de bon.
+  const met = hiddenRoomsMet(state, step.state);
+  const discovered = met.length > 0
+    ? await recordDiscoveries(run.profileId, met).catch((err) => {
+      logger.warn('RpgTower', `Découverte de salle non enregistrée pour ${userId} :`, err);
+      return [];
+    })
+    : [];
+
   const updated: RpgTowerRun = {
     ...run,
     state: step.state as unknown as Prisma.JsonValue,
@@ -629,9 +645,38 @@ export async function actTowerRun(
 
   if (step.dead) {
     const settlement = await settleRun(client, updated, step.state, 'DEAD', settings, false);
-    return { active: null, settlement };
+    return { active: null, settlement, discovered };
   }
-  return { active: { run: updated, state: step.state }, settlement: null };
+  return { active: { run: updated, state: step.state }, settlement: null, discovered };
+}
+
+/** Salles piégées sur lesquelles l'action vient de faire tomber le joueur. */
+function hiddenRoomsMet(before: TowerState, after: TowerState): TowerHiddenRoom[] {
+  const met: TowerHiddenRoom[] = [];
+  if (after.encounter?.mimic && !before.encounter?.mimic) met.push('MIMIC');
+  if (after.notice?.k === 'ambush') met.push('AMBUSH');
+  if (after.notice?.k === 'wanderer') met.push('WANDERER');
+  return met;
+}
+
+/** Inscrit les salles piégées rencontrées ; renvoie celles qui étaient encore inconnues. */
+async function recordDiscoveries(profileId: string, met: readonly TowerHiddenRoom[]): Promise<TowerHiddenRoom[]> {
+  const profile = await prisma.rpgTowerProfile.findUnique({ where: { id: profileId }, select: { discoveredRooms: true } });
+  const known = new Set(profile?.discoveredRooms ?? []);
+  const fresh = met.filter((room) => !known.has(room));
+  if (fresh.length > 0) {
+    await prisma.rpgTowerProfile.update({ where: { id: profileId }, data: { discoveredRooms: { push: fresh } } });
+  }
+  return fresh;
+}
+
+/** Salles piégées déjà rencontrées par le joueur, pour son guide des salles. */
+export async function getTowerDiscoveries(guildId: string, userId: string): Promise<TowerHiddenRoom[]> {
+  const profile = await prisma.rpgTowerProfile.findUnique({
+    where: { guildId_userId: { guildId, userId } },
+    select: { discoveredRooms: true },
+  });
+  return (profile?.discoveredRooms ?? []).filter((room): room is TowerHiddenRoom => (TOWER_HIDDEN_ROOMS as readonly string[]).includes(room));
 }
 
 /** Quitter la Tour garde tous les éclats. Impossible en plein combat : on ne fuit pas un étage. */

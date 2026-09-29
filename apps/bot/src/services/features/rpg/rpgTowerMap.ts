@@ -48,6 +48,13 @@ export function isWarpRoom(type: TowerRoomType): boolean {
   return type === 'WARP_A' || type === 'WARP_B';
 }
 
+/**
+ * Salles piégées : elles se font passer pour autre chose (coffre, couloir). Le guide des salles
+ * ne les dévoile qu'au joueur qui est tombé dessus.
+ */
+export const TOWER_HIDDEN_ROOMS = ['MIMIC', 'AMBUSH', 'WANDERER'] as const;
+export type TowerHiddenRoom = (typeof TOWER_HIDDEN_ROOMS)[number];
+
 /** Salles qui peuvent porter une clé de l'escalier scellé. */
 export function canHoldKey(type: TowerRoomType): boolean {
   return type === 'ELITE' || type === 'CHEST' || type === 'TRIAL';
