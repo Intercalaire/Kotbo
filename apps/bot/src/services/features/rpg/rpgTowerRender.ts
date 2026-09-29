@@ -1675,9 +1675,7 @@ function drawClearedTrace(ctx: SKRSContext2D, type: TowerRoomType, cx: number, c
     case 'TRIAL':
     case 'PRISONER':
     case 'SEAL':
-    case 'BOSS':
-    case 'COLLAPSE':
-    case 'TOLL': {
+    case 'BOSS': {
       // Trois griffures, et un os tombé là.
       ctx.strokeStyle = withAlpha(color, 0.55);
       ctx.lineWidth = Math.max(2, s * 0.14);
