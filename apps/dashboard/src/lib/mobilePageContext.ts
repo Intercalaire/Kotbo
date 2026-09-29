@@ -73,7 +73,6 @@ const PAGE_RULES: PageRule[] = [
       '/admin/servers',
       '/admin/shards',
       '/admin/content',
-      '/admin/modules',
       '/admin/activation',
     ],
   },

@@ -246,6 +246,11 @@
     router.goto(path);
   }
 
+  /** Redirection d'une ancienne adresse : remplace l'entrée d'historique, « Précédent » n'y revient pas. */
+  function redirectTo(node: HTMLElement, path: string) {
+    router.goto(path, true);
+  }
+
   /**
    * Une guilde qu'on n'arrive pas a resoudre ne vaut pas autorisation. Le repli
    * sur "admin" ouvrait les routes de configuration des que le serveur
@@ -786,10 +791,10 @@
                 path="/admin/activation"
                 load={() => import("./pages/admin/Activation.svelte")}
               />
-              <LazyRoute
-                path="/admin/modules"
-                load={() => import("./pages/admin/Modules.svelte")}
-              />
+              <!-- Ancienne page des modules : devenue l'onglet Modules d'Analytics. -->
+              <Route path="/admin/modules">
+                <div use:redirectTo={"/admin/analytics?tab=modules"}></div>
+              </Route>
               <LazyRoute
                 path="/admin/billing"
                 load={() => import("./pages/admin/Billing.svelte")}

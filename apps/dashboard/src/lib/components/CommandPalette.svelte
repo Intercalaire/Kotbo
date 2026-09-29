@@ -95,7 +95,9 @@
       items.push({ id: 'admin-overview', label: "Console d'administration", sublabel: 'Admin · Vue d\'ensemble', icon: 'activity', group: 'Administration', action: () => router.goto('/admin') });
       items.push({ id: 'admin-servers',  label: 'Serveurs', sublabel: 'Admin · Liste des serveurs', icon: 'Server', group: 'Administration', action: () => router.goto('/admin/servers') });
       items.push({ id: 'admin-shards',   label: 'Shards', sublabel: 'Admin · Status des fragments', icon: 'Zap', group: 'Administration', action: () => router.goto('/admin/shards') });
-      items.push({ id: 'admin-modules',  label: 'Modules système', sublabel: 'Admin · Supervision', icon: 'Box', group: 'Administration', action: () => router.goto('/admin/modules') });
+      items.push({ id: 'admin-analytics', label: 'Analytics', sublabel: 'Admin · Acquisition, revenus, rétention', icon: 'TrendingUp', group: 'Administration', action: () => router.goto('/admin/analytics') });
+      items.push({ id: 'admin-dashboard-usage', label: 'Usage du dashboard', sublabel: 'Admin · Pages et modules consultés', icon: 'Eye', group: 'Administration', action: () => router.goto('/admin/analytics?tab=usage') });
+      items.push({ id: 'admin-modules',  label: 'Modules système', sublabel: 'Admin · Activation, usage et performance', icon: 'Box', group: 'Administration', action: () => router.goto('/admin/analytics?tab=modules') });
       items.push({ id: 'admin-broadcast', label: 'Broadcast', sublabel: 'Admin · Annonces globales', icon: 'Megaphone', group: 'Administration', action: () => router.goto('/admin/broadcast') });
       items.push({ id: 'admin-security', label: 'Sécurité & Blacklist', sublabel: 'Admin · Accès globaux', icon: 'ShieldCheck', group: 'Administration', action: () => router.goto('/admin/security') });
       items.push({ id: 'admin-content',  label: 'Mots globaux', sublabel: 'Admin · Filtrage', icon: 'filter', group: 'Administration', action: () => router.goto('/admin/content') });
