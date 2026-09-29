@@ -353,7 +353,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
     server.registerTool(
       'save_rpg_tower_reward',
       {
-        description: "Crée une récompense de Tour, ou modifie celle désignée par `id` (voir get_rpg_tower). SHOP : article payé en éclats (`price`), unique par joueur sauf `repeatable` (sans titre ni rôle), éventuellement borné à `maxPurchases` achats, remis à zéro selon `limitPeriod`. MILESTONE : versé une fois au joueur qui franchit `floor` étages, peut offrir des éclats. Chaque récompense combine au choix un titre, un rôle, un objet, des pièces, de l'XP RPG, des statistiques du profil RPG (`stat` et `statAmount`, définitives), de l'énergie max (`maxEnergy`), des points de clan (ou de l'XP de guilde RPG selon le mode d'équipe du serveur) et des éclats (paliers), avec au moins un de ces éléments. Préférer des titres sans bonus de stats. Un champ omis garde sa valeur. Requiert WRITE_MEMBERS.",
+        description: "Crée une récompense de Tour, ou modifie celle désignée par `id` (voir get_rpg_tower). SHOP : article payé en éclats (`price`), unique par joueur sauf `repeatable` (sans titre ni rôle), éventuellement borné à `maxPurchases` achats, remis à zéro selon `limitPeriod`. MILESTONE : versé une fois au joueur qui franchit `floor` étages, peut offrir des éclats. Chaque récompense combine au choix un titre, un rôle, un objet, des pièces, de l'XP RPG, des statistiques du profil RPG (`stat` et `statAmount`, définitives), de l'énergie max (`maxEnergy`), des bons de reconversion (`reclassVouchers`, un changement de classe gratuit chacun), des points de clan (ou de l'XP de guilde RPG selon le mode d'équipe du serveur) et des éclats (paliers), avec au moins un de ces éléments. Préférer des titres sans bonus de stats. Un champ omis garde sa valeur. Requiert WRITE_MEMBERS.",
         inputSchema: {
           id: z.string().optional().describe('ID de la récompense à modifier. Absent : création.'),
           kind: z.enum(TOWER_REWARD_KINDS).optional().describe('Requis à la création'),
@@ -373,6 +373,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
           stat: z.enum(TOWER_REWARD_STATS).nullable().optional().describe('Statistique du profil RPG montée : POINTS (points à répartir), ATTACK, DEFENSE, SPEED, HEALTH, ou RANDOM (une des quatre, tirée à chaque versement) ; null pour aucune'),
           statAmount: z.number().int().min(1).max(100).optional().describe('Points versés : 1 point = +1 en attaque, défense ou vitesse, ou +8 PV max'),
           maxEnergy: z.number().int().min(0).max(2_000_000).optional().describe('Énergie max ajoutée au profil RPG (et remplie d\'autant), 0 pour aucune ; le bonus d\'un joueur plafonne à 2 millions'),
+          reclassVouchers: z.number().int().min(0).max(10).optional().describe('Bons de reconversion donnés au profil RPG : chacun paie un changement de classe à la place des pièces, 0 pour aucun'),
           maxPurchases: z.number().int().min(0).optional().describe('Achats au plus par joueur d\'un article répétable (SHOP) ; 0 = sans limite'),
           limitPeriod: z.enum(TOWER_REWARD_LIMIT_PERIODS).optional().describe('Remise à zéro de cette limite : NEVER (jamais), DAILY (chaque jour à minuit, fuseau du serveur), WEEKLY (chaque lundi)'),
           enabled: z.boolean().optional(),

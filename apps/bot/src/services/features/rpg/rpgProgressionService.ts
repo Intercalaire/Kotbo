@@ -78,19 +78,24 @@ export async function chooseRpgClass(guildId: string, userId: string, classId: s
   }
 
   const isReclass = profile.className !== null;
-  if (isReclass && profile.balance < RECLASS_COST) {
+  // Un bon de reconversion paie le changement à la place des pièces, et passe en premier :
+  // le joueur l'a acheté pour ça.
+  const voucher = isReclass && profile.reclassVouchers > 0;
+  if (isReclass && !voucher && profile.balance < RECLASS_COST) {
     throw new Error(`Changer de classe coûte ${RECLASS_COST} pièces. Vous en avez ${profile.balance}.`);
   }
 
-  // Garde atomique sur le solde : deux changements simultanés ne peuvent pas être
-  // payés une seule fois.
+  // Garde atomique sur le solde (ou les bons) : deux changements simultanés ne peuvent pas
+  // être payés une seule fois.
   const updated = await prisma.rpgProfile.updateMany({
-    where: isReclass
-      ? { id: profile.id, balance: { gte: RECLASS_COST }, className: profile.className }
-      : { id: profile.id, className: null },
+    where: !isReclass
+      ? { id: profile.id, className: null }
+      : voucher
+        ? { id: profile.id, reclassVouchers: { gte: 1 }, className: profile.className }
+        : { id: profile.id, balance: { gte: RECLASS_COST }, className: profile.className },
     data: {
       className: classId,
-      ...(isReclass ? { balance: { decrement: RECLASS_COST } } : {}),
+      ...(voucher ? { reclassVouchers: { decrement: 1 } } : isReclass ? { balance: { decrement: RECLASS_COST } } : {}),
     },
   });
 
@@ -107,7 +112,8 @@ export async function chooseRpgClass(guildId: string, userId: string, classId: s
 
   return {
     rpgClass: getRpgClass(classId)!,
-    cost: isReclass ? RECLASS_COST : 0,
+    cost: isReclass && !voucher ? RECLASS_COST : 0,
+    voucher,
     refundedSkillPoints,
   };
 }

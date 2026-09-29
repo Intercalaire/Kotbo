@@ -6941,9 +6941,11 @@ async function buildCharacterView(guildId: string, ownerId: string, locale: Loca
       new StringSelectMenuBuilder()
         .setCustomId(`rpg:classselect:${ownerId}`)
         .setPlaceholder(
-          profile.className
-            ? m.rpg_character_reclass_placeholder({ cost: RECLASS_COST }, { locale })
-            : m.rpg_character_class_placeholder({}, { locale }),
+          !profile.className
+            ? m.rpg_character_class_placeholder({}, { locale })
+            : profile.reclassVouchers > 0
+              ? m.rpg_character_reclass_voucher_placeholder({ count: profile.reclassVouchers }, { locale })
+              : m.rpg_character_reclass_placeholder({ cost: RECLASS_COST }, { locale }),
         )
         .addOptions(
           RPG_CLASS_LIST.map((entry) => ({
@@ -7161,9 +7163,11 @@ async function handleClassSelect(interaction: StringSelectMenuInteraction, guild
 
   // Une reconversion rend les points d'arbre investis : le taire laisserait croire qu'ils
   // ont été perdus avec l'ancienne classe.
-  const note = result.cost > 0
-    ? m.rpg_character_class_changed({ name: result.rpgClass.name, cost: result.cost }, { locale })
-    : m.rpg_character_class_chosen({ name: result.rpgClass.name }, { locale });
+  const note = result.voucher
+    ? m.rpg_character_class_changed_voucher({ name: result.rpgClass.name }, { locale })
+    : result.cost > 0
+      ? m.rpg_character_class_changed({ name: result.rpgClass.name, cost: result.cost }, { locale })
+      : m.rpg_character_class_chosen({ name: result.rpgClass.name }, { locale });
   const refund = result.refundedSkillPoints > 0
     ? ` ${m.rpg_character_skill_points_refunded({ points: result.refundedSkillPoints }, { locale })}`
     : '';

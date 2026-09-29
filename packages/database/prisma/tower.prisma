@@ -120,6 +120,8 @@ model RpgTowerReward {
   statAmount Int     @default(0)
   /// Énergie max ajoutée au profil RPG (et rendue d'autant).
   maxEnergy    Int   @default(0)
+  /// Bons de reconversion donnés au profil RPG (un changement de classe gratuit chacun).
+  reclassVouchers Int @default(0)
   /// Achats au plus par joueur d'un article répétable ; 0 : sans limite.
   maxPurchases Int   @default(0)
   /// Remise à zéro de cette limite : NEVER, DAILY (minuit du serveur) ou WEEKLY (lundi).

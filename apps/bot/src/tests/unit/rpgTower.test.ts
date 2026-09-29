@@ -277,6 +277,14 @@ describe('réglages et récompenses', () => {
     expect(normalizeTowerReward({ kind: 'SHOP', name: 'Rien', price: 80, maxEnergy: 0 }).ok).toBe(false);
   });
 
+  test('un article peut n\'offrir que des bons de reconversion, bornés', () => {
+    const voucher = normalizeTowerReward({ kind: 'SHOP', name: 'Bon de reconversion', price: 300, reclassVouchers: 1, repeatable: true });
+    expect(voucher.ok && voucher.value.reclassVouchers).toBe(1);
+    const many = normalizeTowerReward({ kind: 'SHOP', name: 'Liasse', price: 300, reclassVouchers: 50 });
+    expect(many.ok && many.value.reclassVouchers).toBe(10);
+    expect(normalizeTowerReward({ kind: 'SHOP', name: 'Rien', price: 300, reclassVouchers: 0 }).ok).toBe(false);
+  });
+
   test('une jauge reste lisible quand ses valeurs deviennent énormes', () => {
     expect(gaugeNumber(87)).toBe('87');
     expect(gaugeNumber(12_345)).toBe('12 345');

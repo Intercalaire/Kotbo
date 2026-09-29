@@ -803,17 +803,19 @@ async function grantRewardToPlayer(client: Client | null, guildId: string, userI
   const statGrant = towerStatGrant(reward.stat, reward.statAmount, Math.random(), MAX_HEALTH_PER_POINT);
   let paid: boolean | null = null;
   const energy = reward.maxEnergy > 0;
-  if (reward.coins > 0 || reward.xp > 0 || reward.titleId || itemName || statGrant || energy) {
+  const vouchers = reward.reclassVouchers > 0;
+  if (reward.coins > 0 || reward.xp > 0 || reward.titleId || itemName || statGrant || energy || vouchers) {
     const rpgProfile = await getOrCreateRpgProfile(guildId, userId);
-    if (reward.coins > 0 || reward.xp > 0 || itemName || statGrant || energy) {
-      paid = await settle('Pièces, XP, statistiques, énergie et objet', () => prisma.$transaction(async (tx) => {
+    if (reward.coins > 0 || reward.xp > 0 || itemName || statGrant || energy || vouchers) {
+      paid = await settle('Pièces, XP, statistiques, énergie, bons et objet', () => prisma.$transaction(async (tx) => {
         await lockRpgProfile(tx, rpgProfile.id);
-        if (reward.coins > 0 || reward.xp > 0 || statGrant) {
+        if (reward.coins > 0 || reward.xp > 0 || statGrant || vouchers) {
           await tx.rpgProfile.update({
             where: { id: rpgProfile.id },
             data: {
               balance: { increment: reward.coins },
               xp: { increment: reward.xp },
+              reclassVouchers: { increment: reward.reclassVouchers },
               ...(statGrant ? { [statGrant.field]: { increment: statGrant.gain } } : {}),
               // Comme à la répartition : un gain de vitalité soigne d'autant, sinon il resterait
               // invisible jusqu'au prochain repos.

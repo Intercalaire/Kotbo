@@ -98,6 +98,7 @@ export function registerReadEconomyTools(ctx: McpToolContext) {
           maxHealth: profile.maxHealth,
           energy: profile.energy,
           bonusMaxEnergy: profile.bonusMaxEnergy,
+          reclassVouchers: profile.reclassVouchers,
           attack: profile.attack,
           defense: profile.defense,
           speed: profile.speed,
