@@ -108,8 +108,12 @@
     clanPoints: number;
     itemName: string | null;
     shards: number;
+    stat: RewardStat | null;
+    statAmount: number;
+    maxPurchases: number;
     enabled: boolean;
   };
+  type RewardStat = 'POINTS' | 'ATTACK' | 'DEFENSE' | 'SPEED' | 'HEALTH' | 'RANDOM';
   type RewardDraft = Omit<Reward, 'id'> & { id?: string };
   type NumericSetting = { [K in keyof Settings]-?: Settings[K] extends number ? K : never }[keyof Settings];
   type NumericMerchant = { [K in keyof Merchant]-?: Merchant[K] extends number ? K : never }[keyof Merchant];
@@ -449,12 +453,39 @@
       clanPoints: 0,
       itemName: null,
       shards: 0,
+      stat: null,
+      statAmount: 1,
+      maxPurchases: 0,
       enabled: true,
     };
   }
 
   function openEdit(reward: Reward) {
-    editing = { ...reward };
+    editing = { ...reward, stat: reward.stat ?? null, statAmount: reward.statAmount || 1, maxPurchases: reward.maxPurchases ?? 0 };
+  }
+
+  /** Statistiques du profil RPG qu'une récompense peut monter, dans l'ordre du menu. */
+  const REWARD_STATS: RewardStat[] = ['POINTS', 'ATTACK', 'DEFENSE', 'SPEED', 'HEALTH', 'RANDOM'];
+
+  function statLabel(stat: RewardStat): string {
+    switch (stat) {
+      case 'POINTS': return m.eco_tower_stat_points();
+      case 'ATTACK': return m.eco_tower_stat_attack();
+      case 'DEFENSE': return m.eco_tower_stat_defense();
+      case 'SPEED': return m.eco_tower_stat_speed();
+      case 'HEALTH': return m.eco_tower_stat_health();
+      case 'RANDOM': return m.eco_tower_stat_random();
+    }
+  }
+
+  /** Ce que la récompense ajoute au profil RPG, tel que le joueur le verra. */
+  function statBadge(reward: Reward): string {
+    if (!reward.stat) return '';
+    if (reward.stat === 'POINTS') return m.eco_tower_reward_stat_points({ amount: reward.statAmount });
+    if (reward.stat === 'RANDOM') return m.eco_tower_reward_stat_random({ amount: reward.statAmount });
+    // Un point de vitalité vaut 8 PV max, comme à la répartition des points dans le RPG.
+    const amount = reward.stat === 'HEALTH' ? reward.statAmount * 8 : reward.statAmount;
+    return m.eco_tower_reward_stat({ amount, stat: statLabel(reward.stat) });
   }
 
   async function saveReward() {
@@ -470,6 +501,9 @@
         clanPoints: Number(draft.clanPoints) || 0,
         itemName: draft.itemName || null,
         shards: Number(draft.shards) || 0,
+        stat: draft.stat || null,
+        statAmount: Number(draft.statAmount) || 1,
+        maxPurchases: Number(draft.maxPurchases) || 0,
         titleId: draft.titleId || null,
         roleId: draft.roleId || null,
       });
@@ -625,10 +659,12 @@
       {#if reward.xp > 0}<span class="text-primary font-bold flex items-center gap-1"><Papicon icon="Sparkles" size={11} /> +{reward.xp} {m.eco_dungeon_rpg_xp()}</span>{/if}
       {#if reward.clanPoints > 0}<span class="text-success font-bold flex items-center gap-1"><Papicon icon="shield" size={11} /> {m.eco_tower_reward_clan_points({ amount: reward.clanPoints })}</span>{/if}
       {#if reward.itemName}<span class="font-semibold flex items-center gap-1"><Papicon icon="package" size={11} /> {reward.itemName}</span>{/if}
+      {#if reward.stat}<span class="text-error font-bold flex items-center gap-1"><Papicon icon="TrendingUp" size={11} /> {statBadge(reward)}</span>{/if}
       {#if reward.shards > 0}<span class="text-primary font-bold flex items-center gap-1">+{reward.shards} {@render shardIcon(11)}</span>{/if}
       {#if reward.titleId}<span class="font-semibold text-warning flex items-center gap-1"><Papicon icon="award" size={11} /> {titleName(reward.titleId)}</span>{/if}
       {#if reward.roleId}<span class="font-semibold text-primary">{roleName(reward.roleId)}</span>{/if}
       {#if reward.repeatable}<span class="text-on-surface-variant/60">{m.eco_tower_reward_repeatable()}</span>{/if}
+      {#if reward.repeatable && reward.maxPurchases > 0}<span class="text-on-surface-variant/60">{m.eco_tower_reward_max_purchases({ max: reward.maxPurchases })}</span>{/if}
     </div>
     {#if canManage}
       <div class="flex items-center justify-end gap-2 pt-2 border-t border-outline-variant/5">
@@ -1337,6 +1373,13 @@
             </div>
             <ToggleSwitch checked={editing.repeatable} onToggle={(value: boolean) => { if (editing) editing.repeatable = value; }} />
           </div>
+          {#if editing.repeatable}
+            <div class="col-span-2 space-y-1">
+              <label for="rewardMaxPurchases" class={labelClass}>{m.eco_tower_field_max_purchases()}</label>
+              <input id="rewardMaxPurchases" type="number" min="0" bind:value={editing.maxPurchases} class={inputClass} />
+              <p class="text-2xs text-on-surface-variant/50 leading-relaxed ml-2">{m.eco_tower_field_max_purchases_hint()}</p>
+            </div>
+          {/if}
         {:else}
           <div class="space-y-1">
             <label for="rewardFloor" class={labelClass}>{m.eco_tower_field_floor()}</label>
@@ -1384,6 +1427,18 @@
             on:change={(e: any) => { if (editing) editing.itemName = e.detail?.value ?? null; }}
           />
         </div>
+        <div class="space-y-1">
+          <label for="rewardStat" class={labelClass}>{m.eco_tower_field_stat()}</label>
+          <select id="rewardStat" bind:value={editing.stat} class={inputClass}>
+            <option value={null}>{m.eco_tower_stat_none()}</option>
+            {#each REWARD_STATS as stat}<option value={stat}>{statLabel(stat)}</option>{/each}
+          </select>
+        </div>
+        <div class="space-y-1">
+          <label for="rewardStatAmount" class={labelClass}>{m.eco_tower_field_stat_amount()}</label>
+          <input id="rewardStatAmount" type="number" min="1" max="100" bind:value={editing.statAmount} disabled={!editing.stat} class={inputClass} />
+        </div>
+        <p class="col-span-2 text-2xs text-on-surface-variant/50 leading-relaxed ml-2 -mt-1">{m.eco_tower_field_stat_hint()}</p>
         <div class="col-span-2 space-y-1">
           <span class={labelClass}>{m.eco_fish_reward_role()}</span>
           <SearchableSelect
