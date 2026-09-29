@@ -179,3 +179,10 @@ export const FLOODED_SPEED = 0.8;
 export const BURN_DAMAGE = 0.03;
 /** Étage béni : soins renforcés. */
 export const BLESSED_HEAL = 1.25;
+/** Étage dans la brume : le brouillard est forcé, mais les coffres rapportent plus d'or. */
+export const MIST_CHEST_GOLD = 1.25;
+/** Étage gelé : le premier coup de chaque combat, d'un côté comme de l'autre, est amorti. */
+export const FROST_FIRST_HIT = 0.5;
+/** Nuit sans lune : les errants font deux pas au lieu d'un, les embuscades paient plus. */
+export const MOONLESS_WANDERER_STEPS = 2;
+export const MOONLESS_AMBUSH_BOUNTY = 1.5;

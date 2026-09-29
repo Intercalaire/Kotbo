@@ -18,6 +18,10 @@ import {
   fountainDrinkCost,
   BLESSED_HEAL,
   BURN_DAMAGE,
+  FROST_FIRST_HIT,
+  MIST_CHEST_GOLD,
+  MOONLESS_AMBUSH_BOUNTY,
+  MOONLESS_WANDERER_STEPS,
   FLOODED_SPEED,
   HEAT_FAMINE_HEAL,
   HEAT_FOE_BOOST,
@@ -669,17 +673,21 @@ function moveWanderers(state: TowerState, rng: TowerRng): TowerWanderer | null {
   const map = state.map;
   if (!map?.wanderers?.length) return null;
   let caught: TowerWanderer | null = null;
-  for (const wanderer of map.wanderers) {
-    const zone = wanderZone(map.layout, wanderer.spawn, wanderer.radius);
-    const options = roomNeighbors(map.layout, wanderer.pos)
-      .filter(({ room, direction }) => direction !== 'WARP' && zone.has(room.id)
-        && (room.id === map.pos || canWanderInto(room, map.cleared))
-        && !map.wanderers!.some((other) => other !== wanderer && other.pos === room.id))
-      .map(({ room }) => room.id);
-    // Rester sur place est un choix comme un autre : il rôde, il ne fonce pas.
-    const next = rng.pick([wanderer.pos, ...options]);
-    wanderer.pos = next;
-    if (next === map.pos && !caught) caught = wanderer;
+  // Nuit sans lune : chaque errant fait deux pas, et tout s'arrête dès que l'un tombe sur le joueur.
+  const steps = floorModifier(state) === 'MOONLESS' ? MOONLESS_WANDERER_STEPS : 1;
+  for (let step = 0; step < steps && !caught; step++) {
+    for (const wanderer of map.wanderers) {
+      const zone = wanderZone(map.layout, wanderer.spawn, wanderer.radius);
+      const options = roomNeighbors(map.layout, wanderer.pos)
+        .filter(({ room, direction }) => direction !== 'WARP' && zone.has(room.id)
+          && (room.id === map.pos || canWanderInto(room, map.cleared))
+          && !map.wanderers!.some((other) => other !== wanderer && other.pos === room.id))
+        .map(({ room }) => room.id);
+      // Rester sur place est un choix comme un autre : il rôde, il ne fonce pas.
+      const next = rng.pick([wanderer.pos, ...options]);
+      wanderer.pos = next;
+      if (next === map.pos && !caught) caught = wanderer;
+    }
   }
   return caught;
 }
@@ -1071,7 +1079,9 @@ function monsterStrike(state: TowerState, encounter: TowerEncounter, stats: Towe
       critChance: TOWER_MONSTER_CRIT,
       skillMultiplier: power
         * (encounter.enraged ? TOWER_ENRAGE_MULTIPLIER : 1)
-        * (1 + SUMMON_POWER * (encounter.minions ?? 0)),
+        * (1 + SUMMON_POWER * (encounter.minions ?? 0))
+        // Étage gelé : le premier coup du monstre est amorti.
+        * (floorModifier(state) === 'FROST' && (encounter.turn ?? 0) === 0 ? FROST_FIRST_HIT : 1),
       targetDefenseMultiplier: encounter.defenseMultiplier,
       targetDamageReduction: stats.damageReduction,
       targetThorns: stats.thorns,
@@ -1138,7 +1148,9 @@ function playerStrike(
     armorPiercing: Math.max(stats.armorPiercing, skill?.effect.armorPiercing ?? 0),
     skillMultiplier: (skill?.effect.damageMultiplier ?? 1)
       * (encounter.riposte ? TOWER_RIPOSTE_MULTIPLIER : 1)
-      * (execute ? EXECUTE_BONUS : 1),
+      * (execute ? EXECUTE_BONUS : 1)
+      // Étage gelé : le premier coup du joueur aussi.
+      * (floorModifier(state) === 'FROST' && !encounter.opened ? FROST_FIRST_HIT : 1),
     lifesteal: stats.lifesteal + (skill?.effect.lifesteal ?? 0),
     random: () => rng.next(),
   });
@@ -1580,6 +1592,8 @@ function enterRoom(
       const before = state.hp;
       state.hp = Math.max(1, state.hp - dmg);
       startEncounter(state, level, 'COMBAT', rules, foes, rng, null, info, roomPower(room));
+      // Nuit sans lune : l'embuscade est plus dangereuse à repérer, elle paie d'autant.
+      if (floorModifier(state) === 'MOONLESS') state.encounter!.bounty = (state.encounter!.bounty ?? 1) * MOONLESS_AMBUSH_BOUNTY;
       state.notice = { k: 'ambush', dmg: before - state.hp };
       return floor;
     }
@@ -1633,7 +1647,8 @@ function enterRoom(
       return floor;
     case 'CHEST': {
       const luck = 1 + fortuneOf(state);
-      const gold = room.chest === 'GEAR' ? 0 : Math.round(treasureGold(level, rng) * luck);
+      const mist = floorModifier(state) === 'MIST' ? MIST_CHEST_GOLD : 1;
+      const gold = room.chest === 'GEAR' ? 0 : Math.round(treasureGold(level, rng) * luck * mist);
       state.gold += gold;
       // Un coffre mixte ne donne un objet qu'une fois sur cinq ; un coffre à équipement, toujours.
       if (room.chest === 'GEAR' || (room.chest === 'BOTH' && rng.next() < CHEST_GEAR_CHANCE * luck)) {

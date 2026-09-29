@@ -90,7 +90,7 @@ export const roomSchema = z.object({
 export const floorSchema = z.object({
   name: z.string().max(TOWER_FLOOR_NAME_MAX).optional().describe("Nom de l'étage (« Caserne », « Crypte »…)"),
   fog: z.boolean().optional().describe('Brouillard de guerre : seules les salles visitées et leurs voisines se voient'),
-  modifier: z.enum(TOWER_FLOOR_MODIFIERS).optional().describe('Ambiance : NONE, FLOODED (vitesse -20 %), BURNING (chaque nouvelle salle brûle 3 % des PV), BLESSED (soins +25 %)'),
+  modifier: z.enum(TOWER_FLOOR_MODIFIERS).optional().describe('Ambiance : NONE, FLOODED (vitesse -20 %), BURNING (chaque nouvelle salle brûle 3 % des PV), BLESSED (soins +25 %), MIST (brouillard forcé, coffres +25 % d\'or), FROST (premier coup de chaque combat -50 %, des deux côtés), MOONLESS (errants deux fois plus rapides, embuscades +50 %)'),
   variant: z.boolean().optional().describe("Variante de la carte précédente : les deux forment un même étage et l'une est tirée au sort à chaque montée. Ignoré sur la première carte."),
   weight: z.number().int().min(TOWER_VARIANT_WEIGHT.min).max(TOWER_VARIANT_WEIGHT.max).optional().describe(`Poids de la carte au tirage entre les variantes de son étage (${TOWER_VARIANT_WEIGHT.min} à ${TOWER_VARIANT_WEIGHT.max}, défaut ${TOWER_VARIANT_WEIGHT.default}) : 1 face à 9, elle sort une fois sur dix.`),
   width: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max),
@@ -326,7 +326,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
           useDefault: z.boolean().optional().describe('Remplacer l\'étage par la carte d\'exemple'),
           name: z.string().max(TOWER_FLOOR_NAME_MAX).optional(),
           fog: z.boolean().optional().describe('Brouillard de guerre sur cet étage'),
-          modifier: z.enum(TOWER_FLOOR_MODIFIERS).optional().describe('Ambiance de cet étage : NONE, FLOODED, BURNING ou BLESSED'),
+          modifier: z.enum(TOWER_FLOOR_MODIFIERS).optional().describe('Ambiance de cet étage : NONE, FLOODED, BURNING, BLESSED, MIST, FROST ou MOONLESS'),
           variant: z.boolean().optional().describe("Variante de la carte précédente : les deux forment un même étage et l'une est tirée au sort à chaque montée. Ignoré sur la première carte."),
           weight: z.number().int().min(TOWER_VARIANT_WEIGHT.min).max(TOWER_VARIANT_WEIGHT.max).optional().describe(`Poids de la carte au tirage entre les variantes de son étage (${TOWER_VARIANT_WEIGHT.min} à ${TOWER_VARIANT_WEIGHT.max}, défaut ${TOWER_VARIANT_WEIGHT.default}) : 1 face à 9, elle sort une fois sur dix.`),
           width: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max).optional(),

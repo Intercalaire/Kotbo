@@ -194,9 +194,11 @@ export type TowerRoom = {
 /**
  * Ambiance d'un étage, qui change la façon de le parcourir sans ajouter de salle : inondé
  * (le joueur est ralenti), en feu (chaque nouvelle salle brûle un peu), béni (les soins sont
- * renforcés).
+ * renforcés), dans la brume (brouillard forcé, coffres plus riches), gelé (le premier coup de
+ * chaque combat est amorti, des deux côtés), nuit sans lune (les errants vont deux fois plus
+ * vite, les embuscades paient plus).
  */
-export const TOWER_FLOOR_MODIFIERS = ['NONE', 'FLOODED', 'BURNING', 'BLESSED'] as const;
+export const TOWER_FLOOR_MODIFIERS = ['NONE', 'FLOODED', 'BURNING', 'BLESSED', 'MIST', 'FROST', 'MOONLESS'] as const;
 export type TowerFloorModifier = (typeof TOWER_FLOOR_MODIFIERS)[number];
 
 /**
@@ -458,9 +460,10 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
 
   const name = typeof raw.name === 'string' ? raw.name.trim() : '';
   if (name.length > TOWER_FLOOR_NAME_MAX) return { ok: false, error: `Le nom d'un étage ne peut pas dépasser ${TOWER_FLOOR_NAME_MAX} caractères.` };
-  // Absent des cartes d'avant le brouillard : elles restent entièrement visibles.
-  const fog = raw.fog === true;
   const modifier = TOWER_FLOOR_MODIFIERS.includes(raw.modifier as TowerFloorModifier) ? (raw.modifier as TowerFloorModifier) : 'NONE';
+  // Absent des cartes d'avant le brouillard : elles restent entièrement visibles. Un étage
+  // dans la brume en a toujours : c'est tout l'effet.
+  const fog = raw.fog === true || modifier === 'MIST';
   const weight = clampInt(raw.weight, TOWER_VARIANT_WEIGHT, TOWER_VARIANT_WEIGHT.default);
   const layout: TowerLayout = { name, width, height, fog, modifier, variant: raw.variant === true, weight, rooms };
   const distances = distancesFromStart(layout);

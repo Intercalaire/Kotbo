@@ -57,6 +57,7 @@ import {
 } from './rpgTowerEngine.js';
 import {
   TOWER_COLLAPSE_STEPS,
+  TOWER_FLOOR_MODIFIERS,
   TOWER_HIDDEN_ROOMS,
   TOWER_TOLL_GOLD,
   exitLocks,
@@ -476,6 +477,9 @@ function modifierName(modifier: TowerFloorModifier, locale: Locale): string {
     case 'FLOODED': return m.tower_modifier_flooded({}, { locale });
     case 'BURNING': return m.tower_modifier_burning({}, { locale });
     case 'BLESSED': return m.tower_modifier_blessed({}, { locale });
+    case 'MIST': return m.tower_modifier_mist({}, { locale });
+    case 'FROST': return m.tower_modifier_frost({}, { locale });
+    case 'MOONLESS': return m.tower_modifier_moonless({}, { locale });
     default: return '';
   }
 }
@@ -485,6 +489,9 @@ function modifierDescription(modifier: TowerFloorModifier, locale: Locale): stri
     case 'FLOODED': return m.tower_modifier_flooded_desc({}, { locale });
     case 'BURNING': return m.tower_modifier_burning_desc({}, { locale });
     case 'BLESSED': return m.tower_modifier_blessed_desc({}, { locale });
+    case 'MIST': return m.tower_modifier_mist_desc({}, { locale });
+    case 'FROST': return m.tower_modifier_frost_desc({}, { locale });
+    case 'MOONLESS': return m.tower_modifier_moonless_desc({}, { locale });
     default: return '';
   }
 }
@@ -2051,7 +2058,7 @@ async function buildTowerGuideView(guildId: string, ownerId: string, locale: Loc
       legend.push({ marker, label: name });
     }
   } else {
-    for (const modifier of ['FLOODED', 'BURNING', 'BLESSED'] as const) {
+    for (const modifier of TOWER_FLOOR_MODIFIERS.filter((entry) => entry !== 'NONE')) {
       entries.push({ name: modifierName(modifier, locale), description: modifierDescription(modifier, locale) });
     }
   }

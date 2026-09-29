@@ -391,6 +391,24 @@ describe('moteur d\'ascension', () => {
     expect(createTowerState({ base: STRONG, skills: [], potions: 1, seed: 1, rules: RULES }).fortune).toBeUndefined();
   });
 
+  test('sur un étage gelé, le premier coup de chaque camp est amorti', () => {
+    const firstBlows = (modifier: 'NONE' | 'FROST') => {
+      // Assez faible pour que le monstre survive au premier coup.
+      const fighting = enterCombat(start({ ...STRONG, attack: 8 })).state;
+      // Seul l'effet de l'étage compte ici : la carte n'est lue que pour lui.
+      const frozen = { ...fighting, map: { layout: { modifier } } } as unknown as TowerState;
+      const foeBefore = frozen.encounter!.health;
+      const step = applyTowerAction(frozen, 1, { type: 'attack' }, RULES, FOES);
+      const hits = step.state.encounter?.log ?? [];
+      const monster = hits.find((entry) => entry.k === 'monster');
+      return { dealt: foeBefore - (step.state.encounter?.health ?? 0), taken: monster && 'dmg' in monster ? monster.dmg : null };
+    };
+    const plain = firstBlows('NONE');
+    const frozen = firstBlows('FROST');
+    expect(frozen.dealt).toBeLessThan(plain.dealt);
+    if (plain.taken !== null && frozen.taken !== null && plain.taken > 1) expect(frozen.taken).toBeLessThan(plain.taken);
+  });
+
   test('une ascension commence devant trois portes', () => {
     const state = start();
     expect(state.phase).toBe('DOORS');
@@ -786,6 +804,13 @@ describe('profondeur de la Tour', () => {
       expect(exitRoom(layout)).not.toBeNull();
     }
     expect(generateTowerLayout(42)).toEqual(generateTowerLayout(42));
+  });
+
+  test('un étage dans la brume a toujours du brouillard', () => {
+    const layout = normalizeTowerLayout({ ...generateTowerLayout(3), fog: false, modifier: 'MIST' });
+    expect(layout.ok && layout.value.fog).toBe(true);
+    const clear = normalizeTowerLayout({ ...generateTowerLayout(3), fog: false, modifier: 'FROST' });
+    expect(clear.ok && clear.value.fog).toBe(false);
   });
 
   test('le brouillard des étages générés se règle', () => {
