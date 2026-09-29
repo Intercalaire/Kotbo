@@ -278,6 +278,14 @@ export type TowerMapState = {
    * Absent des parties d'avant les étages, où le numéro d'étage en tenait lieu.
    */
   depth?: number;
+  /**
+   * Niveau de difficulté à l'arrivée sur l'étage, et profondeur à ce moment-là. La difficulté
+   * ne monte que de `TOWER_FLOOR_DEPTH_MAX` salles par étage : sans ce plafond, explorer une
+   * grande carte en entier rendait les étages suivants injouables. Absents des parties d'avant
+   * ce plafond, qui gardent la profondeur seule.
+   */
+  floorBase?: number;
+  floorStart?: number;
   /** Salle où se trouve le joueur. */
   pos: string;
   /** Salles déjà résolues sur l'étage en cours ; les retraverser ne coûte rien. */
@@ -568,7 +576,19 @@ function heal(state: TowerState, share: number): number {
  * Force des monstres, or, butin et prix du marchand le suivent.
  */
 export function towerLevel(state: TowerState, floor: number): number {
-  return state.map ? (state.map.depth ?? floor) : floor;
+  return state.map ? mapLevel(state.map, floor) : floor;
+}
+
+/**
+ * Salles résolues sur un même étage au-delà desquelles la difficulté cesse de monter. Les
+ * étages générés en comptent vingt au plus : seules les grandes cartes dessinées sont bornées.
+ */
+export const TOWER_FLOOR_DEPTH_MAX = 20;
+
+function mapLevel(map: TowerMapState, fallback: number): number {
+  const depth = map.depth ?? fallback;
+  if (map.floorBase === undefined || map.floorStart === undefined) return depth;
+  return map.floorBase + Math.min(Math.max(0, depth - map.floorStart), TOWER_FLOOR_DEPTH_MAX);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -598,7 +618,7 @@ const DOOR_KIND: Partial<Record<TowerDoor, TowerEncounterKind>> = { COMBAT: 'COM
  * événement. Fait en arrivant sur l'étage, pour que le joueur le voie avant d'y entrer.
  */
 function prepareFloor(map: TowerMapState, rng: TowerRng): void {
-  const level = map.depth ?? 1;
+  const level = mapLevel(map, 1);
   const rooms: Record<string, TowerRoomInfo> = {};
   for (const room of map.layout.rooms) {
     const kind = ROOM_KIND[room.type];
@@ -698,7 +718,7 @@ export function createTowerState(input: {
   const rng = new TowerRng(input.seed);
   const start = input.layout ? startRoom(input.layout) : null;
   const map: TowerMapState | null = input.layout && start
-    ? { layout: structuredClone(input.layout), depth: 1, pos: start.id, cleared: [start.id] }
+    ? { layout: structuredClone(input.layout), depth: 1, floorBase: 1, floorStart: 1, pos: start.id, cleared: [start.id] }
     : null;
   if (map) arrive(map, rng);
   const state: TowerState = {
@@ -813,6 +833,9 @@ function climb(state: TowerState, floor: number, rules: TowerRules, floors: read
   if (!map) return null;
   const next = towerFloorLayout(floors, floor, rules.floorsAfter ?? 'LOOP', state.seed ?? 0, rules.generatedFog ?? true);
   if (!startRoom(next)) return null;
+  // Le nouvel étage part du niveau atteint, plafond compris : la difficulté ne saute pas.
+  map.floorBase = mapLevel(map, floor);
+  map.floorStart = map.depth ?? floor;
   map.layout = structuredClone(next);
   map.prev = undefined;
   state.floorKeys?.push(towerLayoutKey(next));

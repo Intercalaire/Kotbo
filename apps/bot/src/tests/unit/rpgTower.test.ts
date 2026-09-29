@@ -33,9 +33,12 @@ import {
   type TowerEntryInput,
 } from '../../services/features/rpg/rpgTowerPolicy.js';
 import {
+  TOWER_FLOOR_DEPTH_MAX,
   TowerActionRefused,
   applyTowerAction,
   createTowerState,
+  towerLevel,
+  towerRoomsExplored,
   type TowerRules,
   type TowerState,
 } from '../../services/features/rpg/rpgTowerEngine.js';
@@ -810,6 +813,33 @@ describe('profondeur de la Tour', () => {
     expect(day).toBe('2026-09-28');
     expect(towerDailySeed('123', day)).toBe(towerDailySeed('123', day));
     expect(towerDailySeed('123', day)).not.toBe(towerDailySeed('123', '2026-09-29'));
+  });
+});
+
+describe('difficulté d\'une grande carte', () => {
+  const room = (x: number, y: number, type: string, extra: Record<string, unknown> = {}) => ({ x, y, type, ...extra });
+
+  test('explorer tout un étage ne fait pas monter la difficulté au-delà du plafond', () => {
+    const rooms = [room(0, 0, 'START')];
+    for (let y = 0; y < 2; y++) {
+      for (let x = 0; x < 20; x++) if (x || y) rooms.push(room(x, y, 'CHEST', { chest: 'GOLD' }));
+    }
+    rooms.push(room(0, 2, 'BOSS'));
+    const layout = normalizeTowerLayout({ width: 20, height: 4, rooms });
+    if (!layout.ok) throw new Error(layout.error);
+
+    let step = { state: createTowerState({ base: STRONG, skills: [], potions: 1, seed: 5, rules: RULES, layout: layout.value }), floor: 1, dead: false };
+    for (let i = 0; i < 39; i++) {
+      const index = step.state.moves.findIndex((move) => move.type === 'CHEST' && !move.cleared);
+      if (index < 0) break;
+      step = applyTowerAction(step.state, step.floor, { type: 'door', index }, RULES, FOES);
+      if (step.state.phase === 'BLESSING') step = applyTowerAction(step.state, step.floor, { type: 'bless', index: 0 }, RULES, FOES);
+    }
+
+    expect(step.state.map?.depth).toBeGreaterThan(1 + TOWER_FLOOR_DEPTH_MAX);
+    expect(towerLevel(step.state, step.floor)).toBe(1 + TOWER_FLOOR_DEPTH_MAX);
+    // Les salles explorées, elles, comptent toutes pour le classement.
+    expect(towerRoomsExplored(step.state)).toBe((step.state.map?.depth ?? 1) - 1);
   });
 });
 
