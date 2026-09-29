@@ -894,7 +894,9 @@ async function settleRun(
       : null;
     const serverRecord = newBest && state.floorsCleared > (top?._max.bestFloor ?? 0);
 
-    const milestones = daily ? [] : await tx.rpgTowerReward.findMany({
+    // Une ascension commencée avant la saison ne rouvre pas les paliers que la nouvelle saison
+    // vient de remettre à zéro : elle ne compte pas plus pour eux que pour le record.
+    const milestones = !inSeason ? [] : await tx.rpgTowerReward.findMany({
       where: {
         guildId: run.guildId,
         kind: 'MILESTONE',
