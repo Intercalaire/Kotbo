@@ -52,7 +52,8 @@
     key: boolean;
   };
   /** `variant` : variante de la carte d'avant, tirée au sort avec elle pour un même étage, selon `weight`. */
-  type Layout = { name: string; width: number; height: number; fog: boolean; modifier: Modifier; variant: boolean; weight: number; rooms: Room[] };
+  type Theme = 'AUTO' | 'STONE' | 'MOSS' | 'CRYPT' | 'ICE' | 'FORGE' | 'ARCANE' | 'ABYSS';
+  type Layout = { name: string; width: number; height: number; fog: boolean; modifier: Modifier; theme: Theme; variant: boolean; weight: number; rooms: Room[] };
   type Foe = { name: string; emoji: string; isBoss: boolean; enabled: boolean };
   type Tool = RoomType | 'ERASE' | 'SELECT';
 
@@ -95,6 +96,8 @@
   ];
   // Ambiances d'étage (miroir de `TOWER_FLOOR_MODIFIERS`).
   const MODIFIERS: Modifier[] = ['NONE', 'FLOODED', 'BURNING', 'BLESSED', 'MIST', 'FROST', 'MOONLESS'];
+  // Décors d'étage (miroir de `TOWER_FLOOR_THEMES`) : AUTO suit la hauteur.
+  const THEMES: Theme[] = ['AUTO', 'STONE', 'MOSS', 'CRYPT', 'ICE', 'FORGE', 'ARCANE', 'ABYSS'];
   // Portails A et B : une seule paire par étage, liée comme par un couloir (miroir de `rpgTowerMap.ts`).
   const isWarp = (type: RoomType) => type === 'WARP_A' || type === 'WARP_B';
   // Sorties d'un étage (miroir de `TOWER_EXIT_TYPES`) : exactement une par étage.
@@ -240,6 +243,19 @@
     }
   }
 
+  function themeLabel(theme: Theme): string {
+    switch (theme) {
+      case 'STONE': return m.eco_tower_theme_stone();
+      case 'MOSS': return m.eco_tower_theme_moss();
+      case 'CRYPT': return m.eco_tower_theme_crypt();
+      case 'ICE': return m.eco_tower_theme_ice();
+      case 'FORGE': return m.eco_tower_theme_forge();
+      case 'ARCANE': return m.eco_tower_theme_arcane();
+      case 'ABYSS': return m.eco_tower_theme_abyss();
+      default: return m.eco_tower_theme_auto();
+    }
+  }
+
   function categoryLabel(category: Category): string {
     switch (category) {
       case 'ENTRY': return m.eco_tower_category_entry();
@@ -340,6 +356,7 @@
       name: '',
       fog: true,
       modifier: 'NONE',
+      theme: 'AUTO',
       variant: false,
       weight: WEIGHT.default,
       width: 9,
@@ -359,6 +376,7 @@
       // Un étage neuf a son brouillard ; un étage enregistré sans ce champ n'en avait pas.
       fog: source ? source.fog === true : true,
       modifier: source?.modifier ?? 'NONE',
+      theme: source?.theme ?? 'AUTO',
       variant: source?.variant === true,
       weight: source?.weight ?? WEIGHT.default,
       width: source?.width ?? 7,
@@ -819,6 +837,7 @@
       name: layout.name,
       fog: layout.fog,
       modifier: layout.modifier,
+      theme: layout.theme,
       variant: layout.variant,
       weight: layout.weight,
       width: kind === 'ROTATE' ? h : w,
@@ -869,6 +888,7 @@
         name: typeof raw.name === 'string' ? raw.name.slice(0, 40) : layout.name,
         fog: raw.fog === true,
         modifier: MODIFIERS.includes(raw.modifier) ? raw.modifier : 'NONE',
+        theme: THEMES.includes(raw.theme) ? raw.theme : 'AUTO',
         variant: layout.variant,
         weight: layout.weight,
         width: raw.width,
@@ -1179,6 +1199,7 @@
       name: layout.name,
       fog: layout.fog,
       modifier: layout.modifier,
+      theme: layout.theme,
       variant: layout.variant,
       weight: layout.weight,
       width: w,
@@ -1207,14 +1228,14 @@
 
   function loadExample() {
     remember();
-    layout = { ...exampleLayout(), name: layout.name, fog: layout.fog, modifier: layout.modifier, variant: layout.variant, weight: layout.weight };
+    layout = { ...exampleLayout(), name: layout.name, fog: layout.fog, modifier: layout.modifier, theme: layout.theme, variant: layout.variant, weight: layout.weight };
     selectedId = null;
     dirty = true;
   }
 
   function clearMap() {
     remember();
-    layout = { name: layout.name, fog: layout.fog, modifier: layout.modifier, variant: layout.variant, weight: layout.weight, width: layout.width, height: layout.height, rooms: [] };
+    layout = { name: layout.name, fog: layout.fog, modifier: layout.modifier, theme: layout.theme, variant: layout.variant, weight: layout.weight, width: layout.width, height: layout.height, rooms: [] };
     selectedId = null;
     dirty = true;
   }
@@ -1340,6 +1361,14 @@
           onchange={(e) => { remember(); layout.modifier = (e.currentTarget as HTMLSelectElement).value as Modifier; dirty = true; }}
           class="bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none">
           {#each MODIFIERS as modifier}<option value={modifier}>{modifierLabel(modifier)}</option>{/each}
+        </select>
+      </div>
+      <div class="space-y-1" title={m.eco_tower_theme_tip()}>
+        <label for="floorTheme" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_tower_theme()}</label>
+        <select id="floorTheme" value={layout.theme} disabled={disabled}
+          onchange={(e) => { remember(); layout.theme = (e.currentTarget as HTMLSelectElement).value as Theme; dirty = true; }}
+          class="bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none">
+          {#each THEMES as theme}<option value={theme}>{themeLabel(theme)}</option>{/each}
         </select>
       </div>
       <button type="button" onclick={() => { showDeaths = !showDeaths; }} disabled={deathsTotal === 0} title={m.eco_tower_death_map_tip()}
