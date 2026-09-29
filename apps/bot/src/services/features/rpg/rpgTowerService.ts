@@ -54,6 +54,7 @@ import {
   TowerActionRefused,
   type TowerFoePool,
   type TowerGhost,
+  towerRunFloorLayout,
   type TowerRules,
   type TowerState,
 } from './rpgTowerEngine.js';
@@ -75,6 +76,11 @@ import {
   towerPurchaseKey,
   towerStatGrant,
   towerUpgradeBonus,
+  towerDailyChallenge,
+  nextTowerDailyStreak,
+  towerDailyStreakBonus,
+  previousTowerDayKey,
+  TOWER_DAILY_PODIUM_SHARDS,
   towerDailySeed,
   towerDayKey,
   towerFoeShape,
@@ -116,7 +122,6 @@ import {
   type TowerLayout,
 } from './rpgTowerMap.js';
 import { heatsFromMask } from './rpgTowerContent.js';
-import { towerFloorLayout } from './rpgTowerGen.js';
 import { renderTowerImage } from './rpgTowerRender.js';
 
 export class TowerError extends Error {
@@ -188,6 +193,8 @@ export type TowerSettlement = {
   gear?: string[];
   /** Ascension du jour. */
   daily?: boolean;
+  /** Éclats ajoutés par la série de jours du défi, avant le plafond hebdomadaire. */
+  streakBonus?: number;
   /** Ascension de la Tour de clan : ni éclats, ni record, ni paliers. */
   clan?: boolean;
 };
@@ -464,11 +471,12 @@ export function pickTowerSkills(skills: readonly TowerSkill[], mask: number): To
 }
 
 /**
- * Ouvre une ascension. `daily` : l'ascension du jour, même graine pour tout le serveur et une
- * seule tentative par joueur et par jour ; elle a son propre classement et ne compte ni pour
- * la saison ni pour les paliers. `skillMask` : compétences achetées pour cette ascension,
- * payées en éclats à l'entrée. `heatMask` : malédictions choisies, chacune contre plus
- * d'éclats ; l'ascension du jour s'en passe, pour rester la même pour tous.
+ * Ouvre une ascension. `daily` : le défi du jour, même graine pour tout le serveur et une
+ * seule tentative par joueur et par jour, sur des étages toujours générés, avec l'ambiance et
+ * la malédiction du jour ; il a son propre classement et ne compte ni pour la saison ni pour
+ * les paliers. `skillMask` : compétences achetées pour cette ascension, payées en éclats à
+ * l'entrée. `heatMask` : malédictions choisies, chacune contre plus d'éclats ; le défi du jour
+ * impose la sienne, pour rester le même pour tous.
  */
 export async function startTowerRun(
   client: Client | null,
@@ -498,6 +506,13 @@ export async function startTowerRun(
   // tombent sur les mêmes cartes ; le hasard des combats change chaque jour et pour chacun.
   // Sinon, refaire les mêmes choix redonnait exactement les mêmes combats d'un jour à l'autre.
   const rngSeed = clanEntry ? towerDailySeed(`${clanEntry.event.seed}:${userId}`, dayKey) : undefined;
+  // Défi du jour : la Tour de clan joue aussi à armes égales, mais sans cette contrainte.
+  const challenge = daily && !clanRun ? towerDailyChallenge(guildId, dayKey) : null;
+  // Le défi se joue toujours sur des étages générés : une carte neuve chaque jour, la même pour tous.
+  const rules: TowerRules = challenge
+    ? { ...rulesOf(settings), floorsAfter: 'GENERATE', generatedFog: true, floorModifier: challenge.modifier }
+    : rulesOf(settings);
+  const floors = challenge ? [] : settings.floors;
   const skills = pickTowerSkills(preview.skills, options.skillMask ?? 0);
   const skillCost = skills.reduce((sum, skill) => sum + towerSkillPrice(settings.skillPrice, skill), 0);
   const state = createTowerState({
@@ -506,15 +521,15 @@ export async function startTowerRun(
     skills,
     // Les compétences laissées au départ restent à la portée d'un mentor, contre de l'or.
     skillPool: preview.skills.filter((skill) => !skills.includes(skill)),
-    heat: daily ? [] : heatsFromMask(options.heatMask ?? 0),
+    heat: challenge ? [challenge.heat] : daily ? [] : heatsFromMask(options.heatMask ?? 0),
     potions: preview.potions + (clanEntry?.bonus.potions ?? 0),
     gold: preview.gold,
     fortune: preview.fortune,
     seed,
     rngSeed,
-    rules: rulesOf(settings),
+    rules,
     // Toujours un étage : les étages dessinés d'abord, générés ensuite ou à défaut.
-    layout: towerFloorLayout(settings.floors, 1, settings.floorsAfter, seed, settings.generatedFog),
+    layout: towerRunFloorLayout(floors, 1, rules, seed),
   });
   await attachGhosts(guildId, userId, state, daily);
   if (clanEntry) await attachClanConquests(clanEntry.event.id, clanEntry.clanId, 1, state);
@@ -547,9 +562,17 @@ export async function startTowerRun(
         clanId: clanEntry?.clanId ?? null,
       },
     });
+    // Défi du jour : la série se compte au départ, relue sous le verrou.
+    const streak = challenge
+      ? await tx.rpgTowerProfile.findUniqueOrThrow({ where: { id: towerProfile.id }, select: { dailyStreak: true, dailyLastKey: true } })
+      : null;
     await tx.rpgTowerProfile.update({
       where: { id: towerProfile.id },
-      data: { totalRuns: { increment: 1 }, ...(skillCost > 0 ? { shards: { decrement: skillCost } } : {}) },
+      data: {
+        totalRuns: { increment: 1 },
+        ...(skillCost > 0 ? { shards: { decrement: skillCost } } : {}),
+        ...(streak ? { dailyStreak: nextTowerDailyStreak(streak.dailyStreak, streak.dailyLastKey, dayKey), dailyLastKey: dayKey } : {}),
+      },
     });
     return { run, state };
   });
@@ -617,7 +640,9 @@ export async function actTowerRun(
   if (clanRun && action.type === 'donate') throw new TowerRefused({ kind: 'action', reason: 'wrong_phase' });
   let step: ReturnType<typeof applyTowerAction>;
   try {
-    step = applyTowerAction(state, run.floor, action, rulesOf(settings), foes, settings.floors);
+    // Le défi du jour ne monte que sur des étages générés : ses règles, gardées dans la partie,
+    // imposent l'ambiance du jour.
+    step = applyTowerAction(state, run.floor, action, rulesOf(settings), foes, run.mode === 'DAILY' ? [] : settings.floors);
   } catch (err) {
     if (err instanceof TowerActionRefused) throw new TowerRefused({ kind: 'action', reason: err.reason });
     throw err;
@@ -952,7 +977,9 @@ async function settleRun(
     const profile = await tx.rpgTowerProfile.findUniqueOrThrow({ where: { id: run.profileId } });
     const sameWeek = profile.weekStart !== null && profile.weekStart.getTime() === weekStart.getTime();
     const weekSoFar = sameWeek ? profile.weekShards : 0;
-    const granted = applyWeeklyCap(kept, weekSoFar, settings.weeklyShardCap);
+    // Défi du jour : la série de jours joués d'affilée ajoute sa part aux éclats gardés.
+    const streakBonus = daily ? Math.round(kept * towerDailyStreakBonus(profile.dailyStreak)) : 0;
+    const granted = applyWeeklyCap(kept + streakBonus, weekSoFar, settings.weeklyShardCap);
     // L'ascension du jour, à stats égales, a son propre classement : elle ne touche ni à la
     // saison, ni aux records, ni aux paliers.
     const inSeason = !daily && run.startedAt.getTime() >= settings.seasonStartedAt.getTime();
@@ -991,7 +1018,7 @@ async function settleRun(
       },
     });
 
-    return { granted, newBest, serverRecord, milestones };
+    return { granted, newBest, serverRecord, milestones, streakBonus };
   });
 
   if (!result) {
@@ -1035,7 +1062,8 @@ async function settleRun(
     shards: result.granted,
     lostToDeath: outcome === 'DEAD' ? state.shards - kept : 0,
     lostToLeave: outcome === 'LEFT' ? state.shards - kept : 0,
-    lostToCap: kept - result.granted,
+    lostToCap: kept + result.streakBonus - result.granted,
+    streakBonus: result.streakBonus,
     newBest: result.newBest,
     milestones: await withTitleNames(result.milestones),
     expired,
@@ -1297,6 +1325,49 @@ export async function getTowerLeaderboard(guildId: string, limit = 10) {
 /** Jour en cours de l'ascension du jour, dans le fuseau du serveur. */
 export async function currentTowerDay(guildId: string, now = new Date()): Promise<string> {
   return towerDayKey(now, await resolveGuildTimezone(guildId));
+}
+
+/**
+ * Podium du défi de la veille : les trois premiers reçoivent leurs éclats, une seule fois par
+ * jour et par serveur. On attend que plus aucune ascension de la veille ne soit en cours : le
+ * classement ne bougera plus. Appelé régulièrement par une tâche planifiée.
+ */
+export async function payTowerDailyPodiums(now = new Date()): Promise<number> {
+  const configs = await prisma.rpgTowerConfig.findMany({
+    where: { dailyEnabled: true, enabled: true },
+    select: { guildId: true, dailyPaidKey: true },
+  });
+  let paid = 0;
+  for (const config of configs) {
+    try {
+      const yesterday = previousTowerDayKey(await currentTowerDay(config.guildId, now));
+      if (!yesterday || config.dailyPaidKey === yesterday) continue;
+      const running = await prisma.rpgTowerRun.count({ where: { guildId: config.guildId, mode: 'DAILY', dailyKey: yesterday, status: 'ACTIVE' } });
+      if (running > 0) continue;
+      const podium = (await getTowerDailyLeaderboard(config.guildId, yesterday, TOWER_DAILY_PODIUM_SHARDS.length))
+        .filter((entry) => entry.floorsCleared > 0);
+      await prisma.$transaction(async (tx) => {
+        // Réservé d'abord : deux passages simultanés ne paient pas deux fois.
+        const claimed = await tx.rpgTowerConfig.updateMany({
+          where: { guildId: config.guildId, OR: [{ dailyPaidKey: null }, { dailyPaidKey: { not: yesterday } }] },
+          data: { dailyPaidKey: yesterday },
+        });
+        if (claimed.count === 0) return;
+        for (const [index, entry] of podium.entries()) {
+          const shards = TOWER_DAILY_PODIUM_SHARDS[index];
+          await tx.rpgTowerProfile.update({
+            where: { guildId_userId: { guildId: config.guildId, userId: entry.userId } },
+            data: { shards: { increment: shards }, lifetimeShards: { increment: shards } },
+          });
+        }
+        paid += podium.length;
+      });
+    } catch (err) {
+      logger.error('RpgTower', `Podium du défi non versé sur ${config.guildId} :`, err);
+    }
+  }
+  if (paid > 0) logger.info('RpgTower', `${paid} place(s) de podium du défi payée(s).`);
+  return paid;
 }
 
 /** Classement de l'ascension du jour : étages, puis salles explorées, puis le plus tôt fini. */

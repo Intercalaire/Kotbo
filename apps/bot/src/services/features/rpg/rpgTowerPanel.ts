@@ -106,11 +106,15 @@ import {
 } from './rpgTowerRender.js';
 import {
   MAX_POTIONS,
+  TOWER_DAILY_PODIUM_SHARDS,
   TOWER_GEAR_SLOTS,
   findBlessing,
+  previousTowerDayKey,
   scrapValue,
   settleShards,
   towerRerollPrice,
+  towerDailyChallenge,
+  towerDailyStreakBonus,
   towerSkillPrice,
   towerStatGrant,
   towerUpgradeCost,
@@ -137,6 +141,7 @@ import {
   getOrCreateTowerProfile,
   getTowerConfig,
   getTowerPlayConfig,
+  currentTowerDay,
   getTowerDailyLeaderboard,
   getTowerLeaderboard,
   hasPlayedDaily,
@@ -766,8 +771,9 @@ function floorTitle(floor: number, name: string, locale: Locale): string {
 }
 
 /** Échelle des étages autour du joueur : deux à venir, le sien, deux franchis. */
-function towerLadder(state: TowerState, floor: number, config: TowerConfigView, locale: Locale, recordFloor: number | null): TowerLadderEntry[] {
-  const floors = config.floors;
+function towerLadder(state: TowerState, floor: number, config: TowerConfigView, locale: Locale, recordFloor: number | null, mode: string): TowerLadderEntry[] {
+  // Le défi du jour ne monte que sur des étages générés : les étages dessinés n'y figurent pas.
+  const floors = mode === 'DAILY' ? [] : config.floors;
   const entries: TowerLadderEntry[] = [];
   for (let n = floor + 2; n >= Math.max(1, floor - 2); n--) {
     const layout = n === floor ? state.map?.layout : floorLayout(floors, n, state.seed ?? 0);
@@ -806,7 +812,7 @@ async function towerImage(guildId: string, mode: string, state: TowerState, floo
       pos: map.pos,
       cleared: map.cleared,
       targets: entries.length > 0 ? entries : state.moves.filter((move) => !move.cleared).map((move) => move.roomId),
-      ladder: towerLadder(state, floor, config, locale, record?.floor ?? null),
+      ladder: towerLadder(state, floor, config, locale, record?.floor ?? null, mode),
       recordLabel: record
         ? record.name
           ? m.tower_ladder_record_named({ floor: record.floor, name: record.name }, { locale })
@@ -1173,7 +1179,7 @@ export async function buildTowerHomeView(client: Client | null, guildId: string,
     ),
   ];
   if (config.dailyEnabled) {
-    textBlock(container, `-# ${icon('rpgDaily')} ${m.tower_home_daily_hint({}, { locale })}`);
+    textBlock(container, await dailyChallengeLines(guildId, profile, locale));
     components.push(row(
       button(
         `twr:daily:${ownerId}`,
@@ -1738,6 +1744,7 @@ export async function buildTowerSettlementView(guildId: string, ownerId: string,
   if (settlement.lostToDeath > 0) lines.push(`-# ${m.tower_end_lost_death({ shards: settlement.lostToDeath, percent: 100 - config.deathShardPercent }, { locale })}`);
   // Bilans écrits avant l'ajout de ce champ : il peut manquer.
   if ((settlement.lostToLeave ?? 0) > 0) lines.push(`-# ${m.tower_end_lost_leave({ shards: settlement.lostToLeave, percent: 100 - config.leaveShardPercent }, { locale })}`);
+  if ((settlement.streakBonus ?? 0) > 0) lines.push(`-# ${icon('rpgDaily')} ${m.tower_end_streak_bonus({ shards: settlement.streakBonus ?? 0 }, { locale })}`);
   if (settlement.lostToCap > 0) lines.push(`-# ${m.tower_end_lost_cap({ shards: settlement.lostToCap }, { locale })}`);
   if (settlement.newBest) lines.push(`${icon('trophy')} ${m.tower_end_new_best({ floors: settlement.floorsCleared }, { locale })}`);
   if (settlement.milestones.length > 0) {
@@ -1941,16 +1948,36 @@ async function buildTowerLeaderboardView(guildId: string, ownerId: string, local
   return { embeds: [], container, components: [row(button(`twr:home:${ownerId}`, m.tower_btn_home({}, { locale }), ButtonStyle.Secondary, icon('rpgBack')))] };
 }
 
+/**
+ * Le défi du jour tel que le joueur le voit : l'ambiance et la malédiction imposées, puis sa
+ * série de jours joués d'affilée (rompue s'il a sauté un jour) et le bonus qu'elle donne.
+ */
+async function dailyChallengeLines(guildId: string, profile: { dailyStreak: number; dailyLastKey: string | null }, locale: Locale): Promise<string> {
+  const dayKey = await currentTowerDay(guildId);
+  const challenge = towerDailyChallenge(guildId, dayKey);
+  const alive = profile.dailyLastKey === dayKey || profile.dailyLastKey === previousTowerDayKey(dayKey);
+  const streak = alive ? profile.dailyStreak : 0;
+  // Joué hier et pas encore aujourd'hui : c'est la série de demain qui compte pour le bonus.
+  const next = profile.dailyLastKey === dayKey ? streak : streak + 1;
+  return [
+    `${icon('rpgDaily')} ${m.tower_daily_challenge({ modifier: modifierName(challenge.modifier, locale), heat: heatName(challenge.heat, locale) }, { locale })}`,
+    `-# ${modifierDescription(challenge.modifier, locale)} · ${heatDescription(challenge.heat, locale)}`,
+    `-# ${m.tower_daily_streak({ days: streak, bonus: Math.round(towerDailyStreakBonus(next) * 100) }, { locale })}`,
+  ].join('\n');
+}
+
 /** Classement de l'ascension du jour. */
 async function buildTowerDailyView(guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
-  const [config, top] = await Promise.all([getTowerConfig(guildId), getTowerDailyLeaderboard(guildId)]);
+  const [config, top, profile] = await Promise.all([getTowerConfig(guildId), getTowerDailyLeaderboard(guildId), getOrCreateTowerProfile(guildId, ownerId)]);
   const container = new ContainerBuilder().setAccentColor(COLOR);
   const lines = top.map((entry, index) =>
     `${index < 3 ? rankEmoji(index + 1) : `**${index + 1}.**`} <@${entry.userId}> — ${m.tower_top_floors({ floors: entry.floorsCleared }, { locale })}`
     + ` · ${m.tower_top_rooms({ rooms: entry.roomsExplored }, { locale })}`);
   textBlock(container, [
     header(config, m.tower_daily_title({}, { locale })),
+    await dailyChallengeLines(guildId, profile, locale),
     `-# ${m.tower_daily_rules({}, { locale })}`,
+    `-# ${icon('trophy')} ${m.tower_daily_podium({ first: TOWER_DAILY_PODIUM_SHARDS[0], second: TOWER_DAILY_PODIUM_SHARDS[1], third: TOWER_DAILY_PODIUM_SHARDS[2] }, { locale })}`,
     '',
     lines.length > 0 ? lines.join('\n') : `*${m.tower_daily_empty({}, { locale })}*`,
   ].join('\n'));

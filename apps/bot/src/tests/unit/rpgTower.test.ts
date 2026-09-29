@@ -32,6 +32,11 @@ import {
   towerMonsterStats,
   towerUpgradeBonus,
   TOWER_FORTUNE_MAX,
+  towerDailyChallenge,
+  previousTowerDayKey,
+  nextTowerDailyStreak,
+  towerDailyStreakBonus,
+  TOWER_DAILY_STREAK_MAX_BONUS,
   towerUpgradeCost,
   towerWeekStart,
   type TowerCoreStats,
@@ -41,6 +46,7 @@ import {
   TOWER_FLOOR_DEPTH_MAX,
   TowerActionRefused,
   applyTowerAction,
+  towerRunFloorLayout,
   createTowerState,
   towerLevel,
   towerRoomsExplored,
@@ -919,6 +925,38 @@ describe('profondeur de la Tour', () => {
     }
     expect(step.floor).toBe(1);
     expect(step.state.floorsCleared).toBe(0);
+  });
+
+  describe('défi du jour', () => {
+    test('la contrainte du jour est la même pour tout le serveur, et change d\'un jour à l\'autre', () => {
+      const today = towerDailyChallenge('guild-1', '2026-09-29');
+      expect(towerDailyChallenge('guild-1', '2026-09-29')).toEqual(today);
+      expect(today.modifier).not.toBe('NONE');
+      const week = new Set(['2026-09-23', '2026-09-24', '2026-09-25', '2026-09-26', '2026-09-27', '2026-09-28', '2026-09-29']
+        .map((day) => JSON.stringify(towerDailyChallenge('guild-1', day))));
+      expect(week.size).toBeGreaterThan(1);
+    });
+
+    test('la série suit les jours joués d\'affilée et plafonne son bonus', () => {
+      expect(previousTowerDayKey('2026-03-01')).toBe('2026-02-28');
+      expect(previousTowerDayKey('2026-01-01')).toBe('2025-12-31');
+      expect(nextTowerDailyStreak(0, null, '2026-09-29')).toBe(1);
+      expect(nextTowerDailyStreak(3, '2026-09-28', '2026-09-29')).toBe(4);
+      expect(nextTowerDailyStreak(3, '2026-09-27', '2026-09-29')).toBe(1);
+      expect(nextTowerDailyStreak(3, '2026-09-29', '2026-09-29')).toBe(3);
+      expect(towerDailyStreakBonus(1)).toBe(0);
+      expect(towerDailyStreakBonus(3)).toBeCloseTo(0.1);
+      expect(towerDailyStreakBonus(40)).toBe(TOWER_DAILY_STREAK_MAX_BONUS);
+    });
+
+    test('l\'ambiance du jour s\'impose à chaque étage généré', () => {
+      const rules = { ...RULES, floorsAfter: 'GENERATE' as const, floorModifier: 'FROST' as const };
+      for (const floor of [1, 2, 9]) {
+        expect(towerRunFloorLayout([], floor, rules, 42).modifier).toBe('FROST');
+      }
+      // Sans ambiance imposée, l'étage garde la sienne.
+      expect(towerRunFloorLayout([], 1, { ...RULES, floorsAfter: 'GENERATE' }, 42)).toEqual(generateTowerLayout(floorSeed(42, 1), true, 1));
+    });
   });
 
   describe('météo changeante', () => {

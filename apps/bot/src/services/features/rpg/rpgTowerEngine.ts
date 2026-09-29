@@ -136,6 +136,7 @@ import {
   type TowerCaptiveKind,
   type TowerDirection,
   type TowerExitType,
+  type TowerFloorModifier,
   type TowerFloorsAfter,
   type TowerLayout,
   type TowerRoom,
@@ -441,7 +442,15 @@ export type TowerRules = {
   floorsAfter?: TowerFloorsAfter;
   /** Absent : les étages générés ont leur brouillard. */
   generatedFog?: boolean;
+  /** Défi du jour : ambiance imposée à chaque étage, qui remplace celle de la carte. */
+  floorModifier?: TowerFloorModifier;
 };
+
+/** Carte de l'étage `floor`, avec l'ambiance imposée par les règles s'il y en a une. */
+export function towerRunFloorLayout(floors: readonly TowerLayout[], floor: number, rules: TowerRules, seed: number): TowerLayout {
+  const layout = towerFloorLayout(floors, floor, rules.floorsAfter ?? 'LOOP', seed, rules.generatedFog ?? true);
+  return rules.floorModifier ? { ...layout, modifier: rules.floorModifier } : layout;
+}
 
 function merchantOf(rules: TowerRules): TowerMerchantSettings {
   return rules.merchant ?? TOWER_MERCHANT_DEFAULTS;
@@ -919,7 +928,7 @@ function markRoomCleared(state: TowerState): void {
 function climb(state: TowerState, floor: number, rules: TowerRules, floors: readonly TowerLayout[], rng: TowerRng): TowerClimb | null {
   const map = state.map;
   if (!map) return null;
-  const next = towerFloorLayout(floors, floor, rules.floorsAfter ?? 'LOOP', state.seed ?? 0, rules.generatedFog ?? true);
+  const next = towerRunFloorLayout(floors, floor, rules, state.seed ?? 0);
   if (!startRoom(next)) return null;
   // Le nouvel étage part du niveau atteint, plafond compris : la difficulté ne saute pas.
   map.floorBase = mapLevel(map, floor);

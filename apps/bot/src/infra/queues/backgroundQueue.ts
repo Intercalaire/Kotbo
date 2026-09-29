@@ -70,6 +70,7 @@ export type BackgroundJobName =
   // le typecheck echouait sur leur handler.
   | 'raid-cycle'
   | 'tower-idle-expiration'
+  | 'tower-daily-podium'
   | 'clan-tower-cycle'
   | 'clan-weekly-digest'
   | 'campaign-cycle'

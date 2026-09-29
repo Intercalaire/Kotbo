@@ -22,6 +22,7 @@ import {
 } from '../../../services/features/rpg/rpgTowerService.js';
 import {
   TOWER_BLESSINGS,
+  TOWER_DAILY_PODIUM_SHARDS,
   TOWER_ENTRY_MODES,
   TOWER_RANGES,
   TOWER_MERCHANT_RANGES,
@@ -32,6 +33,7 @@ import {
   TOWER_UPGRADE_EFFECTS,
   TOWER_UPGRADE_PER_LEVEL_RANGES,
   TOWER_UPGRADE_RANGES,
+  towerDailyChallenge,
 } from '../../../services/features/rpg/rpgTowerPolicy.js';
 import {
   TOWER_BOSS_MECHANICS,
@@ -252,7 +254,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
     server.registerTool(
       'get_rpg_tower_daily',
       {
-        description: "Classement de l'ascension du jour de la Tour (même tour pour tous, stats égales, une tentative par joueur et par jour) : étages gravis, salles explorées, issue. `day` au format AAAA-MM-JJ, dans le fuseau du serveur, aujourd'hui par défaut.",
+        description: "Défi du jour de la Tour (carte générée neuve chaque jour, la même pour tous, stats égales, une tentative par joueur et par jour, avec une ambiance et une malédiction imposées) : la contrainte du jour et le classement (étages gravis, salles explorées, issue). Le podium reçoit des éclats le lendemain. `day` au format AAAA-MM-JJ, dans le fuseau du serveur, aujourd'hui par défaut.",
         inputSchema: {
           day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
           limit: z.number().int().min(1).max(50).optional(),
@@ -262,7 +264,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
       guard('READ_ECONOMY', async ({ day, limit }) => {
         const dayKey = day ?? await currentTowerDay(guildId);
         const leaderboard = await getTowerDailyLeaderboard(guildId, dayKey, limit ?? 10);
-        return ok({ day: dayKey, leaderboard });
+        return ok({ day: dayKey, challenge: towerDailyChallenge(guildId, dayKey), podiumShards: TOWER_DAILY_PODIUM_SHARDS, leaderboard });
       })
     );
   }

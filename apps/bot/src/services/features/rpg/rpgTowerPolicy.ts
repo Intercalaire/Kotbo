@@ -9,8 +9,15 @@
 
 import type { SkillEffect } from './rpgClasses.js';
 import { RPG_SKILL_NODES } from './rpgSkillTree.js';
-import { RELIC_PERK_CHANCE, TOWER_RELIC_PERKS, type TowerRelicPerk } from './rpgTowerContent.js';
-import { TOWER_FLOORS_AFTER, TOWER_OFFER_KINDS, type TowerFloorsAfter, type TowerOfferKind } from './rpgTowerMap.js';
+import { RELIC_PERK_CHANCE, TOWER_HEATS, TOWER_RELIC_PERKS, type TowerHeat, type TowerRelicPerk } from './rpgTowerContent.js';
+import {
+  TOWER_FLOOR_MODIFIERS,
+  TOWER_FLOORS_AFTER,
+  TOWER_OFFER_KINDS,
+  type TowerFloorModifier,
+  type TowerFloorsAfter,
+  type TowerOfferKind,
+} from './rpgTowerMap.js';
 
 // ─────────────────────────────────────────────────────────────
 // Réglages
@@ -418,6 +425,47 @@ export function towerDailySeed(guildId: string, dayKey: string): number {
     hash = Math.imul(hash, 0x01000193);
   }
   return hash | 0;
+}
+
+/**
+ * Défi du jour : une ambiance sur tous les étages et une malédiction, les mêmes pour tout le
+ * serveur ce jour-là. Tirés de la graine du jour, sans réglage : le serveur ne fait qu'activer
+ * ou non le défi.
+ */
+export type TowerDailyChallenge = { modifier: Exclude<TowerFloorModifier, 'NONE'>; heat: TowerHeat };
+
+export function towerDailyChallenge(guildId: string, dayKey: string): TowerDailyChallenge {
+  const seed = towerDailySeed(guildId, `défi:${dayKey}`) >>> 0;
+  const modifiers = TOWER_FLOOR_MODIFIERS.filter((modifier): modifier is TowerDailyChallenge['modifier'] => modifier !== 'NONE');
+  return {
+    modifier: modifiers[seed % modifiers.length],
+    heat: TOWER_HEATS[Math.floor(seed / modifiers.length) % TOWER_HEATS.length],
+  };
+}
+
+/** Clé du jour précédent (AAAA-MM-JJ), pour suivre une série de jours joués. */
+export function previousTowerDayKey(dayKey: string): string {
+  const date = new Date(`${dayKey}T12:00:00Z`);
+  if (Number.isNaN(date.getTime())) return '';
+  date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
+}
+
+/** Éclats du podium du défi, du premier au troisième, versés le lendemain. */
+export const TOWER_DAILY_PODIUM_SHARDS = [60, 40, 25] as const;
+/** Chaque jour de série ajoute 5 % d'éclats au défi, jusqu'à +25 % (six jours d'affilée). */
+export const TOWER_DAILY_STREAK_STEP = 0.05;
+export const TOWER_DAILY_STREAK_MAX_BONUS = 0.25;
+
+/** Série après avoir joué le défi du jour `dayKey`. */
+export function nextTowerDailyStreak(streak: number, lastKey: string | null, dayKey: string): number {
+  if (lastKey === dayKey) return Math.max(1, streak);
+  return lastKey !== null && lastKey === previousTowerDayKey(dayKey) ? Math.max(0, streak) + 1 : 1;
+}
+
+/** Part d'éclats en plus pour une série : rien le premier jour, puis 5 % par jour. */
+export function towerDailyStreakBonus(streak: number): number {
+  return Math.min(TOWER_DAILY_STREAK_MAX_BONUS, Math.max(0, streak - 1) * TOWER_DAILY_STREAK_STEP);
 }
 
 // ─────────────────────────────────────────────────────────────

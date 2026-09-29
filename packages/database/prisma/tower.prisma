@@ -69,6 +69,8 @@ model RpgTowerConfig {
 
   /// Ascension du jour : même graine pour tous, stats égales, une tentative par jour.
   dailyEnabled      Boolean @default(false)
+  /// Dernier jour (clé du jour, fuseau du serveur) dont le podium du défi a été payé.
+  dailyPaidKey      String?
   /// Salon où annoncer les records de la saison. `null` : aucune annonce.
   announceChannelId String?
 
@@ -156,6 +158,9 @@ model RpgTowerProfile {
 
   weekShards Int       @default(0)
   weekStart  DateTime?
+  /// Défi du jour : jours joués d'affilée, et le dernier joué (clé du jour).
+  dailyStreak  Int     @default(0)
+  dailyLastKey String?
 
   /// Améliorations permanentes valables dans la Tour seulement : { potion: 1, vigor: 2 }.
   upgrades         Json     @default("{}")
