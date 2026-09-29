@@ -835,6 +835,19 @@ describe('profondeur de la Tour', () => {
     }
   });
 
+  test('traces, gardien, échelle colorée et record se dessinent', async () => {
+    const layout = { value: generateTowerLayout(5) };
+    const start = startRoom(layout.value)!;
+    const image = await renderTowerImage({
+      kind: 'map', title: 'Étage 21', floor: 21, layout: layout.value, pos: start.id,
+      // Toutes les salles faites : chaque sorte de trace est dessinée.
+      cleared: layout.value.rooms.map((room) => room.id), targets: [],
+      ladder: [22, 21, 20].map((n) => ({ label: `Étage ${n}`, status: n === 21 ? 'current' : n > 21 ? 'next' : 'done', theme: resolveTowerTheme('AUTO', n), record: n === 22 }) as const),
+      recordLabel: 'Record 22 · Quelqu\'un',
+    });
+    expect(image).not.toBeNull();
+  });
+
   test('un étage dans la brume a toujours du brouillard', () => {
     const layout = normalizeTowerLayout({ ...generateTowerLayout(3), fog: false, modifier: 'MIST' });
     expect(layout.ok).toBe(true);

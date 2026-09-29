@@ -107,7 +107,11 @@ const ROOM_COLOR: Record<TowerRoomType, string> = {
   EMPTY: '#64748b',
 };
 
-export type TowerLadderEntry = { label: string; status: 'done' | 'current' | 'next' };
+/**
+ * Une marche de l'échelle des étages. `theme` : décor de l'étage, qui teinte sa carte : la
+ * montée se lit comme une bande de couleurs. `record` : l'étage du record du serveur.
+ */
+export type TowerLadderEntry = { label: string; status: 'done' | 'current' | 'next'; theme?: TowerResolvedTheme; record?: boolean };
 
 export type TowerMapImage = {
   kind: 'map';
@@ -134,6 +138,8 @@ export type TowerMapImage = {
   path?: readonly string[];
   /** Tour de clan : salles conquises par le clan, marquées d'un fanion. */
   conquered?: readonly string[];
+  /** Record du serveur, déjà traduit, écrit sous l'échelle ; sa marche porte un drapeau. */
+  recordLabel?: string | null;
 };
 
 /** Encart de texte à droite de la tour : titre et quelques lignes courtes. */
@@ -150,7 +156,7 @@ export type TowerShaftImage = {
 };
 
 /** Marqueurs de la carte, expliqués dans le guide. */
-export type TowerLegendMarker = 'PAWN' | 'TARGET' | 'CLEARED' | 'KEY' | 'BADGE' | 'POWER' | 'WANDERER' | 'PATH' | 'PENNANT' | 'FOG';
+export type TowerLegendMarker = 'PAWN' | 'TARGET' | 'CLEARED' | 'KEY' | 'BADGE' | 'POWER' | 'WANDERER' | 'PATH' | 'PENNANT' | 'FOG' | 'RECORD';
 
 /**
  * Une ligne de légende : une salle telle que la carte la dessine, ou un marqueur. `locked` : salle
@@ -1517,11 +1523,22 @@ function renderMap(input: TowerMapImage): Buffer {
     // Une salle vide garde un bout de décor dans un coin, tiré de la carte : il ne bouge pas.
     if (shown === 'EMPTY') drawRoomProp(ctx, scene, room.id, x, y, size);
     if (cleared) {
-      checkMark(ctx, cx, cy, size * 0.42);
+      // La salle garde la trace de ce qui s'y est passé, et une coche discrète dans un coin.
+      if (drawClearedTrace(ctx, shown, cx, cy, size * (span === 2 ? 0.42 : 0.55), color)) {
+        checkMark(ctx, x + size - size * 0.2, y + size - size * 0.2, size * 0.26);
+      } else {
+        checkMark(ctx, cx, cy, size * 0.42);
+      }
     } else {
       ctx.save();
       ctx.globalAlpha = shown === 'EMPTY' ? 0.5 : 1;
-      glyph(ctx, shown, cx, cy, size * (span === 2 ? 0.42 : 0.55), color);
+      if (shown === 'BOSS') {
+        // Le gardien attend derrière sa porte : sa silhouette, la couronne sur la tête.
+        drawBossSilhouette(ctx, cx, cy, size);
+        glyph(ctx, shown, cx, cy - size * 0.24, size * 0.26, color);
+      } else {
+        glyph(ctx, shown, cx, cy, size * (span === 2 ? 0.42 : 0.55), color);
+      }
       ctx.restore();
       const badge = input.badges?.[room.id] ?? 0;
       if (badge > 0) drawBadge(ctx, x + size - 2, y + 2, Math.max(7, tile * 0.16), badge);
@@ -1559,12 +1576,12 @@ function renderMap(input: TowerMapImage): Buffer {
     pawn(ctx, gx + (here.x + span / 2) * tile, gy + (here.y + span / 2) * tile, tile * 0.55);
   }
 
-  drawLadder(ctx, bodyX + bodyW + margin, top, LADDER_WIDTH, H - top - 24, input.ladder);
+  drawLadder(ctx, bodyX + bodyW + margin, top, LADDER_WIDTH, H - top - 24, input.ladder, input.recordLabel ?? null);
   return canvas.toBuffer('image/png');
 }
 
 /** Échelle des étages : ceux à venir au-dessus, l'étage en cours éclairé, ceux franchis dessous. */
-function drawLadder(ctx: SKRSContext2D, x: number, y: number, w: number, h: number, ladder: TowerLadderEntry[]): void {
+function drawLadder(ctx: SKRSContext2D, x: number, y: number, w: number, h: number, ladder: TowerLadderEntry[], recordLabel: string | null = null): void {
   if (ladder.length === 0) return;
   const pitch = Math.min(64, (h - 20) / ladder.length);
   const cardH = pitch - 12;
@@ -1584,6 +1601,19 @@ function drawLadder(ctx: SKRSContext2D, x: number, y: number, w: number, h: numb
     roundRect(ctx, x, cy, w, cardH, 10);
     ctx.fillStyle = current ? 'rgba(139, 92, 246, 0.28)' : 'rgba(255, 255, 255, 0.05)';
     ctx.fill();
+    // Le décor de l'étage teinte sa carte : franchis, les étages forment une bande de couleurs.
+    if (entry.theme) {
+      ctx.save();
+      roundRect(ctx, x, cy, w, cardH, 10);
+      ctx.clip();
+      const tint = PALETTES[entry.theme].banner;
+      ctx.fillStyle = withAlpha(tint, entry.status === 'next' ? 0.08 : 0.18);
+      ctx.fillRect(x, cy, w, cardH);
+      ctx.fillStyle = withAlpha(tint, entry.status === 'next' ? 0.35 : 0.9);
+      ctx.fillRect(x + w - 7, cy, 7, cardH);
+      ctx.restore();
+    }
+    roundRect(ctx, x, cy, w, cardH, 10);
     ctx.strokeStyle = current ? C.accent : 'rgba(196, 168, 255, 0.18)';
     ctx.lineWidth = current ? 2.5 : 1;
     ctx.stroke();
@@ -1596,10 +1626,145 @@ function drawLadder(ctx: SKRSContext2D, x: number, y: number, w: number, h: numb
     const color = current ? C.text : entry.status === 'done' ? C.textDim : 'rgba(237, 233, 247, 0.6)';
     ctx.font = canvasFont(current ? 17 : 15, 'bold');
     let label = entry.label;
-    const maxWidth = w - 52;
+    const maxWidth = w - (entry.record ? 78 : 52);
     while (ctx.measureText(label).width > maxWidth && label.length > 4) label = `${label.slice(0, -2)}…`;
     text(ctx, label, x + 44, mid, current ? 17 : 15, color);
+    if (entry.record) drawRecordFlag(ctx, x + w - 30, mid, 11);
   });
+
+  if (recordLabel) {
+    const below = startY + pitch * ladder.length + 6;
+    drawRecordFlag(ctx, x + 12, below, 9);
+    ctx.font = canvasFont(14, 'bold');
+    let label = recordLabel;
+    while (ctx.measureText(label).width > w - 30 && label.length > 4) label = `${label.slice(0, -2)}…`;
+    text(ctx, label, x + 28, below, 14, C.gold);
+  }
+}
+
+/** Drapeau doré du record du serveur. */
+function drawRecordFlag(ctx: SKRSContext2D, cx: number, cy: number, size: number): void {
+  ctx.save();
+  ctx.strokeStyle = C.text;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - size * 0.5, cy + size);
+  ctx.lineTo(cx - size * 0.5, cy - size);
+  ctx.stroke();
+  ctx.fillStyle = C.gold;
+  ctx.beginPath();
+  ctx.moveTo(cx - size * 0.5, cy - size);
+  ctx.lineTo(cx + size, cy - size * 0.55);
+  ctx.lineTo(cx - size * 0.5, cy - size * 0.1);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * Trace laissée par une salle résolue : griffures d'un combat, coffre ouvert, cendres d'un feu.
+ * Renvoie faux quand la salle n'en a pas : elle garde alors sa coche au centre.
+ */
+function drawClearedTrace(ctx: SKRSContext2D, type: TowerRoomType, cx: number, cy: number, size: number, color: string): boolean {
+  const s = size / 2;
+  ctx.save();
+  ctx.lineCap = 'round';
+  switch (type) {
+    case 'MONSTER':
+    case 'ELITE':
+    case 'TRIAL':
+    case 'PRISONER':
+    case 'SEAL':
+    case 'BOSS':
+    case 'COLLAPSE':
+    case 'TOLL': {
+      // Trois griffures, et un os tombé là.
+      ctx.strokeStyle = withAlpha(color, 0.55);
+      ctx.lineWidth = Math.max(2, s * 0.14);
+      for (const offset of [-0.35, 0, 0.35]) {
+        ctx.beginPath();
+        ctx.moveTo(cx + (offset - 0.25) * s, cy - s * 0.6);
+        ctx.lineTo(cx + (offset + 0.25) * s, cy + s * 0.3);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = 'rgba(226, 232, 240, 0.55)';
+      ctx.lineWidth = Math.max(1.5, s * 0.1);
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.45, cy + s * 0.65);
+      ctx.lineTo(cx + s * 0.35, cy + s * 0.5);
+      ctx.stroke();
+      break;
+    }
+    case 'CHEST': {
+      // Coffre ouvert : le couvercle rabattu en arrière, vide.
+      ctx.strokeStyle = withAlpha(color, 0.6);
+      ctx.lineWidth = Math.max(1.5, s * 0.1);
+      ctx.strokeRect(cx - s * 0.75, cy - s * 0.05, s * 1.5, s * 0.65);
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.75, cy - s * 0.05);
+      ctx.lineTo(cx - s * 0.55, cy - s * 0.7);
+      ctx.lineTo(cx + s * 0.95, cy - s * 0.7);
+      ctx.lineTo(cx + s * 0.75, cy - s * 0.05);
+      ctx.stroke();
+      break;
+    }
+    case 'CAMPFIRE': {
+      // Cendres et une volute de fumée.
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.55)';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + s * 0.5, s * 0.7, s * 0.25, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(203, 213, 225, 0.45)';
+      ctx.lineWidth = Math.max(1.5, s * 0.1);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + s * 0.3);
+      ctx.bezierCurveTo(cx - s * 0.4, cy, cx + s * 0.4, cy - s * 0.3, cx, cy - s * 0.75);
+      ctx.stroke();
+      break;
+    }
+    default:
+      ctx.restore();
+      return false;
+  }
+  ctx.restore();
+  return true;
+}
+
+/** Silhouette cornue du gardien, les yeux rougeoyants, dans sa grande salle. */
+function drawBossSilhouette(ctx: SKRSContext2D, cx: number, cy: number, size: number): void {
+  const s = size / 2;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+  // Épaules.
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.8, cy + s * 0.85);
+  ctx.quadraticCurveTo(cx - s * 0.75, cy + s * 0.2, cx - s * 0.3, cy + s * 0.12);
+  ctx.lineTo(cx + s * 0.3, cy + s * 0.12);
+  ctx.quadraticCurveTo(cx + s * 0.75, cy + s * 0.2, cx + s * 0.8, cy + s * 0.85);
+  ctx.closePath();
+  ctx.fill();
+  // Tête et cornes.
+  ctx.beginPath();
+  ctx.arc(cx, cy - s * 0.05, s * 0.27, 0, Math.PI * 2);
+  ctx.fill();
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(cx + side * s * 0.18, cy - s * 0.25);
+    ctx.quadraticCurveTo(cx + side * s * 0.5, cy - s * 0.35, cx + side * s * 0.45, cy - s * 0.62);
+    ctx.lineTo(cx + side * s * 0.3, cy - s * 0.2);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Yeux.
+  ctx.shadowColor = '#ef4444';
+  ctx.shadowBlur = 8;
+  ctx.fillStyle = '#f87171';
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(cx + side * s * 0.11, cy - s * 0.04, s * 0.06, s * 0.035, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1756,7 +1921,10 @@ function drawLegendTile(ctx: SKRSContext2D, entry: TowerLegendEntry, x: number, 
         ctx.stroke();
         ctx.restore();
         break;
-      case 'CLEARED': checkMark(ctx, cx, cy, size * 0.42); break;
+      case 'CLEARED':
+        drawClearedTrace(ctx, 'MONSTER', cx, cy, size * 0.55, ROOM_COLOR.MONSTER);
+        checkMark(ctx, x + size * 0.8, y + size * 0.8, size * 0.26);
+        break;
       case 'KEY': drawKey(ctx, x + 6, y + size - 6, Math.max(8, size * 0.4)); break;
       case 'BADGE': drawBadge(ctx, cx, cy, size * 0.2, 1); break;
       case 'POWER': drawPower(ctx, x + size - 4, y + size - 4, 12, 150); break;
@@ -1771,6 +1939,7 @@ function drawLegendTile(ctx: SKRSContext2D, entry: TowerLegendEntry, x: number, 
         break;
       case 'PENNANT': drawPennant(ctx, cx - size * 0.2, cy - size * 0.3, size * 0.6); break;
       case 'FOG': drawFog(ctx, x, y, size, 3); break;
+      case 'RECORD': drawRecordFlag(ctx, cx - size * 0.05, cy, size * 0.3); break;
     }
     return;
   }
@@ -1800,7 +1969,12 @@ function drawLegendTile(ctx: SKRSContext2D, entry: TowerLegendEntry, x: number, 
   ctx.globalAlpha = 1;
   ctx.save();
   ctx.globalAlpha = shown === 'EMPTY' ? 0.5 : 1;
-  glyph(ctx, shown, cx, cy, size * 0.55, color);
+  if (shown === 'BOSS') {
+    drawBossSilhouette(ctx, cx, cy, size);
+    glyph(ctx, shown, cx, cy - size * 0.24, size * 0.3, color);
+  } else {
+    glyph(ctx, shown, cx, cy, size * 0.55, color);
+  }
   ctx.restore();
   if (entry.hidden) drawWarning(ctx, x + size - 3, y + 3, Math.max(7, size * 0.17));
 }

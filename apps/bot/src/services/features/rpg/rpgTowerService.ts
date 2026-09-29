@@ -109,6 +109,7 @@ import {
   towerCardTags,
   towerFloorLabel,
   towerLayoutKey,
+  resolveTowerTheme,
   towerLayoutHasFog,
   visibleRooms,
   type TowerHiddenRoom,
@@ -270,6 +271,32 @@ export async function getOrCreateTowerProfile(guildId: string, userId: string) {
     update: {},
     create: { guildId, userId },
   });
+}
+
+/** Record de tous les temps du serveur, relu au plus une fois par minute : il s'affiche à chaque pas. */
+const RECORD_TTL_MS = 60_000;
+const serverRecords = new Map<string, { at: number; record: TowerServerRecord | null }>();
+export type TowerServerRecord = { floor: number; userId: string; name: string };
+
+export async function getTowerServerRecord(guildId: string): Promise<TowerServerRecord | null> {
+  const cached = serverRecords.get(guildId);
+  if (cached && Date.now() - cached.at < RECORD_TTL_MS) return cached.record;
+  const best = await prisma.rpgTowerProfile.findFirst({
+    where: { guildId, bestFloorAllTime: { gt: 0 } },
+    orderBy: [{ bestFloorAllTime: 'desc' }, { createdAt: 'asc' }],
+    select: { userId: true, bestFloorAllTime: true },
+  });
+  let record: TowerServerRecord | null = null;
+  if (best) {
+    const member = await prisma.memberProfile.findUnique({
+      where: { guildId_userId: { guildId, userId: best.userId } },
+      select: { displayName: true, globalName: true, username: true },
+    });
+    const name = member?.displayName || member?.globalName || member?.username || '';
+    record = { floor: best.bestFloorAllTime, userId: best.userId, name };
+  }
+  serverRecords.set(guildId, { at: Date.now(), record });
+  return record;
 }
 
 function rulesOf(settings: TowerSettings): TowerRules {
@@ -1661,10 +1688,15 @@ export async function previewTowerFloor(guildId: string, input: { layout?: unkno
   // Départ, ou la première entrée d'un étage à puits ou à entrées au choix.
   const start = startRoom(layout)!;
   const title = (n: number, name: string) => (name ? m.tower_floor_named({ floor: n, name }, { locale }) : m.tower_floor({ floor: n }, { locale }));
-  const nameOf = (n: number) => (n === floor ? layout.name : floorLayout(settings.floors, n)?.name ?? '');
+  const layoutOf = (n: number) => (n === floor ? layout : floorLayout(settings.floors, n));
   const ladder = [];
   for (let n = floor + 2; n >= Math.max(1, floor - 2); n--) {
-    ladder.push({ label: title(n, nameOf(n)), status: n === floor ? 'current' as const : n > floor ? 'next' as const : 'done' as const });
+    const at = layoutOf(n);
+    ladder.push({
+      label: title(n, at?.name ?? ''),
+      status: n === floor ? 'current' as const : n > floor ? 'next' as const : 'done' as const,
+      theme: resolveTowerTheme(at?.theme, n),
+    });
   }
   // Ce que voit le joueur en arrivant : sous le brouillard, seulement l'entrée et ses voisines ;
   // devant des entrées au choix, seulement ces entrées, sans y être encore.

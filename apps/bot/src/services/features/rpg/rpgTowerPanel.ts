@@ -67,6 +67,7 @@ import {
   occupancy,
   roomDistance,
   towerFloorCount,
+  resolveTowerTheme,
   towerLayoutHasFog,
   visibleRooms,
   type TowerDirection,
@@ -140,6 +141,7 @@ import {
   getTowerLeaderboard,
   hasPlayedDaily,
   getTowerShop,
+  getTowerServerRecord,
   isTowerOpen,
   previewTowerEntry,
   startTowerRun,
@@ -764,20 +766,27 @@ function floorTitle(floor: number, name: string, locale: Locale): string {
 }
 
 /** Échelle des étages autour du joueur : deux à venir, le sien, deux franchis. */
-function towerLadder(state: TowerState, floor: number, config: TowerConfigView, locale: Locale): TowerLadderEntry[] {
+function towerLadder(state: TowerState, floor: number, config: TowerConfigView, locale: Locale, recordFloor: number | null): TowerLadderEntry[] {
   const floors = config.floors;
   const entries: TowerLadderEntry[] = [];
   for (let n = floor + 2; n >= Math.max(1, floor - 2); n--) {
-    const name = n === floor ? state.map?.layout.name ?? '' : floorLayout(floors, n, state.seed ?? 0)?.name ?? '';
-    entries.push({ label: floorTitle(n, name, locale), status: n === floor ? 'current' : n > floor ? 'next' : 'done' });
+    const layout = n === floor ? state.map?.layout : floorLayout(floors, n, state.seed ?? 0);
+    entries.push({
+      label: floorTitle(n, layout?.name ?? '', locale),
+      status: n === floor ? 'current' : n > floor ? 'next' : 'done',
+      theme: resolveTowerTheme(layout?.theme, n),
+      record: n === recordFloor,
+    });
   }
   return entries;
 }
 
 /** Image de la tour pour l'écran de déplacement ; `null` si le rendu échoue. */
-async function towerImage(state: TowerState, floor: number, config: TowerConfigView, locale: Locale): Promise<Buffer | null> {
+async function towerImage(guildId: string, mode: string, state: TowerState, floor: number, config: TowerConfigView, locale: Locale): Promise<Buffer | null> {
   if (state.map) {
     const map = state.map;
+    // Le record de tous les temps ne se bat qu'en ascension classique : ailleurs, il n'a pas de sens.
+    const record = mode === 'CLASSIC' ? await getTowerServerRecord(guildId).catch(() => null) : null;
     // Devant les entrées au choix, toutes se voient, et rien d'autre sous le brouillard.
     const entries = state.phase === 'ENTRY' ? map.entryChoices ?? [] : [];
     // Révélé par un oracle, l'étage se voit en entier.
@@ -797,7 +806,12 @@ async function towerImage(state: TowerState, floor: number, config: TowerConfigV
       pos: map.pos,
       cleared: map.cleared,
       targets: entries.length > 0 ? entries : state.moves.filter((move) => !move.cleared).map((move) => move.roomId),
-      ladder: towerLadder(state, floor, config, locale),
+      ladder: towerLadder(state, floor, config, locale, record?.floor ?? null),
+      recordLabel: record
+        ? record.name
+          ? m.tower_ladder_record_named({ floor: record.floor, name: record.name }, { locale })
+          : m.tower_ladder_record({ floor: record.floor }, { locale })
+        : null,
       visible: visible ? [...visible] : null,
       badges,
       keys: map.layout.rooms.filter((room) => room.key && !map.cleared.includes(room.id)).map((room) => room.id),
@@ -1386,7 +1400,7 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
 
   switch (state.phase) {
     case 'DOORS': {
-      const image = await towerImage(state, run.floor, config, locale);
+      const image = await towerImage(guildId, run.mode, state, run.floor, config, locale);
       if (image) {
         files.push({ attachment: image, name: TOWER_IMAGE_FILENAME });
         container.addMediaGalleryComponents(new MediaGalleryBuilder().addItems(
@@ -1556,7 +1570,7 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
     case 'ENTRY': {
       // Arrivée devant plusieurs entrées : chacune dit combien de salles la séparent de la sortie.
       const map = state.map!;
-      const image = await towerImage(state, run.floor, config, locale);
+      const image = await towerImage(guildId, run.mode, state, run.floor, config, locale);
       if (image) {
         files.push({ attachment: image, name: TOWER_IMAGE_FILENAME });
         container.addMediaGalleryComponents(new MediaGalleryBuilder().addItems(
@@ -1957,7 +1971,7 @@ const GUIDE_ROOM_PAGES: { title: (locale: Locale) => string; rooms: TowerRoomTyp
 /** Après les salles : les marqueurs de la carte, puis les ambiances d'étage. */
 const GUIDE_MARKERS_PAGE = GUIDE_ROOM_PAGES.length;
 const GUIDE_MODIFIERS_PAGE = GUIDE_MARKERS_PAGE + 1;
-const GUIDE_MARKERS: TowerLegendMarker[] = ['PAWN', 'TARGET', 'CLEARED', 'KEY', 'BADGE', 'POWER', 'WANDERER', 'PATH', 'PENNANT', 'FOG'];
+const GUIDE_MARKERS: TowerLegendMarker[] = ['PAWN', 'TARGET', 'CLEARED', 'KEY', 'BADGE', 'POWER', 'WANDERER', 'PATH', 'PENNANT', 'FOG', 'RECORD'];
 
 function hiddenRoomName(room: TowerHiddenRoom, locale: Locale): string {
   switch (room) {
@@ -1990,6 +2004,7 @@ function markerName(marker: TowerLegendMarker, locale: Locale): string {
     case 'WANDERER': return m.tower_guide_marker_wanderer({}, { locale });
     case 'PATH': return m.tower_guide_marker_path({}, { locale });
     case 'PENNANT': return m.tower_guide_marker_pennant({}, { locale });
+    case 'RECORD': return m.tower_guide_marker_record({}, { locale });
     default: return m.tower_guide_fog({}, { locale });
   }
 }
@@ -2005,6 +2020,7 @@ function markerDescription(marker: TowerLegendMarker, locale: Locale): string {
     case 'WANDERER': return m.tower_guide_marker_wanderer_desc({}, { locale });
     case 'PATH': return m.tower_guide_marker_path_desc({}, { locale });
     case 'PENNANT': return m.tower_guide_marker_pennant_desc({}, { locale });
+    case 'RECORD': return m.tower_guide_marker_record_desc({}, { locale });
     default: return m.tower_guide_fog_desc({}, { locale });
   }
 }
