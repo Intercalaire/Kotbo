@@ -20,7 +20,7 @@
 
   type RoomType = 'START' | 'WELL' | 'ENTRANCE' | 'MONSTER' | 'ELITE' | 'AMBUSH' | 'WANDERER' | 'PRISONER' | 'BOSS' | 'STAIRS' | 'EXIT' | 'COLLAPSE' | 'TOLL' | 'TRIAL' | 'GATE' | 'SEAL' | 'FOUNTAIN' | 'ORACLE'
     | 'CHEST' | 'MIMIC' | 'CAMPFIRE' | 'MERCHANT' | 'MERCENARY' | 'MENTOR' | 'SHRINE' | 'EVENT' | 'TRAP' | 'WARP_A' | 'WARP_B' | 'EMPTY';
-  type Modifier = 'NONE' | 'FLOODED' | 'BURNING' | 'BLESSED';
+  type Modifier = 'NONE' | 'FLOODED' | 'BURNING' | 'BLESSED' | 'MIST' | 'FROST' | 'MOONLESS';
   type Captive = 'RANDOM' | 'GOLD' | 'POTION' | 'ALLY';
   type Category = 'ENTRY' | 'MONSTERS' | 'EXITS' | 'NPC' | 'OTHER';
   type Trait = 'ARMORED' | 'VAMPIRIC' | 'SWIFT' | 'THORNY' | 'BERSERK' | 'REGENERATING';
@@ -94,7 +94,7 @@
     'CHEST', 'CAMPFIRE', 'MERCHANT', 'MERCENARY', 'MENTOR', 'ORACLE', 'FOUNTAIN', 'SHRINE', 'EVENT', 'TRAP', 'WARP_A', 'WARP_B', 'EMPTY',
   ];
   // Ambiances d'étage (miroir de `TOWER_FLOOR_MODIFIERS`).
-  const MODIFIERS: Modifier[] = ['NONE', 'FLOODED', 'BURNING', 'BLESSED'];
+  const MODIFIERS: Modifier[] = ['NONE', 'FLOODED', 'BURNING', 'BLESSED', 'MIST', 'FROST', 'MOONLESS'];
   // Portails A et B : une seule paire par étage, liée comme par un couloir (miroir de `rpgTowerMap.ts`).
   const isWarp = (type: RoomType) => type === 'WARP_A' || type === 'WARP_B';
   // Sorties d'un étage (miroir de `TOWER_EXIT_TYPES`) : exactement une par étage.
@@ -233,6 +233,9 @@
       case 'FLOODED': return m.eco_tower_modifier_flooded();
       case 'BURNING': return m.eco_tower_modifier_burning();
       case 'BLESSED': return m.eco_tower_modifier_blessed();
+      case 'MIST': return m.eco_tower_modifier_mist();
+      case 'FROST': return m.eco_tower_modifier_frost();
+      case 'MOONLESS': return m.eco_tower_modifier_moonless();
       default: return m.eco_tower_modifier_none();
     }
   }
