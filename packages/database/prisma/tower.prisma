@@ -120,6 +120,8 @@ model RpgTowerReward {
   statAmount Int     @default(0)
   /// Achats au plus par joueur d'un article répétable ; 0 : sans limite.
   maxPurchases Int   @default(0)
+  /// Remise à zéro de cette limite : NEVER, DAILY (minuit du serveur) ou WEEKLY (lundi).
+  limitPeriod  String @default("NEVER")
 
   enabled Boolean @default(true)
 
@@ -155,7 +157,8 @@ model RpgTowerProfile {
   upgrades         Json     @default("{}")
   /// Paliers déjà versés et articles uniques déjà achetés.
   claimedRewardIds String[] @default([])
-  /// Achats de la boutique par article : { rewardId: 3 }. Borne les articles à quantité limitée.
+  /// Achats de la boutique par article : { rewardId: { count: 3, key: "2026-09-30" } }, la clé
+  /// désignant la période du compteur. Borne les articles à quantité limitée.
   purchases        Json     @default("{}")
   /// Salles piégées déjà rencontrées (MIMIC, AMBUSH, WANDERER) : le guide ne les dévoile
   /// qu'au joueur qui est tombé dessus.

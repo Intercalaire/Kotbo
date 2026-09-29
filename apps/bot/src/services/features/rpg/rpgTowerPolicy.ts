@@ -225,14 +225,46 @@ export function towerStatGrant(
   return { field, gain: field === 'maxHealth' ? amount * healthPerPoint : amount };
 }
 
-/** Achats de la boutique par article, tels que stockés sur le profil Tour. */
-export function parseTowerPurchases(value: unknown): Record<string, number> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-  const counts: Record<string, number> = {};
-  for (const [id, count] of Object.entries(value as Record<string, unknown>)) {
-    if (typeof count === 'number' && Number.isInteger(count) && count > 0) counts[id] = count;
+/** Remise à zéro de la limite d'achats d'un article : jamais, à minuit, ou le lundi. */
+export const TOWER_REWARD_LIMIT_PERIODS = ['NEVER', 'DAILY', 'WEEKLY'] as const;
+export type TowerRewardLimitPeriod = (typeof TOWER_REWARD_LIMIT_PERIODS)[number];
+
+/** Compteur d'achats d'un article, et la période qu'il compte (vide : depuis toujours). */
+export type TowerPurchaseEntry = { count: number; key: string };
+
+/**
+ * Période en cours d'une limite d'achats, dans le fuseau du serveur : le jour, le lundi de la
+ * semaine, ou rien pour une limite qui ne se remet jamais à zéro.
+ */
+export function towerPurchaseKey(period: string, now: Date, timeZone = 'UTC'): string {
+  if (period === 'DAILY') return towerDayKey(now, timeZone);
+  if (period === 'WEEKLY') {
+    const day = towerDayKey(now, timeZone);
+    return towerWeekStart(new Date(`${day}T00:00:00Z`)).toISOString().slice(0, 10);
   }
-  return counts;
+  return '';
+}
+
+/** Achats comptés pour la période en cours : un compteur d'une autre période est périmé. */
+export function purchasesInPeriod(entry: TowerPurchaseEntry | undefined, key: string): number {
+  return entry && entry.key === key ? entry.count : 0;
+}
+
+/**
+ * Achats de la boutique par article, tels que stockés sur le profil Tour. Un simple nombre,
+ * forme des premiers compteurs, compte depuis toujours.
+ */
+export function parseTowerPurchases(value: unknown): Record<string, TowerPurchaseEntry> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const entries: Record<string, TowerPurchaseEntry> = {};
+  for (const [id, raw] of Object.entries(value as Record<string, unknown>)) {
+    const count = typeof raw === 'number' ? raw : (raw as { count?: unknown } | null)?.count;
+    const key = typeof raw === 'number' ? '' : (raw as { key?: unknown } | null)?.key;
+    if (typeof count === 'number' && Number.isInteger(count) && count > 0) {
+      entries[id] = { count, key: typeof key === 'string' ? key : '' };
+    }
+  }
+  return entries;
 }
 
 export type NormalizedTowerReward = {
@@ -253,6 +285,7 @@ export type NormalizedTowerReward = {
   stat: TowerRewardStat | null;
   statAmount: number;
   maxPurchases: number;
+  limitPeriod: TowerRewardLimitPeriod;
   enabled: boolean;
 };
 
@@ -286,6 +319,7 @@ export function normalizeTowerReward(input: Record<string, unknown>): TowerNorma
     stat: null,
     statAmount: 0,
     maxPurchases: 0,
+    limitPeriod: 'NEVER',
     enabled: input.enabled !== false,
   };
 
@@ -297,6 +331,10 @@ export function normalizeTowerReward(input: Record<string, unknown>): TowerNorma
   }
   // Un article unique ne s'achète déjà qu'une fois ; un palier ne se verse qu'une fois.
   if (value.repeatable) value.maxPurchases = clampInt(input.maxPurchases, TOWER_REWARD_MAX_PURCHASES_RANGE, 0);
+  // Sans limite, rien à remettre à zéro.
+  if (value.maxPurchases > 0 && TOWER_REWARD_LIMIT_PERIODS.includes(input.limitPeriod as TowerRewardLimitPeriod)) {
+    value.limitPeriod = input.limitPeriod as TowerRewardLimitPeriod;
+  }
 
   const grantsSomething = value.titleId || value.roleId || value.itemName || value.stat
     || value.coins > 0 || value.xp > 0 || value.clanPoints > 0 || value.shards > 0;

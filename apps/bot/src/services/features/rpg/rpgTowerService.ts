@@ -70,7 +70,9 @@ import {
   normalizeTowerSettings,
   parseTowerPurchases,
   parseTowerUpgrades,
+  purchasesInPeriod,
   settleShards,
+  towerPurchaseKey,
   towerStatGrant,
   towerUpgradeBonus,
   towerDailySeed,
@@ -87,6 +89,7 @@ import {
   type TowerOutcome,
   type TowerSettings,
   type TowerSkill,
+  type TowerRewardLimitPeriod,
   type TowerStatGrant,
   type TowerUpgradeDef,
 } from './rpgTowerPolicy.js';
@@ -130,8 +133,8 @@ export type TowerRefusal =
   | { kind: 'action'; reason: TowerActionError }
   | { kind: 'shards'; price: number; balance: number }
   | { kind: 'owned' }
-  /** Article à quantité limitée déjà acheté autant de fois que permis. */
-  | { kind: 'limit'; max: number }
+  /** Article à quantité limitée déjà acheté autant de fois que permis sur la période. */
+  | { kind: 'limit'; max: number; period: TowerRewardLimitPeriod }
   | { kind: 'unavailable' }
   | { kind: 'upgrade_max' }
   | { kind: 'daily_disabled' }
@@ -1130,20 +1133,26 @@ export async function takePendingTowerSettlement(guildId: string, userId: string
 // ─────────────────────────────────────────────────────────────
 
 export async function getTowerShop(guildId: string, userId: string) {
-  const [settings, profile, rewards, milestones] = await Promise.all([
+  const [settings, profile, rewards, milestones, timeZone] = await Promise.all([
     getTowerConfig(guildId),
     getOrCreateTowerProfile(guildId, userId),
     prisma.rpgTowerReward.findMany({ where: { guildId, kind: 'SHOP', enabled: true }, orderBy: [{ price: 'asc' }, { name: 'asc' }] }),
     prisma.rpgTowerReward.findMany({ where: { guildId, kind: 'MILESTONE', enabled: true }, orderBy: { floor: 'asc' } }),
+    resolveGuildTimezone(guildId),
   ]);
+  const stored = parseTowerPurchases(profile.purchases);
+  const now = new Date();
   return {
     profile,
     rewards: await withTitleNames(rewards),
     milestones: await withTitleNames(milestones),
     upgrades: settings.upgrades.filter((upgrade) => upgrade.enabled),
     levels: parseTowerUpgrades(profile.upgrades, settings.upgrades),
-    /** Achats du joueur par article, pour les articles à quantité limitée. */
-    purchases: parseTowerPurchases(profile.purchases),
+    /** Achats du joueur par article sur la période en cours de sa limite. */
+    purchases: Object.fromEntries(rewards.map((reward) => [
+      reward.id,
+      purchasesInPeriod(stored[reward.id], towerPurchaseKey(reward.limitPeriod, now, timeZone)),
+    ])) as Record<string, number>,
   };
 }
 
@@ -1161,6 +1170,8 @@ export async function buyTowerReward(
   // catalogue, un titre ou un rôle supprimé faisaient payer le joueur pour rien.
   if (!(await rewardStillGrantable(client, guildId, reward))) throw new TowerRefused({ kind: 'unavailable' });
   const profile = await getOrCreateTowerProfile(guildId, userId);
+  // Période en cours de la limite : le compteur d'un autre jour ou d'une autre semaine repart à zéro.
+  const periodKey = towerPurchaseKey(reward.limitPeriod, new Date(), await resolveGuildTimezone(guildId));
 
   await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT 1 FROM "rpg_tower_profiles" WHERE "id" = ${profile.id} FOR UPDATE`;
@@ -1168,14 +1179,16 @@ export async function buyTowerReward(
     if (!reward.repeatable && fresh.claimedRewardIds.includes(reward.id)) throw new TowerRefused({ kind: 'owned' });
     // Relu sous le verrou : deux clics sur le dernier exemplaire n'en achètent qu'un.
     const purchases = parseTowerPurchases(fresh.purchases);
-    const bought = purchases[reward.id] ?? 0;
-    if (reward.maxPurchases > 0 && bought >= reward.maxPurchases) throw new TowerRefused({ kind: 'limit', max: reward.maxPurchases });
+    const bought = purchasesInPeriod(purchases[reward.id], periodKey);
+    if (reward.maxPurchases > 0 && bought >= reward.maxPurchases) {
+      throw new TowerRefused({ kind: 'limit', max: reward.maxPurchases, period: reward.limitPeriod as TowerRewardLimitPeriod });
+    }
     if (fresh.shards < reward.price) throw new TowerRefused({ kind: 'shards', price: reward.price, balance: fresh.shards });
     await tx.rpgTowerProfile.update({
       where: { id: profile.id },
       data: {
         shards: { decrement: reward.price },
-        purchases: { ...purchases, [reward.id]: bought + 1 },
+        purchases: { ...purchases, [reward.id]: { count: bought + 1, key: periodKey } },
         ...(reward.repeatable ? {} : { claimedRewardIds: { push: reward.id } }),
       },
     });

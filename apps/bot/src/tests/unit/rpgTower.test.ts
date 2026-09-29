@@ -9,6 +9,8 @@ import {
   normalizeTowerReward,
   normalizeTowerSettings,
   parseTowerPurchases,
+  purchasesInPeriod,
+  towerPurchaseKey,
   towerStatGrant,
   normalizeTowerUpgrades,
   parseTowerUpgrades,
@@ -278,9 +280,36 @@ describe('réglages et récompenses', () => {
   });
 
   test('les achats stockés ne gardent que des compteurs valides', () => {
-    expect(parseTowerPurchases({ a: 2, b: 0, c: -1, d: 1.5, e: 'x' })).toEqual({ a: 2 });
+    // Un simple nombre, forme des premiers compteurs, compte depuis toujours.
+    expect(parseTowerPurchases({ a: 2, b: 0, c: -1, d: 1.5, e: 'x', f: { count: 3, key: '2026-09-30' } }))
+      .toEqual({ a: { count: 2, key: '' }, f: { count: 3, key: '2026-09-30' } });
     expect(parseTowerPurchases(null)).toEqual({});
     expect(parseTowerPurchases([1, 2])).toEqual({});
+  });
+
+  test('une limite d\'achats se remet à zéro au jour ou à la semaine suivante', () => {
+    // Mercredi 30 septembre 2026, 23 h 30 UTC : déjà jeudi 1er octobre à Paris.
+    const late = new Date('2026-09-30T23:30:00Z');
+    expect(towerPurchaseKey('NEVER', late)).toBe('');
+    expect(towerPurchaseKey('DAILY', late)).toBe('2026-09-30');
+    expect(towerPurchaseKey('DAILY', late, 'Europe/Paris')).toBe('2026-10-01');
+    expect(towerPurchaseKey('WEEKLY', late, 'Europe/Paris')).toBe('2026-09-28');
+    // Le dimanche soir UTC est déjà lundi à Tokyo : nouvelle semaine.
+    expect(towerPurchaseKey('WEEKLY', new Date('2026-10-04T20:00:00Z'), 'Asia/Tokyo')).toBe('2026-10-05');
+
+    const entry = { count: 3, key: '2026-09-30' };
+    expect(purchasesInPeriod(entry, '2026-09-30')).toBe(3);
+    expect(purchasesInPeriod(entry, '2026-10-01')).toBe(0);
+    expect(purchasesInPeriod(undefined, '')).toBe(0);
+  });
+
+  test('la remise à zéro ne se règle que sur une limite', () => {
+    const daily = normalizeTowerReward({ kind: 'SHOP', name: 'Force', price: 50, stat: 'ATTACK', repeatable: true, maxPurchases: 3, limitPeriod: 'DAILY' });
+    expect(daily.ok && daily.value.limitPeriod).toBe('DAILY');
+    const unlimited = normalizeTowerReward({ kind: 'SHOP', name: 'Force', price: 50, stat: 'ATTACK', repeatable: true, maxPurchases: 0, limitPeriod: 'DAILY' });
+    expect(unlimited.ok && unlimited.value.limitPeriod).toBe('NEVER');
+    const bogus = normalizeTowerReward({ kind: 'SHOP', name: 'Force', price: 50, stat: 'ATTACK', repeatable: true, maxPurchases: 3, limitPeriod: 'HOURLY' });
+    expect(bogus.ok && bogus.value.limitPeriod).toBe('NEVER');
   });
 
   test('les bénédictions respectent le plafond de variétés', () => {

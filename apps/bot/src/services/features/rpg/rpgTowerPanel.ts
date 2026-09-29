@@ -957,7 +957,10 @@ export function towerRefusalText(refusal: TowerRefusal, config: TowerConfigView,
     case 'in_combat': return m.tower_refused_in_combat({}, { locale });
     case 'shards': return m.tower_refused_shards({ price: refusal.price, balance: refusal.balance, emoji: shardIcon(config) }, { locale });
     case 'owned': return m.tower_refused_owned({}, { locale });
-    case 'limit': return m.tower_refused_limit({ max: refusal.max }, { locale });
+    case 'limit':
+      if (refusal.period === 'DAILY') return m.tower_refused_limit_daily({ max: refusal.max }, { locale });
+      if (refusal.period === 'WEEKLY') return m.tower_refused_limit_weekly({ max: refusal.max }, { locale });
+      return m.tower_refused_limit({ max: refusal.max }, { locale });
     case 'unavailable': return m.tower_refused_unavailable({}, { locale });
     case 'upgrade_max': return m.tower_refused_upgrade_max({}, { locale });
     case 'daily_disabled': return m.tower_refused_daily_disabled({}, { locale });
@@ -1835,8 +1838,11 @@ async function buildTowerShopView(guildId: string, ownerId: string, locale: Loca
     const limited = reward.maxPurchases > 0;
     const soldOut = limited && bought >= reward.maxPurchases;
     const contents = rewardContents(reward, economy.currencyEmoji, config, locale);
-    const title = `${rewardIcon(reward)} **${reward.name}**`
-      + (limited ? ` · ${m.tower_shop_purchases({ count: bought, max: reward.maxPurchases }, { locale })}` : '');
+    const counter = { count: bought, max: reward.maxPurchases };
+    const title = `${rewardIcon(reward)} **${reward.name}**` + (!limited ? '' : ` · ${
+      reward.limitPeriod === 'DAILY' ? m.tower_shop_purchases_daily(counter, { locale })
+        : reward.limitPeriod === 'WEEKLY' ? m.tower_shop_purchases_weekly(counter, { locale })
+          : m.tower_shop_purchases(counter, { locale })}`);
     const unavailable = owned || soldOut;
     container.addSectionComponents(new SectionBuilder()
       .addTextDisplayComponents(new TextDisplayBuilder().setContent(truncate(
