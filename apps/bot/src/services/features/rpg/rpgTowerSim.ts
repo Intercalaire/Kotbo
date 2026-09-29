@@ -83,6 +83,8 @@ export type TowerSimCard = {
   floor: number;
   /** Lettre de la variante, vide pour un étage sans variante. */
   variant: string;
+  /** Chance d'être tirée entre les variantes de son étage, en pourcentage. */
+  chance: number;
   name: string;
   arrivals: number;
   cleared: number;
@@ -196,7 +198,7 @@ export async function simulateTowerRuns(input: TowerSimInput): Promise<TowerSimR
   let capped = 0;
   const tags = towerCardTags(input.floors);
   const cards: TowerSimCard[] = input.floors.map((layout, index) => ({
-    index, floor: tags[index].floor, variant: tags[index].variant, name: layout.name, arrivals: 0, cleared: 0, deaths: 0,
+    index, ...tags[index], name: layout.name, arrivals: 0, cleared: 0, deaths: 0,
   }));
   const drawnFloors = towerFloorCount(input.floors);
 

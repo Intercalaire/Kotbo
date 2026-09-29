@@ -51,8 +51,8 @@
     event: EventChoice;
     key: boolean;
   };
-  /** `variant` : variante de la carte d'avant, tirée au sort avec elle pour un même étage. */
-  type Layout = { name: string; width: number; height: number; fog: boolean; modifier: Modifier; variant: boolean; rooms: Room[] };
+  /** `variant` : variante de la carte d'avant, tirée au sort avec elle pour un même étage, selon `weight`. */
+  type Layout = { name: string; width: number; height: number; fog: boolean; modifier: Modifier; variant: boolean; weight: number; rooms: Room[] };
   type Foe = { name: string; emoji: string; isBoss: boolean; enabled: boolean };
   type Tool = RoomType | 'ERASE' | 'SELECT';
 
@@ -318,6 +318,9 @@
     }
   }
 
+  /** Poids d'une variante au tirage (mêmes bornes que `TOWER_VARIANT_WEIGHT` côté bot). */
+  const WEIGHT = { min: 1, max: 100, default: 10 };
+
   function newRoom(x: number, y: number, type: RoomType): Room {
     return {
       id: `${x}-${y}`, x, y, type, foe: null, chest: 'BOTH', healPercent: 35, offers: [...OFFERS], pricePercent: 100,
@@ -332,6 +335,7 @@
       fog: true,
       modifier: 'NONE',
       variant: false,
+      weight: WEIGHT.default,
       width: 9,
       height: 9,
       rooms: [
@@ -350,6 +354,7 @@
       fog: source ? source.fog === true : true,
       modifier: source?.modifier ?? 'NONE',
       variant: source?.variant === true,
+      weight: source?.weight ?? WEIGHT.default,
       width: source?.width ?? 7,
       height: source?.height ?? 7,
       rooms: (source?.rooms ?? []).map((room) => ({
@@ -664,7 +669,10 @@
   // Du sommet au rez-de-chaussée, comme on lit une tour.
   const stack = $derived(allFloors.map((floor, index) => ({ floor, index })).reverse());
 
-  /** Numéro d'étage de chaque carte, et sa lettre de variante (« A », « B »…) quand l'étage en a plusieurs. */
+  /**
+   * Numéro d'étage de chaque carte, sa lettre de variante (« A », « B »…) quand l'étage en a
+   * plusieurs, et sa chance d'être tirée.
+   */
   const floorTags = $derived.by(() => {
     const tags: { floor: number; variant: string }[] = [];
     let floor = 0;
@@ -679,8 +687,16 @@
       tags.push({ floor, variant: String.fromCharCode(65 + rank) });
     }
     const sizes = new Map<number, number>();
-    for (const tag of tags) sizes.set(tag.floor, (sizes.get(tag.floor) ?? 0) + 1);
-    return tags.map((tag) => ({ floor: tag.floor, variant: (sizes.get(tag.floor) ?? 1) > 1 ? tag.variant : '' }));
+    const weights = new Map<number, number>();
+    for (const [index, tag] of tags.entries()) {
+      sizes.set(tag.floor, (sizes.get(tag.floor) ?? 0) + 1);
+      weights.set(tag.floor, (weights.get(tag.floor) ?? 0) + allFloors[index].weight);
+    }
+    return tags.map((tag, index) => ({
+      floor: tag.floor,
+      variant: (sizes.get(tag.floor) ?? 1) > 1 ? tag.variant : '',
+      chance: Math.round((allFloors[index].weight / (weights.get(tag.floor) ?? 1)) * 100),
+    }));
   });
   const floorCount = $derived(floorTags.length > 0 ? floorTags[floorTags.length - 1].floor : 0);
 
@@ -764,6 +780,7 @@
       fog: layout.fog,
       modifier: layout.modifier,
       variant: layout.variant,
+      weight: layout.weight,
       width: kind === 'ROTATE' ? h : w,
       height: kind === 'ROTATE' ? w : h,
       rooms,
@@ -813,6 +830,7 @@
         fog: raw.fog === true,
         modifier: MODIFIERS.includes(raw.modifier) ? raw.modifier : 'NONE',
         variant: layout.variant,
+        weight: layout.weight,
         width: raw.width,
         height: raw.height,
         rooms,
@@ -1122,6 +1140,7 @@
       fog: layout.fog,
       modifier: layout.modifier,
       variant: layout.variant,
+      weight: layout.weight,
       width: w,
       height: h,
       rooms: layout.rooms.filter((room) => cellsOf(room).every(([x, y]) => x < w && y < h)),
@@ -1148,14 +1167,14 @@
 
   function loadExample() {
     remember();
-    layout = { ...exampleLayout(), name: layout.name, fog: layout.fog, modifier: layout.modifier, variant: layout.variant };
+    layout = { ...exampleLayout(), name: layout.name, fog: layout.fog, modifier: layout.modifier, variant: layout.variant, weight: layout.weight };
     selectedId = null;
     dirty = true;
   }
 
   function clearMap() {
     remember();
-    layout = { name: layout.name, fog: layout.fog, modifier: layout.modifier, variant: layout.variant, width: layout.width, height: layout.height, rooms: [] };
+    layout = { name: layout.name, fog: layout.fog, modifier: layout.modifier, variant: layout.variant, weight: layout.weight, width: layout.width, height: layout.height, rooms: [] };
     selectedId = null;
     dirty = true;
   }
@@ -1267,6 +1286,14 @@
         <ToggleSwitch checked={layout.variant} disabled={disabled || current === 0} ariaLabel={m.eco_tower_floor_variant()} onToggle={(value: boolean) => { remember(); layout.variant = value; dirty = true; }} />
         <span class="text-xs font-semibold flex items-center gap-1"><Papicon icon="Copy" size={12} /> {m.eco_tower_floor_variant()}</span>
       </div>
+      {#if floorTags[current]?.variant}
+        <div class="space-y-1" title={m.eco_tower_floor_weight_tip()}>
+          <label for="floorWeight" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_tower_floor_weight({ chance: floorTags[current].chance })}</label>
+          <input id="floorWeight" type="number" min={WEIGHT.min} max={WEIGHT.max} value={layout.weight} disabled={disabled}
+            onchange={(e) => { remember(); layout.weight = Math.min(WEIGHT.max, Math.max(WEIGHT.min, Math.trunc(Number((e.currentTarget as HTMLInputElement).value)) || WEIGHT.default)); dirty = true; }}
+            class="w-20 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none" />
+        </div>
+      {/if}
       <div class="space-y-1" title={m.eco_tower_modifier_tip()}>
         <label for="floorModifier" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_tower_modifier()}</label>
         <select id="floorModifier" value={layout.modifier} disabled={disabled}
@@ -1369,7 +1396,7 @@
               title={valid ? '' : m.eco_tower_floor_invalid()}
               class="w-full text-left rounded-md px-2.5 py-2 border transition-all {entry.index === current ? 'border-primary bg-primary/15' : 'border-outline-variant/15 bg-surface-container-high/40 hover:border-outline-variant/40'}">
               <span class="flex items-center justify-between gap-2">
-                <span class="text-2xs font-mono text-on-surface-variant/60">{floorTitle(entry.index)}</span>
+                <span class="text-2xs font-mono text-on-surface-variant/60">{floorTitle(entry.index)}{#if floorTags[entry.index]?.variant} · {floorTags[entry.index].chance} %{/if}</span>
                 {#if !valid}<span class="text-warning flex"><Papicon icon="AlertTriangle" size={11} /></span>{/if}
               </span>
               <span class="flex items-center gap-2">

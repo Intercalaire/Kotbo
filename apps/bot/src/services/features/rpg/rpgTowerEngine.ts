@@ -119,6 +119,7 @@ import {
   pathBetween,
   roomNeighbors,
   startRoom,
+  towerLayoutKey,
   wanderZone,
   type TowerCaptiveKind,
   type TowerDirection,
@@ -333,6 +334,11 @@ export type TowerState = {
   kills: number;
   /** Gardiens parmi `kills`. Absent des parties d'avant ce champ. */
   bossKills?: number;
+  /**
+   * Empreinte de la carte de chaque étage atteint, dans l'ordre (voir `towerLayoutKey`) : les
+   * statistiques par carte du dashboard. Absent des parties d'avant ce champ, qui ne comptent pas.
+   */
+  floorKeys?: string[];
   notice: TowerNotice | null;
   /** Carte dessinée, `null` en mode aléatoire. */
   map: TowerMapState | null;
@@ -712,6 +718,7 @@ export function createTowerState(input: {
     floorsCleared: 0,
     kills: 0,
     bossKills: 0,
+    floorKeys: map ? [towerLayoutKey(map.layout)] : [],
     notice: null,
     map,
     moves: [],
@@ -779,6 +786,7 @@ function climb(state: TowerState, floor: number, rules: TowerRules, floors: read
   if (!startRoom(next)) return null;
   map.layout = structuredClone(next);
   map.prev = undefined;
+  state.floorKeys?.push(towerLayoutKey(next));
   arrive(map, rng);
   // Les fantômes appartiennent à une carte : ceux du nouvel étage sont chargés par le service.
   map.ghosts = [];

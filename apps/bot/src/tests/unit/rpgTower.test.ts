@@ -535,6 +535,17 @@ describe('carte de la Tour', () => {
     expect(labels).toEqual(['1-A', '1-B', '2', '3-A', '3-B', '3-C']);
   });
 
+  test('le poids d\'une variante règle sa chance d\'être tirée', () => {
+    const floors = [{ ...defaultTowerLayout(), name: 'A', weight: 9 }, { ...defaultTowerLayout(), name: 'B', variant: true, weight: 1 }];
+    expect(towerCardTags(floors).map((tag) => tag.chance)).toEqual([90, 10]);
+    let rare = 0;
+    for (let seed = 0; seed < 2000; seed++) if (floorLayout(floors, 1, seed)!.name === 'B') rare += 1;
+    expect(rare).toBeGreaterThan(120);
+    expect(rare).toBeLessThan(280);
+    // Sans poids enregistré, les variantes sont à parts égales.
+    expect(towerCardTags([defaultTowerLayout(), { ...defaultTowerLayout(), variant: true }]).map((tag) => tag.chance)).toEqual([50, 50]);
+  });
+
   test('la première carte ne peut pas être une variante', () => {
     const result = normalizeTowerFloors([{ ...defaultTowerLayout(), variant: true }, { ...defaultTowerLayout(), variant: true }]);
     expect(result.ok).toBe(true);

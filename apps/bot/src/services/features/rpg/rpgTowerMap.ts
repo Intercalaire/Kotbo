@@ -63,6 +63,8 @@ export const TOWER_MAP_SIZE = { min: 3, max: 12 } as const;
 export const TOWER_MAP_ROOMS_MAX = 100;
 /** Cartes dessinées au plus, variantes comprises. */
 export const TOWER_FLOORS_MAX = 24;
+/** Poids d'une carte au tirage entre les variantes de son étage : 1 face à 9, elle sort une fois sur dix. */
+export const TOWER_VARIANT_WEIGHT = { min: 1, max: 100, default: 10 } as const;
 export const TOWER_FLOOR_NAME_MAX = 40;
 export const TOWER_MERCHANT_OFFERS_MAX = 4;
 /** Après le dernier étage dessiné : la tour reprend au premier, ou génère des étages inédits. */
@@ -196,6 +198,7 @@ export type TowerFloorModifier = (typeof TOWER_FLOOR_MODIFIERS)[number];
  * `modifier` : ambiance de l'étage.
  * `variant` : variante de l'étage dessiné juste avant ; les deux partagent un même numéro
  * d'étage et l'un d'eux est tiré au sort. Toujours faux sur la première carte.
+ * `weight` : poids de la carte dans ce tirage, sans effet sur un étage sans variante.
  */
 export type TowerLayout = {
   name: string;
@@ -204,6 +207,7 @@ export type TowerLayout = {
   fog: boolean;
   modifier: TowerFloorModifier;
   variant?: boolean;
+  weight?: number;
   rooms: TowerRoom[];
 };
 
@@ -450,7 +454,8 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
   // Absent des cartes d'avant le brouillard : elles restent entièrement visibles.
   const fog = raw.fog === true;
   const modifier = TOWER_FLOOR_MODIFIERS.includes(raw.modifier as TowerFloorModifier) ? (raw.modifier as TowerFloorModifier) : 'NONE';
-  const layout: TowerLayout = { name, width, height, fog, modifier, variant: raw.variant === true, rooms };
+  const weight = clampInt(raw.weight, TOWER_VARIANT_WEIGHT, TOWER_VARIANT_WEIGHT.default);
+  const layout: TowerLayout = { name, width, height, fog, modifier, variant: raw.variant === true, weight, rooms };
   const distances = distancesFromStart(layout);
   if (distances.size !== rooms.length) {
     return { ok: false, error: `${rooms.length - distances.size} salle(s) ne sont reliées à rien depuis le départ.` };
@@ -488,14 +493,26 @@ export function towerFloorCount(floors: readonly TowerLayout[]): number {
   return towerFloorGroups(floors).length;
 }
 
-/** Étage dessiné d'une carte, et sa lettre (« A », « B »…) ; lettre vide pour un étage sans variante. */
-export type TowerCardTag = { floor: number; variant: string };
+function cardWeight(layout: TowerLayout): number {
+  return layout.weight ?? TOWER_VARIANT_WEIGHT.default;
+}
+
+/**
+ * Étage dessiné d'une carte, sa lettre (« A », « B »…) et sa chance d'être tirée, en
+ * pourcentage ; lettre vide et 100 % pour un étage sans variante.
+ */
+export type TowerCardTag = { floor: number; variant: string; chance: number };
 
 export function towerCardTags(floors: readonly TowerLayout[]): TowerCardTag[] {
   const tags: TowerCardTag[] = [];
   for (const [rank, group] of towerFloorGroups(floors).entries()) {
+    const total = group.reduce((sum, index) => sum + cardWeight(floors[index]), 0);
     for (const [position, index] of group.entries()) {
-      tags[index] = { floor: rank + 1, variant: group.length > 1 ? String.fromCharCode(65 + position) : '' };
+      tags[index] = {
+        floor: rank + 1,
+        variant: group.length > 1 ? String.fromCharCode(65 + position) : '',
+        chance: Math.round((cardWeight(floors[index]) / total) * 100),
+      };
     }
   }
   return tags;
@@ -509,8 +526,8 @@ export function towerFloorLabel(floor: number, variant: string): string {
 /**
  * Carte d'un étage de la montée, par son index dans `floors` : les étages dessinés se suivent,
  * puis la tour recommence au premier. Entre les variantes d'un étage, la graine de la partie
- * tranche : une même partie retombe toujours sur la même, et l'ascension du jour est la même
- * pour tous. -1 sans étage dessiné.
+ * tranche selon leur poids : une même partie retombe toujours sur la même, et l'ascension du
+ * jour est la même pour tous. -1 sans étage dessiné.
  */
 export function floorCardIndex(floors: readonly TowerLayout[], floor: number, seed = 0): number {
   const groups = towerFloorGroups(floors);
@@ -519,7 +536,12 @@ export function floorCardIndex(floors: readonly TowerLayout[], floor: number, se
   const group = groups[(depth - 1) % groups.length];
   if (group.length === 1) return group[0];
   const mixed = (Math.imul(seed ^ 0x27d4eb2d, 0x165667b1) + Math.imul(depth, 0x9e3779b1)) >>> 0;
-  return group[mixed % group.length];
+  let roll = mixed % group.reduce((sum, index) => sum + cardWeight(floors[index]), 0);
+  for (const index of group) {
+    roll -= cardWeight(floors[index]);
+    if (roll < 0) return index;
+  }
+  return group[group.length - 1];
 }
 
 export function floorLayout(floors: readonly TowerLayout[], floor: number, seed = 0): TowerLayout | null {

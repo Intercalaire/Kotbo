@@ -637,7 +637,16 @@ async function settleRun(
   const result = await prisma.$transaction(async (tx) => {
     const closed = await tx.rpgTowerRun.updateMany({
       where: { id: run.id, status: 'ACTIVE' },
-      data: { status: outcome, endedAt: now, shardsEarned: kept, floorsCleared: state.floorsCleared, roomsExplored: rooms, killedBy, ...death },
+      data: {
+        status: outcome,
+        endedAt: now,
+        shardsEarned: kept,
+        floorsCleared: state.floorsCleared,
+        roomsExplored: rooms,
+        killedBy,
+        floorKeys: state.floorKeys ?? [],
+        ...death,
+      },
     });
     if (closed.count === 0) return null;
 
@@ -962,13 +971,62 @@ export async function getTowerInsights(guildId: string, floors: readonly TowerLa
     byLabel.set(label, entry);
   }
   const deadliest = [...byLabel.values()].sort((a, b) => b.deaths - a.deaths || a.floor - b.floor)[0] ?? null;
+  const cards = await getTowerCardStats(guildId, floors);
   return {
     finishedRuns: count,
     averageFloor: Math.round((totals._avg.floorsCleared ?? 0) * 10) / 10,
     deathRate: count > 0 ? Math.round((deaths / count) * 100) : 0,
     topKillers: killers.map((row) => ({ name: row.killedBy ?? '', deaths: row._count._all })),
     deadliestFloor: deadliest,
+    cards,
   };
+}
+
+/** Bilan d'une carte dessinée sur les vraies parties, variantes à part. */
+export type TowerCardStats = {
+  index: number;
+  floor: number;
+  variant: string;
+  /** Chance d'être tirée entre les variantes de son étage, en pourcentage. */
+  chance: number;
+  name: string;
+  arrivals: number;
+  cleared: number;
+  deaths: number;
+  left: number;
+};
+
+/**
+ * Arrivées, passages, morts et départs sur chaque carte dessinée, tirés des parties closes de
+ * la Tour classique. Une carte se reconnaît à son empreinte : redessinée, elle repart de zéro,
+ * comme la carte des morts. L'étage où une partie s'arrête est le dernier de sa liste.
+ */
+async function getTowerCardStats(guildId: string, floors: readonly TowerLayout[]): Promise<TowerCardStats[]> {
+  if (floors.length === 0) return [];
+  const keys = [...new Set(floors.map((layout) => towerLayoutKey(layout)))];
+  const [arrivals, endings] = await Promise.all([
+    prisma.$queryRaw<{ key: string; runs: number }[]>`
+      SELECT k AS "key", COUNT(*)::int AS "runs"
+      FROM "rpg_tower_runs", unnest("floorKeys") AS k
+      WHERE "guildId" = ${guildId} AND "mode" = 'CLASSIC' AND "status" IN ('DEAD', 'LEFT') AND k = ANY(${keys})
+      GROUP BY k`,
+    prisma.$queryRaw<{ key: string; status: string; runs: number }[]>`
+      SELECT "floorKeys"[cardinality("floorKeys")] AS "key", "status", COUNT(*)::int AS "runs"
+      FROM "rpg_tower_runs"
+      WHERE "guildId" = ${guildId} AND "mode" = 'CLASSIC' AND "status" IN ('DEAD', 'LEFT')
+        AND cardinality("floorKeys") > 0 AND "floorKeys"[cardinality("floorKeys")] = ANY(${keys})
+      GROUP BY 1, 2`,
+  ]);
+  const arrived = new Map(arrivals.map((row) => [row.key, row.runs]));
+  const ended = (key: string, status: string) => endings.find((row) => row.key === key && row.status === status)?.runs ?? 0;
+  const tags = towerCardTags(floors);
+  return floors.map((layout, index) => {
+    const key = towerLayoutKey(layout);
+    const total = arrived.get(key) ?? 0;
+    const deaths = ended(key, 'DEAD');
+    const left = ended(key, 'LEFT');
+    return { index, ...tags[index], name: layout.name, arrivals: total, cleared: Math.max(0, total - deaths - left), deaths, left };
+  });
 }
 
 // ─────────────────────────────────────────────────────────────
