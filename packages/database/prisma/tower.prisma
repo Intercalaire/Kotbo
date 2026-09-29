@@ -148,6 +148,9 @@ model RpgTowerProfile {
   upgrades         Json     @default("{}")
   /// Paliers déjà versés et articles uniques déjà achetés.
   claimedRewardIds String[] @default([])
+  /// Salles piégées déjà rencontrées (MIMIC, AMBUSH, WANDERER) : le guide ne les dévoile
+  /// qu'au joueur qui est tombé dessus.
+  discoveredRooms  String[] @default([])
   /// Bilan d'une partie close en l'absence du joueur, affiché une fois à son retour.
   pendingSettlement Json?
 

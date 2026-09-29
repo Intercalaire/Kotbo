@@ -57,6 +57,7 @@ import {
 } from './rpgTowerEngine.js';
 import {
   TOWER_COLLAPSE_STEPS,
+  TOWER_HIDDEN_ROOMS,
   TOWER_TOLL_GOLD,
   exitLocks,
   exitRoom,
@@ -69,6 +70,7 @@ import {
   type TowerDirection,
   type TowerExitType,
   type TowerFloorModifier,
+  type TowerHiddenRoom,
   type TowerRoom,
   type TowerRoomType,
 } from './rpgTowerMap.js';
@@ -119,6 +121,7 @@ import {
   buyTowerUpgrade,
   getActiveTowerRun,
   getClanTowerStatus,
+  getTowerDiscoveries,
   getOrCreateTowerProfile,
   getTowerConfig,
   getTowerPlayConfig,
@@ -1095,6 +1098,7 @@ export async function buildTowerHomeView(client: Client | null, guildId: string,
         : button(`twr:enter:${ownerId}`, m.tower_btn_enter({}, { locale }), ButtonStyle.Success, icon('rpgDoor')),
       button(`twr:shop:${ownerId}:0`, m.tower_btn_shop({}, { locale }), ButtonStyle.Primary, icon('rpgShop')),
       button(`twr:top:${ownerId}`, m.tower_btn_leaderboard({}, { locale }), ButtonStyle.Secondary, icon('trophy')),
+      button(`twr:guide:${ownerId}:0`, m.tower_btn_guide({}, { locale }), ButtonStyle.Secondary, icon('rpgMap')),
       ...(economy.rpgEnabled ? [button(`rpg:nav:${ownerId}:hub`, m.rpg_hub_btn_back({}, { locale }), ButtonStyle.Secondary, icon('rpgBack'))] : []),
     ),
   ];
@@ -1872,6 +1876,88 @@ async function buildTowerDailyView(guildId: string, ownerId: string, locale: Loc
   return { embeds: [], container, components: [row(button(`twr:home:${ownerId}`, m.tower_btn_home({}, { locale }), ButtonStyle.Secondary, icon('rpgBack')))] };
 }
 
+// ─────────────────────────────────────────────────────────────
+// Guide des salles
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Pages du guide : ce que fait chaque salle, rangé comme on la rencontre. Les salles piégées
+ * (`TOWER_HIDDEN_ROOMS`) restent sous cadenas tant que le joueur n'est pas tombé dessus.
+ */
+const GUIDE_PAGES: { title: (locale: Locale) => string; rooms: TowerRoomType[] }[] = [
+  { title: (locale) => m.tower_guide_page_paths({}, { locale }), rooms: ['START', 'WELL', 'ENTRANCE', 'BOSS', 'STAIRS', 'GATE', 'SEAL', 'EXIT', 'COLLAPSE', 'TOLL', 'WARP_A'] },
+  { title: (locale) => m.tower_guide_page_fights({}, { locale }), rooms: ['MONSTER', 'ELITE', 'TRIAL', 'PRISONER', 'TRAP', 'MIMIC', 'AMBUSH', 'WANDERER'] },
+  { title: (locale) => m.tower_guide_page_help({}, { locale }), rooms: ['CHEST', 'CAMPFIRE', 'SHRINE', 'MERCHANT', 'MERCENARY', 'MENTOR', 'ORACLE', 'FOUNTAIN', 'EVENT', 'EMPTY'] },
+];
+/** Dernière page : les ambiances d'étage, qui ne sont pas des salles. */
+const GUIDE_MODIFIERS_PAGE = GUIDE_PAGES.length;
+
+function hiddenRoomName(room: TowerHiddenRoom, locale: Locale): string {
+  switch (room) {
+    case 'MIMIC': return m.tower_guide_mimic({}, { locale });
+    case 'AMBUSH': return m.tower_guide_ambush({}, { locale });
+    default: return m.tower_guide_wanderer({}, { locale });
+  }
+}
+
+function hiddenRoomDescription(room: TowerHiddenRoom, locale: Locale): string {
+  switch (room) {
+    case 'MIMIC': return m.tower_guide_mimic_desc({}, { locale });
+    case 'AMBUSH': return m.tower_guide_ambush_desc({}, { locale });
+    default: return m.tower_guide_wanderer_desc({}, { locale });
+  }
+}
+
+function isHiddenRoom(type: TowerRoomType): type is TowerHiddenRoom {
+  return (TOWER_HIDDEN_ROOMS as readonly string[]).includes(type);
+}
+
+function guideLine(type: TowerRoomType, known: ReadonlySet<TowerHiddenRoom>, locale: Locale): string {
+  if (isHiddenRoom(type)) {
+    return known.has(type)
+      ? `${icon('warning')} **${hiddenRoomName(type, locale)}** — ${hiddenRoomDescription(type, locale)}`
+      : `${icon('lock')} **???** — *${m.tower_guide_locked({}, { locale })}*`;
+  }
+  // Les deux portails se lisent ensemble : une seule ligne pour la paire.
+  const label = type === 'WARP_A' ? m.tower_guide_warps({}, { locale }) : roomLabel(type, locale);
+  return `${icon(ROOM_ICON[type])} **${label}** — ${roomDescription(type, locale)}`;
+}
+
+/** Guide des salles : une page par famille, plus les ambiances d'étage. */
+async function buildTowerGuideView(guildId: string, ownerId: string, locale: Locale, page: number): Promise<PanelView> {
+  const [config, discovered] = await Promise.all([getTowerConfig(guildId), getTowerDiscoveries(guildId, ownerId)]);
+  const known = new Set(discovered);
+  const current = Math.min(GUIDE_MODIFIERS_PAGE, Math.max(0, page));
+  const container = new ContainerBuilder().setAccentColor(COLOR);
+
+  let title: string;
+  let lines: string[];
+  if (current === GUIDE_MODIFIERS_PAGE) {
+    title = m.tower_guide_page_modifiers({}, { locale });
+    lines = (['FLOODED', 'BURNING', 'BLESSED'] as const).map((modifier) =>
+      `**${modifierName(modifier, locale)}** — ${modifierDescription(modifier, locale)}`);
+    lines.push(`**${m.tower_guide_fog({}, { locale })}** — ${m.tower_guide_fog_desc({}, { locale })}`);
+  } else {
+    title = GUIDE_PAGES[current].title(locale);
+    lines = GUIDE_PAGES[current].rooms.map((type) => guideLine(type, known, locale));
+    const hidden = GUIDE_PAGES[current].rooms.filter(isHiddenRoom);
+    if (hidden.length > 0) {
+      lines.push('', `-# ${m.tower_guide_hidden_count({ found: hidden.filter((room) => known.has(room)).length, total: hidden.length }, { locale })}`);
+    }
+  }
+  textBlock(container, [header(config, `${m.tower_guide_title({}, { locale })} · ${title}`), `-# ${m.tower_guide_intro({}, { locale })}`, '', ...lines].join('\n'));
+
+  const tabs = [...GUIDE_PAGES.map((entry) => entry.title), (value: Locale) => m.tower_guide_page_modifiers({}, { locale: value })];
+  return {
+    embeds: [],
+    container,
+    components: [
+      row(...tabs.map((label, index) => button(`twr:guide:${ownerId}:${index}`, label(locale), index === current ? ButtonStyle.Primary : ButtonStyle.Secondary, undefined, index === current))),
+      row(button(`twr:home:${ownerId}`, m.tower_btn_home({}, { locale }), ButtonStyle.Secondary, icon('rpgBack'))),
+    ],
+  };
+}
+
 /** Paliers collectifs du clan : étages gravis au total, bonus acquis et prochain palier. */
 function clanMilestoneLine(total: number, bonus: ClanTowerBonus, locale: Locale): string {
   const parts = [
@@ -1997,11 +2083,13 @@ export async function handleTowerButton(client: Client, customId: string, intera
         const towerAction = parseActionCode(rest.slice(1).join(':'));
         if (!Number.isInteger(version) || !towerAction) return;
         const result = await actTowerRun(client, guildId, ownerId, version, towerAction);
-        if (result.settlement) {
-          await respond(interaction, await buildTowerSettlementView(guildId, ownerId, locale, result.settlement));
-        } else if (result.active) {
-          await respond(interaction, await buildTowerRunView(guildId, ownerId, locale, result.active));
-        }
+        const view = result.settlement
+          ? await buildTowerSettlementView(guildId, ownerId, locale, result.settlement)
+          : result.active ? await buildTowerRunView(guildId, ownerId, locale, result.active) : null;
+        if (!view) return;
+        // Une salle piégée rencontrée pour la première fois rejoint le guide : on le dit.
+        const found = (result.discovered ?? []).map((room) => hiddenRoomName(room, locale)).join(', ');
+        await respond(interaction, found ? withNote(view, m.tower_guide_discovered({ rooms: found }, { locale })) : view);
         return;
       }
       case 'quitask': {
@@ -2044,6 +2132,7 @@ export async function handleTowerButton(client: Client, customId: string, intera
         return;
       }
       case 'ctop': await respond(interaction, await buildClanTowerView(client, guildId, ownerId, locale)); return;
+      case 'guide': await respond(interaction, await buildTowerGuideView(guildId, ownerId, locale, Number.parseInt(rest[0] ?? '0', 10) || 0)); return;
       default: return;
     }
   } catch (err) {
