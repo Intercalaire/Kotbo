@@ -1070,6 +1070,24 @@ describe('achats, chaleur, mentor et combat automatique', () => {
     expect(() => applyTowerAction(elite.state, 1, { type: 'auto' }, RULES, FOES)).toThrow(TowerActionRefused);
   });
 
+  test('le combat automatique lance les compétences offensives prêtes, pas les autres', () => {
+    const GUARD = { id: 'guard', name: 'Garde', emoji: '', cooldownTurns: 2, effect: { damageMultiplier: 0, defenseMultiplier: 2 }, tier: 1 };
+    const layout = normalizeTowerLayout({ width: 4, height: 4, rooms: [room(0, 0, 'START'), room(1, 0, 'MONSTER'), room(2, 0, 'BOSS')] });
+    if (!layout.ok) throw new Error(layout.error);
+    const state = createTowerState({ base: { ...STRONG, speed: 100 }, skills: [GUARD, SKILL], potions: 2, seed: 7, rules: RULES, layout: layout.value });
+    const fighting = move(state, 'MONSTER');
+    // Un monstre qui encaisse sans frapper : le combat dure, et le journal montre chaque coup.
+    fighting.state.encounter!.health = fighting.state.encounter!.maxHealth = 1_000_000_000;
+    fighting.state.encounter!.attack = 0;
+
+    const after = applyTowerAction(fighting.state, 1, { type: 'auto' }, RULES, FOES);
+    const log = after.state.encounter!.log;
+    expect(log.some((entry) => entry.k === 'skill' && entry.name === SKILL.name)).toBe(true);
+    expect(log.some((entry) => entry.k === 'support')).toBe(false);
+    // Entre deux lancers, la recharge court : l'attaque de base comble les tours.
+    expect(log.some((entry) => entry.k === 'attack')).toBe(true);
+  });
+
   test('le mentor enseigne contre de l\'or une compétence laissée au départ', () => {
     const state = start([room(0, 0, 'START'), room(1, 0, 'MENTOR'), room(0, 1, 'EMPTY'), room(0, 2, 'BOSS')], { gold: 500, skillPool: [SKILL] });
     const visit = move(state, 'MENTOR');

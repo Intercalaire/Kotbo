@@ -485,9 +485,10 @@ export type TowerStepResult = { state: TowerState; floor: number; dead: boolean 
 const LOG_KEPT = 6;
 
 /**
- * Combat automatique : attaques enchaînées contre un monstre ordinaire, jamais contre une élite
- * ou un gardien, avec une garde levée devant un coup puissant annoncé. Il rend la main sous ce
- * seuil de PV, pour que le joueur boive ou fuie à temps.
+ * Combat automatique : coups enchaînés contre un monstre ordinaire, jamais contre une élite
+ * ou un gardien, avec une garde levée devant un coup puissant annoncé. Il lance la plus forte
+ * des compétences offensives prêtes, l'attaque de base sinon. Il rend la main sous ce seuil de
+ * PV, pour que le joueur boive, se soigne ou fuie à temps.
  */
 export const AUTO_STOP_HEALTH = 0.35;
 const AUTO_TURNS_MAX = 40;
@@ -505,13 +506,26 @@ function autoFight(
   if (state.hp < towerStats(state).maxHealth * AUTO_STOP_HEALTH) throw new TowerActionRefused('no_auto');
   let result: TowerStepResult = { state, floor, dead: false };
   for (let turn = 0; turn < AUTO_TURNS_MAX; turn++) {
-    result = combatTurn(state, floor, { type: encounter.charging ? 'defend' : 'attack' }, rules, rng, floors, foes);
+    result = combatTurn(state, floor, autoAction(state, encounter), rules, rng, floors, foes);
     // Fin du combat, nouvelle vague d'épreuve ou PV bas : le joueur reprend la main.
     if (result.dead || state.phase !== 'COMBAT' || state.encounter !== encounter) break;
     if (state.hp < towerStats(state).maxHealth * AUTO_STOP_HEALTH) break;
   }
   return result;
 }
+/**
+ * Coup du combat automatique. Seules les compétences qui frappent plus fort qu'une attaque
+ * sont lancées : un soin ou une posture défensive resterait sans effet utile ici, puisque le
+ * joueur reprend la main dès que ses PV baissent.
+ */
+function autoAction(state: TowerState, encounter: TowerEncounter): TowerAction {
+  if (encounter.charging) return { type: 'defend' };
+  const strongest = state.skills
+    .filter((skill) => skill.effect.damageMultiplier > 1 && (encounter.cooldowns[skill.id] ?? 0) === 0)
+    .sort((a, b) => b.effect.damageMultiplier - a.effect.damageMultiplier)[0];
+  return strongest ? { type: 'skill', id: strongest.id } : { type: 'attack' };
+}
+
 /** Chance qu'un coffre mixte (or et objet) contienne vraiment un objet. */
 const CHEST_GEAR_CHANCE = 0.2;
 
