@@ -2,13 +2,17 @@
   Section « Contenu » : ce que les membres postent. Types de message, emojis
   (dans les messages et en réaction) et leur serveur d'origine, stickers, GIF,
   sites cités, mise en forme et style de message. Suit tous les filtres.
+  Un sous-onglet à la fois ; les mots ont leur propre panneau, monté par la page.
 -->
+<script lang="ts" module>
+  export type ContentView = 'content' | 'emojis' | 'stickers' | 'gifs' | 'sites' | 'formatting';
+</script>
+
 <script lang="ts">
   import { Callout, EmptyState, FilterPills, SectionCard } from '../ui';
   import BarList, { type BarListItem } from './BarList.svelte';
   import ShareBar, { type ShareSegment } from './ShareBar.svelte';
   import KpiTile from './KpiTile.svelte';
-  import AdvancedAnalyticsPanel from './AdvancedAnalyticsPanel.svelte';
   import AnalyticsSkeleton from './AnalyticsSkeleton.svelte';
   import { fetchContentAnalytics, type ContentAnalytics, type ContentEmoji, type ContentSourceServer, type ContentSticker } from '../../api';
   import { channelDetailsModal } from '../../stores/channelDetailsModal.svelte';
@@ -17,7 +21,7 @@
   import { analyticsExport, analyticsFilters as filters, pct } from './analyticsFilters.svelte';
   import { fmtNumber, fmtPct, SERIES, SERIES_NEUTRAL } from './analyticsFormat';
 
-  const { onOpenMember }: { onOpenMember: (userId: string, name: string) => void } = $props();
+  const { view }: { view: ContentView } = $props();
 
   let data = $state<ContentAnalytics | null>(null);
   let loading = $state(true);
@@ -198,6 +202,25 @@
   );
 
   const backfillRunning = $derived(data?.backfill && (data.backfill.status === 'PENDING' || data.backfill.status === 'IN_PROGRESS'));
+
+  // Chiffres clés des sous-onglets.
+  const emojiUses = $derived((t.emojiUnicode ?? 0) + (t.emojiGuild ?? 0) + (t.emojiExternal ?? 0));
+  const reactionUses = $derived((t.reactUnicode ?? 0) + (t.reactGuild ?? 0) + (t.reactExternal ?? 0));
+  const stickerUses = $derived((t.stickerGuild ?? 0) + (t.stickerExternal ?? 0) + (t.stickerStandard ?? 0));
+  const emojiServerCount = $derived((data?.emojiServers ?? []).filter((s) => s.name || s.guildId).length);
+
+  /** Répartition des liens par famille de site, sur les domaines du classement. */
+  const familySegments: ShareSegment[] = $derived.by(() => {
+    const byFamily = new Map<string, number>();
+    for (const d of data?.domains ?? []) byFamily.set(d.family, (byFamily.get(d.family) ?? 0) + d.count);
+    const sorted = [...byFamily.entries()].sort((a, b) => b[1] - a[1]);
+    const head = sorted.slice(0, 7);
+    const rest = sorted.slice(7).reduce((s, [, n]) => s + n, 0);
+    return [
+      ...head.map(([family, value], i) => ({ id: family, label: familyLabel(family), value, color: SERIES[i]! })),
+      ...(rest > 0 ? [{ id: 'rest', label: m.anx_family_other(), value: rest, color: SERIES_NEUTRAL }] : []),
+    ];
+  });
 </script>
 
 {#if loading && !data}
@@ -219,7 +242,7 @@
       <SectionCard>
         <EmptyState icon="message-square" title={m.anx_content_empty_title()} description={m.anx_content_empty_desc()} />
       </SectionCard>
-    {:else}
+    {:else if view === 'content'}
       <div class="kpi-grid kpi-grid--5">
         {#each kpis as k (k.key)}
           <KpiTile
@@ -236,6 +259,26 @@
       <SectionCard title={m.anx_types_title()} description={m.anx_types_desc({ count: fmtNumber(messages) })}>
         <ShareBar segments={typeSegments} columns={3} showCounts />
       </SectionCard>
+
+      <div class="section-grid">
+        <div class="span-6">
+          <SectionCard title={m.anx_style_title()} description={m.anx_style_desc()}>
+            <BarList items={styleItems} color={SERIES[2]} />
+          </SectionCard>
+        </div>
+        <div class="span-6">
+          <SectionCard title={m.anx_length_title()}>
+            <ShareBar segments={lengthSegments} columns={1} showCounts />
+          </SectionCard>
+        </div>
+      </div>
+    {:else if view === 'emojis'}
+      <div class="kpi-grid kpi-grid--4">
+        <KpiTile label={m.anx_emojis_kpi_uses()} value={fmtNumber(emojiUses)} />
+        <KpiTile label={m.anx_content_kpi_emoji()} value={fmtPct(pct(t.withEmoji ?? 0, messages), 0)} delta={ptsDelta('withEmoji')} unit="pts" compare={filters.compare} />
+        <KpiTile label={m.anx_emojis_kpi_reactions()} value={fmtNumber(reactionUses)} />
+        <KpiTile label={m.anx_emojis_kpi_servers()} value={fmtNumber(emojiServerCount)} hint={m.anx_emojis_kpi_servers_hint()} />
+      </div>
 
       <div class="section-grid">
         <div class="span-7">
@@ -276,9 +319,16 @@
           </SectionCard>
         </div>
       </div>
+    {:else if view === 'stickers'}
+      <div class="kpi-grid kpi-grid--4">
+        <KpiTile label={m.anx_stickers_kpi_uses()} value={fmtNumber(stickerUses)} />
+        <KpiTile label={m.anx_stickers_kpi_share()} value={fmtPct(pct(t.typeSticker ?? 0, messages))} delta={ptsDelta('typeSticker')} unit="pts" compare={filters.compare} />
+        <KpiTile label={m.anx_origin_guild()} value={fmtPct(pct(t.stickerGuild ?? 0, stickerUses), 0)} />
+        <KpiTile label={m.anx_origin_external()} value={fmtPct(pct(t.stickerExternal ?? 0, stickerUses), 0)} />
+      </div>
 
       <div class="section-grid">
-        <div class="span-6">
+        <div class="span-12">
           <SectionCard title={m.anx_stickers_title()} description={m.anx_stickers_desc()}>
             <div class="flex flex-col gap-5">
               <ShareBar segments={stickerOrigins} columns={3} showCounts />
@@ -296,7 +346,17 @@
             </div>
           </SectionCard>
         </div>
-        <div class="span-6">
+      </div>
+    {:else if view === 'gifs'}
+      <div class="kpi-grid kpi-grid--4">
+        <KpiTile label={m.anx_gif_kpi_count()} value={fmtNumber(gifTotal)} />
+        <KpiTile label={m.anx_gif_kpi_share()} value={fmtPct(pct(t.typeGif ?? 0, messages))} delta={ptsDelta('typeGif')} unit="pts" compare={filters.compare} />
+        <KpiTile label="Tenor" value={fmtPct(pct(t.gifTenor ?? 0, gifTotal), 0)} />
+        <KpiTile label={m.anx_gif_upload()} value={fmtPct(pct(t.gifUpload ?? 0, gifTotal), 0)} />
+      </div>
+
+      <div class="section-grid">
+        <div class="span-12">
           <SectionCard title={m.anx_gif_title()} description={m.anx_gif_desc({ share: fmtPct(pct(t.typeGif ?? 0, messages)) })}>
             <div class="flex flex-col gap-5">
               <BarList items={gifItems} max={Math.max(1, ...gifItems.map((g) => g.value))} empty={m.anx_gif_empty()} />
@@ -310,36 +370,36 @@
           </SectionCard>
         </div>
       </div>
-
+    {:else if view === 'sites'}
+      <div class="kpi-grid kpi-grid--4">
+        <KpiTile label={m.anx_content_kpi_link()} value={fmtPct(pct(t.withLink ?? 0, messages))} delta={ptsDelta('withLink')} unit="pts" compare={filters.compare} />
+        <KpiTile label={m.anx_sites_kpi_messages()} value={fmtNumber(t.withLink ?? 0)} />
+        <KpiTile label={m.anx_type_link()} value={fmtPct(pct(t.typeLink ?? 0, messages))} hint={m.anx_sites_kpi_type_hint()} />
+        <KpiTile label={m.anx_sites_kpi_invites()} value={fmtNumber((data.domains ?? []).find((d) => d.domain === 'discord.gg')?.count ?? 0)} />
+      </div>
       <div class="section-grid">
-        <div class="span-4">
+        <div class="span-5">
+          <SectionCard title={m.anx_sites_families_title()} description={m.anx_sites_families_desc()}>
+            <ShareBar segments={familySegments} columns={1} showCounts />
+          </SectionCard>
+        </div>
+        <div class="span-7">
           <SectionCard title={m.anx_sites_title()} description={m.anx_sites_desc()}>
             <BarList items={domainItems} empty={m.anx_sites_empty()} />
           </SectionCard>
         </div>
-        <div class="span-4">
-          <SectionCard title={m.anx_markdown_title()} description={m.anx_markdown_desc({ share: fmtPct(pct(t.withMarkdown ?? 0, messages)) })}>
-            <BarList items={markdownItems} empty={m.anx_markdown_empty()} />
-          </SectionCard>
-        </div>
-        <div class="span-4">
-          <SectionCard title={m.anx_style_title()} description={m.anx_style_desc()}>
-            <div class="flex flex-col gap-5">
-              <BarList items={styleItems} color={SERIES[2]} />
-              <div class="flex flex-col gap-2 border-t border-outline-variant pt-4">
-                <span class="text-body-sm font-medium text-on-surface">{m.anx_length_title()}</span>
-                <ShareBar segments={lengthSegments} columns={1} />
-              </div>
-            </div>
-          </SectionCard>
-        </div>
       </div>
+    {:else if view === 'formatting'}
+      <div class="kpi-grid kpi-grid--4">
+        <KpiTile label={m.anx_content_kpi_markdown()} value={fmtPct(pct(t.withMarkdown ?? 0, messages))} delta={ptsDelta('withMarkdown')} unit="pts" compare={filters.compare} />
+        <KpiTile label={m.anx_md_code_block()} value={fmtNumber(t.mdCodeBlock ?? 0)} />
+        <KpiTile label={m.anx_md_spoiler()} value={fmtNumber(t.mdSpoiler ?? 0)} />
+        <KpiTile label={m.anx_md_masked_link()} value={fmtNumber(t.mdMaskedLink ?? 0)} />
+      </div>
+      <SectionCard title={m.anx_markdown_title()} description={m.anx_markdown_desc({ share: fmtPct(pct(t.withMarkdown ?? 0, messages)) })}>
+        <BarList items={markdownItems} empty={m.anx_markdown_empty()} />
+      </SectionCard>
     {/if}
-
-    <div class="flex flex-col gap-2">
-      <h3 class="text-sm font-semibold text-on-surface">{m.anx_words_title()}</h3>
-      <AdvancedAnalyticsPanel section="words" {onOpenMember} />
-    </div>
   </div>
 {/if}
 

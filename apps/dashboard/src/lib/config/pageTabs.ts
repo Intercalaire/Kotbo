@@ -5,7 +5,7 @@ import { allPages } from './pages';
  * Onglets de chaque page, adressables par URL.
  *
  * Les pages découpent leur contenu en onglets via `tabRouting` : `/economy`
- * porte dix sections, `/analytics` huit. Ces sections sont invisibles
+ * porte dix sections, `/analytics` près de trente. Ces sections sont invisibles
  * pour qui cherche « bestiaire » ou « rétention » depuis la palette, qui ne
  * connaissait que les pages. Ce registre les lui donne.
  *
@@ -44,13 +44,33 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
 
   '/analytics': [
     { id: 'overview', label: () => m.an_tab_overview(), icon: 'Grid' },
-    { id: 'activity', label: () => m.anx_section_activity(), icon: 'Activity' },
+    { id: 'messages', label: () => m.an_tab_messages(), icon: 'ChatCircleDots' },
+    { id: 'voice', label: () => m.an_tab_voice(), icon: 'Microphone' },
+    { id: 'heatmap', label: () => m.an_tab_heatmap(), icon: 'Fire' },
+    { id: 'pulse', label: () => m.an_tab_pulse(), icon: 'Activity' },
+    { id: 'weekly', label: () => m.an_tab_weekly(), icon: 'Calendar' },
+    { id: 'commands', label: () => m.an_tab_commands(), icon: 'Code' },
+    { id: 'algo', label: () => m.an_tab_algo(), icon: 'Code' },
     { id: 'content', label: () => m.anx_section_content(), icon: 'ChatCircleDots' },
+    { id: 'emojis', label: () => m.anx_tab_emojis(), icon: 'Smile' },
+    { id: 'stickers', label: () => m.anx_tab_stickers(), icon: 'image' },
+    { id: 'gifs', label: () => m.anx_tab_gifs(), icon: 'Lightning' },
+    { id: 'sites', label: () => m.anx_tab_sites(), icon: 'link' },
+    { id: 'formatting', label: () => m.anx_tab_formatting(), icon: 'Type' },
+    { id: 'words', label: () => m.an_tab_words(), icon: 'ChatCircleDots' },
     { id: 'channels', label: () => m.anx_section_channels(), icon: 'ChatBubbles' },
+    { id: 'channel-health', label: () => m.anx_channels_health_title(), icon: 'heart' },
     { id: 'members', label: () => m.an_tab_members(), icon: 'UsersFour' },
+    { id: 'interactions', label: () => m.an_tab_network(), icon: 'Compass' },
+    { id: 'social', label: () => m.an_tab_social(), icon: 'Users' },
+    { id: 'ghosts', label: () => m.ghost_tab(), icon: 'Ghost' },
     { id: 'growth', label: () => m.anx_section_growth(), icon: 'TrendingUp' },
+    { id: 'cohorts', label: () => m.an_tab_cohorts(), icon: 'UsersFour' },
+    { id: 'churn', label: () => m.an_tab_churn(), icon: 'Warning' },
     { id: 'moderation', label: () => m.an_tab_moderation(), icon: 'Gavel' },
-    { id: 'staff', label: () => m.anx_section_staff(), icon: 'Users' },
+    { id: 'mod-advanced', label: () => m.an_tab_mod_advanced(), icon: 'ChartLineUp' },
+    { id: 'staff', label: () => m.an_tab_staff_directory(), icon: 'Users' },
+    { id: 'performance', label: () => m.an_tab_staff_performance(), icon: 'TrendUp' },
   ],
 
   '/invitations': [

@@ -11,9 +11,31 @@
   import { m } from '../../i18n';
   import { errorMessage } from '@kotbo/shared';
   import { analyticsExport, analyticsFilters as filters, pct, relativeDelta } from './analyticsFilters.svelte';
-  import { fmtMinutes, fmtNumber, fmtPct, SERIES } from './analyticsFormat';
+  import { fmtMinutes, fmtNumber, fmtPct, shortDate, SERIES } from './analyticsFormat';
 
-  const { onNavigate }: { onNavigate: (section: string) => void } = $props();
+  const {
+    onNavigate,
+    legacy = null,
+  }: {
+    onNavigate: (tab: string) => void;
+    /** Réponse de l'ancien /analytics : présence en direct et totaux de la période. */
+    legacy?: any;
+  } = $props();
+
+  const live = $derived(legacy?.live ?? null);
+  const totals = $derived(legacy?.totals ?? null);
+
+  /** Jour où une mesure quotidienne a atteint son maximum. */
+  function peakOf(key: 'peakOnline' | 'peakVoice'): { value: number; date: string | null } {
+    let best: { value: number; date: string | null } = { value: 0, date: null };
+    for (const d of legacy?.dailyTrend ?? []) {
+      if ((d[key] ?? 0) > best.value) best = { value: d[key], date: d.dateKey };
+    }
+    return best;
+  }
+
+  const peakOnline = $derived(peakOf('peakOnline'));
+  const peakVoice = $derived(peakOf('peakVoice'));
 
   let activity = $state<ActivityAnalytics | null>(null);
   let content = $state<ContentAnalytics | null>(null);
@@ -87,6 +109,52 @@
       {/if}
     </div>
 
+    {#if legacy}
+      <div class="section-grid">
+        {#if live}
+          <div class="span-5">
+            <SectionCard title={m.anx_live_title()} description={m.anx_live_desc()}>
+              <dl class="fact-grid">
+                <div><dt>{m.anx_live_online()}</dt><dd class="text-success">{fmtNumber(live.onlineMembers)}</dd></div>
+                <div><dt>{m.anx_live_idle()}</dt><dd>{fmtNumber(live.idleMembers)}</dd></div>
+                <div><dt>{m.anx_live_dnd()}</dt><dd>{fmtNumber(live.dndMembers)}</dd></div>
+                <div><dt>{m.anx_live_voice()}</dt><dd>{fmtNumber(live.voiceConnected)}</dd></div>
+                <div><dt>{m.anx_live_humans()}</dt><dd>{fmtNumber(live.humansCount)}</dd></div>
+                <div><dt>{m.anx_live_bots()}</dt><dd>{fmtNumber(live.botsCount)}</dd></div>
+              </dl>
+            </SectionCard>
+          </div>
+        {/if}
+        {#if totals}
+          <div class={live ? 'span-7' : 'span-12'}>
+            <SectionCard title={m.anx_period_facts_title()} description={m.anx_period_only_note()}>
+              <dl class="fact-grid fact-grid--4">
+                <div><dt>{m.anx_fact_active_days()}</dt><dd>{m.anx_fact_days({ count: fmtNumber(totals.activeDays) })}</dd></div>
+                <div>
+                  <dt>{m.anx_fact_sanctions()}</dt>
+                  <dd><button type="button" class="fact-link" onclick={() => onNavigate('moderation')}>{fmtNumber(totals.sanctions)}</button></dd>
+                </div>
+                <div><dt>{m.anx_fact_retention()}</dt><dd>{fmtPct(totals.retentionRate ?? 0, 0)}</dd></div>
+                <div><dt>{m.anx_fact_tenure()}</dt><dd>{m.anx_fact_days({ count: fmtNumber(Math.round(totals.avgTenureDays ?? 0)) })}</dd></div>
+                <div><dt>{m.anx_fact_inactive()}</dt><dd>{fmtNumber(totals.inactiveMembers ?? 0)}</dd></div>
+                <div>
+                  <dt>{m.anx_fact_peak_online()}</dt>
+                  <dd>{fmtNumber(peakOnline.value)}</dd>
+                  {#if peakOnline.date}<span class="fact-sub">{shortDate(peakOnline.date)}</span>{/if}
+                </div>
+                <div>
+                  <dt>{m.anx_fact_peak_voice()}</dt>
+                  <dd>{fmtNumber(peakVoice.value)}</dd>
+                  {#if peakVoice.date}<span class="fact-sub">{shortDate(peakVoice.date)}</span>{/if}
+                </div>
+                <div><dt>{m.anx_fact_trend()}</dt><dd class={(totals.messagesTrend ?? 0) >= 0 ? 'text-success' : 'text-error'}>{(totals.messagesTrend ?? 0) >= 0 ? '+' : '−'}{Math.abs(totals.messagesTrend ?? 0)} %</dd></div>
+              </dl>
+            </SectionCard>
+          </div>
+        {/if}
+      </div>
+    {/if}
+
     <div class="section-grid">
       <div class={activity.voiceAvailable ? 'span-6' : 'span-12'}>
         <SectionCard title={m.anx_trend_messages_title()}>
@@ -147,7 +215,7 @@
             {#if topEmoji}
               <span class="text-body-sm text-on-surface-variant">{m.anx_highlight_emoji_desc({ count: fmtNumber(topEmoji.count) })}</span>
             {/if}
-            <Button size="sm" variant="ghost" iconRight="arrow-right" onclick={() => onNavigate('content')}>{m.anx_highlight_content_cta()}</Button>
+            <Button size="sm" variant="ghost" iconRight="arrow-right" onclick={() => onNavigate('emojis')}>{m.anx_highlight_content_cta()}</Button>
           </div>
         </SectionCard>
       </div>
@@ -182,5 +250,62 @@
     font-size: 1.25rem;
     font-weight: 600;
     color: var(--color-on-surface);
+  }
+
+  .fact-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem 1.25rem;
+    margin: 0;
+  }
+
+  .fact-grid--4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .fact-grid dt {
+    font-size: 0.8125rem;
+    color: var(--color-on-surface-variant);
+  }
+
+  .fact-grid dd {
+    margin: 0.125rem 0 0;
+    font-family: var(--font-headline);
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--color-on-surface);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .fact-grid dd.text-success {
+    color: var(--color-success);
+  }
+
+  .fact-grid dd.text-error {
+    color: var(--color-error);
+  }
+
+  .fact-sub {
+    font-size: 0.75rem;
+    color: var(--color-on-surface-variant);
+  }
+
+  .fact-link {
+    border-radius: 0.25rem;
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--color-outline);
+    text-underline-offset: 3px;
+  }
+
+  .fact-link:hover {
+    color: var(--color-primary);
+  }
+
+  @media (max-width: 767px) {
+    .fact-grid,
+    .fact-grid--4 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 </style>

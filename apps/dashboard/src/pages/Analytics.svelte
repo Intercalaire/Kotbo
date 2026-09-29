@@ -1,13 +1,14 @@
 <script lang="ts">
   /**
    * Page Analytics : huit sections dans une barre latérale (des onglets sur
-   * mobile), des filtres communs au-dessus. Chaque section charge ses propres
-   * données ; les anciens composants qui dépendent de la grosse réponse
-   * /analytics la reçoivent d'ici, chargée seulement quand une section en a
-   * besoin.
+   * mobile), chacune découpée en sous-onglets comme les autres pages. L'adresse
+   * porte le sous-onglet (/analytics/emojis), la section s'en déduit : les
+   * anciens liens d'onglets restent valables.
    *
-   * Pulse, Invitations et l'annuaire des invitations ont leur propre page : les
-   * anciennes adresses d'onglets y mènent ou vers la section qui les a reprises.
+   * Chaque sous-onglet dit ce qu'il suit : tous les filtres, la période seule,
+   * ou sa propre fenêtre de temps (la barre de filtres est alors masquée).
+   * Les anciens composants qui dépendent de la grosse réponse /analytics la
+   * reçoivent d'ici, chargée seulement quand un sous-onglet en a besoin.
    */
   import { untrack } from 'svelte';
   import { router } from 'tinro';
@@ -26,10 +27,12 @@
   import AnalyticsFilterBar from '../lib/components/analytics/AnalyticsFilterBar.svelte';
   import AnalyticsSkeleton from '../lib/components/analytics/AnalyticsSkeleton.svelte';
   import OverviewSection from '../lib/components/analytics/OverviewSection.svelte';
-  import ActivitySection from '../lib/components/analytics/ActivitySection.svelte';
-  import ContentSection from '../lib/components/analytics/ContentSection.svelte';
+  import ActivitySection, { type ActivityView } from '../lib/components/analytics/ActivitySection.svelte';
+  import ContentSection, { type ContentView } from '../lib/components/analytics/ContentSection.svelte';
   import ChannelsSection from '../lib/components/analytics/ChannelsSection.svelte';
   import GrowthSection from '../lib/components/analytics/GrowthSection.svelte';
+  import KpiTile from '../lib/components/analytics/KpiTile.svelte';
+  import BarList from '../lib/components/analytics/BarList.svelte';
   import MembersStats from '../lib/components/analytics/MembersStats.svelte';
   import GhostMembersPanel from '../lib/components/analytics/GhostMembersPanel.svelte';
   import AdvancedAnalyticsPanel from '../lib/components/analytics/AdvancedAnalyticsPanel.svelte';
@@ -38,75 +41,138 @@
   import StaffPerformance from '../lib/components/analytics/StaffPerformance.svelte';
   import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGraph.svelte';
   import { analyticsExport, analyticsFilters as filters } from '../lib/components/analytics/analyticsFilters.svelte';
+  import { fmtNumber, SERIES_NEUTRAL } from '../lib/components/analytics/analyticsFormat';
 
-  type SectionId = 'overview' | 'activity' | 'content' | 'channels' | 'members' | 'growth' | 'moderation' | 'staff';
+  /** Ce que suit un sous-onglet : tous les filtres, la période, ou sa propre fenêtre. */
+  type Scope = 'full' | 'period' | 'own';
 
-  interface SectionDef {
-    id: SectionId;
+  interface SubTab {
+    id: string;
+    label: string;
+    icon: string;
+    scope: Scope;
+    /** A besoin de la réponse /analytics historique. */
+    legacy?: boolean;
+  }
+
+  interface Section {
+    id: string;
     label: string;
     icon: string;
     description: string;
-    /** Les filtres salon/rôle/staff s'appliquent-ils à cette section ? */
-    scope: 'full' | 'period';
     isNew?: boolean;
+    tabs: SubTab[];
   }
 
-  const sections: SectionDef[] = $derived([
-    { id: 'overview', label: m.an_tab_overview(), icon: 'Grid', description: m.anx_section_overview_desc(), scope: 'full' },
-    { id: 'activity', label: m.anx_section_activity(), icon: 'Activity', description: m.anx_section_activity_desc(), scope: 'full' },
-    { id: 'content', label: m.anx_section_content(), icon: 'ChatCircleDots', description: m.anx_section_content_desc(), scope: 'full', isNew: true },
-    { id: 'channels', label: m.anx_section_channels(), icon: 'ChatBubbles', description: m.anx_section_channels_desc(), scope: 'period' },
-    { id: 'members', label: m.an_tab_members(), icon: 'UsersFour', description: m.anx_section_members_desc(), scope: 'period' },
-    { id: 'growth', label: m.anx_section_growth(), icon: 'TrendingUp', description: m.anx_section_growth_desc(), scope: 'period' },
-    { id: 'moderation', label: m.an_tab_moderation(), icon: 'Gavel', description: m.anx_section_moderation_desc(), scope: 'period' },
-    { id: 'staff', label: m.anx_section_staff(), icon: 'Users', description: m.anx_section_staff_desc(), scope: 'period' },
+  const sections: Section[] = $derived([
+    {
+      id: 'overview', label: m.an_tab_overview(), icon: 'Grid', description: m.anx_section_overview_desc(),
+      tabs: [{ id: 'overview', label: m.an_tab_overview(), icon: 'Grid', scope: 'full', legacy: true }],
+    },
+    {
+      id: 'activity', label: m.anx_section_activity(), icon: 'Activity', description: m.anx_section_activity_desc(),
+      tabs: [
+        { id: 'messages', label: m.an_tab_messages(), icon: 'ChatCircleDots', scope: 'full', legacy: true },
+        { id: 'voice', label: m.an_tab_voice(), icon: 'Microphone', scope: 'full', legacy: true },
+        { id: 'heatmap', label: m.an_tab_heatmap(), icon: 'Fire', scope: 'period' },
+        { id: 'pulse', label: m.an_tab_pulse(), icon: 'Activity', scope: 'own' },
+        { id: 'weekly', label: m.an_tab_weekly(), icon: 'Calendar', scope: 'own' },
+        { id: 'commands', label: m.an_tab_commands(), icon: 'Code', scope: 'period', legacy: true },
+        { id: 'algo', label: m.an_tab_algo(), icon: 'Code', scope: 'period' },
+      ],
+    },
+    {
+      id: 'content', label: m.anx_section_content(), icon: 'ChatCircleDots', description: m.anx_section_content_desc(), isNew: true,
+      tabs: [
+        { id: 'content', label: m.anx_tab_content_overview(), icon: 'Grid', scope: 'full' },
+        { id: 'emojis', label: m.anx_tab_emojis(), icon: 'Smile', scope: 'full' },
+        { id: 'stickers', label: m.anx_tab_stickers(), icon: 'image', scope: 'full' },
+        { id: 'gifs', label: m.anx_tab_gifs(), icon: 'Lightning', scope: 'full' },
+        { id: 'sites', label: m.anx_tab_sites(), icon: 'link', scope: 'full' },
+        { id: 'formatting', label: m.anx_tab_formatting(), icon: 'Type', scope: 'full' },
+        { id: 'words', label: m.an_tab_words(), icon: 'ChatCircleDots', scope: 'own' },
+      ],
+    },
+    {
+      id: 'channels', label: m.anx_section_channels(), icon: 'ChatBubbles', description: m.anx_section_channels_desc(),
+      tabs: [
+        { id: 'channels', label: m.anx_tab_channel_tree(), icon: 'ChatBubbles', scope: 'period' },
+        { id: 'channel-health', label: m.anx_channels_health_title(), icon: 'heart', scope: 'own' },
+      ],
+    },
+    {
+      id: 'members', label: m.an_tab_members(), icon: 'UsersFour', description: m.anx_section_members_desc(),
+      tabs: [
+        { id: 'members', label: m.an_tab_members(), icon: 'UsersFour', scope: 'period', legacy: true },
+        { id: 'interactions', label: m.an_tab_network(), icon: 'Compass', scope: 'period' },
+        { id: 'social', label: m.an_tab_social(), icon: 'Users', scope: 'own' },
+        { id: 'ghosts', label: m.ghost_tab(), icon: 'Ghost', scope: 'own' },
+      ],
+    },
+    {
+      id: 'growth', label: m.anx_section_growth(), icon: 'TrendingUp', description: m.anx_section_growth_desc(),
+      tabs: [
+        { id: 'growth', label: m.anx_tab_growth(), icon: 'TrendingUp', scope: 'period', legacy: true },
+        { id: 'cohorts', label: m.an_tab_cohorts(), icon: 'UsersFour', scope: 'own' },
+        { id: 'churn', label: m.an_tab_churn(), icon: 'Warning', scope: 'own' },
+      ],
+    },
+    {
+      id: 'moderation', label: m.an_tab_moderation(), icon: 'Gavel', description: m.anx_section_moderation_desc(),
+      tabs: [
+        { id: 'moderation', label: m.an_tab_moderation(), icon: 'Gavel', scope: 'period', legacy: true },
+        { id: 'mod-advanced', label: m.an_tab_mod_advanced(), icon: 'ChartLineUp', scope: 'own' },
+      ],
+    },
+    {
+      id: 'staff', label: m.anx_section_staff(), icon: 'Users', description: m.anx_section_staff_desc(),
+      tabs: [
+        { id: 'staff', label: m.an_tab_staff_directory(), icon: 'Users', scope: 'period', legacy: true },
+        { id: 'performance', label: m.an_tab_staff_performance(), icon: 'TrendUp', scope: 'period', legacy: true },
+      ],
+    },
   ]);
 
-  const SECTION_IDS: SectionId[] = ['overview', 'activity', 'content', 'channels', 'members', 'growth', 'moderation', 'staff'];
+  const allTabIds = $derived(sections.flatMap((s) => s.tabs.map((t) => t.id)));
 
-  /** Anciens onglets : leur contenu vit dans une section, ou dans une autre page. */
-  const LEGACY_TABS: Record<string, SectionId | `/${string}`> = {
-    messages: 'activity', voice: 'activity', commands: 'activity', heatmap: 'activity', weekly: 'activity', algo: 'activity',
-    interactions: 'members', social: 'members', ghosts: 'members',
-    words: 'content',
-    cohorts: 'growth', churn: 'growth',
-    'mod-advanced': 'moderation',
-    performance: 'staff',
-    pulse: '/pulse',
-    invitations: '/invitations',
-  };
+  /** Anciens onglets partis sur leur propre page. */
+  const MOVED_TO_PAGE: Record<string, string> = { invitations: '/invitations' };
 
-  let active = $state<SectionId>('overview');
+  let activeTab = $state('overview');
 
   $effect(() => {
     const path = $router.path;
     const prefix = '/analytics/';
     if (path.startsWith(prefix)) {
       const segment = decodeURIComponent(path.slice(prefix.length).split('/')[0] ?? '');
-      const target = LEGACY_TABS[segment];
-      if (target) {
-        router.goto(target.startsWith('/') ? target : `/analytics/${target}`, true);
+      if (MOVED_TO_PAGE[segment]) {
+        router.goto(MOVED_TO_PAGE[segment]!, true);
         return;
       }
     }
-    active = resolveTabFromUrl('/analytics', SECTION_IDS, 'overview', path) as SectionId;
+    activeTab = resolveTabFromUrl('/analytics', allTabIds, 'overview', path);
   });
 
-  const current = $derived(sections.find((s) => s.id === active) ?? sections[0]!);
+  const section = $derived(sections.find((s) => s.tabs.some((t) => t.id === activeTab)) ?? sections[0]!);
+  const tab = $derived(section.tabs.find((t) => t.id === activeTab) ?? section.tabs[0]!);
 
-  function go(id: string) {
+  function goTab(id: string) {
     gotoTab('/analytics', id, 'overview');
   }
 
+  function goSection(id: string) {
+    const target = sections.find((s) => s.id === id);
+    if (target) goTab(target.tabs[0]!.id);
+  }
+
   // ── Réponse /analytics historique, pour les anciens composants ─────────────
-  const NEEDS_LEGACY = new Set<SectionId>(['activity', 'members', 'moderation', 'staff']);
   let legacy = $state<any>(null);
   let legacyKey = '';
   let legacyLoading = $state(false);
   let legacyError = $state('');
 
   $effect(() => {
-    if (!NEEDS_LEGACY.has(active)) return;
+    if (!tab.legacy) return;
     const period = filters.periodQuery;
     untrack(() => loadLegacy(period));
   });
@@ -149,20 +215,41 @@
     return `${min}min`;
   };
 
-  // ── Réseau d'interactions, chargé à la demande (lourd) ─────────────────────
+  const roleItems = $derived(
+    (legacy?.roleDistribution ?? []).map((r: any) => ({
+      id: r.roleId,
+      label: r.roleName,
+      value: r.count ?? 0,
+      // Couleur du rôle sur Discord ; un rôle sans couleur reste neutre.
+      color: r.color && r.color !== '#000000' && r.color !== '#99AAB5' ? r.color : SERIES_NEUTRAL,
+    })),
+  );
+
+  // ── Réseau d'interactions ──────────────────────────────────────────────────
   let interactions = $state<any>(null);
+  let interactionsKey = '';
   let interactionsLoading = $state(false);
   let interactionsError = $state('');
 
-  async function loadInteractions() {
+  $effect(() => {
+    if (activeTab !== 'interactions') return;
+    const period = filters.periodQuery;
+    untrack(() => loadInteractions(period));
+  });
+
+  async function loadInteractions(period = filters.periodQuery, force = false) {
+    const key = JSON.stringify(period);
+    if (!force && key === interactionsKey && (interactions || interactionsLoading)) return;
+    interactionsKey = key;
     interactionsLoading = true;
     interactionsError = '';
     try {
-      interactions = await fetchGlobalInteractions(filters.periodQuery);
+      const res = await fetchGlobalInteractions(period);
+      if (interactionsKey === key) interactions = res;
     } catch (e) {
-      interactionsError = errorMessage(e) || m.an_error_interactions();
+      if (interactionsKey === key) interactionsError = errorMessage(e) || m.an_error_interactions();
     } finally {
-      interactionsLoading = false;
+      if (interactionsKey === key) interactionsLoading = false;
     }
   }
 
@@ -279,7 +366,7 @@
     for (const [index, canvas] of canvases.entries()) {
       const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
       if (!blob) continue;
-      triggerDownload(blob, `analytics_${active}_${String(index + 1).padStart(2, '0')}.png`, 'image/png');
+      triggerDownload(blob, `analytics_${activeTab}_${String(index + 1).padStart(2, '0')}.png`, 'image/png');
       count += 1;
     }
     if (count === 0) toast.error(m.an_export_images_failed());
@@ -291,7 +378,7 @@
   <header class="flex flex-wrap items-end justify-between gap-4">
     <div class="flex min-w-0 flex-col gap-1">
       <h1 class="font-headline text-2xl font-semibold text-on-surface">{m.anx_page_title()}</h1>
-      <p class="max-w-2xl text-body-sm text-on-surface-variant">{current.description}</p>
+      <p class="max-w-2xl text-body-sm text-on-surface-variant">{section.description}</p>
     </div>
     <ExportDropdown onExportCSV={exportCSV} onExportXLSX={exportXLSX} onExportImage={exportImages} />
   </header>
@@ -299,16 +386,17 @@
   <div class="analytics-v2__layout">
     <aside class="analytics-v2__sidebar">
       <nav aria-label={m.anx_nav_label()} class="flex flex-col gap-0.5">
-        {#each sections as section (section.id)}
+        {#each sections as s (s.id)}
           <button
             type="button"
             class="side-link"
-            aria-current={section.id === active ? 'page' : undefined}
-            onclick={() => go(section.id)}
+            aria-current={s.id === section.id ? 'page' : undefined}
+            onclick={() => goSection(s.id)}
           >
-            <Papicon icon={section.icon} size={18} />
-            <span class="truncate">{section.label}</span>
-            {#if section.isNew}<span class="side-link__badge">{m.anx_badge_new()}</span>{/if}
+            <Papicon icon={s.icon} size={18} />
+            <span class="truncate">{s.label}</span>
+            {#if s.isNew}<span class="side-link__badge">{m.anx_badge_new()}</span>{/if}
+            {#if s.tabs.length > 1}<span class="side-link__count">{s.tabs.length}</span>{/if}
           </button>
         {/each}
       </nav>
@@ -320,76 +408,100 @@
     </aside>
 
     <div class="flex min-w-0 flex-col gap-4">
-      <div class="analytics-v2__tabs">
+      <div class="analytics-v2__mobile-sections">
         <Tabs
           label={m.anx_nav_label()}
           tabs={sections.map((s) => ({ id: s.id, label: s.label, icon: s.icon, badge: s.isNew ? m.anx_badge_new() : undefined }))}
-          active={active}
-          onchange={go}
+          active={section.id}
+          onchange={goSection}
         />
       </div>
 
-      <AnalyticsFilterBar scopeSupport={current.scope} />
+      {#if section.tabs.length > 1}
+        <Tabs
+          label={m.anx_subtabs_label({ section: section.label })}
+          tabs={section.tabs.map((t) => ({ id: t.id, label: t.label, icon: t.icon }))}
+          active={tab.id}
+          onchange={goTab}
+        />
+      {/if}
 
-      {#key active}
-        {#if active === 'overview'}
-          <OverviewSection onNavigate={go} />
-        {:else if active === 'activity'}
-          <ActivitySection {legacy} {legacyLoading} onOpenMember={openMemberDetails} />
-        {:else if active === 'content'}
-          <ContentSection onOpenMember={openMemberDetails} />
-        {:else if active === 'channels'}
+      {#if tab.scope === 'own'}
+        <Callout variant="info">{m.anx_filter_own_window()}</Callout>
+      {:else}
+        <AnalyticsFilterBar scopeSupport={tab.scope === 'full' ? 'full' : 'period'} />
+      {/if}
+
+      {#key activeTab}
+        {#if activeTab === 'overview'}
+          <OverviewSection onNavigate={goTab} {legacy} />
+        {:else if ['messages', 'voice', 'heatmap', 'pulse', 'weekly', 'commands', 'algo'].includes(activeTab)}
+          <ActivitySection view={activeTab as ActivityView} {legacy} {legacyLoading} onOpenMember={openMemberDetails} />
+        {:else if ['content', 'emojis', 'stickers', 'gifs', 'sites', 'formatting'].includes(activeTab)}
+          <ContentSection view={activeTab as ContentView} />
+        {:else if activeTab === 'words'}
+          <AdvancedAnalyticsPanel section="words" onOpenMember={openMemberDetails} />
+        {:else if activeTab === 'channels'}
           <ChannelsSection onOpenMember={openMemberDetails} />
-        {:else if active === 'growth'}
-          <GrowthSection onOpenMember={openMemberDetails} />
+        {:else if activeTab === 'channel-health'}
+          <AdvancedAnalyticsPanel section="channels" onOpenMember={openMemberDetails} />
+        {:else if activeTab === 'interactions'}
+          {#if interactions}
+            <GlobalInteractionGraph
+              nodes={interactions.nodes || []}
+              edges={interactions.edges || []}
+              hiddenMembersCount={interactions.hiddenMembersCount || 0}
+              onSelectNode={(userId) => openMemberDetails(userId, m.an_loading_short())}
+            />
+          {:else if interactionsError}
+            <Callout variant="danger" title={m.an_network_error()}>
+              {interactionsError}
+              {#snippet actions()}<Button size="sm" onclick={() => loadInteractions(filters.periodQuery, true)}>{m.an_retry()}</Button>{/snippet}
+            </Callout>
+          {:else}
+            <AnalyticsSkeleton />
+          {/if}
+        {:else if activeTab === 'social'}
+          <AdvancedAnalyticsPanel section="social" onOpenMember={openMemberDetails} />
+        {:else if activeTab === 'ghosts'}
+          <GhostMembersPanel onOpenMember={openMemberDetails} />
+        {:else if activeTab === 'growth'}
+          <GrowthSection {legacy} {legacyLoading} onOpenMember={openMemberDetails} />
+        {:else if activeTab === 'cohorts'}
+          <AdvancedAnalyticsPanel section="retention" onOpenMember={openMemberDetails} />
+        {:else if activeTab === 'churn'}
+          <AdvancedAnalyticsPanel section="churn" onOpenMember={openMemberDetails} />
+        {:else if activeTab === 'mod-advanced'}
+          <AdvancedAnalyticsPanel section="moderation" onOpenMember={openMemberDetails} />
         {:else if legacyError}
           <Callout variant="danger" title={m.an_error_generic()}>{legacyError}</Callout>
         {:else if !legacy}
           <AnalyticsSkeleton />
-        {:else if active === 'members'}
+        {:else if activeTab === 'members'}
           <div class="flex flex-col gap-4">
             <MembersStats data={legacy} {chartLabels} onOpenMember={openMemberDetails} />
-            <SectionCard title={m.an_tab_network()} description={m.anx_network_desc()}>
-              {#if interactions}
-                <GlobalInteractionGraph
-                  nodes={interactions.nodes || []}
-                  edges={interactions.edges || []}
-                  hiddenMembersCount={interactions.hiddenMembersCount || 0}
-                  onSelectNode={(userId) => openMemberDetails(userId, m.an_loading_short())}
-                />
-              {:else if interactionsError}
-                <Callout variant="danger" title={m.an_network_error()}>
-                  {interactionsError}
-                  {#snippet actions()}<Button size="sm" onclick={loadInteractions}>{m.an_retry()}</Button>{/snippet}
-                </Callout>
-              {:else}
-                <Button icon="Compass" loading={interactionsLoading} onclick={loadInteractions}>{m.anx_network_show()}</Button>
-              {/if}
-            </SectionCard>
-            <div class="flex flex-col gap-2">
-              <h3 class="text-sm font-semibold text-on-surface">{m.an_tab_social()}</h3>
-              <AdvancedAnalyticsPanel section="social" onOpenMember={openMemberDetails} />
-            </div>
-            <div class="flex flex-col gap-2">
-              <h3 class="text-sm font-semibold text-on-surface">{m.ghost_tab()}</h3>
-              <GhostMembersPanel onOpenMember={openMemberDetails} />
-            </div>
-          </div>
-        {:else if active === 'moderation'}
-          <div class="flex flex-col gap-4">
-            <ModerationAudit data={legacy} {chartLabels} onOpenMember={openMemberDetails} />
-            <div class="flex flex-col gap-2">
-              <h3 class="text-sm font-semibold text-on-surface">{m.an_tab_mod_advanced()}</h3>
-              <AdvancedAnalyticsPanel section="moderation" onOpenMember={openMemberDetails} />
-            </div>
-          </div>
-        {:else if active === 'staff'}
-          <div class="flex flex-col gap-4">
-            <StaffAudit data={legacy} onOpenMember={openMemberDetails} {fmt} {fmtH} />
-            {#if legacy.staffPerformance}
-              <StaffPerformance data={legacy.staffPerformance} onOpenMember={openMemberDetails} />
+            {#if roleItems.length > 0}
+              <SectionCard title={m.anx_roles_title()} description={m.anx_roles_desc()}>
+                <BarList items={roleItems} />
+              </SectionCard>
             {/if}
           </div>
+        {:else if activeTab === 'moderation'}
+          <div class="flex flex-col gap-4">
+            <div class="kpi-grid kpi-grid--4">
+              <KpiTile label={m.anx_fact_sanctions()} value={fmtNumber(legacy.totals?.sanctions ?? 0)} />
+              <KpiTile label={m.anx_mod_active()} value={fmtNumber(legacy.moderation?.activeSanctions ?? 0)} hint={m.anx_mod_active_hint()} />
+              <KpiTile label={m.anx_mod_per_day()} value={fmtNumber(Math.round(((legacy.totals?.sanctions ?? 0) / Math.max(1, filters.days)) * 10) / 10)} />
+              <KpiTile label={m.anx_mod_moderators()} value={fmtNumber(legacy.topModerators?.length ?? 0)} hint={m.anx_mod_moderators_hint()} />
+            </div>
+            <ModerationAudit data={legacy} {chartLabels} onOpenMember={openMemberDetails} />
+          </div>
+        {:else if activeTab === 'staff'}
+          <StaffAudit data={legacy} onOpenMember={openMemberDetails} {fmt} {fmtH} />
+        {:else if activeTab === 'performance'}
+          {#if legacy.staffPerformance}
+            <StaffPerformance data={legacy.staffPerformance} onOpenMember={openMemberDetails} />
+          {/if}
         {/if}
       {/key}
     </div>
@@ -423,7 +535,7 @@
     gap: 1rem;
   }
 
-  .analytics-v2__tabs {
+  .analytics-v2__mobile-sections {
     display: none;
   }
 
@@ -469,6 +581,17 @@
     font-weight: 600;
     background: var(--color-primary);
     color: var(--color-on-primary);
+  }
+
+  .side-link__count {
+    margin-left: auto;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-on-surface-variant);
+  }
+
+  .side-link__badge + .side-link__count {
+    margin-left: 0.375rem;
   }
 
   /* Grilles partagées par les sections. */
@@ -520,7 +643,7 @@
       display: none;
     }
 
-    .analytics-v2__tabs {
+    .analytics-v2__mobile-sections {
       display: block;
     }
 

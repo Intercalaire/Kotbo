@@ -6,7 +6,6 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
   import { Button, Callout, FilterPills, SectionCard } from '../ui';
-  import AdvancedAnalyticsPanel from './AdvancedAnalyticsPanel.svelte';
   import AnalyticsSkeleton from './AnalyticsSkeleton.svelte';
   import CategoryModal from './CategoryModal.svelte';
   import { fetchChannelTree, type ChannelTree, type ChannelTreeCategory, type ChannelTreeChannel } from '../../api';
@@ -191,10 +190,6 @@
       {/if}
     </SectionCard>
 
-    <div class="flex flex-col gap-2">
-      <h3 class="text-sm font-semibold text-on-surface">{m.anx_channels_health_title()}</h3>
-      <AdvancedAnalyticsPanel section="channels" {onOpenMember} />
-    </div>
   </div>
 {/if}
 
