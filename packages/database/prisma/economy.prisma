@@ -657,6 +657,8 @@ enum RpgQuestObjective {
   ADVENTURES_COMPLETED
   DAILY_CLAIMS
   TOWER_FLOORS
+  TOWER_MONSTER_KILLS
+  TOWER_BOSS_KILLS
 }
 
 /// MEMBER : chacun sa progression. TEAM : toute une équipe pousse le même compteur.

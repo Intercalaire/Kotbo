@@ -5,7 +5,8 @@
  * quand elles se touchent par un côté, une case sans salle étant un mur. Le gardien occupe
  * une grande salle de 2×2, ancrée sur sa case en haut à gauche. Le joueur part de la salle
  * de départ, choisit son chemin, et abattre le gardien le fait monter à l'étage suivant.
- * Les étages se jouent dans l'ordre puis recommencent au premier, plus durs.
+ * Les étages se jouent dans l'ordre puis recommencent au premier, plus durs. Un étage peut
+ * avoir des variantes : l'une d'elles est tirée au sort à chaque montée.
  */
 
 import {
@@ -60,7 +61,10 @@ export type TowerOfferKind = (typeof TOWER_OFFER_KINDS)[number];
 
 export const TOWER_MAP_SIZE = { min: 3, max: 12 } as const;
 export const TOWER_MAP_ROOMS_MAX = 100;
-export const TOWER_FLOORS_MAX = 12;
+/** Cartes dessinées au plus, variantes comprises. */
+export const TOWER_FLOORS_MAX = 24;
+/** Poids d'une carte au tirage entre les variantes de son étage : 1 face à 9, elle sort une fois sur dix. */
+export const TOWER_VARIANT_WEIGHT = { min: 1, max: 100, default: 10 } as const;
 export const TOWER_FLOOR_NAME_MAX = 40;
 export const TOWER_MERCHANT_OFFERS_MAX = 4;
 /** Après le dernier étage dessiné : la tour reprend au premier, ou génère des étages inédits. */
@@ -192,8 +196,20 @@ export type TowerFloorModifier = (typeof TOWER_FLOOR_MODIFIERS)[number];
  * `name` : nom de l'étage (« Caserne », « Crypte »…), vide pour un étage sans nom.
  * `fog` : brouillard de guerre, seules les salles visitées et leurs voisines se voient.
  * `modifier` : ambiance de l'étage.
+ * `variant` : variante de l'étage dessiné juste avant ; les deux partagent un même numéro
+ * d'étage et l'un d'eux est tiré au sort. Toujours faux sur la première carte.
+ * `weight` : poids de la carte dans ce tirage, sans effet sur un étage sans variante.
  */
-export type TowerLayout = { name: string; width: number; height: number; fog: boolean; modifier: TowerFloorModifier; rooms: TowerRoom[] };
+export type TowerLayout = {
+  name: string;
+  width: number;
+  height: number;
+  fog: boolean;
+  modifier: TowerFloorModifier;
+  variant?: boolean;
+  weight?: number;
+  rooms: TowerRoom[];
+};
 
 /** `WARP` : le passage d'un portail vers son jumeau. */
 export type TowerDirection = 'N' | 'S' | 'E' | 'W' | 'WARP';
@@ -438,7 +454,8 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
   // Absent des cartes d'avant le brouillard : elles restent entièrement visibles.
   const fog = raw.fog === true;
   const modifier = TOWER_FLOOR_MODIFIERS.includes(raw.modifier as TowerFloorModifier) ? (raw.modifier as TowerFloorModifier) : 'NONE';
-  const layout: TowerLayout = { name, width, height, fog, modifier, rooms };
+  const weight = clampInt(raw.weight, TOWER_VARIANT_WEIGHT, TOWER_VARIANT_WEIGHT.default);
+  const layout: TowerLayout = { name, width, height, fog, modifier, variant: raw.variant === true, weight, rooms };
   const distances = distancesFromStart(layout);
   if (distances.size !== rooms.length) {
     return { ok: false, error: `${rooms.length - distances.size} salle(s) ne sont reliées à rien depuis le départ.` };
@@ -456,15 +473,92 @@ export function normalizeTowerFloors(input: unknown): TowerFloorsResult {
   for (const [index, entry] of input.entries()) {
     const result = normalizeTowerLayout(entry);
     if (!result.ok) return { ok: false, error: `Étage ${index + 1} : ${result.error}` };
-    floors.push(result.value);
+    floors.push(index === 0 ? { ...result.value, variant: false } : result.value);
   }
   return { ok: true, value: floors };
 }
 
-/** Carte d'un étage de la montée : les étages dessinés se suivent, puis la tour recommence au premier. */
-export function floorLayout(floors: readonly TowerLayout[], floor: number): TowerLayout | null {
-  if (floors.length === 0) return null;
-  return floors[(Math.max(1, floor) - 1) % floors.length];
+/**
+ * Étages enregistrés, relus un à un : un étage qui ne passe plus la validation est écarté
+ * plutôt que de fermer toute la tour.
+ */
+export function readTowerFloors(value: unknown): TowerLayout[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => normalizeTowerLayout(entry))
+    .filter((result): result is { ok: true; value: TowerLayout } => result.ok)
+    .map((result, index) => (index === 0 ? { ...result.value, variant: false } : result.value));
+}
+
+/** Index des cartes de chaque étage dessiné : une carte `variant` rejoint l'étage d'avant. */
+function towerFloorGroups(floors: readonly TowerLayout[]): number[][] {
+  const groups: number[][] = [];
+  for (const [index, layout] of floors.entries()) {
+    if (layout.variant && groups.length > 0) groups[groups.length - 1].push(index);
+    else groups.push([index]);
+  }
+  return groups;
+}
+
+/** Nombre d'étages dessinés, variantes non comptées. */
+export function towerFloorCount(floors: readonly TowerLayout[]): number {
+  return towerFloorGroups(floors).length;
+}
+
+function cardWeight(layout: TowerLayout): number {
+  return layout.weight ?? TOWER_VARIANT_WEIGHT.default;
+}
+
+/**
+ * Étage dessiné d'une carte, sa lettre (« A », « B »…) et sa chance d'être tirée, en
+ * pourcentage ; lettre vide et 100 % pour un étage sans variante.
+ */
+export type TowerCardTag = { floor: number; variant: string; chance: number };
+
+export function towerCardTags(floors: readonly TowerLayout[]): TowerCardTag[] {
+  const tags: TowerCardTag[] = [];
+  for (const [rank, group] of towerFloorGroups(floors).entries()) {
+    const total = group.reduce((sum, index) => sum + cardWeight(floors[index]), 0);
+    for (const [position, index] of group.entries()) {
+      tags[index] = {
+        floor: rank + 1,
+        variant: group.length > 1 ? String.fromCharCode(65 + position) : '',
+        chance: Math.round((cardWeight(floors[index]) / total) * 100),
+      };
+    }
+  }
+  return tags;
+}
+
+/** « 3-E » pour une variante, « 2 » pour un étage sans variante ; `floor` : l'étage réellement atteint. */
+export function towerFloorLabel(floor: number, variant: string): string {
+  return variant ? `${floor}-${variant}` : String(floor);
+}
+
+/**
+ * Carte d'un étage de la montée, par son index dans `floors` : les étages dessinés se suivent,
+ * puis la tour recommence au premier. Entre les variantes d'un étage, la graine de la partie
+ * tranche selon leur poids : une même partie retombe toujours sur la même, et l'ascension du
+ * jour est la même pour tous. -1 sans étage dessiné.
+ */
+export function floorCardIndex(floors: readonly TowerLayout[], floor: number, seed = 0): number {
+  const groups = towerFloorGroups(floors);
+  if (groups.length === 0) return -1;
+  const depth = Math.max(1, floor);
+  const group = groups[(depth - 1) % groups.length];
+  if (group.length === 1) return group[0];
+  const mixed = (Math.imul(seed ^ 0x27d4eb2d, 0x165667b1) + Math.imul(depth, 0x9e3779b1)) >>> 0;
+  let roll = mixed % group.reduce((sum, index) => sum + cardWeight(floors[index]), 0);
+  for (const index of group) {
+    roll -= cardWeight(floors[index]);
+    if (roll < 0) return index;
+  }
+  return group[group.length - 1];
+}
+
+export function floorLayout(floors: readonly TowerLayout[], floor: number, seed = 0): TowerLayout | null {
+  const index = floorCardIndex(floors, floor, seed);
+  return index < 0 ? null : floors[index];
 }
 
 /**

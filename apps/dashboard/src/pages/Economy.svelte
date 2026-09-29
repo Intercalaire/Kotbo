@@ -741,6 +741,8 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     ADVENTURES_COMPLETED: m.eco_quest_obj_adventures,
     DAILY_CLAIMS: m.eco_quest_obj_daily,
     TOWER_FLOORS: m.eco_quest_obj_tower_floors,
+    TOWER_MONSTER_KILLS: m.eco_quest_obj_tower_monsters,
+    TOWER_BOSS_KILLS: m.eco_quest_obj_tower_bosses,
   };
 
   function questObjectiveLabel(objective: string): string {
@@ -2880,7 +2882,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
             <div class="grid grid-cols-2 gap-3">
               <div class="space-y-1.5">
                 <label for="raidPerMember" class="text-xs font-semibold text-on-surface-variant/60">{m.eco_raid_health_per_member()}</label>
-                <input id="raidPerMember" type="number" min="100" max="100000" bind:value={config.raidHealthPerMember} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
+                <input id="raidPerMember" type="number" min="100" max="10000000" bind:value={config.raidHealthPerMember} disabled={!canManageSettings || !config.raidEnabled} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50" />
               </div>
               <div class="space-y-1.5">
                 <label for="raidAssaults" class="text-xs font-semibold text-on-surface-variant/60">{m.eco_raid_assaults()}</label>
@@ -3754,7 +3756,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
           <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
             <div class="space-y-1">
               <label for="monsterLevel" class="text-xs font-semibold text-on-surface-variant/60">{m.eco_bestiary_level()}</label>
-              <input id="monsterLevel" type="number" min="1" max="100" bind:value={editingMonster.level} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
+              <input id="monsterLevel" type="number" min="1" bind:value={editingMonster.level} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
             </div>
             <div class="space-y-1">
               <label for="monsterHp" class="text-xs font-semibold text-on-surface-variant/60">{m.eco_bestiary_health()}</label>
@@ -4289,7 +4291,7 @@ import EmojiText from '../lib/components/EmojiText.svelte';
         <div class="grid grid-cols-4 gap-3">
           <div class="space-y-1">
             <label for="raidBossLevel" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_bestiary_level()}</label>
-            <input id="raidBossLevel" type="number" min="1" max="100" bind:value={editingRaidBoss.level} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
+            <input id="raidBossLevel" type="number" min="1" bind:value={editingRaidBoss.level} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
           </div>
           <div class="space-y-1">
             <label for="raidBossAtk" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_atk()}</label>

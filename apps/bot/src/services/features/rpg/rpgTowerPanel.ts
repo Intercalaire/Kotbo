@@ -18,6 +18,7 @@ import {
   SeparatorBuilder,
   SeparatorSpacingSize,
   TextDisplayBuilder,
+  escapeMarkdown,
   type ButtonInteraction,
   type Client,
 } from 'discord.js';
@@ -63,6 +64,7 @@ import {
   isExitRoom,
   occupancy,
   roomDistance,
+  towerFloorCount,
   visibleRooms,
   type TowerDirection,
   type TowerExitType,
@@ -116,8 +118,10 @@ import {
   buyTowerReward,
   buyTowerUpgrade,
   getActiveTowerRun,
+  getClanTowerStatus,
   getOrCreateTowerProfile,
   getTowerConfig,
+  getTowerPlayConfig,
   getTowerDailyLeaderboard,
   getTowerLeaderboard,
   hasPlayedDaily,
@@ -132,6 +136,8 @@ import {
   type TowerRewardView,
   type TowerSettlement,
 } from './rpgTowerService.js';
+import { listClanTowerStandings } from './rpgClanTowerService.js';
+import type { ClanTowerBonus } from './rpgClanTowerPolicy.js';
 
 const COLOR = RPG_COLORS.combat;
 const REWARDS_PER_PAGE = 4;
@@ -426,16 +432,19 @@ function exitStatus(type: TowerRoomType, map: TowerMapState, room: TowerRoom | u
 function moveLine(move: TowerMove, info: TowerRoomInfo | undefined, map: TowerMapState, locale: Locale): string {
   const room = map.layout.rooms.find((candidate) => candidate.id === move.roomId);
   // Passer par un portail se lit comme un déplacement à part : on change de coin de l'étage.
+  const conquered = map.conquered?.includes(move.roomId) === true;
   const status = move.direction === 'WARP'
     ? m.tower_move_warp({}, { locale })
-    : move.cleared
+    : conquered
+      ? `*${m.tower_room_conquered({}, { locale })}*`
+      : move.cleared
       ? `*${m.tower_room_visited({}, { locale })}*`
       : roomDescription(move.type, locale, room?.waves);
   // Mimique et embuscade se font passer pour autre chose : traits, fantôme ou puissance les
   // trahiraient. Un escalier encore debout ne dit rien de son gardien de secours.
   const hidden = move.type === 'MIMIC' || move.type === 'AMBUSH';
   const standing = move.type === 'COLLAPSE' && room !== undefined && collapseLeft(map, room) > 0;
-  const extras = move.cleared ? [] : [
+  const extras = move.cleared || conquered ? [] : [
     hidden || standing ? '' : roomInfoLine(info, locale),
     exitStatus(move.type, map, room, locale),
     room?.key ? `${icon('rpgKey')} ${m.tower_room_holds_key({}, { locale })}` : '',
@@ -739,7 +748,7 @@ function towerLadder(state: TowerState, floor: number, config: TowerConfigView, 
   const floors = config.floors;
   const entries: TowerLadderEntry[] = [];
   for (let n = floor + 2; n >= Math.max(1, floor - 2); n--) {
-    const name = n === floor ? state.map?.layout.name ?? '' : floorLayout(floors, n)?.name ?? '';
+    const name = n === floor ? state.map?.layout.name ?? '' : floorLayout(floors, n, state.seed ?? 0)?.name ?? '';
     entries.push({ label: floorTitle(n, name, locale), status: n === floor ? 'current' : n > floor ? 'next' : 'done' });
   }
   return entries;
@@ -773,6 +782,7 @@ async function towerImage(state: TowerState, floor: number, config: TowerConfigV
       keys: map.layout.rooms.filter((room) => room.key && !map.cleared.includes(room.id)).map((room) => room.id),
       wanderers: (map.wanderers ?? []).map((wanderer) => wanderer.pos),
       path: map.oraclePath ?? [],
+      conquered: map.conquered ?? [],
     });
   }
   return renderTowerImage({
@@ -857,7 +867,9 @@ function noticeLine(notice: TowerNotice | null, locale: Locale): string | null {
       ? m.tower_notice_treasure({ gold: notice.gold, coin: gold }, { locale })
       : m.tower_notice_chest_item({}, { locale })}${lockLine(notice.lock, locale)}`;
     case 'wave': return `${icon('rpgWar')} ${m.tower_notice_wave({ wave: notice.wave, waves: notice.waves, gold: notice.gold, coin: gold }, { locale })}`;
-    case 'exit': return `${icon('rpgUp')} ${m.tower_notice_exit({ exit: exitName(notice.exit, locale) }, { locale })}${notice.climbed
+    case 'exit': return `${icon('rpgUp')} ${notice.conquered
+      ? m.tower_notice_exit_conquered({ exit: exitName(notice.exit, locale) }, { locale })
+      : m.tower_notice_exit({ exit: exitName(notice.exit, locale) }, { locale })}${notice.climbed
       ? `\n> ${m.tower_notice_climbed({ floor: floorTitle(notice.climbed.floor, notice.climbed.name, locale) }, { locale })}`
       : ''}`;
     case 'campfire': return `${icon('rpgRest')} ${m.tower_notice_campfire({ hp: notice.hp }, { locale })}`;
@@ -909,6 +921,11 @@ export function towerRefusalText(refusal: TowerRefusal, config: TowerConfigView,
     case 'upgrade_max': return m.tower_refused_upgrade_max({}, { locale });
     case 'daily_disabled': return m.tower_refused_daily_disabled({}, { locale });
     case 'daily_done': return m.tower_refused_daily_done({}, { locale });
+    case 'clan_closed': return m.tower_refused_clan_closed({}, { locale });
+    case 'clan_none': return m.tower_refused_clan_none({}, { locale });
+    case 'clan_done': return refusal.next
+      ? m.tower_refused_clan_done({ next: discordTime(refusal.next) }, { locale })
+      : m.tower_refused_clan_done_last({}, { locale });
     case 'action': {
       switch (refusal.reason) {
         case 'skill_cooldown': return m.tower_refused_cooldown({}, { locale });
@@ -928,6 +945,11 @@ export function towerRefusalText(refusal: TowerRefusal, config: TowerConfigView,
       }
     }
   }
+}
+
+/** Date affichée par Discord dans le fuseau de chaque lecteur. */
+function discordTime(date: Date, style: 'F' | 'R' = 'R'): string {
+  return `<t:${Math.floor(date.getTime() / 1000)}:${style}>`;
 }
 
 const UPGRADE_ICON: Record<TowerUpgradeEffect, string> = {
@@ -990,15 +1012,16 @@ export async function buildTowerHomeView(client: Client | null, guildId: string,
   // D'abord la partie : une partie expirée est soldée ici, et le profil lu ensuite doit
   // déjà compter les éclats qu'elle vient de verser.
   const { active, expired } = await getActiveTowerRun(client, guildId, ownerId);
-  const [profile, preview, dailyDone] = await Promise.all([
+  const [profile, preview, dailyDone, clanTower] = await Promise.all([
     getOrCreateTowerProfile(guildId, ownerId),
     previewTowerEntry(guildId, ownerId),
     config.dailyEnabled ? hasPlayedDaily(guildId, ownerId) : Promise.resolve(true),
+    getClanTowerStatus(client, guildId, ownerId),
   ]);
 
   const container = new ContainerBuilder().setAccentColor(COLOR);
   const rules = config.floors.length > 0
-    ? m.tower_rules_map({ floors: config.floors.length }, { locale })
+    ? m.tower_rules_map({ floors: towerFloorCount(config.floors) }, { locale })
     : m.tower_rules_generated({}, { locale });
   textBlock(container, [
     header(config),
@@ -1086,6 +1109,25 @@ export async function buildTowerHomeView(client: Client | null, guildId: string,
         dailyDone || active !== null,
       ),
       button(`twr:dtop:${ownerId}`, m.tower_btn_daily_top({}, { locale }), ButtonStyle.Secondary, icon('trophy')),
+    ));
+  }
+  // La Tour de clan n'apparaît que pendant sa semaine.
+  if (clanTower) {
+    textBlock(container, [
+      `-# ${icon('trophy')} ${clanTower.clan
+        ? m.tower_home_clan_hint({ name: clanTower.name, clan: clanTower.clan.name, end: discordTime(clanTower.endsAt, 'F') }, { locale })
+        : m.tower_home_clan_no_clan({ name: clanTower.name }, { locale })}`,
+      clanTower.clan ? `-# ${clanMilestoneLine(clanTower.totalFloors, clanTower.bonus, locale)}` : null,
+    ].filter(Boolean).join('\n'));
+    components.push(row(
+      button(
+        `twr:clan:${ownerId}`,
+        clanTower.played ? m.tower_btn_clan_done({}, { locale }) : m.tower_btn_clan({ name: clanTower.name }, { locale }),
+        ButtonStyle.Success,
+        icon('rpgDoor'),
+        clanTower.played || !clanTower.clan || active !== null,
+      ),
+      button(`twr:ctop:${ownerId}`, m.tower_btn_clan_top({}, { locale }), ButtonStyle.Secondary, icon('trophy')),
     ));
   }
 
@@ -1270,7 +1312,7 @@ function runControls(ownerId: string, state: TowerState, version: number, locale
 
 /** Écran de la partie en cours, selon sa phase. */
 export async function buildTowerRunView(guildId: string, ownerId: string, locale: Locale, active: ActiveTowerRun): Promise<PanelView> {
-  const config = await getTowerConfig(guildId);
+  const config = await getTowerPlayConfig(guildId, active.run.mode);
   const { run, state } = active;
   const version = run.version;
   const container = new ContainerBuilder().setAccentColor(COLOR);
@@ -1599,7 +1641,10 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
 
 /** Bilan d'une ascension terminée. */
 export async function buildTowerSettlementView(guildId: string, ownerId: string, locale: Locale, settlement: TowerSettlement): Promise<PanelView> {
-  const [config, economy] = await Promise.all([getTowerConfig(guildId), getOrCreateEconomyConfig(guildId)]);
+  const [config, economy] = await Promise.all([
+    getTowerPlayConfig(guildId, settlement.clan ? 'CLAN' : 'CLASSIC'),
+    getOrCreateEconomyConfig(guildId),
+  ]);
   const container = new ContainerBuilder().setAccentColor(settlement.outcome === 'DEAD' ? COLOR : RPG_COLORS.wild);
 
   const title = settlement.outcome === 'DEAD'
@@ -1609,7 +1654,9 @@ export async function buildTowerSettlementView(guildId: string, ownerId: string,
   const lines = [
     header(config, settlement.daily ? `${m.tower_daily_title({}, { locale })} · ${title}` : title),
     `${icon('rpgTower')} ${m.tower_end_summary({ floors: settlement.floorsCleared, kills: settlement.kills }, { locale })}`,
-    m.tower_end_shards({ shards: settlement.shards, emoji: shardIcon(config), currency: config.currencyName }, { locale }),
+    settlement.clan
+      ? m.tower_end_clan({}, { locale })
+      : m.tower_end_shards({ shards: settlement.shards, emoji: shardIcon(config), currency: config.currencyName }, { locale }),
   ];
   if (settlement.killedBy) lines.push(`${icon('rpgBoss')} ${m.tower_end_killed_by({ name: settlement.killedBy }, { locale })}`);
   if (settlement.lostToDeath > 0) lines.push(`-# ${m.tower_end_lost_death({ shards: settlement.lostToDeath, percent: 100 - config.deathShardPercent }, { locale })}`);
@@ -1640,7 +1687,7 @@ export async function buildTowerSettlementView(guildId: string, ownerId: string,
         m.tower_panel_floors({ floors: settlement.floorsCleared }, { locale }),
         m.tower_panel_rooms({ rooms: settlement.roomsExplored ?? settlement.floorsCleared }, { locale }),
         m.tower_panel_kills({ kills: settlement.kills }, { locale }),
-        m.tower_panel_shards({ shards: settlement.shards, currency: config.currencyName }, { locale }),
+        settlement.clan ? '' : m.tower_panel_shards({ shards: settlement.shards, currency: config.currencyName }, { locale }),
         settlement.killedBy ? m.tower_end_killed_by({ name: settlement.killedBy }, { locale }) : '',
         ...(settlement.gear ?? []),
       ].filter(Boolean),
@@ -1657,18 +1704,24 @@ export async function buildTowerSettlementView(guildId: string, ownerId: string,
     embeds: [],
     container,
     files,
-    components: [row(
-      button(`twr:enter:${ownerId}`, m.tower_btn_again({}, { locale }), ButtonStyle.Success, icon('rpgDoor')),
-      button(`twr:shop:${ownerId}:0`, m.tower_btn_shop({}, { locale }), ButtonStyle.Primary, icon('rpgShop')),
-      button(`twr:top:${ownerId}`, m.tower_btn_leaderboard({}, { locale }), ButtonStyle.Secondary, icon('trophy')),
-      button(`twr:home:${ownerId}`, m.tower_btn_home({}, { locale }), ButtonStyle.Secondary, icon('rpgBack')),
-    )],
+    components: [settlement.clan
+      ? row(
+        button(`twr:ctop:${ownerId}`, m.tower_btn_clan_top({}, { locale }), ButtonStyle.Primary, icon('trophy')),
+        button(`twr:home:${ownerId}`, m.tower_btn_home({}, { locale }), ButtonStyle.Secondary, icon('rpgBack')),
+      )
+      : row(
+        button(`twr:enter:${ownerId}`, m.tower_btn_again({}, { locale }), ButtonStyle.Success, icon('rpgDoor')),
+        button(`twr:shop:${ownerId}:0`, m.tower_btn_shop({}, { locale }), ButtonStyle.Primary, icon('rpgShop')),
+        button(`twr:top:${ownerId}`, m.tower_btn_leaderboard({}, { locale }), ButtonStyle.Secondary, icon('trophy')),
+        button(`twr:home:${ownerId}`, m.tower_btn_home({}, { locale }), ButtonStyle.Secondary, icon('rpgBack')),
+      )],
   };
 }
 
 /** Ce que coûte un départ maintenant : tout est gardé sur un palier sûr, une part sinon. */
 function leaveDescription(config: TowerConfigView, active: ActiveTowerRun, locale: Locale): string {
   const { state } = active;
+  if (active.run.mode === 'CLAN') return m.tower_leave_desc_clan({ floors: state.floorsCleared }, { locale });
   const safe = state.safeLeave === true;
   const kept = settleShards(state.shards, 'LEFT', config.deathShardPercent, config.leaveShardPercent, safe);
   const floors = state.floorsCleared;
@@ -1819,6 +1872,47 @@ async function buildTowerDailyView(guildId: string, ownerId: string, locale: Loc
   return { embeds: [], container, components: [row(button(`twr:home:${ownerId}`, m.tower_btn_home({}, { locale }), ButtonStyle.Secondary, icon('rpgBack')))] };
 }
 
+/** Paliers collectifs du clan : étages gravis au total, bonus acquis et prochain palier. */
+function clanMilestoneLine(total: number, bonus: ClanTowerBonus, locale: Locale): string {
+  const parts = [
+    bonus.potions > 0 ? m.tower_clan_bonus_potions({ count: bonus.potions }, { locale }) : '',
+    bonus.healthPercent > 0 ? m.tower_clan_bonus_health({ percent: bonus.healthPercent }, { locale }) : '',
+    bonus.attackPercent > 0 ? m.tower_clan_bonus_attack({ percent: bonus.attackPercent }, { locale }) : '',
+  ].filter(Boolean);
+  return [
+    m.tower_clan_total({ floors: total }, { locale }),
+    parts.length > 0 ? m.tower_clan_bonus({ bonus: parts.join(', ') }, { locale }) : m.tower_clan_bonus_none({}, { locale }),
+    bonus.next !== null ? m.tower_clan_next_milestone({ floors: bonus.next }, { locale }) : '',
+  ].filter(Boolean).join(' · ');
+}
+
+/** Classement de la Tour de clan en cours. */
+async function buildClanTowerView(client: Client, guildId: string, ownerId: string, locale: Locale): Promise<PanelView> {
+  const [config, status] = await Promise.all([getTowerPlayConfig(guildId, 'CLAN'), getClanTowerStatus(client, guildId, ownerId)]);
+  const container = new ContainerBuilder().setAccentColor(COLOR);
+  const back = row(button(`twr:home:${ownerId}`, m.tower_btn_home({}, { locale }), ButtonStyle.Secondary, icon('rpgBack')));
+  if (!status) {
+    textBlock(container, `${header(config)}\n${m.tower_refused_clan_closed({}, { locale })}`);
+    return { embeds: [], container, components: [back] };
+  }
+  const standings = await listClanTowerStandings(guildId, status.eventId);
+  const lines = standings.slice(0, 15).map((standing) =>
+    `${standing.rank <= 3 ? rankEmoji(standing.rank) : `**${standing.rank}.**`} **${escapeMarkdown(standing.name)}** — ${m.tower_top_floors({ floors: standing.floors }, { locale })}`
+    + (standing.climbers[0] ? ` · <@${standing.climbers[0].userId}>` : ''));
+  const mine = status.clan ? standings.find((standing) => standing.clanId === status.clan!.id) : undefined;
+  const you = status.clan
+    ? ['', m.tower_clan_top_you({ clan: escapeMarkdown(status.clan.name), floors: mine?.floors ?? 0 }, { locale }), `-# ${clanMilestoneLine(status.totalFloors, status.bonus, locale)}`]
+    : [];
+  textBlock(container, [
+    header(config, m.tower_clan_top_title({}, { locale })),
+    `-# ${m.tower_clan_top_rules({ end: discordTime(status.endsAt, 'F') }, { locale })}`,
+    '',
+    lines.length > 0 ? lines.join('\n') : `*${m.tower_clan_top_empty({}, { locale })}*`,
+    ...you,
+  ].join('\n'));
+  return { embeds: [], container, components: [back] };
+}
+
 // ─────────────────────────────────────────────────────────────
 // Dispatch
 // ─────────────────────────────────────────────────────────────
@@ -1915,7 +2009,7 @@ export async function handleTowerButton(client: Client, customId: string, intera
         const { active } = await getActiveTowerRun(client, guildId, ownerId);
         if (!active || active.run.version !== version) throw new TowerRefused({ kind: 'stale' });
         if (active.state.phase === 'COMBAT') throw new TowerRefused({ kind: 'in_combat' });
-        await respond(interaction, leaveConfirmView(await getTowerConfig(guildId), ownerId, version, active, locale));
+        await respond(interaction, leaveConfirmView(await getTowerPlayConfig(guildId, active.run.mode), ownerId, version, active, locale));
         return;
       }
       case 'quit': {
@@ -1944,6 +2038,12 @@ export async function handleTowerButton(client: Client, customId: string, intera
         return;
       }
       case 'dtop': await respond(interaction, await buildTowerDailyView(guildId, ownerId, locale)); return;
+      case 'clan': {
+        const active = await startTowerRun(client, guildId, ownerId, { clan: true });
+        await respond(interaction, await buildTowerRunView(guildId, ownerId, locale, active));
+        return;
+      }
+      case 'ctop': await respond(interaction, await buildClanTowerView(client, guildId, ownerId, locale)); return;
       default: return;
     }
   } catch (err) {

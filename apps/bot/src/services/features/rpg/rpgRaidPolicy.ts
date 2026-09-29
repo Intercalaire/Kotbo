@@ -18,9 +18,10 @@ export const RAID_BOSS_DESCRIPTION_MAX = 400;
 /** Au delà, l'assaut devient illisible et le boss ne lance jamais la moitié de sa liste. */
 export const RAID_SPELLS_MAX = 6;
 
-export const RAID_LEVEL_RANGE = { min: 1, max: 100 } as const;
-export const RAID_STAT_RANGE = { min: 1, max: 10_000 } as const;
-export const RAID_HEALTH_PER_MEMBER_RANGE = { min: 100, max: 100_000 } as const;
+/** Aucun plafond de jeu, comme pour le bestiaire : le boss suit la progression des joueurs. */
+export const RAID_LEVEL_RANGE = { min: 1, max: 1_000_000 } as const;
+export const RAID_STAT_RANGE = { min: 1, max: 1_000_000 } as const;
+export const RAID_HEALTH_PER_MEMBER_RANGE = { min: 100, max: 10_000_000 } as const;
 
 /**
  * Réserve par défaut d'un raid.
@@ -36,7 +37,8 @@ export const RAID_HEALTH_PER_MEMBER_RANGE = { min: 100, max: 100_000 } as const;
 export const DEFAULT_RAID_HEALTH_PER_MEMBER = 920;
 export const DEFAULT_RAID_HEALTH_FLOOR = 1915;
 export const DEFAULT_RAID_HEALTH_CAP = 46_000;
-export const RAID_HEALTH_BOUND_RANGE = { min: 500, max: 5_000_000 } as const;
+/** La réserve d'une équipe est bornée par le plafond : il reste sous celui d'une colonne entière. */
+export const RAID_HEALTH_BOUND_RANGE = { min: 500, max: 2_000_000_000 } as const;
 export const RAID_ASSAULTS_RANGE = { min: 1, max: 20 } as const;
 /** Zéro ferme la vente : un serveur peut vouloir du raid sans assauts achetables. */
 export const RAID_BOUGHT_ASSAULTS_RANGE = { min: 0, max: 20 } as const;

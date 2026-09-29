@@ -32,6 +32,7 @@
   import ToggleSwitch from '../ToggleSwitch.svelte';
   import Tabs from '../ui/Tabs.svelte';
   import RpgTowerMapEditor from './RpgTowerMapEditor.svelte';
+  import RpgClanTowerPanel from './RpgClanTowerPanel.svelte';
 
   const { canManage = false, disabled = false, currencyName = '' }: { canManage?: boolean; disabled?: boolean; currencyName?: string } = $props();
 
@@ -119,9 +120,14 @@
     averageFloor: number;
     deathRate: number;
     topKillers: { name: string; deaths: number }[];
-    deadliestFloor: { floor: number; deaths: number } | null;
+    /** `label` : « 3-E » pour une variante, « 2 » pour un étage sans variante. */
+    deadliestFloor: { floor: number; variant?: string; label?: string; name?: string; deaths: number } | null;
+    /** Chaque carte dessinée sur les vraies parties, variantes à part. */
+    cards?: CardStats[];
   };
-  type Tab = 'general' | 'map' | 'shop' | 'merchant' | 'milestones' | 'leaderboard' | 'simulation';
+  /** Bilan d'une carte dessinée : `variant` vide pour un étage sans variante, `chance` en %. */
+  type CardStats = { index: number; floor: number; variant: string; chance?: number; name: string; arrivals: number; cleared: number; deaths: number; left?: number };
+  type Tab = 'general' | 'map' | 'shop' | 'merchant' | 'milestones' | 'leaderboard' | 'simulation' | 'clan';
 
   // Mêmes valeurs que `rpgTowerPolicy.ts` côté bot.
   const UPGRADE_EFFECTS: UpgradeEffect[] = ['POTION', 'HEALTH', 'ATTACK', 'DEFENSE', 'SPEED', 'CRIT', 'GOLD'];
@@ -230,6 +236,7 @@
     { id: 'milestones', label: m.eco_tower_tab_milestones(), icon: 'Trophy', badge: milestones.length || undefined },
     { id: 'leaderboard', label: m.eco_tower_tab_leaderboard(), icon: 'Medal' },
     { id: 'simulation', label: m.eco_tower_tab_simulation(), icon: 'FlaskConical' },
+    { id: 'clan', label: m.eco_tower_tab_clan(), icon: 'Users' },
   ]);
 
   // ── Simulation d'équilibrage ────────────────────────────────────
@@ -532,6 +539,51 @@
   </div>
 {/snippet}
 
+{#snippet cardTable(cards: CardStats[], title: string, desc: string, withLeft: boolean)}
+  <div class="bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-4 space-y-2">
+    <div>
+      <p class="text-xs font-semibold flex items-center gap-1.5"><Papicon icon="Layers" size={12} /> {title}</p>
+      <p class="text-2xs text-on-surface-variant/60 mt-0.5">{desc}</p>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-2xs">
+        <thead>
+          <tr class="text-left text-on-surface-variant/60">
+            <th class="py-1 pr-3 font-semibold">{m.eco_tower_sim_card()}</th>
+            <th class="py-1 px-2 font-semibold text-right">{m.eco_tower_sim_card_arrivals()}</th>
+            <th class="py-1 px-2 font-semibold text-right">{m.eco_tower_sim_card_cleared()}</th>
+            <th class="py-1 px-2 font-semibold text-right">{m.eco_tower_sim_card_deaths()}</th>
+            {#if withLeft}<th class="py-1 px-2 font-semibold text-right">{m.eco_tower_card_left()}</th>{/if}
+            <th class="py-1 pl-2 font-semibold w-1/3">{m.eco_tower_sim_card_death_rate()}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each cards as card (card.index)}
+            {@const rate = card.arrivals > 0 ? Math.round((card.deaths / card.arrivals) * 100) : 0}
+            <tr class="border-t border-outline-variant/10">
+              <td class="py-1.5 pr-3">
+                <span class="font-mono font-semibold">{m.eco_tower_milestone_floor({ floor: card.variant ? `${card.floor}-${card.variant}` : card.floor })}</span>
+                {#if card.variant && card.chance !== undefined}<span class="text-on-surface-variant/60"> ({card.chance} %)</span>{/if}
+                {#if card.name}<span class="text-on-surface-variant/60"> · {card.name}</span>{/if}
+              </td>
+              <td class="py-1.5 px-2 text-right font-mono">{card.arrivals}</td>
+              <td class="py-1.5 px-2 text-right font-mono">{card.cleared}</td>
+              <td class="py-1.5 px-2 text-right font-mono">{card.deaths}</td>
+              {#if withLeft}<td class="py-1.5 px-2 text-right font-mono">{card.left ?? 0}</td>{/if}
+              <td class="py-1.5 pl-2">
+                <div class="flex items-center gap-2">
+                  <div class="flex-1 h-2 rounded-full bg-outline-variant/10 overflow-hidden"><div class="h-full bg-error/70" style="width: {rate}%"></div></div>
+                  <span class="w-9 text-right font-mono">{card.arrivals > 0 ? `${rate} %` : '—'}</span>
+                </div>
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{/snippet}
+
 {#snippet shardIcon(size: number)}
   {#if settings.currencyEmoji}<EmojiText value={settings.currencyEmoji} />{:else}<Papicon icon="Diamond" {size} />{/if}
 {/snippet}
@@ -652,10 +704,17 @@
         </div>
         <div class="bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-4" title={m.eco_tower_insight_deadliest_tip()}>
           <p class="text-2xs text-on-surface-variant/60 flex items-center gap-1"><Papicon icon="Flame" size={11} /> {m.eco_tower_insight_deadliest()}</p>
-          <p class="text-xl font-bold mt-1">{insights.deadliestFloor ? m.eco_tower_milestone_floor({ floor: insights.deadliestFloor.floor }) : '—'}</p>
-          {#if insights.deadliestFloor}<p class="text-2xs text-on-surface-variant/60">{m.eco_tower_insight_deadliest_count({ count: insights.deadliestFloor.deaths })}</p>{/if}
+          <p class="text-xl font-bold mt-1">{insights.deadliestFloor ? m.eco_tower_milestone_floor({ floor: insights.deadliestFloor.label ?? insights.deadliestFloor.floor }) : '—'}</p>
+          {#if insights.deadliestFloor}
+            <p class="text-2xs text-on-surface-variant/60">
+              {#if insights.deadliestFloor.name}<span class="font-semibold">{insights.deadliestFloor.name}</span> · {/if}{m.eco_tower_insight_deadliest_count({ count: insights.deadliestFloor.deaths })}
+            </p>
+          {/if}
         </div>
       </div>
+      {#if insights.cards && insights.cards.some((card) => card.arrivals > 0)}
+        {@render cardTable(insights.cards, m.eco_tower_cards_real(), m.eco_tower_cards_real_desc(), true)}
+      {/if}
     {/if}
 
     <Tabs label={m.eco_tower_tabs_label()} {tabs} active={tab} onchange={(id) => { tab = id as Tab; }} />
@@ -881,6 +940,8 @@
           onSaved={load}
         />
       {/key}
+    {:else if tab === 'clan'}
+      <RpgClanTowerPanel {canManage} {disabled} {foes} {limits} growthPercent={Number(settings.floorGrowthPercent) || 8} />
     {:else if tab === 'shop'}
       <!-- Améliorations permanentes -->
       <div class={cardClass}>
@@ -1224,6 +1285,9 @@
               </ol>
             </div>
           </div>
+          {#if simResult.cards && simResult.cards.length > 0}
+            {@render cardTable(simResult.cards, m.eco_tower_sim_cards(), m.eco_tower_sim_cards_desc(), false)}
+          {/if}
           {#if simResult.capped > 0}
             <p class="text-2xs text-on-surface-variant/60 flex items-start gap-1.5"><Papicon icon="Info" size={11} /> {m.eco_tower_sim_capped({ count: simResult.capped })}</p>
           {/if}

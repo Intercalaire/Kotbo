@@ -70,6 +70,7 @@ export type BackgroundJobName =
   // le typecheck echouait sur leur handler.
   | 'raid-cycle'
   | 'tower-idle-expiration'
+  | 'clan-tower-cycle'
   | 'clan-weekly-digest'
   | 'campaign-cycle'
   // Meme oubli pour les partenariats : quatre crons planifies sans handler, donc

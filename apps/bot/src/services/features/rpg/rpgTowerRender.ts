@@ -91,6 +91,8 @@ export type TowerMapImage = {
   wanderers?: readonly string[];
   /** Chemin vers la sortie montré par un oracle. */
   path?: readonly string[];
+  /** Tour de clan : salles conquises par le clan, marquées d'un fanion. */
+  conquered?: readonly string[];
 };
 
 /** Encart de texte à droite de la tour : titre et quelques lignes courtes. */
@@ -639,6 +641,25 @@ function drawFog(ctx: SKRSContext2D, x: number, y: number, size: number, seed: n
   ctx.restore();
 }
 
+/** Fanion d'une salle conquise par le clan : un mât et une flamme dorée, en haut à gauche. */
+function drawPennant(ctx: SKRSContext2D, x: number, y: number, size: number): void {
+  ctx.save();
+  ctx.strokeStyle = C.text;
+  ctx.lineWidth = Math.max(1.5, size * 0.12);
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x, y + size);
+  ctx.stroke();
+  ctx.fillStyle = C.gold;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + size * 0.8, y + size * 0.25);
+  ctx.lineTo(x, y + size * 0.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
 function checkMark(ctx: SKRSContext2D, cx: number, cy: number, size: number): void {
   ctx.save();
   ctx.strokeStyle = C.done;
@@ -806,6 +827,7 @@ function renderMap(input: TowerMapImage): Buffer {
 
     const cx = x + size / 2;
     const cy = y + size / 2;
+    if (input.conquered?.includes(room.id)) drawPennant(ctx, x + 3, y + 3, Math.max(9, tile * 0.22));
     if (cleared) {
       checkMark(ctx, cx, cy, size * 0.42);
     } else {

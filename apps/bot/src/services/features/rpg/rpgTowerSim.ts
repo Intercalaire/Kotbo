@@ -19,7 +19,18 @@ import {
   type TowerState,
 } from './rpgTowerEngine.js';
 import { TowerRng, settleShards, type TowerCoreStats, type TowerSkill } from './rpgTowerPolicy.js';
-import { exitLocks, exitRoom, isExitRoom, roomNeighbors, type TowerFloorsAfter, type TowerLayout, type TowerRoom } from './rpgTowerMap.js';
+import {
+  exitLocks,
+  exitRoom,
+  floorCardIndex,
+  isExitRoom,
+  roomNeighbors,
+  towerCardTags,
+  towerFloorCount,
+  type TowerFloorsAfter,
+  type TowerLayout,
+  type TowerRoom,
+} from './rpgTowerMap.js';
 import { towerFloorLayout } from './rpgTowerGen.js';
 import type { TowerHeat } from './rpgTowerContent.js';
 
@@ -60,6 +71,24 @@ export type TowerSimResult = {
   /** Morts par étage atteint (étage 1 = mort avant d'en gravir un). */
   deathsByFloor: { floor: number; deaths: number }[];
   topKillers: { name: string; deaths: number }[];
+  /**
+   * Chaque carte dessinée, variantes à part : combien d'ascensions y sont arrivées, l'ont
+   * franchie ou y sont mortes. Une variante bien plus meurtrière que ses sœurs s'y voit.
+   */
+  cards: TowerSimCard[];
+};
+
+export type TowerSimCard = {
+  index: number;
+  floor: number;
+  /** Lettre de la variante, vide pour un étage sans variante. */
+  variant: string;
+  /** Chance d'être tirée entre les variantes de son étage, en pourcentage. */
+  chance: number;
+  name: string;
+  arrivals: number;
+  cleared: number;
+  deaths: number;
 };
 
 /** Premier pas vers la salle la plus proche qui satisfait `wanted`, en passant par les salles de l'étage. */
@@ -167,6 +196,11 @@ export async function simulateTowerRuns(input: TowerSimInput): Promise<TowerSimR
   const deaths = new Map<number, number>();
   const killers = new Map<string, number>();
   let capped = 0;
+  const tags = towerCardTags(input.floors);
+  const cards: TowerSimCard[] = input.floors.map((layout, index) => ({
+    index, ...tags[index], name: layout.name, arrivals: 0, cleared: 0, deaths: 0,
+  }));
+  const drawnFloors = towerFloorCount(input.floors);
 
   for (let run = 0; run < runs; run++) {
     await yieldToLoop();
@@ -207,6 +241,14 @@ export async function simulateTowerRuns(input: TowerSimInput): Promise<TowerSimR
       floor = step.floor;
     }
     if (!dead) capped += 1;
+    // Carte jouée à chaque étage atteint : le tirage des variantes ne dépend que de la graine.
+    for (let reached = 1; reached <= state.floorsCleared + 1; reached++) {
+      if (drawnFloors === 0 || (reached > drawnFloors && input.floorsAfter !== 'LOOP')) break;
+      const card = cards[floorCardIndex(input.floors, reached, seed)];
+      card.arrivals += 1;
+      if (reached <= state.floorsCleared) card.cleared += 1;
+      else if (dead) card.deaths += 1;
+    }
     floorsReached.push(state.floorsCleared);
     rooms.push(Math.max(0, (state.map?.depth ?? 1) - 1));
     shards.push(dead ? settleShards(state.shards, 'DEAD', input.deathShardPercent) : state.shards);
@@ -224,5 +266,6 @@ export async function simulateTowerRuns(input: TowerSimInput): Promise<TowerSimR
     capped,
     deathsByFloor: [...deaths.entries()].sort((a, b) => a[0] - b[0]).map(([at, count]) => ({ floor: at, deaths: count })),
     topKillers: [...killers.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, count]) => ({ name, deaths: count })),
+    cards,
   };
 }
