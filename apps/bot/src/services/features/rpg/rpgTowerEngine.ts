@@ -18,6 +18,12 @@ import {
   fountainDrinkCost,
   BLESSED_HEAL,
   BURN_DAMAGE,
+  FIRE_START_DISTANCE,
+  FROST_FIRST_HIT,
+  MIST_LIFT_ROOMS,
+  MIST_CHEST_GOLD,
+  MOONLESS_AMBUSH_BOUNTY,
+  MOONLESS_WANDERER_STEPS,
   FLOODED_SPEED,
   HEAT_FAMINE_HEAL,
   HEAT_FOE_BOOST,
@@ -68,6 +74,7 @@ import {
   FALLBACK_BOSSES,
   FALLBACK_MONSTERS,
   LOOT_CHANCE,
+  TOWER_FORTUNE_MAX,
   MAX_POTIONS,
   TOWER_CHARGE_EVERY,
   TOWER_DEFEND_HEAL,
@@ -113,18 +120,23 @@ import {
   TOWER_TRIAL_WAVES,
   TOWER_WANDER_RADIUS,
   canWanderInto,
+  distancesFromStart,
   entryRooms,
   exitLocks,
   exitRoom,
+  isEntryRoom,
   isExitRoom,
+  occupancy,
   pathBetween,
   roomNeighbors,
   startRoom,
+  towerLayoutHasFog,
   towerLayoutKey,
   wanderZone,
   type TowerCaptiveKind,
   type TowerDirection,
   type TowerExitType,
+  type TowerFloorModifier,
   type TowerFloorsAfter,
   type TowerLayout,
   type TowerRoom,
@@ -201,6 +213,8 @@ export type TowerEncounter = {
   opensExit?: boolean;
   /** Monstre errant (sa case de départ) : vaincu, il quitte l'étage. */
   wanderer?: string;
+  /** Embuscade : pris au piège, le joueur ne peut pas fuir. */
+  ambush?: boolean;
   /** Geôlier d'un prisonnier : le vaincre libère le captif. */
   captive?: TowerCaptiveKind;
   /** Puissance réglée sur la salle (1 : normale). */
@@ -314,6 +328,13 @@ export type TowerMapState = {
    * vaincues, et une sortie conquise se franchit sans rien affronter. Posées par le service.
    */
   conquered?: string[];
+  /**
+   * Étage en feu : salles qui brûlent. Le feu part d'une salle et gagne une voisine à chaque
+   * pas. Absent des étages arrivés avant la propagation : chaque nouvelle salle y brûle.
+   */
+  fire?: string[];
+  /** La brume de l'étage s'est levée. */
+  mistLifted?: boolean;
 };
 
 export type TowerGhost = { roomId: string; userId: string; runId: string; gear: TowerGear };
@@ -348,6 +369,11 @@ export type TowerState = {
   kills: number;
   /** Gardiens parmi `kills`. Absent des parties d'avant ce champ. */
   bossKills?: number;
+  /**
+   * Porte-bonheur acheté avec des éclats : part d'or et de chance d'objet en plus, en combat
+   * et dans les coffres. Absent des parties d'avant ce champ, et des ascensions sans amélioration.
+   */
+  fortune?: number;
   /**
    * Empreinte de la carte de chaque étage atteint, dans l'ordre (voir `towerLayoutKey`) : les
    * statistiques par carte du dashboard. Absent des parties d'avant ce champ, qui ne comptent pas.
@@ -400,6 +426,8 @@ export type TowerState = {
   ghostTaken?: string | null;
   /** PV brûlés à la dernière action, sur un étage en feu. */
   burned?: number;
+  /** Changement de temps à la dernière action, montré une seule fois. */
+  weather?: 'mist_lifted' | null;
 };
 
 export type TowerRules = {
@@ -416,7 +444,15 @@ export type TowerRules = {
   floorsAfter?: TowerFloorsAfter;
   /** Absent : les étages générés ont leur brouillard. */
   generatedFog?: boolean;
+  /** Défi du jour : ambiance imposée à chaque étage, qui remplace celle de la carte. */
+  floorModifier?: TowerFloorModifier;
 };
+
+/** Carte de l'étage `floor`, avec l'ambiance imposée par les règles s'il y en a une. */
+export function towerRunFloorLayout(floors: readonly TowerLayout[], floor: number, rules: TowerRules, seed: number): TowerLayout {
+  const layout = towerFloorLayout(floors, floor, rules.floorsAfter ?? 'LOOP', seed, rules.generatedFog ?? true);
+  return rules.floorModifier ? { ...layout, modifier: rules.floorModifier } : layout;
+}
 
 function merchantOf(rules: TowerRules): TowerMerchantSettings {
   return rules.merchant ?? TOWER_MERCHANT_DEFAULTS;
@@ -653,6 +689,48 @@ function prepareFloor(map: TowerMapState, rng: TowerRng): void {
     .map((room) => ({ spawn: room.id, pos: room.id, radius: room.wanderRadius ?? TOWER_WANDER_RADIUS.default }));
   map.revealed = false;
   map.oraclePath = undefined;
+  map.mistLifted = undefined;
+  // Étage en feu : le feu prend dans une salle assez loin de l'entrée pour laisser partir.
+  map.fire = undefined;
+  if (map.layout.modifier === 'BURNING') {
+    const distances = distancesFromStart(map.layout);
+    const far = map.layout.rooms.filter((room) => (distances.get(room.id) ?? 0) >= FIRE_START_DISTANCE && !isEntryRoom(room.type));
+    const pool = far.length > 0 ? far : map.layout.rooms.filter((room) => !isEntryRoom(room.type));
+    map.fire = pool.length > 0 ? [rng.pick(pool).id] : [];
+  }
+}
+
+/**
+ * Le temps de l'étage change à chaque pas du joueur : le feu gagne une salle voisine, la brume
+ * se lève au premier pas après la dernière salle explorée qu'il lui fallait. Ni la salle du
+ * joueur ni celle où il va ne s'embrasent sous ses pieds, ni une entrée : il reste toujours un
+ * endroit sûr.
+ */
+function weatherStep(state: TowerState, target: string, rng: TowerRng): void {
+  const map = state.map;
+  if (!map) return;
+  const explored = map.cleared.filter((id) => {
+    const room = map.layout.rooms.find((candidate) => candidate.id === id);
+    return room !== undefined && !isEntryRoom(room.type);
+  }).length;
+  if (map.layout.modifier === 'MIST' && explored >= MIST_LIFT_ROOMS) {
+    map.layout.modifier = 'NONE';
+    map.mistLifted = true;
+    state.weather = 'mist_lifted';
+  }
+  if (map.layout.modifier === 'BURNING' && map.fire && map.fire.length > 0) {
+    const burning = new Set(map.fire);
+    const cells = occupancy(map.layout);
+    const frontier = new Set<string>();
+    for (const id of map.fire) {
+      for (const { room, direction } of roomNeighbors(map.layout, id, cells)) {
+        if (direction === 'WARP' || burning.has(room.id) || isEntryRoom(room.type)) continue;
+        if (room.id === map.pos || room.id === target) continue;
+        frontier.add(room.id);
+      }
+    }
+    if (frontier.size > 0) map.fire.push(rng.pick([...frontier].sort()));
+  }
 }
 
 /**
@@ -663,17 +741,21 @@ function moveWanderers(state: TowerState, rng: TowerRng): TowerWanderer | null {
   const map = state.map;
   if (!map?.wanderers?.length) return null;
   let caught: TowerWanderer | null = null;
-  for (const wanderer of map.wanderers) {
-    const zone = wanderZone(map.layout, wanderer.spawn, wanderer.radius);
-    const options = roomNeighbors(map.layout, wanderer.pos)
-      .filter(({ room, direction }) => direction !== 'WARP' && zone.has(room.id)
-        && (room.id === map.pos || canWanderInto(room, map.cleared))
-        && !map.wanderers!.some((other) => other !== wanderer && other.pos === room.id))
-      .map(({ room }) => room.id);
-    // Rester sur place est un choix comme un autre : il rôde, il ne fonce pas.
-    const next = rng.pick([wanderer.pos, ...options]);
-    wanderer.pos = next;
-    if (next === map.pos && !caught) caught = wanderer;
+  // Nuit sans lune : chaque errant fait deux pas, et tout s'arrête dès que l'un tombe sur le joueur.
+  const steps = floorModifier(state) === 'MOONLESS' ? MOONLESS_WANDERER_STEPS : 1;
+  for (let step = 0; step < steps && !caught; step++) {
+    for (const wanderer of map.wanderers) {
+      const zone = wanderZone(map.layout, wanderer.spawn, wanderer.radius);
+      const options = roomNeighbors(map.layout, wanderer.pos)
+        .filter(({ room, direction }) => direction !== 'WARP' && zone.has(room.id)
+          && (room.id === map.pos || canWanderInto(room, map.cleared))
+          && !map.wanderers!.some((other) => other !== wanderer && other.pos === room.id))
+        .map(({ room }) => room.id);
+      // Rester sur place est un choix comme un autre : il rôde, il ne fonce pas.
+      const next = rng.pick([wanderer.pos, ...options]);
+      wanderer.pos = next;
+      if (next === map.pos && !caught) caught = wanderer;
+    }
   }
   return caught;
 }
@@ -725,6 +807,8 @@ export function createTowerState(input: {
   potions: number;
   /** Or de départ, offert par les améliorations. */
   gold?: number;
+  /** Porte-bonheur des améliorations, voir `TowerState.fortune`. */
+  fortune?: number;
   seed: number;
   /**
    * Graine du hasard de la partie (combats, butin, traits), quand elle doit différer de celle
@@ -763,6 +847,7 @@ export function createTowerState(input: {
     floorsCleared: 0,
     kills: 0,
     bossKills: 0,
+    ...(input.fortune && input.fortune > 0 ? { fortune: Math.min(TOWER_FORTUNE_MAX, input.fortune) } : {}),
     floorKeys: map ? [towerLayoutKey(map.layout)] : [],
     notice: null,
     map,
@@ -850,7 +935,7 @@ function markRoomCleared(state: TowerState): void {
 function climb(state: TowerState, floor: number, rules: TowerRules, floors: readonly TowerLayout[], rng: TowerRng): TowerClimb | null {
   const map = state.map;
   if (!map) return null;
-  const next = towerFloorLayout(floors, floor, rules.floorsAfter ?? 'LOOP', state.seed ?? 0, rules.generatedFog ?? true);
+  const next = towerRunFloorLayout(floors, floor, rules, state.seed ?? 0);
   if (!startRoom(next)) return null;
   // Le nouvel étage part du niveau atteint, plafond compris : la difficulté ne saute pas.
   map.floorBase = mapLevel(map, floor);
@@ -1062,7 +1147,9 @@ function monsterStrike(state: TowerState, encounter: TowerEncounter, stats: Towe
       critChance: TOWER_MONSTER_CRIT,
       skillMultiplier: power
         * (encounter.enraged ? TOWER_ENRAGE_MULTIPLIER : 1)
-        * (1 + SUMMON_POWER * (encounter.minions ?? 0)),
+        * (1 + SUMMON_POWER * (encounter.minions ?? 0))
+        // Étage gelé : le premier coup du monstre est amorti.
+        * (floorModifier(state) === 'FROST' && (encounter.turn ?? 0) === 0 ? FROST_FIRST_HIT : 1),
       targetDefenseMultiplier: encounter.defenseMultiplier,
       targetDamageReduction: stats.damageReduction,
       targetThorns: stats.thorns,
@@ -1129,7 +1216,9 @@ function playerStrike(
     armorPiercing: Math.max(stats.armorPiercing, skill?.effect.armorPiercing ?? 0),
     skillMultiplier: (skill?.effect.damageMultiplier ?? 1)
       * (encounter.riposte ? TOWER_RIPOSTE_MULTIPLIER : 1)
-      * (execute ? EXECUTE_BONUS : 1),
+      * (execute ? EXECUTE_BONUS : 1)
+      // Étage gelé : le premier coup du joueur aussi.
+      * (floorModifier(state) === 'FROST' && !encounter.opened ? FROST_FIRST_HIT : 1),
     lifesteal: stats.lifesteal + (skill?.effect.lifesteal ?? 0),
     random: () => rng.next(),
   });
@@ -1198,6 +1287,12 @@ function takeGhost(state: TowerState): TowerGhost | null {
   return ghost;
 }
 
+/** Porte-bonheur de la partie, borné : un état modifié à la main ne débride rien. */
+function fortuneOf(state: TowerState): number {
+  const fortune = Number(state.fortune ?? 0);
+  return Number.isFinite(fortune) ? Math.min(TOWER_FORTUNE_MAX, Math.max(0, fortune)) : 0;
+}
+
 function winEncounter(
   state: TowerState,
   floor: number,
@@ -1210,7 +1305,8 @@ function winEncounter(
   const stats = towerStats(state);
   const level = towerLevel(state, floor);
   const bounty = encounter.bounty ?? 1;
-  const gold = Math.round(encounterGold(level, encounter.kind, stats.goldPercent, rng) * bounty);
+  const luck = 1 + fortuneOf(state);
+  const gold = Math.round(encounterGold(level, encounter.kind, stats.goldPercent, rng) * bounty * luck);
   state.gold += gold;
   state.kills += 1;
   if (encounter.kind === 'BOSS') state.bossKills = (state.bossKills ?? 0) + 1;
@@ -1229,7 +1325,7 @@ function winEncounter(
   // gardien en reprend la chance d'objet.
   const trialPaid = trial?.reward === true;
   const lootChance = trialPaid ? LOOT_CHANCE.BOSS : LOOT_CHANCE[encounter.kind];
-  if (encounter.mimic || rng.next() < Math.min(1, lootChance * bounty)) state.pendingLoot = rollTowerGear(level, encounter.kind, rng);
+  if (encounter.mimic || rng.next() < Math.min(1, lootChance * bounty * luck)) state.pendingLoot = rollTowerGear(level, encounter.kind, rng);
   // Un monstre errant vaincu quitte l'étage ; un geôlier vaincu libère son captif.
   if (encounter.wanderer && state.map?.wanderers) {
     state.map.wanderers = state.map.wanderers.filter((wanderer) => wanderer.spawn !== encounter.wanderer);
@@ -1268,6 +1364,11 @@ function winEncounter(
   return next;
 }
 
+/** Un combat se fuit, sauf un gardien, une épreuve ou une embuscade. */
+export function canFlee(state: TowerState, encounter: TowerEncounter): boolean {
+  return encounter.kind !== 'BOSS' && !state.trial && encounter.ambush !== true;
+}
+
 /** Fuite : retour à la salle d'où l'on vient sur une carte, de nouvelles portes au même étage sinon. */
 function retreat(state: TowerState): void {
   const map = state.map;
@@ -1293,10 +1394,10 @@ function combatTurn(
   // Les postures ne durent qu'un tour ennemi.
   encounter.defenseMultiplier = 1;
 
-  // On ne fuit ni un boss ni une épreuve. Fuir laisse au monstre un dernier coup et coûte une
-  // part de l'or.
+  // On ne fuit ni un boss, ni une épreuve, ni une embuscade. Fuir laisse au monstre un dernier
+  // coup et coûte une part de l'or.
   if (action.type === 'flee') {
-    if (encounter.kind === 'BOSS' || state.trial) throw new TowerActionRefused('no_flee');
+    if (!canFlee(state, encounter)) throw new TowerActionRefused('no_flee');
     monsterStrike(state, encounter, stats, rng, log);
     encounter.log = [...encounter.log, ...log].slice(-LOG_KEPT);
     if (state.hp <= 0) return { state, floor, dead: true };
@@ -1487,17 +1588,20 @@ function enterRoom(
     return next;
   }
 
-  if (map.cleared.includes(room.id)) {
-    advance(state, floor, rules, rng);
-    return floor;
-  }
-
-  // Étage en feu : chaque nouvelle salle brûle un peu, sans jamais achever le joueur.
-  if (floorModifier(state) === 'BURNING') {
+  // Étage en feu : entrer dans une salle qui brûle coûte un peu, sans jamais achever le joueur.
+  // Sur un étage arrivé avant la propagation, c'est chaque nouvelle salle qui brûle.
+  const burning = floorModifier(state) === 'BURNING'
+    && (map.fire ? map.fire.includes(room.id) : !map.cleared.includes(room.id));
+  if (burning) {
     const burn = Math.max(1, Math.floor(towerStats(state).maxHealth * BURN_DAMAGE));
     const before = state.hp;
     state.hp = Math.max(1, state.hp - burn);
     state.burned = before - state.hp;
+  }
+
+  if (map.cleared.includes(room.id)) {
+    advance(state, floor, rules, rng);
+    return floor;
   }
 
   const info = map.rooms?.[room.id] ?? null;
@@ -1564,6 +1668,10 @@ function enterRoom(
       const before = state.hp;
       state.hp = Math.max(1, state.hp - dmg);
       startEncounter(state, level, 'COMBAT', rules, foes, rng, null, info, roomPower(room));
+      // Pris au piège : pas de fuite, sans quoi revenir rejouait le coup d'entrée à l'infini.
+      state.encounter!.ambush = true;
+      // Nuit sans lune : l'embuscade est plus dangereuse à repérer, elle paie d'autant.
+      if (floorModifier(state) === 'MOONLESS') state.encounter!.bounty = (state.encounter!.bounty ?? 1) * MOONLESS_AMBUSH_BOUNTY;
       state.notice = { k: 'ambush', dmg: before - state.hp };
       return floor;
     }
@@ -1616,10 +1724,12 @@ function enterRoom(
       state.phase = 'EVENT';
       return floor;
     case 'CHEST': {
-      const gold = room.chest === 'GEAR' ? 0 : treasureGold(level, rng);
+      const luck = 1 + fortuneOf(state);
+      const mist = floorModifier(state) === 'MIST' ? MIST_CHEST_GOLD : 1;
+      const gold = room.chest === 'GEAR' ? 0 : Math.round(treasureGold(level, rng) * luck * mist);
       state.gold += gold;
       // Un coffre mixte ne donne un objet qu'une fois sur cinq ; un coffre à équipement, toujours.
-      if (room.chest === 'GEAR' || (room.chest === 'BOTH' && rng.next() < CHEST_GEAR_CHANCE)) {
+      if (room.chest === 'GEAR' || (room.chest === 'BOTH' && rng.next() < CHEST_GEAR_CHANCE * luck)) {
         state.pendingLoot = rollTowerGear(level, 'TREASURE', rng);
       }
       state.notice = { k: 'treasure', gold };
@@ -1665,6 +1775,7 @@ export function applyTowerAction(
   const level = towerLevel(state, floor);
   state.notice = null;
   state.burned = 0;
+  state.weather = null;
   state.ghostTaken = null;
   state.fountainDelta = 0;
 
@@ -1699,6 +1810,7 @@ export function applyTowerAction(
         const move = state.moves[action.index];
         if (!move) throw new TowerActionRefused('bad_choice');
         state.map.steps = (state.map.steps ?? 0) + 1;
+        weatherStep(state, move.roomId, rng);
         // Un monstre errant rôde dans la salle visée : c'est lui qu'on trouve.
         const lurking = state.map.wanderers?.find((wanderer) => wanderer.pos === move.roomId);
         if (lurking) {
@@ -1827,13 +1939,14 @@ export function applyTowerAction(
         if (state.gold < price) throw new TowerActionRefused('no_gold');
         state.gold -= price;
         // Sous le brouillard, tout l'étage apparaît ; sans brouillard, le chemin de la sortie.
-        if (map.layout.fog) {
+        const fog = towerLayoutHasFog(map.layout);
+        if (fog) {
           map.revealed = true;
         } else {
           const exit = exitRoom(map.layout);
           map.oraclePath = exit ? pathBetween(map.layout, map.pos, exit.id) ?? undefined : undefined;
         }
-        state.notice = { k: 'oracle', gold: price, revealed: map.layout.fog };
+        state.notice = { k: 'oracle', gold: price, revealed: fog };
       } else if (action.type !== 'leave_shop') {
         throw new TowerActionRefused('wrong_phase');
       }

@@ -69,6 +69,8 @@ model RpgTowerConfig {
 
   /// Ascension du jour : même graine pour tous, stats égales, une tentative par jour.
   dailyEnabled      Boolean @default(false)
+  /// Dernier jour (clé du jour, fuseau du serveur) dont le podium du défi a été payé.
+  dailyPaidKey      String?
   /// Salon où annoncer les records de la saison. `null` : aucune annonce.
   announceChannelId String?
 
@@ -118,6 +120,10 @@ model RpgTowerReward {
   /// un point vaut +1 en attaque, défense ou vitesse, ou les PV d'un point de vitalité.
   stat       String?
   statAmount Int     @default(0)
+  /// Énergie max ajoutée au profil RPG (et rendue d'autant).
+  maxEnergy    Int   @default(0)
+  /// Bons de reconversion donnés au profil RPG (un changement de classe gratuit chacun).
+  reclassVouchers Int @default(0)
   /// Achats au plus par joueur d'un article répétable ; 0 : sans limite.
   maxPurchases Int   @default(0)
   /// Remise à zéro de cette limite : NEVER, DAILY (minuit du serveur) ou WEEKLY (lundi).
@@ -152,6 +158,9 @@ model RpgTowerProfile {
 
   weekShards Int       @default(0)
   weekStart  DateTime?
+  /// Défi du jour : jours joués d'affilée, et le dernier joué (clé du jour).
+  dailyStreak  Int     @default(0)
+  dailyLastKey String?
 
   /// Améliorations permanentes valables dans la Tour seulement : { potion: 1, vigor: 2 }.
   upgrades         Json     @default("{}")

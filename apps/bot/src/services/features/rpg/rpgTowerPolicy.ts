@@ -9,8 +9,15 @@
 
 import type { SkillEffect } from './rpgClasses.js';
 import { RPG_SKILL_NODES } from './rpgSkillTree.js';
-import { RELIC_PERK_CHANCE, TOWER_RELIC_PERKS, type TowerRelicPerk } from './rpgTowerContent.js';
-import { TOWER_FLOORS_AFTER, TOWER_OFFER_KINDS, type TowerFloorsAfter, type TowerOfferKind } from './rpgTowerMap.js';
+import { RELIC_PERK_CHANCE, TOWER_HEATS, TOWER_RELIC_PERKS, type TowerHeat, type TowerRelicPerk } from './rpgTowerContent.js';
+import {
+  TOWER_FLOOR_MODIFIERS,
+  TOWER_FLOORS_AFTER,
+  TOWER_OFFER_KINDS,
+  type TowerFloorModifier,
+  type TowerFloorsAfter,
+  type TowerOfferKind,
+} from './rpgTowerMap.js';
 
 // ─────────────────────────────────────────────────────────────
 // Réglages
@@ -191,6 +198,10 @@ export const TOWER_REWARD_STATS = ['POINTS', 'ATTACK', 'DEFENSE', 'SPEED', 'HEAL
 export type TowerRewardStat = (typeof TOWER_REWARD_STATS)[number];
 /** Points de statistique par versement : de quoi récompenser sans remplacer la montée de niveau. */
 export const TOWER_REWARD_STAT_RANGE = { min: 1, max: 100 } as const;
+/** Énergie max ajoutée par versement : le plafond est celui du bonus d'un joueur. */
+export const TOWER_REWARD_MAX_ENERGY_RANGE = { min: 0, max: 2_000_000 } as const;
+/** Bons de reconversion par versement : chacun paie un changement de classe. */
+export const TOWER_REWARD_RECLASS_VOUCHERS_RANGE = { min: 0, max: 10 } as const;
 /** Achats au plus par joueur d'un article répétable (0 : sans limite). */
 export const TOWER_REWARD_MAX_PURCHASES_RANGE = { min: 0, max: 10_000 } as const;
 
@@ -284,6 +295,8 @@ export type NormalizedTowerReward = {
   shards: number;
   stat: TowerRewardStat | null;
   statAmount: number;
+  maxEnergy: number;
+  reclassVouchers: number;
   maxPurchases: number;
   limitPeriod: TowerRewardLimitPeriod;
   enabled: boolean;
@@ -318,6 +331,8 @@ export function normalizeTowerReward(input: Record<string, unknown>): TowerNorma
     shards: kind === 'MILESTONE' ? clampInt(input.shards, TOWER_REWARD_COINS_RANGE, 0) : 0,
     stat: null,
     statAmount: 0,
+    maxEnergy: clampInt(input.maxEnergy, TOWER_REWARD_MAX_ENERGY_RANGE, 0),
+    reclassVouchers: clampInt(input.reclassVouchers, TOWER_REWARD_RECLASS_VOUCHERS_RANGE, 0),
     maxPurchases: 0,
     limitPeriod: 'NEVER',
     enabled: input.enabled !== false,
@@ -336,10 +351,10 @@ export function normalizeTowerReward(input: Record<string, unknown>): TowerNorma
     value.limitPeriod = input.limitPeriod as TowerRewardLimitPeriod;
   }
 
-  const grantsSomething = value.titleId || value.roleId || value.itemName || value.stat
+  const grantsSomething = value.titleId || value.roleId || value.itemName || value.stat || value.maxEnergy > 0 || value.reclassVouchers > 0
     || value.coins > 0 || value.xp > 0 || value.clanPoints > 0 || value.shards > 0;
   if (!grantsSomething) {
-    return { ok: false, error: 'Une récompense doit accorder au moins un titre, un rôle, un objet, des statistiques, des pièces, de l\'XP, des points de clan ou des éclats.' };
+    return { ok: false, error: 'Une récompense doit accorder au moins un titre, un rôle, un objet, des statistiques, de l\'énergie max, des bons de reconversion, des pièces, de l\'XP, des points de clan ou des éclats.' };
   }
   // Un rôle ou un titre ne se possède qu'une fois : le racheter viderait le solde pour rien.
   if (value.repeatable && (value.titleId || value.roleId)) {
@@ -410,6 +425,47 @@ export function towerDailySeed(guildId: string, dayKey: string): number {
     hash = Math.imul(hash, 0x01000193);
   }
   return hash | 0;
+}
+
+/**
+ * Défi du jour : une ambiance sur tous les étages et une malédiction, les mêmes pour tout le
+ * serveur ce jour-là. Tirés de la graine du jour, sans réglage : le serveur ne fait qu'activer
+ * ou non le défi.
+ */
+export type TowerDailyChallenge = { modifier: Exclude<TowerFloorModifier, 'NONE'>; heat: TowerHeat };
+
+export function towerDailyChallenge(guildId: string, dayKey: string): TowerDailyChallenge {
+  const seed = towerDailySeed(guildId, `défi:${dayKey}`) >>> 0;
+  const modifiers = TOWER_FLOOR_MODIFIERS.filter((modifier): modifier is TowerDailyChallenge['modifier'] => modifier !== 'NONE');
+  return {
+    modifier: modifiers[seed % modifiers.length],
+    heat: TOWER_HEATS[Math.floor(seed / modifiers.length) % TOWER_HEATS.length],
+  };
+}
+
+/** Clé du jour précédent (AAAA-MM-JJ), pour suivre une série de jours joués. */
+export function previousTowerDayKey(dayKey: string): string {
+  const date = new Date(`${dayKey}T12:00:00Z`);
+  if (Number.isNaN(date.getTime())) return '';
+  date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
+}
+
+/** Éclats du podium du défi, du premier au troisième, versés le lendemain. */
+export const TOWER_DAILY_PODIUM_SHARDS = [60, 40, 25] as const;
+/** Chaque jour de série ajoute 5 % d'éclats au défi, jusqu'à +25 % (six jours d'affilée). */
+export const TOWER_DAILY_STREAK_STEP = 0.05;
+export const TOWER_DAILY_STREAK_MAX_BONUS = 0.25;
+
+/** Série après avoir joué le défi du jour `dayKey`. */
+export function nextTowerDailyStreak(streak: number, lastKey: string | null, dayKey: string): number {
+  if (lastKey === dayKey) return Math.max(1, streak);
+  return lastKey !== null && lastKey === previousTowerDayKey(dayKey) ? Math.max(0, streak) + 1 : 1;
+}
+
+/** Part d'éclats en plus pour une série : rien le premier jour, puis 5 % par jour. */
+export function towerDailyStreakBonus(streak: number): number {
+  return Math.min(TOWER_DAILY_STREAK_MAX_BONUS, Math.max(0, streak - 1) * TOWER_DAILY_STREAK_STEP);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1139,7 +1195,7 @@ export function applyWeeklyCap(amount: number, alreadyThisWeek: number, cap: num
  * le niveau acheté de chaque amélioration sous son `id` : renommer ou réévaluer une
  * amélioration garde les niveaux, la supprimer les rend inertes.
  */
-export const TOWER_UPGRADE_EFFECTS = ['POTION', 'HEALTH', 'ATTACK', 'DEFENSE', 'SPEED', 'CRIT', 'GOLD'] as const;
+export const TOWER_UPGRADE_EFFECTS = ['POTION', 'HEALTH', 'ATTACK', 'DEFENSE', 'SPEED', 'CRIT', 'GOLD', 'FORTUNE'] as const;
 export type TowerUpgradeEffect = (typeof TOWER_UPGRADE_EFFECTS)[number];
 
 export type TowerUpgradeDef = {
@@ -1152,7 +1208,8 @@ export type TowerUpgradeDef = {
   effect: TowerUpgradeEffect;
   /**
    * Gain d'un niveau : potions de départ (POTION), pourcentage de la stat (HEALTH, ATTACK,
-   * DEFENSE, SPEED), points de pourcentage de critique (CRIT) ou or de départ (GOLD).
+   * DEFENSE, SPEED), points de pourcentage de critique (CRIT), or de départ (GOLD) ou
+   * pourcentage d'or et de chance d'objet gagnés en combat et dans les coffres (FORTUNE).
    */
   perLevel: number;
   maxLevel: number;
@@ -1170,7 +1227,13 @@ export const TOWER_UPGRADE_PER_LEVEL_RANGES: Record<TowerUpgradeEffect, { min: n
   SPEED: { min: 1, max: 100 },
   CRIT: { min: 1, max: 20 },
   GOLD: { min: 1, max: 10_000 },
+  FORTUNE: { min: 1, max: 10 },
 };
+/**
+ * Porte-bonheur : un coup de pouce, pas une rente. Quels que soient les niveaux achetés, l'or
+ * et la chance d'objet ne montent pas de plus de 30 %.
+ */
+export const TOWER_FORTUNE_MAX = 0.3;
 export const TOWER_UPGRADE_RANGES = {
   maxLevel: { min: 1, max: 20 },
   baseCost: { min: 1, max: 1_000_000 },
@@ -1237,14 +1300,14 @@ export function parseTowerUpgrades(value: unknown, upgrades: readonly TowerUpgra
   return levels;
 }
 
-export type TowerUpgradeBonus = Record<TowerStatKey, number> & { critChance: number; potions: number; gold: number };
+export type TowerUpgradeBonus = Record<TowerStatKey, number> & { critChance: number; potions: number; gold: number; fortune: number };
 
 /**
  * Effet cumulé des améliorations achetées. Une amélioration désactivée ne se vend plus mais
  * ses niveaux restent acquis : les éclats dépensés ne partent pas en fumée.
  */
 export function towerUpgradeBonus(upgrades: readonly TowerUpgradeDef[], levels: Record<string, number>): TowerUpgradeBonus {
-  const bonus: TowerUpgradeBonus = { attack: 0, defense: 0, speed: 0, maxHealth: 0, critChance: 0, potions: 0, gold: 0 };
+  const bonus: TowerUpgradeBonus = { attack: 0, defense: 0, speed: 0, maxHealth: 0, critChance: 0, potions: 0, gold: 0, fortune: 0 };
   for (const upgrade of upgrades) {
     const gain = upgrade.perLevel * (levels[upgrade.id] ?? 0);
     switch (upgrade.effect) {
@@ -1255,8 +1318,10 @@ export function towerUpgradeBonus(upgrades: readonly TowerUpgradeDef[], levels: 
       case 'SPEED': bonus.speed += gain / 100; break;
       case 'CRIT': bonus.critChance += gain / 100; break;
       case 'GOLD': bonus.gold += gain; break;
+      case 'FORTUNE': bonus.fortune += gain / 100; break;
     }
   }
+  bonus.fortune = Math.min(TOWER_FORTUNE_MAX, bonus.fortune);
   return bonus;
 }
 

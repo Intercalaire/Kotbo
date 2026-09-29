@@ -263,6 +263,11 @@ export async function registerCrons(client: Client): Promise<void> {
       const { expireIdleTowerRuns } = await import('../services/features/rpg/rpgTowerService.js');
       await expireIdleTowerRuns(client);
     },
+    'tower-daily-podium': async () => {
+      logger.debug('Cron', 'Podium du défi du jour de la Tour...');
+      const { payTowerDailyPodiums } = await import('../services/features/rpg/rpgTowerService.js');
+      await payTowerDailyPodiums();
+    },
     'meeting-notifications': async () => {
       await processMeetingNotifications();
     },
@@ -571,6 +576,14 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('tower-idle-expiration', async () => {
       const { expireIdleTowerRuns } = await import('../services/features/rpg/rpgTowerService.js');
       await expireIdleTowerRuns(client);
+    }, 2000);
+  });
+
+  // La Tour : podium du défi de la veille, dès que ses dernières ascensions sont closes (tous les quarts d'heure)
+  cron.schedule('*/15 * * * *', async () => {
+    await runCronJob('tower-daily-podium', async () => {
+      const { payTowerDailyPodiums } = await import('../services/features/rpg/rpgTowerService.js');
+      await payTowerDailyPodiums();
     }, 2000);
   });
 

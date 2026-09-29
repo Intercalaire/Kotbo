@@ -333,12 +333,20 @@ async function loadPublicSolo(guildId: string, discordGuild: Guild | null) {
     }),
   ]);
 
-  const dbProfiles = profiles.length > 0
-    ? await prisma.memberProfile.findMany({
-      where: { guildId, userId: { in: profiles.map((profile) => profile.userId) } },
-    })
-    : [];
+  const userIds = profiles.map((profile) => profile.userId);
+  const [dbProfiles, tower] = await Promise.all([
+    profiles.length > 0 ? prisma.memberProfile.findMany({ where: { guildId, userId: { in: userIds } } }) : [],
+    prisma.rpgTowerConfig.findUnique({ where: { guildId }, select: { enabled: true } }),
+  ]);
   const profileMap = new Map(dbProfiles.map((profile) => [profile.userId, profile]));
+  // Tour active : son meilleur étage de tous les temps s'ajoute à la ligne de chaque joueur.
+  const towerEnabled = tower?.enabled === true;
+  const towerFloors = towerEnabled && profiles.length > 0
+    ? new Map((await prisma.rpgTowerProfile.findMany({
+      where: { guildId, userId: { in: userIds } },
+      select: { userId: true, bestFloorAllTime: true },
+    })).map((entry) => [entry.userId, entry.bestFloorAllTime]))
+    : null;
 
   // Le rang suit les ex aequo : deux joueurs au même niveau et à la même expérience
   // partagent leur place, comme dans le classement des clans.
@@ -361,10 +369,13 @@ async function loadPublicSolo(guildId: string, discordGuild: Guild | null) {
       xp: profile.xp,
       monstersKilled: profile.totalMonstersKilled,
       bossesKilled: profile.totalBossesKilled,
+      // `null` quand la Tour est éteinte : la page n'affiche alors rien à son sujet.
+      towerFloor: towerFloors ? towerFloors.get(profile.userId) ?? 0 : null,
     };
   });
 
   return {
+    towerEnabled,
     leaderboard,
     quests: quests.map((quest) => ({
       id: quest.id,

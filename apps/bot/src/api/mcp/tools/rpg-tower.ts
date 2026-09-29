@@ -22,6 +22,7 @@ import {
 } from '../../../services/features/rpg/rpgTowerService.js';
 import {
   TOWER_BLESSINGS,
+  TOWER_DAILY_PODIUM_SHARDS,
   TOWER_ENTRY_MODES,
   TOWER_RANGES,
   TOWER_MERCHANT_RANGES,
@@ -32,6 +33,7 @@ import {
   TOWER_UPGRADE_EFFECTS,
   TOWER_UPGRADE_PER_LEVEL_RANGES,
   TOWER_UPGRADE_RANGES,
+  towerDailyChallenge,
 } from '../../../services/features/rpg/rpgTowerPolicy.js';
 import {
   TOWER_BOSS_MECHANICS,
@@ -50,6 +52,7 @@ import {
   TOWER_WANDER_RADIUS,
   TOWER_FLOORS_AFTER,
   TOWER_FLOOR_MODIFIERS,
+  TOWER_FLOOR_THEMES,
   TOWER_FLOORS_MAX,
   TOWER_FLOOR_NAME_MAX,
   TOWER_MAP_ROOMS_MAX,
@@ -90,7 +93,8 @@ export const roomSchema = z.object({
 export const floorSchema = z.object({
   name: z.string().max(TOWER_FLOOR_NAME_MAX).optional().describe("Nom de l'étage (« Caserne », « Crypte »…)"),
   fog: z.boolean().optional().describe('Brouillard de guerre : seules les salles visitées et leurs voisines se voient'),
-  modifier: z.enum(TOWER_FLOOR_MODIFIERS).optional().describe('Ambiance : NONE, FLOODED (vitesse -20 %), BURNING (chaque nouvelle salle brûle 3 % des PV), BLESSED (soins +25 %)'),
+  modifier: z.enum(TOWER_FLOOR_MODIFIERS).optional().describe('Ambiance : NONE, FLOODED (vitesse -20 %), BURNING (le feu part d\'une salle et gagne une voisine à chaque pas ; entrer dans une salle en feu brûle 3 % des PV), BLESSED (soins +25 %), MIST (brouillard forcé et coffres +25 % d\'or, jusqu\'à ce que la brume se lève après 8 salles explorées), FROST (premier coup de chaque combat -50 %, des deux côtés), MOONLESS (errants deux fois plus rapides, embuscades +50 %)'),
+  theme: z.enum(TOWER_FLOOR_THEMES).optional().describe('Décor de l\'étage, sans effet sur le jeu : AUTO (suit la hauteur : pierre, mousse, crypte, glace, forge, arcanes, abîme), STONE, MOSS, CRYPT, ICE, FORGE, ARCANE ou ABYSS'),
   variant: z.boolean().optional().describe("Variante de la carte précédente : les deux forment un même étage et l'une est tirée au sort à chaque montée. Ignoré sur la première carte."),
   weight: z.number().int().min(TOWER_VARIANT_WEIGHT.min).max(TOWER_VARIANT_WEIGHT.max).optional().describe(`Poids de la carte au tirage entre les variantes de son étage (${TOWER_VARIANT_WEIGHT.min} à ${TOWER_VARIANT_WEIGHT.max}, défaut ${TOWER_VARIANT_WEIGHT.default}) : 1 face à 9, elle sort une fois sur dix.`),
   width: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max),
@@ -104,7 +108,7 @@ const upgradeSchema = z.object({
   name: z.string().optional().describe("Vide : nom de l'effet dans la langue du joueur"),
   emoji: z.string().optional().describe("Vide : icône du bot selon l'effet"),
   description: z.string().optional(),
-  effect: z.enum(TOWER_UPGRADE_EFFECTS).describe('POTION potions de départ, HEALTH/ATTACK/DEFENSE/SPEED % de la stat, CRIT points de % de critique, GOLD or de départ'),
+  effect: z.enum(TOWER_UPGRADE_EFFECTS).describe('POTION potions de départ, HEALTH/ATTACK/DEFENSE/SPEED % de la stat, CRIT points de % de critique, GOLD or de départ, FORTUNE % d\'or et de chance d\'objet en combat et dans les coffres (30 % au plus)'),
   perLevel: z.number().int().min(1).describe('Gain par niveau, dans l\'unité de l\'effet'),
   maxLevel: z.number().int().min(TOWER_UPGRADE_RANGES.maxLevel.min).max(TOWER_UPGRADE_RANGES.maxLevel.max),
   baseCost: z.number().int().min(TOWER_UPGRADE_RANGES.baseCost.min).max(TOWER_UPGRADE_RANGES.baseCost.max).describe('Prix du premier niveau, en éclats'),
@@ -134,6 +138,7 @@ export type TowerFloorsEdit = {
   name?: string;
   fog?: boolean;
   modifier?: TowerLayout['modifier'];
+  theme?: TowerLayout['theme'];
   variant?: boolean;
   weight?: number;
   width?: number;
@@ -156,13 +161,14 @@ export function editTowerFloors(existing: readonly TowerLayout[], input: TowerFl
     current.splice(index, 1);
     return current;
   }
-  const { useDefault, name, fog, modifier, variant, weight, width, height, rooms } = input;
-  if (useDefault || name !== undefined || fog !== undefined || modifier !== undefined || variant !== undefined || weight !== undefined || width || height || rooms) {
+  const { useDefault, name, fog, modifier, theme, variant, weight, width, height, rooms } = input;
+  if (useDefault || name !== undefined || fog !== undefined || modifier !== undefined || theme !== undefined || variant !== undefined || weight !== undefined || width || height || rooms) {
     const base: Partial<TowerLayout> = useDefault ? defaultTowerLayout() : current[index] ?? {};
     current[index] = {
       name: name ?? base.name ?? '',
       fog: fog ?? base.fog ?? true,
       modifier: modifier ?? base.modifier ?? 'NONE',
+      theme: theme ?? base.theme ?? 'AUTO',
       variant: variant ?? base.variant ?? false,
       weight: weight ?? base.weight ?? TOWER_VARIANT_WEIGHT.default,
       width: width ?? base.width ?? TOWER_MAP_SIZE.min,
@@ -248,7 +254,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
     server.registerTool(
       'get_rpg_tower_daily',
       {
-        description: "Classement de l'ascension du jour de la Tour (même tour pour tous, stats égales, une tentative par joueur et par jour) : étages gravis, salles explorées, issue. `day` au format AAAA-MM-JJ, dans le fuseau du serveur, aujourd'hui par défaut.",
+        description: "Défi du jour de la Tour (carte générée neuve chaque jour, la même pour tous, stats égales, une tentative par joueur et par jour, avec une ambiance et une malédiction imposées) : la contrainte du jour et le classement (étages gravis, salles explorées, issue). Le podium reçoit des éclats le lendemain. `day` au format AAAA-MM-JJ, dans le fuseau du serveur, aujourd'hui par défaut.",
         inputSchema: {
           day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
           limit: z.number().int().min(1).max(50).optional(),
@@ -258,7 +264,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
       guard('READ_ECONOMY', async ({ day, limit }) => {
         const dayKey = day ?? await currentTowerDay(guildId);
         const leaderboard = await getTowerDailyLeaderboard(guildId, dayKey, limit ?? 10);
-        return ok({ day: dayKey, leaderboard });
+        return ok({ day: dayKey, challenge: towerDailyChallenge(guildId, dayKey), podiumShards: TOWER_DAILY_PODIUM_SHARDS, leaderboard });
       })
     );
   }
@@ -326,7 +332,8 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
           useDefault: z.boolean().optional().describe('Remplacer l\'étage par la carte d\'exemple'),
           name: z.string().max(TOWER_FLOOR_NAME_MAX).optional(),
           fog: z.boolean().optional().describe('Brouillard de guerre sur cet étage'),
-          modifier: z.enum(TOWER_FLOOR_MODIFIERS).optional().describe('Ambiance de cet étage : NONE, FLOODED, BURNING ou BLESSED'),
+          modifier: z.enum(TOWER_FLOOR_MODIFIERS).optional().describe('Ambiance de cet étage : NONE, FLOODED, BURNING, BLESSED, MIST, FROST ou MOONLESS'),
+          theme: z.enum(TOWER_FLOOR_THEMES).optional().describe('Décor de l\'étage, sans effet sur le jeu : AUTO (suit la hauteur : pierre, mousse, crypte, glace, forge, arcanes, abîme), STONE, MOSS, CRYPT, ICE, FORGE, ARCANE ou ABYSS'),
           variant: z.boolean().optional().describe("Variante de la carte précédente : les deux forment un même étage et l'une est tirée au sort à chaque montée. Ignoré sur la première carte."),
           weight: z.number().int().min(TOWER_VARIANT_WEIGHT.min).max(TOWER_VARIANT_WEIGHT.max).optional().describe(`Poids de la carte au tirage entre les variantes de son étage (${TOWER_VARIANT_WEIGHT.min} à ${TOWER_VARIANT_WEIGHT.max}, défaut ${TOWER_VARIANT_WEIGHT.default}) : 1 face à 9, elle sort une fois sur dix.`),
           width: z.number().int().min(TOWER_MAP_SIZE.min).max(TOWER_MAP_SIZE.max).optional(),
@@ -353,7 +360,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
     server.registerTool(
       'save_rpg_tower_reward',
       {
-        description: "Crée une récompense de Tour, ou modifie celle désignée par `id` (voir get_rpg_tower). SHOP : article payé en éclats (`price`), unique par joueur sauf `repeatable` (sans titre ni rôle), éventuellement borné à `maxPurchases` achats, remis à zéro selon `limitPeriod`. MILESTONE : versé une fois au joueur qui franchit `floor` étages, peut offrir des éclats. Chaque récompense combine au choix un titre, un rôle, un objet, des pièces, de l'XP RPG, des statistiques du profil RPG (`stat` et `statAmount`, définitives), des points de clan (ou de l'XP de guilde RPG selon le mode d'équipe du serveur) et des éclats (paliers), avec au moins un de ces éléments. Préférer des titres sans bonus de stats. Un champ omis garde sa valeur. Requiert WRITE_MEMBERS.",
+        description: "Crée une récompense de Tour, ou modifie celle désignée par `id` (voir get_rpg_tower). SHOP : article payé en éclats (`price`), unique par joueur sauf `repeatable` (sans titre ni rôle), éventuellement borné à `maxPurchases` achats, remis à zéro selon `limitPeriod`. MILESTONE : versé une fois au joueur qui franchit `floor` étages, peut offrir des éclats. Chaque récompense combine au choix un titre, un rôle, un objet, des pièces, de l'XP RPG, des statistiques du profil RPG (`stat` et `statAmount`, définitives), de l'énergie max (`maxEnergy`), des bons de reconversion (`reclassVouchers`, un changement de classe gratuit chacun), des points de clan (ou de l'XP de guilde RPG selon le mode d'équipe du serveur) et des éclats (paliers), avec au moins un de ces éléments. Préférer des titres sans bonus de stats. Un champ omis garde sa valeur. Requiert WRITE_MEMBERS.",
         inputSchema: {
           id: z.string().optional().describe('ID de la récompense à modifier. Absent : création.'),
           kind: z.enum(TOWER_REWARD_KINDS).optional().describe('Requis à la création'),
@@ -372,6 +379,8 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
           shards: z.number().int().min(0).optional().describe('Éclats offerts (MILESTONE)'),
           stat: z.enum(TOWER_REWARD_STATS).nullable().optional().describe('Statistique du profil RPG montée : POINTS (points à répartir), ATTACK, DEFENSE, SPEED, HEALTH, ou RANDOM (une des quatre, tirée à chaque versement) ; null pour aucune'),
           statAmount: z.number().int().min(1).max(100).optional().describe('Points versés : 1 point = +1 en attaque, défense ou vitesse, ou +8 PV max'),
+          maxEnergy: z.number().int().min(0).max(2_000_000).optional().describe('Énergie max ajoutée au profil RPG (et remplie d\'autant), 0 pour aucune ; le bonus d\'un joueur plafonne à 2 millions'),
+          reclassVouchers: z.number().int().min(0).max(10).optional().describe('Bons de reconversion donnés au profil RPG : chacun paie un changement de classe à la place des pièces, 0 pour aucun'),
           maxPurchases: z.number().int().min(0).optional().describe('Achats au plus par joueur d\'un article répétable (SHOP) ; 0 = sans limite'),
           limitPeriod: z.enum(TOWER_REWARD_LIMIT_PERIODS).optional().describe('Remise à zéro de cette limite : NEVER (jamais), DAILY (chaque jour à minuit, fuseau du serveur), WEEKLY (chaque lundi)'),
           enabled: z.boolean().optional(),

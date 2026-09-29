@@ -38,7 +38,7 @@ const BRANCH_WEIGHTS: Partial<Record<TowerRoomType, number>> = { MONSTER: 75, EM
 const ROOM_CAPS: Partial<Record<TowerRoomType, number>> = { SHRINE: 1, CHEST: 2, MERCHANT: 1, MERCENARY: 1, CAMPFIRE: 1, EVENT: 2, ELITE: 2, TRAP: 2, TRIAL: 1, MENTOR: 1, FOUNTAIN: 1, PRISONER: 1, ORACLE: 1 };
 const CAP_FALLBACK: Partial<Record<TowerRoomType, TowerRoomType>> = { ELITE: 'MONSTER', EVENT: 'MONSTER', TRAP: 'MONSTER', TRIAL: 'MONSTER' };
 /** Ambiance d'un étage généré : la plupart n'en ont pas. */
-const MODIFIER_WEIGHTS: Record<TowerFloorModifier, number> = { NONE: 70, FLOODED: 10, BURNING: 10, BLESSED: 10 };
+const MODIFIER_WEIGHTS: Record<TowerFloorModifier, number> = { NONE: 64, FLOODED: 7, BURNING: 7, BLESSED: 7, MIST: 5, FROST: 5, MOONLESS: 5 };
 /** Sortie d'un étage généré : le gardien reste la plus fréquente. */
 const EXIT_WEIGHTS: Record<TowerExitType, number> = { BOSS: 50, STAIRS: 15, GATE: 15, EXIT: 8, COLLAPSE: 7, TOLL: 5 };
 /** Part des couloirs d'un étage généré qui cachent une embuscade. */

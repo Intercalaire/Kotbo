@@ -16,6 +16,7 @@
 import { createCanvas, loadImage, type SKRSContext2D } from '@napi-rs/canvas';
 import { logger } from '../../../utils/logger.js';
 import { canvasFont, ensureCanvasFonts } from '../../../utils/canvasFonts.js';
+import { gaugeNumber } from './rpgIcons.js';
 
 const W = 900;
 const H = 470;
@@ -191,7 +192,7 @@ function drawGauge(
   ctx.font = canvasFont(13);
   ctx.fillStyle = CARD.text;
   ctx.textAlign = 'right';
-  ctx.fillText(`${gauge.current} / ${gauge.max}`, x + w, y - 6);
+  ctx.fillText(`${gaugeNumber(gauge.current)} / ${gaugeNumber(gauge.max)}`, x + w, y - 6);
 
   roundRect(ctx, x, y, w, h, h / 2, CARD.locked);
   if (ratio > 0) {

@@ -31,6 +31,12 @@ import {
   towerFoeShape,
   towerMonsterStats,
   towerUpgradeBonus,
+  TOWER_FORTUNE_MAX,
+  towerDailyChallenge,
+  previousTowerDayKey,
+  nextTowerDailyStreak,
+  towerDailyStreakBonus,
+  TOWER_DAILY_STREAK_MAX_BONUS,
   towerUpgradeCost,
   towerWeekStart,
   type TowerCoreStats,
@@ -40,6 +46,8 @@ import {
   TOWER_FLOOR_DEPTH_MAX,
   TowerActionRefused,
   applyTowerAction,
+  canFlee,
+  towerRunFloorLayout,
   createTowerState,
   towerLevel,
   towerRoomsExplored,
@@ -54,15 +62,23 @@ import {
   exitRoom,
   isExitRoom,
   newTowerRoom,
+  resolveTowerTheme,
   roomNeighbors,
+  startRoom,
+  TOWER_FLOOR_MODIFIERS,
+  TOWER_FLOOR_THEMES,
   shortestPathToExit,
   towerCardTags,
   towerFloorCount,
   towerFloorLabel,
+  towerLayoutHasFog,
   visibleRooms,
+  type TowerLayout,
 } from '../../services/features/rpg/rpgTowerMap.js';
+import { MIST_LIFT_ROOMS } from '../../services/features/rpg/rpgTowerContent.js';
 import { floorSeed, generateTowerLayout, towerFloorLayout } from '../../services/features/rpg/rpgTowerGen.js';
 import { renderTowerImage } from '../../services/features/rpg/rpgTowerRender.js';
+import { gaugeNumber } from '../../services/features/rpg/rpgIcons.js';
 
 const RULES: TowerRules = { floorGrowthPercent: 8, bossEvery: 10, blessingEvery: 5, maxBlessings: 6, shardsPerFloor: 2 };
 const FOES = { monsters: [{ name: 'Rat', emoji: '🐀' }], bosses: [{ name: 'Roi Rat', emoji: '👑' }], byName: {} };
@@ -218,6 +234,17 @@ describe('réglages et récompenses', () => {
     expect(boosted.maxHealth).toBe(Math.round(TOWER_BASE_STATS.maxHealth * 1.2));
   });
 
+  test('le porte-bonheur des améliorations plafonne à 30 %', () => {
+    const upgrades = normalizeTowerUpgrades([
+      { id: 'luck', effect: 'FORTUNE', perLevel: 50, maxLevel: 20, baseCost: 10 },
+    ]);
+    expect(upgrades.ok).toBe(true);
+    if (!upgrades.ok) return;
+    expect(upgrades.value[0].perLevel).toBe(10);
+    expect(towerUpgradeBonus(upgrades.value, { luck: 1 }).fortune).toBeCloseTo(0.1);
+    expect(towerUpgradeBonus(upgrades.value, { luck: 20 }).fortune).toBe(TOWER_FORTUNE_MAX);
+  });
+
   test('deux améliorations au même identifiant sont refusées', () => {
     expect(normalizeTowerUpgrades([
       { id: 'a', effect: 'GOLD', perLevel: 5, maxLevel: 1, baseCost: 1 },
@@ -266,6 +293,31 @@ describe('réglages et récompenses', () => {
     expect(single.ok && single.value.maxPurchases).toBe(0);
     const milestone = normalizeTowerReward({ kind: 'MILESTONE', name: 'Palier', floor: 10, stat: 'RANDOM', statAmount: 2 });
     expect(milestone.ok && milestone.value.maxPurchases).toBe(0);
+  });
+
+  test('un article peut n\'offrir que de l\'énergie max, bornée au plafond', () => {
+    const energy = normalizeTowerReward({ kind: 'SHOP', name: 'Endurance', price: 80, maxEnergy: 50, repeatable: true });
+    expect(energy.ok && energy.value.maxEnergy).toBe(50);
+    const huge = normalizeTowerReward({ kind: 'SHOP', name: 'Démesure', price: 80, maxEnergy: 9_000_000 });
+    expect(huge.ok && huge.value.maxEnergy).toBe(2_000_000);
+    expect(normalizeTowerReward({ kind: 'SHOP', name: 'Rien', price: 80, maxEnergy: 0 }).ok).toBe(false);
+  });
+
+  test('un article peut n\'offrir que des bons de reconversion, bornés', () => {
+    const voucher = normalizeTowerReward({ kind: 'SHOP', name: 'Bon de reconversion', price: 300, reclassVouchers: 1, repeatable: true });
+    expect(voucher.ok && voucher.value.reclassVouchers).toBe(1);
+    const many = normalizeTowerReward({ kind: 'SHOP', name: 'Liasse', price: 300, reclassVouchers: 50 });
+    expect(many.ok && many.value.reclassVouchers).toBe(10);
+    expect(normalizeTowerReward({ kind: 'SHOP', name: 'Rien', price: 300, reclassVouchers: 0 }).ok).toBe(false);
+  });
+
+  test('une jauge reste lisible quand ses valeurs deviennent énormes', () => {
+    expect(gaugeNumber(87)).toBe('87');
+    expect(gaugeNumber(12_345)).toBe('12 345');
+    expect(gaugeNumber(123_456)).toBe('123 k');
+    expect(gaugeNumber(1_234_567)).toBe('1,2 M');
+    expect(gaugeNumber(2_000_100)).toBe('2 M');
+    expect(gaugeNumber(15_900_000)).toBe('15 M');
   });
 
   test('un point de statistique vaut ce qu\'il vaut à la répartition', () => {
@@ -333,6 +385,43 @@ describe('moteur d\'ascension', () => {
   function enterCombat(state: TowerState) {
     return applyTowerAction(state, 1, { type: 'door', index: 0 }, RULES, FOES);
   }
+
+  test('le porte-bonheur rapporte un peu plus d\'or, sans dépasser son plafond', () => {
+    const win = (fortune?: number) => {
+      let step = enterCombat({ ...start(), ...(fortune !== undefined ? { fortune } : {}) });
+      for (let i = 0; i < 50 && step.state.phase === 'COMBAT'; i++) {
+        step = applyTowerAction(step.state, step.floor, { type: 'attack' }, RULES, FOES);
+      }
+      return step.state.gold;
+    };
+    const plain = win();
+    // Même graine, même combat : seul le porte-bonheur change l'or gagné.
+    expect(win(0.3)).toBeGreaterThan(plain);
+    expect(win(0.3)).toBeLessThanOrEqual(Math.round(plain * 1.3) + 1);
+    // Un état trafiqué ne débride rien.
+    expect(win(50)).toBe(win(0.3));
+    const lucky = createTowerState({ base: STRONG, skills: [], potions: 1, seed: 1, rules: RULES, fortune: 2 });
+    expect(lucky.fortune).toBe(TOWER_FORTUNE_MAX);
+    expect(createTowerState({ base: STRONG, skills: [], potions: 1, seed: 1, rules: RULES }).fortune).toBeUndefined();
+  });
+
+  test('sur un étage gelé, le premier coup de chaque camp est amorti', () => {
+    const firstBlows = (modifier: 'NONE' | 'FROST') => {
+      // Assez faible pour que le monstre survive au premier coup.
+      const fighting = enterCombat(start({ ...STRONG, attack: 8 })).state;
+      // Seul l'effet de l'étage compte ici : la carte n'est lue que pour lui.
+      const frozen = { ...fighting, map: { layout: { modifier } } } as unknown as TowerState;
+      const foeBefore = frozen.encounter!.health;
+      const step = applyTowerAction(frozen, 1, { type: 'attack' }, RULES, FOES);
+      const hits = step.state.encounter?.log ?? [];
+      const monster = hits.find((entry) => entry.k === 'monster');
+      return { dealt: foeBefore - (step.state.encounter?.health ?? 0), taken: monster && 'dmg' in monster ? monster.dmg : null };
+    };
+    const plain = firstBlows('NONE');
+    const frozen = firstBlows('FROST');
+    expect(frozen.dealt).toBeLessThan(plain.dealt);
+    if (plain.taken !== null && frozen.taken !== null && plain.taken > 1) expect(frozen.taken).toBeLessThan(plain.taken);
+  });
 
   test('une ascension commence devant trois portes', () => {
     const state = start();
@@ -731,6 +820,54 @@ describe('profondeur de la Tour', () => {
     expect(generateTowerLayout(42)).toEqual(generateTowerLayout(42));
   });
 
+  test('le décor d\'un étage se choisit, ou suit la hauteur', () => {
+    const chosen = normalizeTowerLayout({ ...generateTowerLayout(3), theme: 'CRYPT' });
+    expect(chosen.ok && chosen.value.theme).toBe('CRYPT');
+    const unknown = normalizeTowerLayout({ ...generateTowerLayout(3), theme: 'LAVA' });
+    expect(unknown.ok && unknown.value.theme).toBe('AUTO');
+    expect(resolveTowerTheme('AUTO', 1)).toBe('STONE');
+    expect(resolveTowerTheme(undefined, 15)).toBe('MOSS');
+    expect(resolveTowerTheme('AUTO', 70)).toBe('ABYSS');
+    expect(resolveTowerTheme('ICE', 1)).toBe('ICE');
+  });
+
+  test('chaque ambiance et chaque décor se dessinent', async () => {
+    const base = generateTowerLayout(11);
+    const start = startRoom(base)!;
+    for (const modifier of TOWER_FLOOR_MODIFIERS) {
+      for (const theme of TOWER_FLOOR_THEMES) {
+        const image = await renderTowerImage({
+          kind: 'map', title: 'Étage', floor: 30, layout: { ...base, modifier, theme }, pos: start.id, cleared: [start.id], targets: [], ladder: [],
+        });
+        expect(image).not.toBeNull();
+      }
+    }
+  });
+
+  test('traces, gardien, échelle colorée et record se dessinent', async () => {
+    const layout = { value: generateTowerLayout(5) };
+    const start = startRoom(layout.value)!;
+    const image = await renderTowerImage({
+      kind: 'map', title: 'Étage 21', floor: 21, layout: layout.value, pos: start.id,
+      // Toutes les salles faites : chaque sorte de trace est dessinée.
+      cleared: layout.value.rooms.map((room) => room.id), targets: [],
+      ladder: [22, 21, 20].map((n) => ({ label: `Étage ${n}`, status: n === 21 ? 'current' : n > 21 ? 'next' : 'done', theme: resolveTowerTheme('AUTO', n), record: n === 22 }) as const),
+      recordLabel: 'Record 22 · Quelqu\'un',
+    });
+    expect(image).not.toBeNull();
+  });
+
+  test('un étage dans la brume a toujours du brouillard', () => {
+    const layout = normalizeTowerLayout({ ...generateTowerLayout(3), fog: false, modifier: 'MIST' });
+    expect(layout.ok).toBe(true);
+    if (!layout.ok) return;
+    expect(towerLayoutHasFog(layout.value)).toBe(true);
+    expect(visibleRooms(layout.value, startRoom(layout.value)!.id, [])).not.toBeNull();
+    // Le réglage enregistré n'est pas touché : sans la brume, l'étage redevient dégagé.
+    expect(layout.value.fog).toBe(false);
+    expect(towerLayoutHasFog({ ...layout.value, modifier: 'NONE' })).toBe(false);
+  });
+
   test('le brouillard des étages générés se règle', () => {
     expect(towerFloorLayout([], 1, 'GENERATE', 5, false).fog).toBe(false);
     expect(towerFloorLayout([], 1, 'GENERATE', 5).fog).toBe(true);
@@ -789,6 +926,113 @@ describe('profondeur de la Tour', () => {
     }
     expect(step.floor).toBe(1);
     expect(step.state.floorsCleared).toBe(0);
+  });
+
+  describe('défi du jour', () => {
+    test('la contrainte du jour est la même pour tout le serveur, et change d\'un jour à l\'autre', () => {
+      const today = towerDailyChallenge('guild-1', '2026-09-29');
+      expect(towerDailyChallenge('guild-1', '2026-09-29')).toEqual(today);
+      expect(today.modifier).not.toBe('NONE');
+      const week = new Set(['2026-09-23', '2026-09-24', '2026-09-25', '2026-09-26', '2026-09-27', '2026-09-28', '2026-09-29']
+        .map((day) => JSON.stringify(towerDailyChallenge('guild-1', day))));
+      expect(week.size).toBeGreaterThan(1);
+    });
+
+    test('la série suit les jours joués d\'affilée et plafonne son bonus', () => {
+      expect(previousTowerDayKey('2026-03-01')).toBe('2026-02-28');
+      expect(previousTowerDayKey('2026-01-01')).toBe('2025-12-31');
+      expect(nextTowerDailyStreak(0, null, '2026-09-29')).toBe(1);
+      expect(nextTowerDailyStreak(3, '2026-09-28', '2026-09-29')).toBe(4);
+      expect(nextTowerDailyStreak(3, '2026-09-27', '2026-09-29')).toBe(1);
+      expect(nextTowerDailyStreak(3, '2026-09-29', '2026-09-29')).toBe(3);
+      expect(towerDailyStreakBonus(1)).toBe(0);
+      expect(towerDailyStreakBonus(3)).toBeCloseTo(0.1);
+      expect(towerDailyStreakBonus(40)).toBe(TOWER_DAILY_STREAK_MAX_BONUS);
+    });
+
+    test('l\'ambiance du jour s\'impose à chaque étage généré', () => {
+      const rules = { ...RULES, floorsAfter: 'GENERATE' as const, floorModifier: 'FROST' as const };
+      for (const floor of [1, 2, 9]) {
+        expect(towerRunFloorLayout([], floor, rules, 42).modifier).toBe('FROST');
+      }
+      // Sans ambiance imposée, l'étage garde la sienne.
+      expect(towerRunFloorLayout([], 1, { ...RULES, floorsAfter: 'GENERATE' }, 42)).toEqual(generateTowerLayout(floorSeed(42, 1), true, 1));
+    });
+  });
+
+  describe('météo changeante', () => {
+    // Un couloir de départ vers la sortie, doublé d'une rangée où le feu peut courir.
+    function corridor(modifier: 'BURNING' | 'MIST'): TowerLayout {
+      const rooms = [newTowerRoom(0, 0, 'START'), newTowerRoom(7, 0, 'EXIT')];
+      for (let x = 1; x <= 6; x++) rooms.push(newTowerRoom(x, 0, 'EMPTY'), newTowerRoom(x, 1, 'EMPTY'));
+      return { name: '', width: 8, height: 2, fog: false, modifier, rooms };
+    }
+    function walk(state: TowerState, to: string) {
+      const index = state.moves.findIndex((move) => move.roomId === to);
+      expect(index).toBeGreaterThanOrEqual(0);
+      return applyTowerAction(state, 1, { type: 'door', index }, RULES, FOES).state;
+    }
+
+    test('le feu gagne une salle par pas, sans jamais prendre sous le joueur ni à l\'entrée', () => {
+      let state = createTowerState({ base: STRONG, skills: [], potions: 1, seed: 3, rules: RULES, layout: corridor('BURNING') });
+      expect(state.map!.fire).toHaveLength(1);
+      for (let i = 0; i < 8; i++) {
+        const before = state.map!.fire!.length;
+        const to = state.map!.pos === '0-0' ? '1-0' : '0-0';
+        state = walk(state, to);
+        expect(state.map!.fire!.length).toBeLessThanOrEqual(before + 1);
+        expect(state.map!.fire).not.toContain('0-0');
+        expect(state.map!.fire).not.toContain('1-0');
+      }
+      expect(state.map!.fire!.length).toBeGreaterThan(1);
+    });
+
+    test('on ne fuit pas une embuscade', () => {
+      const layout = corridor('BURNING');
+      layout.modifier = 'NONE';
+      layout.rooms = layout.rooms.map((room) => (room.id === '1-0' ? { ...room, type: 'AMBUSH' as const } : room));
+      let state = createTowerState({ base: STRONG, skills: [], potions: 1, seed: 3, rules: RULES, layout });
+      state = walk(state, '1-0');
+      expect(state.phase).toBe('COMBAT');
+      expect(state.encounter!.ambush).toBe(true);
+      expect(canFlee(state, state.encounter!)).toBe(false);
+      expect(() => applyTowerAction(state, 1, { type: 'flee' }, RULES, FOES)).toThrow(TowerActionRefused);
+    });
+
+    test('entrer dans une salle en feu brûle, même déjà faite', () => {
+      let state = createTowerState({ base: STRONG, skills: [], potions: 1, seed: 3, rules: RULES, layout: corridor('BURNING') });
+      state = walk(state, '1-0');
+      state = walk(state, '0-0');
+      state.map!.fire = ['1-0'];
+      const hp = state.hp;
+      state = walk(state, '1-0');
+      expect(state.burned).toBeGreaterThan(0);
+      expect(state.hp).toBeLessThan(hp);
+    });
+
+    test('un étage en feu arrivé avant la propagation brûle à chaque nouvelle salle', () => {
+      const state = createTowerState({ base: STRONG, skills: [], potions: 1, seed: 3, rules: RULES, layout: corridor('BURNING') });
+      delete state.map!.fire;
+      expect(walk(state, '1-0').burned).toBeGreaterThan(0);
+    });
+
+    test('la brume se lève après assez de salles explorées, pas en faisant des allers-retours', () => {
+      let state = createTowerState({ base: STRONG, skills: [], potions: 1, seed: 3, rules: RULES, layout: corridor('MIST') });
+      // Vingt allers-retours entre deux salles : une seule salle explorée, la brume reste.
+      for (let i = 0; i < 20; i++) state = walk(state, state.map!.pos === '0-0' ? '1-0' : '0-0');
+      expect(state.map!.layout.modifier).toBe('MIST');
+      // Puis on avance vraiment : huit salles nouvelles, et elle se lève au pas suivant.
+      state = walk(state, '1-0');
+      for (const id of ['2-0', '3-0', '4-0', '5-0', '6-0', '6-1', '5-1']) {
+        state = walk(state, id);
+        expect(state.map!.layout.modifier).toBe('MIST');
+      }
+      expect(state.map!.cleared.length - 1).toBe(MIST_LIFT_ROOMS);
+      state = walk(state, '4-1');
+      expect(state.weather).toBe('mist_lifted');
+      expect(state.map!.layout.modifier).toBe('NONE');
+      expect(state.map!.mistLifted).toBe(true);
+    });
   });
 
   test('après les étages dessinés : la boucle ou des étages générés', () => {

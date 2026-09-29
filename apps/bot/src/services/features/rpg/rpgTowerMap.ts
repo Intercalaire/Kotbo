@@ -194,15 +194,45 @@ export type TowerRoom = {
 /**
  * Ambiance d'un étage, qui change la façon de le parcourir sans ajouter de salle : inondé
  * (le joueur est ralenti), en feu (chaque nouvelle salle brûle un peu), béni (les soins sont
- * renforcés).
+ * renforcés), dans la brume (brouillard forcé, coffres plus riches), gelé (le premier coup de
+ * chaque combat est amorti, des deux côtés), nuit sans lune (les errants vont deux fois plus
+ * vite, les embuscades paient plus).
  */
-export const TOWER_FLOOR_MODIFIERS = ['NONE', 'FLOODED', 'BURNING', 'BLESSED'] as const;
+export const TOWER_FLOOR_MODIFIERS = ['NONE', 'FLOODED', 'BURNING', 'BLESSED', 'MIST', 'FROST', 'MOONLESS'] as const;
 export type TowerFloorModifier = (typeof TOWER_FLOOR_MODIFIERS)[number];
+
+/**
+ * Décor d'un étage, sans effet sur le jeu : pierre, mousse, crypte, glace, forge, arcanes ou
+ * abîme. AUTO suit la hauteur, pour que la montée se sente sans lire le numéro de l'étage.
+ * Le nom d'un étage ne sert qu'à le repérer : il ne décide pas de son décor.
+ */
+export const TOWER_FLOOR_THEMES = ['AUTO', 'STONE', 'MOSS', 'CRYPT', 'ICE', 'FORGE', 'ARCANE', 'ABYSS'] as const;
+export type TowerFloorTheme = (typeof TOWER_FLOOR_THEMES)[number];
+export type TowerResolvedTheme = Exclude<TowerFloorTheme, 'AUTO'>;
+
+/** Décor suivi par AUTO, du bas vers le haut : `from` est le premier étage de chaque tranche. */
+export const TOWER_DEPTH_THEMES: readonly { from: number; theme: TowerResolvedTheme }[] = [
+  { from: 1, theme: 'STONE' },
+  { from: 10, theme: 'MOSS' },
+  { from: 20, theme: 'CRYPT' },
+  { from: 30, theme: 'ICE' },
+  { from: 40, theme: 'FORGE' },
+  { from: 50, theme: 'ARCANE' },
+  { from: 70, theme: 'ABYSS' },
+];
+
+export function resolveTowerTheme(theme: TowerFloorTheme | undefined, floor: number): TowerResolvedTheme {
+  if (theme && theme !== 'AUTO') return theme;
+  let resolved: TowerResolvedTheme = 'STONE';
+  for (const band of TOWER_DEPTH_THEMES) if (floor >= band.from) resolved = band.theme;
+  return resolved;
+}
 
 /**
  * `name` : nom de l'étage (« Caserne », « Crypte »…), vide pour un étage sans nom.
  * `fog` : brouillard de guerre, seules les salles visitées et leurs voisines se voient.
  * `modifier` : ambiance de l'étage.
+ * `theme` : décor de l'étage, AUTO (selon la hauteur) quand il manque.
  * `variant` : variante de l'étage dessiné juste avant ; les deux partagent un même numéro
  * d'étage et l'un d'eux est tiré au sort. Toujours faux sur la première carte.
  * `weight` : poids de la carte dans ce tirage, sans effet sur un étage sans variante.
@@ -213,6 +243,7 @@ export type TowerLayout = {
   height: number;
   fog: boolean;
   modifier: TowerFloorModifier;
+  theme?: TowerFloorTheme;
   variant?: boolean;
   weight?: number;
   rooms: TowerRoom[];
@@ -458,11 +489,13 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
 
   const name = typeof raw.name === 'string' ? raw.name.trim() : '';
   if (name.length > TOWER_FLOOR_NAME_MAX) return { ok: false, error: `Le nom d'un étage ne peut pas dépasser ${TOWER_FLOOR_NAME_MAX} caractères.` };
-  // Absent des cartes d'avant le brouillard : elles restent entièrement visibles.
-  const fog = raw.fog === true;
   const modifier = TOWER_FLOOR_MODIFIERS.includes(raw.modifier as TowerFloorModifier) ? (raw.modifier as TowerFloorModifier) : 'NONE';
+  // Absent des cartes d'avant le brouillard : elles restent entièrement visibles. La brume ne
+  // l'écrit pas ici (voir `towerLayoutHasFog`) : repasser l'étage sans ambiance le rend tel quel.
+  const fog = raw.fog === true;
   const weight = clampInt(raw.weight, TOWER_VARIANT_WEIGHT, TOWER_VARIANT_WEIGHT.default);
-  const layout: TowerLayout = { name, width, height, fog, modifier, variant: raw.variant === true, weight, rooms };
+  const theme = TOWER_FLOOR_THEMES.includes(raw.theme as TowerFloorTheme) ? (raw.theme as TowerFloorTheme) : 'AUTO';
+  const layout: TowerLayout = { name, width, height, fog, modifier, theme, variant: raw.variant === true, weight, rooms };
   const distances = distancesFromStart(layout);
   if (distances.size !== rooms.length) {
     return { ok: false, error: `${rooms.length - distances.size} salle(s) ne sont reliées à rien depuis le départ.` };
@@ -590,12 +623,17 @@ export function floorLayout(floors: readonly TowerLayout[], floor: number, seed 
   return index < 0 ? null : floors[index];
 }
 
+/** Brouillard réglé sur l'étage, ou imposé par la brume. */
+export function towerLayoutHasFog(layout: Pick<TowerLayout, 'fog' | 'modifier'>): boolean {
+  return layout.fog === true || layout.modifier === 'MIST';
+}
+
 /**
  * Salles visibles sous le brouillard : celles déjà faites, celle du joueur et leurs voisines.
  * `null` : l'étage n'a pas de brouillard, tout se voit.
  */
 export function visibleRooms(layout: TowerLayout, pos: string, cleared: readonly string[]): Set<string> | null {
-  if (!layout.fog) return null;
+  if (!towerLayoutHasFog(layout)) return null;
   const cells = occupancy(layout);
   const seen = new Set<string>([pos, ...cleared]);
   for (const id of [pos, ...cleared]) {
