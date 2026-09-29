@@ -66,7 +66,9 @@ import {
   towerFloorLabel,
   towerLayoutHasFog,
   visibleRooms,
+  type TowerLayout,
 } from '../../services/features/rpg/rpgTowerMap.js';
+import { MIST_LIFT_STEPS } from '../../services/features/rpg/rpgTowerContent.js';
 import { floorSeed, generateTowerLayout, towerFloorLayout } from '../../services/features/rpg/rpgTowerGen.js';
 import { renderTowerImage } from '../../services/features/rpg/rpgTowerRender.js';
 import { gaugeNumber } from '../../services/features/rpg/rpgIcons.js';
@@ -917,6 +919,63 @@ describe('profondeur de la Tour', () => {
     }
     expect(step.floor).toBe(1);
     expect(step.state.floorsCleared).toBe(0);
+  });
+
+  describe('météo changeante', () => {
+    // Un couloir de départ vers la sortie, doublé d'une rangée où le feu peut courir.
+    function corridor(modifier: 'BURNING' | 'MIST'): TowerLayout {
+      const rooms = [newTowerRoom(0, 0, 'START'), newTowerRoom(7, 0, 'EXIT')];
+      for (let x = 1; x <= 6; x++) rooms.push(newTowerRoom(x, 0, 'EMPTY'), newTowerRoom(x, 1, 'EMPTY'));
+      return { name: '', width: 8, height: 2, fog: false, modifier, rooms };
+    }
+    function walk(state: TowerState, to: string) {
+      const index = state.moves.findIndex((move) => move.roomId === to);
+      expect(index).toBeGreaterThanOrEqual(0);
+      return applyTowerAction(state, 1, { type: 'door', index }, RULES, FOES).state;
+    }
+
+    test('le feu gagne une salle par pas, sans jamais prendre sous le joueur ni à l\'entrée', () => {
+      let state = createTowerState({ base: STRONG, skills: [], potions: 1, seed: 3, rules: RULES, layout: corridor('BURNING') });
+      expect(state.map!.fire).toHaveLength(1);
+      for (let i = 0; i < 8; i++) {
+        const before = state.map!.fire!.length;
+        const to = state.map!.pos === '0-0' ? '1-0' : '0-0';
+        state = walk(state, to);
+        expect(state.map!.fire!.length).toBeLessThanOrEqual(before + 1);
+        expect(state.map!.fire).not.toContain('0-0');
+        expect(state.map!.fire).not.toContain('1-0');
+      }
+      expect(state.map!.fire!.length).toBeGreaterThan(1);
+    });
+
+    test('entrer dans une salle en feu brûle, même déjà faite', () => {
+      let state = createTowerState({ base: STRONG, skills: [], potions: 1, seed: 3, rules: RULES, layout: corridor('BURNING') });
+      state = walk(state, '1-0');
+      state = walk(state, '0-0');
+      state.map!.fire = ['1-0'];
+      const hp = state.hp;
+      state = walk(state, '1-0');
+      expect(state.burned).toBeGreaterThan(0);
+      expect(state.hp).toBeLessThan(hp);
+    });
+
+    test('un étage en feu arrivé avant la propagation brûle à chaque nouvelle salle', () => {
+      const state = createTowerState({ base: STRONG, skills: [], potions: 1, seed: 3, rules: RULES, layout: corridor('BURNING') });
+      delete state.map!.fire;
+      expect(walk(state, '1-0').burned).toBeGreaterThan(0);
+    });
+
+    test('la brume se lève au bout de quelques pas', () => {
+      let state = createTowerState({ base: STRONG, skills: [], potions: 1, seed: 3, rules: RULES, layout: corridor('MIST') });
+      let lifted = 0;
+      for (let i = 1; i <= 10; i++) {
+        state = walk(state, state.map!.pos === '0-0' ? '1-0' : '0-0');
+        if (state.weather === 'mist_lifted') lifted = i;
+      }
+      expect(lifted).toBe(MIST_LIFT_STEPS);
+      expect(state.map!.layout.modifier).toBe('NONE');
+      expect(state.map!.mistLifted).toBe(true);
+    });
   });
 
   test('après les étages dessinés : la boucle ou des étages générés', () => {

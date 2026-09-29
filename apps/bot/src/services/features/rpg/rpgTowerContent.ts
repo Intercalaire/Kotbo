@@ -181,6 +181,10 @@ export const BURN_DAMAGE = 0.03;
 export const BLESSED_HEAL = 1.25;
 /** Étage dans la brume : le brouillard est forcé, mais les coffres rapportent plus d'or. */
 export const MIST_CHEST_GOLD = 1.25;
+/** Pas sur l'étage au bout desquels la brume se lève, avec son brouillard et son bonus. */
+export const MIST_LIFT_STEPS = 8;
+/** Étage en feu : le feu part d'une salle à au moins cette distance de l'entrée. */
+export const FIRE_START_DISTANCE = 3;
 /** Étage gelé : le premier coup de chaque combat, d'un côté comme de l'autre, est amorti. */
 export const FROST_FIRST_HIT = 0.5;
 /** Nuit sans lune : les errants font deux pas au lieu d'un, les embuscades paient plus. */

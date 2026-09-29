@@ -140,6 +140,8 @@ export type TowerMapImage = {
   conquered?: readonly string[];
   /** Record du serveur, déjà traduit, écrit sous l'échelle ; sa marche porte un drapeau. */
   recordLabel?: string | null;
+  /** Étage en feu : salles qui brûlent. */
+  fire?: readonly string[];
 };
 
 /** Encart de texte à droite de la tour : titre et quelques lignes courtes. */
@@ -156,7 +158,7 @@ export type TowerShaftImage = {
 };
 
 /** Marqueurs de la carte, expliqués dans le guide. */
-export type TowerLegendMarker = 'PAWN' | 'TARGET' | 'CLEARED' | 'KEY' | 'BADGE' | 'POWER' | 'WANDERER' | 'PATH' | 'PENNANT' | 'FOG' | 'RECORD';
+export type TowerLegendMarker = 'PAWN' | 'TARGET' | 'CLEARED' | 'KEY' | 'BADGE' | 'POWER' | 'WANDERER' | 'PATH' | 'PENNANT' | 'FOG' | 'FIRE' | 'RECORD';
 
 /**
  * Une ligne de légende : une salle telle que la carte la dessine, ou un marqueur. `locked` : salle
@@ -1472,6 +1474,7 @@ function renderMap(input: TowerMapImage): Buffer {
   }
 
   const inset = Math.max(3, Math.round(tile * 0.08));
+  const fire = new Set(input.fire ?? []);
   for (const room of layout.rooms) {
     if (!seen(room.id)) continue;
     const span = room.type === 'BOSS' ? 2 : 1;
@@ -1522,6 +1525,8 @@ function renderMap(input: TowerMapImage): Buffer {
     if (input.conquered?.includes(room.id)) drawPennant(ctx, x + 3, y + 3, Math.max(9, tile * 0.22));
     // Une salle vide garde un bout de décor dans un coin, tiré de la carte : il ne bouge pas.
     if (shown === 'EMPTY') drawRoomProp(ctx, scene, room.id, x, y, size);
+    // Une salle en feu brûle aussi une fois faite : la retraverser coûte encore.
+    if (fire.has(room.id)) drawRoomFire(ctx, x, y, size);
     if (cleared) {
       // La salle garde la trace de ce qui s'y est passé, et une coche discrète dans un coin.
       if (drawClearedTrace(ctx, shown, cx, cy, size * (span === 2 ? 0.42 : 0.55), color)) {
@@ -1640,6 +1645,25 @@ function drawLadder(ctx: SKRSContext2D, x: number, y: number, w: number, h: numb
     while (ctx.measureText(label).width > w - 30 && label.length > 4) label = `${label.slice(0, -2)}…`;
     text(ctx, label, x + 28, below, 14, C.gold);
   }
+}
+
+/** Salle en feu : lueur orangée et flammes le long du bas. */
+function drawRoomFire(ctx: SKRSContext2D, x: number, y: number, size: number): void {
+  ctx.save();
+  const glow = ctx.createLinearGradient(0, y + size, 0, y);
+  glow.addColorStop(0, 'rgba(249, 115, 22, 0.45)');
+  glow.addColorStop(1, 'rgba(249, 115, 22, 0)');
+  ctx.fillStyle = glow;
+  roundRect(ctx, x, y, size, size, 7);
+  ctx.fill();
+  const flames = 4;
+  for (let index = 0; index < flames; index++) {
+    const fx = x + size * ((index + 0.5) / flames);
+    const h = size * (index % 2 === 0 ? 0.3 : 0.22);
+    flame(ctx, fx, y + size - 2, size / flames, h, 'rgba(239, 68, 68, 0.85)');
+    flame(ctx, fx, y + size - 2, size / flames * 0.55, h * 0.65, 'rgba(253, 224, 71, 0.9)');
+  }
+  ctx.restore();
 }
 
 /** Drapeau doré du record du serveur. */
@@ -1937,6 +1961,7 @@ function drawLegendTile(ctx: SKRSContext2D, entry: TowerLegendEntry, x: number, 
         break;
       case 'PENNANT': drawPennant(ctx, cx - size * 0.2, cy - size * 0.3, size * 0.6); break;
       case 'FOG': drawFog(ctx, x, y, size, 3); break;
+      case 'FIRE': drawRoomFire(ctx, x, y, size); break;
       case 'RECORD': drawRecordFlag(ctx, cx - size * 0.05, cy, size * 0.3); break;
     }
     return;

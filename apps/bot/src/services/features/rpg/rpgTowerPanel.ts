@@ -818,6 +818,7 @@ async function towerImage(guildId: string, mode: string, state: TowerState, floo
       wanderers: (map.wanderers ?? []).map((wanderer) => wanderer.pos),
       path: map.oraclePath ?? [],
       conquered: map.conquered ?? [],
+      fire: map.fire ?? [],
     });
   }
   return renderTowerImage({
@@ -1368,6 +1369,7 @@ function statusBlock(state: TowerState, floor: number, config: TowerConfigView, 
       : null,
     state.ally ? `-# ${icon('rpgClan')} ${m.tower_run_ally({}, { locale })}` : null,
     (state.burned ?? 0) > 0 ? `-# ${icon('warning')} ${m.tower_run_burned({ hp: state.burned ?? 0 }, { locale })}` : null,
+    state.weather === 'mist_lifted' ? `-# ${icon('rpgMap')} ${m.tower_run_mist_lifted({}, { locale })}` : null,
   ].filter((line): line is string => Boolean(line)).join('\n');
 }
 
@@ -1971,7 +1973,7 @@ const GUIDE_ROOM_PAGES: { title: (locale: Locale) => string; rooms: TowerRoomTyp
 /** Après les salles : les marqueurs de la carte, puis les ambiances d'étage. */
 const GUIDE_MARKERS_PAGE = GUIDE_ROOM_PAGES.length;
 const GUIDE_MODIFIERS_PAGE = GUIDE_MARKERS_PAGE + 1;
-const GUIDE_MARKERS: TowerLegendMarker[] = ['PAWN', 'TARGET', 'CLEARED', 'KEY', 'BADGE', 'POWER', 'WANDERER', 'PATH', 'PENNANT', 'FOG', 'RECORD'];
+const GUIDE_MARKERS: TowerLegendMarker[] = ['PAWN', 'TARGET', 'CLEARED', 'KEY', 'BADGE', 'POWER', 'WANDERER', 'PATH', 'PENNANT', 'FOG', 'FIRE', 'RECORD'];
 
 function hiddenRoomName(room: TowerHiddenRoom, locale: Locale): string {
   switch (room) {
@@ -2005,6 +2007,7 @@ function markerName(marker: TowerLegendMarker, locale: Locale): string {
     case 'PATH': return m.tower_guide_marker_path({}, { locale });
     case 'PENNANT': return m.tower_guide_marker_pennant({}, { locale });
     case 'RECORD': return m.tower_guide_marker_record({}, { locale });
+    case 'FIRE': return m.tower_guide_marker_fire({}, { locale });
     default: return m.tower_guide_fog({}, { locale });
   }
 }
@@ -2021,6 +2024,7 @@ function markerDescription(marker: TowerLegendMarker, locale: Locale): string {
     case 'PATH': return m.tower_guide_marker_path_desc({}, { locale });
     case 'PENNANT': return m.tower_guide_marker_pennant_desc({}, { locale });
     case 'RECORD': return m.tower_guide_marker_record_desc({}, { locale });
+    case 'FIRE': return m.tower_guide_marker_fire_desc({}, { locale });
     default: return m.tower_guide_fog_desc({}, { locale });
   }
 }

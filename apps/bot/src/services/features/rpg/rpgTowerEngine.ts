@@ -18,7 +18,9 @@ import {
   fountainDrinkCost,
   BLESSED_HEAL,
   BURN_DAMAGE,
+  FIRE_START_DISTANCE,
   FROST_FIRST_HIT,
+  MIST_LIFT_STEPS,
   MIST_CHEST_GOLD,
   MOONLESS_AMBUSH_BOUNTY,
   MOONLESS_WANDERER_STEPS,
@@ -118,20 +120,23 @@ import {
   TOWER_TRIAL_WAVES,
   TOWER_WANDER_RADIUS,
   canWanderInto,
+  distancesFromStart,
   entryRooms,
   exitLocks,
   exitRoom,
+  isEntryRoom,
   isExitRoom,
+  occupancy,
   pathBetween,
   roomNeighbors,
   startRoom,
+  towerLayoutHasFog,
   towerLayoutKey,
   wanderZone,
   type TowerCaptiveKind,
   type TowerDirection,
   type TowerExitType,
   type TowerFloorsAfter,
-  towerLayoutHasFog,
   type TowerLayout,
   type TowerRoom,
   type TowerRoomType,
@@ -320,6 +325,13 @@ export type TowerMapState = {
    * vaincues, et une sortie conquise se franchit sans rien affronter. Posées par le service.
    */
   conquered?: string[];
+  /**
+   * Étage en feu : salles qui brûlent. Le feu part d'une salle et gagne une voisine à chaque
+   * pas. Absent des étages arrivés avant la propagation : chaque nouvelle salle y brûle.
+   */
+  fire?: string[];
+  /** La brume de l'étage s'est levée. */
+  mistLifted?: boolean;
 };
 
 export type TowerGhost = { roomId: string; userId: string; runId: string; gear: TowerGear };
@@ -411,6 +423,8 @@ export type TowerState = {
   ghostTaken?: string | null;
   /** PV brûlés à la dernière action, sur un étage en feu. */
   burned?: number;
+  /** Changement de temps à la dernière action, montré une seule fois. */
+  weather?: 'mist_lifted' | null;
 };
 
 export type TowerRules = {
@@ -664,6 +678,43 @@ function prepareFloor(map: TowerMapState, rng: TowerRng): void {
     .map((room) => ({ spawn: room.id, pos: room.id, radius: room.wanderRadius ?? TOWER_WANDER_RADIUS.default }));
   map.revealed = false;
   map.oraclePath = undefined;
+  map.mistLifted = undefined;
+  // Étage en feu : le feu prend dans une salle assez loin de l'entrée pour laisser partir.
+  map.fire = undefined;
+  if (map.layout.modifier === 'BURNING') {
+    const distances = distancesFromStart(map.layout);
+    const far = map.layout.rooms.filter((room) => (distances.get(room.id) ?? 0) >= FIRE_START_DISTANCE && !isEntryRoom(room.type));
+    const pool = far.length > 0 ? far : map.layout.rooms.filter((room) => !isEntryRoom(room.type));
+    map.fire = pool.length > 0 ? [rng.pick(pool).id] : [];
+  }
+}
+
+/**
+ * Le temps de l'étage change à chaque pas du joueur : le feu gagne une salle voisine, la brume
+ * finit par se lever. Ni la salle du joueur ni celle où il va ne s'embrasent sous ses pieds, ni
+ * une entrée : il reste toujours un endroit sûr.
+ */
+function weatherStep(state: TowerState, target: string, rng: TowerRng): void {
+  const map = state.map;
+  if (!map) return;
+  if (map.layout.modifier === 'MIST' && (map.steps ?? 0) >= MIST_LIFT_STEPS) {
+    map.layout.modifier = 'NONE';
+    map.mistLifted = true;
+    state.weather = 'mist_lifted';
+  }
+  if (map.layout.modifier === 'BURNING' && map.fire && map.fire.length > 0) {
+    const burning = new Set(map.fire);
+    const cells = occupancy(map.layout);
+    const frontier = new Set<string>();
+    for (const id of map.fire) {
+      for (const { room, direction } of roomNeighbors(map.layout, id, cells)) {
+        if (direction === 'WARP' || burning.has(room.id) || isEntryRoom(room.type)) continue;
+        if (room.id === map.pos || room.id === target) continue;
+        frontier.add(room.id);
+      }
+    }
+    if (frontier.size > 0) map.fire.push(rng.pick([...frontier].sort()));
+  }
 }
 
 /**
@@ -1516,17 +1567,20 @@ function enterRoom(
     return next;
   }
 
-  if (map.cleared.includes(room.id)) {
-    advance(state, floor, rules, rng);
-    return floor;
-  }
-
-  // Étage en feu : chaque nouvelle salle brûle un peu, sans jamais achever le joueur.
-  if (floorModifier(state) === 'BURNING') {
+  // Étage en feu : entrer dans une salle qui brûle coûte un peu, sans jamais achever le joueur.
+  // Sur un étage arrivé avant la propagation, c'est chaque nouvelle salle qui brûle.
+  const burning = floorModifier(state) === 'BURNING'
+    && (map.fire ? map.fire.includes(room.id) : !map.cleared.includes(room.id));
+  if (burning) {
     const burn = Math.max(1, Math.floor(towerStats(state).maxHealth * BURN_DAMAGE));
     const before = state.hp;
     state.hp = Math.max(1, state.hp - burn);
     state.burned = before - state.hp;
+  }
+
+  if (map.cleared.includes(room.id)) {
+    advance(state, floor, rules, rng);
+    return floor;
   }
 
   const info = map.rooms?.[room.id] ?? null;
@@ -1698,6 +1752,7 @@ export function applyTowerAction(
   const level = towerLevel(state, floor);
   state.notice = null;
   state.burned = 0;
+  state.weather = null;
   state.ghostTaken = null;
   state.fountainDelta = 0;
 
@@ -1732,6 +1787,7 @@ export function applyTowerAction(
         const move = state.moves[action.index];
         if (!move) throw new TowerActionRefused('bad_choice');
         state.map.steps = (state.map.steps ?? 0) + 1;
+        weatherStep(state, move.roomId, rng);
         // Un monstre errant rôde dans la salle visée : c'est lui qu'on trouve.
         const lurking = state.map.wanderers?.find((wanderer) => wanderer.pos === move.roomId);
         if (lurking) {
