@@ -109,6 +109,7 @@ import {
   towerCardTags,
   towerFloorLabel,
   towerLayoutKey,
+  towerLayoutHasFog,
   visibleRooms,
   type TowerHiddenRoom,
   type TowerLayout,
@@ -1669,7 +1670,7 @@ export async function previewTowerFloor(guildId: string, input: { layout?: unkno
   // devant des entrées au choix, seulement ces entrées, sans y être encore.
   const choices = entryRooms(layout).filter((room) => room.type === 'ENTRANCE').map((room) => room.id);
   const cleared = choices.length > 0 ? [] : [start.id];
-  const visible = !layout.fog ? null : choices.length > 0 ? new Set(choices) : visibleRooms(layout, start.id, cleared);
+  const visible = !towerLayoutHasFog(layout) ? null : choices.length > 0 ? new Set(choices) : visibleRooms(layout, start.id, cleared);
   const targets = choices.length > 0 ? choices : roomNeighbors(layout, start.id).map(({ room }) => room.id);
   const image = await renderTowerImage({
     kind: 'map',

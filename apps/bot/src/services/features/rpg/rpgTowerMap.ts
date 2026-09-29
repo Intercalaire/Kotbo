@@ -490,9 +490,9 @@ export function normalizeTowerLayout(input: unknown): TowerLayoutResult {
   const name = typeof raw.name === 'string' ? raw.name.trim() : '';
   if (name.length > TOWER_FLOOR_NAME_MAX) return { ok: false, error: `Le nom d'un étage ne peut pas dépasser ${TOWER_FLOOR_NAME_MAX} caractères.` };
   const modifier = TOWER_FLOOR_MODIFIERS.includes(raw.modifier as TowerFloorModifier) ? (raw.modifier as TowerFloorModifier) : 'NONE';
-  // Absent des cartes d'avant le brouillard : elles restent entièrement visibles. Un étage
-  // dans la brume en a toujours : c'est tout l'effet.
-  const fog = raw.fog === true || modifier === 'MIST';
+  // Absent des cartes d'avant le brouillard : elles restent entièrement visibles. La brume ne
+  // l'écrit pas ici (voir `towerLayoutHasFog`) : repasser l'étage sans ambiance le rend tel quel.
+  const fog = raw.fog === true;
   const weight = clampInt(raw.weight, TOWER_VARIANT_WEIGHT, TOWER_VARIANT_WEIGHT.default);
   const theme = TOWER_FLOOR_THEMES.includes(raw.theme as TowerFloorTheme) ? (raw.theme as TowerFloorTheme) : 'AUTO';
   const layout: TowerLayout = { name, width, height, fog, modifier, theme, variant: raw.variant === true, weight, rooms };
@@ -623,12 +623,17 @@ export function floorLayout(floors: readonly TowerLayout[], floor: number, seed 
   return index < 0 ? null : floors[index];
 }
 
+/** Brouillard réglé sur l'étage, ou imposé par la brume. */
+export function towerLayoutHasFog(layout: Pick<TowerLayout, 'fog' | 'modifier'>): boolean {
+  return layout.fog === true || layout.modifier === 'MIST';
+}
+
 /**
  * Salles visibles sous le brouillard : celles déjà faites, celle du joueur et leurs voisines.
  * `null` : l'étage n'a pas de brouillard, tout se voit.
  */
 export function visibleRooms(layout: TowerLayout, pos: string, cleared: readonly string[]): Set<string> | null {
-  if (!layout.fog) return null;
+  if (!towerLayoutHasFog(layout)) return null;
   const cells = occupancy(layout);
   const seen = new Set<string>([pos, ...cleared]);
   for (const id of [pos, ...cleared]) {

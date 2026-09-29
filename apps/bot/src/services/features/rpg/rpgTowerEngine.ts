@@ -131,6 +131,7 @@ import {
   type TowerDirection,
   type TowerExitType,
   type TowerFloorsAfter,
+  towerLayoutHasFog,
   type TowerLayout,
   type TowerRoom,
   type TowerRoomType,
@@ -1859,13 +1860,14 @@ export function applyTowerAction(
         if (state.gold < price) throw new TowerActionRefused('no_gold');
         state.gold -= price;
         // Sous le brouillard, tout l'étage apparaît ; sans brouillard, le chemin de la sortie.
-        if (map.layout.fog) {
+        const fog = towerLayoutHasFog(map.layout);
+        if (fog) {
           map.revealed = true;
         } else {
           const exit = exitRoom(map.layout);
           map.oraclePath = exit ? pathBetween(map.layout, map.pos, exit.id) ?? undefined : undefined;
         }
-        state.notice = { k: 'oracle', gold: price, revealed: map.layout.fog };
+        state.notice = { k: 'oracle', gold: price, revealed: fog };
       } else if (action.type !== 'leave_shop') {
         throw new TowerActionRefused('wrong_phase');
       }

@@ -64,6 +64,7 @@ import {
   towerCardTags,
   towerFloorCount,
   towerFloorLabel,
+  towerLayoutHasFog,
   visibleRooms,
 } from '../../services/features/rpg/rpgTowerMap.js';
 import { floorSeed, generateTowerLayout, towerFloorLayout } from '../../services/features/rpg/rpgTowerGen.js';
@@ -836,9 +837,13 @@ describe('profondeur de la Tour', () => {
 
   test('un étage dans la brume a toujours du brouillard', () => {
     const layout = normalizeTowerLayout({ ...generateTowerLayout(3), fog: false, modifier: 'MIST' });
-    expect(layout.ok && layout.value.fog).toBe(true);
-    const clear = normalizeTowerLayout({ ...generateTowerLayout(3), fog: false, modifier: 'FROST' });
-    expect(clear.ok && clear.value.fog).toBe(false);
+    expect(layout.ok).toBe(true);
+    if (!layout.ok) return;
+    expect(towerLayoutHasFog(layout.value)).toBe(true);
+    expect(visibleRooms(layout.value, startRoom(layout.value)!.id, [])).not.toBeNull();
+    // Le réglage enregistré n'est pas touché : sans la brume, l'étage redevient dégagé.
+    expect(layout.value.fog).toBe(false);
+    expect(towerLayoutHasFog({ ...layout.value, modifier: 'NONE' })).toBe(false);
   });
 
   test('le brouillard des étages générés se règle', () => {

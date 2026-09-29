@@ -67,6 +67,7 @@ import {
   occupancy,
   roomDistance,
   towerFloorCount,
+  towerLayoutHasFog,
   visibleRooms,
   type TowerDirection,
   type TowerExitType,
@@ -780,7 +781,7 @@ async function towerImage(state: TowerState, floor: number, config: TowerConfigV
     // Devant les entrées au choix, toutes se voient, et rien d'autre sous le brouillard.
     const entries = state.phase === 'ENTRY' ? map.entryChoices ?? [] : [];
     // Révélé par un oracle, l'étage se voit en entier.
-    const visible = map.revealed ? null : entries.length > 0 && map.layout.fog ? new Set(entries) : visibleRooms(map.layout, map.pos, map.cleared);
+    const visible = map.revealed ? null : entries.length > 0 && towerLayoutHasFog(map.layout) ? new Set(entries) : visibleRooms(map.layout, map.pos, map.cleared);
     const mimics = new Set(map.layout.rooms.filter((room) => room.type === 'MIMIC' || room.type === 'AMBUSH' || room.type === 'WANDERER').map((room) => room.id));
     const badges = Object.fromEntries(Object.entries(map.rooms ?? {})
       .filter(([id]) => !mimics.has(id))
@@ -1603,7 +1604,7 @@ export async function buildTowerRunView(guildId: string, ownerId: string, locale
 
     case 'ORACLE': {
       const price = oraclePrice(level);
-      const fog = state.map?.layout.fog === true;
+      const fog = state.map ? towerLayoutHasFog(state.map.layout) : false;
       textBlock(container, [
         `### ${icon('star')} ${m.tower_room_oracle({}, { locale })}`,
         fog ? m.tower_oracle_desc_fog({ price, coin: icon('coins') }, { locale }) : m.tower_oracle_desc_path({ price, coin: icon('coins') }, { locale }),
