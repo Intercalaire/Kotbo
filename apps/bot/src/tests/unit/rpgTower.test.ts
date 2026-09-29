@@ -31,6 +31,7 @@ import {
   towerFoeShape,
   towerMonsterStats,
   towerUpgradeBonus,
+  TOWER_FORTUNE_MAX,
   towerUpgradeCost,
   towerWeekStart,
   type TowerCoreStats,
@@ -219,6 +220,17 @@ describe('réglages et récompenses', () => {
     expect(boosted.maxHealth).toBe(Math.round(TOWER_BASE_STATS.maxHealth * 1.2));
   });
 
+  test('le porte-bonheur des améliorations plafonne à 30 %', () => {
+    const upgrades = normalizeTowerUpgrades([
+      { id: 'luck', effect: 'FORTUNE', perLevel: 50, maxLevel: 20, baseCost: 10 },
+    ]);
+    expect(upgrades.ok).toBe(true);
+    if (!upgrades.ok) return;
+    expect(upgrades.value[0].perLevel).toBe(10);
+    expect(towerUpgradeBonus(upgrades.value, { luck: 1 }).fortune).toBeCloseTo(0.1);
+    expect(towerUpgradeBonus(upgrades.value, { luck: 20 }).fortune).toBe(TOWER_FORTUNE_MAX);
+  });
+
   test('deux améliorations au même identifiant sont refusées', () => {
     expect(normalizeTowerUpgrades([
       { id: 'a', effect: 'GOLD', perLevel: 5, maxLevel: 1, baseCost: 1 },
@@ -359,6 +371,25 @@ describe('moteur d\'ascension', () => {
   function enterCombat(state: TowerState) {
     return applyTowerAction(state, 1, { type: 'door', index: 0 }, RULES, FOES);
   }
+
+  test('le porte-bonheur rapporte un peu plus d\'or, sans dépasser son plafond', () => {
+    const win = (fortune?: number) => {
+      let step = enterCombat({ ...start(), ...(fortune !== undefined ? { fortune } : {}) });
+      for (let i = 0; i < 50 && step.state.phase === 'COMBAT'; i++) {
+        step = applyTowerAction(step.state, step.floor, { type: 'attack' }, RULES, FOES);
+      }
+      return step.state.gold;
+    };
+    const plain = win();
+    // Même graine, même combat : seul le porte-bonheur change l'or gagné.
+    expect(win(0.3)).toBeGreaterThan(plain);
+    expect(win(0.3)).toBeLessThanOrEqual(Math.round(plain * 1.3) + 1);
+    // Un état trafiqué ne débride rien.
+    expect(win(50)).toBe(win(0.3));
+    const lucky = createTowerState({ base: STRONG, skills: [], potions: 1, seed: 1, rules: RULES, fortune: 2 });
+    expect(lucky.fortune).toBe(TOWER_FORTUNE_MAX);
+    expect(createTowerState({ base: STRONG, skills: [], potions: 1, seed: 1, rules: RULES }).fortune).toBeUndefined();
+  });
 
   test('une ascension commence devant trois portes', () => {
     const state = start();

@@ -3292,11 +3292,13 @@
   "tower_upgrade_name_speed": "Agility",
   "tower_upgrade_name_crit": "Precision",
   "tower_upgrade_name_gold": "Purse",
+  "tower_upgrade_name_fortune": "Lucky charm",
   "tower_upgrade_effect_potion": "+{value} starting potion(s)",
   "tower_upgrade_effect_health": "+{value}% max HP",
   "tower_upgrade_effect_attack": "+{value}% attack",
   "tower_upgrade_effect_defense": "+{value}% defense",
   "tower_upgrade_effect_speed": "+{value}% speed",
   "tower_upgrade_effect_crit": "+{value}% critical chance",
-  "tower_upgrade_effect_gold": "+{value} starting gold"
+  "tower_upgrade_effect_gold": "+{value} starting gold",
+  "tower_upgrade_effect_fortune": "+{value}% gold and item chance (30% at most)"
 }

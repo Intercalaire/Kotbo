@@ -1006,6 +1006,7 @@ const UPGRADE_ICON: Record<TowerUpgradeEffect, string> = {
   SPEED: 'rpgSpd',
   CRIT: 'rpgCrit',
   GOLD: 'coins',
+  FORTUNE: 'rpgChest',
 };
 
 function upgradeIcon(upgrade: TowerUpgradeDef): string {
@@ -1021,6 +1022,7 @@ function upgradeName(upgrade: TowerUpgradeDef, locale: Locale): string {
     case 'DEFENSE': return m.tower_upgrade_name_defense({}, { locale });
     case 'SPEED': return m.tower_upgrade_name_speed({}, { locale });
     case 'CRIT': return m.tower_upgrade_name_crit({}, { locale });
+    case 'FORTUNE': return m.tower_upgrade_name_fortune({}, { locale });
     default: return m.tower_upgrade_name_gold({}, { locale });
   }
 }
@@ -1033,6 +1035,7 @@ function upgradeEffectText(effect: TowerUpgradeEffect, value: number, locale: Lo
     case 'DEFENSE': return m.tower_upgrade_effect_defense({ value }, { locale });
     case 'SPEED': return m.tower_upgrade_effect_speed({ value }, { locale });
     case 'CRIT': return m.tower_upgrade_effect_crit({ value }, { locale });
+    case 'FORTUNE': return m.tower_upgrade_effect_fortune({ value }, { locale });
     default: return m.tower_upgrade_effect_gold({ value }, { locale });
   }
 }

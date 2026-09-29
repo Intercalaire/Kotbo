@@ -104,7 +104,7 @@ const upgradeSchema = z.object({
   name: z.string().optional().describe("Vide : nom de l'effet dans la langue du joueur"),
   emoji: z.string().optional().describe("Vide : icône du bot selon l'effet"),
   description: z.string().optional(),
-  effect: z.enum(TOWER_UPGRADE_EFFECTS).describe('POTION potions de départ, HEALTH/ATTACK/DEFENSE/SPEED % de la stat, CRIT points de % de critique, GOLD or de départ'),
+  effect: z.enum(TOWER_UPGRADE_EFFECTS).describe('POTION potions de départ, HEALTH/ATTACK/DEFENSE/SPEED % de la stat, CRIT points de % de critique, GOLD or de départ, FORTUNE % d\'or et de chance d\'objet en combat et dans les coffres (30 % au plus)'),
   perLevel: z.number().int().min(1).describe('Gain par niveau, dans l\'unité de l\'effet'),
   maxLevel: z.number().int().min(TOWER_UPGRADE_RANGES.maxLevel.min).max(TOWER_UPGRADE_RANGES.maxLevel.max),
   baseCost: z.number().int().min(TOWER_UPGRADE_RANGES.baseCost.min).max(TOWER_UPGRADE_RANGES.baseCost.max).describe('Prix du premier niveau, en éclats'),

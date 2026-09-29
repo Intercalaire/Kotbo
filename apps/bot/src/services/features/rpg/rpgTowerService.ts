@@ -335,6 +335,8 @@ export type TowerEntryPreview = {
   skills: TowerSkill[];
   potions: number;
   gold: number;
+  /** Porte-bonheur des améliorations (0 pour l'ascension du jour et la Tour de clan). */
+  fortune: number;
   titleName: string | null;
   className: string | null;
 };
@@ -394,6 +396,7 @@ export async function previewTowerEntry(guildId: string, userId: string, options
     })),
     potions: STARTING_POTIONS + (bonus?.potions ?? 0),
     gold: bonus?.gold ?? 0,
+    fortune: bonus?.fortune ?? 0,
     titleName: daily ? null : title?.name ?? null,
     className: rpgClass ? `${rpgClass.emoji} ${rpgClass.name}` : null,
   };
@@ -478,6 +481,7 @@ export async function startTowerRun(
     heat: daily ? [] : heatsFromMask(options.heatMask ?? 0),
     potions: preview.potions + (clanEntry?.bonus.potions ?? 0),
     gold: preview.gold,
+    fortune: preview.fortune,
     seed,
     rngSeed,
     rules: rulesOf(settings),

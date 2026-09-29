@@ -1147,7 +1147,7 @@ export function applyWeeklyCap(amount: number, alreadyThisWeek: number, cap: num
  * le niveau acheté de chaque amélioration sous son `id` : renommer ou réévaluer une
  * amélioration garde les niveaux, la supprimer les rend inertes.
  */
-export const TOWER_UPGRADE_EFFECTS = ['POTION', 'HEALTH', 'ATTACK', 'DEFENSE', 'SPEED', 'CRIT', 'GOLD'] as const;
+export const TOWER_UPGRADE_EFFECTS = ['POTION', 'HEALTH', 'ATTACK', 'DEFENSE', 'SPEED', 'CRIT', 'GOLD', 'FORTUNE'] as const;
 export type TowerUpgradeEffect = (typeof TOWER_UPGRADE_EFFECTS)[number];
 
 export type TowerUpgradeDef = {
@@ -1160,7 +1160,8 @@ export type TowerUpgradeDef = {
   effect: TowerUpgradeEffect;
   /**
    * Gain d'un niveau : potions de départ (POTION), pourcentage de la stat (HEALTH, ATTACK,
-   * DEFENSE, SPEED), points de pourcentage de critique (CRIT) ou or de départ (GOLD).
+   * DEFENSE, SPEED), points de pourcentage de critique (CRIT), or de départ (GOLD) ou
+   * pourcentage d'or et de chance d'objet gagnés en combat et dans les coffres (FORTUNE).
    */
   perLevel: number;
   maxLevel: number;
@@ -1178,7 +1179,13 @@ export const TOWER_UPGRADE_PER_LEVEL_RANGES: Record<TowerUpgradeEffect, { min: n
   SPEED: { min: 1, max: 100 },
   CRIT: { min: 1, max: 20 },
   GOLD: { min: 1, max: 10_000 },
+  FORTUNE: { min: 1, max: 10 },
 };
+/**
+ * Porte-bonheur : un coup de pouce, pas une rente. Quels que soient les niveaux achetés, l'or
+ * et la chance d'objet ne montent pas de plus de 30 %.
+ */
+export const TOWER_FORTUNE_MAX = 0.3;
 export const TOWER_UPGRADE_RANGES = {
   maxLevel: { min: 1, max: 20 },
   baseCost: { min: 1, max: 1_000_000 },
@@ -1245,14 +1252,14 @@ export function parseTowerUpgrades(value: unknown, upgrades: readonly TowerUpgra
   return levels;
 }
 
-export type TowerUpgradeBonus = Record<TowerStatKey, number> & { critChance: number; potions: number; gold: number };
+export type TowerUpgradeBonus = Record<TowerStatKey, number> & { critChance: number; potions: number; gold: number; fortune: number };
 
 /**
  * Effet cumulé des améliorations achetées. Une amélioration désactivée ne se vend plus mais
  * ses niveaux restent acquis : les éclats dépensés ne partent pas en fumée.
  */
 export function towerUpgradeBonus(upgrades: readonly TowerUpgradeDef[], levels: Record<string, number>): TowerUpgradeBonus {
-  const bonus: TowerUpgradeBonus = { attack: 0, defense: 0, speed: 0, maxHealth: 0, critChance: 0, potions: 0, gold: 0 };
+  const bonus: TowerUpgradeBonus = { attack: 0, defense: 0, speed: 0, maxHealth: 0, critChance: 0, potions: 0, gold: 0, fortune: 0 };
   for (const upgrade of upgrades) {
     const gain = upgrade.perLevel * (levels[upgrade.id] ?? 0);
     switch (upgrade.effect) {
@@ -1263,8 +1270,10 @@ export function towerUpgradeBonus(upgrades: readonly TowerUpgradeDef[], levels: 
       case 'SPEED': bonus.speed += gain / 100; break;
       case 'CRIT': bonus.critChance += gain / 100; break;
       case 'GOLD': bonus.gold += gain; break;
+      case 'FORTUNE': bonus.fortune += gain / 100; break;
     }
   }
+  bonus.fortune = Math.min(TOWER_FORTUNE_MAX, bonus.fortune);
   return bonus;
 }
 

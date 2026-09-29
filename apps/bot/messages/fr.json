@@ -3292,11 +3292,13 @@
   "tower_upgrade_name_speed": "Agilité",
   "tower_upgrade_name_crit": "Précision",
   "tower_upgrade_name_gold": "Bourse",
+  "tower_upgrade_name_fortune": "Porte-bonheur",
   "tower_upgrade_effect_potion": "+{value} potion(s) au départ",
   "tower_upgrade_effect_health": "+{value} % de PV max",
   "tower_upgrade_effect_attack": "+{value} % d'attaque",
   "tower_upgrade_effect_defense": "+{value} % de défense",
   "tower_upgrade_effect_speed": "+{value} % de vitesse",
   "tower_upgrade_effect_crit": "+{value} % de coups critiques",
-  "tower_upgrade_effect_gold": "+{value} or au départ"
+  "tower_upgrade_effect_gold": "+{value} or au départ",
+  "tower_upgrade_effect_fortune": "+{value} % d'or et de chance d'objet (30 % au plus)"
 }

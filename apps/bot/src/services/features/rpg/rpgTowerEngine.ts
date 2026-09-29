@@ -68,6 +68,7 @@ import {
   FALLBACK_BOSSES,
   FALLBACK_MONSTERS,
   LOOT_CHANCE,
+  TOWER_FORTUNE_MAX,
   MAX_POTIONS,
   TOWER_CHARGE_EVERY,
   TOWER_DEFEND_HEAL,
@@ -348,6 +349,11 @@ export type TowerState = {
   kills: number;
   /** Gardiens parmi `kills`. Absent des parties d'avant ce champ. */
   bossKills?: number;
+  /**
+   * Porte-bonheur acheté avec des éclats : part d'or et de chance d'objet en plus, en combat
+   * et dans les coffres. Absent des parties d'avant ce champ, et des ascensions sans amélioration.
+   */
+  fortune?: number;
   /**
    * Empreinte de la carte de chaque étage atteint, dans l'ordre (voir `towerLayoutKey`) : les
    * statistiques par carte du dashboard. Absent des parties d'avant ce champ, qui ne comptent pas.
@@ -725,6 +731,8 @@ export function createTowerState(input: {
   potions: number;
   /** Or de départ, offert par les améliorations. */
   gold?: number;
+  /** Porte-bonheur des améliorations, voir `TowerState.fortune`. */
+  fortune?: number;
   seed: number;
   /**
    * Graine du hasard de la partie (combats, butin, traits), quand elle doit différer de celle
@@ -763,6 +771,7 @@ export function createTowerState(input: {
     floorsCleared: 0,
     kills: 0,
     bossKills: 0,
+    ...(input.fortune && input.fortune > 0 ? { fortune: Math.min(TOWER_FORTUNE_MAX, input.fortune) } : {}),
     floorKeys: map ? [towerLayoutKey(map.layout)] : [],
     notice: null,
     map,
@@ -1198,6 +1207,12 @@ function takeGhost(state: TowerState): TowerGhost | null {
   return ghost;
 }
 
+/** Porte-bonheur de la partie, borné : un état modifié à la main ne débride rien. */
+function fortuneOf(state: TowerState): number {
+  const fortune = Number(state.fortune ?? 0);
+  return Number.isFinite(fortune) ? Math.min(TOWER_FORTUNE_MAX, Math.max(0, fortune)) : 0;
+}
+
 function winEncounter(
   state: TowerState,
   floor: number,
@@ -1210,7 +1225,8 @@ function winEncounter(
   const stats = towerStats(state);
   const level = towerLevel(state, floor);
   const bounty = encounter.bounty ?? 1;
-  const gold = Math.round(encounterGold(level, encounter.kind, stats.goldPercent, rng) * bounty);
+  const luck = 1 + fortuneOf(state);
+  const gold = Math.round(encounterGold(level, encounter.kind, stats.goldPercent, rng) * bounty * luck);
   state.gold += gold;
   state.kills += 1;
   if (encounter.kind === 'BOSS') state.bossKills = (state.bossKills ?? 0) + 1;
@@ -1229,7 +1245,7 @@ function winEncounter(
   // gardien en reprend la chance d'objet.
   const trialPaid = trial?.reward === true;
   const lootChance = trialPaid ? LOOT_CHANCE.BOSS : LOOT_CHANCE[encounter.kind];
-  if (encounter.mimic || rng.next() < Math.min(1, lootChance * bounty)) state.pendingLoot = rollTowerGear(level, encounter.kind, rng);
+  if (encounter.mimic || rng.next() < Math.min(1, lootChance * bounty * luck)) state.pendingLoot = rollTowerGear(level, encounter.kind, rng);
   // Un monstre errant vaincu quitte l'étage ; un geôlier vaincu libère son captif.
   if (encounter.wanderer && state.map?.wanderers) {
     state.map.wanderers = state.map.wanderers.filter((wanderer) => wanderer.spawn !== encounter.wanderer);
@@ -1616,10 +1632,11 @@ function enterRoom(
       state.phase = 'EVENT';
       return floor;
     case 'CHEST': {
-      const gold = room.chest === 'GEAR' ? 0 : treasureGold(level, rng);
+      const luck = 1 + fortuneOf(state);
+      const gold = room.chest === 'GEAR' ? 0 : Math.round(treasureGold(level, rng) * luck);
       state.gold += gold;
       // Un coffre mixte ne donne un objet qu'une fois sur cinq ; un coffre à équipement, toujours.
-      if (room.chest === 'GEAR' || (room.chest === 'BOTH' && rng.next() < CHEST_GEAR_CHANCE)) {
+      if (room.chest === 'GEAR' || (room.chest === 'BOTH' && rng.next() < CHEST_GEAR_CHANCE * luck)) {
         state.pendingLoot = rollTowerGear(level, 'TREASURE', rng);
       }
       state.notice = { k: 'treasure', gold };
