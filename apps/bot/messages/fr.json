@@ -3116,7 +3116,7 @@
   "tower_daily_rules": "Une carte neuve chaque jour, la même pour tout le serveur, à stats égales : seules la classe et les choix comptent. Une tentative par jour.",
   "tower_daily_title": "Défi du jour",
   "tower_end_streak_bonus": "Série de défis : +{shards} éclats",
-  "tower_daily_podium": "Podium versé le lendemain : 1er +{first} 💠 · 2e +{second} 💠 · 3e +{third} 💠",
+  "tower_daily_podium": "Podium versé le lendemain : 1er +{first} {shard} · 2e +{second} {shard} · 3e +{third} {shard}",
   "tower_daily_streak": "Série : {days} jour(s) d'affilée · bonus d'éclats du prochain défi : +{bonus} %",
   "tower_daily_challenge": "Défi du jour : **{modifier}** · **{heat}**",
   "tower_door_event": "Événement",

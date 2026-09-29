@@ -3116,7 +3116,7 @@
   "tower_daily_rules": "A fresh map every day, the same for the whole server, with equal stats: only class and choices matter. One attempt per day.",
   "tower_daily_title": "Daily challenge",
   "tower_end_streak_bonus": "Challenge streak: +{shards} shards",
-  "tower_daily_podium": "Podium paid the next day: 1st +{first} 💠 · 2nd +{second} 💠 · 3rd +{third} 💠",
+  "tower_daily_podium": "Podium paid the next day: 1st +{first} {shard} · 2nd +{second} {shard} · 3rd +{third} {shard}",
   "tower_daily_streak": "Streak: {days} day(s) in a row · shard bonus on the next challenge: +{bonus}%",
   "tower_daily_challenge": "Daily challenge: **{modifier}** · **{heat}**",
   "tower_door_event": "Event",

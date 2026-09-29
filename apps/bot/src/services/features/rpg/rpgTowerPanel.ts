@@ -870,7 +870,7 @@ function rewardContents(reward: TowerRewardView, coinEmoji: string, config: Towe
   if (reward.coins > 0) parts.push(`${coinEmoji || icon('coins')} ${reward.coins}`);
   if (reward.xp > 0) parts.push(`${icon('rpgXp')} ${m.tower_reward_xp({ amount: reward.xp }, { locale })}`);
   if (reward.maxEnergy > 0) parts.push(`${icon('rpgEnergy')} ${m.tower_reward_max_energy({ amount: gaugeNumber(reward.maxEnergy) }, { locale })}`);
-  if (reward.reclassVouchers > 0) parts.push(`🎟️ ${m.tower_reward_reclass_vouchers({ count: reward.reclassVouchers }, { locale })}`);
+  if (reward.reclassVouchers > 0) parts.push(`${icon('rpgCharacter')} ${m.tower_reward_reclass_vouchers({ count: reward.reclassVouchers }, { locale })}`);
   if (reward.stat === 'RANDOM') {
     parts.push(`${icon('rpgUp')} ${m.tower_reward_stat_random({ amount: reward.statAmount }, { locale })}`);
   } else {
@@ -1978,7 +1978,7 @@ async function buildTowerDailyView(guildId: string, ownerId: string, locale: Loc
     header(config, m.tower_daily_title({}, { locale })),
     await dailyChallengeLines(guildId, profile, locale),
     `-# ${m.tower_daily_rules({}, { locale })}`,
-    `-# ${icon('trophy')} ${m.tower_daily_podium({ first: TOWER_DAILY_PODIUM_SHARDS[0], second: TOWER_DAILY_PODIUM_SHARDS[1], third: TOWER_DAILY_PODIUM_SHARDS[2] }, { locale })}`,
+    `-# ${icon('trophy')} ${m.tower_daily_podium({ first: TOWER_DAILY_PODIUM_SHARDS[0], second: TOWER_DAILY_PODIUM_SHARDS[1], third: TOWER_DAILY_PODIUM_SHARDS[2], shard: icon('rpgShard') }, { locale })}`,
     '',
     lines.length > 0 ? lines.join('\n') : `*${m.tower_daily_empty({}, { locale })}*`,
   ].join('\n'));
