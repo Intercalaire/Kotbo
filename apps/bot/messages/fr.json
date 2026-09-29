@@ -2948,6 +2948,7 @@
   "tower_reward_stat_health": "+{gain} PV max",
   "tower_reward_stat_points": "{amount} point(s) de caractéristique à répartir",
   "tower_reward_stat_random": "+{amount} sur une caractéristique au hasard",
+  "tower_reward_max_energy": "+{amount} énergie max",
   "tower_reward_clan_points": "{amount} points de clan",
   "tower_reward_title": "Titre « {name} »",
   "tower_room_start": "Départ",

@@ -63,6 +63,7 @@ import {
 } from '../../services/features/rpg/rpgTowerMap.js';
 import { floorSeed, generateTowerLayout, towerFloorLayout } from '../../services/features/rpg/rpgTowerGen.js';
 import { renderTowerImage } from '../../services/features/rpg/rpgTowerRender.js';
+import { gaugeNumber } from '../../services/features/rpg/rpgIcons.js';
 
 const RULES: TowerRules = { floorGrowthPercent: 8, bossEvery: 10, blessingEvery: 5, maxBlessings: 6, shardsPerFloor: 2 };
 const FOES = { monsters: [{ name: 'Rat', emoji: '🐀' }], bosses: [{ name: 'Roi Rat', emoji: '👑' }], byName: {} };
@@ -266,6 +267,23 @@ describe('réglages et récompenses', () => {
     expect(single.ok && single.value.maxPurchases).toBe(0);
     const milestone = normalizeTowerReward({ kind: 'MILESTONE', name: 'Palier', floor: 10, stat: 'RANDOM', statAmount: 2 });
     expect(milestone.ok && milestone.value.maxPurchases).toBe(0);
+  });
+
+  test('un article peut n\'offrir que de l\'énergie max, bornée au plafond', () => {
+    const energy = normalizeTowerReward({ kind: 'SHOP', name: 'Endurance', price: 80, maxEnergy: 50, repeatable: true });
+    expect(energy.ok && energy.value.maxEnergy).toBe(50);
+    const huge = normalizeTowerReward({ kind: 'SHOP', name: 'Démesure', price: 80, maxEnergy: 9_000_000 });
+    expect(huge.ok && huge.value.maxEnergy).toBe(2_000_000);
+    expect(normalizeTowerReward({ kind: 'SHOP', name: 'Rien', price: 80, maxEnergy: 0 }).ok).toBe(false);
+  });
+
+  test('une jauge reste lisible quand ses valeurs deviennent énormes', () => {
+    expect(gaugeNumber(87)).toBe('87');
+    expect(gaugeNumber(12_345)).toBe('12 345');
+    expect(gaugeNumber(123_456)).toBe('123 k');
+    expect(gaugeNumber(1_234_567)).toBe('1,2 M');
+    expect(gaugeNumber(2_000_100)).toBe('2 M');
+    expect(gaugeNumber(15_900_000)).toBe('15 M');
   });
 
   test('un point de statistique vaut ce qu\'il vaut à la répartition', () => {

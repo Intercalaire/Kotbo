@@ -116,6 +116,21 @@ function gaugeSegments(ratio: number, gauge: RpgGauge, size: number): string {
   return bar;
 }
 
+/**
+ * Valeur d'une jauge, lisible même quand elle devient énorme : un serveur peut porter
+ * l'énergie max à des millions, et « 1234567 / 2000100 » ne se lit plus d'un coup d'œil.
+ * En dessous de 100 000, le nombre entier, groupé par milliers ; au-delà, « 123 k », « 1,2 M ».
+ */
+export function gaugeNumber(value: number): string {
+  const n = Math.trunc(value);
+  const abs = Math.abs(n);
+  if (abs < 100_000) return n.toLocaleString('fr-FR').replace(/\s/g, ' ');
+  if (abs < 1_000_000) return `${Math.floor(n / 1000)} k`;
+  const millions = n / 1_000_000;
+  const shown = Math.abs(millions) < 10 ? Math.floor(millions * 10) / 10 : Math.floor(millions);
+  return `${shown.toLocaleString('fr-FR')} M`;
+}
+
 export function gaugeBar(current: number, max: number, gauge: RpgGauge, size = 10): string {
   const ratio = gaugeRatio(current, max);
   return `${gaugeSegments(ratio, gauge, size)} (${Math.round(ratio * 100)}%)`;

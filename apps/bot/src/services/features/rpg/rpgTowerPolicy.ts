@@ -191,6 +191,8 @@ export const TOWER_REWARD_STATS = ['POINTS', 'ATTACK', 'DEFENSE', 'SPEED', 'HEAL
 export type TowerRewardStat = (typeof TOWER_REWARD_STATS)[number];
 /** Points de statistique par versement : de quoi récompenser sans remplacer la montée de niveau. */
 export const TOWER_REWARD_STAT_RANGE = { min: 1, max: 100 } as const;
+/** Énergie max ajoutée par versement : le plafond est celui du bonus d'un joueur. */
+export const TOWER_REWARD_MAX_ENERGY_RANGE = { min: 0, max: 2_000_000 } as const;
 /** Achats au plus par joueur d'un article répétable (0 : sans limite). */
 export const TOWER_REWARD_MAX_PURCHASES_RANGE = { min: 0, max: 10_000 } as const;
 
@@ -284,6 +286,7 @@ export type NormalizedTowerReward = {
   shards: number;
   stat: TowerRewardStat | null;
   statAmount: number;
+  maxEnergy: number;
   maxPurchases: number;
   limitPeriod: TowerRewardLimitPeriod;
   enabled: boolean;
@@ -318,6 +321,7 @@ export function normalizeTowerReward(input: Record<string, unknown>): TowerNorma
     shards: kind === 'MILESTONE' ? clampInt(input.shards, TOWER_REWARD_COINS_RANGE, 0) : 0,
     stat: null,
     statAmount: 0,
+    maxEnergy: clampInt(input.maxEnergy, TOWER_REWARD_MAX_ENERGY_RANGE, 0),
     maxPurchases: 0,
     limitPeriod: 'NEVER',
     enabled: input.enabled !== false,
@@ -336,10 +340,10 @@ export function normalizeTowerReward(input: Record<string, unknown>): TowerNorma
     value.limitPeriod = input.limitPeriod as TowerRewardLimitPeriod;
   }
 
-  const grantsSomething = value.titleId || value.roleId || value.itemName || value.stat
+  const grantsSomething = value.titleId || value.roleId || value.itemName || value.stat || value.maxEnergy > 0
     || value.coins > 0 || value.xp > 0 || value.clanPoints > 0 || value.shards > 0;
   if (!grantsSomething) {
-    return { ok: false, error: 'Une récompense doit accorder au moins un titre, un rôle, un objet, des statistiques, des pièces, de l\'XP, des points de clan ou des éclats.' };
+    return { ok: false, error: 'Une récompense doit accorder au moins un titre, un rôle, un objet, des statistiques, de l\'énergie max, des pièces, de l\'XP, des points de clan ou des éclats.' };
   }
   // Un rôle ou un titre ne se possède qu'une fois : le racheter viderait le solde pour rien.
   if (value.repeatable && (value.titleId || value.roleId)) {

@@ -2948,6 +2948,7 @@
   "tower_reward_stat_health": "+{gain} max HP",
   "tower_reward_stat_points": "{amount} stat point(s) to assign",
   "tower_reward_stat_random": "+{amount} to a random stat",
+  "tower_reward_max_energy": "+{amount} max energy",
   "tower_reward_clan_points": "{amount} clan points",
   "tower_reward_title": "Title \"{name}\"",
   "tower_room_start": "Start",

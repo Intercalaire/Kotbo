@@ -27,7 +27,7 @@ import { rankEmoji } from '../../../utils/emojis.js';
 import { getEffectiveLocale } from '../../../utils/i18n.js';
 import * as m from '../../../lib/paraglide/messages.js';
 import { getOrCreateEconomyConfig } from '../economyService.js';
-import { combatHpBar, icon, rarityIcon, RPG_COLORS } from './rpgIcons.js';
+import { combatHpBar, gaugeNumber, icon, rarityIcon, RPG_COLORS } from './rpgIcons.js';
 import {
   ensureOwner,
   replyPanelError,
@@ -838,6 +838,7 @@ function rewardContents(reward: TowerRewardView, coinEmoji: string, config: Towe
   const parts: string[] = [];
   if (reward.coins > 0) parts.push(`${coinEmoji || icon('coins')} ${reward.coins}`);
   if (reward.xp > 0) parts.push(`${icon('rpgXp')} ${m.tower_reward_xp({ amount: reward.xp }, { locale })}`);
+  if (reward.maxEnergy > 0) parts.push(`${icon('rpgEnergy')} ${m.tower_reward_max_energy({ amount: gaugeNumber(reward.maxEnergy) }, { locale })}`);
   if (reward.stat === 'RANDOM') {
     parts.push(`${icon('rpgUp')} ${m.tower_reward_stat_random({ amount: reward.statAmount }, { locale })}`);
   } else {

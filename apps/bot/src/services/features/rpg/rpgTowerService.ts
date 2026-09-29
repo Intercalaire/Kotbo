@@ -14,7 +14,7 @@ import { logger } from '../../../utils/logger.js';
 import { resolveGuildLocale } from '../../../utils/i18n.js';
 import { resolveGuildTimezone } from '../../../utils/timezone.js';
 import * as m from '../../../lib/paraglide/messages.js';
-import { checkLevelUp, getOrCreateEconomyConfig, getOrCreateRpgProfile } from '../economyService.js';
+import { RPG_BONUS_MAX_ENERGY_CAP, checkLevelUp, getOrCreateEconomyConfig, getOrCreateRpgProfile } from '../economyService.js';
 import { loadAvailableSkills, loadEffectiveStats, seedDefaultMonsters } from '../combatService.js';
 import { getRpgClass } from './rpgClasses.js';
 import { MAX_HEALTH_PER_POINT } from './rpgProgressionService.js';
@@ -802,10 +802,11 @@ async function grantRewardToPlayer(client: Client | null, guildId: string, userI
   // Une récompense aléatoire tire sa stat à chaque versement.
   const statGrant = towerStatGrant(reward.stat, reward.statAmount, Math.random(), MAX_HEALTH_PER_POINT);
   let paid: boolean | null = null;
-  if (reward.coins > 0 || reward.xp > 0 || reward.titleId || itemName || statGrant) {
+  const energy = reward.maxEnergy > 0;
+  if (reward.coins > 0 || reward.xp > 0 || reward.titleId || itemName || statGrant || energy) {
     const rpgProfile = await getOrCreateRpgProfile(guildId, userId);
-    if (reward.coins > 0 || reward.xp > 0 || itemName || statGrant) {
-      paid = await settle('Pièces, XP, statistiques et objet', () => prisma.$transaction(async (tx) => {
+    if (reward.coins > 0 || reward.xp > 0 || itemName || statGrant || energy) {
+      paid = await settle('Pièces, XP, statistiques, énergie et objet', () => prisma.$transaction(async (tx) => {
         await lockRpgProfile(tx, rpgProfile.id);
         if (reward.coins > 0 || reward.xp > 0 || statGrant) {
           await tx.rpgProfile.update({
@@ -819,6 +820,18 @@ async function grantRewardToPlayer(client: Client | null, guildId: string, userI
               ...(statGrant?.field === 'maxHealth' ? { health: { increment: statGrant.gain } } : {}),
             },
           });
+        }
+        if (energy) {
+          // Relu sous le verrou : le bonus s'arrête au plafond, sans jamais le dépasser.
+          const { bonusMaxEnergy } = await tx.rpgProfile.findUniqueOrThrow({ where: { id: rpgProfile.id }, select: { bonusMaxEnergy: true } });
+          const gain = Math.max(0, Math.min(reward.maxEnergy, RPG_BONUS_MAX_ENERGY_CAP - bonusMaxEnergy));
+          if (gain > 0) {
+            // Comme la vitalité : la réserve gagnée est remplie aussitôt.
+            await tx.rpgProfile.update({
+              where: { id: rpgProfile.id },
+              data: { bonusMaxEnergy: { increment: gain }, energy: { increment: gain } },
+            });
+          }
         }
         if (itemName) {
           const item = await findGuildItem(tx, guildId, itemName);
@@ -1169,6 +1182,11 @@ export async function buyTowerReward(
   // Ce que la récompense donne doit encore exister avant de débiter : un objet retiré du
   // catalogue, un titre ou un rôle supprimé faisaient payer le joueur pour rien.
   if (!(await rewardStillGrantable(client, guildId, reward))) throw new TowerRefused({ kind: 'unavailable' });
+  // Au plafond d'énergie max, un article d'énergie ne rapporterait plus rien.
+  if (reward.maxEnergy > 0) {
+    const rpg = await prisma.rpgProfile.findUnique({ where: { guildId_userId: { guildId, userId } }, select: { bonusMaxEnergy: true } });
+    if ((rpg?.bonusMaxEnergy ?? 0) >= RPG_BONUS_MAX_ENERGY_CAP) throw new TowerRefused({ kind: 'unavailable' });
+  }
   const profile = await getOrCreateTowerProfile(guildId, userId);
   // Période en cours de la limite : le compteur d'un autre jour ou d'une autre semaine repart à zéro.
   const periodKey = towerPurchaseKey(reward.limitPeriod, new Date(), await resolveGuildTimezone(guildId));
