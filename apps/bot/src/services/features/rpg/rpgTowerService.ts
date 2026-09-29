@@ -454,6 +454,10 @@ export async function startTowerRun(
 
   const dayKey = clanEntry ? clanEntry.attemptKey : await currentTowerDay(guildId);
   const seed = clanEntry ? clanEntry.event.seed : daily ? towerDailySeed(guildId, dayKey) : newTowerSeed();
+  // Tour de clan : les étages suivent la graine de la semaine, pour que les conquêtes du clan
+  // tombent sur les mêmes cartes ; le hasard des combats change chaque jour et pour chacun.
+  // Sinon, refaire les mêmes choix redonnait exactement les mêmes combats d'un jour à l'autre.
+  const rngSeed = clanEntry ? towerDailySeed(`${clanEntry.event.seed}:${userId}`, dayKey) : undefined;
   const skills = pickTowerSkills(preview.skills, options.skillMask ?? 0);
   const skillCost = skills.reduce((sum, skill) => sum + towerSkillPrice(settings.skillPrice, skill), 0);
   const state = createTowerState({
@@ -466,6 +470,7 @@ export async function startTowerRun(
     potions: preview.potions + (clanEntry?.bonus.potions ?? 0),
     gold: preview.gold,
     seed,
+    rngSeed,
     rules: rulesOf(settings),
     // Toujours un étage : les étages dessinés d'abord, générés ensuite ou à défaut.
     layout: towerFloorLayout(settings.floors, 1, settings.floorsAfter, seed, settings.generatedFog),

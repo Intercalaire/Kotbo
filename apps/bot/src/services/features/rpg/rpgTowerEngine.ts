@@ -712,10 +712,15 @@ export function createTowerState(input: {
   /** Or de départ, offert par les améliorations. */
   gold?: number;
   seed: number;
+  /**
+   * Graine du hasard de la partie (combats, butin, traits), quand elle doit différer de celle
+   * des étages. Par défaut, la même.
+   */
+  rngSeed?: number;
   rules: TowerRules;
   layout?: TowerLayout | null;
 }): TowerState {
-  const rng = new TowerRng(input.seed);
+  const rng = new TowerRng(input.rngSeed ?? input.seed);
   const start = input.layout ? startRoom(input.layout) : null;
   const map: TowerMapState | null = input.layout && start
     ? { layout: structuredClone(input.layout), depth: 1, floorBase: 1, floorStart: 1, pos: start.id, cleared: [start.id] }
