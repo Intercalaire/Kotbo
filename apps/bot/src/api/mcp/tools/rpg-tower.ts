@@ -26,6 +26,7 @@ import {
   TOWER_RANGES,
   TOWER_MERCHANT_RANGES,
   TOWER_REWARD_KINDS,
+  TOWER_REWARD_STATS,
   TOWER_UPGRADES_MAX,
   TOWER_UPGRADE_EFFECTS,
   TOWER_UPGRADE_PER_LEVEL_RANGES,
@@ -199,6 +200,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
           reference: {
             entryModes: TOWER_ENTRY_MODES,
             rewardKinds: TOWER_REWARD_KINDS,
+            rewardStats: TOWER_REWARD_STATS,
             ranges: TOWER_RANGES,
             blessings: TOWER_BLESSINGS.map((blessing) => ({ id: blessing.id, name: blessing.name, description: blessing.description, maxRank: blessing.maxRank })),
             traits: {
@@ -350,7 +352,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
     server.registerTool(
       'save_rpg_tower_reward',
       {
-        description: "Crée une récompense de Tour, ou modifie celle désignée par `id` (voir get_rpg_tower). SHOP : article payé en éclats (`price`), unique par joueur sauf `repeatable` (pièces seulement). MILESTONE : versé une fois au joueur qui franchit `floor` étages, peut offrir des éclats. Chaque récompense combine au choix un titre, un rôle, un objet, des pièces, de l'XP RPG, des points de clan (ou de l'XP de guilde RPG selon le mode d'équipe du serveur) et des éclats (paliers), avec au moins un de ces éléments. Préférer des titres sans bonus de stats. Un champ omis garde sa valeur. Requiert WRITE_MEMBERS.",
+        description: "Crée une récompense de Tour, ou modifie celle désignée par `id` (voir get_rpg_tower). SHOP : article payé en éclats (`price`), unique par joueur sauf `repeatable` (sans titre ni rôle), éventuellement borné à `maxPurchases` achats. MILESTONE : versé une fois au joueur qui franchit `floor` étages, peut offrir des éclats. Chaque récompense combine au choix un titre, un rôle, un objet, des pièces, de l'XP RPG, des statistiques du profil RPG (`stat` et `statAmount`, définitives), des points de clan (ou de l'XP de guilde RPG selon le mode d'équipe du serveur) et des éclats (paliers), avec au moins un de ces éléments. Préférer des titres sans bonus de stats. Un champ omis garde sa valeur. Requiert WRITE_MEMBERS.",
         inputSchema: {
           id: z.string().optional().describe('ID de la récompense à modifier. Absent : création.'),
           kind: z.enum(TOWER_REWARD_KINDS).optional().describe('Requis à la création'),
@@ -367,6 +369,9 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
           clanPoints: z.number().int().min(0).optional().describe('Points de clan, ou XP de guilde RPG selon le mode d\'équipe du serveur'),
           itemName: z.string().nullable().optional().describe('Objet offert (nom exact du catalogue), null pour aucun'),
           shards: z.number().int().min(0).optional().describe('Éclats offerts (MILESTONE)'),
+          stat: z.enum(TOWER_REWARD_STATS).nullable().optional().describe('Statistique du profil RPG montée : POINTS (points à répartir), ATTACK, DEFENSE, SPEED, HEALTH, ou RANDOM (une des quatre, tirée à chaque versement) ; null pour aucune'),
+          statAmount: z.number().int().min(1).max(100).optional().describe('Points versés : 1 point = +1 en attaque, défense ou vitesse, ou +8 PV max'),
+          maxPurchases: z.number().int().min(0).optional().describe('Achats au plus par joueur d\'un article répétable (SHOP) ; 0 = sans limite'),
           enabled: z.boolean().optional(),
           key_name: z.string().optional(),
         },

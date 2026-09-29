@@ -8,6 +8,8 @@ import {
   floorShards,
   normalizeTowerReward,
   normalizeTowerSettings,
+  parseTowerPurchases,
+  towerStatGrant,
   normalizeTowerUpgrades,
   parseTowerUpgrades,
   rollBlessingChoices,
@@ -245,6 +247,40 @@ describe('réglages et récompenses', () => {
     expect(normalizeTowerReward({ kind: 'MILESTONE', name: 'Savoir', floor: 5, xp: 100 }).ok).toBe(true);
     expect(normalizeTowerReward({ kind: 'SHOP', name: 'Coffre', price: 50, itemName: ' Potion ' }).ok).toBe(true);
     expect(normalizeTowerReward({ kind: 'MILESTONE', name: 'Rien', floor: 5, clanPoints: -4 }).ok).toBe(false);
+  });
+
+  test('un article peut monter une statistique du RPG, à quantité limitée', () => {
+    const force = normalizeTowerReward({ kind: 'SHOP', name: 'Force', price: 50, stat: 'ATTACK', statAmount: 1, repeatable: true, maxPurchases: 10 });
+    expect(force.ok).toBe(true);
+    if (force.ok) {
+      expect(force.value).toMatchObject({ stat: 'ATTACK', statAmount: 1, maxPurchases: 10 });
+    }
+    // Une stat seule suffit à faire une récompense, et sa quantité est bornée.
+    const points = normalizeTowerReward({ kind: 'SHOP', name: 'Points', price: 50, stat: 'POINTS', statAmount: 999 });
+    expect(points.ok && points.value.statAmount).toBe(100);
+    expect(normalizeTowerReward({ kind: 'SHOP', name: 'Faux', price: 50, stat: 'LUCK' }).ok).toBe(false);
+    // La limite n'a de sens que sur un article répétable : un article unique s'achète une fois.
+    const single = normalizeTowerReward({ kind: 'SHOP', name: 'Unique', price: 50, stat: 'SPEED', maxPurchases: 5 });
+    expect(single.ok && single.value.maxPurchases).toBe(0);
+    const milestone = normalizeTowerReward({ kind: 'MILESTONE', name: 'Palier', floor: 10, stat: 'RANDOM', statAmount: 2 });
+    expect(milestone.ok && milestone.value.maxPurchases).toBe(0);
+  });
+
+  test('un point de statistique vaut ce qu\'il vaut à la répartition', () => {
+    expect(towerStatGrant('ATTACK', 2, 0, 8)).toEqual({ field: 'attack', gain: 2 });
+    expect(towerStatGrant('HEALTH', 2, 0, 8)).toEqual({ field: 'maxHealth', gain: 16 });
+    expect(towerStatGrant('POINTS', 3, 0, 8)).toEqual({ field: 'statPoints', gain: 3 });
+    expect(towerStatGrant(null, 3, 0, 8)).toBeNull();
+    expect(towerStatGrant('ATTACK', 0, 0, 8)).toBeNull();
+    // Au hasard : le tirage choisit une des quatre stats, sans jamais sortir de la liste.
+    const drawn = [0, 0.3, 0.6, 0.99, 1].map((roll) => towerStatGrant('RANDOM', 1, roll, 8)?.field);
+    expect(drawn).toEqual(['attack', 'defense', 'speed', 'maxHealth', 'maxHealth']);
+  });
+
+  test('les achats stockés ne gardent que des compteurs valides', () => {
+    expect(parseTowerPurchases({ a: 2, b: 0, c: -1, d: 1.5, e: 'x' })).toEqual({ a: 2 });
+    expect(parseTowerPurchases(null)).toEqual({});
+    expect(parseTowerPurchases([1, 2])).toEqual({});
   });
 
   test('les bénédictions respectent le plafond de variétés', () => {

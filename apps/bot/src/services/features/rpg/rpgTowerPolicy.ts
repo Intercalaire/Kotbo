@@ -183,6 +183,58 @@ export const TOWER_REWARD_PRICE_RANGE = { min: 1, max: 1_000_000 } as const;
 export const TOWER_REWARD_FLOOR_RANGE = { min: 1, max: 1000 } as const;
 export const TOWER_REWARD_COINS_RANGE = { min: 0, max: 1_000_000 } as const;
 
+/**
+ * Statistiques du profil RPG qu'une récompense peut monter : des points à répartir, une stat
+ * choisie par l'administrateur, ou une stat tirée au hasard à chaque versement.
+ */
+export const TOWER_REWARD_STATS = ['POINTS', 'ATTACK', 'DEFENSE', 'SPEED', 'HEALTH', 'RANDOM'] as const;
+export type TowerRewardStat = (typeof TOWER_REWARD_STATS)[number];
+/** Points de statistique par versement : de quoi récompenser sans remplacer la montée de niveau. */
+export const TOWER_REWARD_STAT_RANGE = { min: 1, max: 100 } as const;
+/** Achats au plus par joueur d'un article répétable (0 : sans limite). */
+export const TOWER_REWARD_MAX_PURCHASES_RANGE = { min: 0, max: 10_000 } as const;
+
+/** Stat de base du profil RPG, telle que la répartition des points la monte. */
+export type TowerStatField = 'attack' | 'defense' | 'speed' | 'maxHealth';
+const STAT_FIELDS: Record<Exclude<TowerRewardStat, 'POINTS' | 'RANDOM'>, TowerStatField> = {
+  ATTACK: 'attack',
+  DEFENSE: 'defense',
+  SPEED: 'speed',
+  HEALTH: 'maxHealth',
+};
+const RANDOM_STATS: readonly TowerStatField[] = ['attack', 'defense', 'speed', 'maxHealth'];
+
+export type TowerStatGrant = { field: 'statPoints' | TowerStatField; gain: number };
+
+/**
+ * Ce qu'un versement ajoute au profil RPG. Un point vaut ce qu'il vaut à la répartition :
+ * +1 en attaque, défense ou vitesse, `healthPerPoint` PV max en vitalité. `roll` (0 à 1)
+ * choisit la stat d'une récompense aléatoire.
+ */
+export function towerStatGrant(
+  stat: string | null | undefined,
+  amount: number,
+  roll: number,
+  healthPerPoint: number,
+): TowerStatGrant | null {
+  if (!stat || amount <= 0 || !TOWER_REWARD_STATS.includes(stat as TowerRewardStat)) return null;
+  if (stat === 'POINTS') return { field: 'statPoints', gain: amount };
+  const field = stat === 'RANDOM'
+    ? RANDOM_STATS[Math.min(RANDOM_STATS.length - 1, Math.floor(Math.max(0, roll) * RANDOM_STATS.length))]
+    : STAT_FIELDS[stat as keyof typeof STAT_FIELDS];
+  return { field, gain: field === 'maxHealth' ? amount * healthPerPoint : amount };
+}
+
+/** Achats de la boutique par article, tels que stockés sur le profil Tour. */
+export function parseTowerPurchases(value: unknown): Record<string, number> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const counts: Record<string, number> = {};
+  for (const [id, count] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof count === 'number' && Number.isInteger(count) && count > 0) counts[id] = count;
+  }
+  return counts;
+}
+
 export type NormalizedTowerReward = {
   kind: TowerRewardKind;
   name: string;
@@ -198,6 +250,9 @@ export type NormalizedTowerReward = {
   clanPoints: number;
   itemName: string | null;
   shards: number;
+  stat: TowerRewardStat | null;
+  statAmount: number;
+  maxPurchases: number;
   enabled: boolean;
 };
 
@@ -228,13 +283,25 @@ export function normalizeTowerReward(input: Record<string, unknown>): TowerNorma
     clanPoints: clampInt(input.clanPoints, TOWER_REWARD_COINS_RANGE, 0),
     itemName: text(input.itemName) || null,
     shards: kind === 'MILESTONE' ? clampInt(input.shards, TOWER_REWARD_COINS_RANGE, 0) : 0,
+    stat: null,
+    statAmount: 0,
+    maxPurchases: 0,
     enabled: input.enabled !== false,
   };
 
-  const grantsSomething = value.titleId || value.roleId || value.itemName
+  const stat = text(input.stat);
+  if (stat) {
+    if (!TOWER_REWARD_STATS.includes(stat as TowerRewardStat)) return { ok: false, error: 'Statistique de récompense invalide.' };
+    value.stat = stat as TowerRewardStat;
+    value.statAmount = clampInt(input.statAmount, TOWER_REWARD_STAT_RANGE, TOWER_REWARD_STAT_RANGE.min);
+  }
+  // Un article unique ne s'achète déjà qu'une fois ; un palier ne se verse qu'une fois.
+  if (value.repeatable) value.maxPurchases = clampInt(input.maxPurchases, TOWER_REWARD_MAX_PURCHASES_RANGE, 0);
+
+  const grantsSomething = value.titleId || value.roleId || value.itemName || value.stat
     || value.coins > 0 || value.xp > 0 || value.clanPoints > 0 || value.shards > 0;
   if (!grantsSomething) {
-    return { ok: false, error: 'Une récompense doit accorder au moins un titre, un rôle, un objet, des pièces, de l\'XP, des points de clan ou des éclats.' };
+    return { ok: false, error: 'Une récompense doit accorder au moins un titre, un rôle, un objet, des statistiques, des pièces, de l\'XP, des points de clan ou des éclats.' };
   }
   // Un rôle ou un titre ne se possède qu'une fois : le racheter viderait le solde pour rien.
   if (value.repeatable && (value.titleId || value.roleId)) {

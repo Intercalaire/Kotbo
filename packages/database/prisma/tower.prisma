@@ -113,6 +113,13 @@ model RpgTowerReward {
   itemName   String?
   /// Éclats versés par un palier.
   shards  Int     @default(0)
+  /// Statistiques du profil RPG : POINTS (à répartir), ATTACK, DEFENSE, SPEED, HEALTH, ou
+  /// RANDOM (une de ces quatre, tirée à chaque versement). `statAmount` compte des points :
+  /// un point vaut +1 en attaque, défense ou vitesse, ou les PV d'un point de vitalité.
+  stat       String?
+  statAmount Int     @default(0)
+  /// Achats au plus par joueur d'un article répétable ; 0 : sans limite.
+  maxPurchases Int   @default(0)
 
   enabled Boolean @default(true)
 
@@ -148,6 +155,8 @@ model RpgTowerProfile {
   upgrades         Json     @default("{}")
   /// Paliers déjà versés et articles uniques déjà achetés.
   claimedRewardIds String[] @default([])
+  /// Achats de la boutique par article : { rewardId: 3 }. Borne les articles à quantité limitée.
+  purchases        Json     @default("{}")
   /// Salles piégées déjà rencontrées (MIMIC, AMBUSH, WANDERER) : le guide ne les dévoile
   /// qu'au joueur qui est tombé dessus.
   discoveredRooms  String[] @default([])

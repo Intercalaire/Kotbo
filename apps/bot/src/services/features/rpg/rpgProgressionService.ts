@@ -50,7 +50,7 @@ export type AllocatableStat = 'attack' | 'defense' | 'speed' | 'maxHealth';
 export const STAT_POINTS_PER_LEVEL = 3;
 
 /** Un point investi dans les PV vaut plusieurs PV, sinon l'option ne vaut jamais le coup. */
-const MAX_HEALTH_PER_POINT = 8;
+export const MAX_HEALTH_PER_POINT = 8;
 
 // ════════════════════════════════════════════════════════════════════════════
 // CLASSE

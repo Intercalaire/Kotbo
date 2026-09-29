@@ -17,6 +17,7 @@ import * as m from '../../../lib/paraglide/messages.js';
 import { checkLevelUp, getOrCreateEconomyConfig, getOrCreateRpgProfile } from '../economyService.js';
 import { loadAvailableSkills, loadEffectiveStats, seedDefaultMonsters } from '../combatService.js';
 import { getRpgClass } from './rpgClasses.js';
+import { MAX_HEALTH_PER_POINT } from './rpgProgressionService.js';
 import { nodesForClass } from './rpgSkillTree.js';
 import { TOWER_SIM_RUNS_MAX, simulateTowerRuns, type TowerSimResult } from './rpgTowerSim.js';
 import { listGuildMonsters } from './rpgBestiaryService.js';
@@ -67,8 +68,10 @@ import {
   newTowerSeed,
   normalizeTowerReward,
   normalizeTowerSettings,
+  parseTowerPurchases,
   parseTowerUpgrades,
   settleShards,
+  towerStatGrant,
   towerUpgradeBonus,
   towerDailySeed,
   towerDayKey,
@@ -84,6 +87,7 @@ import {
   type TowerOutcome,
   type TowerSettings,
   type TowerSkill,
+  type TowerStatGrant,
   type TowerUpgradeDef,
 } from './rpgTowerPolicy.js';
 import {
@@ -126,6 +130,8 @@ export type TowerRefusal =
   | { kind: 'action'; reason: TowerActionError }
   | { kind: 'shards'; price: number; balance: number }
   | { kind: 'owned' }
+  /** Article à quantité limitée déjà acheté autant de fois que permis. */
+  | { kind: 'limit'; max: number }
   | { kind: 'unavailable' }
   | { kind: 'upgrade_max' }
   | { kind: 'daily_disabled' }
@@ -783,22 +789,32 @@ async function findGuildItem(client: Prisma.TransactionClient, guildId: string, 
  * Verse une récompense de Tour au profil RPG. Chaque versement est isolé : un incident sur
  * le rôle ou les points de clan ne prive pas le joueur du reste, qu'il ne pourra plus réclamer.
  */
-async function grantRewardToPlayer(client: Client | null, guildId: string, userId: string, reward: RpgTowerReward, reason: string): Promise<void> {
+async function grantRewardToPlayer(client: Client | null, guildId: string, userId: string, reward: RpgTowerReward, reason: string): Promise<TowerStatGrant | null> {
   const settle = <T>(step: string, run: () => Promise<T>): Promise<T | null> => run().catch((err) => {
     logger.warn('RpgTower', `${step} de « ${reward.name} » non versé à ${userId} sur ${guildId} :`, err);
     return null;
   });
 
   const itemName = reward.itemName;
-  if (reward.coins > 0 || reward.xp > 0 || reward.titleId || itemName) {
+  // Une récompense aléatoire tire sa stat à chaque versement.
+  const statGrant = towerStatGrant(reward.stat, reward.statAmount, Math.random(), MAX_HEALTH_PER_POINT);
+  let paid: boolean | null = null;
+  if (reward.coins > 0 || reward.xp > 0 || reward.titleId || itemName || statGrant) {
     const rpgProfile = await getOrCreateRpgProfile(guildId, userId);
-    if (reward.coins > 0 || reward.xp > 0 || itemName) {
-      await settle('Pièces, XP et objet', () => prisma.$transaction(async (tx) => {
+    if (reward.coins > 0 || reward.xp > 0 || itemName || statGrant) {
+      paid = await settle('Pièces, XP, statistiques et objet', () => prisma.$transaction(async (tx) => {
         await lockRpgProfile(tx, rpgProfile.id);
-        if (reward.coins > 0 || reward.xp > 0) {
+        if (reward.coins > 0 || reward.xp > 0 || statGrant) {
           await tx.rpgProfile.update({
             where: { id: rpgProfile.id },
-            data: { balance: { increment: reward.coins }, xp: { increment: reward.xp } },
+            data: {
+              balance: { increment: reward.coins },
+              xp: { increment: reward.xp },
+              ...(statGrant ? { [statGrant.field]: { increment: statGrant.gain } } : {}),
+              // Comme à la répartition : un gain de vitalité soigne d'autant, sinon il resterait
+              // invisible jusqu'au prochain repos.
+              ...(statGrant?.field === 'maxHealth' ? { health: { increment: statGrant.gain } } : {}),
+            },
           });
         }
         if (itemName) {
@@ -806,6 +822,7 @@ async function grantRewardToPlayer(client: Client | null, guildId: string, userI
           if (item) await addInventoryQuantity(tx, rpgProfile.id, item.id, 1);
           else logger.warn('RpgTower', `Objet « ${itemName} » introuvable pour la récompense ${reward.id} sur ${guildId}.`);
         }
+        return true;
       }));
       if (reward.xp > 0) await settle('Passage de niveau', () => checkLevelUp(guildId, userId));
     }
@@ -813,7 +830,9 @@ async function grantRewardToPlayer(client: Client | null, guildId: string, userI
     if (titleId) await settle('Titre', () => grantTitle(rpgProfile.id, titleId));
   }
 
-  if (!client) return;
+  // La stat versée, pour que la boutique dise laquelle le hasard a tirée.
+  const granted = paid ? statGrant : null;
+  if (!client) return granted;
   const discord = client;
   if (reward.clanPoints > 0) {
     await settle('Points de clan', () => awardRpgTeamPoints({
@@ -827,6 +846,7 @@ async function grantRewardToPlayer(client: Client | null, guildId: string, userI
   }
   const roleId = reward.roleId;
   if (roleId) await settle('Rôle', () => grantRpgRewardRole(discord, guildId, userId, roleId, reason));
+  return granted;
 }
 
 /**
@@ -1122,10 +1142,17 @@ export async function getTowerShop(guildId: string, userId: string) {
     milestones: await withTitleNames(milestones),
     upgrades: settings.upgrades.filter((upgrade) => upgrade.enabled),
     levels: parseTowerUpgrades(profile.upgrades, settings.upgrades),
+    /** Achats du joueur par article, pour les articles à quantité limitée. */
+    purchases: parseTowerPurchases(profile.purchases),
   };
 }
 
-export async function buyTowerReward(client: Client | null, guildId: string, userId: string, rewardId: string): Promise<RpgTowerReward> {
+export async function buyTowerReward(
+  client: Client | null,
+  guildId: string,
+  userId: string,
+  rewardId: string,
+): Promise<{ reward: RpgTowerReward; stat: TowerStatGrant | null }> {
   const reward = await prisma.rpgTowerReward.findUnique({ where: { id: rewardId } });
   if (!reward || reward.guildId !== guildId || reward.kind !== 'SHOP' || !reward.enabled) {
     throw new TowerRefused({ kind: 'unavailable' });
@@ -1139,18 +1166,23 @@ export async function buyTowerReward(client: Client | null, guildId: string, use
     await tx.$queryRaw`SELECT 1 FROM "rpg_tower_profiles" WHERE "id" = ${profile.id} FOR UPDATE`;
     const fresh = await tx.rpgTowerProfile.findUniqueOrThrow({ where: { id: profile.id } });
     if (!reward.repeatable && fresh.claimedRewardIds.includes(reward.id)) throw new TowerRefused({ kind: 'owned' });
+    // Relu sous le verrou : deux clics sur le dernier exemplaire n'en achètent qu'un.
+    const purchases = parseTowerPurchases(fresh.purchases);
+    const bought = purchases[reward.id] ?? 0;
+    if (reward.maxPurchases > 0 && bought >= reward.maxPurchases) throw new TowerRefused({ kind: 'limit', max: reward.maxPurchases });
     if (fresh.shards < reward.price) throw new TowerRefused({ kind: 'shards', price: reward.price, balance: fresh.shards });
     await tx.rpgTowerProfile.update({
       where: { id: profile.id },
       data: {
         shards: { decrement: reward.price },
+        purchases: { ...purchases, [reward.id]: bought + 1 },
         ...(reward.repeatable ? {} : { claimedRewardIds: { push: reward.id } }),
       },
     });
   });
 
-  await grantRewardToPlayer(client, guildId, userId, reward, `Tour : achat de ${reward.name}`);
-  return reward;
+  const stat = await grantRewardToPlayer(client, guildId, userId, reward, `Tour : achat de ${reward.name}`);
+  return { reward, stat };
 }
 
 /** Objet, titre et rôle de la récompense sont-ils toujours là ? */

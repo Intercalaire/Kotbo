@@ -109,6 +109,7 @@ import {
   settleShards,
   towerRerollPrice,
   towerSkillPrice,
+  towerStatGrant,
   towerUpgradeCost,
   type TowerDoor,
   type TowerGear,
@@ -116,9 +117,11 @@ import {
   type TowerMerchantSettings,
   type TowerOffer,
   type TowerSkill,
+  type TowerStatGrant,
   type TowerUpgradeDef,
   type TowerUpgradeEffect,
 } from './rpgTowerPolicy.js';
+import { MAX_HEALTH_PER_POINT } from './rpgProgressionService.js';
 import {
   TowerRefused,
   abandonTowerRun,
@@ -808,11 +811,39 @@ function runMerchant(state: TowerState, config: TowerConfigView): TowerMerchantS
   return state.rules?.merchant ?? config.merchant;
 }
 
+const STAT_LABELS: Record<Exclude<TowerStatGrant['field'], 'statPoints' | 'maxHealth'>, (locale: Locale) => string> = {
+  attack: (locale) => m.rpg_stat_attack({}, { locale }),
+  defense: (locale) => m.rpg_stat_defense({}, { locale }),
+  speed: (locale) => m.rpg_stat_speed({}, { locale }),
+};
+
+const STAT_ICONS: Record<TowerStatGrant['field'], string> = {
+  statPoints: 'rpgUp',
+  attack: 'rpgAtk',
+  defense: 'rpgDef',
+  speed: 'rpgSpd',
+  maxHealth: 'rpgHp',
+};
+
+/** Une stat versée au profil RPG : « +1 Attaque », « +8 PV max », « 2 points à répartir ». */
+function statGrantText(grant: TowerStatGrant, locale: Locale): string {
+  const glyph = icon(STAT_ICONS[grant.field]);
+  if (grant.field === 'statPoints') return `${glyph} ${m.tower_reward_stat_points({ amount: grant.gain }, { locale })}`;
+  if (grant.field === 'maxHealth') return `${glyph} ${m.tower_reward_stat_health({ gain: grant.gain }, { locale })}`;
+  return `${glyph} ${m.tower_reward_stat({ gain: grant.gain, stat: STAT_LABELS[grant.field](locale) }, { locale })}`;
+}
+
 /** Ce qu'une récompense verse au profil RPG, sur une ligne. */
 function rewardContents(reward: TowerRewardView, coinEmoji: string, config: TowerConfigView, locale: Locale): string {
   const parts: string[] = [];
   if (reward.coins > 0) parts.push(`${coinEmoji || icon('coins')} ${reward.coins}`);
   if (reward.xp > 0) parts.push(`${icon('rpgXp')} ${m.tower_reward_xp({ amount: reward.xp }, { locale })}`);
+  if (reward.stat === 'RANDOM') {
+    parts.push(`${icon('rpgUp')} ${m.tower_reward_stat_random({ amount: reward.statAmount }, { locale })}`);
+  } else {
+    const grant = towerStatGrant(reward.stat, reward.statAmount, 0, MAX_HEALTH_PER_POINT);
+    if (grant) parts.push(statGrantText(grant, locale));
+  }
   if (reward.clanPoints > 0) parts.push(`${icon('rpgClan')} ${m.tower_reward_clan_points({ amount: reward.clanPoints }, { locale })}`);
   if (reward.itemName) parts.push(`${icon('rpgBag')} ${reward.itemName}`);
   if (reward.titleName) parts.push(`${icon('star')} ${m.tower_reward_title({ name: reward.titleName }, { locale })}`);
@@ -926,6 +957,7 @@ export function towerRefusalText(refusal: TowerRefusal, config: TowerConfigView,
     case 'in_combat': return m.tower_refused_in_combat({}, { locale });
     case 'shards': return m.tower_refused_shards({ price: refusal.price, balance: refusal.balance, emoji: shardIcon(config) }, { locale });
     case 'owned': return m.tower_refused_owned({}, { locale });
+    case 'limit': return m.tower_refused_limit({ max: refusal.max }, { locale });
     case 'unavailable': return m.tower_refused_unavailable({}, { locale });
     case 'upgrade_max': return m.tower_refused_upgrade_max({}, { locale });
     case 'daily_disabled': return m.tower_refused_daily_disabled({}, { locale });
@@ -1799,20 +1831,26 @@ async function buildTowerShopView(guildId: string, ownerId: string, locale: Loca
   if (shown.length === 0) textBlock(container, `*${m.tower_shop_empty({}, { locale })}*`);
   for (const reward of shown) {
     const owned = !reward.repeatable && shop.profile.claimedRewardIds.includes(reward.id);
+    const bought = shop.purchases[reward.id] ?? 0;
+    const limited = reward.maxPurchases > 0;
+    const soldOut = limited && bought >= reward.maxPurchases;
     const contents = rewardContents(reward, economy.currencyEmoji, config, locale);
+    const title = `${rewardIcon(reward)} **${reward.name}**`
+      + (limited ? ` · ${m.tower_shop_purchases({ count: bought, max: reward.maxPurchases }, { locale })}` : '');
+    const unavailable = owned || soldOut;
     container.addSectionComponents(new SectionBuilder()
       .addTextDisplayComponents(new TextDisplayBuilder().setContent(truncate(
-        [`${rewardIcon(reward)} **${reward.name}**`, contents || null, reward.description ? `-# ${reward.description}` : null]
+        [title, contents || null, reward.description ? `-# ${reward.description}` : null]
           .filter((line): line is string => line !== null)
           .join('\n'),
         500,
       )))
       .setButtonAccessory(button(
         `twr:buy:${ownerId}:${reward.id}:${current}`,
-        owned ? m.tower_shop_owned({}, { locale }) : String(reward.price),
+        owned ? m.tower_shop_owned({}, { locale }) : soldOut ? m.tower_shop_limit({}, { locale }) : String(reward.price),
         ButtonStyle.Success,
-        owned ? undefined : shardButtonEmoji(config),
-        owned || shop.profile.shards < reward.price,
+        unavailable ? undefined : shardButtonEmoji(config),
+        unavailable || shop.profile.shards < reward.price,
       )));
   }
 
@@ -2185,9 +2223,13 @@ export async function handleTowerButton(client: Client, customId: string, intera
       }
       case 'shop': await respond(interaction, await buildTowerShopView(guildId, ownerId, locale, Number.parseInt(rest[0] ?? '0', 10) || 0)); return;
       case 'buy': {
-        const reward = await buyTowerReward(client, guildId, ownerId, rest[0] ?? '');
+        const { reward, stat } = await buyTowerReward(client, guildId, ownerId, rest[0] ?? '');
         const view = await buildTowerShopView(guildId, ownerId, locale, Number.parseInt(rest[1] ?? '0', 10) || 0);
-        await respond(interaction, withNote(view, m.tower_shop_bought({ emoji: reward.emoji, name: reward.name }, { locale })));
+        // La stat gagnée est dite en clair : celle d'un article aléatoire n'est connue qu'ici.
+        const note = stat
+          ? m.tower_shop_bought_stat({ emoji: reward.emoji, name: reward.name, stat: statGrantText(stat, locale) }, { locale })
+          : m.tower_shop_bought({ emoji: reward.emoji, name: reward.name }, { locale });
+        await respond(interaction, withNote(view, note));
         return;
       }
       case 'upg': {
