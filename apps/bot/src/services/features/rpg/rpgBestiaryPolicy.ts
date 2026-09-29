@@ -9,9 +9,14 @@ export const MONSTER_NAME_MAX = 60;
 export const MONSTER_DESCRIPTION_MAX = 400;
 export const MONSTER_DROPS_MAX = 8;
 
-export const LEVEL_RANGE = { min: 1, max: 100 } as const;
-export const HEALTH_RANGE = { min: 1, max: 100_000 } as const;
-export const STAT_RANGE = { min: 0, max: 10_000 } as const;
+/** Aucun plafond de jeu : les joueurs montent sans limite, les créatures doivent pouvoir suivre. */
+export const LEVEL_RANGE = { min: 1, max: 1_000_000 } as const;
+/**
+ * Bornes de sécurité plutôt que d'équilibrage : une créature de haut niveau doit pouvoir tenir
+ * tête aux joueurs qui y arrivent. Les PV restent sous le plafond d'une colonne entière.
+ */
+export const HEALTH_RANGE = { min: 1, max: 1_000_000_000 } as const;
+export const STAT_RANGE = { min: 0, max: 1_000_000 } as const;
 export const REWARD_RANGE = { min: 0, max: 1_000_000 } as const;
 export const RESPAWN_HOURS_RANGE = { min: 1, max: 720 } as const;
 export const CLAN_POINTS_RANGE = { min: 0, max: 100_000 } as const;

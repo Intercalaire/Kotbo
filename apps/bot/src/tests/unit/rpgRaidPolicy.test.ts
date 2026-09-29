@@ -185,7 +185,7 @@ describe('fiche de boss de raid', () => {
   test('ramène les statistiques aberrantes dans leurs bornes', () => {
     const result = normalizeRaidBossInput({ ...VALID, attack: 10_000_000, level: -5 });
     if (!result.ok) throw new Error(result.error);
-    expect(result.value.attack).toBe(10_000);
+    expect(result.value.attack).toBe(1_000_000);
     expect(result.value.level).toBe(1);
   });
 

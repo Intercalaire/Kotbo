@@ -44,11 +44,12 @@ describe('normalisation d’une fiche de monstre', () => {
   });
 
   test('ramène les statistiques aberrantes dans leurs bornes', () => {
-    const monster = expectOk({ ...VALID, level: 9999, health: 0, attack: -5, speed: 1e9 });
-    expect(monster.level).toBe(100);
+    const monster = expectOk({ ...VALID, level: 1e9, health: 0, attack: -5, speed: 1e9 });
+    expect(monster.level).toBe(1_000_000);
+    expect(expectOk({ ...VALID, level: 250 }).level).toBe(250);
     expect(monster.health).toBe(1);
     expect(monster.attack).toBe(0);
-    expect(monster.speed).toBe(10_000);
+    expect(monster.speed).toBe(1_000_000);
   });
 
   test('la prime de clan est bornée et vaut zéro par défaut', () => {
