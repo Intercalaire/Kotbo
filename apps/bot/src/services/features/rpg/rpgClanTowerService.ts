@@ -222,12 +222,16 @@ async function openDueEvent(client: Client, guildId: string): Promise<void> {
   }, timezone);
   if (window.opensAt.getTime() > now.getTime() || window.closesAt.getTime() <= now.getTime()) return;
 
-  const event = await prisma.rpgClanTowerEvent.create({
+  // Le cycle repasse toute la semaine : l'événement existe déjà presque toujours. Un `create`
+  // levait alors une violation d'unicité, rattrapée mais écrite par Prisma dans les logs à
+  // chaque passage. `skipDuplicates` s'en tient au conflit, et l'unicité départage toujours
+  // deux processus qui ouvriraient la même semaine.
+  const created = await prisma.rpgClanTowerEvent.createMany({
     data: { guildId, startsAt: window.opensAt, endsAt: window.closesAt, seed: newTowerSeed() },
-  }).catch((err) => {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return null;
-    throw err;
+    skipDuplicates: true,
   });
+  if (created.count === 0) return;
+  const event = await prisma.rpgClanTowerEvent.findUnique({ where: { guildId_startsAt: { guildId, startsAt: window.opensAt } } });
   if (!event) return;
   logger.info('RpgClanTower', `Tour de clan ouverte sur ${guildId} jusqu'au ${event.endsAt.toISOString()}.`);
   await announceOpening(client, guildId, settings, event).catch((err) => {
