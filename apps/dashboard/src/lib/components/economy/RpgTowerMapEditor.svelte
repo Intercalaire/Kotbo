@@ -816,7 +816,7 @@
       high += span.rooms;
     }
     const mine = floorSpan(layout);
-    return { from: low, to: high + mine.rooms, healthFrom: monsterHealth(low), healthTo: monsterHealth(high + own.rooms) };
+    return { from: low, to: high + mine.rooms, healthFrom: monsterHealth(low), healthTo: monsterHealth(high + mine.rooms) };
   });
 
   // ── Miroir et rotation ──────────────────────────────────────────
