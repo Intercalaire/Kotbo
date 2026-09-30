@@ -1,23 +1,5 @@
-<script lang="ts">
-  /**
-   * La Tour de clan : une tour à part, ouverte chaque semaine, que les clans du serveur
-   * gravissent chacun de leur côté. Réglages, étages (le même éditeur que la Tour) et
-   * classement de la semaine en cours.
-   */
-  import { onMount } from 'svelte';
-  import { m } from '../../i18n';
-  import { channelDisplayName } from '../../channelUtils';
-  import { dashboardStore } from '../../stores/dashboard.svelte';
-  import { createAsyncActionState } from '../../asyncAction.svelte';
-  import { fetchRpgClanTower, saveRpgClanTowerLayout, saveRpgClanTowerSettings } from '../../api';
-  import Papicon from '../Papicon.svelte';
-  import InlineFeedback from '../InlineFeedback.svelte';
-  import SearchableSelect from '../SearchableSelect.svelte';
-  import ToggleSwitch from '../ToggleSwitch.svelte';
-  import RpgTowerMapEditor from './RpgTowerMapEditor.svelte';
-
-  type Foe = { name: string; emoji: string; isBoss: boolean; enabled: boolean };
-  type Settings = {
+<script lang="ts" module>
+  export type ClanSettings = {
     enabled: boolean;
     name: string;
     floorsAfter: 'GENERATE' | 'LOOP';
@@ -31,7 +13,7 @@
     announceChannelId: string | null;
     floors?: any[];
   };
-  type Standing = {
+  export type ClanStanding = {
     clanId: string;
     name: string;
     floors: number;
@@ -40,37 +22,70 @@
     totalFloors?: number;
     milestones?: number;
   };
-  type Award = { clanId: string; name: string; rank: number; floors: number; total: number };
+  export type ClanWeek = { startsAt: string; endsAt: string; standings: ClanStanding[] };
+  export type ClanAward = { clanId: string; name: string; rank: number; floors: number; total: number };
 
-  const {
+  export function CLAN_DEFAULTS(): ClanSettings {
+    return {
+      enabled: false,
+      name: 'Tour de clan',
+      floorsAfter: 'GENERATE',
+      generatedFog: true,
+      weekday: 6,
+      hour: 18,
+      durationHours: 48,
+      pointsPerFloor: 10,
+      podiumPoints: [150, 100, 50],
+      milestones: [10, 25, 50],
+      announceChannelId: null,
+    };
+  }
+</script>
+
+<script lang="ts">
+  /** La Tour de clan par section ; ses réglages sont chargés et enregistrés par RpgTowerPanel. */
+  import { m } from '../../i18n';
+  import { saveRpgClanTowerLayout } from '../../api';
+  import Papicon from '../Papicon.svelte';
+  import SearchableSelect from '../SearchableSelect.svelte';
+  import { Callout, SectionCard, ToggleSwitch } from '../ui';
+  import RpgTowerMapEditor from './RpgTowerMapEditor.svelte';
+
+  type Foe = { name: string; emoji: string; isBoss: boolean; enabled: boolean };
+
+  let {
+    view,
     canManage = false,
     disabled = false,
+    settings = $bindable(),
+    clansEnabled = true,
+    current = null,
+    last = null,
+    nextOpensAt = null,
+    mapVersion = 0,
     foes = [],
     limits = {},
+    channels = [],
     growthPercent = 8,
+    onSaved,
   }: {
+    view: string;
     canManage?: boolean;
     disabled?: boolean;
+    settings: ClanSettings;
+    clansEnabled?: boolean;
+    current?: ClanWeek | null;
+    last?: { endsAt: string; results: { awards?: ClanAward[] } | null } | null;
+    nextOpensAt?: string | null;
+    mapVersion?: number;
     foes?: Foe[];
     limits?: { mapSize?: { min: number; max: number }; mapRoomsMax?: number; floorsMax?: number };
+    channels?: { id: string; name: string }[];
     growthPercent?: number;
+    onSaved: () => void | Promise<void>;
   } = $props();
 
-  const DEFAULTS: Settings = {
-    enabled: false,
-    name: 'Tour de clan',
-    floorsAfter: 'GENERATE',
-    generatedFog: true,
-    weekday: 6,
-    hour: 18,
-    durationHours: 48,
-    pointsPerFloor: 10,
-    podiumPoints: [150, 100, 50],
-    milestones: [10, 25, 50],
-    announceChannelId: null,
-  };
-
-  /** Bonus des paliers collectifs, dans l'ordre (mêmes valeurs que `CLAN_TOWER_MILESTONE_BONUSES` côté bot). */
+  // Mêmes valeurs que `CLAN_TOWER_MILESTONE_BONUSES` côté bot.
   const MILESTONE_BONUSES = [
     () => m.eco_clan_tower_milestone_bonus_1(),
     () => m.eco_clan_tower_milestone_bonus_2(),
@@ -82,241 +97,193 @@
     () => m.eco_clan_tower_day_4(), () => m.eco_clan_tower_day_5(), () => m.eco_clan_tower_day_6(),
   ];
 
-  const actionState = createAsyncActionState();
-  let settings = $state<Settings>({ ...DEFAULTS, podiumPoints: [...DEFAULTS.podiumPoints], milestones: [...DEFAULTS.milestones] });
-  let clansEnabled = $state(true);
-  let current = $state<{ startsAt: string; endsAt: string; standings: Standing[] } | null>(null);
-  let last = $state<{ endsAt: string; results: { awards?: Award[] } | null } | null>(null);
-  let nextOpensAt = $state<string | null>(null);
-  let loading = $state(true);
-  let mapVersion = $state(0);
+  const leader = $derived(current?.standings[0] ?? null);
+  const topFloor = $derived(Math.max(1, leader?.floors ?? 1));
 
-  const channels = $derived(((dashboardStore.state.discordChannels ?? []) as any[]).map((channel) => ({ id: channel.id, name: channelDisplayName(channel) })));
-
-  const inputClass = 'w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-xs focus:outline-none disabled:opacity-60';
-  const labelClass = 'text-xs font-semibold text-on-surface-variant/60 ml-2';
-  const cardClass = 'bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6';
+  const inputClass = 'w-full bg-surface-container-low border border-outline-variant rounded-lg px-3 py-2 text-body-sm focus:outline-none focus:border-primary disabled:opacity-60';
+  const labelClass = 'text-xs font-semibold text-on-surface-variant flex items-center gap-1.5';
+  const choiceClass = 'text-left p-3.5 rounded-xl border transition-colors disabled:cursor-not-allowed';
 
   function when(value: string | null | undefined): string {
     return value ? new Date(value).toLocaleString(undefined, { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) : '—';
   }
-
-  async function load() {
-    loading = true;
-    try {
-      const res = await fetchRpgClanTower();
-      if (res) {
-        const loaded = res.settings ?? {};
-        settings = {
-          ...DEFAULTS,
-          ...loaded,
-          podiumPoints: [...(loaded.podiumPoints ?? DEFAULTS.podiumPoints)],
-          milestones: [...(loaded.milestones ?? DEFAULTS.milestones)],
-        };
-        clansEnabled = res.clansEnabled !== false;
-        current = res.current ?? null;
-        last = res.last ?? null;
-        nextOpensAt = res.nextOpensAt ?? null;
-        mapVersion += 1;
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      loading = false;
-    }
-  }
-
-  onMount(() => { void load(); });
-
-  async function save() {
-    const payload: Record<string, unknown> = {
-      ...settings,
-      podiumPoints: settings.podiumPoints.map((value) => Number(value) || 0),
-      milestones: settings.milestones.map((value) => Number(value) || 0),
-    };
-    delete payload.floors;
-    await actionState.run(async () => {
-      await saveRpgClanTowerSettings(payload);
-      await load();
-      return true;
-    });
-  }
 </script>
 
-<div class="space-y-6">
+{#snippet hintIcon(hint: string)}
+  <span class="text-on-surface-variant/60 cursor-help flex" title={hint} aria-hidden="true"><Papicon icon="info" size={12} /></span>
+  <span class="sr-only">{hint}</span>
+{/snippet}
+
+{#snippet kpi(label: string, value: string | number, sub: string, icon: string)}
+  <div class="flex flex-col gap-1 min-w-0 rounded-xl border border-outline-variant bg-surface-container-low px-4 py-3.5">
+    <span class="text-body-sm text-on-surface-variant flex items-center gap-1.5"><Papicon {icon} size={13} /> {label}</span>
+    <span class="font-headline text-2xl font-semibold tabular-nums truncate">{value}</span>
+    {#if sub}<span class="text-2xs text-on-surface-variant/80 truncate">{sub}</span>{/if}
+  </div>
+{/snippet}
+
+{#snippet awards()}
+  {#if last?.results?.awards && last.results.awards.length > 0}
+    <SectionCard title={m.eco_clan_tower_last_title({ end: when(last.endsAt) })} icon="calendar">
+      <ol class="flex flex-col gap-1.5 text-xs">
+        {#each last.results.awards.slice(0, 5) as award (award.clanId)}
+          <li class="flex items-center gap-3 rounded-lg bg-surface-container-low px-3 py-2">
+            <span class="w-6 text-right font-mono text-on-surface-variant">{award.rank}</span>
+            <span class="flex-1 font-semibold truncate">{award.name}</span>
+            <span class="text-on-surface-variant">+{award.total}</span>
+            <span class="font-bold text-warning">{m.eco_tower_milestone_floor({ floor: award.floors })}</span>
+          </li>
+        {/each}
+      </ol>
+    </SectionCard>
+  {/if}
+{/snippet}
+
+<div class="flex flex-col gap-4">
   {#if !clansEnabled}
-    <p class="text-xs flex items-start gap-2 bg-warning/10 border border-warning/20 text-warning rounded-lg px-3 py-2">
-      <Papicon icon="AlertTriangle" size={13} /> {m.eco_clan_tower_clans_off()}
-    </p>
+    <Callout variant="warning">{m.eco_clan_tower_clans_off()}</Callout>
   {/if}
 
-  <!-- Semaine en cours, ou prochaine ouverture -->
-  <div class={cardClass}>
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-2">
-      <div>
-        <h4 class="text-sm font-bold flex items-center gap-2"><Papicon icon="Trophy" size={14} /> {m.eco_clan_tower_current_title()}</h4>
-        <p class="text-2xs text-on-surface-variant/60 mt-1">
-          {#if current}
-            {m.eco_clan_tower_current_until({ end: when(current.endsAt) })}
-          {:else if settings.enabled}
-            {m.eco_clan_tower_next({ start: when(nextOpensAt) })}
-          {:else}
-            {m.eco_clan_tower_off()}
-          {/if}
-        </p>
-      </div>
+  {#if view === 'overview'}
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {@render kpi(
+        m.eco_clan_tower_current_title(),
+        current ? when(current.endsAt) : '—',
+        current ? m.eco_clan_tower_kpi_until() : settings.enabled ? m.eco_clan_tower_next({ start: when(nextOpensAt) }) : m.eco_clan_tower_off(),
+        'clock',
+      )}
+      {@render kpi(m.eco_clan_tower_kpi_clans(), current?.standings.length ?? 0, '', 'user')}
+      {@render kpi(m.eco_clan_tower_kpi_leader(), leader?.name ?? '—', leader ? m.eco_tower_milestone_floor({ floor: leader.floors }) : '', 'crown')}
     </div>
-    {#if current}
-      {#if current.standings.length > 0}
-        <ol class="space-y-1.5 text-xs">
+    {@render awards()}
+  {:else if view === 'board'}
+    <SectionCard
+      title={m.eco_clan_tower_current_title()}
+      icon="crown"
+      description={current ? m.eco_clan_tower_current_until({ end: when(current.endsAt) }) : settings.enabled ? m.eco_clan_tower_next({ start: when(nextOpensAt) }) : m.eco_clan_tower_off()}
+    >
+      {#if current && current.standings.length > 0}
+        <ol class="flex flex-col gap-1.5 text-xs">
           {#each current.standings as standing (standing.clanId)}
-            <li class="flex items-center justify-between gap-3 bg-surface-container-high/30 rounded-lg px-3 py-2">
-              <span class="flex items-center gap-2 min-w-0">
-                <span class="font-mono text-on-surface-variant/60 w-6">{standing.rank}.</span>
-                <span class="font-semibold truncate">{standing.name}</span>
-              </span>
-              <span class="flex items-center gap-3 shrink-0">
-                {#if standing.totalFloors !== undefined}<span class="text-2xs text-on-surface-variant/60" title={m.eco_clan_tower_total_tip()}>{m.eco_clan_tower_total({ floors: standing.totalFloors, reached: standing.milestones ?? 0 })}</span>{/if}
-                {#if standing.climbers[0]}<span class="text-2xs text-on-surface-variant/60">{standing.climbers[0].displayName ?? standing.climbers[0].userId} · {standing.climbers[0].floors}</span>{/if}
-                <span class="font-bold">{m.eco_tower_milestone_floor({ floor: standing.floors })}</span>
-              </span>
+            <li class="relative overflow-hidden flex items-center gap-3 rounded-lg px-3 py-2">
+              <div class="absolute inset-y-0 left-0 bg-warning/10 pointer-events-none" style="width: {Math.round((standing.floors / topFloor) * 100)}%"></div>
+              <span class="relative w-6 text-right font-mono text-on-surface-variant">{standing.rank}</span>
+              <span class="relative flex-1 font-semibold truncate">{standing.name}</span>
+              {#if standing.totalFloors !== undefined}
+                <span class="relative text-2xs text-on-surface-variant hidden sm:inline" title={m.eco_clan_tower_total_tip()}>{m.eco_clan_tower_total({ floors: standing.totalFloors, reached: standing.milestones ?? 0 })}</span>
+              {/if}
+              {#if standing.climbers[0]}
+                <span class="relative text-2xs text-on-surface-variant hidden md:inline">{standing.climbers[0].displayName ?? standing.climbers[0].userId} · {standing.climbers[0].floors}</span>
+              {/if}
+              <span class="relative font-bold text-warning whitespace-nowrap">{m.eco_tower_milestone_floor({ floor: standing.floors })}</span>
             </li>
           {/each}
         </ol>
-      {:else}
-        <p class="text-xs text-on-surface-variant/50">{m.eco_clan_tower_no_conquest()}</p>
+      {:else if current}
+        <p class="text-body-sm text-on-surface-variant">{m.eco_clan_tower_no_conquest()}</p>
       {/if}
-    {/if}
-    {#if last?.results?.awards && last.results.awards.length > 0}
-      <div class="pt-4 border-t border-outline-variant/10 space-y-1.5">
-        <p class="text-xs font-semibold">{m.eco_clan_tower_last_title({ end: when(last.endsAt) })}</p>
-        {#each last.results.awards.slice(0, 5) as award (award.clanId)}
-          <p class="text-2xs text-on-surface-variant/70">{award.rank}. <span class="font-semibold">{award.name}</span> · {m.eco_tower_milestone_floor({ floor: award.floors })} · +{award.total}</p>
-        {/each}
+    </SectionCard>
+    {@render awards()}
+  {:else if view === 'rules'}
+    <SectionCard title={m.eco_clan_tower_title()} description={m.eco_clan_tower_desc()} icon="calendar">
+      <div class="flex flex-col gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="flex flex-col gap-1.5">
+            <label for="clanTowerName" class={labelClass}>{m.eco_clan_tower_name()}</label>
+            <input id="clanTowerName" type="text" maxlength="40" bind:value={settings.name} disabled={!canManage || disabled} class={inputClass} />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <span class={labelClass}>{m.eco_tower_announce_channel()} {@render hintIcon(m.eco_clan_tower_announce_hint())}</span>
+            <SearchableSelect
+              value={settings.announceChannelId}
+              options={channels}
+              placeholder={m.eco_tower_announce_none()}
+              clearable={true}
+              className="w-full"
+              on:change={(e: any) => { settings.announceChannelId = e.detail?.value ?? null; }}
+            />
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="flex flex-col gap-1.5">
+            <label for="clanTowerDay" class={labelClass}>{m.eco_clan_tower_weekday()}</label>
+            <select id="clanTowerDay" bind:value={settings.weekday} disabled={!canManage || disabled} class={inputClass}>
+              {#each WEEKDAYS as label, index}<option value={index}>{label()}</option>{/each}
+            </select>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label for="clanTowerHour" class={labelClass}>{m.eco_clan_tower_hour()} {@render hintIcon(m.eco_clan_tower_attempts_hint())}</label>
+            <input id="clanTowerHour" type="number" min="0" max="23" bind:value={settings.hour} disabled={!canManage || disabled} class={inputClass} />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label for="clanTowerDuration" class={labelClass}>{m.eco_clan_tower_duration()} {@render hintIcon(m.eco_clan_tower_duration_hint())}</label>
+            <input id="clanTowerDuration" type="number" min="24" max="96" step="24" bind:value={settings.durationHours} disabled={!canManage || disabled} class={inputClass} />
+          </div>
+        </div>
       </div>
-    {/if}
-  </div>
+    </SectionCard>
 
-  <!-- Réglages -->
-  <div class={cardClass}>
-    <div class="flex items-center justify-between gap-4 border-b border-outline-variant/15 pb-4">
-      <div>
-        <h4 class="text-sm font-bold">{m.eco_clan_tower_title()}</h4>
-        <p class="text-2xs text-on-surface-variant/60 mt-1 leading-relaxed max-w-2xl">{m.eco_clan_tower_desc()}</p>
+    <SectionCard title={m.eco_tower_climb_title()} icon="walk">
+      <div class="flex flex-col gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {#each [
+            { value: 'GENERATE' as const, title: m.eco_tower_floors_after_generate(), desc: m.eco_tower_floors_after_generate_desc() },
+            { value: 'LOOP' as const, title: m.eco_tower_floors_after_loop(), desc: m.eco_tower_floors_after_loop_desc() },
+          ] as option}
+            <button type="button" disabled={!canManage || disabled} aria-pressed={settings.floorsAfter === option.value} onclick={() => { settings.floorsAfter = option.value; }}
+              class="{choiceClass} {settings.floorsAfter === option.value ? 'border-primary bg-primary/10' : 'border-outline-variant hover:bg-surface-container-low'}">
+              <p class="text-sm font-semibold {settings.floorsAfter === option.value ? 'text-primary' : ''}">{option.title}</p>
+              <p class="text-2xs text-on-surface-variant mt-1 leading-relaxed">{option.desc}</p>
+            </button>
+          {/each}
+        </div>
+        <div class="flex items-center justify-between gap-4">
+          <span class={labelClass}><Papicon icon="Eye" size={13} /> {m.eco_tower_generated_fog()}</span>
+          <ToggleSwitch checked={settings.generatedFog} disabled={!canManage || disabled} ariaLabel={m.eco_tower_generated_fog()} onToggle={(value: boolean) => { settings.generatedFog = value; }} />
+        </div>
       </div>
-      <ToggleSwitch checked={settings.enabled} disabled={!canManage || disabled} ariaLabel={m.eco_clan_tower_title()} onToggle={(value: boolean) => { settings.enabled = value; }} />
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div class="space-y-1">
-        <label for="clanTowerName" class={labelClass}>{m.eco_clan_tower_name()}</label>
-        <input id="clanTowerName" type="text" maxlength="40" bind:value={settings.name} disabled={!canManage || disabled} class={inputClass} />
-      </div>
-      <div class="space-y-1" title={m.eco_clan_tower_announce_hint()}>
-        <span class={labelClass}>{m.eco_tower_announce_channel()}</span>
-        <SearchableSelect
-          value={settings.announceChannelId}
-          options={channels}
-          placeholder={m.eco_tower_announce_none()}
-          clearable={true}
-          className="w-full"
-          on:change={(e: any) => { settings.announceChannelId = e.detail?.value ?? null; }}
-        />
-      </div>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div class="space-y-1">
-        <label for="clanTowerDay" class={labelClass}>{m.eco_clan_tower_weekday()}</label>
-        <select id="clanTowerDay" bind:value={settings.weekday} disabled={!canManage || disabled} class={inputClass}>
-          {#each WEEKDAYS as label, index}<option value={index}>{label()}</option>{/each}
-        </select>
-      </div>
-      <div class="space-y-1">
-        <label for="clanTowerHour" class={labelClass}>{m.eco_clan_tower_hour()}</label>
-        <input id="clanTowerHour" type="number" min="0" max="23" bind:value={settings.hour} disabled={!canManage || disabled} class={inputClass} />
-      </div>
-      <div class="space-y-1" title={m.eco_clan_tower_duration_hint()}>
-        <label for="clanTowerDuration" class={labelClass}>{m.eco_clan_tower_duration()}</label>
-        <input id="clanTowerDuration" type="number" min="24" max="96" step="24" bind:value={settings.durationHours} disabled={!canManage || disabled} class={inputClass} />
-      </div>
-    </div>
-    <p class="text-2xs text-on-surface-variant/50 leading-relaxed ml-2">{m.eco_clan_tower_attempts_hint()}</p>
-
-    <div class="space-y-3 pt-2 border-t border-outline-variant/5">
-      <h4 class="text-sm font-bold">{m.eco_clan_tower_points_title()}</h4>
+    </SectionCard>
+  {:else if view === 'rewards'}
+    <SectionCard title={m.eco_clan_tower_points_title()} description={m.eco_clan_tower_points_hint()} icon="star">
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="space-y-1" title={m.eco_clan_tower_per_floor_hint()}>
-          <label for="clanTowerPerFloor" class={labelClass}>{m.eco_clan_tower_per_floor()}</label>
+        <div class="flex flex-col gap-1.5">
+          <label for="clanTowerPerFloor" class={labelClass}>{m.eco_clan_tower_per_floor()} {@render hintIcon(m.eco_clan_tower_per_floor_hint())}</label>
           <input id="clanTowerPerFloor" type="number" min="0" max="1000" bind:value={settings.pointsPerFloor} disabled={!canManage || disabled} class={inputClass} />
         </div>
         {#each [0, 1, 2] as index}
-          <div class="space-y-1">
+          <div class="flex flex-col gap-1.5">
             <label for="clanTowerPodium{index}" class={labelClass}>{m.eco_clan_tower_podium({ rank: index + 1 })}</label>
             <input id="clanTowerPodium{index}" type="number" min="0" max="100000" bind:value={settings.podiumPoints[index]} disabled={!canManage || disabled} class={inputClass} />
           </div>
         {/each}
       </div>
-      <p class="text-2xs text-on-surface-variant/50 leading-relaxed ml-2">{m.eco_clan_tower_points_hint()}</p>
-    </div>
+    </SectionCard>
 
-    <div class="space-y-3 pt-2 border-t border-outline-variant/5">
-      <h4 class="text-sm font-bold">{m.eco_clan_tower_milestones_title()}</h4>
+    <SectionCard title={m.eco_clan_tower_milestones_title()} description={m.eco_clan_tower_milestones_hint()} icon="bookmark">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         {#each [0, 1, 2] as index}
-          <div class="space-y-1">
+          <div class="flex flex-col gap-1.5">
             <label for="clanTowerMilestone{index}" class={labelClass}>{m.eco_clan_tower_milestone({ rank: index + 1, bonus: MILESTONE_BONUSES[index]() })}</label>
             <input id="clanTowerMilestone{index}" type="number" min="1" max="10000" bind:value={settings.milestones[index]} disabled={!canManage || disabled} class={inputClass} />
           </div>
         {/each}
       </div>
-      <p class="text-2xs text-on-surface-variant/50 leading-relaxed ml-2">{m.eco_clan_tower_milestones_hint()}</p>
-    </div>
-
-    <div class="space-y-3 pt-2 border-t border-outline-variant/5">
-      <p class={labelClass}>{m.eco_tower_floors_after()}</p>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {#each [
-          { value: 'GENERATE' as const, title: m.eco_tower_floors_after_generate(), desc: m.eco_tower_floors_after_generate_desc() },
-          { value: 'LOOP' as const, title: m.eco_tower_floors_after_loop(), desc: m.eco_tower_floors_after_loop_desc() },
-        ] as option}
-          <button type="button" disabled={!canManage || disabled} onclick={() => { settings.floorsAfter = option.value; }}
-            class="text-left p-4 rounded-xl border transition-all {settings.floorsAfter === option.value ? 'border-primary bg-primary/10' : 'border-outline-variant/10 bg-surface-container-high/30 hover:border-outline-variant/30'}">
-            <p class="text-xs font-bold">{option.title}</p>
-            <p class="text-2xs text-on-surface-variant/60 mt-1 leading-relaxed">{option.desc}</p>
-          </button>
-        {/each}
-      </div>
-      <div class="flex items-center justify-between gap-4">
-        <p class="text-xs font-semibold flex items-center gap-2"><Papicon icon="Eye" size={12} /> {m.eco_tower_generated_fog()}</p>
-        <ToggleSwitch checked={settings.generatedFog} disabled={!canManage || disabled} ariaLabel={m.eco_tower_generated_fog()} onToggle={(value: boolean) => { settings.generatedFog = value; }} />
-      </div>
-    </div>
-
-    {#if canManage}
-      <div class="flex justify-end">
-        <button type="button" onclick={save} disabled={disabled || loading || actionState.state.loading} class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-body-sm font-medium rounded-lg transition-all disabled:opacity-50">
-          {m.eco_clan_tower_save()}
-        </button>
-      </div>
-    {/if}
-    <InlineFeedback state={actionState} />
-  </div>
-
-  <!-- Étages : le même éditeur que la Tour, enregistré à part -->
-  {#key mapVersion}
-    <RpgTowerMapEditor
-      {canManage}
-      {disabled}
-      initialFloors={settings.floors ?? []}
-      floorsMax={limits.floorsMax ?? 300}
-      {growthPercent}
-      floorsAfter={settings.floorsAfter}
-      {foes}
-      sizeLimits={limits.mapSize ?? { min: 3, max: 20 }}
-      roomsMax={limits.mapRoomsMax ?? 300}
-      saveFloors={(floors) => saveRpgClanTowerLayout({ floors })}
-      onSaved={load}
-    />
-  {/key}
+    </SectionCard>
+  {:else if view === 'map'}
+    {#key mapVersion}
+      <RpgTowerMapEditor
+        {canManage}
+        {disabled}
+        initialFloors={settings.floors ?? []}
+        floorsMax={limits.floorsMax ?? 300}
+        {growthPercent}
+        floorsAfter={settings.floorsAfter}
+        {foes}
+        sizeLimits={limits.mapSize ?? { min: 3, max: 20 }}
+        roomsMax={limits.mapRoomsMax ?? 300}
+        saveFloors={(floors) => saveRpgClanTowerLayout({ floors })}
+        {onSaved}
+      />
+    {/key}
+  {/if}
 </div>
