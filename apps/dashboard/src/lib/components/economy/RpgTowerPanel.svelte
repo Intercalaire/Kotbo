@@ -5,6 +5,7 @@
   import { channelDisplayName } from '../../channelUtils';
   import { confirmDialog } from '../../stores/confirmDialog.svelte';
   import { dashboardStore } from '../../stores/dashboard.svelte';
+  import { authStore } from '../../stores/auth.svelte';
   import { createAsyncActionState } from '../../asyncAction.svelte';
   import {
     deleteRpgTowerReward,
@@ -24,6 +25,7 @@
   import EmojiPicker from '../EmojiPicker.svelte';
   import EmojiText from '../EmojiText.svelte';
   import InlineFeedback from '../InlineFeedback.svelte';
+  import HintTip from './HintTip.svelte';
   import SearchableSelect from '../SearchableSelect.svelte';
   import { Button, Callout, SectionCard, Tabs, ToggleSwitch } from '../ui';
   import RpgTowerMapEditor from './RpgTowerMapEditor.svelte';
@@ -282,6 +284,32 @@
     }
   });
 
+  // Tour et section affichées, retrouvées au prochain passage sur ce serveur.
+  const VIEWS: View[] = ['overview', 'board', 'rules', 'rewards', 'map', 'lab'];
+  const navKey = `kotbo_tower_nav_${authStore.selectedGuildId ?? ''}`;
+  let restoreClan = false;
+
+  function restoreNav() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(navKey) ?? 'null') as { mode?: Mode; view?: View } | null;
+      if (saved?.view && VIEWS.includes(saved.view)) view = saved.view;
+      restoreClan = saved?.mode === 'clan';
+    } catch {
+      // Stockage indisponible ou valeur illisible : on garde la vue par défaut.
+    }
+  }
+
+  restoreNav();
+
+  $effect(() => {
+    const value = JSON.stringify({ mode, view });
+    try {
+      localStorage.setItem(navKey, value);
+    } catch {
+      // Stockage indisponible : la navigation n'est simplement pas retenue.
+    }
+  });
+
   const SIM_CLASSES = [
     { id: 'WARRIOR', label: () => m.eco_tower_sim_class_warrior() },
     { id: 'RANGER', label: () => m.eco_tower_sim_class_ranger() },
@@ -482,6 +510,8 @@
         clanNextOpensAt = res.nextOpensAt ?? null;
         clanLoaded = true;
         clanMapVersion += 1;
+        if (restoreClan && fresh.enabled) mode = 'clan';
+        restoreClan = false;
       }
     } catch (err) {
       console.error(err);
@@ -726,10 +756,7 @@
 </script>
 
 {#snippet hintIcon(hint: string)}
-  {#if hint}
-    <span class="text-on-surface-variant/60 cursor-help flex" title={hint} aria-hidden="true"><Papicon icon="info" size={12} /></span>
-    <span class="sr-only">{hint}</span>
-  {/if}
+  {#if hint}<HintTip text={hint} />{/if}
 {/snippet}
 
 {#snippet numberField(id: string, label: string, hint: string, key: NumericSetting, min: number, max: number)}

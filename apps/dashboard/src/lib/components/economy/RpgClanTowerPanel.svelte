@@ -49,6 +49,7 @@
   import Papicon from '../Papicon.svelte';
   import SearchableSelect from '../SearchableSelect.svelte';
   import { Callout, SectionCard, ToggleSwitch } from '../ui';
+  import HintTip from './HintTip.svelte';
   import RpgTowerMapEditor from './RpgTowerMapEditor.svelte';
 
   type Foe = { name: string; emoji: string; isBoss: boolean; enabled: boolean };
@@ -110,8 +111,7 @@
 </script>
 
 {#snippet hintIcon(hint: string)}
-  <span class="text-on-surface-variant/60 cursor-help flex" title={hint} aria-hidden="true"><Papicon icon="info" size={12} /></span>
-  <span class="sr-only">{hint}</span>
+  <HintTip text={hint} />
 {/snippet}
 
 {#snippet kpi(label: string, value: string | number, sub: string, icon: string)}
