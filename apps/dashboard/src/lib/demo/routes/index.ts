@@ -17,6 +17,7 @@ import { registerSessionRoutes } from './session';
 import { registerStaffRoutes } from './staff';
 import { registerTelemetryRoutes } from './telemetry';
 import { registerTicketsRoutes } from './tickets';
+import { registerPulseRoutes } from './pulse';
 
 export function registerDemoRoutes(): void {
   registerSessionRoutes();
@@ -31,4 +32,5 @@ export function registerDemoRoutes(): void {
   registerEconomyRoutes();
   registerLogsRoutes();
   registerModulesRoutes();
+  registerPulseRoutes();
 }
