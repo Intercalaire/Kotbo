@@ -25,3 +25,4 @@ dist-ssr
 
 # Paraglide-JS (généré au build par le plugin Vite)
 src/lib/paraglide/
+dist-demo

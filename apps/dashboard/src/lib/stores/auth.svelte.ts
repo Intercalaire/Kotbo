@@ -22,7 +22,8 @@ class AuthStore {
     private sessionEpoch = 0;
 
     constructor() {
-        this.initialization = this.initialize();
+        // L'initialisation est declenchee par onMount dans App.svelte, ce qui
+        // garantit que les wrappers de transport (comme la demo) sont en place.
     }
 
     async initialize(): Promise<void> {

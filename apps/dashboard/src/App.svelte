@@ -347,7 +347,7 @@
         // raison de son clic est perdue en chemin.
         rememberLoginReturn($router.url);
         router.goto("/login");
-      } else if (authStore.isAuthenticated && $router.path === "/login") {
+      } else if (authStore.isAuthenticated && ($router.path === "/login" || $router.path === "/demo" || $router.path === "/demo/")) {
         router.goto("/");
       }
     });

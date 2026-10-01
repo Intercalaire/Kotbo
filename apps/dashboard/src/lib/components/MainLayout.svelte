@@ -13,6 +13,8 @@
   import MobileNavSheet from './mobile/MobileNavSheet.svelte';
   import MobileAccountSheet from './mobile/MobileAccountSheet.svelte';
   import MobileTabEditor from './mobile/MobileTabEditor.svelte';
+  import DemoBanner from './DemoBanner.svelte';
+  import { DEMO_MODE } from '../demo/mode';
 
   import { onMount, untrack } from 'svelte';
   import type { Snippet } from 'svelte';
@@ -40,6 +42,11 @@
 
   onMount(() => {
     dashboardLifecycle.init();
+
+    if (DEMO_MODE) {
+      const p = $router.path;
+      router.goto(p === '/demo' || p === '/demo/' ? '/' : (p || '/'), true);
+    }
 
     // Block browser tab/window close when there are unsaved changes
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -183,6 +190,7 @@
       data-page={pageKey}
       class="app-main px-8 py-6 pb-20 max-w-[1400px] w-full mx-auto"
     >
+      <DemoBanner />
       {#if !$isPhone}
         <Breadcrumbs />
       {/if}
