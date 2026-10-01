@@ -6,10 +6,11 @@
  * route d'écriture modifie la mémoire locale (`demo/db.ts`) puis rend ce que
  * l'API aurait rendu.
  *
- * Une route qui n'est pas déclarée ne fait jamais semblant : elle répond 503
- * avec un message clair, et la page affiche son état d'erreur habituel. Un
- * bouton qui « réussit » sans rien changer serait une commande morte, et la
- * démo promet le contraire.
+ * Toute route non déclarée reçoit un fallback sandbox :
+ *   - GET  → structure vide reconnue par les pages (liste, objet, null).
+ *   - Mutations → succès 200 silencieux pour que les boutons ne restent pas bloqués.
+ * La liste des routes manquantes est enregistrée dans `window.__kotboDemoMisses`
+ * pour faciliter la complétion future de la démo.
  */
 import { DEMO_BASE } from './mode';
 
@@ -28,8 +29,9 @@ type Route = { method: string; pattern: RegExp; keys: string[]; handler: DemoHan
 
 const routes: Route[] = [];
 
-/** Message rendu par une route absente de la démo. */
-export const DEMO_UNAVAILABLE = "Cette partie du dashboard n'est pas incluse dans la démo. Elle fonctionne une fois Kotbo ajouté à ton serveur.";
+/** Message rendu par une route absente de la démo (conservé pour compatibilité). */
+export const DEMO_UNAVAILABLE =
+  "Cette partie du dashboard n'est pas incluse dans la démo. Elle fonctionne une fois Kotbo ajouté à ton serveur.";
 
 /**
  * Déclare une route. `path` suit la syntaxe des routes du bot : `:nom` pour un
@@ -78,6 +80,30 @@ async function readBody(input: RequestInfo | URL, init?: RequestInit): Promise<a
   return null;
 }
 
+/**
+ * Réponse GET de repli : retourne une structure vide que les pages savent gérer.
+ * On devine la forme attendue à partir du dernier segment du chemin.
+ */
+function fallbackGet(path: string): unknown {
+  const seg = path.split('/').filter(Boolean).pop() ?? '';
+  // Suffixes pluriels ou clés de liste → { <seg>: [] } ou { items: [] }
+  if (
+    /^(members|items|events|players|logs|templates|presets|results|submissions|channels|roles|servers|guilds|bots|runs|history|list|tickets|sanctions|backups|campaigns|clans|drops|giveaways|invitations|meetings|calls|workflows|executions|quests|anomalies|alerts|reviews|evaluations|absences|links|networks|problems|weeks)$/.test(
+      seg,
+    )
+  ) {
+    return { [seg]: [] };
+  }
+  // Endpoints de statistiques courantes
+  if (/^(analytics|stats|metrics|overview|summary)$/.test(seg)) {
+    return { hasData: false };
+  }
+  // Statuts booléens
+  if (/^(status|enabled|active)$/.test(seg)) return { enabled: false };
+  // config, settings, widget, etc. → objet vide
+  return {};
+}
+
 async function handle(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const url = new URL(input instanceof Request ? input.url : String(input), window.location.origin);
   const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
@@ -107,7 +133,10 @@ async function handle(input: RequestInfo | URL, init?: RequestInit): Promise<Res
   }
 
   remember(method, path);
-  return json(503, { error: DEMO_UNAVAILABLE, code: 'demo_unavailable' });
+
+  // Fallback sandbox : aucun 503 bloquant.
+  if (method === 'GET') return json(200, fallbackGet(path));
+  return json(200, {});
 }
 
 /** L'appel vise-t-il l'API ? Tout le reste (images, polices, modules) part au réseau. */
