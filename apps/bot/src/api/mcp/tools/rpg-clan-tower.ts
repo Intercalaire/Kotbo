@@ -28,7 +28,7 @@ import {
   TOWER_VARIANT_WEIGHT,
   towerFloorCount,
 } from '../../../services/features/rpg/rpgTowerMap.js';
-import { editTowerFloors, floorSchema, roomSchema } from './rpg-tower.js';
+import { compactTowerFloors, compactTowerSettings, editTowerFloors, floorSchema, roomSchema } from './rpg-tower.js';
 
 const fail = (e: unknown) => err(e instanceof Error ? e.message : String(e));
 
@@ -44,7 +44,7 @@ export function registerRpgClanTowerTools(ctx: McpToolContext) {
     server.registerTool(
       'get_rpg_clan_tower',
       {
-        description: `Lit la Tour de clan. ${RULES} Contient : réglages (settings, dont les étages dessinés settings.floors), clansEnabled (sans les clans du serveur, elle n'ouvre pas), la semaine en cours (current : fin, classement des clans avec étage conquis, meilleurs grimpeurs, étages gravis au total et paliers franchis), le bilan de la semaine précédente (last.results) et la prochaine ouverture (nextOpensAt).`,
+        description: `Lit la Tour de clan. ${RULES} Contient : réglages (settings, dont les étages dessinés settings.floors), clansEnabled (sans les clans du serveur, elle n'ouvre pas), la semaine en cours (current : fin, classement des clans avec étage conquis, meilleurs grimpeurs, étages gravis au total et paliers franchis), le bilan de la semaine précédente (last.results) et la prochaine ouverture (nextOpensAt). Une salle n'indique que les réglages qui s'écartent du défaut.`,
         inputSchema: {},
         _meta: toolMeta,
       },
@@ -52,6 +52,7 @@ export function registerRpgClanTowerTools(ctx: McpToolContext) {
         const dashboard = await getClanTowerDashboard(guildId);
         return ok({
           ...dashboard,
+          settings: compactTowerSettings(dashboard.settings),
           reference: {
             ranges: CLAN_TOWER_RANGES,
             podiumSize: CLAN_TOWER_PODIUM_SIZE,
@@ -88,7 +89,7 @@ export function registerRpgClanTowerTools(ctx: McpToolContext) {
         try {
           const settings = await saveClanTowerSettings(guildId, input);
           await audit(key_name, 'Réglages de la Tour de clan MCP', settings.name, `${settings.enabled ? 'activée' : 'désactivée'}, ${settings.pointsPerFloor} pts par étage`);
-          return ok({ ok: true, settings });
+          return ok({ ok: true, settings: compactTowerSettings(settings) });
         } catch (e) {
           return fail(e);
         }
@@ -124,7 +125,7 @@ export function registerRpgClanTowerTools(ctx: McpToolContext) {
           const settings = await saveClanTowerFloors(guildId, { floors: next });
           const rooms = settings.floors.reduce((sum, entry) => sum + entry.rooms.length, 0);
           await audit(key_name, 'Étages de la Tour de clan MCP', 'Carte', `${towerFloorCount(settings.floors)} étage(s), ${settings.floors.length} carte(s), ${rooms} salles`);
-          return ok({ ok: true, floors: settings.floors });
+          return ok({ ok: true, floors: compactTowerFloors(settings.floors) });
         } catch (e) {
           return fail(e);
         }
