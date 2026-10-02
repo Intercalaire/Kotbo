@@ -4,6 +4,7 @@
  * Comme les autres outils RPG, ils passent par le service utilisé par le dashboard. Lecture
  * sous READ_ECONOMY, écriture sous WRITE_MEMBERS.
  */
+import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
 import { type McpToolContext, err, ok, resolveMember } from '../toolkit.js';
 import {
@@ -63,8 +64,10 @@ import {
   TOWER_ROOM_TYPES,
   TOWER_VARIANT_WEIGHT,
   defaultTowerLayout,
+  newTowerRoom,
   towerFloorCount,
   type TowerLayout,
+  type TowerRoom,
 } from '../../../services/features/rpg/rpgTowerMap.js';
 
 export const roomSchema = z.object({
@@ -179,6 +182,32 @@ export function editTowerFloors(existing: readonly TowerLayout[], input: TowerFl
   return current;
 }
 
+const ROOM_DEFAULTS = newTowerRoom(0, 0, 'EMPTY');
+
+/**
+ * Salle sans son identifiant ni les champs à leur valeur par défaut, que l'enregistrement remet
+ * de lui-même : sans cela, une tour dépasse la taille d'une réponse d'outil.
+ */
+function compactTowerRoom(room: TowerRoom): Record<string, unknown> {
+  const compact: Record<string, unknown> = { x: room.x, y: room.y, type: room.type };
+  for (const [field, value] of Object.entries(room)) {
+    if (field in compact || field === 'id') continue;
+    // Forcé à faux hors épreuve, alors que le défaut vaut vrai.
+    if (field === 'trialReward' && room.type !== 'TRIAL') continue;
+    if (isDeepStrictEqual(value, ROOM_DEFAULTS[field as keyof TowerRoom])) continue;
+    compact[field] = value;
+  }
+  return compact;
+}
+
+export function compactTowerFloors(floors: readonly TowerLayout[]) {
+  return floors.map((layout) => ({ ...layout, rooms: layout.rooms.map(compactTowerRoom) }));
+}
+
+export function compactTowerSettings<T extends { floors: readonly TowerLayout[] }>(settings: T) {
+  return { ...settings, floors: compactTowerFloors(settings.floors) };
+}
+
 function mergeDefined(base: Record<string, unknown>, sent: Record<string, unknown>): Record<string, unknown> {
   const merged: Record<string, unknown> = { ...base };
   for (const [field, value] of Object.entries(sent)) {
@@ -196,7 +225,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
     server.registerTool(
       'get_rpg_tower',
       {
-        description: "Lit la Tour (mode roguelite du RPG). Chaque étage est une carte : d'abord les étages dessinés (settings.floors, dans l'ordre de la montée), ensuite selon settings.floorsAfter la boucle sur les étages dessinés (LOOP) ou des étages générés (GENERATE) ; sans étage dessiné, tous sont générés. On monte d'un étage en battant son gardien, et la difficulté croît à chaque salle. Monstres à traits, gardiens à mécanique, reliques à effets uniques et salles d'événement : voir reference. Contient aussi les statistiques des parties (insights : étage moyen, taux de mort, monstres qui tuent le plus, étage le plus meurtrier avec sa variante : label « 3-E » ou « 2 » pour un étage sans variante ; cards : arrivées, passages, morts et départs sur chaque carte dessinée, avec sa chance d'être tirée) et le classement de l'ascension du jour (daily). Contient : étages dessinés (floors) et créatures proposables pour leurs salles (foes), réglages (ouverture, mode d'entrée COMPRESSED ou RESET, plafonds d'héritage et de titre, croissance des monstres, boss et bénédictions, éclats par étage, part gardée à la mort et en partant, plafond hebdomadaire, monnaie), récompenses (boutique d'éclats et paliers d'étage), statistiques, classement de la saison, améliorations permanentes (settings.upgrades) et marchand (settings.merchant) réglables, et le catalogue fixe des bénédictions.",
+        description: "Lit la Tour (mode roguelite du RPG). Chaque étage est une carte : d'abord les étages dessinés (settings.floors, dans l'ordre de la montée), ensuite selon settings.floorsAfter la boucle sur les étages dessinés (LOOP) ou des étages générés (GENERATE) ; sans étage dessiné, tous sont générés. On monte d'un étage en battant son gardien, et la difficulté croît à chaque salle. Monstres à traits, gardiens à mécanique, reliques à effets uniques et salles d'événement : voir reference. Contient aussi les statistiques des parties (insights : étage moyen, taux de mort, monstres qui tuent le plus, étage le plus meurtrier avec sa variante : label « 3-E » ou « 2 » pour un étage sans variante ; cards : arrivées, passages, morts et départs sur chaque carte dessinée, avec sa chance d'être tirée) et le classement de l'ascension du jour (daily). Contient : étages dessinés (floors) et créatures proposables pour leurs salles (foes), réglages (ouverture, mode d'entrée COMPRESSED ou RESET, plafonds d'héritage et de titre, croissance des monstres, boss et bénédictions, éclats par étage, part gardée à la mort et en partant, plafond hebdomadaire, monnaie), récompenses (boutique d'éclats et paliers d'étage), statistiques, classement de la saison, améliorations permanentes (settings.upgrades) et marchand (settings.merchant) réglables, et le catalogue fixe des bénédictions. Une salle n'indique que les réglages qui s'écartent du défaut.",
         inputSchema: {},
         _meta: toolMeta,
       },
@@ -204,6 +233,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
         const dashboard = await getTowerDashboard(guildId);
         return ok({
           ...dashboard,
+          settings: compactTowerSettings(dashboard.settings),
           reference: {
             entryModes: TOWER_ENTRY_MODES,
             rewardKinds: TOWER_REWARD_KINDS,
@@ -314,7 +344,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
           if (input.merchant) merged.merchant = mergeDefined(base.merchant as Record<string, unknown>, input.merchant);
           const settings = await saveTowerSettings(guildId, merged);
           await audit(key_name, 'Réglages de la Tour MCP', settings.name, `${settings.enabled ? 'ouverte' : 'fermée'}, mode ${settings.entryMode}`);
-          return ok({ ok: true, settings });
+          return ok({ ok: true, settings: compactTowerSettings(settings) });
         } catch (e) {
           return fail(e);
         }
@@ -350,7 +380,7 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
           const settings = await saveTowerFloors(guildId, { floors: next });
           const roomCount = settings.floors.reduce((sum, entry) => sum + entry.rooms.length, 0);
           await audit(key_name, 'Étages de la Tour MCP', 'Carte', `${towerFloorCount(settings.floors)} étage(s), ${settings.floors.length} carte(s), ${roomCount} salles`);
-          return ok({ ok: true, floors: settings.floors });
+          return ok({ ok: true, floors: compactTowerFloors(settings.floors) });
         } catch (e) {
           return fail(e);
         }
