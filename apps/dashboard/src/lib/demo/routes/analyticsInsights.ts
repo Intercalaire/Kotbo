@@ -8,7 +8,7 @@ import { route } from '../backend';
 import { demoDb, demoId } from '../db';
 import { channelMessages, dateKey, memberSeries, memberTotals, serverSeries, voiceChannelMinutes, CHANNEL_SHARE, VOICE_SHARE } from '../activity';
 import { CATEGORIES, CHANNELS, MEMBERS, VOICE_CHANNELS, avatarOf, sessionUser } from '../fixtures';
-import { CATEGORY_OF } from './analytics';
+import { CATEGORY_OF, heatmap } from './analytics';
 
 const DAY_MS = 86_400_000;
 const sum = <T>(list: T[], pick: (item: T) => number) => list.reduce((s, item) => s + pick(item), 0);
@@ -498,6 +498,180 @@ const viewsSeed = () => [
   { id: '9230000000000000001', name: 'Rétention du mois', payload: { tab: 'lifecycle', period: '30', compare: true, channel: null, role: null, excludeStaff: true, includeBots: false }, shared: true, mine: false, createdAt: new Date(Date.now() - 8 * DAY_MS).toISOString() },
 ];
 
+
+// ── Membres, heures de pointe, comparaison, commandes ──────────────────
+
+function memberOverview(days: number) {
+  const cur = serverSeries(days);
+  const prev = serverSeries(days, days);
+  let members = MEMBERS.length - sum(cur, (d) => d.membersJoined - d.membersLeft);
+  let prevMembers = members - sum(prev, (d) => d.membersJoined - d.membersLeft);
+  const series = cur.map((d, i) => {
+    const p = prev[i]!;
+    members += d.membersJoined - d.membersLeft;
+    prevMembers += p.membersJoined - p.membersLeft;
+    return {
+      dateKey: d.dateKey, members, joined: d.membersJoined, left: d.membersLeft, peakOnline: d.peakOnline, onlineMembers: d.onlineMembers,
+      prevMembers, prevJoined: p.membersJoined, prevLeft: p.membersLeft, prevPeakOnline: p.peakOnline, prevOnlineMembers: p.onlineMembers,
+    };
+  });
+  const joined = sum(cur, (d) => d.membersJoined);
+  const people = MEMBERS.filter((p) => !p.bot);
+  return {
+    range: range(days),
+    memberCount: MEMBERS.length,
+    series,
+    sources: {
+      tracked: Math.round(joined * 0.9),
+      kinds: [
+        { kind: 'invite', joined: Math.round(joined * 0.52), retention: 78.4 },
+        { kind: 'label', joined: Math.round(joined * 0.24), retention: 51.2 },
+        { kind: 'vanity', joined: Math.round(joined * 0.06), retention: 70 },
+        { kind: 'unknown', joined: Math.round(joined * 0.08), retention: 44.1 },
+      ],
+      links: [
+        { code: 'nova', label: null, inviterId: people[1]!.id, inviterTag: people[1]!.displayName, joined: Math.round(joined * 0.4), stayed: Math.round(joined * 0.32), retention: 80, isVanity: false },
+        { code: 'tiktok-oct', label: 'TikTok', inviterId: people[3]!.id, inviterTag: people[3]!.displayName, joined: Math.round(joined * 0.24), stayed: Math.round(joined * 0.12), retention: 51.2, isVanity: false },
+        { code: 'lina-et-cie', label: null, inviterId: people[2]!.id, inviterTag: people[2]!.displayName, joined: Math.round(joined * 0.12), stayed: Math.round(joined * 0.1), retention: 83.3, isVanity: false },
+      ],
+    },
+    inviters: people.slice(1, 7).map((p, i) => ({
+      userId: p.id, name: p.displayName, avatarUrl: avatarOf(p),
+      joined: Math.max(1, Math.round(joined * [0.38, 0.2, 0.12, 0.08, 0.05, 0.03][i]!)),
+      previous: Math.max(0, Math.round(joined * [0.3, 0.22, 0.1, 0.09, 0.02, 0.04][i]!)),
+      stayed: 0, retention: [81, 52, 84, 66, 90, 40][i]!, left24h: [1, 4, 0, 1, 0, 2][i]!,
+    })),
+    newcomers: {
+      joined,
+      accountAge: { known: joined, buckets: [
+        { key: 'under1d', count: Math.round(joined * 0.04) }, { key: 'under7d', count: Math.round(joined * 0.07) },
+        { key: 'under30d', count: Math.round(joined * 0.12) }, { key: 'under365d', count: Math.round(joined * 0.27) }, { key: 'over365d', count: Math.round(joined * 0.5) },
+      ] },
+      onboarding: { completed: Math.round(joined * 0.83), rate: 83 },
+      left24h: { count: Math.round(joined * 0.09), rate: 9.1 },
+    },
+  };
+}
+
+function heatmapComparison(days: number) {
+  return {
+    current: heatmap(31),
+    previous: heatmap(47),
+    timezone: 'Europe/Paris',
+    range: { start: dateKey(days - 1), end: dateKey(0), prevStart: dateKey(days * 2 - 1), prevEnd: dateKey(days) },
+  };
+}
+
+function periodComparison(offset: number, mode: string) {
+  const now = new Date();
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const keyAt = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  let curStart: number;
+  let curEnd: number;
+  let prevStart: number;
+  let prevEnd: number;
+  if (mode === 'month') {
+    curStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+    curEnd = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0);
+    prevStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset, 1);
+    prevEnd = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset + 1, 0);
+  } else {
+    curStart = today - ((new Date(today).getUTCDay() + 6) % 7) * DAY_MS;
+    curEnd = curStart + 6 * DAY_MS;
+    prevStart = curStart - 7 * offset * DAY_MS;
+    prevEnd = prevStart + 6 * DAY_MS;
+  }
+  const elapsed = Math.round((today - curStart) / DAY_MS) + 1;
+  const length = Math.max(Math.round((curEnd - curStart) / DAY_MS), Math.round((prevEnd - prevStart) / DAY_MS)) + 1;
+  const dayOf = (ms: number) => {
+    const daysAgo = Math.round((today - ms) / DAY_MS);
+    const d = serverSeries(1, daysAgo)[0]!;
+    return { messages: d.messages, voiceMinutes: d.voiceMinutes, joins: d.membersJoined, leaves: d.membersLeft, sanctions: d.sanctions, activeMembers: d.activeMembers, peakOnline: d.peakOnline };
+  };
+  const daily = Array.from({ length }, (_, i) => {
+    const c = curStart + i * DAY_MS;
+    const p = prevStart + i * DAY_MS;
+    return {
+      index: i,
+      currentKey: c <= curEnd ? keyAt(c) : null,
+      previousKey: p <= prevEnd ? keyAt(p) : null,
+      current: c <= curEnd && c <= today ? dayOf(c) : null,
+      previous: p <= prevEnd ? dayOf(p) : null,
+    };
+  });
+  type Day = ReturnType<typeof dayOf>;
+  const total = (pick: (d: (typeof daily)[number]) => Day | null, limit = length) => {
+    const t = { messages: 0, voiceMinutes: 0, joins: 0, leaves: 0, sanctions: 0 };
+    daily.slice(0, limit).forEach((d) => {
+      const v = pick(d);
+      if (!v) return;
+      t.messages += v.messages;
+      t.voiceMinutes += v.voiceMinutes;
+      t.joins += v.joins;
+      t.leaves += v.leaves;
+      t.sanctions += v.sanctions;
+    });
+    return t;
+  };
+  const thisWeek = total((d) => d.current);
+  const lastWeek = total((d) => d.previous);
+  const lastWeekToDate = total((d) => d.previous, elapsed);
+  const change = (a: number, b: number) => (b === 0 ? (a > 0 ? 100 : 0) : Math.round(((a - b) / b) * 100));
+  const changes = (a: typeof thisWeek, b: typeof thisWeek) => ({
+    messagesChange: change(a.messages, b.messages),
+    voiceChange: change(a.voiceMinutes, b.voiceMinutes),
+    joinsChange: change(a.joins, b.joins),
+    leavesChange: change(a.leaves, b.leaves),
+    sanctionsChange: change(a.sanctions, b.sanctions),
+  });
+  return {
+    mode,
+    offset,
+    ranges: {
+      current: { start: keyAt(curStart), end: keyAt(curEnd), elapsedDays: elapsed },
+      previous: { start: keyAt(prevStart), end: keyAt(prevEnd), toDateEnd: keyAt(prevStart + (elapsed - 1) * DAY_MS) },
+    },
+    thisWeek,
+    lastWeek,
+    lastWeekToDate,
+    activeMembers: { current: Math.round(thisWeek.messages / 9), previousToDate: Math.round(lastWeekToDate.messages / 9.4) },
+    changes: changes(thisWeek, lastWeek),
+    changesToDate: changes(thisWeek, lastWeekToDate),
+    daily,
+  };
+}
+
+const DEMO_COMMANDS: Array<[string, number]> = [
+  ['rank', 0.24], ['daily', 0.18], ['rpg profil', 0.12], ['rpg combat', 0.1], ['ticket ouvrir', 0.06], ['leaderboard', 0.08],
+  ['shop acheter', 0.07], ['giveaway participer', 0.05], ['quiz', 0.04], ['sanction warn', 0.03], ['help', 0.03],
+];
+
+function commandStats(days: number) {
+  const cur = serverSeries(days);
+  const prev = serverSeries(days, days);
+  const daily = cur.map((d, i) => ({ dateKey: d.dateKey, uses: Math.round(d.messages * 0.21), previous: Math.round((prev[i]?.messages ?? 0) * 0.19) }));
+  const uses = sum(daily, (d) => d.uses);
+  const people = MEMBERS.filter((p) => !p.bot);
+  return {
+    range: range(days),
+    totals: { uses, previousUses: sum(daily, (d) => d.previous), users: Math.round(people.length * 0.55), previousUsers: Math.round(people.length * 0.5), commands: DEMO_COMMANDS.length, errorRate: 1.4, avgMs: 420 },
+    daily,
+    commands: DEMO_COMMANDS.map(([name, share], i) => ({
+      name,
+      uses: Math.round(uses * share),
+      previous: Math.round(uses * share * (i % 3 === 0 ? 0.8 : 1.1)),
+      users: Math.round(people.length * share * 2.2) + 1,
+      share: Math.round(share * 1000) / 10,
+      errorRate: name === 'ticket ouvrir' ? 6.2 : 0.8 + (i % 4) * 0.3,
+      avgMs: 180 + i * 90,
+      spark: bucketize(daily.map((d) => Math.round(d.uses * share))),
+    })),
+    topUsers: people.slice(0, 8).map((p, i) => ({ userId: p.id, name: p.displayName, avatarUrl: avatarOf(p), uses: Math.round((uses * 0.08) / (i + 1)) + 4, commands: 6 - Math.min(5, i) })),
+    unused: ['ancien-sondage', 'event inscrire'],
+    allTime: null,
+  };
+}
+
 // ── Annotations ────────────────────────────────────────────────────────
 
 const ANNOTATIONS = 'analytics-annotations';
@@ -566,6 +740,10 @@ export function registerAnalyticsInsightsRoutes(): void {
     demoDb.update(VIEWS, viewsSeed, (list) => list.filter((v) => v.id !== params.id));
     return { ok: true };
   });
+  route('GET', `${base}/members/overview`, ({ query }) => memberOverview(periodOf(query)));
+  route('GET', `${base}/commands/stats`, ({ query }) => commandStats(periodOf(query)));
+  route('GET', `${base}/heatmap`, ({ query }) => (query.get('compare') === '1' ? heatmapComparison(periodOf(query)) : heatmap()));
+  route('GET', `${base}/weekly-comparison`, ({ query }) => periodComparison(Math.max(1, Number(query.get('offset')) || 1), query.get('mode') === 'month' ? 'month' : 'week'));
   route('GET', `${base}/annotations`, ({ query }) => {
     const start = range(periodOf(query)).start;
     return demoDb.get(ANNOTATIONS, annotationsSeed).filter((a) => a.dateKey >= start);

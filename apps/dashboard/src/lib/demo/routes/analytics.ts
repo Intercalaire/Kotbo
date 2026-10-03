@@ -509,9 +509,9 @@ function filterOptions() {
   };
 }
 
-function heatmap() {
+export function heatmap(seed = 31) {
   const out: Record<number, Record<number, { messages: number; voice: number; active: number; joins: number; leaves: number; net: number }>> = {};
-  const random = seeded(31);
+  const random = seeded(seed);
   for (let dow = 0; dow < 7; dow++) {
     out[dow] = {};
     const weekend = dow === 0 || dow === 6;
