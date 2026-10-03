@@ -241,6 +241,11 @@ import {
   Zap,
   ZoomIn,
   ZoomOut,
+  AreaChart,
+  Layers,
+  LineChart,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-svelte';
 import { toPapiconsName } from './papicons';
 
@@ -252,6 +257,11 @@ import { toPapiconsName } from './papicons';
  * ne conserver que cette sélection.
  */
 const icons = {
+  PanelLeftOpen,
+  PanelLeftClose,
+  LineChart,
+  Layers,
+  AreaChart,
   AlertCircle,
   AlertOctagon,
   AlertTriangle,
