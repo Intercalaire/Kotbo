@@ -473,6 +473,26 @@ function risingWords() {
   };
 }
 
+
+// ── Alertes et rapports ────────────────────────────────────────────────
+
+const ALERTS = 'analytics-alerts';
+const REPORTS = 'analytics-reports';
+const alertsSeed = () => ({
+  rules: [
+    { id: '9200000000000000001', name: "Baisse d'activité", metric: 'messages', condition: 'drop_pct', threshold: 30, window: 'day', channelId: null, notifyChannelId: CHANNELS[8]!.id, notifyUserIds: [], enabled: true, cooldownHours: 24, lastTriggeredAt: new Date(Date.now() - 12 * DAY_MS).toISOString(), createdById: MEMBERS[1]!.id, createdAt: new Date(Date.now() - 40 * DAY_MS).toISOString() },
+    { id: '9200000000000000002', name: '#général qui s’emballe', metric: 'channelRate', condition: 'above', threshold: 250, window: 'hour', channelId: CHANNELS[3]!.id, notifyChannelId: null, notifyUserIds: [MEMBERS[1]!.id], enabled: true, cooldownHours: 2, lastTriggeredAt: null, createdById: MEMBERS[1]!.id, createdAt: new Date(Date.now() - 10 * DAY_MS).toISOString() },
+  ],
+  events: [
+    { id: '9210000000000000001', ruleId: '9200000000000000001', periodKey: dateKey(12), value: 412, baseline: 760, delivered: true, triggeredAt: new Date(Date.now() - 12 * DAY_MS).toISOString() },
+  ],
+});
+const reportsSeed = () => ({
+  schedules: [
+    { id: '9220000000000000001', frequency: 'weekly', weekday: 1, monthDay: 1, hour: 9, channelId: CHANNELS[8]!.id, userIds: [], sections: ['overview', 'top_members', 'top_channels', 'anomalies'], enabled: true, nextRunAt: new Date(Date.now() + 2 * DAY_MS).toISOString(), lastSentAt: new Date(Date.now() - 5 * DAY_MS).toISOString() },
+  ],
+});
+
 // ── Annotations ────────────────────────────────────────────────────────
 
 const ANNOTATIONS = 'analytics-annotations';
@@ -502,6 +522,35 @@ export function registerAnalyticsInsightsRoutes(): void {
   route('GET', `${base}/insights/moderation`, ({ query }) => moderationTrends(periodOf(query)));
   route('GET', `${base}/insights/staff`, ({ query }) => staffInsights(periodOf(query)));
   route('GET', `${base}/insights/words`, () => risingWords());
+  route('GET', `${base}/alerts`, () => demoDb.get(ALERTS, alertsSeed));
+  route('POST', `${base}/alerts`, ({ body }) => {
+    const rule = { ...body, id: demoId(), lastTriggeredAt: null, createdById: sessionUser().id, createdAt: new Date().toISOString() };
+    demoDb.update(ALERTS, alertsSeed, (cur) => ({ ...cur, rules: [...cur.rules, rule] }));
+    return rule;
+  });
+  route('PUT', `${base}/alerts/:id`, ({ params, body }) => {
+    demoDb.update(ALERTS, alertsSeed, (cur) => ({ ...cur, rules: cur.rules.map((r) => (r.id === params.id ? { ...r, ...body } : r)) }));
+    return { ok: true };
+  });
+  route('DELETE', `${base}/alerts/:id`, ({ params }) => {
+    demoDb.update(ALERTS, alertsSeed, (cur) => ({ ...cur, rules: cur.rules.filter((r) => r.id !== params.id) }));
+    return { ok: true };
+  });
+  route('GET', `${base}/reports`, () => demoDb.get(REPORTS, reportsSeed));
+  route('POST', `${base}/reports/:id/test`, () => ({ ok: true }));
+  route('POST', `${base}/reports`, ({ body }) => {
+    const schedule = { ...body, id: demoId(), nextRunAt: new Date(Date.now() + 3 * DAY_MS).toISOString(), lastSentAt: null };
+    demoDb.update(REPORTS, reportsSeed, (cur) => ({ schedules: [...cur.schedules, schedule] }));
+    return schedule;
+  });
+  route('PUT', `${base}/reports/:id`, ({ params, body }) => {
+    demoDb.update(REPORTS, reportsSeed, (cur) => ({ schedules: cur.schedules.map((r) => (r.id === params.id ? { ...r, ...body } : r)) }));
+    return { ok: true };
+  });
+  route('DELETE', `${base}/reports/:id`, ({ params }) => {
+    demoDb.update(REPORTS, reportsSeed, (cur) => ({ schedules: cur.schedules.filter((r) => r.id !== params.id) }));
+    return { ok: true };
+  });
   route('GET', `${base}/annotations`, ({ query }) => {
     const start = range(periodOf(query)).start;
     return demoDb.get(ANNOTATIONS, annotationsSeed).filter((a) => a.dateKey >= start);
