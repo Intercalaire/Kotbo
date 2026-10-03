@@ -748,7 +748,20 @@ export async function handleAnalyticsRoutes(
       const endDate = url.searchParams.get('endDate');
       const timezone = await resolveViewTimezone(url.searchParams.get('tz'), guildId);
       const heatmapData = await getHourlyHeatmapData(guildId, { days, startDate, endDate, timezone });
-      json(res, 200, heatmapData);
+      if (url.searchParams.get('compare') !== '1') {
+        json(res, 200, heatmapData);
+        return true;
+      }
+      // Avec `compare=1`, la grille de la période d'avant (même durée) suit,
+      // pour montrer comment les créneaux se sont déplacés.
+      const dayMs = 86_400_000;
+      const endKey = (endDate ?? new Date().toISOString()).slice(0, 10);
+      const startKey = startDate ? startDate.slice(0, 10) : new Date(Date.parse(`${endKey}T00:00:00Z`) - days * dayMs).toISOString().slice(0, 10);
+      const span = Math.round((Date.parse(`${endKey}T00:00:00Z`) - Date.parse(`${startKey}T00:00:00Z`)) / dayMs);
+      const prevEnd = new Date(Date.parse(`${startKey}T00:00:00Z`) - dayMs).toISOString().slice(0, 10);
+      const prevStart = new Date(Date.parse(`${prevEnd}T00:00:00Z`) - span * dayMs).toISOString().slice(0, 10);
+      const previous = await getHourlyHeatmapData(guildId, { startDate: prevStart, endDate: prevEnd, timezone });
+      json(res, 200, { current: heatmapData, previous, timezone, range: { start: startKey, end: endKey, prevStart, prevEnd } });
     } catch (err) {
       logger.error('AnalyticsAPI', 'Error computing heatmap:', err);
       jsonFailure(res, err, 'Erreur heatmap analytics', 'AnalyticsAPI');
