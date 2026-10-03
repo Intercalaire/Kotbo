@@ -2996,6 +2996,25 @@ export async function relayThreadToDm(client: Client, message: Message): Promise
  * Ne joue que sur la premiere prise en charge (statut OPEN) — une
  * sur-revendication reste un choix volontaire via le bouton dedie.
  */
+/**
+ * Note le premier message d'une autre personne que l'auteur dans un ticket
+ * ouvert : c'est le délai de première réponse des analytics staff. Une seule
+ * écriture conditionnelle, faite seulement dans les salons de ticket.
+ */
+export async function recordTicketFirstResponse(message: Message): Promise<void> {
+  if (message.author.bot || !message.guildId) return;
+  if (!(await mayBeTicketChannel(message.channelId))) return;
+  await prisma.ticket.updateMany({
+    where: {
+      guildId: message.guildId,
+      firstResponseAt: null,
+      userId: { not: message.author.id },
+      OR: [{ channelId: message.channelId }, { threadId: message.channelId }],
+    },
+    data: { firstResponseAt: message.createdAt, firstResponderId: message.author.id },
+  });
+}
+
 export async function autoClaimTicketOnStaffMessage(client: Client, message: Message): Promise<void> {
   if (message.author.bot || !message.guildId || !message.member) return;
   if (!(await mayBeTicketChannel(message.channelId))) return;
