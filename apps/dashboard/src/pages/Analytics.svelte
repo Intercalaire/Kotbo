@@ -35,6 +35,10 @@
   import BarList from '../lib/components/analytics/BarList.svelte';
   import MembersStats from '../lib/components/analytics/MembersStats.svelte';
   import GhostMembersPanel from '../lib/components/analytics/GhostMembersPanel.svelte';
+  import EngagementView from '../lib/components/analytics/EngagementView.svelte';
+  import LifecycleView from '../lib/components/analytics/LifecycleView.svelte';
+  import FunnelView from '../lib/components/analytics/FunnelView.svelte';
+  import CohortTriangle from '../lib/components/analytics/CohortTriangle.svelte';
   import AdvancedAnalyticsPanel from '../lib/components/analytics/AdvancedAnalyticsPanel.svelte';
   import ModerationAudit from '../lib/components/analytics/ModerationAudit.svelte';
   import StaffAudit from '../lib/components/analytics/StaffAudit.svelte';
@@ -104,6 +108,8 @@
       id: 'members', label: m.an_tab_members(), icon: 'UsersFour', description: m.anx_section_members_desc(),
       tabs: [
         { id: 'members', label: m.an_tab_members(), icon: 'UsersFour', scope: 'period', legacy: true },
+        { id: 'engagement', label: m.anx_tab_engagement(), icon: 'Activity', scope: 'full' },
+        { id: 'lifecycle', label: m.anx_tab_lifecycle(), icon: 'Users', scope: 'full' },
         { id: 'interactions', label: m.an_tab_network(), icon: 'Compass', scope: 'period' },
         { id: 'social', label: m.an_tab_social(), icon: 'Users', scope: 'own' },
         { id: 'ghosts', label: m.ghost_tab(), icon: 'Ghost', scope: 'own' },
@@ -113,6 +119,7 @@
       id: 'growth', label: m.anx_section_growth(), icon: 'TrendingUp', description: m.anx_section_growth_desc(),
       tabs: [
         { id: 'growth', label: m.anx_tab_growth(), icon: 'TrendingUp', scope: 'period', legacy: true },
+        { id: 'funnel', label: m.anx_tab_funnel(), icon: 'Filter', scope: 'full' },
         { id: 'cohorts', label: m.an_tab_cohorts(), icon: 'UsersFour', scope: 'own' },
         { id: 'churn', label: m.an_tab_churn(), icon: 'Warning', scope: 'own' },
       ],
@@ -524,8 +531,17 @@
           <GhostMembersPanel onOpenMember={openMemberDetails} />
         {:else if activeTab === 'growth'}
           <GrowthSection {legacy} {legacyLoading} onOpenMember={openMemberDetails} />
+        {:else if activeTab === 'engagement'}
+          <EngagementView />
+        {:else if activeTab === 'lifecycle'}
+          <LifecycleView onOpenMember={openMemberDetails} />
+        {:else if activeTab === 'funnel'}
+          <FunnelView />
         {:else if activeTab === 'cohorts'}
-          <AdvancedAnalyticsPanel section="retention" onOpenMember={openMemberDetails} />
+          <div class="flex flex-col gap-4">
+            <CohortTriangle />
+            <AdvancedAnalyticsPanel section="retention" onOpenMember={openMemberDetails} />
+          </div>
         {:else if activeTab === 'churn'}
           <AdvancedAnalyticsPanel section="churn" onOpenMember={openMemberDetails} />
         {:else if activeTab === 'mod-advanced'}
