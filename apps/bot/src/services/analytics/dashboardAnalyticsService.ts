@@ -276,86 +276,125 @@ export const getHourlyHeatmapData = async (guildId: string, options: { days?: nu
 };
 
 /**
- * Get week-over-week comparison
+ * Comparaison d'une semaine (du lundi au dimanche, UTC) ou d'un mois civil
+ * avec une période de référence `offset` crans plus tôt.
+ *
+ * La période en cours n'est pas finie : la comparer à une période entière
+ * donnait toujours une « baisse » en début de semaine. `toDate` compare donc
+ * aussi les mêmes jours écoulés de part et d'autre (lundi→mercredi contre
+ * lundi→mercredi), et `daily` aligne les deux périodes jour par jour.
  */
-export const getWeekOverWeekComparison = async (guildId: string, options: { offset?: number, mode?: 'week' | 'month' } = {}) => {
+export const getWeekOverWeekComparison = async (guildId: string, options: { offset?: number, mode?: 'week' | 'month' } = {}, now = new Date()) => {
   const { offset = 1, mode = 'week' } = options;
-  const now = new Date();
-  
-  let currentStart = new Date(now);
-  let currentEnd = new Date(now);
-  let previousStart = new Date(now);
-  let previousEnd = new Date(now);
+  const keyOf = (d: Date) => d.toISOString().split('T')[0]!;
+  const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86_400_000);
 
+  let currentStart: Date;
+  let currentEnd: Date;
+  let previousStart: Date;
+  let previousEnd: Date;
   if (mode === 'month') {
-    // Current month
     currentStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    currentEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
-    
-    // Previous month (offset)
+    currentEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
     previousStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset, 1));
-    previousEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset + 1, 0, 23, 59, 59, 999));
+    previousEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset + 1, 0));
   } else {
-    // Current week (starting Sunday)
-    currentStart.setUTCDate(now.getUTCDate() - now.getUTCDay());
-    currentStart.setUTCHours(0, 0, 0, 0);
-    currentEnd = new Date(currentStart);
-    currentEnd.setUTCDate(currentStart.getUTCDate() + 6);
-    currentEnd.setUTCHours(23, 59, 59, 999);
-    
-    // Previous week (offset)
-    previousStart = new Date(currentStart);
-    previousStart.setUTCDate(currentStart.getUTCDate() - (7 * offset));
-    previousEnd = new Date(previousStart);
-    previousEnd.setUTCDate(previousStart.getUTCDate() + 6);
-    previousEnd.setUTCHours(23, 59, 59, 999);
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    currentStart = addDays(today, -((today.getUTCDay() + 6) % 7));
+    currentEnd = addDays(currentStart, 6);
+    previousStart = addDays(currentStart, -7 * offset);
+    previousEnd = addDays(previousStart, 6);
   }
+  const todayKey = keyOf(now);
+  const elapsedDays = Math.min(
+    Math.round((Date.parse(`${keyOf(currentEnd)}T00:00:00Z`) - Date.parse(`${keyOf(currentStart)}T00:00:00Z`)) / 86_400_000) + 1,
+    Math.round((Date.parse(`${todayKey}T00:00:00Z`) - Date.parse(`${keyOf(currentStart)}T00:00:00Z`)) / 86_400_000) + 1,
+  );
 
-  const currentKeyStart = currentStart.toISOString().split('T')[0];
-  const currentKeyEnd = currentEnd.toISOString().split('T')[0];
-  const previousKeyStart = previousStart.toISOString().split('T')[0];
-  const previousKeyEnd = previousEnd.toISOString().split('T')[0];
+  const [currentStats, previousStats, activeRows] = await Promise.all([
+    prisma.guildDailyStat.findMany({ where: { guildId, dateKey: { gte: keyOf(currentStart), lte: keyOf(currentEnd) } } }),
+    prisma.guildDailyStat.findMany({ where: { guildId, dateKey: { gte: keyOf(previousStart), lte: keyOf(previousEnd) } } }),
+    prisma.$queryRaw<Array<{ period: string; v: number }>>`
+      SELECT CASE WHEN "dateKey" >= ${keyOf(currentStart)} THEN 'current'
+                  WHEN "dateKey" <= ${keyOf(addDays(previousStart, elapsedDays - 1))} THEN 'previousToDate'
+                  ELSE 'previousRest' END AS period,
+             COUNT(DISTINCT "userId")::int AS v
+      FROM "member_daily_stats"
+      WHERE "guildId" = ${guildId} AND ("messagesCount" > 0 OR "voiceMinutes" > 0)
+        AND (("dateKey" >= ${keyOf(currentStart)} AND "dateKey" <= ${keyOf(currentEnd)})
+          OR ("dateKey" >= ${keyOf(previousStart)} AND "dateKey" <= ${keyOf(previousEnd)}))
+      GROUP BY 1
+    `,
+  ]);
 
-  const currentStats = await prisma.guildDailyStat.findMany({
-    where: {
-      guildId,
-      dateKey: { gte: currentKeyStart, lte: currentKeyEnd }
-    }
+  type Totals = { messages: number; voiceMinutes: number; joins: number; leaves: number; sanctions: number };
+  const sumStats = (stats: typeof currentStats): Totals => ({
+    messages: stats.reduce((sum, st) => sum + st.messagesCount, 0),
+    voiceMinutes: stats.reduce((sum, st) => sum + st.voiceMinutes, 0),
+    joins: stats.reduce((sum, st) => sum + st.membersJoined, 0),
+    leaves: stats.reduce((sum, st) => sum + st.membersLeft, 0),
+    sanctions: stats.reduce((sum, st) => sum + (st.sanctionsCount || 0), 0),
   });
-
-  const previousStats = await prisma.guildDailyStat.findMany({
-    where: {
-      guildId,
-      dateKey: { gte: previousKeyStart, lte: previousKeyEnd }
-    }
-  });
-
-  const sumStats = (stats: typeof currentStats) => ({
-    messages: stats.reduce((sum, s) => sum + s.messagesCount, 0),
-    voiceMinutes: stats.reduce((sum, s) => sum + s.voiceMinutes, 0),
-    joins: stats.reduce((sum, s) => sum + s.membersJoined, 0),
-    leaves: stats.reduce((sum, s) => sum + s.membersLeft, 0),
-    sanctions: stats.reduce((sum, s) => sum + (s.sanctionsCount || 0), 0)
-  });
-
-  const thisPeriod = sumStats(currentStats);
-  const lastPeriod = sumStats(previousStats);
-
   const getChange = (current: number, previous: number) => {
     if (previous === 0) return current > 0 ? 100 : 0;
     return Math.round(((current - previous) / previous) * 100);
   };
+  const changesOf = (a: Totals, b: Totals) => ({
+    messagesChange: getChange(a.messages, b.messages),
+    voiceChange: getChange(a.voiceMinutes, b.voiceMinutes),
+    joinsChange: getChange(a.joins, b.joins),
+    leavesChange: getChange(a.leaves, b.leaves),
+    sanctionsChange: getChange(a.sanctions, b.sanctions),
+  });
+
+  const previousToDateEnd = keyOf(addDays(previousStart, elapsedDays - 1));
+  const thisPeriod = sumStats(currentStats);
+  const lastPeriod = sumStats(previousStats);
+  const lastPeriodToDate = sumStats(previousStats.filter((st) => st.dateKey <= previousToDateEnd));
+  const active = Object.fromEntries(activeRows.map((r) => [r.period, r.v]));
+
+  const length = Math.max(
+    Math.round((currentEnd.getTime() - currentStart.getTime()) / 86_400_000) + 1,
+    Math.round((previousEnd.getTime() - previousStart.getTime()) / 86_400_000) + 1,
+  );
+  const byKey = (stats: typeof currentStats) => new Map(stats.map((st) => [st.dateKey, st]));
+  const cur = byKey(currentStats);
+  const prev = byKey(previousStats);
+  const day = (st: (typeof currentStats)[number] | undefined) => ({
+    messages: st?.messagesCount ?? 0,
+    voiceMinutes: st?.voiceMinutes ?? 0,
+    joins: st?.membersJoined ?? 0,
+    leaves: st?.membersLeft ?? 0,
+    sanctions: st?.sanctionsCount ?? 0,
+    activeMembers: st?.activeMembers ?? 0,
+    peakOnline: st?.peakOnline ?? 0,
+  });
+  const daily = Array.from({ length }, (_, i) => {
+    const ck = keyOf(addDays(currentStart, i));
+    const pk = keyOf(addDays(previousStart, i));
+    return {
+      index: i,
+      currentKey: ck <= keyOf(currentEnd) ? ck : null,
+      previousKey: pk <= keyOf(previousEnd) ? pk : null,
+      current: ck <= todayKey && ck <= keyOf(currentEnd) ? day(cur.get(ck)) : null,
+      previous: pk <= keyOf(previousEnd) ? day(prev.get(pk)) : null,
+    };
+  });
 
   return {
-    thisWeek: thisPeriod, // keeping keys same for compatibility
+    mode,
+    offset,
+    ranges: {
+      current: { start: keyOf(currentStart), end: keyOf(currentEnd), elapsedDays },
+      previous: { start: keyOf(previousStart), end: keyOf(previousEnd), toDateEnd: previousToDateEnd },
+    },
+    thisWeek: thisPeriod,
     lastWeek: lastPeriod,
-    changes: {
-      messagesChange: getChange(thisPeriod.messages, lastPeriod.messages),
-      voiceChange: getChange(thisPeriod.voiceMinutes, lastPeriod.voiceMinutes),
-      joinsChange: getChange(thisPeriod.joins, lastPeriod.joins),
-      leavesChange: getChange(thisPeriod.leaves, lastPeriod.leaves),
-      sanctionsChange: getChange(thisPeriod.sanctions, lastPeriod.sanctions)
-    }
+    lastWeekToDate: lastPeriodToDate,
+    activeMembers: { current: active.current ?? 0, previousToDate: active.previousToDate ?? 0 },
+    changes: changesOf(thisPeriod, lastPeriod),
+    changesToDate: changesOf(thisPeriod, lastPeriodToDate),
+    daily,
   };
 };
 
