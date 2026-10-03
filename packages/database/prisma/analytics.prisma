@@ -513,3 +513,85 @@ model ChannelResponseDailyStat {
   @@index([guildId, dateKey])
   @@map("channel_response_daily_stats")
 }
+
+// Alerte sur seuil d'Analytics : « préviens-moi si l'activité baisse de 30 % »,
+// « si un salon dépasse 200 messages par heure ». Évaluée par le cron
+// analytics-alerts ; envoyée dans un salon et/ou en MP aux membres choisis.
+model AnalyticsAlertRule {
+  id String @id @default(cuid())
+
+  guildId   String
+  name      String
+  metric    String  // messages | voiceMinutes | activeMembers | joins | leaves | netJoins | sanctions | channelRate | unansweredRate
+  condition String  // drop_pct | rise_pct | above | below
+  threshold Float
+  window    String  // hour | day | week
+  channelId String? // pour channelRate (et pour restreindre messages à un salon)
+
+  notifyChannelId String?
+  notifyUserIds   String[] @default([])
+  enabled         Boolean  @default(true)
+  cooldownHours   Int      @default(24)
+
+  lastPeriodKey   String?   // dernière période évaluée, pour ne pas réévaluer
+  lastTriggeredAt DateTime?
+  createdById     String
+
+  guild  Guild                 @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  events AnalyticsAlertEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId])
+  @@index([enabled])
+  @@map("analytics_alert_rules")
+}
+
+// Déclenchements d'alerte, pour l'historique affiché dans Analytics.
+model AnalyticsAlertEvent {
+  id String @id @default(cuid())
+
+  guildId   String
+  ruleId    String
+  periodKey String
+  value     Float
+  baseline  Float?
+  delivered Boolean @default(true)
+
+  rule AnalyticsAlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  triggeredAt DateTime @default(now())
+
+  @@index([guildId, triggeredAt])
+  @@index([ruleId, triggeredAt])
+  @@map("analytics_alert_events")
+}
+
+// Rapport d'Analytics envoyé à intervalle régulier dans un salon et/ou en MP.
+model AnalyticsReportSchedule {
+  id String @id @default(cuid())
+
+  guildId   String
+  frequency String  // weekly | monthly
+  weekday   Int     @default(1) // 0 = dimanche, pour weekly
+  monthDay  Int     @default(1) // 1-28, pour monthly
+  hour      Int     @default(9) // heure locale du serveur
+  channelId String?
+  userIds   String[] @default([])
+  sections  String[] @default([])
+  enabled   Boolean  @default(true)
+
+  nextRunAt  DateTime
+  lastSentAt DateTime?
+  createdById String
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId])
+  @@index([enabled, nextRunAt])
+  @@map("analytics_report_schedules")
+}
