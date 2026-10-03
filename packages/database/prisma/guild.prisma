@@ -442,6 +442,7 @@ model Guild {
   analyticsAlertRules AnalyticsAlertRule[]
   analyticsReportSchedules AnalyticsReportSchedule[]
   analyticsSavedViews AnalyticsSavedView[]
+  commandUsageDailyStats CommandUsageDailyStat[]
   contentItemDailyStats ContentItemDailyStat[]
   memberInvites MemberInvite[]
   guildInvites  GuildInvite[]

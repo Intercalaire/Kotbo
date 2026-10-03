@@ -614,3 +614,28 @@ model AnalyticsSavedView {
   @@index([guildId, userId])
   @@map("analytics_saved_views")
 }
+
+// Usage des commandes slash, par jour, commande (avec sous-commande) et membre.
+// Suit Guild.analyticsEnabled. Remplace, pour Analytics, le cumul sans date de
+// dashboard_command_usages.
+model CommandUsageDailyStat {
+  id String @id @default(cuid())
+
+  guildId     String
+  dateKey     String // YYYY-MM-DD
+  commandName String // « rank », « ticket ouvrir »
+  userId      String
+
+  uses    Int @default(0)
+  errors  Int @default(0)
+  totalMs Int @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, dateKey, commandName, userId])
+  @@index([guildId, dateKey])
+  @@map("command_usage_daily_stats")
+}
