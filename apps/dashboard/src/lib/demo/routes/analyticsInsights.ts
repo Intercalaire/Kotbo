@@ -493,6 +493,11 @@ const reportsSeed = () => ({
   ],
 });
 
+const VIEWS = 'analytics-views';
+const viewsSeed = () => [
+  { id: '9230000000000000001', name: 'Rétention du mois', payload: { tab: 'lifecycle', period: '30', compare: true, channel: null, role: null, excludeStaff: true, includeBots: false }, shared: true, mine: false, createdAt: new Date(Date.now() - 8 * DAY_MS).toISOString() },
+];
+
 // ── Annotations ────────────────────────────────────────────────────────
 
 const ANNOTATIONS = 'analytics-annotations';
@@ -549,6 +554,16 @@ export function registerAnalyticsInsightsRoutes(): void {
   });
   route('DELETE', `${base}/reports/:id`, ({ params }) => {
     demoDb.update(REPORTS, reportsSeed, (cur) => ({ schedules: cur.schedules.filter((r) => r.id !== params.id) }));
+    return { ok: true };
+  });
+  route('GET', `${base}/views`, () => demoDb.get(VIEWS, viewsSeed));
+  route('POST', `${base}/views`, ({ body }) => {
+    const view = { id: demoId(), name: String(body?.name ?? '').slice(0, 60), payload: body?.payload ?? {}, shared: body?.shared === true, mine: true, createdAt: new Date().toISOString() };
+    demoDb.update(VIEWS, viewsSeed, (list) => [...list, view]);
+    return view;
+  });
+  route('DELETE', `${base}/views/:id`, ({ params }) => {
+    demoDb.update(VIEWS, viewsSeed, (list) => list.filter((v) => v.id !== params.id));
     return { ok: true };
   });
   route('GET', `${base}/annotations`, ({ query }) => {
