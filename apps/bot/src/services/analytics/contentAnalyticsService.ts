@@ -27,8 +27,8 @@ export interface DateRange {
 }
 
 const DAY_MS = 24 * 3600 * 1000;
-const keyOf = (d: Date) => d.toISOString().slice(0, 10);
-const addDays = (key: string, n: number) => keyOf(new Date(Date.parse(`${key}T00:00:00Z`) + n * DAY_MS));
+export const keyOf = (d: Date) => d.toISOString().slice(0, 10);
+export const addDays = (key: string, n: number) => keyOf(new Date(Date.parse(`${key}T00:00:00Z`) + n * DAY_MS));
 
 /** `period` en jours (1 à 365) ou `startDate`/`endDate` (ISO ou datetime-local). */
 export function parseRange(params: URLSearchParams, now = new Date()): DateRange {
@@ -114,10 +114,10 @@ export function scopeCacheKey(scope: AnalyticsScope, range: DateRange): string {
   return [range.start, range.end, scope.channelFilter ?? '', scope.roleFilter ?? '', scope.excludeStaff ? 's' : '', users].join(':');
 }
 
-const hasUserScope = (scope: AnalyticsScope) => scope.userIds !== null || scope.excludeUserIds.length > 0;
+export const hasUserScope = (scope: AnalyticsScope) => scope.userIds !== null || scope.excludeUserIds.length > 0;
 
 /** Conditions SQL sur "channelId" / "userId" selon le périmètre. `alias` préfixe les colonnes. */
-function scopeSql(scope: AnalyticsScope, opts: { channels?: boolean; users?: boolean } = {}): Prisma.Sql {
+export function scopeSql(scope: AnalyticsScope, opts: { channels?: boolean; users?: boolean } = {}): Prisma.Sql {
   const parts: Prisma.Sql[] = [];
   if (opts.channels !== false && scope.channelIds) {
     parts.push(scope.channelIds.length > 0 ? Prisma.sql`"channelId" IN (${Prisma.join(scope.channelIds)})` : Prisma.sql`FALSE`);
@@ -315,15 +315,15 @@ export async function getContentAnalytics(client: Client, guildId: string, range
 
 // ── Activité filtrée ───────────────────────────────────────────────────────
 
-interface DayRow { dateKey: string; messages: number; voiceMinutes: number }
+export interface DayRow { dateKey: string; messages: number; voiceMinutes: number }
 
-function dayKeys(start: string, end: string): string[] {
+export function dayKeys(start: string, end: string): string[] {
   const keys: string[] = [];
   for (let k = start; k <= end; k = addDays(k, 1)) keys.push(k);
   return keys;
 }
 
-async function dailyActivity(guildId: string, start: string, end: string, scope: AnalyticsScope): Promise<{ rows: DayRow[]; voiceAvailable: boolean }> {
+export async function dailyActivity(guildId: string, start: string, end: string, scope: AnalyticsScope): Promise<{ rows: DayRow[]; voiceAvailable: boolean }> {
   const users = hasUserScope(scope);
   if (scope.channelIds && users) {
     // Salon ET membres : seules les stats de contenu croisent les deux. Pas de vocal.
