@@ -441,6 +441,7 @@ model Guild {
   channelResponseDailyStats ChannelResponseDailyStat[]
   analyticsAlertRules AnalyticsAlertRule[]
   analyticsReportSchedules AnalyticsReportSchedule[]
+  analyticsSavedViews AnalyticsSavedView[]
   contentItemDailyStats ContentItemDailyStat[]
   memberInvites MemberInvite[]
   guildInvites  GuildInvite[]

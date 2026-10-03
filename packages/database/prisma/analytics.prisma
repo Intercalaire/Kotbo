@@ -595,3 +595,22 @@ model AnalyticsReportSchedule {
   @@index([enabled, nextRunAt])
   @@map("analytics_report_schedules")
 }
+
+// Vue enregistrée d'Analytics : onglet, période, filtres et comparaison, pour
+// y revenir en un clic. Privée à son auteur, ou partagée avec l'équipe.
+model AnalyticsSavedView {
+  id String @id @default(cuid())
+
+  guildId String
+  userId  String
+  name    String
+  payload Json
+  shared  Boolean @default(false)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([guildId, userId])
+  @@map("analytics_saved_views")
+}
