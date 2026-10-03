@@ -804,6 +804,79 @@ export const fetchSavedViews = () => req<SavedView[]>('/analytics/views', 'GET')
 export const createSavedView = (input: { name: string; payload: SavedViewPayload; shared: boolean }) => req<SavedView>('/analytics/views', 'POST', input);
 export const deleteSavedView = (id: string) => req<{ ok: boolean }>(`/analytics/views/${encodeURIComponent(id)}`, 'DELETE');
 
+export interface MemberOverview {
+  memberCount: number | null;
+  series: Array<{
+    dateKey: string; members: number; joined: number; left: number; peakOnline: number; onlineMembers: number;
+    prevMembers: number; prevJoined: number; prevLeft: number; prevPeakOnline: number; prevOnlineMembers: number;
+  }>;
+  sources: {
+    tracked: number;
+    kinds: Array<{ kind: 'invite' | 'vanity' | 'label' | 'unknown'; joined: number; retention: number | null }>;
+    links: Array<{ code: string; label: string | null; inviterId: string | null; inviterTag: string | null; joined: number; stayed: number; retention: number | null; isVanity: boolean }>;
+  };
+  inviters: Array<{ userId: string; name: string | null; avatarUrl: string | null; joined: number; previous: number; stayed: number; retention: number | null; left24h: number }>;
+  newcomers: {
+    joined: number;
+    accountAge: { known: number; buckets: Array<{ key: 'under1d' | 'under7d' | 'under30d' | 'under365d' | 'over365d'; count: number }> };
+    onboarding: { completed: number; rate: number | null } | null;
+    left24h: { count: number; rate: number | null };
+  };
+}
+
+export const fetchMemberOverview = (query: AnalyticsQuery, guildId = authStore.selectedGuildId) => {
+  const params = new URLSearchParams(analyticsParams({ period: query.period, startDate: query.startDate, endDate: query.endDate, includeBots: query.includeBots }));
+  return dashboardRequest<MemberOverview>(`/analytics/members/overview?${params}`, { method: 'GET', guildId, errorContext: 'API Error (Member Overview):' });
+};
+
+export interface CommandAnalytics {
+  totals: { uses: number; previousUses: number; users: number; previousUsers: number; commands: number; errorRate: number | null; avgMs: number | null };
+  daily: Array<{ dateKey: string; uses: number; previous: number }>;
+  commands: Array<{ name: string; uses: number; previous: number; users: number; share: number; errorRate: number | null; avgMs: number | null; spark: number[] }>;
+  topUsers: Array<{ userId: string; name: string | null; avatarUrl: string | null; uses: number; commands: number }>;
+  unused: string[];
+  allTime: Array<{ name: string; count: number }> | null;
+}
+
+export const fetchCommandAnalytics = (query: AnalyticsQuery, guildId = authStore.selectedGuildId) =>
+  dashboardRequest<CommandAnalytics>(`/analytics/commands/stats?${analyticsParams({ period: query.period, startDate: query.startDate, endDate: query.endDate })}`, {
+    method: 'GET', guildId, errorContext: 'API Error (Command Analytics):',
+  });
+
+export type HeatmapCell = { messages: number; voice: number; active: number; joins: number; leaves: number; net: number };
+export type HeatmapGrid = Record<number, Record<number, HeatmapCell>>;
+
+export interface HeatmapComparison {
+  current: HeatmapGrid;
+  previous: HeatmapGrid;
+  timezone: string;
+  range: { start: string; end: string; prevStart: string; prevEnd: string };
+}
+
+export async function fetchHeatmapComparison(options: { days?: number; startDate?: string; endDate?: string }, guildId = authStore.selectedGuildId) {
+  const params = new URLSearchParams();
+  if (options.days) params.append('days', options.days.toString());
+  if (options.startDate) params.append('startDate', options.startDate);
+  if (options.endDate) params.append('endDate', options.endDate);
+  params.append('compare', '1');
+  appendViewTimezone(params);
+  return dashboardRequest<HeatmapComparison>(`/analytics/heatmap?${params}`, { method: 'GET', guildId, errorContext: 'API Error (Heatmap comparison):' });
+}
+
+export interface PeriodTotals { messages: number; voiceMinutes: number; joins: number; leaves: number; sanctions: number }
+export interface PeriodDay { messages: number; voiceMinutes: number; joins: number; leaves: number; sanctions: number; activeMembers: number; peakOnline: number }
+
+export interface PeriodComparison {
+  mode: 'week' | 'month';
+  offset: number;
+  ranges: { current: { start: string; end: string; elapsedDays: number }; previous: { start: string; end: string; toDateEnd: string } };
+  thisWeek: PeriodTotals;
+  lastWeek: PeriodTotals;
+  lastWeekToDate: PeriodTotals;
+  activeMembers: { current: number; previousToDate: number };
+  daily: Array<{ index: number; currentKey: string | null; previousKey: string | null; current: PeriodDay | null; previous: PeriodDay | null }>;
+}
+
 export async function fetchChannelTree(query: AnalyticsQuery, guildId = authStore.selectedGuildId): Promise<ChannelTree | null> {
   return dashboardRequest<ChannelTree>(`/analytics/channel-tree?${analyticsParams({ period: query.period, startDate: query.startDate, endDate: query.endDate })}`, {
     method: 'GET',
