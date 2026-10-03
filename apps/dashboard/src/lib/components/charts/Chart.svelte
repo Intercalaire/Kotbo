@@ -50,13 +50,16 @@
     type = 'line', 
     options = {}, 
     height = 300,
-    width = null as number | null
+    width = null as number | null,
+    plugins = [] as any[]
   } = $props<{
     data: any;
     type?: keyof ChartTypeRegistry;
     options?: any;
     height?: number;
     width?: number | null;
+    /** Plugins Chart.js propres à ce graphique (repères, annotations). */
+    plugins?: any[];
   }>();
 
   let canvas = $state<HTMLCanvasElement | null>(null);
@@ -218,7 +221,7 @@
     const config: ChartConfiguration = {
       type: type as any,
       data: processedData,
-      plugins: [gradient, verticalLinePlugin],
+      plugins: [gradient, verticalLinePlugin, ...plugins],
       options: {
 
         responsive: true,
