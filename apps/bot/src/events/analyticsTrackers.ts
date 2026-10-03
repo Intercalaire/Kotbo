@@ -5,6 +5,8 @@
  *  - Fréquence des mots (agrégats anonymes, opt-in via wordStatsEnabled)
  *  - Contenu des messages : types, emojis, stickers, GIF, liens, markdown
  *    (contentStatsTracker.ts, rattrapage depuis message_logs au démarrage)
+ *  - Conversation : temps de réponse par salon, réponses et mentions entre
+ *    membres (conversationTracker.ts)
  *  - Complétion de l'onboarding Discord (membership screening : pending → validé)
  */
 
@@ -16,6 +18,7 @@ import { isGuildActivated } from '../utils/activation.js';
 import { trackMessageWords, startWordStatsFlusher } from '../services/analytics/wordStatsService.js';
 import { isAnalyticsCollectionEnabled } from '../services/analytics/analyticsConsent.js';
 import { registerContentStatsTracker } from './contentStatsTracker.js';
+import { registerConversationTracker } from './conversationTracker.js';
 import { scheduleContentStatsBackfills } from '../services/analytics/contentStatsBackfillService.js';
 
 async function handleMessageForWordStats(message: Message): Promise<void> {
@@ -35,6 +38,7 @@ async function handleMessageForWordStats(message: Message): Promise<void> {
 export function registerAnalyticsTrackers(client: Client): void {
   startWordStatsFlusher();
   registerContentStatsTracker(client);
+  registerConversationTracker(client);
   scheduleContentStatsBackfills();
 
   client.on(Events.MessageCreate, (message: Message) => {
