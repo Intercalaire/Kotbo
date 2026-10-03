@@ -289,8 +289,80 @@ export interface ActivityAnalytics {
     left: number;
     memberCount: number | null;
   };
-  series: Array<{ dateKey: string; messages: number; voiceMinutes: number; prevMessages: number; prevVoiceMinutes: number }>;
+  series: ActivityDay[];
   topChannels: Array<{ channelId: string; name: string | null; messages: number }>;
+  /** Jours inhabituels (pic ou creux) par rapport aux mêmes jours de semaine. */
+  anomalies?: ActivityAnomaly[];
+}
+
+export interface ActivityDay {
+  dateKey: string;
+  messages: number;
+  voiceMinutes: number;
+  prevMessages: number;
+  prevVoiceMinutes: number;
+  activeMembers?: number;
+  prevActiveMembers?: number;
+  joined?: number;
+  left?: number;
+  prevJoined?: number;
+  prevLeft?: number;
+}
+
+export interface ActivityAnomaly {
+  dateKey: string;
+  metric: 'messages' | 'voiceMinutes';
+  value: number;
+  expected: number;
+  direction: 'up' | 'down';
+  driver: { channelId: string; name: string | null; share: number } | null;
+}
+
+export type ActivityMetricKind = 'messages' | 'voice';
+
+export interface ActivityHourPoint { key: string; messages: number; voiceMinutes: number; activeMembers: number }
+
+export interface ActivityHourly {
+  available: boolean;
+  timezone: string;
+  points: ActivityHourPoint[];
+  prev: ActivityHourPoint[];
+}
+
+export interface ActivityRankingItem {
+  id: string;
+  name: string | null;
+  avatarUrl: string | null;
+  value: number;
+  previous: number;
+  share: number;
+  spark: number[];
+  deleted?: boolean;
+}
+
+export interface ActivityRankings {
+  available: boolean;
+  metric: ActivityMetricKind;
+  dimension: 'members' | 'channels';
+  total: number;
+  prevTotal: number;
+  items: ActivityRankingItem[];
+}
+
+export interface ActivityBreakdown {
+  available: boolean;
+  dates: string[];
+  groups: Array<{ id: string | null; name: string | null; total: number; values: number[] }>;
+  other: number[];
+}
+
+export interface AnalyticsAnnotation {
+  id: string;
+  dateKey: string;
+  label: string;
+  authorId: string;
+  authorName: string | null;
+  createdAt: string;
 }
 
 export interface ChannelTreeChannel {
@@ -374,6 +446,75 @@ export async function fetchActivityAnalytics(query: AnalyticsQuery, guildId = au
     method: 'GET',
     guildId,
     errorContext: 'API Error (Activity Analytics):'
+  });
+}
+
+export async function fetchActivityHourly(query: AnalyticsQuery, guildId = authStore.selectedGuildId): Promise<ActivityHourly | null> {
+  const params = new URLSearchParams(analyticsParams(query));
+  params.append('tz', timezoneStore.displayTimezone);
+  return dashboardRequest<ActivityHourly>(`/analytics/activity/hourly?${params}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Activity Hourly):'
+  });
+}
+
+export async function fetchActivityRankings(
+  query: AnalyticsQuery,
+  metric: ActivityMetricKind,
+  dimension: 'members' | 'channels',
+  limit = 10,
+  guildId = authStore.selectedGuildId,
+): Promise<ActivityRankings | null> {
+  const params = new URLSearchParams(analyticsParams(query));
+  params.append('metric', metric);
+  params.append('dimension', dimension);
+  params.append('limit', String(limit));
+  return dashboardRequest<ActivityRankings>(`/analytics/activity/rankings?${params}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Activity Rankings):'
+  });
+}
+
+export async function fetchActivityBreakdown(
+  query: AnalyticsQuery,
+  metric: ActivityMetricKind,
+  dimension: 'channel' | 'category',
+  guildId = authStore.selectedGuildId,
+): Promise<ActivityBreakdown | null> {
+  const params = new URLSearchParams(analyticsParams(query));
+  params.append('metric', metric);
+  params.append('dimension', dimension);
+  return dashboardRequest<ActivityBreakdown>(`/analytics/activity/breakdown?${params}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Activity Breakdown):'
+  });
+}
+
+export async function fetchAnalyticsAnnotations(query: AnalyticsQuery, guildId = authStore.selectedGuildId): Promise<AnalyticsAnnotation[] | null> {
+  return dashboardRequest<AnalyticsAnnotation[]>(`/analytics/annotations?${analyticsParams({ period: query.period, startDate: query.startDate, endDate: query.endDate })}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Analytics Annotations):'
+  });
+}
+
+export async function createAnalyticsAnnotation(payload: { dateKey: string; label: string }, guildId = authStore.selectedGuildId): Promise<{ id: string } | null> {
+  return dashboardRequest<{ id: string }>('/analytics/annotations', {
+    method: 'POST',
+    payload,
+    guildId,
+    errorContext: 'API Error (Create Annotation):'
+  });
+}
+
+export async function deleteAnalyticsAnnotation(id: string, guildId = authStore.selectedGuildId): Promise<{ ok: boolean } | null> {
+  return dashboardRequest<{ ok: boolean }>(`/analytics/annotations/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete Annotation):'
   });
 }
 
