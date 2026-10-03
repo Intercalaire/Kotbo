@@ -32,8 +32,7 @@
   import ChannelsSection from '../lib/components/analytics/ChannelsSection.svelte';
   import GrowthSection from '../lib/components/analytics/GrowthSection.svelte';
   import KpiTile from '../lib/components/analytics/KpiTile.svelte';
-  import BarList from '../lib/components/analytics/BarList.svelte';
-  import MembersStats from '../lib/components/analytics/MembersStats.svelte';
+  import MembersView from '../lib/components/analytics/MembersView.svelte';
   import GhostMembersPanel from '../lib/components/analytics/GhostMembersPanel.svelte';
   import EngagementView from '../lib/components/analytics/EngagementView.svelte';
   import LifecycleView from '../lib/components/analytics/LifecycleView.svelte';
@@ -58,7 +57,7 @@
   import StaffPerformance from '../lib/components/analytics/StaffPerformance.svelte';
   import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGraph.svelte';
   import { analyticsExport, analyticsFilters as filters } from '../lib/components/analytics/analyticsFilters.svelte';
-  import { fmtNumber, SERIES_NEUTRAL } from '../lib/components/analytics/analyticsFormat';
+  import { fmtNumber } from '../lib/components/analytics/analyticsFormat';
 
   /** Ce que suit un sous-onglet : tous les filtres, la période, ou sa propre fenêtre. */
   type Scope = 'full' | 'period' | 'own';
@@ -96,7 +95,7 @@
         { id: 'heatmap', label: m.an_tab_heatmap(), icon: 'Fire', scope: 'period' },
         { id: 'pulse', label: m.an_tab_pulse(), icon: 'Activity', scope: 'own' },
         { id: 'weekly', label: m.an_tab_weekly(), icon: 'Calendar', scope: 'own' },
-        { id: 'commands', label: m.an_tab_commands(), icon: 'Code', scope: 'period', legacy: true },
+        { id: 'commands', label: m.an_tab_commands(), icon: 'Code', scope: 'period' },
         { id: 'algo', label: m.an_tab_algo(), icon: 'Code', scope: 'period' },
       ],
     },
@@ -282,16 +281,6 @@
     if (h > 0) return `${h}h${min > 0 ? String(min).padStart(2, '0') : ''}`;
     return `${min}min`;
   };
-
-  const roleItems = $derived(
-    (legacy?.roleDistribution ?? []).map((r: any) => ({
-      id: r.roleId,
-      label: r.roleName,
-      value: r.count ?? 0,
-      // Couleur du rôle sur Discord ; un rôle sans couleur reste neutre.
-      color: r.color && r.color !== '#000000' && r.color !== '#99AAB5' ? r.color : SERIES_NEUTRAL,
-    })),
-  );
 
   // ── Réseau d'interactions ──────────────────────────────────────────────────
   let interactions = $state<any>(null);
@@ -605,14 +594,7 @@
         {:else if !legacy}
           <AnalyticsSkeleton />
         {:else if activeTab === 'members'}
-          <div class="flex flex-col gap-4">
-            <MembersStats data={legacy} {chartLabels} onOpenMember={openMemberDetails} />
-            {#if roleItems.length > 0}
-              <SectionCard title={m.anx_roles_title()} description={m.anx_roles_desc()}>
-                <BarList items={roleItems} />
-              </SectionCard>
-            {/if}
-          </div>
+          <MembersView {legacy} onOpenMember={openMemberDetails} />
         {:else if activeTab === 'moderation'}
           <div class="flex flex-col gap-4">
             <div class="kpi-grid kpi-grid--4">

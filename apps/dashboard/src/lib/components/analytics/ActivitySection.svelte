@@ -12,12 +12,12 @@
   import { EmptyState, SectionCard } from '../ui';
   import AnalyticsSkeleton from './AnalyticsSkeleton.svelte';
   import ActivityTrafficView from './ActivityTrafficView.svelte';
-  import HourlyHeatmap from './HourlyHeatmap.svelte';
-  import CommandUsage from './CommandUsage.svelte';
+  import HeatmapView from './HeatmapView.svelte';
+  import PeriodComparisonView from './PeriodComparisonView.svelte';
+  import CommandsView from './CommandsView.svelte';
   import DailyAlgoAnalyticsCard from './DailyAlgoAnalyticsCard.svelte';
-  import WeeklyComparison from './WeeklyComparison.svelte';
   import AdvancedAnalyticsPanel from './AdvancedAnalyticsPanel.svelte';
-  import { fetchDailyAlgoAnalytics, fetchHourlyHeatmap, fetchWeeklyComparison } from '../../api';
+  import { fetchDailyAlgoAnalytics } from '../../api';
   import { m } from '../../i18n';
   import { analyticsFilters as filters } from './analyticsFilters.svelte';
 
@@ -28,34 +28,19 @@
     onOpenMember,
   }: {
     view: ActivityView;
-    /** Réponse de l'ancien /analytics, pour les sessions vocales et les commandes. */
+    /** Réponse de l'ancien /analytics, pour les sessions vocales. */
     legacy: any;
     legacyLoading: boolean;
     onOpenMember: (userId: string, name: string) => void;
   } = $props();
 
-  let heatmap = $state<any>(null);
   let algo = $state<any>(null);
-  let weekly = $state<any>(null);
-  let weeklyLoaded = $state(false);
 
   $effect(() => {
-    if (view !== 'weekly' || weeklyLoaded) return;
-    fetchWeeklyComparison()
-      .then((res) => (weekly = res))
-      .catch(() => (weekly = null))
-      .finally(() => (weeklyLoaded = true));
-  });
-
-  $effect(() => {
-    if (view !== 'heatmap' && view !== 'algo') return;
+    if (view !== 'algo') return;
     const period = filters.periodQuery;
     const range = period.startDate ? { startDate: period.startDate, endDate: period.endDate } : { days: period.period };
-    if (view === 'heatmap') {
-      fetchHourlyHeatmap(range).then((res) => (heatmap = res)).catch(() => (heatmap = null));
-    } else {
-      fetchDailyAlgoAnalytics(range).then((res) => (algo = res)).catch(() => (algo = null));
-    }
+    fetchDailyAlgoAnalytics(range).then((res) => (algo = res)).catch(() => (algo = null));
   });
 </script>
 
@@ -64,29 +49,13 @@
     <ActivityTrafficView kind={view} {legacy} {legacyLoading} {onOpenMember} />
   {/key}
 {:else if view === 'heatmap'}
-  {#if heatmap}
-    <HourlyHeatmap data={heatmap} />
-  {:else}
-    <AnalyticsSkeleton />
-  {/if}
+  <HeatmapView />
 {:else if view === 'pulse'}
   <AdvancedAnalyticsPanel section="activity" {onOpenMember} />
 {:else if view === 'weekly'}
-  {#if weeklyLoaded}
-    <WeeklyComparison data={weekly} />
-  {:else}
-    <AnalyticsSkeleton />
-  {/if}
+  <PeriodComparisonView />
 {:else if view === 'commands'}
-  {#if legacyLoading && !legacy}
-    <AnalyticsSkeleton />
-  {:else if legacy?.commandUsage?.length > 0}
-    <CommandUsage data={legacy.commandUsage} />
-  {:else}
-    <SectionCard>
-      <EmptyState icon="Code" title={m.an_commands_empty_title()} description={m.an_commands_empty_desc()} />
-    </SectionCard>
-  {/if}
+  <CommandsView {onOpenMember} />
 {:else if view === 'algo'}
   {#if !algo}
     <AnalyticsSkeleton />
