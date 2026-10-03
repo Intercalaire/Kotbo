@@ -6665,7 +6665,7 @@
   "announcements_tab_thread": "Thread d'accueil",
   "announcements_guide_autorole_title": "Règles de configuration des Auto-Rôles",
   "announcements_guide_variables_title": "Guide des variables éligibles",
-  "announcements_guide_autorole_desc": "L'attribution automatique donne des rôles configurés aux membres. L'auto-rôle à l'arrivée s'applique immédiatement à l'entrée. L'auto-rôle tag s'applique et se retire automatiquement lorsque le membre met à jour son pseudo ou pseudo global avec le tag recherché.",
+  "announcements_guide_autorole_desc": "L'attribution automatique donne des rôles configurés aux membres. L'auto-rôle à l'arrivée s'applique immédiatement à l'entrée. L'auto-rôle tag suit le tag officiel du serveur affiché sur le profil : il est donné quand le membre l'arbore et retiré quand il l'enlève, sans regarder le pseudo.",
   "announcements_guide_variables_desc": "Tu peux insérer ces balises dans tes messages pour les personnaliser automatiquement :",
   "announcements_var_user": "Mentionne le membre",
   "announcements_var_username": "Nom du membre",

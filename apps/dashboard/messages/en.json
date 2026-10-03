@@ -6665,7 +6665,7 @@
   "announcements_tab_thread": "Welcome Thread",
   "announcements_guide_autorole_title": "Auto-Role Configuration Rules",
   "announcements_guide_variables_title": "Eligible Variables Guide",
-  "announcements_guide_autorole_desc": "Automatic assignment gives configured roles to members. The join auto-role applies immediately upon entry. The tag auto-role applies and removes automatically when a member updates their nickname or global name with the target tag.",
+  "announcements_guide_autorole_desc": "Automatic assignment gives configured roles to members. The join auto-role applies immediately upon entry. The tag auto-role follows the server's official tag shown on the profile: it is given when a member wears it and removed when they take it off, regardless of the nickname.",
   "announcements_guide_variables_desc": "You can insert the following tags into your message templates to customize them dynamically:",
   "announcements_var_user": "Mentions the member",
   "announcements_var_username": "Member's username",
