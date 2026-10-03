@@ -50,10 +50,11 @@ model AcquisitionEvent {
   /// personne, sans constituer un fichier d'utilisateurs identifiés.
   actorHash String?
 
-  /// Visiteur anonyme, le temps de sa session. Seul moyen de relier « a lu les
-  /// tarifs » à « a posé le bot » avant qu'un serveur n'existe. Purgé à trente
-  /// jours : c'est cette brièveté qui maintient la mesure dans l'exemption de
-  /// consentement prévue par la CNIL pour la mesure d'audience.
+  /// Visiteur anonyme, le temps de sa session. Relie les étapes de la landing
+  /// (« a lu les tarifs ») au clic d'invitation, jamais à un serveur ni à une
+  /// personne : `recordAcquisitionStep` ne l'écrit que sur une ligne sans
+  /// `guildId` ni `actorHash`. Purgé à trente jours. Ces deux règles maintiennent
+  /// la mesure dans l'exemption de consentement prévue par la CNIL.
   visitorId String?
 
   /// Surface d'où vient le clic (`landing`, `docs`, `discord`, `dashboard`).

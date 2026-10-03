@@ -133,14 +133,15 @@ export function createPublicInviteRouter(): OpenAPIHono {
 
     if (!direct) {
       // La provenance est repassée au dashboard : c'est lui qui, à l'arrivée,
-      // saura dire combien de visiteurs venus de la landing sont allés
-      // jusqu'à poser le bot. L'identifiant de visite fait le lien entre ce
-      // clic et le serveur qui en sortira peut-etre.
+      // saura dire combien de clics venus de la landing sont allés jusqu'à
+      // poser le bot. L'identifiant de visite, lui, s'arrête ici : le dashboard
+      // connaît le compte Discord, et le lui transmettre rapprocherait une
+      // visite anonyme d'une personne, ce qui ferait sortir la mesure de la
+      // landing de l'exemption de consentement de la CNIL.
       const dashboard = getDashboardUrl().replace(/\/$/, '');
       const params = new URLSearchParams({ utm_source: source });
       if (content) params.set('utm_content', content);
       if (campaign) params.set('utm_campaign', campaign);
-      if (visitorId) params.set('vid', visitorId);
       return c.redirect(`${dashboard}/servers?${params.toString()}`, 302);
     }
 
