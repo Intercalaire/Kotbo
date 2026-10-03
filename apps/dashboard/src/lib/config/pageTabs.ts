@@ -195,6 +195,8 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
   '/social-networks': [
     { id: 'youtube', label: () => m.sn_tab_youtube(), icon: 'video' },
     { id: 'twitch', label: () => m.sn_tab_twitch(), icon: 'video' },
+    { id: 'github', label: () => m.sn_tab_github(), icon: 'code' },
+    { id: 'huggingface', label: () => m.sn_tab_huggingface(), icon: 'cpu' },
   ],
 
   // ── Staff ─────────────────────────────────────────────────────────────────

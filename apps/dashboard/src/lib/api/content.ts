@@ -181,6 +181,66 @@ export async function deleteTwitchFollow(id: string, guildId = authStore.selecte
   });
 }
 
+export type GithubFollowPayload = {
+  repo: string;
+  branch?: string | null;
+  discordChannelId?: string | null;
+  mention?: string | null;
+  notifyCommits?: boolean;
+  notifyReleases?: boolean;
+  notifyPullRequests?: boolean;
+  notifyIssues?: boolean;
+  commitMessage?: string | null;
+  releaseMessage?: string | null;
+  pullRequestMessage?: string | null;
+  issueMessage?: string | null;
+};
+
+/** Ajout ou mise à jour : le dépôt sert de clé. */
+export async function saveGithubFollow(payload: GithubFollowPayload, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/social-follows/github', {
+    method: 'POST',
+    successMessage: m.api_ok_save_github_follow(),
+    payload,
+    guildId,
+    errorContext: 'API Error (Save Github Follow):'
+  });
+}
+
+export async function deleteGithubFollow(id: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/social-follows/github/${id}`, {
+    method: 'DELETE',
+    successMessage: m.api_ok_delete_github_follow(),
+    guildId,
+    errorContext: 'API Error (Delete Github Follow):'
+  });
+}
+
+export type HuggingFaceKind = 'MODEL' | 'DATASET' | 'SPACE' | 'AUTHOR';
+
+/** Ajout ou mise à jour : le couple type + cible sert de clé. */
+export async function saveHuggingFaceFollow(
+  payload: { kind: HuggingFaceKind; target: string; discordChannelId?: string | null; mention?: string | null; message?: string | null },
+  guildId = authStore.selectedGuildId,
+) {
+  return dashboardRequest('/social-follows/huggingface', {
+    method: 'POST',
+    successMessage: m.api_ok_save_huggingface_follow(),
+    payload,
+    guildId,
+    errorContext: 'API Error (Save Hugging Face Follow):'
+  });
+}
+
+export async function deleteHuggingFaceFollow(id: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/social-follows/huggingface/${id}`, {
+    method: 'DELETE',
+    successMessage: m.api_ok_delete_huggingface_follow(),
+    guildId,
+    errorContext: 'API Error (Delete Hugging Face Follow):'
+  });
+}
+
 /**
  * Starlight : la configuration vit dans sa propre table, la reponse porte donc
  * toujours un objet `config` complet - valeurs par defaut du schema comprises
