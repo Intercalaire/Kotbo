@@ -1,89 +1,16 @@
 /**
  * L'accueil : statistiques, tâches à traiter, préférences, langue et fuseau.
  *
- * Formes reprises de `routes/dashboard/analytics.ts`, `homeTasks.ts` et
+ * Formes reprises de `homeTasks.ts` et
  * `general.ts` côté bot, réduites aux champs que les pages lisent.
  */
 import type { HomeTasksData } from '@kotbo/contracts';
 import { route } from '../backend';
 import { demoDb } from '../db';
-import { HOUR, MEMBERS, PEOPLE, ago, channelByName, personByName, role } from '../fixtures';
-import { SANCTIONS } from './session';
-import { sanctionsSeed } from '../stories';
+import { HOUR, PEOPLE, ago, personByName, role } from '../fixtures';
 
 const DAY_MS = 86_400_000;
 const DAY = 24 * HOUR;
-
-/** Sept jours d'activité, du plus ancien au plus récent. Même courbe à chaque visite. */
-function dailyTrend(days: number) {
-  const base = [612, 548, 701, 655, 830, 1_190, 1_064, 720, 598, 640, 712, 905, 1_240, 1_110];
-  return Array.from({ length: days }, (_, i) => {
-    const date = new Date(Date.now() - (days - 1 - i) * DAY_MS);
-    const messages = base[(i + 14 - days) % base.length];
-    return {
-      dateKey: date.toISOString().slice(0, 10),
-      messages,
-      voiceMinutes: Math.round(messages * 1.7),
-      membersJoined: [3, 1, 4, 2, 6, 5, 2, 1, 3, 4, 2, 5, 7, 3][i % 14],
-      membersLeft: [1, 0, 2, 1, 1, 0, 1, 2, 0, 1, 1, 0, 2, 1][i % 14],
-      sanctions: [1, 0, 0, 2, 1, 0, 1, 0, 1, 0, 0, 1, 2, 1][i % 14],
-      activeMembers: Math.round(messages / 9),
-    };
-  });
-}
-
-function analytics(period: number) {
-  const trend = dailyTrend(Math.min(Math.max(period, 7), 14));
-  const joins = trend.reduce((s, d) => s + d.membersJoined, 0);
-  const leaves = trend.reduce((s, d) => s + d.membersLeft, 0);
-  const sanctions = demoDb.get(SANCTIONS, sanctionsSeed);
-  const count = (type: string) => sanctions.filter((s) => s.type === type).length;
-  const online = MEMBERS.filter((m) => m.status === 'online').length;
-  const idle = MEMBERS.filter((m) => m.status === 'idle').length;
-  const dnd = MEMBERS.filter((m) => m.status === 'dnd').length;
-
-  return {
-    dailyTrend: trend,
-    live: {
-      humansCount: MEMBERS.length,
-      botsCount: 2,
-      onlineMembers: online,
-      idleMembers: idle,
-      dndMembers: dnd,
-      voiceConnected: 6,
-    },
-    totals: {
-      joins,
-      leaves,
-      netGrowth: joins - leaves,
-      messages: trend.reduce((s, d) => s + d.messages, 0),
-      voiceMinutes: trend.reduce((s, d) => s + d.voiceMinutes, 0),
-    },
-    topChannels: [
-      { channelId: channelByName('général').id, channelName: 'général', messagesCount: 2_840 },
-      { channelId: channelByName('recherche-de-groupe').id, channelName: 'recherche-de-groupe', messagesCount: 1_310 },
-      { channelId: channelByName('niveaux').id, channelName: 'niveaux', messagesCount: 640 },
-      { channelId: channelByName('boutique').id, channelName: 'boutique', messagesCount: 420 },
-      { channelId: channelByName('staff').id, channelName: 'staff', messagesCount: 310 },
-    ],
-    topMessageMembers: ['Lina', 'Noé', 'Maëlle', 'Arka', 'Lena'].map((name, i) => {
-      const p = personByName(name);
-      return { userId: p.id, name: p.displayName, avatarUrl: null, messageCount: [612, 540, 433, 390, 352][i] };
-    }),
-    moderation: {
-      totals: { warns: count('WARN'), timeouts: count('TIMEOUT'), kicks: count('KICK'), bans: count('BAN') },
-      activeSanctions: sanctions.filter((s) => s.status === 'ACTIVE').length,
-      recentSanctions: sanctions.slice(0, 5).map((s) => ({
-        id: s.id,
-        type: s.type,
-        targetName: s.targetTag,
-        moderatorName: s.moderatorTag,
-        reason: s.reason,
-        createdAt: s.createdAt,
-      })),
-    },
-  };
-}
 
 function homeTasks(): HomeTasksData {
   return {
@@ -136,26 +63,50 @@ const staffPeople = () => PEOPLE.filter((p) => p.roles.some((id) => [role('Fonda
 const gradeOf = (roles: string[]) =>
   roles.includes(role('Fondateur').id) ? 'Fondateur' : roles.includes(role('Admin').id) ? 'Admin' : roles.includes(role('Modérateur').id) ? 'Modérateur' : 'Helper';
 
+/** Hiérarchie de chaque grade, reprise par `routes/staff.ts`. */
+export const HIERARCHY_OF_GRADE: Record<string, string> = { Fondateur: 'hier-direction', Admin: 'hier-direction', Modérateur: 'hier-moderation', Helper: 'hier-support' };
+
 export function staffMembers() {
-  return staffPeople().map((p, i) => ({
-    id: `staff-${p.username}`,
-    guildId: '',
-    userId: p.id,
-    grade: gradeOf(p.roles),
-    joinedStaffAt: ago(p.joinedMinutesAgo - 10 * DAY),
-    currentRoleStartedAt: ago(Math.max(1, p.joinedMinutesAgo - 30 * DAY)),
-    userTag: p.username,
-    username: p.username,
-    displayName: p.displayName,
-    avatarUrl: null,
-    isTutor: i === 2,
-    suspendedAt: null,
-    createdAt: ago(p.joinedMinutesAgo),
-    updatedAt: ago(DAY),
+  const current = staffPeople().map((p, i) => {
+    const grade = gradeOf(p.roles);
+    const id = `staff-${p.username}`;
+    return {
+      id,
+      guildId: '',
+      userId: p.id,
+      grade,
+      joinedStaffAt: ago(p.joinedMinutesAgo - 10 * DAY),
+      currentRoleStartedAt: ago(Math.max(1, p.joinedMinutesAgo - 30 * DAY)),
+      userTag: p.username,
+      username: p.username,
+      displayName: p.displayName,
+      avatarUrl: null,
+      isTutor: i === 2,
+      suspendedAt: null as string | null,
+      suspendedReason: null as string | null,
+      createdAt: ago(p.joinedMinutesAgo),
+      updatedAt: ago(DAY),
+      warnings: p.username === 'kylian' ? [{ id: 'swarn-1', reason: 'Ticket fermé sans réponse au membre', expiresAt: new Date(Date.now() + 20 * DAY_MS).toISOString() }] : [],
+      blacklistEntries: [] as { id: string; reason: string; endDate?: string | null }[],
+      stats: { totalMessages: p.messages, totalVoiceMinutes: p.voiceMinutes, sanctionsIssued: 3 + i * 4 },
+      hierarchyGrades: [{ id: `hg-${p.username}`, staffMemberId: id, hierarchyId: HIERARCHY_OF_GRADE[grade], grade, joinedAt: ago(p.joinedMinutesAgo - 10 * DAY) }],
+    };
+  });
+  const former = {
+    ...current[current.length - 1],
+    id: 'staff-gael',
+    userId: '900000000000001006',
+    grade: 'Helper',
+    userTag: 'gael07',
+    username: 'gael07',
+    displayName: 'Gaël07',
+    isTutor: false,
     warnings: [],
-    blacklistEntries: [],
-    stats: { totalMessages: p.messages, totalVoiceMinutes: p.voiceMinutes, sanctionsIssued: 3 + i * 4 },
-  }));
+    blacklistEntries: [{ id: 'sbl-1', reason: 'A partagé des captures du salon staff sur un autre serveur', endDate: null }],
+    stats: { totalMessages: 410, totalVoiceMinutes: 120, sanctionsIssued: 2 },
+    hierarchyGrades: [],
+  };
+  return [...current, former];
 }
 
 export const ABSENCES = 'absences';
@@ -206,7 +157,6 @@ export function meetingsSeed() {
 export function registerHomeRoutes(): void {
   route('GET', '/api/config', () => ({ discordClientId: '0' }));
 
-  route('GET', '/api/dashboard/guilds/:guildId/analytics', ({ query }) => analytics(Number(query.get('period')) || 7));
   route('GET', '/api/dashboard/guilds/:guildId/home-tasks', () => homeTasks());
   route('GET', '/api/dashboard/guilds/:guildId/notifications', () => ({ notifications: [] }));
   route('GET', '/api/dashboard/guilds/:guildId/tutoring/apprentice-progress', () => ({ progress: null }));

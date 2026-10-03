@@ -109,7 +109,7 @@
     </p>
   {/if}
 
-  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5" data-tour="leveling-presets">
     {#each cards as card (card.key)}
       {@const values = card.values}
       {@const selected = card.preset ? selectedId === card.preset.id : selectedId === null}

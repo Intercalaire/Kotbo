@@ -43,7 +43,7 @@ function sanction(
 
 export function sanctionsSeed(): SanctionItem[] {
   return [
-    sanction(1, 'WARN', 'Vantar', 'Zenox', 'Spam de liens en #général', 2 * HOUR),
+    sanction(1, 'WARN', 'Vantar', 'Toi', 'Spam de liens en #général', 2 * HOUR),
     sanction(2, 'TIMEOUT', 'Vantar', 'Lena', 'Insultes en vocal', 2 * DAY, {
       durationSeconds: 3600,
       expiresAt: ago(2 * DAY - 60),
@@ -51,7 +51,7 @@ export function sanctionsSeed(): SanctionItem[] {
       resolvedAt: ago(2 * DAY - 60),
       resolutionNote: 'Durée écoulée',
     }),
-    sanction(3, 'WARN', 'Kyzo', 'Aiden', 'Provocations répétées', 5 * HOUR),
+    sanction(3, 'WARN', 'Kyzo', 'Toi', 'Provocations répétées', 5 * HOUR),
     sanction(4, 'WARN', 'Kyzo', 'Zenox', 'Pub pour un autre serveur en MP', 9 * DAY, {
       status: 'RESOLVED',
       resolvedAt: ago(2 * DAY),
@@ -62,7 +62,7 @@ export function sanctionsSeed(): SanctionItem[] {
       resolvedAt: ago(10 * DAY),
       resolutionNote: 'Débanni après récupération du compte',
     }),
-    sanction(6, 'TIMEOUT', 'Yanis', 'Aiden', 'Flood dans #recherche-de-groupe', 4 * DAY, {
+    sanction(6, 'TIMEOUT', 'Yanis', 'Toi', 'Flood dans #recherche-de-groupe', 4 * DAY, {
       durationSeconds: 600,
       expiresAt: ago(4 * DAY - 10),
       status: 'RESOLVED',

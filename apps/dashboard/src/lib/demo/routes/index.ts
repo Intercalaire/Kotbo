@@ -18,8 +18,18 @@ import { registerStaffRoutes } from './staff';
 import { registerTelemetryRoutes } from './telemetry';
 import { registerTicketsRoutes } from './tickets';
 import { registerPulseRoutes } from './pulse';
+import { registerAnalyticsRoutes } from './analytics';
+import { registerRankCardRoutes } from './rankCard';
+import { registerServerRoutes } from './server';
+import { registerCommunityRoutes } from './community';
+import { registerPlanningRoutes } from './planning';
 
 export function registerDemoRoutes(): void {
+  registerAnalyticsRoutes();
+  registerRankCardRoutes();
+  registerServerRoutes();
+  registerCommunityRoutes();
+  registerPlanningRoutes();
   registerSessionRoutes();
   registerHomeRoutes();
   registerTelemetryRoutes();

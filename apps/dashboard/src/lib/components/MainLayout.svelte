@@ -14,7 +14,9 @@
   import MobileAccountSheet from './mobile/MobileAccountSheet.svelte';
   import MobileTabEditor from './mobile/MobileTabEditor.svelte';
   import DemoBanner from './DemoBanner.svelte';
-  import { DEMO_MODE } from '../demo/mode';
+  import DemoTour from './DemoTour.svelte';
+  import { DEMO_MODE, appPathname } from '../demo/mode';
+  import { demoTour } from '../demo/tour.svelte';
 
   import { onMount, untrack } from 'svelte';
   import type { Snippet } from 'svelte';
@@ -39,6 +41,8 @@
   import { getMobilePageLayout, getPageKey } from '../mobilePageContext';
 
   const { children }: { children?: Snippet } = $props();
+
+  const demoPageToured = $derived(DEMO_MODE && ($router.path, demoTour.coversPage(appPathname())));
 
   onMount(() => {
     dashboardLifecycle.init();
@@ -253,7 +257,11 @@
           </div>
         {/if}
         
-        <PageTip />
+        <!-- En demo, la fiche de la page pousserait l'element montre hors de
+             la bulle, et une page qui a sa visite guidee n'en a pas besoin. -->
+        {#if !demoTour.active && !demoPageToured}
+          <PageTip />
+        {/if}
         {@render children?.()}
       {/if}
     </main>
@@ -271,4 +279,7 @@
   <TutorialWelcome />
   <TutorialChecklist />
   <GuideSpotlight />
+  {#if DEMO_MODE}
+    <DemoTour />
+  {/if}
 </div>

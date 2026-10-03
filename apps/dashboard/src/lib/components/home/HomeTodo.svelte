@@ -298,7 +298,7 @@
   }
 </script>
 
-<section class="grid grid-cols-1 lg:grid-cols-3 gap-4" aria-labelledby="home-todo-title">
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-4" aria-labelledby="home-todo-title" data-tour="home-todo">
   <div class="section-card p-5 flex flex-col gap-3 {setupMissing ? 'lg:col-span-2' : 'lg:col-span-3'}">
     <div class="flex items-center justify-between gap-3">
       <h2 id="home-todo-title" class="text-base font-semibold text-on-surface flex items-center gap-2">

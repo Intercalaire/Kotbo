@@ -1465,7 +1465,7 @@
     </div>
 
     <!-- STATS -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" data-tour="staff-stats">
       {#each stats as stat}
         <MetricCard
           label={stat.label}
@@ -1486,7 +1486,7 @@
     />
 
     <!-- SECTIONS -->
-    <div class="premium-card rounded-xl overflow-hidden">
+    <div class="premium-card rounded-xl overflow-hidden" data-tour="staff-panel">
       {#if activeTab === 'members'}
         <div class="p-6 md:p-8 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-low/30">
           <div>
@@ -1647,7 +1647,7 @@
                     </div>
                   </div>
 
-                  <div class="flex items-center gap-2 shrink-0 flex-wrap">
+                  <div class="flex items-center gap-2 shrink-0 flex-wrap" data-tour="staff-actions">
                     {#if canModerate}
                       <button
                         onclick={() => toggleTutor(member.userId)}

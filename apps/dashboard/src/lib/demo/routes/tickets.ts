@@ -278,6 +278,44 @@ export function registerTicketsRoutes(): void {
   // GET /api/dashboard/guilds/:id/tickets/transcripts
   route('GET', '/api/dashboard/guilds/:id/tickets/transcripts', () => []);
 
+  // GET /api/dashboard/guilds/:id/satisfaction
+  route('GET', '/api/dashboard/guilds/:id/satisfaction', () => {
+    const staff = [MEMBERS[1], MEMBERS[2], ME].filter(Boolean);
+    const counts: Array<[number, number]> = [[5, 18], [4, 11], [3, 4], [2, 1], [1, 1]];
+    const averages = [4.6, 4.3, 4.1];
+    return {
+      global: {
+        averageRating: 4.3,
+        totalResponses: 35,
+        distribution: counts.map(([rating, count]) => ({ rating, count })),
+        recent: staff.map((user, i) => ({
+          rating: 5 - i,
+          comment: i === 0 ? 'Réponse rapide, merci !' : null,
+          userId: user.id,
+          user,
+          staffId: staff[(i + 1) % staff.length].id,
+          staff: staff[(i + 1) % staff.length],
+          createdAt: ago((i + 1) * DAY),
+        })),
+      },
+      byStaff: staff.map((user, i) => ({
+        staffId: user.id,
+        staff: user,
+        averageRating: averages[i],
+        totalResponses: 12 - i * 3,
+        commentCount: 0,
+        recentComments: [],
+      })),
+    };
+  });
+
+  // GET /api/dashboard/guilds/:id/satisfaction/staff/:staffId/reviews
+  route('GET', '/api/dashboard/guilds/:id/satisfaction/staff/:staffId/reviews', () => ({
+    reviews: [],
+    total: 0,
+    hasMore: false,
+  }));
+
   // GET /api/dashboard/guilds/:id/staff-server/channels
   route('GET', '/api/dashboard/guilds/:id/staff-server/channels', () => ({
     staffGuildId: null,

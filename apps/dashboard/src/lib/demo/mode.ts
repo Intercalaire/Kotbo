@@ -18,6 +18,19 @@ export const DEMO_MODE =
 /** Préfixe d'URL sous lequel la démo est servie (`/demo` sur kotbo.fr). */
 export const DEMO_BASE = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
 
+/**
+ * Chemin de la page dans l'application, sans le préfixe `/demo`.
+ *
+ * Tinro retire le préfixe de `$router.path`, pas `window.location` : un code
+ * qui compare `window.location.pathname` à une route (`/leveling/...`) ne la
+ * reconnaît jamais en démo. Hors démo, `DEMO_BASE` est vide et rien ne change.
+ */
+export function appPathname(): string {
+  const path = window.location.pathname;
+  if (!DEMO_BASE || !path.startsWith(DEMO_BASE)) return path;
+  return path.slice(DEMO_BASE.length) || '/';
+}
+
 /** Le serveur de démonstration. Un identifiant au format Discord : les routes publiques le testent. */
 export const DEMO_GUILD_ID = '900000000000000001';
 export const DEMO_GUILD_NAME = 'Atelier Nova';

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { DEMO_MODE, DEMO_INVITE_URL } from '../demo/mode';
   import { demoDb } from '../demo/db';
+  import { demoTour } from '../demo/tour.svelte';
+  import { m } from '../i18n';
 
   let dismissed = $state(false);
 
@@ -13,7 +15,7 @@
 </script>
 
 {#if DEMO_MODE && !dismissed}
-  <div class="relative z-20 mb-6 rounded-xl bg-surface-container-low border border-primary/30 text-on-surface p-3 sm:px-4 sm:py-3 shadow-sm transition-all">
+  <div data-tour="demo-banner" class="relative z-20 mb-6 rounded-xl bg-surface-container-low border border-primary/30 text-on-surface p-3 sm:px-4 sm:py-3 shadow-sm transition-all">
     <div class="flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm">
       <div class="flex items-center gap-2.5 min-w-0">
         <span class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-primary/20 text-primary shrink-0">
@@ -28,6 +30,14 @@
       </div>
 
       <div class="flex items-center gap-2 shrink-0 ml-auto">
+        <button
+          type="button"
+          onclick={() => demoTour.start()}
+          class="px-2.5 py-1 rounded-md text-xs font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors cursor-pointer"
+        >
+          {m.demo_tour_restart()}
+        </button>
+
         <button
           type="button"
           onclick={handleReset}
