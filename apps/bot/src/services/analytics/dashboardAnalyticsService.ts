@@ -589,7 +589,7 @@ export const getGlobalInteractions = async (client: any, guildId: string, option
   const userActivity = new Map<string, number>();
   const edgeMap = new Map<string, { from: string; to: string; mention: number; reply: number; reaction: number }>();
 
-  const addEdge = (from: string, to: string, type: 'mention' | 'reply' | 'reaction') => {
+  const addEdge = (from: string, to: string, type: 'mention' | 'reply' | 'reaction', count = 1) => {
     if (from === to) return; // ignore self-interactions
     const key = from < to ? `${from}-${to}` : `${to}-${from}`;
     let edge = edgeMap.get(key);
@@ -597,17 +597,32 @@ export const getGlobalInteractions = async (client: any, guildId: string, option
       edge = { from, to, mention: 0, reply: 0, reaction: 0 };
       edgeMap.set(key, edge);
     }
-    edge[type] += 1;
+    edge[type] += count;
 
-    userActivity.set(from, (userActivity.get(from) || 0) + 1);
-    userActivity.set(to, (userActivity.get(to) || 0) + 1);
+    userActivity.set(from, (userActivity.get(from) || 0) + count);
+    userActivity.set(to, (userActivity.get(to) || 0) + count);
   };
+
+  // Réponses et mentions : la table d'interactions les compte pour tous les
+  // serveurs qui collectent, sans dépendre du journal. Quand elle a des lignes
+  // sur la période, on ne relit plus le journal que pour les réactions, sinon
+  // les mêmes réponses compteraient deux fois.
+  const statRows = await prisma.memberInteractionDailyStat.findMany({
+    where: { guildId, dateKey: { gte: startKeyOnly, lte: endKeyOnly } },
+    select: { userId: true, targetUserId: true, replies: true, mentions: true },
+  });
+  const fromStats = statRows.length > 0;
+  for (const row of statRows) {
+    if (row.replies > 0) addEdge(row.userId, row.targetUserId, 'reply', row.replies);
+    if (row.mentions > 0) addEdge(row.userId, row.targetUserId, 'mention', row.mentions);
+  }
 
   for (const log of logs) {
     const logUserId = extractIdFromUserStr(log.user);
     if (!logUserId) continue;
 
     if (log.action === 'Message envoyé') {
+      if (fromStats) continue;
       const details = log.details || '';
       
       // Parse mentions
