@@ -331,10 +331,11 @@ export async function handleDashboardRoutes(
       && parts[5] !== 'config'
       && method !== 'GET';
 
-    // Les notes datées d'Analytics se posent par tout lecteur de la section,
-    // sans droit de configuration. handleAnalyticsRoutes revérifie la lecture.
+    // Les notes datées et les vues enregistrées d'Analytics se posent par tout
+    // lecteur de la section, sans droit de configuration. handleAnalyticsRoutes
+    // revérifie la lecture.
     const isAnalyticsAnnotationAction = parts[4] === 'analytics'
-      && parts[5] === 'annotations'
+      && (parts[5] === 'annotations' || parts[5] === 'views')
       && (method === 'POST' || method === 'DELETE');
 
     /**
