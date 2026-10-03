@@ -743,6 +743,8 @@ model Guild {
   // créé y a posé `cutoff` : le rattrapage ne lit que les messages antérieurs,
   // le tracker live compte tout ce qui suit. Null = rien à rattraper.
   contentStatsBackfillStatus Json?
+  // Rattrapage des stats de conversation (temps de réponse, interactions), même forme.
+  conversationStatsBackfillStatus Json?
 
   // Hygiène des bans : détection des comptes bannis supprimés par Discord
   banHygieneEnabled Boolean @default(true)
