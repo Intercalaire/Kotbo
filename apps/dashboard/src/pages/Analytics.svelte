@@ -39,6 +39,10 @@
   import LifecycleView from '../lib/components/analytics/LifecycleView.svelte';
   import FunnelView from '../lib/components/analytics/FunnelView.svelte';
   import CohortTriangle from '../lib/components/analytics/CohortTriangle.svelte';
+  import ResponseTimesView from '../lib/components/analytics/ResponseTimesView.svelte';
+  import ConcentrationView from '../lib/components/analytics/ConcentrationView.svelte';
+  import ChannelHealthView from '../lib/components/analytics/ChannelHealthView.svelte';
+  import NetworkInsightsView from '../lib/components/analytics/NetworkInsightsView.svelte';
   import AdvancedAnalyticsPanel from '../lib/components/analytics/AdvancedAnalyticsPanel.svelte';
   import ModerationAudit from '../lib/components/analytics/ModerationAudit.svelte';
   import StaffAudit from '../lib/components/analytics/StaffAudit.svelte';
@@ -101,7 +105,8 @@
       id: 'channels', label: m.anx_section_channels(), icon: 'ChatBubbles', description: m.anx_section_channels_desc(),
       tabs: [
         { id: 'channels', label: m.anx_tab_channel_tree(), icon: 'ChatBubbles', scope: 'period' },
-        { id: 'channel-health', label: m.anx_channels_health_title(), icon: 'heart', scope: 'own' },
+        { id: 'responses', label: m.anx_tab_responses(), icon: 'Clock', scope: 'full' },
+        { id: 'channel-health', label: m.anx_channels_health_title(), icon: 'heart', scope: 'period' },
       ],
     },
     {
@@ -110,6 +115,7 @@
         { id: 'members', label: m.an_tab_members(), icon: 'UsersFour', scope: 'period', legacy: true },
         { id: 'engagement', label: m.anx_tab_engagement(), icon: 'Activity', scope: 'full' },
         { id: 'lifecycle', label: m.anx_tab_lifecycle(), icon: 'Users', scope: 'full' },
+        { id: 'concentration', label: m.anx_tab_concentration(), icon: 'PieChart', scope: 'full' },
         { id: 'interactions', label: m.an_tab_network(), icon: 'Compass', scope: 'period' },
         { id: 'social', label: m.an_tab_social(), icon: 'Users', scope: 'own' },
         { id: 'ghosts', label: m.ghost_tab(), icon: 'Ghost', scope: 'own' },
@@ -507,16 +513,26 @@
           <AdvancedAnalyticsPanel section="words" onOpenMember={openMemberDetails} />
         {:else if activeTab === 'channels'}
           <ChannelsSection onOpenMember={openMemberDetails} />
+        {:else if activeTab === 'responses'}
+          <ResponseTimesView />
         {:else if activeTab === 'channel-health'}
-          <AdvancedAnalyticsPanel section="channels" onOpenMember={openMemberDetails} />
+          <div class="flex flex-col gap-4">
+            <ChannelHealthView />
+            <AdvancedAnalyticsPanel section="channels" onOpenMember={openMemberDetails} />
+          </div>
+        {:else if activeTab === 'concentration'}
+          <ConcentrationView />
         {:else if activeTab === 'interactions'}
           {#if interactions}
-            <GlobalInteractionGraph
-              nodes={interactions.nodes || []}
-              edges={interactions.edges || []}
-              hiddenMembersCount={interactions.hiddenMembersCount || 0}
-              onSelectNode={(userId) => openMemberDetails(userId, m.an_loading_short())}
-            />
+            <div class="flex flex-col gap-4">
+              <GlobalInteractionGraph
+                nodes={interactions.nodes || []}
+                edges={interactions.edges || []}
+                hiddenMembersCount={interactions.hiddenMembersCount || 0}
+                onSelectNode={(userId) => openMemberDetails(userId, m.an_loading_short())}
+              />
+              <NetworkInsightsView onOpenMember={openMemberDetails} />
+            </div>
           {:else if interactionsError}
             <Callout variant="danger" title={m.an_network_error()}>
               {interactionsError}
