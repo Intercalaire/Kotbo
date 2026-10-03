@@ -233,6 +233,35 @@ export async function handleAnalyticsRoutes(
     return true;
   }
 
+  // GET …/analytics/conversation/{responses|concentration|channel-health|network} :
+  // temps de réponse, concentration de l'activité, santé des salons, réseau.
+  if (parts.length === 7 && parts[5] === 'conversation' && ['responses', 'concentration', 'channel-health', 'network'].includes(parts[6]!)) {
+    const service = await import('../../../services/analytics/contentAnalyticsService.js');
+    const conversation = await import('../../../services/analytics/conversationInsightsService.js');
+    const view = parts[6]!;
+    try {
+      const range = service.parseRange(url.searchParams);
+      const scope = await service.resolveScope(client, guildId, url.searchParams);
+      const scopeKey = service.scopeCacheKey(scope, range);
+      const key = `guild:${guildId}:analytics:conversation:${view}:${scopeKey}`;
+      if (view === 'responses') {
+        json(res, 200, await cache.wrap(key, 300, () => conversation.getResponseTimes(client, guildId, range, scope)));
+      } else if (view === 'concentration') {
+        const metric = url.searchParams.get('metric') === 'voice' ? 'voice' : 'messages';
+        json(res, 200, await cache.wrap(`${key}:${metric}`, 600, () => conversation.getConcentration(guildId, range, scope, metric)));
+      } else if (view === 'channel-health') {
+        json(res, 200, await cache.wrap(`guild:${guildId}:analytics:conversation:channel-health:${range.start}:${range.end}`, 600, () =>
+          conversation.getChannelHealthReport(client, guildId, range)));
+      } else {
+        json(res, 200, await cache.wrap(key, 600, () => conversation.getConversationNetwork(client, guildId, range, scope)));
+      }
+    } catch (err) {
+      logger.error('AnalyticsAPI', `Erreur analytics (conversation/${view}):`, err);
+      jsonFailure(res, err, 'Erreur lors du calcul des statistiques', 'AnalyticsAPI');
+    }
+    return true;
+  }
+
   // GET …/analytics/{content|activity|channel-tree|filters} et …/analytics/categories/:id
   // Nouvelle page Analytics : période (`period` ou `startDate`/`endDate`) et
   // filtres (`channel`, `role`, `excludeStaff`, `userId`).
