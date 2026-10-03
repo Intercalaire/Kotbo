@@ -316,7 +316,7 @@
         <!-- Left Column: Primary Chat Filters -->
         <div class="space-y-8">
           <!-- Anti-Spam -->
-          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6" data-tour="automod-spam">
             <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
               <h3 class="text-lg font-semibold flex items-center gap-3">
                 <Papicon icon="Clock" size={20} class="text-primary" />
@@ -330,7 +330,7 @@
             </div>
 
             {#if config.spamEnabled}
-              <div class="grid grid-cols-2 gap-4 animate-in fade-in duration-300">
+              <div class="grid grid-cols-2 gap-4 animate-in fade-in duration-300" data-tour="automod-spam-threshold">
                 <div class="space-y-1.5">
                   <label for="spamLimit" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.am_spam_max_messages()}</label>
                   <input 
@@ -464,7 +464,7 @@
         <!-- Right Column: Secondary & Mentions Filters -->
         <div class="space-y-8">
           <!-- Emojis & Mentions Spam (Grouped Side-by-Side in Sub-grid) -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6" data-tour="automod-more">
             <!-- Emojis Flood -->
             <section class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-xl space-y-4">
               <div class="flex items-center justify-between border-b border-outline-variant/15 pb-3">

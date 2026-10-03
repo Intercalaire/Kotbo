@@ -1138,7 +1138,7 @@
     />
 
     {#if activeTab === 'sanctions'}
-      <section class="section-card-flush font-inter">
+      <section class="section-card-flush font-inter" data-tour="sanctions-list">
         <div class="px-6 py-5 border-b border-outline-variant flex items-center justify-between">
           <h3 class="text-lg font-semibold">{m.sc_sanctions_list()}</h3>
           <div class="flex items-center gap-3">
