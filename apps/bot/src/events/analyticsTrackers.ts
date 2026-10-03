@@ -20,6 +20,7 @@ import { isAnalyticsCollectionEnabled } from '../services/analytics/analyticsCon
 import { registerContentStatsTracker } from './contentStatsTracker.js';
 import { registerConversationTracker } from './conversationTracker.js';
 import { scheduleContentStatsBackfills } from '../services/analytics/contentStatsBackfillService.js';
+import { scheduleConversationBackfills } from '../services/analytics/conversationStatsBackfillService.js';
 
 async function handleMessageForWordStats(message: Message): Promise<void> {
   const guildId = message.guild?.id;
@@ -40,6 +41,7 @@ export function registerAnalyticsTrackers(client: Client): void {
   registerContentStatsTracker(client);
   registerConversationTracker(client);
   scheduleContentStatsBackfills();
+  scheduleConversationBackfills();
 
   client.on(Events.MessageCreate, (message: Message) => {
     void handleMessageForWordStats(message).catch((err) => {
