@@ -286,6 +286,109 @@ function lifecycle(days: number) {
   };
 }
 
+
+// ── Salons et conversation ─────────────────────────────────────────────
+
+function responseSummary(turns: number, medianSec: number, unansweredShare: number) {
+  const unanswered = Math.round(turns * unansweredShare);
+  const answered = turns - unanswered;
+  const split = [0.34, 0.31, 0.16, 0.12, 0.07].map((w) => Math.round(answered * w));
+  return {
+    turns, answered, unanswered,
+    unansweredRate: turns > 0 ? Math.round((unanswered / turns) * 1000) / 10 : null,
+    medianSec, avgSec: Math.round(medianSec * 2.4),
+    buckets: (['under1m', 'under5m', 'under15m', 'under1h', 'under6h'] as const).map((key, i) => ({ key, count: split[i] ?? 0 })),
+  };
+}
+
+function responses(days: number) {
+  const series = serverSeries(days);
+  const turnsOf = (messages: number) => Math.round(messages / 3.1);
+  const total = turnsOf(sum(series, (d) => d.messages));
+  const channels = channelMessages(days).filter((c) => !['logs', 'règlement'].includes(c.channel.name)).map((c, i) => ({
+    channelId: c.channel.id,
+    name: c.channel.name,
+    ...responseSummary(turnsOf(c.messages), [95, 140, 260, 420, 610, 900, 1500, 2400][i] ?? 1800, [0.08, 0.12, 0.18, 0.22, 0.3, 0.35, 0.42, 0.5][i] ?? 0.5),
+  }));
+  return {
+    range: range(days),
+    userIgnored: false,
+    total: responseSummary(total, 160, 0.14),
+    previous: responseSummary(Math.round(total * 0.94), 185, 0.16),
+    daily: series.map((d, i) => ({ dateKey: d.dateKey, medianSec: 120 + ((i * 37) % 90), unansweredRate: 10 + ((i * 13) % 9), turns: turnsOf(d.messages) })),
+    channels,
+  };
+}
+
+function concentrationStats(values: number[]) {
+  const sorted = values.filter((v) => v > 0).sort((a, b) => b - a);
+  const total = sum(sorted, (v) => v);
+  const n = sorted.length;
+  const top = (k: number) => (total > 0 ? Math.round((sum(sorted.slice(0, k), (v) => v) / total) * 1000) / 10 : 0);
+  let acc = 0;
+  let half = 0;
+  for (const v of sorted) { acc += v; half += 1; if (acc >= total / 2) break; }
+  const asc = [...sorted].reverse();
+  const lorenz = [{ members: 0, activity: 0 }];
+  for (let step = 1; step <= 20; step += 1) {
+    const upto = Math.round((n * step) / 20);
+    lorenz.push({ members: step * 5, activity: total > 0 ? Math.round((sum(asc.slice(0, upto), (v) => v) / total) * 1000) / 10 : 0 });
+  }
+  let weighted = 0;
+  asc.forEach((v, i) => { weighted += (i + 1) * v; });
+  const g = n > 1 && total > 0 ? Math.round(((2 * weighted) / (n * total) - (n + 1) / n) * 1000) / 1000 : 0;
+  return { members: n, total, top1Share: top(Math.max(1, Math.ceil(n * 0.01))), top10Share: top(Math.max(1, Math.ceil(n * 0.1))), top10MembersShare: top(10), membersForHalf: half, gini: g, lorenz };
+}
+
+function concentration(days: number, metric: 'messages' | 'voice') {
+  const field = metric === 'messages' ? 'messages' : 'voiceMinutes';
+  return {
+    available: true,
+    metric,
+    current: concentrationStats(memberTotals(days).map((t) => t[field])),
+    previous: concentrationStats(memberTotals(days * 2).map((t) => Math.round(t[field] * 0.5))),
+  };
+}
+
+function channelHealthReport(days: number) {
+  const msgs = channelMessages(days);
+  const rows = CHANNELS.map((c, i) => {
+    const messages = msgs.find((x) => x.channel.id === c.id)?.messages ?? 0;
+    const prevMessages = c.name === 'boutique' ? Math.round(messages * 2.1) : c.name === 'suggestions' ? Math.round(messages * 0.6) : Math.round(messages * 0.93);
+    const status = messages === 0 ? 'dead' : c.name === 'boutique' ? 'declining' : c.name === 'suggestions' ? 'growing' : messages / days < 2 ? 'quiet' : 'healthy';
+    const suggestion = status === 'dead' ? 'archive' : status === 'declining' ? 'revive' : status === 'quiet' && messages < 10 ? 'merge' : null;
+    return {
+      channelId: c.id, name: c.name, categoryId: null, categoryName: CATEGORY_OF[c.name] ?? null,
+      messages, prevMessages, authors: Math.round(Math.sqrt(messages) * 1.6), days,
+      lastActiveDaysAgo: messages > 0 ? 0 : 40 + i, lastActiveDate: messages > 0 ? dateKey(0) : dateKey(40 + i),
+      medianResponseSec: messages > 0 ? 90 + i * 80 : null, unansweredRate: messages > 0 ? 6 + i * 3 : null,
+      status, score: status === 'dead' ? 0 : Math.min(96, Math.round(20 + Math.log10(1 + messages / days) * 32 + (status === 'growing' ? 10 : 0))), suggestion,
+    };
+  });
+  return { range: range(days), channels: rows.sort((a, b) => a.score - b.score) };
+}
+
+function network(days: number) {
+  const people = memberTotals(days).filter((t) => t.messages > 0).slice(0, 40);
+  const who = (t: (typeof people)[number]) => ({ userId: t.person.id, name: t.person.displayName, avatarUrl: avatarOf(t.person) });
+  const groupA = people.slice(0, 12);
+  const groupB = people.slice(12, 22);
+  const groupC = people.slice(22, 28);
+  return {
+    range: range(days),
+    channelIgnored: false,
+    totals: { members: 28, links: 74, replies: 1_240, mentions: 610, reciprocity: 63.5, activeMembers: people.length, isolatedCount: Math.max(0, people.length - 28) },
+    groups: [
+      { id: 'g1', size: groupA.length, internalWeight: 1_820, leaders: groupA.slice(0, 5).map(who) },
+      { id: 'g2', size: groupB.length, internalWeight: 760, leaders: groupB.slice(0, 5).map(who) },
+      { id: 'g3', size: groupC.length, internalWeight: 240, leaders: groupC.slice(0, 5).map(who) },
+    ],
+    bridges: [people[1], people[13], people[4]].filter(Boolean).map((t, i) => ({ ...who(t!), groups: 3 - Math.min(1, i), outsideWeight: 48 - i * 12 })),
+    pairs: people.slice(0, 8).map((t, i) => ({ a: who(t), b: who(people[(i + 3) % people.length]!), replies: 140 - i * 14, mentions: 60 - i * 6, reciprocal: i % 3 !== 2 })),
+    isolated: people.slice(28, 40).map((t) => ({ ...who(t), messages: t.messages })),
+  };
+}
+
 // ── Annotations ────────────────────────────────────────────────────────
 
 const ANNOTATIONS = 'analytics-annotations';
@@ -307,6 +410,10 @@ export function registerAnalyticsInsightsRoutes(): void {
   route('GET', `${base}/audience/cohorts`, () => cohorts());
   route('GET', `${base}/audience/funnel`, ({ query }) => funnel(periodOf(query)));
   route('GET', `${base}/audience/lifecycle`, ({ query }) => lifecycle(periodOf(query)));
+  route('GET', `${base}/conversation/responses`, ({ query }) => responses(periodOf(query)));
+  route('GET', `${base}/conversation/concentration`, ({ query }) => concentration(periodOf(query), metricOf(query)));
+  route('GET', `${base}/conversation/channel-health`, ({ query }) => channelHealthReport(periodOf(query)));
+  route('GET', `${base}/conversation/network`, ({ query }) => network(periodOf(query)));
   route('GET', `${base}/annotations`, ({ query }) => {
     const start = range(periodOf(query)).start;
     return demoDb.get(ANNOTATIONS, annotationsSeed).filter((a) => a.dateKey >= start);
