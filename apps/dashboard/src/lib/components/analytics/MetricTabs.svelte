@@ -31,6 +31,7 @@
     onchange,
     compare = false,
     label,
+    interactive = true,
   }: {
     metrics: MetricTab[];
     active: string;
@@ -38,6 +39,8 @@
     compare?: boolean;
     /** Nom du groupe pour les lecteurs d'écran. */
     label: string;
+    /** false : simples chiffres clés, sans courbe à piloter. */
+    interactive?: boolean;
   } = $props();
 
   function tone(metric: MetricTab): 'up' | 'down' | 'flat' {
@@ -64,42 +67,55 @@
   }
 </script>
 
-<div class="metric-tabs" role="tablist" aria-label={label}>
-  {#each metrics as metric, index (metric.id)}
-    {@const selected = metric.id === active}
-    {@const verdict = good(metric)}
-    <button
-      type="button"
-      role="tab"
-      class="metric-tab"
-      aria-selected={selected}
-      tabindex={selected ? 0 : -1}
-      title={metric.hint || undefined}
-      style="--metric-color: {metric.color ?? 'var(--series-1)'};"
-      onclick={() => onchange(metric.id)}
-      onkeydown={(e) => onKeydown(e, index)}
+{#snippet content(metric: MetricTab, selected: boolean, verdict: boolean | null)}
+  <span class="metric-tab__label">{metric.label}</span>
+  <span class="metric-tab__row">
+    <span class="metric-tab__value">{metric.value}</span>
+    {#if metric.spark && metric.spark.length > 1}
+      <Sparkline values={metric.spark} color={selected ? 'var(--metric-color)' : 'var(--series-neutral)'} width={64} height={22} />
+    {/if}
+  </span>
+  {#if compare && metric.delta !== undefined}
+    <span
+      class="metric-tab__delta {verdict === true ? 'text-success' : verdict === false ? 'text-error' : 'text-on-surface-variant'}"
     >
-      <span class="metric-tab__label">{metric.label}</span>
-      <span class="metric-tab__row">
-        <span class="metric-tab__value">{metric.value}</span>
-        {#if metric.spark && metric.spark.length > 1}
-          <Sparkline values={metric.spark} color={selected ? 'var(--metric-color)' : 'var(--series-neutral)'} width={64} height={22} />
-        {/if}
-      </span>
-      {#if compare && metric.delta !== undefined}
-        <span
-          class="metric-tab__delta {verdict === true ? 'text-success' : verdict === false ? 'text-error' : 'text-on-surface-variant'}"
-        >
-          {#if tone(metric) !== 'flat'}
-            <Papicon icon={tone(metric) === 'up' ? 'trending-up' : 'trending-down'} size={12} />
-          {/if}
-          {fmtDelta(metric.delta ?? null, 'pct')}
-          <span class="text-on-surface-variant font-normal">{m.anx_delta_vs_previous()}</span>
-        </span>
+      {#if tone(metric) !== 'flat'}
+        <Papicon icon={tone(metric) === 'up' ? 'trending-up' : 'trending-down'} size={12} />
       {/if}
-    </button>
-  {/each}
-</div>
+      {fmtDelta(metric.delta ?? null, 'pct')}
+      <span class="text-on-surface-variant font-normal">{m.anx_delta_vs_previous()}</span>
+    </span>
+  {/if}
+{/snippet}
+
+{#if interactive}
+  <div class="metric-tabs" role="tablist" aria-label={label}>
+    {#each metrics as metric, index (metric.id)}
+      {@const selected = metric.id === active}
+      <button
+        type="button"
+        role="tab"
+        class="metric-tab"
+        aria-selected={selected}
+        tabindex={selected ? 0 : -1}
+        title={metric.hint || undefined}
+        style="--metric-color: {metric.color ?? 'var(--series-1)'};"
+        onclick={() => onchange(metric.id)}
+        onkeydown={(e) => onKeydown(e, index)}
+      >
+        {@render content(metric, selected, good(metric))}
+      </button>
+    {/each}
+  </div>
+{:else}
+  <ul class="metric-tabs" aria-label={label}>
+    {#each metrics as metric (metric.id)}
+      <li class="metric-tab metric-tab--static" title={metric.hint || undefined} style="--metric-color: {metric.color ?? 'var(--series-1)'};">
+        {@render content(metric, true, good(metric))}
+      </li>
+    {/each}
+  </ul>
+{/if}
 
 <style>
   .metric-tabs {
@@ -143,6 +159,11 @@
 
   .metric-tab[aria-selected='true']::before {
     background: var(--metric-color);
+  }
+
+  .metric-tab--static,
+  .metric-tab--static:hover {
+    background: transparent;
   }
 
   .metric-tab:focus-visible {
