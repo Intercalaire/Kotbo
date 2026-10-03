@@ -168,6 +168,61 @@ export async function handleAnalyticsRoutes(
     }
   }
 
+  // …/analytics/views[/:id] : vues enregistrées (onglet, période, filtres).
+  // Chacun voit les siennes et celles partagées ; l'auteur retire la sienne,
+  // un administrateur n'importe laquelle. Écriture ouverte aux lecteurs
+  // d'Analytics (cf. isAnalyticsAnnotationAction), droit revérifié ici.
+  if (parts[5] === 'views' && (parts.length === 6 || (parts.length === 7 && method === 'DELETE'))) {
+    try {
+      if (method === 'GET') {
+        const views = await prismaRead.analyticsSavedView.findMany({
+          where: { guildId, OR: [{ userId: user.userId }, { shared: true }] },
+          orderBy: { createdAt: 'asc' },
+          take: 100,
+        });
+        json(res, 200, views.map((v) => ({ ...v, mine: v.userId === user.userId })));
+        return true;
+      }
+      if (!_access.canViewDashboard || !(await canViewFeatureSection(client, guildId, _access, user.userId, 'analytics'))) {
+        json(res, 403, { error: 'Accès à Analytics requis.' });
+        return true;
+      }
+      if (method === 'POST' && parts.length === 6) {
+        const body = (await readJsonBody<Record<string, unknown>>(req)) ?? {};
+        const name = typeof body.name === 'string' ? body.name.trim().slice(0, 60) : '';
+        const payload = body.payload && typeof body.payload === 'object' ? body.payload : null;
+        if (!name || !payload || JSON.stringify(payload).length > 4000) {
+          json(res, 400, { error: 'Vue invalide' });
+          return true;
+        }
+        const count = await prisma.analyticsSavedView.count({ where: { guildId, userId: user.userId } });
+        if (count >= 30) {
+          json(res, 409, { error: '30 vues au plus par personne.' });
+          return true;
+        }
+        const view = await prisma.analyticsSavedView.create({
+          data: { guildId, userId: user.userId, name, payload: payload as object, shared: body.shared === true },
+        });
+        json(res, 201, { ...view, mine: true });
+        return true;
+      }
+      if (method === 'DELETE' && parts.length === 7) {
+        const view = await prisma.analyticsSavedView.findFirst({ where: { id: parts[6]!, guildId } });
+        if (!view) json(res, 404, { error: 'Vue introuvable' });
+        else if (view.userId !== user.userId && !_access.canManageSettings) json(res, 403, { error: "Seul l'auteur ou un administrateur peut retirer cette vue." });
+        else {
+          await prisma.analyticsSavedView.delete({ where: { id: view.id } });
+          json(res, 200, { ok: true });
+        }
+        return true;
+      }
+    } catch (err) {
+      logger.error('AnalyticsAPI', 'Erreur vues enregistrées:', err);
+      jsonFailure(res, err, 'Erreur sur les vues enregistrées', 'AnalyticsAPI');
+      return true;
+    }
+  }
+
   // …/analytics/alerts[/:id] et …/analytics/reports[/:id[/test]] : alertes sur
   // seuil et rapports planifiés. Lecture pour qui voit Analytics ; écriture
   // gardée par le répartiteur (droit de configuration).
