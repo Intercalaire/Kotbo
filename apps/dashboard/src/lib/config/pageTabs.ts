@@ -46,6 +46,7 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
     { id: 'overview', label: () => m.an_tab_overview(), icon: 'Grid' },
     { id: 'messages', label: () => m.an_tab_messages(), icon: 'ChatCircleDots' },
     { id: 'voice', label: () => m.an_tab_voice(), icon: 'Microphone' },
+    { id: 'live', label: () => m.anx_tab_live(), icon: 'Radio' },
     { id: 'heatmap', label: () => m.an_tab_heatmap(), icon: 'Fire' },
     { id: 'pulse', label: () => m.an_tab_pulse(), icon: 'Activity' },
     { id: 'weekly', label: () => m.an_tab_weekly(), icon: 'Calendar' },

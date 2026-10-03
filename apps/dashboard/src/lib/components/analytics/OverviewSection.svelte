@@ -8,6 +8,7 @@
   import { untrack } from 'svelte';
   import AnalyticsSkeleton from './AnalyticsSkeleton.svelte';
   import ActivityChartCard from './ActivityChartCard.svelte';
+  import LivePanel from './LivePanel.svelte';
   import { buildActivityMetrics } from './activityMetrics';
   import { analyticsAnnotations } from './annotations.svelte';
   import {
@@ -116,6 +117,7 @@
   <Callout variant="danger" title={m.an_error_generic()}>{error}</Callout>
 {:else if activity && k}
   <div class="flex flex-col gap-4" aria-busy={loading}>
+    <LivePanel compact />
     <ActivityChartCard
       {metrics}
       active={activeMetric}

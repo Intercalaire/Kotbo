@@ -47,6 +47,7 @@
   import ModerationTrendsView from '../lib/components/analytics/ModerationTrendsView.svelte';
   import StaffInsightsView from '../lib/components/analytics/StaffInsightsView.svelte';
   import RisingWordsView from '../lib/components/analytics/RisingWordsView.svelte';
+  import LivePanel from '../lib/components/analytics/LivePanel.svelte';
   import AdvancedAnalyticsPanel from '../lib/components/analytics/AdvancedAnalyticsPanel.svelte';
   import ModerationAudit from '../lib/components/analytics/ModerationAudit.svelte';
   import StaffAudit from '../lib/components/analytics/StaffAudit.svelte';
@@ -86,6 +87,7 @@
       tabs: [
         { id: 'messages', label: m.an_tab_messages(), icon: 'ChatCircleDots', scope: 'full' },
         { id: 'voice', label: m.an_tab_voice(), icon: 'Microphone', scope: 'full', legacy: true },
+        { id: 'live', label: m.anx_tab_live(), icon: 'Radio', scope: 'own' },
         { id: 'heatmap', label: m.an_tab_heatmap(), icon: 'Fire', scope: 'period' },
         { id: 'pulse', label: m.an_tab_pulse(), icon: 'Activity', scope: 'own' },
         { id: 'weekly', label: m.an_tab_weekly(), icon: 'Calendar', scope: 'own' },
@@ -560,6 +562,8 @@
           </div>
         {:else if activeTab === 'tickets'}
           <StaffInsightsView onOpenMember={openMemberDetails} />
+        {:else if activeTab === 'live'}
+          <LivePanel />
         {:else if activeTab === 'engagement'}
           <EngagementView />
         {:else if activeTab === 'lifecycle'}
