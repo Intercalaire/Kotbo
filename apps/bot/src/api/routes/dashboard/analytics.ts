@@ -405,6 +405,21 @@ export async function handleAnalyticsRoutes(
     return true;
   }
 
+  // GET …/analytics/commands/stats : usage des commandes par jour. Période seule.
+  if (parts.length === 7 && parts[5] === 'commands' && parts[6] === 'stats') {
+    try {
+      const { parseRange } = await import('../../../services/analytics/contentAnalyticsService.js');
+      const { getCommandAnalytics } = await import('../../../services/analytics/commandStatsService.js');
+      const range = parseRange(url.searchParams);
+      json(res, 200, await cache.wrap(`guild:${guildId}:analytics:commands:${range.start}:${range.end}`, 300, () =>
+        getCommandAnalytics(client, guildId, range)));
+    } catch (err) {
+      logger.error('AnalyticsAPI', 'Erreur analytics (commands/stats):', err);
+      jsonFailure(res, err, 'Erreur lors du calcul des statistiques', 'AnalyticsAPI');
+    }
+    return true;
+  }
+
   // GET …/analytics/members/overview : effectif, arrivées par source, inviteurs
   // et qualité des nouveaux. Période seule.
   if (parts.length === 7 && parts[5] === 'members' && parts[6] === 'overview') {
