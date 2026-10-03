@@ -461,3 +461,55 @@ model AnalyticsAnnotation {
   @@index([guildId, dateKey])
   @@map("analytics_annotations")
 }
+
+// Qui répond à qui, et qui mentionne qui : un compteur par paire et par jour,
+// jamais le contenu. Suit Guild.analyticsEnabled.
+model MemberInteractionDailyStat {
+  id String @id @default(cuid())
+
+  guildId      String
+  dateKey      String // YYYY-MM-DD
+  userId       String // auteur du message
+  targetUserId String // membre à qui il répond ou qu'il mentionne
+
+  replies  Int @default(0)
+  mentions Int @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, dateKey, userId, targetUserId])
+  @@index([guildId, dateKey])
+  @@map("member_interaction_daily_stats")
+}
+
+// Temps de réponse par salon : un « tour » est la prise de parole d'un membre ;
+// il est répondu quand un autre membre écrit dans le salon dans les 6 h. Les
+// délais sont rangés par tranches pour estimer la médiane sans les stocker.
+model ChannelResponseDailyStat {
+  id String @id @default(cuid())
+
+  guildId   String
+  dateKey   String // jour du tour
+  channelId String
+
+  answered    Int @default(0)
+  unanswered  Int @default(0)
+  delaySumSec Int @default(0)
+  under1m     Int @default(0)
+  under5m     Int @default(0)
+  under15m    Int @default(0)
+  under1h     Int @default(0)
+  under6h     Int @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, dateKey, channelId])
+  @@index([guildId, dateKey])
+  @@map("channel_response_daily_stats")
+}

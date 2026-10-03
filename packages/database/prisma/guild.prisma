@@ -437,6 +437,8 @@ model Guild {
   memberDailyStats MemberDailyStat[]
   messageContentDailyStats MessageContentDailyStat[]
   analyticsAnnotations AnalyticsAnnotation[]
+  memberInteractionDailyStats MemberInteractionDailyStat[]
+  channelResponseDailyStats ChannelResponseDailyStat[]
   contentItemDailyStats ContentItemDailyStat[]
   memberInvites MemberInvite[]
   guildInvites  GuildInvite[]
