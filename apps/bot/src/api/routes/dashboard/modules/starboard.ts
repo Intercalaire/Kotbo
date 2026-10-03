@@ -94,9 +94,12 @@ function parseEmojiList(value: unknown, field: string): { emojis: string[] } | {
   if (emojis.length > MAX_EMOJIS) {
     return { error: `Le champ ${field} ne peut pas contenir plus de ${MAX_EMOJIS} emojis` };
   }
-  // Un emoji unicode tient en quelques points de code ; au-delà, c'est du texte
-  // collé par erreur, que Discord refuserait à la réaction.
-  if (emojis.some((e) => [...e].length > 8)) {
+  // Un emoji custom arrive réduit à son id, qui compte 17 à 20 chiffres : il
+  // doit passer avant la borne des emojis unicode, sans quoi tout emoji du
+  // serveur était refusé. Un emoji unicode tient en quelques points de code ;
+  // au-delà, c'est du texte collé par erreur, que Discord refuserait à la
+  // réaction.
+  if (emojis.some((e) => !SNOWFLAKE_RE.test(e) && [...e].length > 8)) {
     return { error: `Le champ ${field} contient une valeur qui n'est pas un emoji` };
   }
   return { emojis };
