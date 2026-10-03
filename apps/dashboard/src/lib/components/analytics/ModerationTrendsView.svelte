@@ -16,8 +16,8 @@
 
   const { onOpenMember }: { onOpenMember: (userId: string, name: string) => void } = $props();
 
-  const state = analyticsLoader(() => fetchModerationTrends(filters.periodQuery), 'moderationTrends');
-  const data = $derived(state.data as ModerationTrends | null);
+  const loader = analyticsLoader(() => fetchModerationTrends(filters.periodQuery), 'moderationTrends');
+  const data = $derived(loader.data as ModerationTrends | null);
 
   const TYPE_ORDER = ['WARN', 'TIMEOUT', 'KICK', 'SOFTBAN', 'TEMP_BAN', 'BAN'];
   const typeLabel = (t: string) =>
@@ -52,12 +52,12 @@
   );
 </script>
 
-{#if state.loading && !data}
+{#if loader.loading && !data}
   <AnalyticsSkeleton />
-{:else if state.error && !data}
-  <Callout variant="danger" title={m.an_error_generic()}>{state.error}</Callout>
+{:else if loader.error && !data}
+  <Callout variant="danger" title={m.an_error_generic()}>{loader.error}</Callout>
 {:else if data}
-  <div class="flex flex-col gap-4" class:opacity-60={state.loading}>
+  <div class="flex flex-col gap-4" class:opacity-60={loader.loading}>
     <MetricTabs metrics={tiles} active="" onchange={() => {}} compare={filters.compare} label={m.anx_modt_title()} interactive={false} />
 
     {#if stacks.length > 0}

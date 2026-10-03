@@ -16,8 +16,8 @@
 
   const { onOpenMember }: { onOpenMember: (userId: string, name: string) => void } = $props();
 
-  const state = analyticsLoader(() => fetchStaffInsights(filters.periodQuery), 'staffInsights');
-  const data = $derived(state.data as StaffInsights | null);
+  const loader = analyticsLoader(() => fetchStaffInsights(filters.periodQuery), 'staffInsights');
+  const data = $derived(loader.data as StaffInsights | null);
 
   const tiles: MetricTab[] = $derived.by(() => {
     if (!data) return [];
@@ -52,12 +52,12 @@
   );
 </script>
 
-{#if state.loading && !data}
+{#if loader.loading && !data}
   <AnalyticsSkeleton />
-{:else if state.error && !data}
-  <Callout variant="danger" title={m.an_error_generic()}>{state.error}</Callout>
+{:else if loader.error && !data}
+  <Callout variant="danger" title={m.an_error_generic()}>{loader.error}</Callout>
 {:else if data}
-  <div class="flex flex-col gap-4" class:opacity-60={state.loading}>
+  <div class="flex flex-col gap-4" class:opacity-60={loader.loading}>
     {#if !data.measuredSince}
       <Callout variant="info">{m.anx_staff_not_measured()}</Callout>
     {/if}

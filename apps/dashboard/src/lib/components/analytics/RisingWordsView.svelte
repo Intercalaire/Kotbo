@@ -13,8 +13,8 @@
   import { analyticsFilters as filters } from './analyticsFilters.svelte';
   import { fmtDelta, fmtNumber } from './analyticsFormat';
 
-  const state = analyticsLoader(() => fetchRisingWords(filters.periodQuery), 'risingWords');
-  const data = $derived(state.data as RisingWords | null);
+  const loader = analyticsLoader(() => fetchRisingWords(filters.periodQuery), 'risingWords');
+  const data = $derived(loader.data as RisingWords | null);
 </script>
 
 {#snippet column(title: string, description: string, words: WordTrend[], kind: 'up' | 'new' | 'down')}
@@ -37,15 +37,15 @@
   </SectionCard>
 {/snippet}
 
-{#if state.loading && !data}
+{#if loader.loading && !data}
   <AnalyticsSkeleton />
-{:else if state.error && !data}
-  <Callout variant="danger" title={m.an_error_generic()}>{state.error}</Callout>
+{:else if loader.error && !data}
+  <Callout variant="danger" title={m.an_error_generic()}>{loader.error}</Callout>
 {:else if data}
   {#if !data.hasData}
     <Callout variant="info">{data.enabled ? m.anx_words_no_data() : m.anx_words_disabled()}</Callout>
   {:else}
-    <div class="words-grid" class:opacity-60={state.loading}>
+    <div class="words-grid" class:opacity-60={loader.loading}>
       {@render column(m.anx_words_rising(), m.anx_words_rising_desc(), data.rising, 'up')}
       {@render column(m.anx_words_fresh(), m.anx_words_fresh_desc(), data.fresh, 'new')}
       {@render column(m.anx_words_falling(), m.anx_words_falling_desc(), data.falling, 'down')}

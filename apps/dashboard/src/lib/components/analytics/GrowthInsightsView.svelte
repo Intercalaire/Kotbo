@@ -15,8 +15,8 @@
   import { analyticsFilters as filters, relativeDelta } from './analyticsFilters.svelte';
   import { fmtNumber, fmtPct, shortDate, SERIES, SERIES_NEUTRAL } from './analyticsFormat';
 
-  const state = analyticsLoader(() => fetchGrowthInsights(filters.periodQuery), 'growthInsights');
-  const data = $derived(state.data as GrowthInsights | null);
+  const loader = analyticsLoader(() => fetchGrowthInsights(filters.periodQuery), 'growthInsights');
+  const data = $derived(loader.data as GrowthInsights | null);
 
   const sourceLabel = (g: GrowthInsights['sources']['groups'][number]) =>
     g.kind === 'unknown' ? m.anx_funnel_source_unknown() : g.kind === 'vanity' ? m.anx_funnel_source_vanity({ code: g.label ?? '' }) : (g.label ?? g.key);
@@ -53,12 +53,12 @@
   );
 </script>
 
-{#if state.loading && !data}
+{#if loader.loading && !data}
   <AnalyticsSkeleton />
-{:else if state.error && !data}
-  <Callout variant="danger" title={m.an_error_generic()}>{state.error}</Callout>
+{:else if loader.error && !data}
+  <Callout variant="danger" title={m.an_error_generic()}>{loader.error}</Callout>
 {:else if data}
-  <div class="flex flex-col gap-4" class:opacity-60={state.loading}>
+  <div class="flex flex-col gap-4" class:opacity-60={loader.loading}>
     <MetricTabs metrics={tiles} active="" onchange={() => {}} compare={filters.compare} label={m.anx_growth_insights_title()} interactive={false} />
     <div class="growth-grid">
       <SectionCard title={m.anx_growth_sources_title()} description={m.anx_growth_sources_desc()}>
