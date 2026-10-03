@@ -246,6 +246,7 @@ import {
   LineChart,
   PanelLeftClose,
   PanelLeftOpen,
+  Radio,
 } from 'lucide-svelte';
 import { toPapiconsName } from './papicons';
 
@@ -257,6 +258,7 @@ import { toPapiconsName } from './papicons';
  * ne conserver que cette sélection.
  */
 const icons = {
+  Radio,
   PanelLeftOpen,
   PanelLeftClose,
   LineChart,
