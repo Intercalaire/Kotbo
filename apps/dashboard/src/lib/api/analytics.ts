@@ -518,6 +518,70 @@ export async function deleteAnalyticsAnnotation(id: string, guildId = authStore.
   });
 }
 
+export interface EngagementAnalytics {
+  step: number;
+  channelIgnored: boolean;
+  points: Array<{ dateKey: string; dau: number; wau: number; mau: number; prevDau: number; prevWau: number; prevMau: number }>;
+}
+
+export interface ActivityCohorts {
+  weeks: number;
+  channelIgnored: boolean;
+  cohorts: Array<{ week: string; size: number; retention: Array<number | null> }>;
+}
+
+export interface FunnelSteps {
+  joined: number;
+  stayed: number;
+  firstMessage: number;
+  eligible7: number;
+  active7: number;
+  eligible30: number;
+  active30: number;
+  medianDaysToFirstMessage: number | null;
+}
+
+export interface OnboardingFunnel {
+  channelIgnored: boolean;
+  overall: FunnelSteps;
+  bySource: Array<FunnelSteps & { key: string; label: string | null; kind: 'label' | 'vanity' | 'code' | 'unknown' }>;
+}
+
+export type LifecycleSegment = 'new' | 'regular' | 'casual' | 'reactivated' | 'declining' | 'dormant' | 'silent';
+
+export interface LifecycleMember {
+  userId: string;
+  name: string | null;
+  avatarUrl: string | null;
+  lastActive: string | null;
+  recentDays: number;
+  previousDays: number;
+  joinedAt: string | null;
+}
+
+export interface LifecycleAnalytics {
+  asOf: string;
+  prevAsOf: string;
+  channelIgnored: boolean;
+  counts: Record<LifecycleSegment, number>;
+  prevCounts: Record<LifecycleSegment, number>;
+  transitions: Array<{ from: LifecycleSegment; to: LifecycleSegment; count: number }>;
+  lists: Partial<Record<LifecycleSegment, LifecycleMember[]>>;
+}
+
+function audienceRequest<T>(view: string, query: AnalyticsQuery, guildId: typeof authStore.selectedGuildId): Promise<T | null> {
+  return dashboardRequest<T>(`/analytics/audience/${view}?${analyticsParams(query)}`, {
+    method: 'GET',
+    guildId,
+    errorContext: `API Error (Audience ${view}):`
+  });
+}
+
+export const fetchEngagement = (query: AnalyticsQuery, guildId = authStore.selectedGuildId) => audienceRequest<EngagementAnalytics>('engagement', query, guildId);
+export const fetchActivityCohorts = (query: AnalyticsQuery, guildId = authStore.selectedGuildId) => audienceRequest<ActivityCohorts>('cohorts', query, guildId);
+export const fetchOnboardingFunnel = (query: AnalyticsQuery, guildId = authStore.selectedGuildId) => audienceRequest<OnboardingFunnel>('funnel', query, guildId);
+export const fetchLifecycle = (query: AnalyticsQuery, guildId = authStore.selectedGuildId) => audienceRequest<LifecycleAnalytics>('lifecycle', query, guildId);
+
 export async function fetchChannelTree(query: AnalyticsQuery, guildId = authStore.selectedGuildId): Promise<ChannelTree | null> {
   return dashboardRequest<ChannelTree>(`/analytics/channel-tree?${analyticsParams({ period: query.period, startDate: query.startDate, endDate: query.endDate })}`, {
     method: 'GET',
