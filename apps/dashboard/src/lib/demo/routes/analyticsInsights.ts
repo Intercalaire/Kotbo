@@ -389,6 +389,90 @@ function network(days: number) {
   };
 }
 
+
+// ── Analyses par section ───────────────────────────────────────────────
+
+function growthInsights(days: number) {
+  const series = serverSeries(days);
+  const joined = sum(series, (d) => d.membersJoined);
+  const left = sum(series, (d) => d.membersLeft);
+  const shares = [0.42, 0.24, 0.14, 0.1];
+  const labels: Array<[string, 'code' | 'label' | 'vanity' | 'unknown', string | null]> = [
+    ['code:nova (Arka)', 'code', 'nova (Arka)'], ['label:TikTok', 'label', 'TikTok'], ['code:lina-et-cie (Lina)', 'code', 'lina-et-cie (Lina)'], ['unknown', 'unknown', null],
+  ];
+  const groups = labels.map(([key, kind, label], i) => {
+    const values = series.map((d) => Math.round(d.membersJoined * shares[i]!));
+    return { key, kind, label, total: sum(values, (v) => v), values };
+  });
+  return {
+    range: range(days),
+    departures: { total: left, unknownTenure: 0, byTenure: [
+      { key: 'under1d', count: Math.round(left * 0.22) }, { key: 'under7d', count: Math.round(left * 0.26) },
+      { key: 'under30d', count: Math.round(left * 0.21) }, { key: 'under180d', count: Math.round(left * 0.19) }, { key: 'over180d', count: Math.round(left * 0.12) },
+    ] },
+    quickLeave: { joined, left24h: Math.round(joined * 0.09), rate: 9.1, previousRate: 11.4 },
+    sources: { dates: series.map((d) => d.dateKey), groups, other: series.map((d) => Math.round(d.membersJoined * 0.1)) },
+  };
+}
+
+function moderationTrends(days: number) {
+  const series = serverSeries(days);
+  const types = [['WARN', 0.55], ['TIMEOUT', 0.25], ['KICK', 0.08], ['BAN', 0.12]] as const;
+  const mods = MEMBERS.filter((p) => !p.bot).slice(1, 5);
+  const total = sum(series, (d) => d.sanctions) * 3;
+  return {
+    range: range(days),
+    total,
+    previousTotal: Math.round(total * 1.15),
+    byType: { dates: series.map((d) => d.dateKey), series: types.map(([type, w]) => {
+      const values = series.map((d, i) => Math.round(d.sanctions * 3 * w + ((i * 7) % 3 === 0 ? 1 : 0)));
+      return { type, total: sum(values, (v) => v), values };
+    }) },
+    moderators: mods.map((p, i) => {
+      const count = Math.round(total * [0.42, 0.28, 0.18, 0.12][i]!);
+      return { userId: p.id, name: p.displayName, count, previous: Math.round(count * 1.1), types: { WARN: Math.round(count * 0.6), TIMEOUT: Math.round(count * 0.3), BAN: Math.round(count * 0.1) }, share: [42, 28, 18, 12][i]! };
+    }),
+    recidivism: {
+      sanctioned: Math.round(total * 0.7), repeat: Math.round(total * 0.12), rate: 17.1, previousRate: 19.8,
+      offenders: MEMBERS.filter((p) => !p.bot).slice(30, 36).map((p, i) => ({ userId: p.id, name: p.displayName, count: 4 - Math.min(2, i), last: dateKey(i * 3) + 'T12:00:00.000Z' })),
+    },
+    reportDelay: { reports: 18, medianSec: 2_700 },
+  };
+}
+
+function staffInsights(days: number) {
+  const opened = Math.round(days * 1.8);
+  const staff = MEMBERS.filter((p) => !p.bot).slice(1, 6);
+  return {
+    range: range(days),
+    timezone: 'Europe/Paris',
+    measuredSince: true,
+    tickets: {
+      opened, previousOpened: Math.round(opened * 0.9), responded: Math.round(opened * 0.94),
+      firstResponseMedianSec: 1_380, previousFirstResponseMedianSec: 1_920, within1h: 71.4,
+      resolutionMedianSec: 5 * 3600, previousResolutionMedianSec: 6.5 * 3600, unresolved: 4,
+    },
+    staff: staff.map((p, i) => ({ userId: p.id, name: p.displayName, claimed: Math.round(opened * [0.34, 0.26, 0.2, 0.12, 0.08][i]!), closed: Math.round(opened * [0.3, 0.27, 0.2, 0.14, 0.09][i]!), firstResponses: Math.round(opened * [0.32, 0.28, 0.2, 0.12, 0.08][i]!), firstResponseMedianSec: [600, 1_100, 1_500, 2_600, 4_100][i]!, share: [34, 26, 20, 12, 8][i]! })),
+    coverage: Array.from({ length: 7 }, (_, d) => Array.from({ length: 24 }, (_, h) => {
+      const busy = HOUR_SHAPE[h]! / 10;
+      const n = Math.round(busy * (d >= 5 ? 1.6 : 1.1) * (days / 30) * 1.5);
+      return { opened: n, medianSec: n === 0 ? null : h < 9 ? 3 * 3600 + h * 600 : h >= 23 ? 2 * 3600 : 900 + ((d * 24 + h) % 5) * 300 };
+    })),
+  };
+}
+
+function risingWords() {
+  const w = (word: string, count: number, previous: number) => ({ word, count, previous, change: previous > 0 ? Math.round(((count - previous) / previous) * 1000) / 10 : null });
+  return {
+    range: range(30),
+    enabled: true,
+    hasData: true,
+    rising: [w('tournoi', 184, 41), w('saison', 122, 50), w('ranked', 96, 44), w('patch', 88, 39), w('équipe', 77, 41), w('stream', 64, 30)],
+    fresh: [w('halloween', 58, 0), w('quiz', 33, 0), w('nova-cup', 21, 0)],
+    falling: [w('été', 12, 70), w('vacances', 9, 52), w('bug', 31, 74), w('maintenance', 6, 28)],
+  };
+}
+
 // ── Annotations ────────────────────────────────────────────────────────
 
 const ANNOTATIONS = 'analytics-annotations';
@@ -414,6 +498,10 @@ export function registerAnalyticsInsightsRoutes(): void {
   route('GET', `${base}/conversation/concentration`, ({ query }) => concentration(periodOf(query), metricOf(query)));
   route('GET', `${base}/conversation/channel-health`, ({ query }) => channelHealthReport(periodOf(query)));
   route('GET', `${base}/conversation/network`, ({ query }) => network(periodOf(query)));
+  route('GET', `${base}/insights/growth`, ({ query }) => growthInsights(periodOf(query)));
+  route('GET', `${base}/insights/moderation`, ({ query }) => moderationTrends(periodOf(query)));
+  route('GET', `${base}/insights/staff`, ({ query }) => staffInsights(periodOf(query)));
+  route('GET', `${base}/insights/words`, () => risingWords());
   route('GET', `${base}/annotations`, ({ query }) => {
     const start = range(periodOf(query)).start;
     return demoDb.get(ANNOTATIONS, annotationsSeed).filter((a) => a.dateKey >= start);
