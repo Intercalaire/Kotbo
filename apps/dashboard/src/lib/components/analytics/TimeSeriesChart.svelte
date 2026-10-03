@@ -42,7 +42,7 @@
     previous?: { label: string; values: (number | null)[] } | null;
     smoothed?: { label: string; values: (number | null)[] } | null;
     projection?: { label: string; values: (number | null)[]; low: (number | null)[]; high: (number | null)[] } | null;
-    stacks?: Array<{ label: string; values: number[]; color: string }>;
+    stacks?: Array<{ label: string; values: (number | null)[]; color: string }>;
     markers?: ChartMarker[];
     format?: (value: number) => string;
     height?: number;
