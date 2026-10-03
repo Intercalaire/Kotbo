@@ -44,12 +44,27 @@ export function registerServerTagRoleListener(client: Client): void {
     }
   });
 
+  // ── Mise à jour d'un membre absent du cache ────────────────────────────────
+  // discord.js ne connaît pas ce membre : il le crée et émet cet événement à la
+  // place de `GuildMemberUpdate`, et sans `UserUpdate` si l'utilisateur non
+  // plus n'était pas en cache. Les membres hors ligne d'un serveur de plus de
+  // 50 membres n'étant jamais chargés, leur pose de tag passait inaperçue.
+  client.on(Events.GuildMemberAvailable, async (member: GuildMember | PartialGuildMember) => {
+    try {
+      if (member.partial) return;
+      await syncMemberAutoRoles(member);
+    } catch (err) {
+      logger.error('ServerTagRole', `Erreur GuildMemberAvailable pour ${member.id}`, err);
+    }
+  });
+
   // ── Mise à jour d'utilisateur : pose ou retrait du tag de serveur ──────────
   client.on(Events.UserUpdate, async (_old: User | PartialUser, user: User) => {
     try {
       for (const guild of client.guilds.cache.values()) {
         const member = guild.members.cache.get(user.id);
-        if (!member) continue; // Pas en cache : le sync suivra au prochain event.
+        // Pas en cache : la mise à jour de ce serveur arrive par GuildMemberAvailable.
+        if (!member) continue;
 
         const config = await getAutoRoleConfig(guild.id);
         if (!config?.tagAutoRoleEnabled || !config.tagAutoRoleId) continue;
