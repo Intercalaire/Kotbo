@@ -78,6 +78,8 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
     { id: 'staff', label: () => m.an_tab_staff_directory(), icon: 'Users' },
     { id: 'performance', label: () => m.an_tab_staff_performance(), icon: 'TrendUp' },
     { id: 'tickets', label: () => m.anx_tab_tickets(), icon: 'Ticket' },
+    { id: 'alerts', label: () => m.anx_tab_alerts(), icon: 'Bell' },
+    { id: 'reports', label: () => m.anx_tab_reports(), icon: 'Mail' },
   ],
 
   '/invitations': [

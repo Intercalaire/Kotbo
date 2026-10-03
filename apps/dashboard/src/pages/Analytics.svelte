@@ -48,6 +48,8 @@
   import StaffInsightsView from '../lib/components/analytics/StaffInsightsView.svelte';
   import RisingWordsView from '../lib/components/analytics/RisingWordsView.svelte';
   import LivePanel from '../lib/components/analytics/LivePanel.svelte';
+  import AlertsView from '../lib/components/analytics/AlertsView.svelte';
+  import ReportsView from '../lib/components/analytics/ReportsView.svelte';
   import AdvancedAnalyticsPanel from '../lib/components/analytics/AdvancedAnalyticsPanel.svelte';
   import ModerationAudit from '../lib/components/analytics/ModerationAudit.svelte';
   import StaffAudit from '../lib/components/analytics/StaffAudit.svelte';
@@ -149,6 +151,13 @@
         { id: 'staff', label: m.an_tab_staff_directory(), icon: 'Users', scope: 'period', legacy: true },
         { id: 'performance', label: m.an_tab_staff_performance(), icon: 'TrendUp', scope: 'period', legacy: true },
         { id: 'tickets', label: m.anx_tab_tickets(), icon: 'Ticket', scope: 'period' },
+      ],
+    },
+    {
+      id: 'automation', label: m.anx_section_automation(), icon: 'Bell', description: m.anx_section_automation_desc(),
+      tabs: [
+        { id: 'alerts', label: m.anx_tab_alerts(), icon: 'Bell', scope: 'own' },
+        { id: 'reports', label: m.anx_tab_reports(), icon: 'Mail', scope: 'own' },
       ],
     },
   ]);
@@ -562,6 +571,10 @@
           </div>
         {:else if activeTab === 'tickets'}
           <StaffInsightsView onOpenMember={openMemberDetails} />
+        {:else if activeTab === 'alerts'}
+          <AlertsView />
+        {:else if activeTab === 'reports'}
+          <ReportsView />
         {:else if activeTab === 'live'}
           <LivePanel />
         {:else if activeTab === 'engagement'}
