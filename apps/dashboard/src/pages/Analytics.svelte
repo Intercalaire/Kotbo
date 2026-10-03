@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Page Analytics : huit sections dans une barre latérale (des onglets sur
+   * Page Analytics : huit sections dans une barre latérale repliable (des onglets sur
    * mobile), chacune découpée en sous-onglets comme les autres pages. L'adresse
    * porte le sous-onglet (/analytics/emojis), la section s'en déduit : les
    * anciens liens d'onglets restent valables.
@@ -155,6 +155,42 @@
 
   const section = $derived(sections.find((s) => s.tabs.some((t) => t.id === activeTab)) ?? sections[0]!);
   const tab = $derived(section.tabs.find((t) => t.id === activeTab) ?? section.tabs[0]!);
+
+  // ── Barre latérale repliable ───────────────────────────────────────────────
+  // Dépliée sur grand écran, repliée en icônes en dessous, sauf choix manuel
+  // retenu dans le navigateur.
+  const SIDEBAR_KEY = 'kotbo.analytics.sidebar';
+
+  function readSidebarChoice(): 'open' | 'closed' | null {
+    try {
+      const value = localStorage.getItem(SIDEBAR_KEY);
+      return value === 'open' || value === 'closed' ? value : null;
+    } catch {
+      return null;
+    }
+  }
+
+  let sidebarChoice = $state<'open' | 'closed' | null>(typeof window === 'undefined' ? null : readSidebarChoice());
+  let wideScreen = $state(true);
+
+  $effect(() => {
+    const query = window.matchMedia('(min-width: 1440px)');
+    wideScreen = query.matches;
+    const onChange = (event: MediaQueryListEvent) => (wideScreen = event.matches);
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  });
+
+  const sidebarCollapsed = $derived(sidebarChoice ? sidebarChoice === 'closed' : !wideScreen);
+
+  function toggleSidebar() {
+    sidebarChoice = sidebarCollapsed ? 'open' : 'closed';
+    try {
+      localStorage.setItem(SIDEBAR_KEY, sidebarChoice);
+    } catch {
+      /* stockage indisponible : le choix vaut pour la visite */
+    }
+  }
 
   function goTab(id: string) {
     gotoTab('/analytics', id, 'overview');
@@ -374,7 +410,7 @@
   }
 </script>
 
-<div id="analytics-export-root" class="analytics-v2 mx-auto flex max-w-7xl flex-col gap-5 pb-20">
+<div id="analytics-export-root" class="analytics-v2 mx-auto flex w-full max-w-[96rem] flex-col gap-5 pb-20">
   <header class="flex flex-wrap items-end justify-between gap-4">
     <div class="flex min-w-0 flex-col gap-1">
       <h1 class="font-headline text-2xl font-semibold text-on-surface">{m.anx_page_title()}</h1>
@@ -383,27 +419,48 @@
     <ExportDropdown onExportCSV={exportCSV} onExportXLSX={exportXLSX} onExportImage={exportImages} />
   </header>
 
-  <div class="analytics-v2__layout">
+  <div class="analytics-v2__layout" class:analytics-v2__layout--collapsed={sidebarCollapsed}>
     <aside class="analytics-v2__sidebar">
+      <button
+        type="button"
+        class="side-link side-link--quiet side-toggle"
+        aria-expanded={!sidebarCollapsed}
+        aria-label={sidebarCollapsed ? m.anx_sidebar_expand() : m.anx_sidebar_collapse()}
+        title={sidebarCollapsed ? m.anx_sidebar_expand() : m.anx_sidebar_collapse()}
+        onclick={toggleSidebar}
+      >
+        <Papicon icon={sidebarCollapsed ? 'panel-left-open' : 'panel-left-close'} size={16} />
+        {#if !sidebarCollapsed}<span class="truncate">{m.anx_sidebar_collapse()}</span>{/if}
+      </button>
       <nav aria-label={m.anx_nav_label()} class="flex flex-col gap-0.5">
         {#each sections as s (s.id)}
           <button
             type="button"
             class="side-link"
             aria-current={s.id === section.id ? 'page' : undefined}
+            aria-label={sidebarCollapsed ? s.label : undefined}
+            title={sidebarCollapsed ? s.label : undefined}
             onclick={() => goSection(s.id)}
           >
             <Papicon icon={s.icon} size={18} />
-            <span class="truncate">{s.label}</span>
-            {#if s.isNew}<span class="side-link__badge">{m.anx_badge_new()}</span>{/if}
-            {#if s.tabs.length > 1}<span class="side-link__count">{s.tabs.length}</span>{/if}
+            {#if sidebarCollapsed}
+              {#if s.isNew}<span class="side-link__dot" aria-hidden="true"></span>{/if}
+            {:else}
+              <span class="truncate">{s.label}</span>
+              {#if s.isNew}<span class="side-link__badge">{m.anx_badge_new()}</span>{/if}
+              {#if s.tabs.length > 1}<span class="side-link__count">{s.tabs.length}</span>{/if}
+            {/if}
           </button>
         {/each}
       </nav>
       <div class="flex flex-col gap-1 border-t border-outline-variant pt-3">
-        <span class="px-3 text-2xs text-on-surface-variant">{m.anx_nav_elsewhere()}</span>
-        <a class="side-link side-link--quiet" href="/pulse"><Papicon icon="activity" size={16} />{m.nav_pulse()}</a>
-        <a class="side-link side-link--quiet" href="/invitations"><Papicon icon="link" size={16} />{m.nav_invitations()}</a>
+        {#if !sidebarCollapsed}<span class="px-3 text-2xs text-on-surface-variant">{m.anx_nav_elsewhere()}</span>{/if}
+        <a class="side-link side-link--quiet" href="/pulse" title={sidebarCollapsed ? m.nav_pulse() : undefined} aria-label={sidebarCollapsed ? m.nav_pulse() : undefined}>
+          <Papicon icon="activity" size={16} />{#if !sidebarCollapsed}{m.nav_pulse()}{/if}
+        </a>
+        <a class="side-link side-link--quiet" href="/invitations" title={sidebarCollapsed ? m.nav_invitations() : undefined} aria-label={sidebarCollapsed ? m.nav_invitations() : undefined}>
+          <Papicon icon="link" size={16} />{#if !sidebarCollapsed}{m.nav_invitations()}{/if}
+        </a>
       </div>
     </aside>
 
@@ -525,6 +582,37 @@
     grid-template-columns: 13.5rem minmax(0, 1fr);
     gap: 1.5rem;
     align-items: start;
+    transition: grid-template-columns 180ms ease;
+  }
+
+  .analytics-v2__layout--collapsed {
+    grid-template-columns: 2.75rem minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .analytics-v2__layout--collapsed .side-link {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .side-link__dot {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 0.4375rem;
+    height: 0.4375rem;
+    border-radius: 999px;
+    background: var(--color-primary);
+  }
+
+  .side-toggle {
+    color: var(--color-on-surface-variant);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .analytics-v2__layout {
+      transition: none;
+    }
   }
 
   .analytics-v2__sidebar {
@@ -540,6 +628,7 @@
   }
 
   .side-link {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 0.625rem;
