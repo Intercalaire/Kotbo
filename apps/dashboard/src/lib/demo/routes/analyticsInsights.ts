@@ -180,6 +180,112 @@ function breakdown(days: number, metric: 'messages' | 'voice', dimension: 'chann
   return { available: true, dates: series.map((d) => d.dateKey), groups: ordered.slice(0, 5), other };
 }
 
+
+// ── Membres et rétention ───────────────────────────────────────────────
+
+function engagement(days: number) {
+  const step = days > 92 ? 7 : 1;
+  const point = (daysAgo: number) => {
+    const d = serverSeries(1, daysAgo)[0]!;
+    const week = sum(serverSeries(7, daysAgo), (x) => x.activeMembers);
+    const month = sum(serverSeries(30, daysAgo), (x) => x.activeMembers);
+    return { dau: d.activeMembers, wau: Math.round(week * 0.42), mau: Math.round(month * 0.16) };
+  };
+  const points = [];
+  for (let i = days - 1; i >= 0; i -= step) {
+    const now = point(i);
+    const prev = point(i + days);
+    points.push({ dateKey: dateKey(i), ...now, prevDau: prev.dau, prevWau: prev.wau, prevMau: prev.mau });
+  }
+  return { range: range(days), step, channelIgnored: false, points };
+}
+
+function cohorts() {
+  const monday = new Date();
+  monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+  return {
+    weeks: 12,
+    channelIgnored: false,
+    cohorts: Array.from({ length: 12 }, (_, wi) => {
+      const week = new Date(monday.getTime() - (11 - wi) * 7 * DAY_MS).toISOString().slice(0, 10);
+      const size = 14 + ((wi * 7) % 11);
+      return {
+        week,
+        size,
+        retention: Array.from({ length: 12 }, (_, offset) =>
+          offset >= 12 - wi ? null : Math.round((offset === 0 ? 78 : 52 * Math.pow(0.86, offset) + (wi % 3) * 2) * 10) / 10),
+      };
+    }),
+  };
+}
+
+function funnelSteps(joined: number, quality: number) {
+  return {
+    joined,
+    stayed: Math.round(joined * (0.7 + quality * 0.2)),
+    firstMessage: Math.round(joined * (0.45 + quality * 0.3)),
+    eligible7: Math.round(joined * 0.8),
+    active7: Math.round(joined * 0.8 * (0.25 + quality * 0.3)),
+    eligible30: Math.round(joined * 0.5),
+    active30: Math.round(joined * 0.5 * (0.12 + quality * 0.25)),
+    medianDaysToFirstMessage: quality > 0.5 ? 0 : 2,
+  };
+}
+
+function funnel(days: number) {
+  const joined = sum(serverSeries(days), (d) => d.membersJoined);
+  const parts = [
+    { key: 'code:nova', label: 'nova (Arka)', kind: 'code', share: 0.42, quality: 0.7 },
+    { key: 'label:TikTok', label: 'TikTok', kind: 'label', share: 0.24, quality: 0.25 },
+    { key: 'code:lina-et-cie', label: 'lina-et-cie (Lina)', kind: 'code', share: 0.14, quality: 0.8 },
+    { key: 'label:Partenaires', label: 'Partenaires', kind: 'label', share: 0.1, quality: 0.55 },
+    { key: 'unknown', label: null, kind: 'unknown', share: 0.1, quality: 0.3 },
+  ];
+  return {
+    range: range(days),
+    channelIgnored: false,
+    overall: funnelSteps(joined, 0.55),
+    bySource: parts.map((p) => ({ key: p.key, label: p.label, kind: p.kind, ...funnelSteps(Math.max(1, Math.round(joined * p.share)), p.quality) })),
+  };
+}
+
+function lifecycle(days: number) {
+  const humans = MEMBERS.filter((p) => !p.bot);
+  const totals = memberTotals(28);
+  const segOf = (activeDays: number, i: number) =>
+    i % 17 === 0 ? 'new' : i % 13 === 0 ? 'reactivated' : i % 11 === 0 ? 'declining' : activeDays >= 8 ? 'regular' : activeDays >= 1 ? 'casual' : i % 2 ? 'dormant' : 'silent';
+  const counts: Record<string, number> = { new: 0, regular: 0, casual: 0, reactivated: 0, declining: 0, dormant: 0, silent: 0 };
+  const lists: Record<string, Array<Record<string, unknown>>> = { new: [], reactivated: [], declining: [], dormant: [] };
+  humans.forEach((person, i) => {
+    const t = totals.find((x) => x.person.id === person.id);
+    const seg = segOf(t?.activeDays ?? 0, i);
+    counts[seg]! += 1;
+    lists[seg]?.push({
+      userId: person.id, name: person.displayName, avatarUrl: avatarOf(person),
+      lastActive: dateKey(seg === 'dormant' ? 35 + (i % 40) : i % 5),
+      recentDays: seg === 'dormant' ? 0 : (t?.activeDays ?? 1),
+      previousDays: seg === 'declining' ? 14 + (i % 6) : seg === 'dormant' ? 6 + (i % 9) : 3,
+      joinedAt: new Date(Date.now() - (seg === 'new' ? i % 13 : 120 + i) * DAY_MS).toISOString(),
+    });
+  });
+  const prevCounts = Object.fromEntries(Object.entries(counts).map(([k, v]) => [k, Math.max(0, v + (k === 'declining' ? -3 : k === 'regular' ? 2 : k === 'new' ? -1 : 0))]));
+  return {
+    asOf: dateKey(0),
+    prevAsOf: dateKey(days),
+    channelIgnored: false,
+    counts,
+    prevCounts,
+    transitions: [
+      { from: 'regular', to: 'declining', count: 4 },
+      { from: 'casual', to: 'regular', count: 3 },
+      { from: 'new', to: 'casual', count: 3 },
+      { from: 'dormant', to: 'reactivated', count: 2 },
+      { from: 'casual', to: 'dormant', count: 2 },
+    ],
+    lists,
+  };
+}
+
 // ── Annotations ────────────────────────────────────────────────────────
 
 const ANNOTATIONS = 'analytics-annotations';
@@ -197,6 +303,10 @@ export function registerAnalyticsInsightsRoutes(): void {
     rankings(periodOf(query), metricOf(query), query.get('dimension') === 'channels' ? 'channels' : 'members', Math.min(500, Number(query.get('limit')) || 10)));
   route('GET', `${base}/activity/breakdown`, ({ query }) =>
     breakdown(periodOf(query), metricOf(query), query.get('dimension') === 'category' ? 'category' : 'channel'));
+  route('GET', `${base}/audience/engagement`, ({ query }) => engagement(periodOf(query)));
+  route('GET', `${base}/audience/cohorts`, () => cohorts());
+  route('GET', `${base}/audience/funnel`, ({ query }) => funnel(periodOf(query)));
+  route('GET', `${base}/audience/lifecycle`, ({ query }) => lifecycle(periodOf(query)));
   route('GET', `${base}/annotations`, ({ query }) => {
     const start = range(periodOf(query)).start;
     return demoDb.get(ANNOTATIONS, annotationsSeed).filter((a) => a.dateKey >= start);
