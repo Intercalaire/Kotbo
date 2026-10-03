@@ -104,6 +104,72 @@ model TwitchChannelFollow {
   @@map("twitch_channel_follows")
 }
 
+/// Dépôt GitHub suivi : commits d'une branche, releases, pull requests et issues.
+model GithubRepoFollow {
+  id String @id @default(cuid())
+  guildId String
+  /// `owner/repo` en minuscules : sert de clé de dédoublonnage entre serveurs.
+  repo String
+  /// Branche des commits ; null = branche par défaut du dépôt.
+  branch String?
+
+  discordChannelId String?
+  mention String?
+
+  notifyCommits Boolean @default(true)
+  notifyReleases Boolean @default(true)
+  notifyPullRequests Boolean @default(false)
+  notifyIssues Boolean @default(false)
+
+  // Message personnalisé par type d'événement (variables [title] / [channel] / [url])
+  commitMessage String?
+  releaseMessage String?
+  pullRequestMessage String?
+  issueMessage String?
+
+  // Dernier élément vu par type : null tant que le premier passage n'a pas
+  // posé la référence, pour ne pas annoncer tout l'historique à l'ajout.
+  lastCommitSha String?
+  lastReleaseId String?
+  lastPullNumber Int?
+  lastIssueNumber Int?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, repo])
+  @@index([repo])
+  @@map("github_repo_follows")
+}
+
+/// Suivi Hugging Face : un dépôt (modèle, dataset, space) et ses commits, ou un
+/// auteur et les dépôts qu'il publie.
+model HuggingFaceFollow {
+  id String @id @default(cuid())
+  guildId String
+  /// MODEL, DATASET, SPACE (commits d'un dépôt) ou AUTHOR (nouveaux dépôts).
+  kind String
+  /// `owner/nom` pour un dépôt, nom d'utilisateur ou d'organisation pour un auteur.
+  target String
+
+  discordChannelId String?
+  mention String?
+  message String?
+
+  /// Dernier commit vu (dépôt) ou date de création du dernier dépôt vu (auteur).
+  lastCommitId String?
+  lastCreatedAt DateTime?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, kind, target])
+  @@index([kind, target])
+  @@map("huggingface_follows")
+}
+
 model Feed {
   id String @id @default(cuid())
   guildId String
