@@ -443,3 +443,21 @@ model ModulePerformanceStat {
   @@index([moduleName, dateKey])
   @@map("module_performance_stats")
 }
+
+// Note datée posée sur les courbes d'Analytics (« tournoi », « pub sur X »).
+// Tout lecteur d'Analytics peut en poser ; l'auteur est affiché.
+model AnalyticsAnnotation {
+  id String @id @default(cuid())
+
+  guildId  String
+  dateKey  String // YYYY-MM-DD, jour du repère
+  label    String
+  authorId String
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([guildId, dateKey])
+  @@map("analytics_annotations")
+}
