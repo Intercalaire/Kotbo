@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import { trackGhostSignal } from './services/analytics/ghostActivityTracker.js';
 import { recordModuleExecution, wasModuleExecutionTracked } from './services/analytics/moduleUsageBuffer.js';
+import { commandLabel, recordCommandUsage } from './services/analytics/commandStatsService.js';
 import dotenv from 'dotenv';
 import path from 'path';
 dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
@@ -748,6 +749,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   logger.info('Interactions', `Interaction reçue: ${interaction.type} - ${interaction.id}`);
   let moduleTracking: ReturnType<typeof startModuleTracking> = null;
   let interactionFailed = false;
+  const interactionStartedAt = Date.now();
   try {
     // 1. Vérification de la blacklist globale
     const blacklist: Set<string> = global.KOTBO_BLACKLIST || new Set();
@@ -951,6 +953,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
       logger.error('Event', 'InteractionCreate error:', e);
     }
   } finally {
+    // Analytics des commandes : une ligne par jour, commande et membre.
+    if (interaction.isChatInputCommand() && interaction.guildId && !interaction.user.bot) {
+      void recordCommandUsage({
+        guildId: interaction.guildId,
+        commandName: commandLabel(
+          interaction.commandName,
+          interaction.options.getSubcommandGroup(false),
+          interaction.options.getSubcommand(false),
+        ),
+        userId: interaction.user.id,
+        durationMs: Date.now() - interactionStartedAt,
+        success: !interactionFailed,
+      });
+    }
     if (moduleTracking && interaction.guildId && !wasModuleExecutionTracked(interaction)) {
       void recordModuleExecution({
         guildId: interaction.guildId,
