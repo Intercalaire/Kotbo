@@ -1801,12 +1801,12 @@
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 h-auto lg:h-[75vh]">
 
       <!-- Left Panel: Tickets Browser -->
-      <div class="lg:col-span-4 bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-4 lg:p-6 flex flex-col overflow-hidden {showMobileChat && selectedTicketId ? 'hidden lg:flex' : 'flex'} h-[50vh] lg:h-full">
+      <div data-tour="tickets-list" class="lg:col-span-4 bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-4 lg:p-6 flex flex-col overflow-hidden {showMobileChat && selectedTicketId ? 'hidden lg:flex' : 'flex'} h-[50vh] lg:h-full">
         <div class="flex items-center gap-1.5 mb-4 overflow-x-auto pb-2 scrollbar-hide">
           {#each ['ALL', 'PENDING', 'OPEN', 'CLAIMED', 'CLOSED', 'ARCHIVED', 'ORPHANED'] as filterType}
             <button
               onclick={() => changeTicketFilter(filterType as TicketFilter)}
-              class="px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap {ticketFilter === filterType ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}"
+              class="px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap shrink-0 {ticketFilter === filterType ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}"
             >
               {filterType === 'ALL' ? m.e1_tickets_filter_all() : getStatusLabel(filterType)}
             </button>
@@ -1889,7 +1889,7 @@
       </div>
 
       <!-- Right Panel: Live Chat & Actions -->
-      <div class="lg:col-span-8 bg-surface-container-low/40 border border-outline-variant/10 rounded-xl flex flex-col overflow-hidden {!showMobileChat && selectedTicketId ? 'hidden lg:flex' : !selectedTicketId ? 'hidden lg:flex' : 'flex'} h-[75vh] lg:h-full">
+      <div data-tour="tickets-chat" class="lg:col-span-8 bg-surface-container-low/40 border border-outline-variant/10 rounded-xl flex flex-col overflow-hidden {!showMobileChat && selectedTicketId ? 'hidden lg:flex' : !selectedTicketId ? 'hidden lg:flex' : 'flex'} h-[75vh] lg:h-full">
         {#if !selectedTicketId}
           <div class="flex-1 flex flex-col items-center justify-center text-on-surface-variant/30 py-20">
             <div class="w-16 h-16 rounded-xl bg-surface-container flex items-center justify-center mb-4 shadow-inner">

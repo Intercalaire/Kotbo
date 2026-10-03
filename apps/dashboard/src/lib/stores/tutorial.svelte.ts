@@ -5,6 +5,7 @@
 //   3. Page tips        - contextual cards on first page visit
 
 import { m } from '../i18n';
+import { DEMO_MODE } from '../demo/mode';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -926,7 +927,9 @@ export const onboardingStore = {
     state = readState(newGuildId);
 
     if (!state.welcomeSeen && !state.startedAt) {
-      showWelcome = true;
+      // En démo, la visite guidée (DemoTour) tient ce rôle : deux accueils
+      // empilés se masqueraient l'un l'autre.
+      showWelcome = !DEMO_MODE;
       state.startedAt = Date.now();
       writeState(guildId, state);
     }

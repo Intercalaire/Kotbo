@@ -157,7 +157,9 @@ class DashboardLifecycleManager {
       await waitForWindowLoad();
       await waitForBrowserIdle();
 
-      if (this.intentionallyClosed || !authStore.token) {
+      // La démo n'a pas de serveur à écouter : les mises à jour en direct y
+      // viennent des actions du visiteur lui-même.
+      if (this.intentionallyClosed || !authStore.token || import.meta.env.VITE_DEMO === '1') {
         this.isConnecting = false;
         return;
       }
