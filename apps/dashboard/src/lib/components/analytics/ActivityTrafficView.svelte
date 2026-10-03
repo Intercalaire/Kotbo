@@ -10,27 +10,23 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { Callout } from '../ui';
-  import ActivityChartCard, { type ChartMetric } from './ActivityChartCard.svelte';
+  import ActivityChartCard from './ActivityChartCard.svelte';
   import TopList from './TopList.svelte';
   import KpiTile from './KpiTile.svelte';
   import AnalyticsSkeleton from './AnalyticsSkeleton.svelte';
   import {
-    createAnalyticsAnnotation,
-    deleteAnalyticsAnnotation,
     fetchActivityAnalytics,
     fetchActivityBreakdown,
     fetchActivityHourly,
     fetchActivityRankings,
-    fetchAnalyticsAnnotations,
     type ActivityAnalytics,
-    type AnalyticsAnnotation,
   } from '../../api';
-  import { authStore } from '../../stores/auth.svelte';
-  import { dashboardStore } from '../../stores/dashboard.svelte';
+  import { buildActivityMetrics } from './activityMetrics';
+  import { analyticsAnnotations } from './annotations.svelte';
   import { channelDetailsModal } from '../../stores/channelDetailsModal.svelte';
   import { m } from '../../i18n';
   import { errorMessage } from '@kotbo/shared';
-  import { analyticsExport, analyticsFilters as filters, relativeDelta } from './analyticsFilters.svelte';
+  import { analyticsExport, analyticsFilters as filters } from './analyticsFilters.svelte';
   import { fmtMinutes, fmtNumber, SERIES } from './analyticsFormat';
 
   const {
@@ -73,143 +69,19 @@
       });
   });
 
-  let annotations = $state<AnalyticsAnnotation[]>([]);
-
-  async function loadAnnotations(period = filters.periodQuery) {
-    try {
-      annotations = (await fetchAnalyticsAnnotations(period)) ?? [];
-    } catch {
-      annotations = [];
-    }
-  }
-
   $effect(() => {
     const period = filters.periodQuery;
-    untrack(() => loadAnnotations(period));
+    untrack(() => analyticsAnnotations.load(period));
   });
-
-  async function annotate(dateKey: string, label: string) {
-    await createAnalyticsAnnotation({ dateKey, label });
-    await loadAnnotations();
-  }
-
-  async function removeAnnotation(id: string) {
-    await deleteAnalyticsAnnotation(id);
-    annotations = annotations.filter((a) => a.id !== id);
-  }
-
-  const canDelete = (a: AnalyticsAnnotation) =>
-    a.authorId === authStore.user?.id || Boolean(dashboardStore.state.access?.canManageSettings);
 
   // ── Mesures ────────────────────────────────────────────────────────────────
   let active = $state<string>(untrack(() => kind));
 
-  const series = $derived(activity?.series ?? []);
-  const dates = $derived(series.map((d) => d.dateKey));
+  const dates = $derived(activity?.series.map((d) => d.dateKey) ?? []);
   const k = $derived(activity?.kpis);
-
-  const ratio = (num: number, den: number) => (den > 0 ? Math.round((num / den) * 10) / 10 : 0);
-  const fmtRatio = (v: number) => fmtNumber(Math.round(v * 10) / 10);
-
-  const metrics: ChartMetric[] = $derived.by(() => {
-    if (!k) return [];
-    const activeTile: ChartMetric = {
-      id: 'active',
-      label: m.anx_metric_active(),
-      hint: m.anx_metric_active_hint(),
-      color: SERIES[2]!,
-      format: fmtRatio,
-      value: fmtNumber(k.activeMembers.value),
-      delta: relativeDelta(k.activeMembers.value, k.activeMembers.previous),
-      aggregate: 'avg',
-      daily: series.map((d) => d.activeMembers ?? 0),
-      prevDaily: series.map((d) => d.prevActiveMembers ?? 0),
-      hourly: (p) => p.activeMembers,
-      forecast: false,
-    };
-
-    if (kind === 'messages') {
-      const perNow = ratio(k.messages.value, k.activeMembers.value);
-      const perPrev = ratio(k.messages.previous, k.activeMembers.previous);
-      return [
-        {
-          id: 'messages',
-          label: m.anx_metric_messages(),
-          color: SERIES[0]!,
-          format: fmtNumber,
-          value: fmtNumber(k.messages.value),
-          delta: relativeDelta(k.messages.value, k.messages.previous),
-          aggregate: 'sum',
-          daily: series.map((d) => d.messages),
-          prevDaily: series.map((d) => d.prevMessages),
-          hourly: (p) => p.messages,
-          breakdown: 'messages',
-          anomalyKey: 'messages',
-          forecast: true,
-        },
-        activeTile,
-        {
-          id: 'per-active',
-          label: m.anx_metric_per_active(),
-          hint: m.anx_metric_per_active_hint(),
-          color: SERIES[6]!,
-          format: fmtRatio,
-          value: fmtRatio(perNow),
-          delta: relativeDelta(perNow, perPrev),
-          aggregate: 'avg',
-          daily: series.map((d) => ratio(d.messages, d.activeMembers ?? 0)),
-          prevDaily: series.map((d) => ratio(d.prevMessages, d.prevActiveMembers ?? 0)),
-          hourly: (p) => ratio(p.messages, p.activeMembers),
-        },
-        {
-          id: 'net-joins',
-          label: m.anx_metric_net_joins(),
-          hint: m.anx_metric_net_joins_hint(),
-          color: SERIES[3]!,
-          format: fmtNumber,
-          value: `${k.netJoins.value > 0 ? '+' : ''}${fmtNumber(k.netJoins.value)}`,
-          delta: k.netJoins.previous > 0 ? relativeDelta(k.netJoins.value, k.netJoins.previous) : undefined,
-          aggregate: 'sum',
-          daily: series.map((d) => (d.joined ?? 0) - (d.left ?? 0)),
-          prevDaily: series.map((d) => (d.prevJoined ?? 0) - (d.prevLeft ?? 0)),
-        },
-      ];
-    }
-
-    const perNow = ratio(k.voiceMinutes.value, k.activeMembers.value);
-    const perPrev = ratio(k.voiceMinutes.previous, k.activeMembers.previous);
-    return [
-      {
-        id: 'voice',
-        label: m.anx_metric_voice(),
-        color: SERIES[2]!,
-        format: fmtMinutes,
-        value: fmtMinutes(k.voiceMinutes.value),
-        delta: relativeDelta(k.voiceMinutes.value, k.voiceMinutes.previous),
-        aggregate: 'sum',
-        daily: series.map((d) => d.voiceMinutes),
-        prevDaily: series.map((d) => d.prevVoiceMinutes),
-        hourly: (p) => p.voiceMinutes,
-        breakdown: 'voice',
-        anomalyKey: 'voiceMinutes',
-        forecast: true,
-      },
-      { ...activeTile, color: SERIES[0]! },
-      {
-        id: 'voice-per-active',
-        label: m.anx_metric_voice_per_active(),
-        hint: m.anx_metric_voice_per_active_hint(),
-        color: SERIES[6]!,
-        format: fmtMinutes,
-        value: fmtMinutes(perNow),
-        delta: relativeDelta(perNow, perPrev),
-        aggregate: 'avg',
-        daily: series.map((d) => ratio(d.voiceMinutes, d.activeMembers ?? 0)),
-        prevDaily: series.map((d) => ratio(d.prevVoiceMinutes, d.prevActiveMembers ?? 0)),
-        hourly: (p) => ratio(p.voiceMinutes, p.activeMembers),
-      },
-    ];
-  });
+  const metrics = $derived(
+    activity ? buildActivityMetrics(activity, kind === 'messages' ? ['messages', 'active', 'per-active', 'net-joins'] : ['voice', 'active', 'voice-per-active']) : [],
+  );
 
   const hourlyPossible = $derived(filters.days <= 14 && !filters.channel && !filters.role && !filters.excludeStaff);
   const format = $derived(kind === 'messages' ? fmtNumber : fmtMinutes);
@@ -241,10 +113,10 @@
         loadBreakdown={(metric, dimension) => fetchActivityBreakdown(filters.query, metric, dimension)}
         reloadKey={filters.key}
         anomalies={activity.anomalies ?? []}
-        {annotations}
-        onAnnotate={annotate}
-        onDeleteAnnotation={removeAnnotation}
-        canDeleteAnnotation={canDelete}
+        annotations={analyticsAnnotations.items}
+        onAnnotate={(dateKey, label) => analyticsAnnotations.add(dateKey, label, filters.periodQuery)}
+        onDeleteAnnotation={(id) => analyticsAnnotations.remove(id)}
+        canDeleteAnnotation={(a) => analyticsAnnotations.canDelete(a)}
         busy={loading}
         forecastAllowed={!filters.isCustom}
       />
