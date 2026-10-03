@@ -331,6 +331,12 @@ export async function handleDashboardRoutes(
       && parts[5] !== 'config'
       && method !== 'GET';
 
+    // Les notes datées d'Analytics se posent par tout lecteur de la section,
+    // sans droit de configuration. handleAnalyticsRoutes revérifie la lecture.
+    const isAnalyticsAnnotationAction = parts[4] === 'analytics'
+      && parts[5] === 'annotations'
+      && (method === 'POST' || method === 'DELETE');
+
     /**
      * Droits « Configurer » et « Supprimer » du centre de gestion.
      *
@@ -377,7 +383,7 @@ export async function handleDashboardRoutes(
       ? { ...access, canManageSettings: true }
       : access;
 
-    if (!access.canManageSettings && method !== 'GET' && !hasFeatureWriteRight && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isStaffResignationAction && !isNotificationAction && !isMeetingAction && !isNewsAction && !isMemberModerationAction && !isGiveawayManagerAction) {
+    if (!access.canManageSettings && method !== 'GET' && !hasFeatureWriteRight && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isStaffResignationAction && !isNotificationAction && !isMeetingAction && !isNewsAction && !isMemberModerationAction && !isGiveawayManagerAction && !isAnalyticsAnnotationAction) {
       json(res, 403, { error: 'Action réservée aux administrateurs du dashboard.' });
       return true;
     }

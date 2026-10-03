@@ -23,6 +23,7 @@ import {
 import { BucketZoner, ZONE_MARGIN_DAYS, shiftKey } from '../../../services/analytics/zonedBuckets.js';
 import { resolveViewTimezone } from '../../../utils/timezone.js';
 import { resolveOnlineMembersCount } from '../../../services/core/presenceDetectionService.js';
+import { canViewFeatureSection } from './featureGate.js';
 
 export type LiveGuildCounts = {
   totalMembers: number;
@@ -124,8 +125,84 @@ export async function handleAnalyticsRoutes(
     return true;
   }
 
+  // …/analytics/annotations : notes datées posées sur les courbes. Tout lecteur
+  // d'Analytics en pose ; l'auteur retire la sienne, un administrateur
+  // n'importe laquelle. Le répartiteur laisse passer ces écritures sans
+  // `canManageSettings` (cf. isAnalyticsAnnotationAction) : le droit de lecture
+  // de la section est donc revérifié ici.
+  if (parts[5] === 'annotations' && (parts.length === 6 || (parts.length === 7 && method === 'DELETE'))) {
+    const insights = await import('../../../services/analytics/activityInsightsService.js');
+    try {
+      if (method === 'GET') {
+        const { parseRange } = await import('../../../services/analytics/contentAnalyticsService.js');
+        const range = parseRange(url.searchParams);
+        json(res, 200, await insights.listAnnotations(client, guildId, range.start, range.end));
+        return true;
+      }
+      if (!_access.canViewDashboard || !(await canViewFeatureSection(client, guildId, _access, user.userId, 'analytics'))) {
+        json(res, 403, { error: 'Accès à Analytics requis.' });
+        return true;
+      }
+      if (method === 'POST' && parts.length === 6) {
+        const input = insights.validateAnnotation((await readJsonBody<Record<string, unknown>>(req)) ?? {});
+        if (typeof input === 'string') {
+          json(res, 400, { error: input === 'invalid_date' ? 'Date invalide' : `Texte requis (${insights.ANNOTATION_LABEL_MAX} caractères au plus)` });
+          return true;
+        }
+        const created = await insights.createAnnotation(guildId, user.userId, input);
+        if (created === 'too_many') json(res, 409, { error: 'Trop de notes sur ce serveur : supprime les plus anciennes.' });
+        else json(res, 201, { id: created.id });
+        return true;
+      }
+      if (method === 'DELETE' && parts.length === 7) {
+        const outcome = await insights.deleteAnnotation(guildId, parts[6]!, user.userId, _access.canManageSettings);
+        if (outcome === 'not_found') json(res, 404, { error: 'Note introuvable' });
+        else if (outcome === 'forbidden') json(res, 403, { error: 'Seul l\'auteur ou un administrateur peut retirer cette note.' });
+        else json(res, 200, { ok: true });
+        return true;
+      }
+    } catch (err) {
+      logger.error('AnalyticsAPI', 'Erreur annotations:', err);
+      jsonFailure(res, err, 'Erreur sur les annotations', 'AnalyticsAPI');
+      return true;
+    }
+  }
+
   if (method !== 'GET') {
     return false;
+  }
+
+  // GET …/analytics/activity/{hourly|rankings|breakdown} : pas horaire,
+  // classements filtrés et ventilation des vues Messages et Vocal.
+  if (parts.length === 7 && parts[5] === 'activity' && ['hourly', 'rankings', 'breakdown'].includes(parts[6]!)) {
+    const service = await import('../../../services/analytics/contentAnalyticsService.js');
+    const insights = await import('../../../services/analytics/activityInsightsService.js');
+    const view = parts[6]!;
+    try {
+      const range = service.parseRange(url.searchParams);
+      const scope = await service.resolveScope(client, guildId, url.searchParams);
+      const scopeKey = service.scopeCacheKey(scope, range);
+      const metric = url.searchParams.get('metric') === 'voice' ? 'voice' : 'messages';
+      if (view === 'hourly') {
+        const timezone = await resolveViewTimezone(url.searchParams.get('tz'), guildId);
+        json(res, 200, await cache.wrap(`guild:${guildId}:analytics:activity-hourly:${scopeKey}:${timezone}`, 120, () =>
+          insights.getActivityHourly(guildId, range, scope, timezone)));
+      } else if (view === 'rankings') {
+        const dimension = url.searchParams.get('dimension') === 'channels' ? 'channels' : 'members';
+        const limit = Number.parseInt(url.searchParams.get('limit') ?? '10', 10) || 10;
+        const includeBots = url.searchParams.get('includeBots') === '1';
+        json(res, 200, await cache.wrap(`guild:${guildId}:analytics:rankings:${scopeKey}:${metric}:${dimension}:${limit}:${includeBots ? 'b' : ''}`, 120, () =>
+          insights.getActivityRankings(client, guildId, range, scope, metric, dimension, limit, includeBots)));
+      } else {
+        const dimension = url.searchParams.get('dimension') === 'category' ? 'category' : 'channel';
+        json(res, 200, await cache.wrap(`guild:${guildId}:analytics:breakdown:${scopeKey}:${metric}:${dimension}`, 120, () =>
+          insights.getActivityBreakdown(client, guildId, range, scope, metric, dimension)));
+      }
+    } catch (err) {
+      logger.error('AnalyticsAPI', `Erreur analytics (activity/${view}):`, err);
+      jsonFailure(res, err, 'Erreur lors du calcul des statistiques', 'AnalyticsAPI');
+    }
+    return true;
   }
 
   // GET …/analytics/{content|activity|channel-tree|filters} et …/analytics/categories/:id
@@ -165,8 +242,9 @@ export async function handleAnalyticsRoutes(
           service.getContentAnalytics(client, guildId, range, scope)));
       } else {
         const includeBots = url.searchParams.get('includeBots') === '1';
+        const insights = await import('../../../services/analytics/activityInsightsService.js');
         json(res, 200, await cache.wrap(`guild:${guildId}:analytics:activity:${scopeKey}:${includeBots ? 'b' : ''}`, 120, () =>
-          service.getActivityAnalytics(client, guildId, range, scope, includeBots)));
+          insights.getActivityInsights(client, guildId, range, scope, includeBots)));
       }
     } catch (err) {
       logger.error('AnalyticsAPI', `Erreur analytics (${section}):`, err);
