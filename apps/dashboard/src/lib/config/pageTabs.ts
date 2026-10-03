@@ -76,6 +76,7 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
     { id: 'mod-advanced', label: () => m.an_tab_mod_advanced(), icon: 'ChartLineUp' },
     { id: 'staff', label: () => m.an_tab_staff_directory(), icon: 'Users' },
     { id: 'performance', label: () => m.an_tab_staff_performance(), icon: 'TrendUp' },
+    { id: 'tickets', label: () => m.anx_tab_tickets(), icon: 'Ticket' },
   ],
 
   '/invitations': [

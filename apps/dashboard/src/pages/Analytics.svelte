@@ -43,6 +43,10 @@
   import ConcentrationView from '../lib/components/analytics/ConcentrationView.svelte';
   import ChannelHealthView from '../lib/components/analytics/ChannelHealthView.svelte';
   import NetworkInsightsView from '../lib/components/analytics/NetworkInsightsView.svelte';
+  import GrowthInsightsView from '../lib/components/analytics/GrowthInsightsView.svelte';
+  import ModerationTrendsView from '../lib/components/analytics/ModerationTrendsView.svelte';
+  import StaffInsightsView from '../lib/components/analytics/StaffInsightsView.svelte';
+  import RisingWordsView from '../lib/components/analytics/RisingWordsView.svelte';
   import AdvancedAnalyticsPanel from '../lib/components/analytics/AdvancedAnalyticsPanel.svelte';
   import ModerationAudit from '../lib/components/analytics/ModerationAudit.svelte';
   import StaffAudit from '../lib/components/analytics/StaffAudit.svelte';
@@ -98,7 +102,7 @@
         { id: 'gifs', label: m.anx_tab_gifs(), icon: 'Lightning', scope: 'full' },
         { id: 'sites', label: m.anx_tab_sites(), icon: 'link', scope: 'full' },
         { id: 'formatting', label: m.anx_tab_formatting(), icon: 'Type', scope: 'full' },
-        { id: 'words', label: m.an_tab_words(), icon: 'ChatCircleDots', scope: 'own' },
+        { id: 'words', label: m.an_tab_words(), icon: 'ChatCircleDots', scope: 'period' },
       ],
     },
     {
@@ -142,6 +146,7 @@
       tabs: [
         { id: 'staff', label: m.an_tab_staff_directory(), icon: 'Users', scope: 'period', legacy: true },
         { id: 'performance', label: m.an_tab_staff_performance(), icon: 'TrendUp', scope: 'period', legacy: true },
+        { id: 'tickets', label: m.anx_tab_tickets(), icon: 'Ticket', scope: 'period' },
       ],
     },
   ]);
@@ -510,7 +515,10 @@
         {:else if ['content', 'emojis', 'stickers', 'gifs', 'sites', 'formatting'].includes(activeTab)}
           <ContentSection view={activeTab as ContentView} />
         {:else if activeTab === 'words'}
-          <AdvancedAnalyticsPanel section="words" onOpenMember={openMemberDetails} />
+          <div class="flex flex-col gap-4">
+            <RisingWordsView />
+            <AdvancedAnalyticsPanel section="words" onOpenMember={openMemberDetails} />
+          </div>
         {:else if activeTab === 'channels'}
           <ChannelsSection onOpenMember={openMemberDetails} />
         {:else if activeTab === 'responses'}
@@ -546,7 +554,12 @@
         {:else if activeTab === 'ghosts'}
           <GhostMembersPanel onOpenMember={openMemberDetails} />
         {:else if activeTab === 'growth'}
-          <GrowthSection {legacy} {legacyLoading} onOpenMember={openMemberDetails} />
+          <div class="flex flex-col gap-4">
+            <GrowthSection {legacy} {legacyLoading} onOpenMember={openMemberDetails} />
+            <GrowthInsightsView />
+          </div>
+        {:else if activeTab === 'tickets'}
+          <StaffInsightsView onOpenMember={openMemberDetails} />
         {:else if activeTab === 'engagement'}
           <EngagementView />
         {:else if activeTab === 'lifecycle'}
@@ -583,6 +596,7 @@
               <KpiTile label={m.anx_mod_per_day()} value={fmtNumber(Math.round(((legacy.totals?.sanctions ?? 0) / Math.max(1, filters.days)) * 10) / 10)} />
               <KpiTile label={m.anx_mod_moderators()} value={fmtNumber(legacy.topModerators?.length ?? 0)} hint={m.anx_mod_moderators_hint()} />
             </div>
+            <ModerationTrendsView onOpenMember={openMemberDetails} />
             <ModerationAudit data={legacy} {chartLabels} onOpenMember={openMemberDetails} />
           </div>
         {:else if activeTab === 'staff'}
