@@ -196,6 +196,35 @@ function escapeHtml(s: string): string {
           .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+/** Schémas qui exécuteraient du contenu au lieu de rendre la main au client. */
+const FORBIDDEN_REDIRECT_SCHEMES = new Set(['javascript:', 'data:', 'blob:', 'file:', 'vbscript:']);
+
+/**
+ * Source CSP qui autorise le retour vers `redirect_uri`, ou null si l'URI ne
+ * peut pas servir de retour OAuth.
+ *
+ * Les navigateurs appliquent `form-action` à la redirection qui suit l'envoi du
+ * formulaire, pas seulement à sa cible. La liste figée de domaines bloquait
+ * donc en silence tout client absent de la liste (callback `localhost` de
+ * Claude Code, `claude.com`, éditeurs) : la clé était acceptée, le code émis,
+ * et l'utilisateur restait sur la page sans jamais être connecté.
+ */
+function redirectFormActionSource(redirectUri: string): string | null {
+  let dest: URL;
+  try { dest = new URL(redirectUri); } catch { return null; }
+  if (FORBIDDEN_REDIRECT_SCHEMES.has(dest.protocol)) return null;
+  if (dest.protocol === 'https:') return dest.origin;
+  // HTTP en clair : seulement en boucle locale (RFC 8252), où écoutent les CLI.
+  if (dest.protocol === 'http:') return LOOPBACK_HOSTS.has(dest.hostname) ? dest.origin : null;
+  // Schéma privé d'une application native (`cursor:`, `vscode:`…).
+  return dest.protocol;
+}
+
+function authPageCsp(redirectSource: string): string {
+  return `default-src 'none'; style-src 'unsafe-inline'; form-action 'self' ${redirectSource}; base-uri 'none'; frame-ancestors 'none'`;
+}
+
 function publicBase(req: IncomingMessage, url: URL, guildId: string): string {
   return `${publicOrigin(req, url)}/api/mcp/${guildId}`;
 }
@@ -797,6 +826,13 @@ export async function handleMCPRoutes(
       return true;
     }
 
+    const redirectSource = redirectFormActionSource(redirectUri);
+    if (!redirectSource) {
+      mcpLog(req, 'authorize_get_bad_redirect', { guildId, clientId, redirectUri }, 'warn');
+      json(res, 400, { error: 'invalid_request', error_description: 'redirect_uri invalide' });
+      return true;
+    }
+
     if (directToken) {
       const mcpKey = await verifyMcpDirectToken(directToken, guildId, client);
       if (!mcpKey) {
@@ -832,8 +868,7 @@ export async function handleMCPRoutes(
 
     mcpLog(req, 'authorize_get_page', { guildId, clientId, redirectUri, resource: resource ?? null });
     const clientName = oauthClients.get(clientId)?.clientName ?? 'Agent IA';
-    res.setHeader('Content-Security-Policy',
-      "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https://claude.ai https://chatgpt.com https://chat.openai.com https://gemini.google.com; base-uri 'none'; frame-ancestors 'none'");
+    res.setHeader('Content-Security-Policy', authPageCsp(redirectSource));
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.statusCode = 200;
     res.end(authPage({ guildId, clientName, clientId, redirectUri, state, codeChallenge, codeChallengeMethod, resource }));
@@ -851,13 +886,19 @@ export async function handleMCPRoutes(
       return true;
     }
 
+    const redirectSource = redirectFormActionSource(redirect_uri);
+    if (!redirectSource) {
+      mcpLog(req, 'authorize_post_bad_redirect', { guildId, clientId: client_id, redirectUri: redirect_uri }, 'warn');
+      json(res, 400, { error: 'invalid_request', error_description: 'redirect_uri invalide' });
+      return true;
+    }
+
     const cleanApiKey = api_key.trim();
     const mcpKey = await verifyMcpKey(cleanApiKey, guildId, client);
     if (!mcpKey) {
       mcpLog(req, 'authorize_post_bad_key', { guildId, clientId: client_id, redirectUri: redirect_uri });
       const clientName = oauthClients.get(client_id)?.clientName ?? 'Agent IA';
-      res.setHeader('Content-Security-Policy',
-        "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https://claude.ai https://chatgpt.com https://chat.openai.com https://gemini.google.com; base-uri 'none'; frame-ancestors 'none'");
+      res.setHeader('Content-Security-Policy', authPageCsp(redirectSource));
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.statusCode = 200;
       res.end(authPage({
