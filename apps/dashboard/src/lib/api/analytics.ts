@@ -664,6 +664,70 @@ export const fetchChannelHealthReport = (query: AnalyticsQuery, guildId = authSt
   conversationRequest<{ channels: ChannelHealthRow[] }>('channel-health', { period: query.period, startDate: query.startDate, endDate: query.endDate }, guildId);
 export const fetchConversationNetwork = (query: AnalyticsQuery, guildId = authStore.selectedGuildId) => conversationRequest<ConversationNetwork>('network', query, guildId);
 
+export interface GrowthInsights {
+  departures: { total: number; unknownTenure: number; byTenure: Array<{ key: 'under1d' | 'under7d' | 'under30d' | 'under180d' | 'over180d'; count: number }> };
+  quickLeave: { joined: number; left24h: number; rate: number | null; previousRate: number | null };
+  sources: {
+    dates: string[];
+    groups: Array<{ key: string; kind: 'unknown' | 'vanity' | 'label' | 'code'; label: string | null; total: number; values: number[] }>;
+    other: number[];
+  };
+}
+
+export interface ModerationTrends {
+  total: number;
+  previousTotal: number;
+  byType: { dates: string[]; series: Array<{ type: string; total: number; values: number[] }> };
+  moderators: Array<{ userId: string; name: string | null; count: number; previous: number; types: Record<string, number>; share: number }>;
+  recidivism: {
+    sanctioned: number;
+    repeat: number;
+    rate: number | null;
+    previousRate: number | null;
+    offenders: Array<{ userId: string; name: string | null; count: number; last: string | null }>;
+  };
+  reportDelay: { reports: number; medianSec: number | null };
+}
+
+export interface StaffInsights {
+  timezone: string;
+  measuredSince: boolean;
+  tickets: {
+    opened: number;
+    previousOpened: number;
+    responded: number;
+    firstResponseMedianSec: number | null;
+    previousFirstResponseMedianSec: number | null;
+    within1h: number | null;
+    resolutionMedianSec: number | null;
+    previousResolutionMedianSec: number | null;
+    unresolved: number;
+  };
+  staff: Array<{ userId: string; name: string | null; claimed: number; closed: number; firstResponses: number; firstResponseMedianSec: number | null; share: number }>;
+  coverage: Array<Array<{ opened: number; medianSec: number | null }>>;
+}
+
+export interface WordTrend { word: string; count: number; previous: number; change: number | null }
+
+export interface RisingWords {
+  enabled: boolean;
+  hasData: boolean;
+  rising: WordTrend[];
+  falling: WordTrend[];
+  fresh: WordTrend[];
+}
+
+function insightsRequest<T>(view: string, query: AnalyticsQuery, guildId: typeof authStore.selectedGuildId): Promise<T | null> {
+  const params = new URLSearchParams(analyticsParams({ period: query.period, startDate: query.startDate, endDate: query.endDate }));
+  if (view === 'staff') params.append('tz', timezoneStore.displayTimezone);
+  return dashboardRequest<T>(`/analytics/insights/${view}?${params}`, { method: 'GET', guildId, errorContext: `API Error (Insights ${view}):` });
+}
+
+export const fetchGrowthInsights = (query: AnalyticsQuery, guildId = authStore.selectedGuildId) => insightsRequest<GrowthInsights>('growth', query, guildId);
+export const fetchModerationTrends = (query: AnalyticsQuery, guildId = authStore.selectedGuildId) => insightsRequest<ModerationTrends>('moderation', query, guildId);
+export const fetchStaffInsights = (query: AnalyticsQuery, guildId = authStore.selectedGuildId) => insightsRequest<StaffInsights>('staff', query, guildId);
+export const fetchRisingWords = (query: AnalyticsQuery, guildId = authStore.selectedGuildId) => insightsRequest<RisingWords>('words', query, guildId);
+
 export async function fetchChannelTree(query: AnalyticsQuery, guildId = authStore.selectedGuildId): Promise<ChannelTree | null> {
   return dashboardRequest<ChannelTree>(`/analytics/channel-tree?${analyticsParams({ period: query.period, startDate: query.startDate, endDate: query.endDate })}`, {
     method: 'GET',
