@@ -24,7 +24,7 @@ const CALL_CONFIG = 'planning/call-config';
 const staffOf = (name: string) => staffMembers().find((s) => s.username === personByName(name).username)!;
 const meStaff = () => staffMembers().find((s) => s.userId === ME.id)!;
 
-function tasksSeed() {
+function tasksSeed(): Record<string, any>[] {
   const task = (n: number, title: string, description: string | null, assignee: string, creator: string, status: string, priority: string, dueDays: number | null) =>
     row('StaffTask', {
       id: `task-${n}`,
@@ -46,7 +46,7 @@ function tasksSeed() {
   ];
 }
 
-function callsSeed() {
+function callsSeed(): Record<string, any>[] {
   const call = (n: number, title: string, description: string | null, days: number, hour: number, creator: string, invitees: string[], ended = false) => ({
     ...row('StaffCall', {
       id: `call-${n}`,
@@ -71,9 +71,9 @@ function callsSeed() {
   ];
 }
 
-function meetingsFor(start: number, end: number) {
+function meetingsFor(start: number, end: number): Record<string, any>[] {
   const members = staffMembers().filter((s) => s.blacklistEntries.length === 0);
-  const meeting = (n: number, title: string, description: string, days: number, done: boolean) => ({
+  const meeting = (n: number, title: string, description: string, days: number, done: boolean): Record<string, any> => ({
     ...row('StaffMeeting', {
       id: `meet-${n}`,
       title,
@@ -100,7 +100,7 @@ function meetingsFor(start: number, end: number) {
   });
 }
 
-function absencesFor() {
+function absencesFor(): Record<string, any>[] {
   const absence = (n: number, name: string, reason: string, type: string, from: number, to: number, status: string) => {
     const staff = staffOf(name);
     return { ...row('StaffAbsence', { id: `abs${n}`, staffUserId: staff.id, startDate: at(from, 0), endDate: at(to, 23, 59), reason, type, status }), staffMember: staff };
@@ -108,8 +108,8 @@ function absencesFor() {
   return [absence(1, 'Kylian', 'Partiels à la fac', 'Études', 3, 5, 'PENDING'), absence(2, 'Zenox', 'Vacances', 'Vacances', -1, 4, 'ACKNOWLEDGED')];
 }
 
-function voiceSessionsFor(start: number, end: number) {
-  const list = [];
+function voiceSessionsFor(start: number, end: number): Record<string, any>[] {
+  const list: Record<string, any>[] = [];
   const members = staffMembers().filter((s) => s.blacklistEntries.length === 0);
   for (let d = -21; d <= 0; d++) {
     members.forEach((s, i) => {
@@ -144,7 +144,7 @@ export function registerPlanningRoutes(): void {
     const end = new Date(query.get('end') ?? Date.now() + 30 * DAY_MS).getTime();
     const ids = query.get('staffIds')?.split(',').filter(Boolean);
     const keep = (staffId: string) => !ids || ids.length === 0 || ids.includes(staffId);
-    const tasks = demoDb.get(TASKS, tasksSeed).map((t) => ({ ...t, assignee: staffMembers().find((s) => s.id === t.assigneeId) ?? null }));
+    const tasks: Record<string, any>[] = demoDb.get(TASKS, tasksSeed).map((t) => ({ ...t, assignee: staffMembers().find((s) => s.id === t.assigneeId) ?? null }));
     return {
       absences: absencesFor().filter((a) => keep(a.staffUserId)),
       voiceSessions: voiceSessionsFor(start, end).filter((v) => keep(v.staffUserId)),
