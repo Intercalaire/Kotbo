@@ -6,6 +6,7 @@ import { resolveViewTimezone } from '../../../utils/timezone.js';
 import { COLORS } from '../../../utils/embeds.js';
 import * as altAccountService from '../../../services/moderation/altAccountService.js';
 import { scanGuildMembersForYoungAccounts, getDetectionEvidence } from '../../../services/moderation/dcDetectionService.js';
+import { recordDecision, undoFalsePositive } from '../../../services/moderation/dc/learning.js';
 import { memberProfileIdentity, resolveMemberAvatarUrl, resolveMissingMemberIdentities } from '../../../services/moderation/memberIdentityService.js';
 import { findPresenceOptOuts } from '../../../services/core/presencePrivacyService.js';
 import { LinkedAccountType, LinkedAccountStatus } from '@prisma/client';
@@ -399,6 +400,8 @@ export async function handleMembersRoutes(
         where: { guildId, userId: targetUserId },
         data: { isSuspectedDC: false },
       });
+      // Même apprentissage que le bouton « Faux positif » de l'alerte Discord.
+      void recordDecision(guildId, [targetUserId], 'FALSE_POSITIVE', user.userId);
       json(res, 200, { success: true });
     } catch (err) {
       logger.error('MembersAPI', 'Error dismissing detection:', err);
@@ -419,6 +422,7 @@ export async function handleMembersRoutes(
         where: { guildId, userId: targetUserId },
         data: { isSuspectedDC: true },
       });
+      void undoFalsePositive(guildId, targetUserId);
       json(res, 200, { success: true });
     } catch (err) {
       logger.error('MembersAPI', 'Error restoring detection:', err);

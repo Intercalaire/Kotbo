@@ -27,6 +27,8 @@ import {
   type AlertThresholds,
 } from '../../../services/analytics/adminAnalyticsService.js';
 import type { AnalyticsDimension } from '@kotbo/contracts';
+import { getDashboardUsage } from '../../../services/analytics/dashboardUsageService.js';
+import { getModuleFleetStats } from '../../../services/analytics/moduleFleetStatsService.js';
 
 import { jsonFailure } from '../../shared/failure.js';
 export async function handleAdminAnalyticsRoutes(
@@ -47,6 +49,28 @@ export async function handleAdminAnalyticsRoutes(
   const sub = parts[3];
 
   try {
+    // GET /api/admin/analytics/dashboard-usage : pages et modules du dashboard consultés.
+    if (sub === 'dashboard-usage' && parts.length === 4 && method === 'GET') {
+      const usage = await getDashboardUsage({
+        from: url.searchParams.get('from'),
+        to: url.searchParams.get('to'),
+        guildId: url.searchParams.get('guildId'),
+        compare: url.searchParams.get('compare') === 'previous',
+      });
+      json(res, 200, usage);
+      return true;
+    }
+
+    // GET /api/admin/analytics/module-fleet : activation, usage et performance des modules sur le parc.
+    if (sub === 'module-fleet' && parts.length === 4 && method === 'GET') {
+      const stats = await getModuleFleetStats({
+        from: url.searchParams.get('from'),
+        to: url.searchParams.get('to'),
+      });
+      json(res, 200, stats);
+      return true;
+    }
+
     // 1. GET /api/admin/analytics/funnel/onboarding
     if (sub === 'funnel' && parts[4] === 'onboarding' && method === 'GET') {
       const stats = await getOnboardingFunnelStats({

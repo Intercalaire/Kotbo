@@ -500,7 +500,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     legacyField: 'economyEnabled',
     apiSegments: ['economy', 'rpg', 'shop'],
     paths: ['/economy'],
-    interactionPrefixes: ['rpg:', 'rpg_'],
+    interactionPrefixes: ['rpg:', 'rpg_', 'twr:'],
   },
   {
     key: 'marketplace',
@@ -780,7 +780,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
   {
     key: 'social_networks',
     name: 'Réseaux sociaux',
-    description: 'Gestion des comptes YouTube et Twitch suivis par le serveur.',
+    description: 'Comptes YouTube et Twitch, dépôts GitHub et Hugging Face suivis par le serveur.',
     category: 'integrations',
     icon: 'Share2',
     defaultEnabled: true,

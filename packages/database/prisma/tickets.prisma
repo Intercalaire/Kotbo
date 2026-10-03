@@ -46,6 +46,9 @@ model Ticket {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   closedAt      DateTime?
+  // Premier message d'une autre personne que l'auteur : sert au délai de première réponse.
+  firstResponseAt DateTime?
+  firstResponderId String?
   inactivityAlertSent Boolean  @default(false)
   isAnonymous         Boolean  @default(false)
   staffServerGuildId  String?  // Si relay sur serveur staff, l'ID du serveur staff

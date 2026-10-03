@@ -8,6 +8,8 @@ export type BackgroundJobName =
   | 'rss'
   | 'youtube'
   | 'twitch'
+  | 'github'
+  | 'huggingface'
   | 'digest'
   | 'daily-algo'
   | 'daily-algo-summary'
@@ -29,6 +31,8 @@ export type BackgroundJobName =
   | 'history-scrape'
   | 'data-retention'
   | 'channel-health-analysis'
+  | 'analytics-alerts'
+  | 'analytics-reports'
   | 'pulse-snapshot'
   | 'widget-refresh'
   | 'season-check'
@@ -46,6 +50,7 @@ export type BackgroundJobName =
   | 'billing-renewal-notice'
   | 'analytics-daily-snapshot'
   | 'acquisition-events-prune'
+  | 'dashboard-telemetry-prune'
   | 'acquisition-abandon-scan'
   | 'acquisition-alerts-check'
   | 'acquisition-weekly-recap'
@@ -68,6 +73,9 @@ export type BackgroundJobName =
   // Ces trois-la etaient enregistres par `crons.ts` sans figurer ici :
   // le typecheck echouait sur leur handler.
   | 'raid-cycle'
+  | 'tower-idle-expiration'
+  | 'tower-daily-podium'
+  | 'clan-tower-cycle'
   | 'clan-weekly-digest'
   | 'campaign-cycle'
   // Meme oubli pour les partenariats : quatre crons planifies sans handler, donc

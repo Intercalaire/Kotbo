@@ -129,6 +129,22 @@ async function flushClanPointsFeed(guildId: string, entry: Pending): Promise<voi
 }
 
 /**
+ * Publie un message déjà rédigé dans le salon du flux, hors des rafales : le bilan d'un
+ * événement qui résume lui-même ses gains. Renvoie faux si le salon n'est pas utilisable.
+ */
+export async function postClanPointsFeedMessage(guildId: string, content: string): Promise<boolean> {
+  const guildRow = await prisma.guild.findUnique({
+    where: { id: guildId },
+    select: { clansEnabled: true, clanPointsFeedChannelId: true },
+  });
+  if (!guildRow?.clansEnabled || !guildRow.clanPointsFeedChannelId) return false;
+  const send = await openFeedChannel(getClient(), guildId, guildRow.clanPointsFeedChannelId);
+  if (!send) return false;
+  for (const chunk of chunkFeedLines(content.split('\n'))) await send(chunk);
+  return true;
+}
+
+/**
  * Prépare l'envoi dans le salon du flux, ou renvoie null s'il n'est pas utilisable.
  *
  * Le serveur peut être porté par un autre shard : l'API du dashboard ne tourne que sur le

@@ -1,4 +1,5 @@
 /** Preferences utilisateur et presets de layout. */
+import type { HomeTodoPrefs } from '@kotbo/contracts';
 import { authStore } from '../stores/auth.svelte';
 import { BASE_URL, authorizedFetch, getGuildId, dashboardMutation, dashboardRequest } from './client';
 
@@ -31,6 +32,8 @@ export type UserSettings = {
   sidebarBehavior?: string;
   compactMode?: boolean;
   timezone?: string | null;
+  /** Deja normalise par l'API. */
+  homeTodoPrefs?: HomeTodoPrefs;
 };
 
 // ============================================================================

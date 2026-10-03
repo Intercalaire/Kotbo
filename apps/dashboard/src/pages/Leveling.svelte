@@ -995,6 +995,7 @@
       <button
         type="button"
         onclick={() => gotoTab('/leveling', activeTab === 'accueil' ? 'gains' : 'accueil', DEFAULT_TAB)}
+        data-tour="leveling-advanced"
         class="group flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold bg-primary text-on-primary shadow-md shadow-primary/20 hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 transition-all"
       >
         <Papicon icon={activeTab === 'accueil' ? 'Settings' : 'ArrowLeft'} size={15} />
@@ -1056,7 +1057,7 @@
            s'annoncent : la carte porte cette derniere etape la ou l'oeil
            arrive, au lieu de la laisser au fond de l'onglet Annonces. -->
       {#if canManageSettings}
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl px-6 py-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl px-6 py-5" data-tour="leveling-announce">
           <div class="flex items-start gap-3">
             <div class="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
               <Papicon icon="Bell" size={18} />
@@ -2114,7 +2115,7 @@
 
       <!-- Stats globales -->
       {#if memberCount > 0}
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4" data-tour="leveling-stats">
           <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-primary/20 transition-all duration-300 group">
             <p class="text-2xl font-semibold text-primary transition-transform duration-300">{memberCount.toLocaleString()}</p>
             <p class="text-xs font-semibold text-on-surface-variant/60">{m.lv_stat_members()}</p>
@@ -2135,7 +2136,7 @@
       {/if}
 
       <!-- Classement principal -->
-      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6" data-tour="leveling-leaderboard">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="Grades" size={20} class="text-tertiary" />
@@ -2167,7 +2168,7 @@
 
         <!-- Section Top 3 Sleek Cards -->
         {#if podium.length > 0}
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-4xl mx-auto pt-4 pb-8 border-b border-outline-variant/10">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-4xl mx-auto pt-4 pb-8 border-b border-outline-variant/10" data-tour="leveling-podium">
             
             <!-- Rank 2 Card -->
             {#if podium[1]}

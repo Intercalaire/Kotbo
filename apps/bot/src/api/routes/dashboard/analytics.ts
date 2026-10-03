@@ -1,6 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, Routes } from 'discord.js';
-import { prismaRead } from '../../../utils/db.js';
+import prisma, { prismaRead } from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { cache } from '../../../utils/cache.js';
 import { memberDisplaysGuildTag } from '../../../services/moderation/tagRoleService.js';
@@ -23,6 +23,7 @@ import {
 import { BucketZoner, ZONE_MARGIN_DAYS, shiftKey } from '../../../services/analytics/zonedBuckets.js';
 import { resolveViewTimezone } from '../../../utils/timezone.js';
 import { resolveOnlineMembersCount } from '../../../services/core/presenceDetectionService.js';
+import { canViewFeatureSection } from './featureGate.js';
 
 export type LiveGuildCounts = {
   totalMembers: number;
@@ -124,8 +125,390 @@ export async function handleAnalyticsRoutes(
     return true;
   }
 
+  // …/analytics/annotations : notes datées posées sur les courbes. Tout lecteur
+  // d'Analytics en pose ; l'auteur retire la sienne, un administrateur
+  // n'importe laquelle. Le répartiteur laisse passer ces écritures sans
+  // `canManageSettings` (cf. isAnalyticsAnnotationAction) : le droit de lecture
+  // de la section est donc revérifié ici.
+  if (parts[5] === 'annotations' && (parts.length === 6 || (parts.length === 7 && method === 'DELETE'))) {
+    const insights = await import('../../../services/analytics/activityInsightsService.js');
+    try {
+      if (method === 'GET') {
+        const { parseRange } = await import('../../../services/analytics/contentAnalyticsService.js');
+        const range = parseRange(url.searchParams);
+        json(res, 200, await insights.listAnnotations(client, guildId, range.start, range.end));
+        return true;
+      }
+      if (!_access.canViewDashboard || !(await canViewFeatureSection(client, guildId, _access, user.userId, 'analytics'))) {
+        json(res, 403, { error: 'Accès à Analytics requis.' });
+        return true;
+      }
+      if (method === 'POST' && parts.length === 6) {
+        const input = insights.validateAnnotation((await readJsonBody<Record<string, unknown>>(req)) ?? {});
+        if (typeof input === 'string') {
+          json(res, 400, { error: input === 'invalid_date' ? 'Date invalide' : `Texte requis (${insights.ANNOTATION_LABEL_MAX} caractères au plus)` });
+          return true;
+        }
+        const created = await insights.createAnnotation(guildId, user.userId, input);
+        if (created === 'too_many') json(res, 409, { error: 'Trop de notes sur ce serveur : supprime les plus anciennes.' });
+        else json(res, 201, { id: created.id });
+        return true;
+      }
+      if (method === 'DELETE' && parts.length === 7) {
+        const outcome = await insights.deleteAnnotation(guildId, parts[6]!, user.userId, _access.canManageSettings);
+        if (outcome === 'not_found') json(res, 404, { error: 'Note introuvable' });
+        else if (outcome === 'forbidden') json(res, 403, { error: 'Seul l\'auteur ou un administrateur peut retirer cette note.' });
+        else json(res, 200, { ok: true });
+        return true;
+      }
+    } catch (err) {
+      logger.error('AnalyticsAPI', 'Erreur annotations:', err);
+      jsonFailure(res, err, 'Erreur sur les annotations', 'AnalyticsAPI');
+      return true;
+    }
+  }
+
+  // …/analytics/views[/:id] : vues enregistrées (onglet, période, filtres).
+  // Chacun voit les siennes et celles partagées ; l'auteur retire la sienne,
+  // un administrateur n'importe laquelle. Écriture ouverte aux lecteurs
+  // d'Analytics (cf. isAnalyticsAnnotationAction), droit revérifié ici.
+  if (parts[5] === 'views' && (parts.length === 6 || (parts.length === 7 && method === 'DELETE'))) {
+    try {
+      if (method === 'GET') {
+        const views = await prismaRead.analyticsSavedView.findMany({
+          where: { guildId, OR: [{ userId: user.userId }, { shared: true }] },
+          orderBy: { createdAt: 'asc' },
+          take: 100,
+        });
+        json(res, 200, views.map((v) => ({ ...v, mine: v.userId === user.userId })));
+        return true;
+      }
+      if (!_access.canViewDashboard || !(await canViewFeatureSection(client, guildId, _access, user.userId, 'analytics'))) {
+        json(res, 403, { error: 'Accès à Analytics requis.' });
+        return true;
+      }
+      if (method === 'POST' && parts.length === 6) {
+        const body = (await readJsonBody<Record<string, unknown>>(req)) ?? {};
+        const name = typeof body.name === 'string' ? body.name.trim().slice(0, 60) : '';
+        const payload = body.payload && typeof body.payload === 'object' ? body.payload : null;
+        if (!name || !payload || JSON.stringify(payload).length > 4000) {
+          json(res, 400, { error: 'Vue invalide' });
+          return true;
+        }
+        const count = await prisma.analyticsSavedView.count({ where: { guildId, userId: user.userId } });
+        if (count >= 30) {
+          json(res, 409, { error: '30 vues au plus par personne.' });
+          return true;
+        }
+        const view = await prisma.analyticsSavedView.create({
+          data: { guildId, userId: user.userId, name, payload: payload as object, shared: body.shared === true },
+        });
+        json(res, 201, { ...view, mine: true });
+        return true;
+      }
+      if (method === 'DELETE' && parts.length === 7) {
+        const view = await prisma.analyticsSavedView.findFirst({ where: { id: parts[6]!, guildId } });
+        if (!view) json(res, 404, { error: 'Vue introuvable' });
+        else if (view.userId !== user.userId && !_access.canManageSettings) json(res, 403, { error: "Seul l'auteur ou un administrateur peut retirer cette vue." });
+        else {
+          await prisma.analyticsSavedView.delete({ where: { id: view.id } });
+          json(res, 200, { ok: true });
+        }
+        return true;
+      }
+    } catch (err) {
+      logger.error('AnalyticsAPI', 'Erreur vues enregistrées:', err);
+      jsonFailure(res, err, 'Erreur sur les vues enregistrées', 'AnalyticsAPI');
+      return true;
+    }
+  }
+
+  // …/analytics/alerts[/:id] et …/analytics/reports[/:id[/test]] : alertes sur
+  // seuil et rapports planifiés. Lecture pour qui voit Analytics ; écriture
+  // gardée par le répartiteur (droit de configuration).
+  if ((parts[5] === 'alerts' || parts[5] === 'reports') && parts.length >= 6 && parts.length <= 8) {
+    const isAlerts = parts[5] === 'alerts';
+    const id = parts[6];
+    try {
+      if (isAlerts) {
+        const alerts = await import('../../../services/analytics/analyticsAlertsService.js');
+        if (method === 'GET' && parts.length === 6) {
+          const [rules, events] = await Promise.all([
+            prismaRead.analyticsAlertRule.findMany({ where: { guildId }, orderBy: { createdAt: 'asc' } }),
+            prismaRead.analyticsAlertEvent.findMany({ where: { guildId }, orderBy: { triggeredAt: 'desc' }, take: 50 }),
+          ]);
+          json(res, 200, { rules, events });
+          return true;
+        }
+        if ((method === 'POST' && parts.length === 6) || (method === 'PUT' && parts.length === 7)) {
+          const input = alerts.validateAlertRule((await readJsonBody<Record<string, unknown>>(req)) ?? {});
+          if (typeof input === 'string') {
+            json(res, 400, { error: 'Règle invalide', field: input });
+            return true;
+          }
+          if (method === 'POST') {
+            const count = await prisma.analyticsAlertRule.count({ where: { guildId } });
+            if (count >= alerts.ALERT_RULES_PER_GUILD_MAX) {
+              json(res, 409, { error: `${alerts.ALERT_RULES_PER_GUILD_MAX} alertes au plus par serveur.` });
+              return true;
+            }
+            const rule = await prisma.analyticsAlertRule.create({ data: { ...input, guildId, createdById: user.userId } });
+            json(res, 201, rule);
+          } else {
+            // Une règle modifiée repart de zéro : sa prochaine période sera évaluée.
+            const updated = await prisma.analyticsAlertRule.updateMany({ where: { id: id!, guildId }, data: { ...input, lastPeriodKey: null } });
+            json(res, updated.count > 0 ? 200 : 404, updated.count > 0 ? { ok: true } : { error: 'Alerte introuvable' });
+          }
+          return true;
+        }
+        if (method === 'DELETE' && parts.length === 7) {
+          const deleted = await prisma.analyticsAlertRule.deleteMany({ where: { id: id!, guildId } });
+          json(res, deleted.count > 0 ? 200 : 404, deleted.count > 0 ? { ok: true } : { error: 'Alerte introuvable' });
+          return true;
+        }
+      } else {
+        const reports = await import('../../../services/analytics/analyticsReportService.js');
+        if (method === 'GET' && parts.length === 6) {
+          json(res, 200, { schedules: await prismaRead.analyticsReportSchedule.findMany({ where: { guildId }, orderBy: { createdAt: 'asc' } }) });
+          return true;
+        }
+        if (method === 'POST' && parts.length === 8 && parts[7] === 'test') {
+          const sent = await reports.sendReportNow(client, id!, guildId);
+          json(res, sent ? 200 : 422, sent ? { ok: true } : { error: 'Rapport non envoyé : vérifie le salon et les destinataires.' });
+          return true;
+        }
+        if ((method === 'POST' && parts.length === 6) || (method === 'PUT' && parts.length === 7)) {
+          const input = reports.validateReportSchedule((await readJsonBody<Record<string, unknown>>(req)) ?? {});
+          if (typeof input === 'string') {
+            json(res, 400, { error: 'Rapport invalide', field: input });
+            return true;
+          }
+          const { resolveGuildTimezone } = await import('../../../utils/timezone.js');
+          const nextRunAt = reports.computeNextRun(input, await resolveGuildTimezone(guildId), new Date());
+          if (method === 'POST') {
+            const count = await prisma.analyticsReportSchedule.count({ where: { guildId } });
+            if (count >= reports.REPORT_SCHEDULES_PER_GUILD_MAX) {
+              json(res, 409, { error: `${reports.REPORT_SCHEDULES_PER_GUILD_MAX} rapports au plus par serveur.` });
+              return true;
+            }
+            json(res, 201, await prisma.analyticsReportSchedule.create({ data: { ...input, nextRunAt, guildId, createdById: user.userId } }));
+          } else {
+            const updated = await prisma.analyticsReportSchedule.updateMany({ where: { id: id!, guildId }, data: { ...input, nextRunAt } });
+            json(res, updated.count > 0 ? 200 : 404, updated.count > 0 ? { ok: true } : { error: 'Rapport introuvable' });
+          }
+          return true;
+        }
+        if (method === 'DELETE' && parts.length === 7) {
+          const deleted = await prisma.analyticsReportSchedule.deleteMany({ where: { id: id!, guildId } });
+          json(res, deleted.count > 0 ? 200 : 404, deleted.count > 0 ? { ok: true } : { error: 'Rapport introuvable' });
+          return true;
+        }
+      }
+    } catch (err) {
+      logger.error('AnalyticsAPI', `Erreur ${isAlerts ? 'alertes' : 'rapports'}:`, err);
+      jsonFailure(res, err, 'Erreur lors de l\'enregistrement', 'AnalyticsAPI');
+      return true;
+    }
+  }
+
   if (method !== 'GET') {
     return false;
+  }
+
+  // GET …/analytics/activity/{hourly|rankings|breakdown} : pas horaire,
+  // classements filtrés et ventilation des vues Messages et Vocal.
+  if (parts.length === 7 && parts[5] === 'activity' && ['hourly', 'rankings', 'breakdown'].includes(parts[6]!)) {
+    const service = await import('../../../services/analytics/contentAnalyticsService.js');
+    const insights = await import('../../../services/analytics/activityInsightsService.js');
+    const view = parts[6]!;
+    try {
+      const range = service.parseRange(url.searchParams);
+      const scope = await service.resolveScope(client, guildId, url.searchParams);
+      const scopeKey = service.scopeCacheKey(scope, range);
+      const metric = url.searchParams.get('metric') === 'voice' ? 'voice' : 'messages';
+      if (view === 'hourly') {
+        const timezone = await resolveViewTimezone(url.searchParams.get('tz'), guildId);
+        json(res, 200, await cache.wrap(`guild:${guildId}:analytics:activity-hourly:${scopeKey}:${timezone}`, 120, () =>
+          insights.getActivityHourly(guildId, range, scope, timezone)));
+      } else if (view === 'rankings') {
+        const dimension = url.searchParams.get('dimension') === 'channels' ? 'channels' : 'members';
+        const limit = Number.parseInt(url.searchParams.get('limit') ?? '10', 10) || 10;
+        const includeBots = url.searchParams.get('includeBots') === '1';
+        json(res, 200, await cache.wrap(`guild:${guildId}:analytics:rankings:${scopeKey}:${metric}:${dimension}:${limit}:${includeBots ? 'b' : ''}`, 120, () =>
+          insights.getActivityRankings(client, guildId, range, scope, metric, dimension, limit, includeBots)));
+      } else {
+        const dimension = url.searchParams.get('dimension') === 'category' ? 'category' : 'channel';
+        json(res, 200, await cache.wrap(`guild:${guildId}:analytics:breakdown:${scopeKey}:${metric}:${dimension}`, 120, () =>
+          insights.getActivityBreakdown(client, guildId, range, scope, metric, dimension)));
+      }
+    } catch (err) {
+      logger.error('AnalyticsAPI', `Erreur analytics (activity/${view}):`, err);
+      jsonFailure(res, err, 'Erreur lors du calcul des statistiques', 'AnalyticsAPI');
+    }
+    return true;
+  }
+
+  // GET …/analytics/audience/{engagement|cohorts|funnel|lifecycle} : membres et
+  // rétention (DAU/WAU/MAU, cohortes d'activité, entonnoir, cycle de vie).
+  if (parts.length === 7 && parts[5] === 'audience' && ['engagement', 'cohorts', 'funnel', 'lifecycle'].includes(parts[6]!)) {
+    const service = await import('../../../services/analytics/contentAnalyticsService.js');
+    const audience = await import('../../../services/analytics/audienceInsightsService.js');
+    const view = parts[6]!;
+    try {
+      const range = service.parseRange(url.searchParams);
+      const scope = await service.resolveScope(client, guildId, url.searchParams);
+      const scopeKey = service.scopeCacheKey(scope, range);
+      const key = `guild:${guildId}:analytics:audience:${view}:${scopeKey}`;
+      if (view === 'engagement') {
+        json(res, 200, await cache.wrap(key, 600, () => audience.getEngagement(guildId, range, scope)));
+      } else if (view === 'cohorts') {
+        json(res, 200, await cache.wrap(`guild:${guildId}:analytics:audience:cohorts:${scope.roleFilter ?? ''}:${scope.excludeStaff ? 's' : ''}`, 1800, () =>
+          audience.getActivityCohorts(guildId, scope)));
+      } else if (view === 'funnel') {
+        json(res, 200, await cache.wrap(key, 600, () => audience.getOnboardingFunnel(client, guildId, range, scope)));
+      } else {
+        json(res, 200, await cache.wrap(key, 600, () => audience.getLifecycle(client, guildId, range, scope)));
+      }
+    } catch (err) {
+      logger.error('AnalyticsAPI', `Erreur analytics (audience/${view}):`, err);
+      jsonFailure(res, err, 'Erreur lors du calcul des statistiques', 'AnalyticsAPI');
+    }
+    return true;
+  }
+
+  // GET …/analytics/conversation/{responses|concentration|channel-health|network} :
+  // temps de réponse, concentration de l'activité, santé des salons, réseau.
+  if (parts.length === 7 && parts[5] === 'conversation' && ['responses', 'concentration', 'channel-health', 'network'].includes(parts[6]!)) {
+    const service = await import('../../../services/analytics/contentAnalyticsService.js');
+    const conversation = await import('../../../services/analytics/conversationInsightsService.js');
+    const view = parts[6]!;
+    try {
+      const range = service.parseRange(url.searchParams);
+      const scope = await service.resolveScope(client, guildId, url.searchParams);
+      const scopeKey = service.scopeCacheKey(scope, range);
+      const key = `guild:${guildId}:analytics:conversation:${view}:${scopeKey}`;
+      if (view === 'responses') {
+        json(res, 200, await cache.wrap(key, 300, () => conversation.getResponseTimes(client, guildId, range, scope)));
+      } else if (view === 'concentration') {
+        const metric = url.searchParams.get('metric') === 'voice' ? 'voice' : 'messages';
+        json(res, 200, await cache.wrap(`${key}:${metric}`, 600, () => conversation.getConcentration(guildId, range, scope, metric)));
+      } else if (view === 'channel-health') {
+        json(res, 200, await cache.wrap(`guild:${guildId}:analytics:conversation:channel-health:${range.start}:${range.end}`, 600, () =>
+          conversation.getChannelHealthReport(client, guildId, range)));
+      } else {
+        json(res, 200, await cache.wrap(key, 600, () => conversation.getConversationNetwork(client, guildId, range, scope)));
+      }
+    } catch (err) {
+      logger.error('AnalyticsAPI', `Erreur analytics (conversation/${view}):`, err);
+      jsonFailure(res, err, 'Erreur lors du calcul des statistiques', 'AnalyticsAPI');
+    }
+    return true;
+  }
+
+  // GET …/analytics/commands/stats : usage des commandes par jour. Période seule.
+  if (parts.length === 7 && parts[5] === 'commands' && parts[6] === 'stats') {
+    try {
+      const { parseRange } = await import('../../../services/analytics/contentAnalyticsService.js');
+      const { getCommandAnalytics } = await import('../../../services/analytics/commandStatsService.js');
+      const range = parseRange(url.searchParams);
+      json(res, 200, await cache.wrap(`guild:${guildId}:analytics:commands:${range.start}:${range.end}`, 300, () =>
+        getCommandAnalytics(client, guildId, range)));
+    } catch (err) {
+      logger.error('AnalyticsAPI', 'Erreur analytics (commands/stats):', err);
+      jsonFailure(res, err, 'Erreur lors du calcul des statistiques', 'AnalyticsAPI');
+    }
+    return true;
+  }
+
+  // GET …/analytics/members/overview : effectif, arrivées par source, inviteurs
+  // et qualité des nouveaux. Période seule.
+  if (parts.length === 7 && parts[5] === 'members' && parts[6] === 'overview') {
+    try {
+      const { parseRange } = await import('../../../services/analytics/contentAnalyticsService.js');
+      const { getMemberOverview } = await import('../../../services/analytics/memberOverviewService.js');
+      const range = parseRange(url.searchParams);
+      const includeBots = url.searchParams.get('includeBots') === '1';
+      json(res, 200, await cache.wrap(`guild:${guildId}:analytics:members-overview:${range.start}:${range.end}:${includeBots ? 'b' : ''}`, 300, () =>
+        getMemberOverview(client, guildId, range, includeBots)));
+    } catch (err) {
+      logger.error('AnalyticsAPI', 'Erreur analytics (members/overview):', err);
+      jsonFailure(res, err, 'Erreur lors du calcul des statistiques', 'AnalyticsAPI');
+    }
+    return true;
+  }
+
+  // GET …/analytics/insights/{growth|moderation|staff|words} : analyses poussées
+  // de Croissance, Modération, Staff et Contenu. Période seule.
+  if (parts.length === 7 && parts[5] === 'insights' && ['growth', 'moderation', 'staff', 'words'].includes(parts[6]!)) {
+    const service = await import('../../../services/analytics/contentAnalyticsService.js');
+    const insights = await import('../../../services/analytics/sectionInsightsService.js');
+    const view = parts[6]!;
+    try {
+      const range = service.parseRange(url.searchParams);
+      const key = `guild:${guildId}:analytics:insights:${view}:${range.start}:${range.end}`;
+      if (view === 'growth') {
+        json(res, 200, await cache.wrap(key, 600, () => insights.getGrowthInsights(client, guildId, range)));
+      } else if (view === 'moderation') {
+        json(res, 200, await cache.wrap(key, 300, () => insights.getModerationTrends(client, guildId, range)));
+      } else if (view === 'staff') {
+        const timezone = await resolveViewTimezone(url.searchParams.get('tz'), guildId);
+        json(res, 200, await cache.wrap(`${key}:${timezone}`, 300, () => insights.getStaffInsights(client, guildId, range, timezone)));
+      } else {
+        json(res, 200, await cache.wrap(key, 900, () => insights.getRisingWords(guildId, range)));
+      }
+    } catch (err) {
+      logger.error('AnalyticsAPI', `Erreur analytics (insights/${view}):`, err);
+      jsonFailure(res, err, 'Erreur lors du calcul des statistiques', 'AnalyticsAPI');
+    }
+    return true;
+  }
+
+  // GET …/analytics/{content|activity|channel-tree|filters} et …/analytics/categories/:id
+  // Nouvelle page Analytics : période (`period` ou `startDate`/`endDate`) et
+  // filtres (`channel`, `role`, `excludeStaff`, `userId`).
+  if ((parts.length === 6 && ['content', 'activity', 'channel-tree', 'filters'].includes(parts[5]!))
+    || (parts.length === 7 && parts[5] === 'categories')) {
+    const service = await import('../../../services/analytics/contentAnalyticsService.js');
+    const section = parts[5]!;
+    try {
+      if (section === 'filters') {
+        json(res, 200, await cache.wrap(`guild:${guildId}:analytics:filters`, 60, () => service.getFilterOptions(client, guildId)));
+        return true;
+      }
+      const range = service.parseRange(url.searchParams);
+      if (section === 'categories') {
+        const categoryId = parts[6]!;
+        if (!/^\d{17,20}$/.test(categoryId)) {
+          json(res, 400, { error: 'Identifiant de catégorie invalide' });
+          return true;
+        }
+        const data = await cache.wrap(`guild:${guildId}:analytics:category:${categoryId}:${range.start}:${range.end}`, 300, () =>
+          service.getCategoryDetail(client, guildId, categoryId, range));
+        if (!data) json(res, 404, { error: 'Catégorie introuvable' });
+        else json(res, 200, data);
+        return true;
+      }
+      if (section === 'channel-tree') {
+        json(res, 200, await cache.wrap(`guild:${guildId}:analytics:channel-tree:${range.start}:${range.end}`, 300, () =>
+          service.getChannelTree(client, guildId, range)));
+        return true;
+      }
+      const scope = await service.resolveScope(client, guildId, url.searchParams);
+      const scopeKey = service.scopeCacheKey(scope, range);
+      if (section === 'content') {
+        json(res, 200, await cache.wrap(`guild:${guildId}:analytics:content:${scopeKey}`, 300, () =>
+          service.getContentAnalytics(client, guildId, range, scope)));
+      } else {
+        const includeBots = url.searchParams.get('includeBots') === '1';
+        const insights = await import('../../../services/analytics/activityInsightsService.js');
+        json(res, 200, await cache.wrap(`guild:${guildId}:analytics:activity:${scopeKey}:${includeBots ? 'b' : ''}`, 120, () =>
+          insights.getActivityInsights(client, guildId, range, scope, includeBots)));
+      }
+    } catch (err) {
+      logger.error('AnalyticsAPI', `Erreur analytics (${section}):`, err);
+      jsonFailure(res, err, 'Erreur lors du calcul des statistiques', 'AnalyticsAPI');
+    }
+    return true;
   }
 
   // GET /api/dashboard/guilds/:guildId/analytics/advanced?section=<retention|activity|churn|channels|social|words|moderation>
@@ -141,13 +524,15 @@ export async function handleAnalyticsRoutes(
       // purge quand la config change (ex. activation des stats de mots).
       const timezone = await resolveViewTimezone(url.searchParams.get('tz'), guildId);
       const cacheKey = `guild:${guildId}:analytics:advanced:${section}:${timezone}`;
-      const cached = await cache.get<Record<string, unknown>>(cacheKey);
-      if (cached) {
-        json(res, 200, cached);
-        return true;
-      }
-      const data = await getAdvancedAnalytics(guildId, section as never, timezone);
-      await cache.set(cacheKey, data, 300); // 5 min - calculs lourds
+      // wrap() et non get() puis set() : a l'expiration, les onglets du staff
+      // ouverts en meme temps relancaient chacun le calcul complet.
+      // « social » et « channels » agregent 30 jours de message_logs, les plus
+      // couteuses de loin : sur une fenetre de 30 jours, 30 min de retard ne
+      // changent rien a la lecture.
+      const ttlSeconds = section === 'social' || section === 'channels' ? 1800 : 300;
+      const data = await cache.wrap(cacheKey, ttlSeconds, () =>
+        getAdvancedAnalytics(guildId, section as never, timezone),
+      );
       json(res, 200, data);
     } catch (err) {
       logger.error('AnalyticsAPI', `Erreur analytics avancées (${section}):`, err);
@@ -378,7 +763,20 @@ export async function handleAnalyticsRoutes(
       const endDate = url.searchParams.get('endDate');
       const timezone = await resolveViewTimezone(url.searchParams.get('tz'), guildId);
       const heatmapData = await getHourlyHeatmapData(guildId, { days, startDate, endDate, timezone });
-      json(res, 200, heatmapData);
+      if (url.searchParams.get('compare') !== '1') {
+        json(res, 200, heatmapData);
+        return true;
+      }
+      // Avec `compare=1`, la grille de la période d'avant (même durée) suit,
+      // pour montrer comment les créneaux se sont déplacés.
+      const dayMs = 86_400_000;
+      const endKey = (endDate ?? new Date().toISOString()).slice(0, 10);
+      const startKey = startDate ? startDate.slice(0, 10) : new Date(Date.parse(`${endKey}T00:00:00Z`) - days * dayMs).toISOString().slice(0, 10);
+      const span = Math.round((Date.parse(`${endKey}T00:00:00Z`) - Date.parse(`${startKey}T00:00:00Z`)) / dayMs);
+      const prevEnd = new Date(Date.parse(`${startKey}T00:00:00Z`) - dayMs).toISOString().slice(0, 10);
+      const prevStart = new Date(Date.parse(`${prevEnd}T00:00:00Z`) - span * dayMs).toISOString().slice(0, 10);
+      const previous = await getHourlyHeatmapData(guildId, { startDate: prevStart, endDate: prevEnd, timezone });
+      json(res, 200, { current: heatmapData, previous, timezone, range: { start: startKey, end: endKey, prevStart, prevEnd } });
     } catch (err) {
       logger.error('AnalyticsAPI', 'Error computing heatmap:', err);
       jsonFailure(res, err, 'Erreur heatmap analytics', 'AnalyticsAPI');

@@ -101,9 +101,19 @@ export async function getDeclaredModuleStates(guildId: string): Promise<ModuleSt
   return (await loadDeclaredModuleStates(guildId)).states;
 }
 
+/**
+ * Colonnes de `Guild` réellement lues ici : l'offre et les drapeaux
+ * historiques. Cette lecture se refait toutes les 30 s par serveur actif, et la
+ * ligne complète compte plusieurs centaines de colonnes.
+ */
+const GUILD_STATE_SELECT: Record<string, true> = Object.fromEntries([
+  ['plan', true],
+  ...MODULE_REGISTRY.flatMap((mod) => (mod.legacyField ? [[mod.legacyField, true]] : [])),
+]);
+
 async function loadDeclaredModuleStates(guildId: string): Promise<{ states: ModuleStates; plan: PlanKey }> {
   const [guild, featureConfigs, levelConfig, rankedConfig, banAppealConfig] = await Promise.all([
-    prisma.guild.findUnique({ where: { id: guildId } }),
+    prisma.guild.findUnique({ where: { id: guildId }, select: GUILD_STATE_SELECT }),
     prisma.dashboardFeatureConfig.findMany({
       where: { guildId },
       select: { featureKey: true, enabled: true },

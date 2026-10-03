@@ -19,7 +19,9 @@ export const PLAYER_STAT_RANGES = {
   xp: { min: 0, max: 100_000_000 },
   health: { min: 0, max: 1_000_000 },
   maxHealth: { min: 1, max: 1_000_000 },
-  energy: { min: 0, max: 100_000 },
+  // L'énergie max d'un joueur peut monter de 2 millions au-dessus de celle du serveur
+  // (boutique de la Tour) : l'admin doit pouvoir la remplir.
+  energy: { min: 0, max: 2_100_000 },
   attack: { min: 0, max: 100_000 },
   defense: { min: 0, max: 100_000 },
   speed: { min: 0, max: 100_000 },

@@ -37,6 +37,7 @@
   import { navigationStore } from '../lib/stores/navigation.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { fetchSetupJourney } from '../lib/api';
+  import { startSetupGuide } from '../lib/home/setupGuides';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import SectionCard from '../lib/components/SectionCard.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
@@ -151,6 +152,20 @@
     if (value >= 85) return 'text-success';
     if (value >= 50) return 'text-warning';
     return 'text-primary';
+  }
+
+  /**
+   * Une etape a faire ouvre sa page en montrant le champ, comme depuis
+   * l'accueil. Le lien reste un vrai lien : clic molette et Ctrl+clic ouvrent
+   * toujours la page dans un onglet, sans guidage.
+   */
+  function guideTo(event: MouseEvent, step: { key: string; label: string; href: string }) {
+    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    // tinro intercepte les liens sur `window` sans regarder `defaultPrevented` :
+    // sans cet arret, il naviguerait une seconde fois vers la meme page.
+    event.stopPropagation();
+    startSetupGuide(step);
   }
 
   const RING_RADIUS = 42;
@@ -287,7 +302,7 @@
                 {remaining.length} point{remaining.length > 1 ? 's' : ''} à régler
               </p>
               <p class="text-body-sm text-on-surface-variant mt-1 leading-relaxed">
-                Le prochain : <a href={remaining[0].href} class="text-primary hover:underline font-medium">{remaining[0].label}</a>.
+                Le prochain : <a href={remaining[0].href} onclick={(event) => guideTo(event, remaining[0])} class="text-primary hover:underline font-medium">{remaining[0].label}</a>.
                 {remaining[0].why}
               </p>
             {/if}
@@ -351,6 +366,7 @@
                 <li>
                   <a
                     href={step.href}
+                    onclick={(event) => { if (!step.done) guideTo(event, step); }}
                     class="flex items-start gap-3 rounded-xl border px-4 py-3 transition-colors
                     {step.done
                       ? 'border-outline-variant/20 bg-surface-container-low/30 hover:border-outline-variant/40'

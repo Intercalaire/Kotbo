@@ -84,6 +84,31 @@ const GUILD_FALLBACKS: Record<string, { name: string; description: string; iconU
 };
 
 // ===========================================================================
+// Icônes des serveurs mis en avant, relayées
+// ===========================================================================
+//
+// kotbo.fr affiche ces icônes. Chargées directement depuis cdn.discordapp.com,
+// elles donnaient à Discord l'adresse IP de chaque visiteur et lui laissaient
+// poser un cookie (`__cf_bm`), alors que la landing promet de ne parler à aucun
+// tiers. L'API va donc les chercher elle-même et les sert depuis son domaine.
+// Seuls les serveurs de `FEATURED_GUILD_IDS` sont servis : ce n'est pas un
+// proxy ouvert vers le CDN de Discord.
+
+const ICON_CACHE_TTL = 6 * 60 * 60 * 1000; // 6 heures
+/** Indexé par URL source : une icône changée sur Discord change de clé. */
+const iconCache = new Map<string, { body: ArrayBuffer; type: string; at: number }>();
+
+function featuredIconSource(client: Client, guildId: string): string | null {
+  const guild = client.guilds.cache.get(guildId);
+  return guild?.iconURL({ size: 128 }) || GUILD_FALLBACKS[guildId]?.iconUrl || null;
+}
+
+/** Chemin de l'icône relayée, relatif à l'origine de l'API. */
+function featuredIconPath(guildId: string): string {
+  return `/api/public/stats/icons/${guildId}`;
+}
+
+// ===========================================================================
 // Routes Definition
 // ===========================================================================
 
@@ -249,17 +274,18 @@ export function createPublicStatsRouter(_client: Client) {
       const servers = FEATURED_GUILD_IDS.map((id) => {
         const guild = _client.guilds.cache.get(id);
         const fallback = GUILD_FALLBACKS[id];
+        const iconUrl = featuredIconSource(_client, id) ? featuredIconPath(id) : null;
         if (guild) {
           return {
             name: guild.name,
-            iconUrl: guild.iconURL({ size: 128 }) || fallback?.iconUrl || null,
+            iconUrl,
             memberCount: guild.memberCount,
             description: guild.description || fallback?.description || "",
           };
         }
         return {
           name: fallback?.name || "Unknown Server",
-          iconUrl: fallback?.iconUrl || null,
+          iconUrl,
           memberCount: fallback?.memberCount || 0,
           description: fallback?.description || "",
         };
@@ -275,6 +301,35 @@ export function createPublicStatsRouter(_client: Client) {
       logger.error('StatsAPI', 'Error returning aggregated stats:', err);
       return c.json({ error: 'Internal server error' }, 500);
     }
+  });
+
+  // GET /api/public/stats/icons/:guildId
+  router.get('/api/public/stats/icons/:guildId', async (c) => {
+    const guildId = c.req.param('guildId');
+    const source = FEATURED_GUILD_IDS.includes(guildId) ? featuredIconSource(_client, guildId) : null;
+    if (!source) return c.json({ error: 'Not found' }, 404);
+
+    let entry = iconCache.get(source);
+    if (!entry || Date.now() - entry.at > ICON_CACHE_TTL) {
+      try {
+        const res = await fetch(source, { signal: AbortSignal.timeout(5000) });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const type = res.headers.get('content-type') ?? '';
+        if (!type.startsWith('image/')) throw new Error(`type inattendu : ${type}`);
+        entry = { body: await res.arrayBuffer(), type, at: Date.now() };
+        iconCache.set(source, entry);
+      } catch (err) {
+        logger.warn('StatsAPI', `Icône ${guildId} injoignable sur Discord : ${err instanceof Error ? err.message : err}`);
+        // Une icône périmée vaut mieux qu'une icône cassée.
+        if (!entry) return c.json({ error: 'Icon unavailable' }, 502);
+      }
+    }
+
+    c.header('Content-Type', entry.type);
+    c.header('Cache-Control', 'public, max-age=86400');
+    // Affichée par kotbo.fr, autre origine que l'API.
+    c.header('Cross-Origin-Resource-Policy', 'cross-origin');
+    return c.body(entry.body);
   });
 
   // POST /api/public/stats/ping

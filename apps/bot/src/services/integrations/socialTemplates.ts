@@ -1,5 +1,6 @@
 /**
- * Rendu des messages personnalisables des suivis sociaux (YouTube / Twitch).
+ * Rendu des messages personnalisables des suivis sociaux (YouTube, Twitch,
+ * GitHub, Hugging Face).
  *
  * Le dashboard documente les variables avec des crochets (`[title]`, `[channel]`)
  * alors que d'anciennes configurations utilisent des accolades : les deux
@@ -12,9 +13,10 @@ export interface FollowTemplateVars {
   game?: string | null;
   viewers?: number | null;
   url?: string | null;
+  author?: string | null;
 }
 
-const VARIABLE_PATTERN = /[[{](title|channel|game|viewers|url)[\]}]/gi;
+const VARIABLE_PATTERN = /[[{](title|channel|game|viewers|url|author)[\]}]/gi;
 
 /** Remplace toutes les occurrences des variables connues dans un modele. */
 export function renderFollowTemplate(template: string, vars: FollowTemplateVars): string {

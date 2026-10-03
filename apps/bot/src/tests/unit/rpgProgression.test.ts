@@ -35,6 +35,7 @@ type Profile = {
   defense: number;
   speed: number;
   className: string | null;
+  reclassVouchers: number;
   statPoints: number;
   skillPoints: number;
   weaponId: string | null;
@@ -125,6 +126,7 @@ const rpgProfile = {
   updateMany: mock(async ({ where, data }: any) => {
     // Reproduit les gardes atomiques dont dépendent les services.
     if (where?.balance?.gte !== undefined && profile.balance < where.balance.gte) return { count: 0 };
+    if (where?.reclassVouchers?.gte !== undefined && profile.reclassVouchers < where.reclassVouchers.gte) return { count: 0 };
     if (where?.statPoints?.gte !== undefined && profile.statPoints < where.statPoints.gte) return { count: 0 };
     if (where?.className !== undefined && where.className !== profile.className) return { count: 0 };
     if (typeof where?.level === 'number' && where.level !== profile.level) return { count: 0 };
@@ -266,6 +268,7 @@ beforeEach(() => {
     defense: 10,
     speed: 10,
     className: null,
+    reclassVouchers: 0,
     statPoints: 0,
     skillPoints: 0,
     weaponId: null,
@@ -475,6 +478,32 @@ describe('choix de classe', () => {
     const result = await chooseRpgClass('guild-1', 'user-1', 'MAGE');
     expect(result.cost).toBe(2_500);
     expect(profile.balance).toBe(2_500);
+  });
+
+  test('un bon de reconversion paie le changement à la place des pièces', async () => {
+    profile.level = 10;
+    profile.className = 'WARRIOR';
+    profile.balance = 100;
+    profile.reclassVouchers = 1;
+
+    const result = await chooseRpgClass('guild-1', 'user-1', 'MAGE');
+    expect(result.voucher).toBe(true);
+    expect(result.cost).toBe(0);
+    expect(profile.className).toBe('MAGE');
+    expect(profile.reclassVouchers).toBe(0);
+    expect(profile.balance).toBe(100);
+
+    // Plus de bon : on retombe sur le prix en pièces.
+    expect(chooseRpgClass('guild-1', 'user-1', 'WARRIOR')).rejects.toThrow(/2500/);
+  });
+
+  test('le premier choix de classe ne consomme pas de bon', async () => {
+    profile.level = 5;
+    profile.reclassVouchers = 2;
+
+    const result = await chooseRpgClass('guild-1', 'user-1', 'MAGE');
+    expect(result.voucher).toBe(false);
+    expect(profile.reclassVouchers).toBe(2);
   });
 
   test('refuse une classe inconnue', () => {

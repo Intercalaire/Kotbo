@@ -14,6 +14,8 @@
 
   let localRoleAccess = $state<any[]>([]);
   let initialized = $state(false);
+  let open = $state(false);
+  const configuredCount = $derived(localRoleAccess.filter(r => r.roleId).length);
 
   $effect(() => {
     if (roleAccess && roleAccess.length > 0 && !initialized) {
@@ -67,20 +69,27 @@
 </script>
 
 <div class="space-y-6">
-  <div class="flex items-center justify-between border-b border-outline-variant/10 pb-4">
+  <button
+    type="button"
+    onclick={() => open = !open}
+    aria-expanded={open}
+    class="w-full flex items-center justify-between gap-4 text-left {open ? 'border-b border-outline-variant/10 pb-4' : ''}"
+  >
     <div>
       <h3 class="text-sm font-semibold text-on-surface">{title}</h3>
       <p class="text-xs text-on-surface-variant/70 mt-1">{description}</p>
     </div>
-    <button 
-      onclick={addRole}
-      class="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-xl text-body-sm font-medium hover:bg-primary/20 transition-all"
-    >
-      <Papicon icon="plus" size={14} />
-      {m.rp_add_role()}
-    </button>
-  </div>
+    <div class="flex items-center gap-3 shrink-0">
+      {#if configuredCount > 0}
+        <span class="px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs font-semibold">
+          {m.rp_configured_count({ count: configuredCount })}
+        </span>
+      {/if}
+      <Papicon icon="chevron-down" size={16} class="text-on-surface-variant/60 transition-transform {open ? 'rotate-180' : ''}" />
+    </div>
+  </button>
 
+  {#if open}
   {#if localRoleAccess.length === 0}
     <div class="py-10 text-center bg-surface-container-low/20 rounded-xl border border-dashed border-outline-variant/20">
       <Papicon icon="lock" size={40} class="text-on-surface-variant/20 mb-3 mx-auto" />
@@ -118,8 +127,15 @@
     </div>
   {/if}
 
-  <div class="flex justify-end pt-4">
-    <ActionButton 
+  <div class="flex items-center justify-between gap-3 pt-4">
+    <button
+      onclick={addRole}
+      class="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-xl text-body-sm font-medium hover:bg-primary/20 transition-all"
+    >
+      <Papicon icon="plus" size={14} />
+      {m.rp_add_role()}
+    </button>
+    <ActionButton
       onClick={handleSave} 
       variant="primary" 
       label={saveAction.state.loading ? m.rp_saving_permissions() : m.rp_save_permissions()}
@@ -129,5 +145,6 @@
 
   {#if saveAction.state.message}
     <p class="text-xs font-bold text-success text-right">{saveAction.state.message}</p>
+  {/if}
   {/if}
 </div>

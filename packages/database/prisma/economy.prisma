@@ -181,6 +181,10 @@ model RpgProfile {
   health    Int      @default(100)
   maxHealth Int      @default(100)
   energy    Int      @default(100)
+  // Énergie max gagnée par ce joueur, au-dessus de celle du serveur (`EconomyConfig.maxEnergy`).
+  bonusMaxEnergy Int @default(0)
+  // Bons de reconversion : chacun paie un changement de classe à la place des pièces.
+  reclassVouchers Int @default(0)
   attack    Int      @default(10)
   defense   Int      @default(10)
   speed     Int      @default(10)
@@ -656,6 +660,9 @@ enum RpgQuestObjective {
   COINS_SPENT
   ADVENTURES_COMPLETED
   DAILY_CLAIMS
+  TOWER_FLOORS
+  TOWER_MONSTER_KILLS
+  TOWER_BOSS_KILLS
 }
 
 /// MEMBER : chacun sa progression. TEAM : toute une équipe pousse le même compteur.

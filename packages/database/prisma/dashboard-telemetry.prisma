@@ -1,0 +1,51 @@
+// Télémétrie produit du dashboard : quelles pages, quels modules, quels
+// onglets sont consultés, combien de temps, et ce qui y est enregistré.
+//
+// Agrégats par jour uniquement. Aucun identifiant Discord n'est stocké : les
+// visiteurs uniques passent par un hash salé qui change chaque jour, et le sel
+// n'est jamais écrit en base. Rétention : 180 jours (voir
+// dashboardTelemetryService.ts). Pas de relation vers Guild : `guildId` vaut
+// "" pour les pages hors serveur, et la purge suffit à nettoyer les départs.
+
+model DashboardTelemetryDailyStat {
+  id String @id @default(cuid())
+
+  dateKey   String // YYYY-MM-DD (UTC)
+  guildId   String // "" hors serveur
+  page      String // gabarit normalisé, sans identifiant : /security/sanctions
+  tab       String @default("")
+  feature   String @default("") // featureKey de la page (pages.ts)
+  event     String // page_view, page_time, save, api_error…
+  dimension String @default("") // précision de l'événement : source, appareil, type d'erreur…
+
+  count    Int @default(0)
+  // Somme d'une valeur mesurée (millisecondes le plus souvent) ; la moyenne
+  // se lit valueSum / count.
+  valueSum Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([dateKey, guildId, page, tab, feature, event, dimension], map: "dashboard_telemetry_daily_stats_key")
+  @@index([event, dateKey])
+  @@index([guildId, dateKey])
+  @@map("dashboard_telemetry_daily_stats")
+}
+
+// Un visiteur (hash du jour) vu sur une portée : "all", "page:/x" ou
+// "feature:x". Les uniques se comptent par jour ; sur une période, on lit des
+// visiteurs-jours, jamais une personne suivie d'un jour à l'autre.
+model DashboardTelemetryVisitor {
+  id String @id @default(cuid())
+
+  dateKey     String
+  guildId     String
+  scope       String
+  visitorHash String
+
+  createdAt DateTime @default(now())
+
+  @@unique([dateKey, guildId, scope, visitorHash], map: "dashboard_telemetry_visitors_key")
+  @@index([dateKey, scope])
+  @@map("dashboard_telemetry_visitors")
+}

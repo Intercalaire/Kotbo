@@ -1,0 +1,353 @@
+// ============================================================================
+// LA TOUR (mode roguelite du RPG)
+// ============================================================================
+
+/// Réglages de la Tour d'un serveur.
+///
+/// La Tour a ses propres statistiques, son équipement et sa monnaie : rien de ce qu'on y
+/// trouve ne rejoint le profil RPG, sinon les récompenses de la boutique et des paliers.
+model RpgTowerConfig {
+  guildId     String  @id
+  enabled     Boolean @default(false)
+  name        String  @default("La Tour")
+  emoji       String  @default("")
+  description String  @default("")
+
+  /// COMPRESSED : les stats du RPG sont compressées (logarithme) puis plafonnées.
+  /// RESET : tout le monde part des stats de base, seul le titre porté compte.
+  entryMode      String @default("COMPRESSED")
+  /// Bonus maximal hérité des stats du RPG, en pourcentage des stats de base de la Tour.
+  inheritCapPercent Int @default(50)
+  /// Bonus maximal accordé par le titre porté, en pourcentage des stats de base.
+  titleCapPercent   Int @default(30)
+
+  /// Croissance de la force des monstres à chaque étage, en pourcentage.
+  floorGrowthPercent Int @default(8)
+  bossEvery          Int @default(10)
+  blessingEvery      Int @default(5)
+  maxBlessings       Int @default(6)
+
+  shardsPerFloor     Int @default(10)
+  /// Éclats en plus pour chaque salle résolue, qui récompensent l'exploration. 0 : aucun.
+  shardsPerRoom      Int @default(0)
+  /// Part des éclats conservée après une mort, en pourcentage.
+  deathShardPercent  Int @default(50)
+  /// Part des éclats conservée en quittant la Tour hors palier sûr. Juste après un boss,
+  /// quitter garde tout.
+  leaveShardPercent  Int @default(80)
+  /// Plafond d'éclats gagnés par semaine et par joueur. 0 = aucun plafond.
+  weeklyShardCap     Int @default(0)
+  idleTimeoutMinutes Int @default(30)
+
+  currencyName  String @default("Éclats de Tour")
+  currencyEmoji String @default("")
+
+  /// Améliorations permanentes vendues contre des éclats (voir `TowerUpgradeDef`). `null` :
+  /// les améliorations par défaut.
+  upgrades Json?
+  /// Prix et soins du marchand (voir `TowerMerchantSettings`). `null` : réglages par défaut.
+  merchant Json?
+
+  /// Étages dessinés depuis le dashboard, dans l'ordre de la montée (voir `rpgTowerMap.ts`).
+  /// Tant que la carte n'est pas activée, la Tour tire ses portes au hasard.
+  layoutEnabled Boolean @default(false)
+  layouts       Json    @default("[]")
+  /// Après le dernier étage dessiné : GENERATE (étages générés) ou LOOP (retour au premier).
+  floorsAfter   String  @default("GENERATE")
+  /// Brouillard de guerre sur les étages générés.
+  generatedFog  Boolean @default(true)
+  /// Ancienne carte unique, d'avant les étages : relue comme premier étage si `layouts` est vide.
+  layout        Json?
+  /// Dernier enregistrement des étages : le bot ne relit `layouts`, qui pèse des mégaoctets
+  /// sur une grande tour, que quand cette date a bougé.
+  floorsUpdatedAt DateTime @default(now())
+
+  /// Prix en éclats d'une compétence du RPG, achetée pour une seule ascension.
+  skillPrice    Int     @default(10)
+  /// Réserve d'or de la source commune, remplie et bue par tous les joueurs du serveur.
+  fountainGold  Int     @default(0)
+
+  /// Ascension du jour : même graine pour tous, stats égales, une tentative par jour.
+  dailyEnabled      Boolean @default(false)
+  /// Dernier jour (clé du jour, fuseau du serveur) dont le podium du défi a été payé.
+  dailyPaidKey      String?
+  /// Salon où annoncer les records de la saison. `null` : aucune annonce.
+  announceChannelId String?
+
+  /// Début de la saison en cours : le classement se lit sur `RpgTowerProfile.bestFloor`,
+  /// remis à zéro à chaque nouvelle saison.
+  seasonStartedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("rpg_tower_configs")
+}
+
+/// Récompense de la Tour versée au profil RPG : article de boutique payé en éclats, ou
+/// palier atteint. Le titre est désigné sans clé étrangère : un titre supprimé laisse une
+/// récompense inerte plutôt qu'une suppression en cascade silencieuse.
+model RpgTowerReward {
+  id          String  @id @default(cuid())
+  guildId     String
+  /// SHOP | MILESTONE
+  kind        String
+  name        String
+  description String  @default("")
+  emoji       String  @default("")
+  /// Prix en éclats (SHOP).
+  price       Int     @default(0)
+  /// Étage à atteindre (MILESTONE).
+  floor       Int     @default(0)
+  /// Un article non répétable ne s'achète qu'une fois par joueur.
+  repeatable  Boolean @default(false)
+
+  titleId String?
+  roleId  String?
+  coins   Int     @default(0)
+  /// XP du RPG (`RpgProfile.xp`), jamais celle du module de niveaux du serveur.
+  xp      Int     @default(0)
+  /// Points de clan, ou XP de guilde RPG selon le mode d'équipe du serveur.
+  clanPoints Int  @default(0)
+  /// Objet du catalogue désigné par son nom, comme les butins.
+  itemName   String?
+  /// Éclats versés par un palier.
+  shards  Int     @default(0)
+  /// Statistiques du profil RPG : POINTS (à répartir), ATTACK, DEFENSE, SPEED, HEALTH, ou
+  /// RANDOM (une de ces quatre, tirée à chaque versement). `statAmount` compte des points :
+  /// un point vaut +1 en attaque, défense ou vitesse, ou les PV d'un point de vitalité.
+  stat       String?
+  statAmount Int     @default(0)
+  /// Énergie max ajoutée au profil RPG (et rendue d'autant).
+  maxEnergy    Int   @default(0)
+  /// Bons de reconversion donnés au profil RPG (un changement de classe gratuit chacun).
+  reclassVouchers Int @default(0)
+  /// Achats au plus par joueur d'un article répétable ; 0 : sans limite.
+  maxPurchases Int   @default(0)
+  /// Remise à zéro de cette limite : NEVER, DAILY (minuit du serveur) ou WEEKLY (lundi).
+  limitPeriod  String @default("NEVER")
+
+  enabled Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, kind])
+  @@map("rpg_tower_rewards")
+}
+
+/// Profil Tour d'un joueur, séparé du profil RPG.
+model RpgTowerProfile {
+  id      String @id @default(cuid())
+  guildId String
+  userId  String
+
+  shards         Int @default(0)
+  lifetimeShards Int @default(0)
+  /// Meilleur étage de la saison en cours.
+  bestFloor        Int       @default(0)
+  bestFloorAt      DateTime?
+  /// Salles explorées lors du record de la saison : départage les égalités d'étages.
+  bestRooms        Int       @default(0)
+  bestFloorAllTime Int       @default(0)
+  totalRuns        Int       @default(0)
+
+  weekShards Int       @default(0)
+  weekStart  DateTime?
+  /// Défi du jour : jours joués d'affilée, et le dernier joué (clé du jour).
+  dailyStreak  Int     @default(0)
+  dailyLastKey String?
+
+  /// Améliorations permanentes valables dans la Tour seulement : { potion: 1, vigor: 2 }.
+  upgrades         Json     @default("{}")
+  /// Paliers déjà versés et articles uniques déjà achetés.
+  claimedRewardIds String[] @default([])
+  /// Achats de la boutique par article : { rewardId: { count: 3, key: "2026-09-30" } }, la clé
+  /// désignant la période du compteur. Borne les articles à quantité limitée.
+  purchases        Json     @default("{}")
+  /// Salles piégées déjà rencontrées (MIMIC, AMBUSH, WANDERER) : le guide ne les dévoile
+  /// qu'au joueur qui est tombé dessus.
+  discoveredRooms  String[] @default([])
+  /// Bilan d'une partie close en l'absence du joueur, affiché une fois à son retour.
+  pendingSettlement Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild          @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  runs  RpgTowerRun[]
+
+  @@unique([guildId, userId])
+  @@index([guildId, bestFloor])
+  @@map("rpg_tower_profiles")
+}
+
+/// Ascension en cours ou terminée. Tout l'état jetable (stats, équipement, bénédictions,
+/// combat) vit dans `state` et disparaît avec la partie.
+model RpgTowerRun {
+  id        String @id @default(cuid())
+  profileId String
+  guildId   String
+  userId    String
+
+  /// ACTIVE | DEAD | LEFT
+  status  String @default("ACTIVE")
+  floor   Int    @default(1)
+  /// Incrémenté à chaque action : un vieux bouton ou un double clic ne rejoue rien.
+  version Int    @default(0)
+  state   Json
+
+  shardsEarned Int @default(0)
+
+  /// CLASSIC | DAILY | CLAN. L'ascension du jour a son propre classement ; celle de la Tour de
+  /// clan compte pour son clan (voir `RpgClanTowerEvent`).
+  mode          String  @default("CLASSIC")
+  /// Jour de l'ascension du jour (« 2026-09-28 », UTC), ou tentative de la Tour de clan
+  /// (« clan:<événement>:<jour> »).
+  dailyKey      String?
+  /// Tour de clan : l'événement et le clan du joueur à son entrée.
+  clanEventId   String?
+  clanId        String?
+  /// Bilan écrit à la clôture, pour les classements et les statistiques du dashboard.
+  floorsCleared Int     @default(0)
+  roomsExplored Int     @default(0)
+  /// Monstre qui a fait tomber le joueur.
+  killedBy      String?
+  /// Salle de la mort et empreinte de son étage (voir `towerLayoutKey`) : la carte des morts du
+  /// dashboard ne compte que les morts d'un étage resté tel quel depuis.
+  deathRoom     String?
+  deathFloorKey String?
+  /// Empreinte de la carte de chaque étage atteint, dans l'ordre : les statistiques par carte
+  /// du dashboard. Vide pour les parties d'avant ce champ.
+  floorKeys     String[] @default([])
+  /// Fantôme : la meilleure pièce portée à la mort, que le premier joueur à vaincre la même
+  /// salle récupère. `ghostClaimedBy` : qui l'a prise.
+  ghostGear      Json?
+  ghostClaimedBy String?
+
+  startedAt    DateTime  @default(now())
+  lastActionAt DateTime  @default(now())
+  endedAt      DateTime?
+
+  profile RpgTowerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, status])
+  @@index([guildId, userId, status])
+  @@index([guildId, mode, dailyKey])
+  @@index([guildId, deathFloorKey])
+  @@index([clanEventId, userId])
+  @@map("rpg_tower_runs")
+}
+
+// ============================================================================
+// TOUR DE CLAN
+// ============================================================================
+
+/// Réglages de la Tour de clan : une tour à part, ouverte chaque semaine, que les clans du
+/// serveur (rôles Discord, jamais les guildes RPG) gravissent chacun de leur côté.
+///
+/// Tout le monde y entre à égalité, comme dans l'ascension du jour, et rien n'en sort : ni
+/// éclats, ni équipement, ni record. Seuls les étages conquis par le clan comptent.
+model RpgClanTowerConfig {
+  guildId String  @id
+  enabled Boolean @default(false)
+  name    String  @default("Tour de clan")
+
+  /// Étages dessinés, au même format que ceux de la Tour (voir `rpgTowerMap.ts`).
+  layouts      Json    @default("[]")
+  /// Dernier enregistrement des étages (voir `RpgTowerConfig.floorsUpdatedAt`).
+  floorsUpdatedAt DateTime @default(now())
+  /// Après le dernier étage dessiné : GENERATE (étages générés) ou LOOP (retour au premier).
+  floorsAfter  String  @default("GENERATE")
+  generatedFog Boolean @default(true)
+
+  /// Ouverture hebdomadaire, sur le fuseau du serveur : 0 = dimanche, 6 = samedi.
+  weekday       Int @default(6)
+  hour          Int @default(18)
+  durationHours Int @default(48)
+
+  /// Points de clan (source RPG_TOWER_CLAN) par étage conquis, au membre qui l'a conquis.
+  pointsPerFloor Int   @default(10)
+  /// Bonus du podium, versés au clan entier à la clôture : 1er, 2e, 3e.
+  podiumPoints   Int[] @default([150, 100, 50])
+  /// Paliers collectifs : étages gravis au total par les membres d'un clan pendant la semaine.
+  /// Chacun renforce les tentatives suivantes du clan (voir `CLAN_TOWER_MILESTONE_BONUSES`).
+  milestones     Int[] @default([10, 25, 50])
+
+  /// Salon où annoncer l'ouverture. `null` : aucune annonce.
+  announceChannelId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("rpg_clan_tower_configs")
+}
+
+/// Une semaine de Tour de clan. Même graine pour tous les clans : ils gravissent les mêmes
+/// étages, variantes comprises, et leur classement se compare.
+model RpgClanTowerEvent {
+  id       String   @id @default(cuid())
+  guildId  String
+  startsAt DateTime
+  endsAt   DateTime
+  seed     Int
+  /// OPEN | CLOSED
+  status   String   @default("OPEN")
+  announcedAt DateTime?
+  closedAt    DateTime?
+  /// Bilan écrit à la clôture : classement, points versés par clan.
+  results     Json?
+
+  createdAt DateTime @default(now())
+
+  guild     Guild                  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  conquests RpgClanTowerConquest[]
+  rooms     RpgClanTowerRoom[]
+
+  @@unique([guildId, startsAt])
+  @@index([guildId, status])
+  @@map("rpg_clan_tower_events")
+}
+
+/// Étage conquis par un clan pendant un événement : le premier de ses membres à le franchir.
+/// Un étage ne se conquiert qu'une fois par clan.
+model RpgClanTowerConquest {
+  id          String   @id @default(cuid())
+  eventId     String
+  clanId      String
+  floor       Int
+  userId      String
+  conqueredAt DateTime @default(now())
+
+  event RpgClanTowerEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, clanId, floor])
+  @@index([eventId, clanId])
+  @@map("rpg_clan_tower_conquests")
+}
+
+/// Salle conquise par un clan : gardien, élite, épreuve, sceau, prisonnier ou sortie. Elle reste
+/// vaincue pour tout le clan jusqu'à la fin de l'événement. `layoutKey` (voir `towerLayoutKey`)
+/// lie la salle à une carte : un étage redessiné en cours de semaine repart de zéro.
+model RpgClanTowerRoom {
+  id          String   @id @default(cuid())
+  eventId     String
+  clanId      String
+  floor       Int
+  layoutKey   String
+  roomId      String
+  userId      String
+  conqueredAt DateTime @default(now())
+
+  event RpgClanTowerEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, clanId, floor, layoutKey, roomId])
+  @@index([eventId, clanId, floor])
+  @@map("rpg_clan_tower_rooms")
+}

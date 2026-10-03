@@ -50,28 +50,131 @@
     type = 'line', 
     options = {}, 
     height = 300,
-    width = null as number | null
+    width = null as number | null,
+    plugins = [] as any[]
   } = $props<{
     data: any;
     type?: keyof ChartTypeRegistry;
     options?: any;
     height?: number;
     width?: number | null;
+    /** Plugins Chart.js propres à ce graphique (repères, annotations). */
+    plugins?: any[];
   }>();
 
   let canvas = $state<HTMLCanvasElement | null>(null);
   let chart = $state<Chart | null>(null);
 
-  function getCSSVar(name: string) {
-    if (typeof window === 'undefined') return '';
-    // If it's already a color (hex/rgba), return it
-    if (name.startsWith('#') || name.startsWith('rgb') || !name.includes('--')) return name;
-    
-    // Extract variable name if it's in var(--name) format
-    const match = name.match(/var\((--[^)]+)\)/);
-    const varName = match ? match[1] : name;
-    
-    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  // Series sans couleur : Chart.js n'enregistre pas ici son plugin `Colors`, et
+  // retombe alors sur rgba(0, 0, 0, 0.1) - les graphiques sortaient en noir.
+  const PALETTE = [
+    'var(--color-primary)',
+    'var(--color-tertiary)',
+    '#0891b2',
+    'var(--color-success)',
+    'var(--color-warning)',
+    '#db2777',
+    'var(--color-error)',
+  ];
+  const PALETTE_FALLBACK = '#6366f1';
+
+  const COLOR_KEYS = [
+    'borderColor',
+    'backgroundColor',
+    'pointBackgroundColor',
+    'pointBorderColor',
+    'hoverBackgroundColor',
+    'hoverBorderColor',
+  ] as const;
+
+  function cssVar(name: string): string {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  let probe: CanvasRenderingContext2D | null = null;
+
+  /** Composantes RGB de n'importe quelle couleur CSS, lues sur un pixel de canvas. */
+  function toRgb(color: string): [number, number, number] {
+    probe ??= document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+    if (!probe) return [99, 102, 241];
+    probe.clearRect(0, 0, 1, 1);
+    probe.fillStyle = '#6366f1';
+    probe.fillStyle = color;
+    probe.fillRect(0, 0, 1, 1);
+    const [r, g, b] = probe.getImageData(0, 0, 1, 1).data;
+    return [r, g, b];
+  }
+
+  function withAlpha(color: string, alpha: number): string {
+    const [r, g, b] = toRgb(color);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  /**
+   * Le canvas ne lit pas les variables CSS : `var(--x)` y vaut du noir. Les
+   * jetons valant des hex, `rgb(var(--x))` et `rgba(var(--x), a)` - la forme
+   * des anciennes variables en triplets - ne sont pas valides non plus, meme en
+   * CSS : on les recompose avec l'alpha demande.
+   */
+  function resolveColor(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(resolveColor);
+    if (typeof value !== 'string' || !value.includes('var(')) return value;
+
+    const wrapped = value.match(/^rgba?\(\s*var\((--[\w-]+)\)\s*(?:,\s*([\d.]+)\s*)?\)$/);
+    if (wrapped) {
+      const base = cssVar(wrapped[1]);
+      return withAlpha(base || PALETTE_FALLBACK, wrapped[2] ? Number(wrapped[2]) : 1);
+    }
+    return value.replace(/var\((--[\w-]+)\)/g, (_, name) => cssVar(name) || PALETTE_FALLBACK);
+  }
+
+  function paletteColor(index: number): string {
+    return resolveColor(PALETTE[index % PALETTE.length]) as string;
+  }
+
+  function hasColor(dataset: any): boolean {
+    return dataset.borderColor != null || dataset.backgroundColor != null || !!dataset.gradient;
+  }
+
+  function prepareData(raw: any) {
+    const snapped = $state.snapshot(raw) as any;
+    const circular = type === 'doughnut' || type === 'pie';
+
+    return {
+      ...snapped,
+      datasets: (snapped?.datasets || []).map((dataset: any, index: number) => {
+        const d = { ...dataset };
+
+        if (!hasColor(d)) {
+          if (circular) {
+            d.backgroundColor = (d.data || []).map((_: unknown, i: number) => paletteColor(i));
+            d.borderWidth ??= 0;
+          } else {
+            const color = paletteColor(index);
+            d.borderColor = color;
+            d.backgroundColor = type === 'bar' ? withAlpha(color, 0.8) : withAlpha(color, 0.12);
+            d.pointBackgroundColor ??= color;
+            if (type === 'bar') d.borderRadius ??= 4;
+          }
+        }
+
+        for (const key of COLOR_KEYS) {
+          if (d[key] != null) d[key] = resolveColor(d[key]);
+        }
+
+        const gradientColors = d.gradient?.backgroundColor?.colors;
+        if (gradientColors) {
+          const colors: Record<string, unknown> = {};
+          for (const key in gradientColors) colors[key] = resolveColor(gradientColors[key]);
+          d.gradient = {
+            ...d.gradient,
+            backgroundColor: { ...d.gradient.backgroundColor, colors },
+          };
+        }
+
+        return d;
+      }),
+    };
   }
 
   function initChart() {
@@ -85,34 +188,8 @@
     const textColor = isDark ? '#94a3b8' : '#64748b';
     const gridColor = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
 
-    // Snap the data to avoid proxy issues with Chart.js
-    const snappedData = $state.snapshot(data);
-
-    // Pre-process data to resolve CSS variables for gradients
-    const processedData = {
-      ...snappedData,
-      datasets: (snappedData.datasets || []).map((dataset: any) => {
-        const d = { ...dataset };
-        if (d.gradient && d.gradient.backgroundColor && d.gradient.backgroundColor.colors) {
-          const colors = { ...d.gradient.backgroundColor.colors };
-          for (const key in colors) {
-            colors[key] = getCSSVar(colors[key]);
-          }
-          d.gradient = {
-            ...d.gradient,
-            backgroundColor: {
-              ...d.gradient.backgroundColor,
-              colors
-            }
-          };
-        }
-        // Also resolve borderColor/backgroundColor if they are variables
-        if (typeof d.borderColor === 'string') d.borderColor = getCSSVar(d.borderColor);
-        if (typeof d.backgroundColor === 'string') d.backgroundColor = getCSSVar(d.backgroundColor);
-        
-        return d;
-      })
-    };
+    // Resolu a chaque (re)creation : le theme change les valeurs des jetons.
+    const processedData = prepareData(data);
 
     const verticalLinePlugin = {
       id: 'verticalLine',
@@ -144,7 +221,7 @@
     const config: ChartConfiguration = {
       type: type as any,
       data: processedData,
-      plugins: [gradient, verticalLinePlugin],
+      plugins: [gradient, verticalLinePlugin, ...plugins],
       options: {
 
         responsive: true,
@@ -245,7 +322,7 @@
 
   $effect(() => {
     if (data && chart) {
-      chart.data = $state.snapshot(data);
+      chart.data = prepareData(data);
       chart.update();
     }
   });

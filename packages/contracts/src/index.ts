@@ -158,6 +158,25 @@ export {
 export type { HomeWidgetAccess } from './types/homeWidgets.js';
 
 export {
+  HOME_TASK_ACCESS,
+  HOME_TASK_KEYS,
+  HOME_TASKS_SNOOZE_ONLY,
+  HOME_TODO_SNOOZE_MAX_MS,
+  compareHomeTasks,
+  emptyHomeTodoPrefs,
+  normalizeHomeTodoPrefs,
+} from './types/homeTasks.js';
+export type {
+  HomeSetupGap,
+  HomeTask,
+  HomeTaskKey,
+  HomeTaskPreviewItem,
+  HomeTaskSeverity,
+  HomeTasksData,
+  HomeTodoPrefs,
+} from './types/homeTasks.js';
+
+export {
   PARTNERSHIP_BENEFIT_KINDS,
   PARTNERSHIP_BENEFIT_META,
   PARTNERSHIP_COMMITMENT_KINDS,
@@ -254,3 +273,26 @@ export type {
   RpgEnchantment,
   EnchantStack,
 } from './types/rpgEnchantments.js';
+
+export {
+  DASHBOARD_LATENCY_BUCKETS,
+  DASHBOARD_NAV_SOURCES,
+  DASHBOARD_TELEMETRY_EVENTS,
+  DASHBOARD_TELEMETRY_LIMITS,
+  isDashboardTelemetryEvent,
+  latencyBucketFor,
+  sanitizeTelemetryEntry,
+} from './types/dashboardTelemetry.js';
+export type {
+  DashboardLatencyBucket,
+  DashboardNavSource,
+  DashboardTelemetryEntry,
+  DashboardTelemetryEvent,
+  DashboardUsageDailyRow,
+  DashboardUsageDimensionRow,
+  DashboardUsageFeatureRow,
+  DashboardUsagePageRow,
+  DashboardUsageResult,
+  DashboardUsageRow,
+  DashboardUsageTabRow,
+} from './types/dashboardTelemetry.js';

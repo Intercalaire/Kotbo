@@ -22,6 +22,7 @@ import { normalizeRankCardCustomization, type LevelCurve } from '@kotbo/shared';
 import { readRankCardCustomization, saveRankCardCustomization } from '../../services/progression/rankCardService.js';
 import { evaluateAchievements } from '../../services/progression/achievementService.js';
 import { getGuildLevelCurve, getLevelFromXp, renderRankCard } from '../../services/progression/levelingService.js';
+import { ensureMemberProfiles } from '../../services/progression/memberProfileSync.js';
 
 import { jsonFailure } from '../shared/failure.js';
 // Repli de l'aperçu quand aucune progression réelle n'est disponible : la
@@ -232,6 +233,60 @@ export async function fetchOAuthGuilds(accessToken: string, forceFresh = false):
   }
 }
 
+/**
+ * Les serveurs ou le bot se trouve reellement, tous fragments confondus.
+ *
+ * `client.guilds.cache` ne connait que les serveurs du fragment qui repond
+ * a l'appel : des deux fragments, chacun declarait absents les serveurs de
+ * l'autre. La liste proposait donc de reinviter un bot deja present, et le
+ * tableau de bord d'un de ces serveurs s'ouvrait sur un bot qu'il croyait
+ * parti.
+ *
+ * Sur une instance sans fragmentation, `client.shard` est nul et le cache
+ * local fait foi - il est alors complet. Un fragment injoignable fait
+ * retomber sur ce meme cache plutot que de vider la liste.
+ */
+async function resolvePresentGuildIds(client: Client): Promise<Set<string>> {
+  const sharding = client.shard;
+  if (!sharding) return new Set(client.guilds.cache.keys());
+
+  try {
+    const perShard = await sharding.broadcastEval((shardClient) => [...shardClient.guilds.cache.keys()]);
+    return new Set(perShard.flat());
+  } catch (err) {
+    logger.warn('API', 'Presence du bot lue sur le seul fragment courant :', err);
+    return new Set(client.guilds.cache.keys());
+  }
+}
+
+/** Serveurs que la personne partage avec le bot, d'apres sa liste OAuth. */
+export async function resolveMutualGuildIds(client: Client, discordToken: string): Promise<string[]> {
+  const [oauthGuilds, presentGuildIds] = await Promise.all([
+    fetchOAuthGuilds(discordToken),
+    resolvePresentGuildIds(client),
+  ]);
+  return oauthGuilds.filter((guild) => presentGuildIds.has(guild.id)).map((guild) => guild.id);
+}
+
+/**
+ * Ouvre les fiches manquantes des serveurs partages. Rien ne doit attendre ni
+ * echouer a cause d'elle : l'appelant ne l'attend pas.
+ */
+export async function syncMutualMemberProfiles(
+  client: Client,
+  userId: string,
+  discordToken: string | null | undefined,
+  options: { force?: boolean } = {},
+): Promise<void> {
+  if (!discordToken) return;
+  try {
+    const guildIds = await resolveMutualGuildIds(client, discordToken);
+    await ensureMemberProfiles(client, userId, guildIds, options);
+  } catch (err) {
+    logger.warn('API', `Fiches de membre non synchronisees pour ${userId}:`, err);
+  }
+}
+
 export async function handleUserRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -253,6 +308,9 @@ export async function handleUserRoutes(
 
   // GET /api/user/me
   if (parts[2] === 'me' && method === 'GET') {
+    // Premier appel du dashboard apres la connexion : c'est la que le compte
+    // relie recoit sa fiche sur chaque serveur partage, qu'il y ait ecrit ou non.
+    void syncMutualMemberProfiles(client, user.userId, user.discordToken);
     const isBotAdmin = await resolveAdminAccess(client, user.userId);
     json(res, 200, { id: user.userId, username: user.username, avatar: user.avatar, isBotAdmin });
     return true;
@@ -373,31 +431,7 @@ export async function handleUserRoutes(
         instanceGuildIds = new Set(boundGuilds.map((g) => g.id));
       }
 
-      /**
-       * Les serveurs ou le bot se trouve reellement, tous fragments confondus.
-       *
-       * `client.guilds.cache` ne connait que les serveurs du fragment qui repond
-       * a l'appel : des deux fragments, chacun declarait absents les serveurs de
-       * l'autre. La liste proposait donc de reinviter un bot deja present, et le
-       * tableau de bord d'un de ces serveurs s'ouvrait sur un bot qu'il croyait
-       * parti.
-       *
-       * Sur une instance sans fragmentation, `client.shard` est nul et le cache
-       * local fait foi - il est alors complet. Un fragment injoignable fait
-       * retomber sur ce meme cache plutot que de vider la liste.
-       */
-      const presentGuildIds = await (async (): Promise<Set<string>> => {
-        const sharding = client.shard;
-        if (!sharding) return new Set(client.guilds.cache.keys());
-
-        try {
-          const perShard = await sharding.broadcastEval((shardClient) => [...shardClient.guilds.cache.keys()]);
-          return new Set(perShard.flat());
-        } catch (err) {
-          logger.warn('API', 'Presence du bot lue sur le seul fragment courant :', err);
-          return new Set(client.guilds.cache.keys());
-        }
-      })();
+      const presentGuildIds = await resolvePresentGuildIds(client);
 
       const manageable = oauthGuilds.filter((guild) => {
         let permissions = BigInt(0);

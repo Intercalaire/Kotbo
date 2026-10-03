@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { Route as RouteLegacy, router } from "tinro";
   const Route = RouteLegacy as any;
   import MainLayout from "./lib/components/MainLayout.svelte";
@@ -29,8 +29,11 @@
     resolvePageFeatureKey,
     resolveSecurityRedirect,
   } from "./lib/config/pages";
-  import { m } from "./lib/i18n";
+  import { m, getLocale } from "./lib/i18n";
   import { isDashboardApiError, isExpectedRefusal } from "./lib/api";
+  import { startTelemetry, trackRoute } from "./lib/telemetry/telemetry";
+  import { resolveDashboardTelemetryPage } from "./lib/telemetry/registry";
+  import { themeStore } from "./lib/stores/theme.svelte";
 
   const LEGACY_SECURITY_PATHS = Object.keys(SECURITY_LEGACY_REDIRECTS);
 
@@ -49,6 +52,19 @@
     if (authStore.selectedGuildId) {
       wizard.initialize(authStore.selectedGuildId);
     }
+  });
+
+  // Télémétrie produit : pages, onglets et modules consultés, temps passé
+  // (voir lib/telemetry). Relancé à chaque route et à chaque changement de
+  // serveur ; `startTelemetry` ne démarre qu'une fois.
+  $effect(() => {
+    if (!authStore.initialized || !authStore.isAuthenticated) return;
+    void authStore.selectedGuildId;
+    const path = $router.path;
+    untrack(() => {
+      startTelemetry({ theme: themeStore.mode, locale: getLocale() });
+      trackRoute(resolveDashboardTelemetryPage(path));
+    });
   });
 
   // Seules les pages du chemin critique restent en import statique : elles font
@@ -71,7 +87,10 @@
       /^\/\d{17,19}\/rpg\/?$/.test($router.path) ||
       /^\/\d{17,19}\/clan-rpg\/?$/.test($router.path) ||
       /^\/\d{17,19}\/giveaways(\/[A-Za-z0-9_-]+)?\/?$/.test($router.path) ||
-      ($router.path.startsWith("/profile/") && !authStore.isAuthenticated) ||
+      // Un membre sans role de staff n'a pas de tableau de bord autour du
+      // profil : il le voit comme un visiteur, depuis « Mon espace ».
+      ($router.path.startsWith("/profile/") &&
+        (!authStore.isAuthenticated || (authStore.initialized && !authStore.hasGuildAccess))) ||
       $router.path.startsWith("/transcripts/") ||
       $router.path.startsWith("/sanction-evidence/") ||
       $router.path.startsWith("/form/") ||
@@ -96,6 +115,13 @@
   );
   /** Pages qui ne parlent d'aucun serveur en particulier, donc sans garde de guilde. */
   const isGuildAgnosticPage = $derived($router.path === "/servers");
+
+  /**
+   * « Mon espace » : fiche et carte de rang, sans barre laterale. C'est aussi
+   * tout ce qu'il y a a montrer a un compte staff nulle part - l'ecran « acces
+   * refuse » entoure d'une navigation vide ne lui offrait rien a faire.
+   */
+  const isMemberSpace = $derived($router.path === "/me" || noGuildAccess);
 
   const needsActivation = $derived(
     dashboardStore.state.error === "activation_requise",
@@ -220,6 +246,11 @@
     router.goto(path);
   }
 
+  /** Redirection d'une ancienne adresse : remplace l'entrée d'historique, « Précédent » n'y revient pas. */
+  function redirectTo(node: HTMLElement, path: string) {
+    router.goto(path, true);
+  }
+
   /**
    * Une guilde qu'on n'arrive pas a resoudre ne vaut pas autorisation. Le repli
    * sur "admin" ouvrait les routes de configuration des que le serveur
@@ -316,7 +347,7 @@
         // raison de son clic est perdue en chemin.
         rememberLoginReturn($router.url);
         router.goto("/login");
-      } else if (authStore.isAuthenticated && $router.path === "/login") {
+      } else if (authStore.isAuthenticated && ($router.path === "/login" || $router.path === "/demo" || $router.path === "/demo/")) {
         router.goto("/");
       }
     });
@@ -678,6 +709,13 @@
             path="/servers"
             load={() => import("./pages/Servers.svelte")}
           />
+        {:else if isMemberSpace}
+          <!-- Avant le parcours et l'activation : ils concernent le serveur
+               selectionne, pas la fiche de la personne. -->
+          <LazyRoute
+            path="/*"
+            load={() => import("./pages/MemberSpace.svelte")}
+          />
         {:else if $router.path === "/activation"}
           <!-- Le chemin des codes : activation offerte, partenariat, reprise
                par le support. Il faut le demander - il n'accueille plus
@@ -753,10 +791,10 @@
                 path="/admin/activation"
                 load={() => import("./pages/admin/Activation.svelte")}
               />
-              <LazyRoute
-                path="/admin/modules"
-                load={() => import("./pages/admin/Modules.svelte")}
-              />
+              <!-- Ancienne page des modules : devenue l'onglet Modules d'Analytics. -->
+              <Route path="/admin/modules">
+                <div use:redirectTo={"/admin/analytics?tab=modules"}></div>
+              </Route>
               <LazyRoute
                 path="/admin/billing"
                 load={() => import("./pages/admin/Billing.svelte")}

@@ -681,6 +681,35 @@ describe('Modular Routers Unit Tests', () => {
       expect(res.body).toContain('<style>');
     });
 
+    test('OAuth authorize page lets the form redirect back to the client callback', async () => {
+      const req = createMockRequest({
+        method: 'GET',
+        url: '/api/mcp/112233445566778899/oauth/authorize?client_id=test&redirect_uri=http%3A%2F%2Flocalhost%3A33418%2Fcallback&code_challenge=abc',
+      });
+      const res = createMockResponse();
+      const parts = splitPath(new URL(req.url!, 'http://localhost').pathname);
+      const url = new URL(req.url!, 'http://localhost');
+
+      const handled = await handleMCPRoutes(req as IncomingMessage & { bodyText?: string }, res, parts, url, mockClient);
+      expect(handled).toBeTrue();
+      expect(res.statusCode).toBe(200);
+      expect(res.getHeader('content-security-policy')).toContain("form-action 'self' http://localhost:33418;");
+    });
+
+    test('OAuth authorize rejects a redirect_uri that would run script', async () => {
+      const req = createMockRequest({
+        method: 'GET',
+        url: '/api/mcp/112233445566778899/oauth/authorize?client_id=test&redirect_uri=javascript%3Aalert(1)&code_challenge=abc',
+      });
+      const res = createMockResponse();
+      const parts = splitPath(new URL(req.url!, 'http://localhost').pathname);
+      const url = new URL(req.url!, 'http://localhost');
+
+      const handled = await handleMCPRoutes(req as IncomingMessage & { bodyText?: string }, res, parts, url, mockClient);
+      expect(handled).toBeTrue();
+      expect(res.statusCode).toBe(400);
+    });
+
     test('GET MCP endpoint without token starts OAuth discovery instead of returning 405', async () => {
       const req = createMockRequest({
         method: 'GET',

@@ -5,6 +5,7 @@ import { type Client  } from 'discord.js';
 import * as sanctionService from './sanctionService.js';
 import { createNotification } from '../staff/staffLeadershipService.js';
 import { syncMemberClanFromDcLink } from '../community/clanService.js';
+import { recordDecision } from './dc/learning.js';
 
 /**
  * Service pour la gestion des comptes liés (Main/Alt)
@@ -161,6 +162,10 @@ export async function linkAccounts(params: {
 
   // Notifier les deux utilisateurs (uniquement si validé) et synchroniser leurs clans
   if (status === LinkedAccountStatus.VALIDATED) {
+    // Toute liaison validée par un humain (bouton d'alerte, dashboard, /dc, MCP)
+    // confirme les détections en attente sur ces comptes : le modèle en apprend.
+    if (linkedByUserId) void recordDecision(guildId, [idA, idB], 'TRUE_POSITIVE', linkedByUserId);
+
     await Promise.all([
       createNotification(guildId, idA, '🔗 Comptes liés', `Votre compte a été officiellement lié à <@${idB}>.`, 'SUCCESS', '/profile'),
       createNotification(guildId, idB, '🔗 Comptes liés', `Votre compte a été officiellement lié à <@${idA}>.`, 'SUCCESS', '/profile'),

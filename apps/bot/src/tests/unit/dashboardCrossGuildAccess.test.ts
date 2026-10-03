@@ -11,6 +11,13 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { readFileSync } from 'node:fs';
 
+/**
+ * Source d'une route du dashboard, fins de ligne ramenées à LF : les motifs
+ * cherchés ci-dessous portent des `\n`, qu'un checkout Windows (CRLF) cassait.
+ */
+const readRouteSource = (file: string) =>
+  readFileSync(path.resolve(import.meta.dir, '../../api/routes/dashboard', file), 'utf8').replace(/\r\n/g, '\n');
+
 const HERE = 'guild-here';
 const ELSEWHERE = 'guild-elsewhere';
 
@@ -136,7 +143,7 @@ describe('accès entre serveurs', () => {
   // Discord : le harnais serait plus gros que ce qu'il garde. La garde est lue sur la source,
   // comme `ticketOrphelinCablage`.
   test('chaque action sur un ticket le cherche aussi par son serveur', () => {
-    const source = readFileSync(path.resolve(import.meta.dir, '../../api/routes/dashboard/modules/tickets.ts'), 'utf8');
+    const source = readRouteSource('modules/tickets.ts');
     expect(source).not.toContain('prisma.ticket.findUnique({ where: { id: ticketId } })');
     expect(source.split('prisma.ticket.findFirst({ where: { id: ticketId, guildId } })').length - 1).toBe(9);
   });
@@ -144,7 +151,7 @@ describe('accès entre serveurs', () => {
   // Même garde, lue sur la source : ces routes passent d'abord par des contrôles de rôle qui
   // interrogent Discord, et la vérification tient en une clause sur le serveur.
   test('déclencheurs, clés API, comptes liés et soumissions sont filtrés par serveur', () => {
-    const read = (file: string) => readFileSync(path.resolve(import.meta.dir, '../../api/routes/dashboard', file), 'utf8');
+    const read = readRouteSource;
 
     const triggers = read('generalistModules.ts');
     expect(triggers).toContain('prisma.autoResponse.findFirst({\n          where: { id, guildId },');
@@ -160,7 +167,7 @@ describe('accès entre serveurs', () => {
   });
 
   test('un sous-élément de partenariat doit appartenir au dossier du serveur', () => {
-    const source = readFileSync(path.resolve(import.meta.dir, '../../api/routes/dashboard/partnerships.ts'), 'utf8');
+    const source = readRouteSource('partnerships.ts');
     for (const model of ['partnershipAgreement', 'partnershipCommitment', 'partnershipPromotion', 'partnershipGuestAccess', 'partnershipPayment']) {
       expect(source).toContain(`prisma.${model}.count({ where: scoped })`);
     }

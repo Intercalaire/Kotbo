@@ -18,7 +18,7 @@ for (const file of ['../../utils/db.ts', '../../utils/db.js']) {
   }));
 }
 
-const { collectPresenceText, isAutoRoleActive } = await import(
+const { collectPresenceText, getAutoRoleConfig, isAutoRoleActive } = await import(
   '../../services/features/serverTagRoleService.js'
 );
 
@@ -116,5 +116,17 @@ describe('isAutoRoleActive', () => {
       statusScanEnabled: true,
       statusScanKeyword: '.gg/kotbo',
     })).toBe(false);
+  });
+});
+
+describe('getAutoRoleConfig', () => {
+  test("met en cache l'absence de config pour ne pas relire la base à chaque présence", async () => {
+    mockDb.welcomeConfig.findUnique.mockClear();
+    const guildId = `sans-config-${Date.now()}`;
+
+    expect(await getAutoRoleConfig(guildId)).toBeNull();
+    expect(await getAutoRoleConfig(guildId)).toBeNull();
+
+    expect(mockDb.welcomeConfig.findUnique).toHaveBeenCalledTimes(1);
   });
 });

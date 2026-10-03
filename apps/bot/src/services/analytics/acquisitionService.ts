@@ -321,13 +321,19 @@ export async function recordAcquisitionStep(input: AcquisitionStepInput): Promis
 
   const at = input.occurredAt ?? new Date();
 
+  // Un identifiant de visite ne s'écrit que sur une ligne anonyme. À côté d'un
+  // compte ou d'un serveur, il rapprocherait la visite de la landing d'une
+  // personne, et la mesure du site perdrait l'exemption de consentement de la
+  // CNIL (voir `funnel.ts` côté landing).
+  const anonymous = !input.discordUserId && !input.guildId;
+
   try {
     await prisma.acquisitionEvent.create({
       data: {
         step: input.step,
         guildId: input.guildId ?? null,
         actorHash: hashActor(input.discordUserId),
-        visitorId: input.visitorId ?? null,
+        visitorId: anonymous ? (input.visitorId ?? null) : null,
         source: input.source ?? null,
         campaign: input.campaign ?? null,
         content: input.content ?? null,

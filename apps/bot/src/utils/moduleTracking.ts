@@ -1,13 +1,18 @@
 import {
-  recordModulePerformance,
-  incrementModuleUsage,
   setModuleActivation,
   type KotboModule,
 } from '../services/analytics/moduleStatsService.js';
+import { markModuleExecutionTracked, recordModuleExecution } from '../services/analytics/moduleUsageBuffer.js';
+import { resolveModuleKey } from '../services/core/moduleActivationService.js';
 
 /**
  * Wrapper pour tracker automatiquement les performances et l'utilisation des modules
  * Utilisation: wrapModuleTracking(moduleName, handlerFunction, args, options)
+ *
+ * Passe par le tampon groupé (moduleUsageBuffer.ts) plutôt que d'écrire en
+ * base à chaque exécution, sous la clé du registre des modules. Marque
+ * l'interaction (premier argument) pour que le suivi central d'index.ts ne la
+ * compte pas une seconde fois.
  */
 export async function wrapModuleTracking<T extends unknown[]>(
   moduleName: KotboModule,
@@ -22,42 +27,24 @@ export async function wrapModuleTracking<T extends unknown[]>(
 ) {
   const startTime = Date.now();
   let success = true;
-  let errorType: string | undefined;
+  markModuleExecutionTracked(args[0]);
 
   try {
     const result = await handler(...args);
     return result;
   } catch (error: unknown) {
     success = false;
-    errorType = (error instanceof Error ? error.name : undefined) ?? 'UnknownError';
     throw error;
   } finally {
-    const executionTimeMs = Date.now() - startTime;
-    
-    // Enregistrer les performances si guildId est disponible
     if (options?.guildId) {
-      await recordModulePerformance({
+      void recordModuleExecution({
         guildId: options.guildId,
-        moduleName,
-        executionTimeMs,
+        moduleName: resolveModuleKey(moduleName) ?? moduleName,
+        actionType: options.actionType || 'command',
+        userId: options.userId,
+        durationMs: Date.now() - startTime,
         success,
-        errorType,
-      }).catch((err) => {
-        console.error(`[ModuleTracking] Failed to record performance for ${moduleName}:`, err);
       });
-
-      // Enregistrer l'utilisation si userId est disponible
-      if (options?.userId) {
-        await incrementModuleUsage({
-          guildId: options.guildId,
-          moduleName,
-          actionType: options.actionType || 'command',
-          actionName: options.actionName,
-          userId: options.userId,
-        }).catch((err) => {
-          console.error(`[ModuleTracking] Failed to record usage for ${moduleName}:`, err);
-        });
-      }
     }
   }
 }

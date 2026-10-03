@@ -9,9 +9,16 @@
    *   3. Segments & Paliers (dimension drilldown, matrice hors palier)
    *   4. Rétention, Produit & Risques (cohortes M0-M12, signaux faibles, modules)
    *   5. Seuils & Alertes (configuration des alertes Discord)
+   *   6. Usage du dashboard (pages, modules et onglets consultés - télémétrie produit)
+   *   7. Modules (activation, usage et performance sur le parc ; ex-/admin/modules)
+   *
+   * L'onglet se lit et s'écrit dans `?tab=` : /admin/modules redirige vers
+   * `?tab=modules`, et un lien partagé rouvre le bon onglet.
    */
   import { onMount } from 'svelte';
   import AdminShell from '../../lib/components/admin/AdminShell.svelte';
+  import DashboardUsageTab from '../../lib/components/admin/analytics/DashboardUsageTab.svelte';
+  import ModulesTab from '../../lib/components/admin/analytics/ModulesTab.svelte';
   import AdminCard from '../../lib/components/admin/AdminCard.svelte';
   import AdminStat from '../../lib/components/admin/AdminStat.svelte';
   import AdminDrawer from '../../lib/components/admin/AdminDrawer.svelte';
@@ -42,8 +49,25 @@
   } from '../../lib/api';
 
   // ── Navigation & Filtres ───────────────────────────────────────────────────
-  type TabKey = 'funnel' | 'revenue' | 'segments' | 'retention' | 'alerts';
-  let activeTab = $state<TabKey>('funnel');
+  type TabKey = 'funnel' | 'revenue' | 'segments' | 'retention' | 'alerts' | 'usage' | 'modules';
+  const TAB_KEYS: readonly TabKey[] = ['funnel', 'revenue', 'segments', 'retention', 'alerts', 'usage', 'modules'];
+
+  function tabFromUrl(): TabKey {
+    const requested = new URLSearchParams(window.location.search).get('tab');
+    return TAB_KEYS.includes(requested as TabKey) ? (requested as TabKey) : 'funnel';
+  }
+
+  let activeTab = $state<TabKey>(tabFromUrl());
+
+  // Les onglets autonomes chargent eux-mêmes leurs données.
+  const SELF_LOADED_TABS = new Set<TabKey>(['usage', 'modules']);
+
+  $effect(() => {
+    const url = new URL(window.location.href);
+    if (activeTab === 'funnel') url.searchParams.delete('tab');
+    else url.searchParams.set('tab', activeTab);
+    if (url.href !== window.location.href) window.history.replaceState(window.history.state, '', url);
+  });
 
   type PeriodPreset = '7d' | '30d' | '90d' | '12m' | 'custom';
   let periodPreset = $state<PeriodPreset>('30d');
@@ -100,6 +124,10 @@
 
   // ── Chargement principal ───────────────────────────────────────────────────
   async function loadAll() {
+    if (SELF_LOADED_TABS.has(activeTab)) {
+      loading = false;
+      return;
+    }
     loading = true;
     error = null;
     const { from, to } = getQueryDates();
@@ -260,8 +288,8 @@
 </script>
 
 <AdminShell
-  title="Acquisition & Revenus"
-  description="Tunnel d'acquisition, chiffre d'affaires, cohortes de rétention et signaux faibles"
+  title="Analytics"
+  description="Acquisition, revenus, rétention, usage du dashboard et des modules sur tout le parc"
 >
   {#snippet actions()}
     <div class="flex items-center gap-2 flex-wrap">
@@ -298,7 +326,7 @@
       </div>
 
       <!-- Comparaison période précédente -->
-      {#if activeTab === 'funnel' || activeTab === 'revenue'}
+      {#if activeTab === 'funnel' || activeTab === 'revenue' || activeTab === 'usage' || activeTab === 'modules'}
         <button
           type="button"
           class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition
@@ -311,17 +339,20 @@
       {/if}
 
       <!-- Export CSV -->
-      <button
-        type="button"
-        disabled={exportingCsv}
-        class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container-high border border-outline-variant/30 text-xs font-semibold text-on-surface hover:bg-surface-container-highest transition disabled:opacity-50"
-        onclick={handleExportCsv}
-      >
-        <Papicon icon="Download" size={13} />
-        {exportingCsv ? 'Export...' : 'Export CSV'}
-      </button>
+      {#if !SELF_LOADED_TABS.has(activeTab)}
+        <button
+          type="button"
+          disabled={exportingCsv}
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container-high border border-outline-variant/30 text-xs font-semibold text-on-surface hover:bg-surface-container-highest transition disabled:opacity-50"
+          onclick={handleExportCsv}
+        >
+          <Papicon icon="Download" size={13} />
+          {exportingCsv ? 'Export...' : 'Export CSV'}
+        </button>
+      {/if}
 
       <!-- Rafraîchir -->
+      {#if !SELF_LOADED_TABS.has(activeTab)}
       <button
         type="button"
         disabled={loading}
@@ -331,6 +362,7 @@
       >
         <Papicon icon="RefreshCw" size={13} class={loading ? 'animate-spin' : ''} />
       </button>
+      {/if}
     </div>
   {/snippet}
 
@@ -381,7 +413,34 @@
       <Papicon icon="Bell" size={15} />
       Seuils d'alerte
     </button>
+    <button
+      type="button"
+      class="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition shrink-0
+        {activeTab === 'usage' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'}"
+      onclick={() => { activeTab = 'usage'; }}
+    >
+      <Papicon icon="Eye" size={15} />
+      Usage du dashboard
+    </button>
+    <button
+      type="button"
+      class="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition shrink-0
+        {activeTab === 'modules' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'}"
+      onclick={() => { activeTab = 'modules'; }}
+    >
+      <Papicon icon="Box" size={15} />
+      Modules
+    </button>
   </div>
+
+  {#if activeTab === 'usage' || activeTab === 'modules'}
+    {@const range = getQueryDates()}
+    {#if activeTab === 'usage'}
+      <DashboardUsageTab from={range.from} to={range.to} compare={comparePrevious} />
+    {:else}
+      <ModulesTab from={range.from} to={range.to} compare={comparePrevious} />
+    {/if}
+  {:else}
 
   {#if error}
     <div class="mb-6 p-4 rounded-2xl bg-error/10 border border-error/25 text-error flex items-center gap-3">
@@ -1075,6 +1134,7 @@
         </AdminCard>
       </div>
     {/if}
+  {/if}
   {/if}
 
   <!-- ═════════════════════════════════════════════════════════════════════════ -->

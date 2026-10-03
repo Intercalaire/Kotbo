@@ -79,14 +79,14 @@ describe('paliers de difficulté', () => {
 
   test('les statistiques restent dans leurs bornes', () => {
     const monstrous = rescaleStats(
-      { health: 100_000, attack: 10_000, defense: 10_000, speed: 10_000, xpReward: 1_000_000, coinReward: 1_000_000 },
+      { health: 1_000_000_000, attack: 1_000_000, defense: 1_000_000, speed: 1_000_000, xpReward: 1_000_000, coinReward: 1_000_000 },
       'NORMAL',
       'HARD',
       25,
     );
 
-    expect(monstrous.health).toBe(100_000);
-    expect(monstrous.attack).toBe(10_000);
+    expect(monstrous.health).toBe(1_000_000_000);
+    expect(monstrous.attack).toBe(1_000_000);
     expect(monstrous.xpReward).toBe(1_000_000);
 
     const harmless = rescaleStats({ health: 1, attack: 0, defense: 0, speed: 0, xpReward: 0, coinReward: 0 }, 'NORMAL', 'EASY', 1);

@@ -435,12 +435,23 @@ model Guild {
   guildHourlyStats GuildHourlyStat[]
   channelDailyStats ChannelDailyStat[]
   memberDailyStats MemberDailyStat[]
+  messageContentDailyStats MessageContentDailyStat[]
+  analyticsAnnotations AnalyticsAnnotation[]
+  memberInteractionDailyStats MemberInteractionDailyStat[]
+  channelResponseDailyStats ChannelResponseDailyStat[]
+  analyticsAlertRules AnalyticsAlertRule[]
+  analyticsReportSchedules AnalyticsReportSchedule[]
+  analyticsSavedViews AnalyticsSavedView[]
+  commandUsageDailyStats CommandUsageDailyStat[]
+  contentItemDailyStats ContentItemDailyStat[]
   memberInvites MemberInvite[]
   guildInvites  GuildInvite[]
   suspendedInviters SuspendedInviter[]
   linkedAccounts LinkedAccount[]
   youtubeFollows YoutubeChannelFollow[]
   twitchFollows TwitchChannelFollow[]
+  githubFollows GithubRepoFollow[]
+  huggingFaceFollows HuggingFaceFollow[]
   feeds Feed[]
 
   tutoringConfig TutoringConfig?
@@ -652,6 +663,11 @@ model Guild {
   rpgFish                  RpgFish[]
   rpgFishBookRewards       RpgFishBookReward[]
   rpgDungeons              RpgDungeon[]
+  rpgTowerConfig           RpgTowerConfig?
+  rpgTowerRewards          RpgTowerReward[]
+  rpgTowerProfiles         RpgTowerProfile[]
+  rpgClanTowerConfig       RpgClanTowerConfig?
+  rpgClanTowerEvents       RpgClanTowerEvent[]
   rpgBlackMarketSessions   RpgBlackMarketSession[]
   rpgRaidBosses            RpgRaidBoss[]
   rpgRaids                 RpgRaid[]
@@ -729,6 +745,12 @@ model Guild {
   wordStatsEnabled Boolean @default(false)
   // Suivi de l'indexation initiale depuis les messages déjà journalisés
   wordStatsBackfillStatus Json?
+  // Rattrapage des stats de contenu depuis message_logs. La migration qui l'a
+  // créé y a posé `cutoff` : le rattrapage ne lit que les messages antérieurs,
+  // le tracker live compte tout ce qui suit. Null = rien à rattraper.
+  contentStatsBackfillStatus Json?
+  // Rattrapage des stats de conversation (temps de réponse, interactions), même forme.
+  conversationStatsBackfillStatus Json?
 
   // Hygiène des bans : détection des comptes bannis supprimés par Discord
   banHygieneEnabled Boolean @default(true)

@@ -1313,9 +1313,24 @@ export async function generateRankCard(
   );
 }
 
-const RANK_CARD_LABELS: Record<BotLocale, { rank: string; level: string; totalXp: string; numberLocale: string }> = {
-  fr: { rank: 'RANG ', level: 'NIVEAU ', totalXp: 'XP total', numberLocale: 'fr-FR' },
-  en: { rank: 'RANK ', level: 'LEVEL ', totalXp: 'total XP', numberLocale: 'en-US' },
+const RANK_CARD_LABELS: Record<BotLocale, {
+  level: (level: number) => string;
+  rank: (rank: number) => string;
+  remaining: (xp: string, nextLevel: number) => string;
+  numberLocale: string;
+}> = {
+  fr: {
+    level: (level) => `Niveau ${level}`,
+    rank: (rank) => `${rank}${rank === 1 ? 'er' : 'e'} du serveur`,
+    remaining: (xp, nextLevel) => `Encore ${xp} XP pour le niveau ${nextLevel}`,
+    numberLocale: 'fr-FR',
+  },
+  en: {
+    level: (level) => `Level ${level}`,
+    rank: (rank) => `#${rank} on this server`,
+    remaining: (xp, nextLevel) => `${xp} XP to level ${nextLevel}`,
+    numberLocale: 'en-US',
+  },
 };
 
 /**
@@ -1343,26 +1358,12 @@ export async function renderRankCard(
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
 
-  // Background
+  // Fond : le seul degrade du preset. Les halos flous et les liseres en
+  // degrade haut et bas donnaient a toutes les cartes le meme air de gabarit ;
+  // les halos restent dans le catalogue, mais ne sont plus peints.
   const bg = ctx.createLinearGradient(0, 0, W, H);
   for (const stop of preset.gradient) bg.addColorStop(stop.offset, stop.color);
-  roundRect(ctx, 0, 0, W, H, 22, bg);
-
-  // Accent bar (top)
-  const topBar = ctx.createLinearGradient(0, 0, W, 0);
-  for (const stop of preset.accentBar) topBar.addColorStop(stop.offset, stop.color);
-  ctx.fillStyle = topBar;
-  ctx.fillRect(0, 0, W, 3);
-
-  // Glows
-  for (const glow of preset.glows) {
-    const cx = W * glow.x, cy = H * glow.y;
-    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, glow.radius);
-    gradient.addColorStop(0, glow.color);
-    gradient.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, W, H);
-  }
+  roundRect(ctx, 0, 0, W, H, 16, bg);
 
   drawRankCardPattern(ctx, custom.patternId, W, H);
 
@@ -1410,25 +1411,25 @@ export async function renderRankCard(
   ctx.fillStyle = statusColor;
   ctx.fill();
 
-  // Bloc RANG / NIVEAU : mesuré avant d'être tracé, car sa bordure gauche borne
-  // la place du pseudo. Les deux partagent la même ligne, et la police du pseudo
-  // étant au choix du membre, sa largeur ne peut plus être devinée.
-  const rankVal = `#${rank}`;
-  const levelVal = `${level}`;
-  ctx.font = 'bold 38px sans-serif';
-  const rankValW = ctx.measureText(rankVal).width;
-  const levelValW = ctx.measureText(levelVal).width;
-  ctx.font = 'bold 14px sans-serif';
-  const rankLabelW = ctx.measureText(labels.rank).width;
-  const levelLabelW = ctx.measureText(labels.level).width;
-  const levelX = W - 45 - rankValW - rankLabelW - 28;
-  const rightBlockLeft = levelX - levelValW - levelLabelW;
+  // Bloc niveau / rang, en phrases plutot qu'en etiquettes capitales facon
+  // tableau de bord : « Niveau 12 », « 7e du serveur ». Mesure avant d'etre
+  // trace, car sa bordure gauche borne la place du pseudo et du tag - la police
+  // du pseudo etant au choix du membre, sa largeur ne peut pas etre devinee.
+  const rightX = W - 45;
+  const levelText = labels.level(level);
+  const rankText = labels.rank(rank);
+  ctx.font = 'bold 26px sans-serif';
+  const levelTextW = ctx.measureText(levelText).width;
+  ctx.font = '16px sans-serif';
+  const rankTextW = ctx.measureText(rankText).width;
+  const rightBlockLeft = rightX - Math.max(levelTextW, rankTextW);
 
   // Name & tag
   const nameX = 210;
+  const identityMaxW = rightBlockLeft - nameX - 24;
   ctx.fillStyle = '#ffffff';
   ctx.font = `bold 30px ${fontStack}`;
-  ctx.fillText(fitText(ctx, subject.displayName, rightBlockLeft - nameX - 24), nameX, 80);
+  ctx.fillText(fitText(ctx, subject.displayName, identityMaxW), nameX, 80);
 
   // Le tag garde la police neutre : seule la graisse Bold des familles du
   // catalogue est embarquee, et un 17px normal retomberait de toute facon sur
@@ -1438,34 +1439,22 @@ export async function renderRankCard(
   const tagText = title
     ? title.title[locale]
     : subject.discriminator !== '0' ? `#${subject.discriminator}` : `@${subject.username}`;
-  ctx.fillStyle = title ? tierTextColor(title.tier) : '#6e7681';
+  ctx.fillStyle = title ? tierTextColor(title.tier) : '#8b949e';
   ctx.font = title ? 'bold 17px sans-serif' : '17px sans-serif';
   const emojiBandW = rankCardEmojiBandWidth(custom.emojis.length);
-  const fittedTag = fitText(ctx, tagText, W - 45 - nameX - emojiBandW);
+  const fittedTag = fitText(ctx, tagText, identityMaxW - emojiBandW);
   ctx.fillText(fittedTag, nameX, 106);
   const tagWidth = ctx.measureText(fittedTag).width;
 
   await drawRankCardEmojis(ctx, custom.emojis, nameX + tagWidth + 16, 99);
 
-  // Rank & Level (right side)
   ctx.textAlign = 'right';
-
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 38px sans-serif';
-  ctx.fillText(rankVal, W - 45, 72);
-
-  ctx.fillStyle = accentStart;
-  ctx.font = 'bold 14px sans-serif';
-  ctx.fillText(labels.rank, W - 45 - rankValW, 72);
-
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 38px sans-serif';
-  ctx.fillText(levelVal, levelX, 72);
-
-  ctx.fillStyle = accentEnd;
-  ctx.font = 'bold 14px sans-serif';
-  ctx.fillText(labels.level, levelX - levelValW, 72);
-
+  ctx.font = 'bold 26px sans-serif';
+  ctx.fillText(levelText, rightX, 76);
+  ctx.fillStyle = '#8b949e';
+  ctx.font = '16px sans-serif';
+  ctx.fillText(rankText, rightX, 104);
   ctx.textAlign = 'left';
 
   // XP text
@@ -1478,10 +1467,10 @@ export async function renderRankCard(
   const xpInCurrentLevel = Math.min(Math.max(0, xp - prevXpNeeded), xpRequiredForNextLevel);
   const progressPercent = Math.min(1, Math.max(0, xpInCurrentLevel / xpRequiredForNextLevel));
 
-  ctx.fillStyle = '#6e7681';
+  ctx.fillStyle = '#8b949e';
   ctx.font = '14px sans-serif';
   ctx.textAlign = 'right';
-  ctx.fillText(`${xpInCurrentLevel.toLocaleString(labels.numberLocale)} / ${xpRequiredForNextLevel.toLocaleString(labels.numberLocale)} XP`, W - 45, 155);
+  ctx.fillText(`${xpInCurrentLevel.toLocaleString(labels.numberLocale)} / ${xpRequiredForNextLevel.toLocaleString(labels.numberLocale)} XP`, rightX, 155);
   ctx.textAlign = 'left';
 
   await drawRankCardBadges(ctx, custom.badges, nameX, 140);
@@ -1498,26 +1487,18 @@ export async function renderRankCard(
     accentEnd,
   });
 
-  // Bottom text
-  ctx.fillStyle = '#3b4048';
-  ctx.font = '11px sans-serif';
-  ctx.fillText('Kotbo · Progression', nameX, barY + barH + 28);
-
-  ctx.textAlign = 'right';
-  const totalXpText = `${xp.toLocaleString(labels.numberLocale)} ${labels.totalXp}`;
-  ctx.fillText(totalXpText, W - 45, barY + barH + 28);
-  ctx.textAlign = 'left';
-
-  // Bottom accent bar
-  const bottomBar = ctx.createLinearGradient(0, 0, W, 0);
-  for (const stop of preset.accentBar) bottomBar.addColorStop(stop.offset, stop.color);
-  ctx.save();
-  // Le liseré du bas s'estompe sur les bords : on reprend le dégradé du haut
-  // avec un masque d'opacité plutôt que de dupliquer les couleurs en rgba.
-  ctx.globalAlpha = 0.35;
-  ctx.fillStyle = bottomBar;
-  ctx.fillRect(0, H - 2, W, 2);
-  ctx.restore();
+  // Sous la barre, ce qui reste a faire plutot qu'une signature : c'est la
+  // question que pose quelqu'un qui lance `/rank`. Rien au palier maximum.
+  const xpRemaining = nextXpNeeded - xp;
+  if (xpRemaining > 0) {
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '14px sans-serif';
+    ctx.fillText(
+      labels.remaining(xpRemaining.toLocaleString(labels.numberLocale), safeLevel + 1),
+      nameX,
+      barY + barH + 30,
+    );
+  }
 
   return canvas.toBuffer('image/png');
 }

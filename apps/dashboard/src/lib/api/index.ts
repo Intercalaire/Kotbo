@@ -36,6 +36,7 @@ export * from './insights';
 export * from './quests';
 export * from './widgets';
 export * from './homeWidgets';
+export * from './homeTasks';
 export * from './userSettings';
 export * from './changelog';
 export * from './transcripts';

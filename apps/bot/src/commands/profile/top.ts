@@ -9,6 +9,7 @@ import {
   getOrCreateEconomyConfig,
 } from '../../services/features/economyService.js';
 import { errorEmbed, COLORS } from '../../utils/embeds.js';
+import prisma from '../../utils/db.js';
 import { getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
@@ -39,6 +40,24 @@ const data = new SlashCommandBuilder()
         choice('peche'),
       ),
   );
+
+/**
+ * Meilleur étage de la Tour de chaque joueur, quand la Tour est active sur le serveur : il
+ * s'ajoute aux lignes des classements RPG. `null` : Tour éteinte, rien à afficher.
+ */
+async function towerFloors(guildId: string, userIds: string[]): Promise<Map<string, number> | null> {
+  const tower = await prisma.rpgTowerConfig.findUnique({ where: { guildId }, select: { enabled: true } });
+  if (!tower?.enabled || userIds.length === 0) return null;
+  const profiles = await prisma.rpgTowerProfile.findMany({
+    where: { guildId, userId: { in: userIds } },
+    select: { userId: true, bestFloorAllTime: true },
+  });
+  return new Map(profiles.map((profile) => [profile.userId, profile.bestFloorAllTime]));
+}
+
+function towerSuffix(floors: Map<string, number> | null, userId: string): string {
+  return floors ? ` | étage max ${floors.get(userId) ?? 0}` : '';
+}
 
 function medal(index: number): string {
   if (index === 0) return '🥇';
@@ -85,10 +104,11 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         return;
       }
       embed.setTitle(`⭐ Top RPG - ${interaction.guild?.name ?? ''}`);
+      const floors = await towerFloors(guildId, players.map((p) => p.userId));
       embed.setDescription(
         players.map((p, i) => {
           const xpNeeded = p.level * 100;
-          return `${medal(i)} <@${p.userId}> - **Niveau ${p.level}** (${p.xp}/${xpNeeded} XP) | ⚔️ ${p.attack} 🛡️ ${p.defense}`;
+          return `${medal(i)} <@${p.userId}> - **Niveau ${p.level}** (${p.xp}/${xpNeeded} XP) | ⚔️ ${p.attack} 🛡️ ${p.defense}${towerSuffix(floors, p.userId)}`;
         }).join('\n')
       );
 
@@ -112,9 +132,10 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         return;
       }
       embed.setTitle(`⚔️ Top Monstres - ${interaction.guild?.name ?? ''}`);
+      const floors = await towerFloors(guildId, players.map((p) => p.userId));
       embed.setDescription(
         players.map((p, i) =>
-          `${medal(i)} <@${p.userId}> - **${p.totalMonstersKilled}** monstres tués | 👑 ${p.totalBossesKilled} boss (Niv. ${p.level})`
+          `${medal(i)} <@${p.userId}> - **${p.totalMonstersKilled}** monstres tués | 👑 ${p.totalBossesKilled} boss (Niv. ${p.level})${towerSuffix(floors, p.userId)}`
         ).join('\n')
       );
 

@@ -45,6 +45,7 @@ import { handleStaffServerRoutes } from './dashboard/staffServer.js';
 import { handleChannelHealthRoutes } from './dashboard/channelHealth.js';
 import { handlePulseRoutes } from './dashboard/pulse.js';
 import { handleHomeWidgetsRoutes } from './dashboard/homeWidgets.js';
+import { handleHomeTasksRoutes } from './dashboard/homeTasks.js';
 import { handleReputationRoutes } from './dashboard/reputation.js';
 import { handleSatisfactionRoutes } from './dashboard/satisfaction.js';
 import { handleSeasonRoutes } from './dashboard/seasons.js';
@@ -62,6 +63,7 @@ import { handleGhostMembersRoutes } from './dashboard/ghostMembers.js';
 import { handleAuditEventRoutes } from './dashboard/auditEvents.js';
 import { handleWorkflowRoutes } from './dashboard/workflows.js';
 import { handleSimulationRoutes } from './dashboard/simulation.js';
+import { handleTelemetryRoute } from './dashboard/telemetry.js';
 import { featureKeysForSegment, getCachedFeatureAccess, isModuleUngatedSubroute, sharedModulesForSegment } from './dashboard/featureGate.js';
 
 /**
@@ -130,6 +132,12 @@ export async function handleDashboardRoutes(
   const user = await verifyAuth(req);
   if (!user) {
     json(res, 401, { error: 'Non authentifié' });
+    return true;
+  }
+
+  // 3ter. Télémétrie produit : hors serveur, avant les gardes d'accès par guilde
+  // (la route vérifie elle-même chaque serveur du lot).
+  if (await handleTelemetryRoute(req, res, parts, client, user)) {
     return true;
   }
 
@@ -323,6 +331,13 @@ export async function handleDashboardRoutes(
       && parts[5] !== 'config'
       && method !== 'GET';
 
+    // Les notes datées et les vues enregistrées d'Analytics se posent par tout
+    // lecteur de la section, sans droit de configuration. handleAnalyticsRoutes
+    // revérifie la lecture.
+    const isAnalyticsAnnotationAction = parts[4] === 'analytics'
+      && (parts[5] === 'annotations' || parts[5] === 'views')
+      && (method === 'POST' || method === 'DELETE');
+
     /**
      * Droits « Configurer » et « Supprimer » du centre de gestion.
      *
@@ -369,7 +384,7 @@ export async function handleDashboardRoutes(
       ? { ...access, canManageSettings: true }
       : access;
 
-    if (!access.canManageSettings && method !== 'GET' && !hasFeatureWriteRight && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isStaffResignationAction && !isNotificationAction && !isMeetingAction && !isNewsAction && !isMemberModerationAction && !isGiveawayManagerAction) {
+    if (!access.canManageSettings && method !== 'GET' && !hasFeatureWriteRight && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isStaffResignationAction && !isNotificationAction && !isMeetingAction && !isNewsAction && !isMemberModerationAction && !isGiveawayManagerAction && !isAnalyticsAnnotationAction) {
       json(res, 403, { error: 'Action réservée aux administrateurs du dashboard.' });
       return true;
     }
@@ -539,6 +554,9 @@ export async function handleDashboardRoutes(
       return true;
     }
     if (await handleHomeWidgetsRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
+      return true;
+    }
+    if (await handleHomeTasksRoutes(req, res, parts, client, user, guildId, effectiveAccess)) {
       return true;
     }
     if (await handleReputationRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {

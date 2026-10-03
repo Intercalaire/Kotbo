@@ -13,6 +13,9 @@
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
+  import GithubFollowsPanel from '../lib/components/social/GithubFollowsPanel.svelte';
+  import HuggingFaceFollowsPanel from '../lib/components/social/HuggingFaceFollowsPanel.svelte';
+  import { buildMentionOptions, keyToMention, withMentionKey } from '../lib/socialMentions';
   import {
     fetchSocialFollows,
     addYoutubeFollow,
@@ -23,8 +26,8 @@
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
-  const socialTabs = ['youtube', 'twitch'] as const;
-  let activeTab = $state<'youtube' | 'twitch'>('youtube');
+  const socialTabs = ['youtube', 'twitch', 'github', 'huggingface'] as const;
+  let activeTab = $state<(typeof socialTabs)[number]>('youtube');
 
   $effect(() => {
     const _path = $router.path;
@@ -33,45 +36,8 @@
 
   let availableChannels = $state<Array<{ id: string; name: string }>>([]);
   const availableRoles = $derived((dashboardStore.state.discordRoles || []) as Array<{ id: string; name: string }>);
-
-  /**
-   * Options du selecteur de mention : le ping est envoye tel quel par le bot,
-   * donc seules `@everyone`, `@here` et un role existant peuvent fonctionner.
-   * La cle manipulee dans l'UI reste l'ID du role (lisible dans la liste), la
-   * conversion en mention Discord se fait a l'enregistrement.
-   */
-  const mentionOptions = $derived([
-    { id: 'everyone', name: '@everyone' },
-    { id: 'here', name: '@here' },
-    ...availableRoles.map(r => ({ id: r.id, name: '@' + r.name })),
-  ]);
-
-  /** Mention stockee en base -> cle du selecteur (vide si la valeur est inexploitable). */
-  function mentionToKey(mention?: string | null): string {
-    const raw = (mention || '').trim();
-    if (!raw) return '';
-    if (raw === '@everyone') return 'everyone';
-    if (raw === '@here') return 'here';
-    const tagged = raw.match(/^<@&(\d{5,})>$/);
-    if (tagged) return tagged[1];
-    // Ancien format : certains suivis ne stockaient que l'ID brut du role.
-    if (/^\d{5,}$/.test(raw)) return raw;
-    return '';
-  }
-
-  /** Cle du selecteur -> mention envoyee a l'API. */
-  function keyToMention(key?: string | null): string | null {
-    const raw = (key || '').trim();
-    if (!raw) return null;
-    if (raw === 'everyone') return '@everyone';
-    if (raw === 'here') return '@here';
-    return `<@&${raw}>`;
-  }
-
-  /** Ajoute la cle de selection aux suivis renvoyes par l'API. */
-  function withMentionKey<T extends { mention?: string | null }>(list: T[] | undefined | null) {
-    return (list || []).map(f => ({ ...f, mentionKey: mentionToKey(f.mention) }));
-  }
+  const mentionOptions = $derived(buildMentionOptions(availableRoles));
+  const channelOptions = $derived(availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name })));
 
   let ytForm = $state({
     query: '',
@@ -91,6 +57,8 @@
 
   let youtubeFollows = $state<any[]>([]);
   let twitchFollows = $state<any[]>([]);
+  let githubFollows = $state<any[]>([]);
+  let huggingFaceFollows = $state<any[]>([]);
 
   const canManage = $derived(
     !!(dashboardStore.state.featureAccess as any)?.social_networks?.canConfigure ||
@@ -105,6 +73,8 @@
       if (res) {
         youtubeFollows = withMentionKey(res.youtube);
         twitchFollows = withMentionKey(res.twitch);
+        githubFollows = withMentionKey(res.github);
+        huggingFaceFollows = withMentionKey(res.huggingface);
       }
       availableChannels = (dashboardStore.state.discordChannels || []) as Array<{ id: string; name: string }>;
     } catch (e) {
@@ -278,6 +248,10 @@
         <Skeleton width="100%" height="80px" />
       </div>
     </div>
+  {:else if activeTab === 'github'}
+    <GithubFollowsPanel bind:follows={githubFollows} {channelOptions} {mentionOptions} {canManage} {actionState} />
+  {:else if activeTab === 'huggingface'}
+    <HuggingFaceFollowsPanel bind:follows={huggingFaceFollows} {channelOptions} {mentionOptions} {canManage} {actionState} />
   {:else}
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 

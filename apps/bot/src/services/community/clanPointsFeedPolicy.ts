@@ -43,6 +43,8 @@ const SOURCE_LABELS: Record<string, string> = {
   RPG_QUEST: 'RPG - quête',
   RPG_FIRST_KILL: 'Premier vainqueur',
   RPG_FISHBOOK: 'Carnet de pêche',
+  RPG_TOWER: 'RPG - Tour',
+  RPG_TOWER_CLAN: 'RPG - Tour de clan',
 };
 
 export function feedSourceLabel(source: string): string {

@@ -23,6 +23,7 @@ import {
   setDashboardStateBroadcaster,
   setDashboardEventBroadcaster,
   collectShardGuilds,
+  resolveDashboardAccess,
   type DashboardEvent,
   type DashboardSanctionType,
   BunServerResponse,
@@ -48,6 +49,14 @@ import { handleMCPRoutes, mcpRateLimiter } from './mcp/mcpServer.js';
 import { createHonoApp } from './hono/app.js';
 
 import { jsonFailure } from './shared/failure.js';
+import { canViewFeatureSection } from './routes/dashboard/featureGate.js';
+import {
+  addLiveSubscriber,
+  liveSnapshot,
+  liveTopic,
+  removeLiveSubscriber,
+  startLivePublisher,
+} from '../services/analytics/analyticsLiveService.js';
 export type { DashboardSanctionType };
 
 export async function notifyDashboardSanctionReportRequired(params: {
@@ -85,7 +94,13 @@ export async function notifyDashboardSanctionReportRequired(params: {
 interface WebSocketData {
   isAuthenticated: boolean;
   userId?: string;
+  /** Serveurs dont ce socket suit le temps réel d'Analytics. */
+  liveGuilds?: Set<string>;
 }
+
+const SNOWFLAKE_RE = /^\d{17,20}$/;
+/** Plafond d'abonnements live par socket : un onglet n'en suit qu'un à la fois. */
+const LIVE_SUBSCRIPTIONS_MAX = 5;
 
 export const startDashboardApi = async (client: Client) => {
   const instance = getCurrentInstance();
@@ -344,19 +359,50 @@ export const startDashboardApi = async (client: Client) => {
         ws.subscribe('authenticated-dashboard');
         ws.send(JSON.stringify({ type: 'dashboard_ws_connected', at: new Date().toISOString() }));
       },
-      message(ws, messageData) {
+      async message(ws, messageData) {
+        let data: { type?: string; guildId?: unknown };
         try {
           const raw = typeof messageData === 'string' ? messageData : new TextDecoder().decode(messageData);
-          const data = JSON.parse(raw) as { type?: string };
-          // Authentication happens during the HTTP upgrade. Keep accepting the
-          // old client message as a harmless no-op during the frontend rollout.
-          if (data.type === 'auth') return;
+          data = JSON.parse(raw) as { type?: string; guildId?: unknown };
         } catch {
           ws.close(4000, 'Payload invalide');
+          return;
+        }
+        // Authentication happens during the HTTP upgrade. Keep accepting the
+        // old client message as a harmless no-op during the frontend rollout.
+        if (data.type === 'auth') return;
+
+        // Temps réel d'Analytics : abonnement par serveur, droit de lecture de
+        // la section revérifié ici (le sujet commun ne porte que des signaux).
+        const guildId = typeof data.guildId === 'string' && SNOWFLAKE_RE.test(data.guildId) ? data.guildId : null;
+        if (!guildId || !ws.data.userId) return;
+        const live = (ws.data.liveGuilds ??= new Set());
+        if (data.type === 'analytics_live_unsubscribe') {
+          if (live.delete(guildId)) {
+            ws.unsubscribe(liveTopic(guildId));
+            removeLiveSubscriber(guildId);
+          }
+          return;
+        }
+        if (data.type !== 'analytics_live_subscribe' || live.has(guildId) || live.size >= LIVE_SUBSCRIPTIONS_MAX) return;
+        try {
+          const access = await resolveDashboardAccess(client, guildId, ws.data.userId);
+          if (!access.canViewDashboard || !(await canViewFeatureSection(client, guildId, access, ws.data.userId, 'analytics'))) {
+            ws.send(JSON.stringify({ type: 'analytics_live_denied', guildId }));
+            return;
+          }
+          live.add(guildId);
+          ws.subscribe(liveTopic(guildId));
+          addLiveSubscriber(guildId);
+          ws.send(JSON.stringify(liveSnapshot(client, guildId)));
+        } catch (err) {
+          logger.warn('DashboardWS', `Abonnement live refusé pour ${guildId} :`, err);
         }
       },
       close(ws) {
         ws.unsubscribe('authenticated-dashboard');
+        for (const guildId of ws.data.liveGuilds ?? []) removeLiveSubscriber(guildId);
+        ws.data.liveGuilds?.clear();
       }
     }
   });
@@ -405,6 +451,8 @@ export const startDashboardApi = async (client: Client) => {
   }
 
   if (!started) throw new Error(`API dashboard : impossible d'écouter sur le port ${port}.`);
+
+  startLivePublisher(client, (topic, payload) => server.publish(topic, payload));
 
   logger.success('DashboardAPI', `API dashboard à l'écoute sur le port ${port}.`);
 

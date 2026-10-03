@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Tabs } from './ui';
+  import MemberContentPanel from './analytics/MemberContentPanel.svelte';
   import type { MemberCaseResponse } from '@kotbo/contracts';
   import FormInput from './FormInput.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte';
@@ -11,7 +12,7 @@
   import Chart from './charts/Chart.svelte';
   import { inviteDetailsModal } from '../stores/inviteDetailsModal.svelte';
   import { channelDetailsModal } from '../stores/channelDetailsModal.svelte';
-  import { fetchMemberCase, fetchMemberDetailedAnalytics, updateSanctionReport, linkMemberAccount, unlinkMemberAccount, updateMemberNote, runMemberCaseAction, searchMessages, fetchMessageLogChannels } from '../api';
+  import { fetchMemberCase, fetchMemberDetailedAnalytics, updateSanctionReport, linkMemberAccount, unlinkMemberAccount, updateMemberNote, runMemberCaseAction, searchMessages, formatMessageSearchTotal, fetchMessageLogChannels } from '../api';
   import { toDateTimeLocal, typeLabel as formatTypeLabel } from '../sanctions/formatters';
   import { buildReportRuleOptions, getRuleIdsFromBrokenRules, getRulesFromBrokenRules, buildBrokenRulesPayload } from '../sanctions/reportRules';
   import SelectedRuleChips from './sanctions/SelectedRuleChips.svelte';
@@ -24,7 +25,7 @@
   import { renderLogHtml } from '../logDetails';
 
   import { errorMessage } from '@kotbo/shared';
-  type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics' | 'candidatures' | 'linked_accounts' | 'notes';
+  type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics' | 'contenu' | 'candidatures' | 'linked_accounts' | 'notes';
 
   type MemberAnalyticsResponse = {
     totalMessages: number;
@@ -80,6 +81,8 @@
 
   let messagesList = $state<any[]>([]);
   let messagesTotalCount = $state(0);
+  let messagesTotalCapped = $state(false);
+  let messagesHasMore = $state(false);
   let messagesLoading = $state(false);
   let messagesChannels = $state<any[]>([]);
 
@@ -183,6 +186,8 @@
       });
       messagesList = data.messages || [];
       messagesTotalCount = data.total || 0;
+      messagesTotalCapped = data.totalCapped;
+      messagesHasMore = data.hasMore;
     } catch (e) {
       console.error('Failed to load member messages:', e);
     } finally {
@@ -622,6 +627,7 @@
     { id: 'identite', label: m.mcm_tab_identity(), icon: 'user' },
     { id: 'activite', label: m.mcm_tab_activity(), icon: 'trending-up' },
     { id: 'analytics', label: m.mcm_tab_analytics(), icon: 'bar-chart-2' },
+    { id: 'contenu', label: m.anx_member_content_tab(), icon: 'message-square' },
     { id: 'messages', label: m.mcm_tab_messages(), icon: 'message-square', count: () => caseData?.recentMessageCount ?? 0 },
     { id: 'logs', label: m.mcm_tab_logs(), icon: 'history', count: () => caseData?.recentLogCount ?? 0 },
     { id: 'sanctions', label: m.mcm_tab_sanctions(), icon: 'hammer', count: () => sanctions.length },
@@ -781,6 +787,8 @@
       messageTo = '';
       messagesList = [];
       messagesTotalCount = 0;
+      messagesTotalCapped = false;
+      messagesHasMore = false;
       void loadMemberAnalytics();
     }
   });
@@ -1694,6 +1702,9 @@
                   {/if}
                 </div>
 
+              {:else if activeTab === 'contenu' && userId}
+                <MemberContentPanel {userId} />
+
               {:else if activeTab === 'messages'}
                 <div class="space-y-6">
                   <!-- Barre de Filtres Ergonomique -->
@@ -1855,10 +1866,10 @@
                     </div>
 
                     <!-- Pagination -->
-                    {#if messagesTotalCount > messageLimit}
+                    {#if messageOffset > 0 || messagesHasMore}
                       <div class="flex items-center justify-between border-t border-outline-variant/10 pt-6">
                         <span class="text-xs font-bold text-on-surface-variant/40">
-                          {m.mcm_pagination_range({ from: messageOffset + 1, to: Math.min(messageOffset + messageLimit, messagesTotalCount), total: messagesTotalCount })}
+                          {m.mcm_pagination_range({ from: messageOffset + 1, to: messageOffset + messagesList.length, total: formatMessageSearchTotal({ total: messagesTotalCount, totalCapped: messagesTotalCapped }) })}
                         </span>
 
                         <div class="flex items-center gap-2">
@@ -1874,7 +1885,7 @@
                           <button
                             type="button"
                             onclick={() => { messageOffset = messageOffset + messageLimit; }}
-                            disabled={messageOffset + messageLimit >= messagesTotalCount}
+                            disabled={!messagesHasMore}
                             class="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-container-high text-on-surface-variant hover:bg-surface-container-high-hover transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                           >
                             <Papicon icon="chevron-right" size={14} />

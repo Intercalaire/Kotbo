@@ -37,7 +37,7 @@ import { parseRpgRoute } from '../../handlers/interactionRoutes.js';
 import { applyFirstWinBonus, FIRST_WIN_BONUS } from './rpg/rpgDailyBonusPolicy.js';
 import { isFirstWinToday } from './rpg/rpgDailyBonusService.js';
 import { embedToV2 } from '../../utils/patchV2.js';
-import { combatHpBar, gaugeBar, icon, itemTypeIcon, rarityIcon, RPG_COLORS } from './rpg/rpgIcons.js';
+import { combatHpBar, gaugeBar, gaugeNumber, icon, itemTypeIcon, rarityIcon, RPG_COLORS } from './rpg/rpgIcons.js';
 import {
   asClanWarScope,
   getClanWarState,
@@ -73,6 +73,7 @@ import {
   FISH_COOLDOWN_MS,
   ADVENTURE_ENERGY_COST,
   isItemEquipped,
+  playerMaxEnergy,
   xpRequiredForLevel,
 } from './economyService.js';
 import {
@@ -645,7 +646,7 @@ async function buildHubContainer(
     stats,
     hp: { current: shownHp, max: stats.maxHealth },
     xp: { current: profile.xp, max: xpNeeded },
-    energy: { current: profile.energy, max: config.maxEnergy },
+    energy: { current: profile.energy, max: playerMaxEnergy(config, profile) },
     slots: cardSlots(profile, itemById, equipment, locale),
     guildName: profile.rpgGuild ? `${profile.rpgGuild.emoji} ${profile.rpgGuild.name}` : null,
     title: activeTitle,
@@ -672,7 +673,7 @@ async function buildHubContainer(
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
       `${icon('rpgHp')} ${shownHp} / ${stats.maxHealth} ${gaugeBar(shownHp, stats.maxHealth, 'hp')}\n`
       + `${icon('rpgXp')} ${profile.xp} / ${xpNeeded} ${gaugeBar(profile.xp, xpNeeded, 'xp')}\n`
-      + `${icon('rpgEnergy')} ${profile.energy} / ${config.maxEnergy} ${gaugeBar(profile.energy, config.maxEnergy, 'en')}\n\n`
+      + `${icon('rpgEnergy')} ${gaugeNumber(profile.energy)} / ${gaugeNumber(playerMaxEnergy(config, profile))} ${gaugeBar(profile.energy, playerMaxEnergy(config, profile), 'en')}\n\n`
       + m.rpg_profile_combat_stats_value({
         iAtk: icon('rpgAtk'), atk: stats.attack,
         iDef: icon('rpgDef'), def: stats.defense,
@@ -739,6 +740,7 @@ function hubNavOptions(locale: Locale, isAdmin: boolean): { label: string; value
     { label: m.rpg_hub_btn_quests({}, { locale }), value: 'quests', description: m.rpg_hub_nav_quests_desc({}, { locale }), emoji: icon('rpgMap') },
     { label: m.rpg_hub_btn_campaign({}, { locale }), value: 'campaign', description: m.rpg_hub_nav_campaign_desc({}, { locale }), emoji: icon('rpgKey') },
     { label: m.rpg_hub_btn_dungeon({}, { locale }), value: 'dungeon', description: m.rpg_hub_nav_dungeon_desc({}, { locale }), emoji: '🏰' },
+    { label: m.rpg_hub_btn_tower({}, { locale }), value: 'tower', description: m.rpg_hub_nav_tower_desc({}, { locale }), emoji: icon('rpgTower') },
     { label: m.rpg_hub_btn_character({}, { locale }), value: 'character', description: m.rpg_hub_nav_character_desc({}, { locale }), emoji: icon('rpgCharacter') },
     { label: m.rpg_hub_btn_skilltree({}, { locale }), value: 'skilltree', description: m.rpg_hub_nav_skilltree_desc({}, { locale }), emoji: icon('rpgEnchant') },
     { label: m.rpg_hub_btn_craft({}, { locale }), value: 'craft', description: m.rpg_hub_nav_craft_desc({}, { locale }), emoji: icon('rpgCraft') },
@@ -3747,7 +3749,7 @@ async function buildTravelView(guildId: string, ownerId: string, locale: Locale)
     .setTitle(m.rpg_travel_start_title({}, { locale }))
     .setDescription(m.rpg_travel_start_desc({}, { locale }))
     .setColor(RPG_COLORS.wild)
-    .addFields({ name: m.rpg_travel_field_energy_now({}, { locale }), value: `${profile.energy} / ${config.maxEnergy}` });
+    .addFields({ name: m.rpg_travel_field_energy_now({}, { locale }), value: `${gaugeNumber(profile.energy)} / ${gaugeNumber(playerMaxEnergy(config, profile))}` });
 
   const row = new ActionRowBuilder<ButtonBuilder>();
   destinations.forEach((dest, idx) => {
@@ -6939,9 +6941,11 @@ async function buildCharacterView(guildId: string, ownerId: string, locale: Loca
       new StringSelectMenuBuilder()
         .setCustomId(`rpg:classselect:${ownerId}`)
         .setPlaceholder(
-          profile.className
-            ? m.rpg_character_reclass_placeholder({ cost: RECLASS_COST }, { locale })
-            : m.rpg_character_class_placeholder({}, { locale }),
+          !profile.className
+            ? m.rpg_character_class_placeholder({}, { locale })
+            : profile.reclassVouchers > 0
+              ? m.rpg_character_reclass_voucher_placeholder({ count: profile.reclassVouchers }, { locale })
+              : m.rpg_character_reclass_placeholder({ cost: RECLASS_COST }, { locale }),
         )
         .addOptions(
           RPG_CLASS_LIST.map((entry) => ({
@@ -7159,9 +7163,11 @@ async function handleClassSelect(interaction: StringSelectMenuInteraction, guild
 
   // Une reconversion rend les points d'arbre investis : le taire laisserait croire qu'ils
   // ont été perdus avec l'ancienne classe.
-  const note = result.cost > 0
-    ? m.rpg_character_class_changed({ name: result.rpgClass.name, cost: result.cost }, { locale })
-    : m.rpg_character_class_chosen({ name: result.rpgClass.name }, { locale });
+  const note = result.voucher
+    ? m.rpg_character_class_changed_voucher({ name: result.rpgClass.name }, { locale })
+    : result.cost > 0
+      ? m.rpg_character_class_changed({ name: result.rpgClass.name, cost: result.cost }, { locale })
+      : m.rpg_character_class_chosen({ name: result.rpgClass.name }, { locale });
   const refund = result.refundedSkillPoints > 0
     ? ` ${m.rpg_character_skill_points_refunded({ points: result.refundedSkillPoints }, { locale })}`
     : '';
@@ -7551,6 +7557,10 @@ async function renderSection(
     case 'market': {
       const { buildMarketView } = await import('../economy/marketplacePanel.js');
       return buildMarketView(guildId, ownerId, interaction.guild, locale);
+    }
+    case 'tower': {
+      const { buildTowerHomeView } = await import('./rpg/rpgTowerPanel.js');
+      return buildTowerHomeView(interaction.client, guildId, ownerId, locale);
     }
     case 'admin': {
       if (!isInteractionAdmin(interaction)) {

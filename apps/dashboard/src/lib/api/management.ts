@@ -23,6 +23,8 @@ export async function scanSuspectedDetections(thresholdDays?: number, guildId = 
     method: 'POST',
     payload: thresholdDays !== undefined ? { thresholdDays } : undefined,
     guildId,
+    // Le bot charge toute la liste des membres depuis Discord avant de trier.
+    timeoutMs: 45_000,
     errorContext: 'API Error (Scan Suspected Detections):'
   });
 }

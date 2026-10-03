@@ -326,7 +326,7 @@
               </label>
             </div>
             <label class="block space-y-1 text-xs font-semibold text-on-surface-variant/60">
-              {m.eco_events_field_title()}
+              {m.eco_events_field_reward_title()}
               <select bind:value={choice.titleId} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs font-normal normal-case tracking-normal focus:outline-none">
                 <option value={null}>{titles.length > 0 ? m.eco_bestiary_title_none() : m.eco_bestiary_title_empty()}</option>
                 {#each titles as title (title.id)}

@@ -29,7 +29,7 @@ model MessageLog {
 
   @@index([guildId, createdAt])
   @@index([guildId, channelId])
-  @@index([guildId, authorId])
+  @@index([guildId, authorId, createdAt])
   @@index([guildId, deletedAt])
   @@index([guildId, repliedToAuthorId])
   @@map("message_logs")

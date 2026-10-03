@@ -97,4 +97,15 @@ export function registerRaidProtectionListener(client: Client): void {
       logger.error('RaidProtection', `Erreur GuildMemberUpdate pour ${member.id}`, err);
     }
   });
+
+  // Même mise à jour, pour un membre que discord.js n'avait pas en cache : elle
+  // n'émet pas GuildMemberUpdate et le tag posé passait inaperçu.
+  client.on(Events.GuildMemberAvailable, async (member: GuildMember | PartialGuildMember) => {
+    try {
+      if (member.partial) return;
+      await syncMemberTagRole(member);
+    } catch (err) {
+      logger.error('RaidProtection', `Erreur GuildMemberAvailable pour ${member.id}`, err);
+    }
+  });
 }

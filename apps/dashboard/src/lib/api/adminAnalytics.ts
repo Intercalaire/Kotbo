@@ -325,3 +325,63 @@ export async function downloadAdminAnalyticsCsv(view: string, options?: {
   a.remove();
   window.URL.revokeObjectURL(url);
 }
+
+// ── Usage du dashboard (télémétrie produit) ───────────────────────────────────
+
+export type { DashboardUsageResult } from '@kotbo/contracts';
+
+export async function fetchAdminDashboardUsage(options?: {
+  from?: string;
+  to?: string;
+  guildId?: string;
+  compare?: boolean;
+}): Promise<import('@kotbo/contracts').DashboardUsageResult> {
+  const params = new URLSearchParams();
+  if (options?.from) params.set('from', options.from);
+  if (options?.to) params.set('to', options.to);
+  if (options?.guildId) params.set('guildId', options.guildId);
+  if (options?.compare) params.set('compare', 'previous');
+
+  const res = await authorizedFetch(`${API_BASE_URL}/api/admin/analytics/dashboard-usage?${params.toString()}`);
+  if (!res.ok) throw new Error("Erreur lors du chargement de l'usage du dashboard");
+  return res.json();
+}
+
+// ── Modules sur le parc ───────────────────────────────────────────────────────
+
+export interface ModuleFleetRow {
+  /** Clé du registre des modules, ou `core` pour les commandes générales. */
+  module: string;
+  enabledGuilds: number;
+  activationRate: number;
+  usedGuilds: number;
+  commands: number;
+  apiCalls: number;
+  events: number;
+  totalUsage: number;
+  previousUsage: number;
+  userDays: number;
+  executions: number;
+  avgExecutionMs: number;
+  maxExecutionMs: number;
+  errors: number;
+  errorRate: number;
+}
+
+export interface ModuleFleetResult {
+  from: string;
+  to: string;
+  totalGuilds: number;
+  modules: ModuleFleetRow[];
+  daily: Array<{ dateKey: string; usage: number }>;
+}
+
+export async function fetchAdminModuleFleet(options?: { from?: string; to?: string }): Promise<ModuleFleetResult> {
+  const params = new URLSearchParams();
+  if (options?.from) params.set('from', options.from);
+  if (options?.to) params.set('to', options.to);
+
+  const res = await authorizedFetch(`${API_BASE_URL}/api/admin/analytics/module-fleet?${params.toString()}`);
+  if (!res.ok) throw new Error('Erreur lors du chargement des modules');
+  return res.json();
+}

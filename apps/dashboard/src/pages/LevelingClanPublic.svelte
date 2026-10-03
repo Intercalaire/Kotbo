@@ -1066,6 +1066,10 @@
                         <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-500 border border-yellow-500/30"><Papicon icon="award" size={10} /> {m.clan_public_source_rpg_first_kill()}</span>
                       {:else if s.source === 'RPG_FISHBOOK'}
                         <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-500 border border-cyan-500/20"><Papicon icon="Fish" size={10} /> {m.clan_public_source_rpg_fishbook()}</span>
+                      {:else if s.source === 'RPG_TOWER'}
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg_tower()}</span>
+                      {:else if s.source === 'RPG_TOWER_CLAN'}
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg_tower_clan()}</span>
                       {:else if s.source === 'RPG'}
                         <!-- Gains enregistres avant la separation des trois origines. -->
                         <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-fuchsia-500/10 text-fuchsia-500 border border-fuchsia-500/20">{m.clan_public_source_rpg()}</span>

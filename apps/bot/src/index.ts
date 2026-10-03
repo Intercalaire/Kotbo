@@ -1,5 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import { trackGhostSignal } from './services/analytics/ghostActivityTracker.js';
+import { recordModuleExecution, wasModuleExecutionTracked } from './services/analytics/moduleUsageBuffer.js';
+import { commandLabel, recordCommandUsage } from './services/analytics/commandStatsService.js';
 import dotenv from 'dotenv';
 import path from 'path';
 dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
@@ -315,16 +317,33 @@ async function enforceCommandAccess(interaction: ChatInputCommandInteraction): P
  * Répond en éphémère plutôt que de rester muet : un membre qui tape une
  * commande attend un retour, et un silence se lit comme une panne du bot.
  */
+function interactionModuleKey(interaction: Interaction): string | undefined {
+  if (interaction.isChatInputCommand() || interaction.isContextMenuCommand() || interaction.isAutocomplete()) {
+    return getCommandModuleKey(interaction.commandName);
+  }
+  if ('customId' in interaction && typeof interaction.customId === 'string') {
+    return getModuleForCustomId(interaction.customId);
+  }
+  return undefined;
+}
+
+/**
+ * Suivi d'usage et de performance par module (onglet Modules de
+ * l'administration). Une commande sans module du registre compte sous `core` ;
+ * un composant sans module, l'autocomplétion et les MP ne comptent pas.
+ */
+function startModuleTracking(interaction: Interaction): { moduleKey: string; actionType: 'command' | 'event'; startedAt: number } | null {
+  if (!interaction.guildId || interaction.isAutocomplete()) return null;
+  const isCommand = interaction.isChatInputCommand() || interaction.isContextMenuCommand();
+  const moduleKey = interactionModuleKey(interaction) ?? (isCommand ? 'core' : undefined);
+  if (!moduleKey) return null;
+  return { moduleKey, actionType: isCommand ? 'command' : 'event', startedAt: Date.now() };
+}
+
 async function enforceModuleGate(interaction: Interaction): Promise<boolean> {
   if (!interaction.guildId) return true;
 
-  let moduleKey: string | undefined;
-  if (interaction.isChatInputCommand() || interaction.isContextMenuCommand() || interaction.isAutocomplete()) {
-    moduleKey = getCommandModuleKey(interaction.commandName);
-  } else if ('customId' in interaction && typeof interaction.customId === 'string') {
-    moduleKey = getModuleForCustomId(interaction.customId);
-  }
-
+  const moduleKey = interactionModuleKey(interaction);
   if (!moduleKey) return true;
   if (await isModuleEnabled(interaction.guildId, moduleKey)) return true;
 
@@ -728,6 +747,9 @@ async function announceBotGuildChange(guildId: string, change: 'joined' | 'left'
 
 client.on(Events.InteractionCreate, async (interaction) => {
   logger.info('Interactions', `Interaction reçue: ${interaction.type} - ${interaction.id}`);
+  let moduleTracking: ReturnType<typeof startModuleTracking> = null;
+  let interactionFailed = false;
+  const interactionStartedAt = Date.now();
   try {
     // 1. Vérification de la blacklist globale
     const blacklist: Set<string> = global.KOTBO_BLACKLIST || new Set();
@@ -781,6 +803,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (!(await enforceModuleGate(interaction))) {
       return;
     }
+    moduleTracking = startModuleTracking(interaction);
 
     if (interaction.isChatInputCommand()) {
       if (!(await enforceCommandAccess(interaction))) {
@@ -900,6 +923,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    interactionFailed = true;
     captureException(err, 'interaction-create');
     logger.error('Event', 'InteractionCreate error:', err);
     try {
@@ -927,6 +951,31 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
       logger.error('Event', 'InteractionCreate error:', e);
+    }
+  } finally {
+    // Analytics des commandes : une ligne par jour, commande et membre.
+    if (interaction.isChatInputCommand() && interaction.guildId && !interaction.user.bot) {
+      void recordCommandUsage({
+        guildId: interaction.guildId,
+        commandName: commandLabel(
+          interaction.commandName,
+          interaction.options.getSubcommandGroup(false),
+          interaction.options.getSubcommand(false),
+        ),
+        userId: interaction.user.id,
+        durationMs: Date.now() - interactionStartedAt,
+        success: !interactionFailed,
+      });
+    }
+    if (moduleTracking && interaction.guildId && !wasModuleExecutionTracked(interaction)) {
+      void recordModuleExecution({
+        guildId: interaction.guildId,
+        moduleName: moduleTracking.moduleKey,
+        actionType: moduleTracking.actionType,
+        userId: interaction.user.bot ? undefined : interaction.user.id,
+        durationMs: Date.now() - moduleTracking.startedAt,
+        success: !interactionFailed,
+      });
     }
   }
 });

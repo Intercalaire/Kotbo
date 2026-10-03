@@ -49,6 +49,18 @@ function maintainActivityCooldowns(now: number): void {
 }
 
 /**
+ * Énergie max qu'un joueur peut gagner au-dessus de celle du serveur. Assez haut pour ne
+ * pas brider les serveurs qui poussent la personnalisation, assez bas pour qu'une somme
+ * reste loin des bornes d'un entier en base.
+ */
+export const RPG_BONUS_MAX_ENERGY_CAP = 2_000_000;
+
+/** Énergie max d'un joueur : celle du serveur, plus ce qu'il a gagné. */
+export function playerMaxEnergy(config: { maxEnergy: number }, profile: { bonusMaxEnergy?: number | null }): number {
+  return config.maxEnergy + Math.max(0, profile.bonusMaxEnergy ?? 0);
+}
+
+/**
  * Gets or creates the global/local economy configuration for a guild.
  */
 export async function getOrCreateEconomyConfig(guildId: string) {
@@ -167,7 +179,7 @@ export async function getOrCreateRpgProfile(guildId: string, userId: string) {
       const regenerated = await prisma.$executeRaw`
         UPDATE "rpg_profiles"
         SET "health" = GREATEST("health", LEAST("maxHealth", "health" + ${hpToRecover})),
-            "energy" = GREATEST(0, LEAST(${config.maxEnergy}, GREATEST(0, "energy") + ${energyToRecover})),
+            "energy" = GREATEST(0, LEAST(${config.maxEnergy} + GREATEST(0, "bonusMaxEnergy"), GREATEST(0, "energy") + ${energyToRecover})),
             "lastEnergyTick" = ${new Date(now)}
         WHERE "id" = ${profile.id}
           AND ${profile.lastEnergyTick === null
@@ -892,7 +904,7 @@ export async function consumePotionItem(guildId: string, userId: string, itemId:
       hp: restoredHp,
       energy: restoredEnergy,
       maxHealth: stats.maxHealth,
-      maxEnergy: config.maxEnergy,
+      maxEnergy: playerMaxEnergy(config, profile),
     });
   });
 

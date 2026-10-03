@@ -21,6 +21,9 @@ export const RPG_QUEST_OBJECTIVES = [
   'COINS_SPENT',
   'ADVENTURES_COMPLETED',
   'DAILY_CLAIMS',
+  'TOWER_FLOORS',
+  'TOWER_MONSTER_KILLS',
+  'TOWER_BOSS_KILLS',
 ] as const;
 export type RpgQuestObjective = (typeof RPG_QUEST_OBJECTIVES)[number];
 

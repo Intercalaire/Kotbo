@@ -13,6 +13,8 @@ import { enqueueBackgroundJob, registerBackgroundJobHandlers, type BackgroundJob
 import { captureException } from '../observability/sentry.js';
 import { checkYoutubeFollows } from '../services/integrations/youtubeService.js';
 import { checkTwitchFollows } from '../services/integrations/twitchService.js';
+import { checkGithubFollows } from '../services/integrations/githubService.js';
+import { checkHuggingFaceFollows } from '../services/integrations/huggingFaceService.js';
 import { initializeDatabaseBackup } from '../services/system/databaseBackupService.js';
 import { checkTicketInactivity } from '../services/features/ticketService.js';
 import { checkExpiredGiveaways } from '../services/features/giveawayService.js';
@@ -188,6 +190,14 @@ export async function registerCrons(client: Client): Promise<void> {
       logger.debug('Cron', 'Vérification Twitch...');
       await checkTwitchFollows(client);
     },
+    github: async () => {
+      logger.debug('Cron', 'Vérification GitHub...');
+      await checkGithubFollows(client);
+    },
+    huggingface: async () => {
+      logger.debug('Cron', 'Vérification Hugging Face...');
+      await checkHuggingFaceFollows(client);
+    },
     'partnerships-hourly': async () => {
       logger.debug('Cron', 'Cycle horaire des partenariats...');
       const { runHourlyPartnershipCycle } = await import('../services/partnerships/partnershipCycleService.js');
@@ -253,6 +263,21 @@ export async function registerCrons(client: Client): Promise<void> {
       const { runRaidCycle } = await import('../services/features/rpg/rpgRaidService.js');
       await runRaidCycle(client);
     },
+    'clan-tower-cycle': async () => {
+      logger.debug('Cron', 'Cycle de la Tour de clan (ouverture, clôture)...');
+      const { runClanTowerCycle } = await import('../services/features/rpg/rpgClanTowerService.js');
+      await runClanTowerCycle(client);
+    },
+    'tower-idle-expiration': async () => {
+      logger.debug('Cron', 'Clôture des ascensions de la Tour inactives...');
+      const { expireIdleTowerRuns } = await import('../services/features/rpg/rpgTowerService.js');
+      await expireIdleTowerRuns(client);
+    },
+    'tower-daily-podium': async () => {
+      logger.debug('Cron', 'Podium du défi du jour de la Tour...');
+      const { payTowerDailyPodiums } = await import('../services/features/rpg/rpgTowerService.js');
+      await payTowerDailyPodiums();
+    },
     'meeting-notifications': async () => {
       await processMeetingNotifications();
     },
@@ -260,6 +285,14 @@ export async function registerCrons(client: Client): Promise<void> {
       logger.debug('Cron', 'Analyse de santé des salons...');
       const { runChannelHealthAnalysis } = await import('../services/analytics/channelHealthService.js');
       await runChannelHealthAnalysis(client);
+    },
+    'analytics-alerts': async () => {
+      const { runAnalyticsAlerts } = await import('../services/analytics/analyticsAlertsService.js');
+      await runAnalyticsAlerts(client);
+    },
+    'analytics-reports': async () => {
+      const { runAnalyticsReports } = await import('../services/analytics/analyticsReportService.js');
+      await runAnalyticsReports(client);
     },
     'pulse-snapshot': async () => {
       logger.debug('Cron', 'Calcul du Pulse pour tous les serveurs...');
@@ -383,6 +416,10 @@ export async function registerCrons(client: Client): Promise<void> {
       await pruneAcquisitionEvents();
       await anonymiseDepartedGuilds();
     },
+    'dashboard-telemetry-prune': async () => {
+      const { pruneDashboardTelemetry } = await import('../services/analytics/dashboardTelemetryService.js');
+      await pruneDashboardTelemetry();
+    },
     'acquisition-abandon-scan': async () => {
       const { scanAbandonedOnboardings } = await import('../services/analytics/acquisitionMaintenance.js');
       await scanAbandonedOnboardings();
@@ -467,6 +504,15 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 5000);
   }, 60_000).unref?.();
 
+  // Même raison pour la présence : les retours et départs survenus pendant la
+  // coupure n'ont été vus par personne.
+  setTimeout(() => {
+    void runLocalSweep('member-presence-reconcile', async () => {
+      const { reconcileAllMemberPresence } = await import('../services/analytics/memberPresenceService.js');
+      await reconcileAllMemberPresence(client);
+    });
+  }, 5 * 60_000).unref?.();
+
   // 📊 Daily Algo: Toutes les minutes (vérification de l'heure configurée)
   cron.schedule('* * * * *', async () => {
     await runCronJob('daily-algo', async () => {
@@ -533,6 +579,30 @@ export async function registerCrons(client: Client): Promise<void> {
       const { runRaidCycle } = await import('../services/features/rpg/rpgRaidService.js');
       await runRaidCycle(client);
     }, 1000);
+  });
+
+  // La Tour de clan : ouverture de la semaine, annonce et clôture (toutes les minutes)
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('clan-tower-cycle', async () => {
+      const { runClanTowerCycle } = await import('../services/features/rpg/rpgClanTowerService.js');
+      await runClanTowerCycle(client);
+    }, 1000);
+  });
+
+  // La Tour : clôture des ascensions restées inactives (toutes les 5 minutes)
+  cron.schedule('*/5 * * * *', async () => {
+    await runCronJob('tower-idle-expiration', async () => {
+      const { expireIdleTowerRuns } = await import('../services/features/rpg/rpgTowerService.js');
+      await expireIdleTowerRuns(client);
+    }, 2000);
+  });
+
+  // La Tour : podium du défi de la veille, dès que ses dernières ascensions sont closes (tous les quarts d'heure)
+  cron.schedule('*/15 * * * *', async () => {
+    await runCronJob('tower-daily-podium', async () => {
+      const { payTowerDailyPodiums } = await import('../services/features/rpg/rpgTowerService.js');
+      await payTowerDailyPodiums();
+    }, 2000);
   });
 
   // 📊 Activity & Heatmap: Toutes les 10 minutes (Snapshot présences lissé)
@@ -605,6 +675,14 @@ export async function registerCrons(client: Client): Promise<void> {
       );
       await pruneAcquisitionEvents();
       await anonymiseDepartedGuilds();
+    }, 2000);
+  });
+
+  // 🧭 Telemetrie du dashboard : purge au-dela de 180 jours (03:55).
+  cron.schedule('55 3 * * *', async () => {
+    await runCronJob('dashboard-telemetry-prune', async () => {
+      const { pruneDashboardTelemetry } = await import('../services/analytics/dashboardTelemetryService.js');
+      await pruneDashboardTelemetry();
     }, 2000);
   });
 
@@ -802,6 +880,16 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 5000);
   });
 
+  // 👥 Présence des membres : corrige les fiches « parti » de membres revenus,
+  // et les départs manqués, toutes les 6 h. Propre au shard, chacun ne voyant
+  // que ses serveurs : une passe mise en file n'en couvrirait qu'un.
+  cron.schedule('15 */6 * * *', async () => {
+    await runLocalSweep('member-presence-reconcile', async () => {
+      const { reconcileAllMemberPresence } = await import('../services/analytics/memberPresenceService.js');
+      await reconcileAllMemberPresence(client);
+    });
+  });
+
   // 👋 Threads d'accueil: purge des threads inactifs (toutes les heures).
   // Le plafond de suppressions par passage étale la charge sur plusieurs heures
   // quand un salon a accumulé un gros retard.
@@ -885,6 +973,12 @@ export async function registerCrons(client: Client): Promise<void> {
       runCronJob('twitch', async () => {
         await checkTwitchFollows(client);
       }, 5000),
+      runCronJob('github', async () => {
+        await checkGithubFollows(client);
+      }, 5000),
+      runCronJob('huggingface', async () => {
+        await checkHuggingFaceFollows(client);
+      }, 5000),
     ]);
   });
 
@@ -910,6 +1004,19 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('leaderboard-refresh', async () => {
       await refreshAllAutoLeaderboards(client);
     }, 5000);
+  });
+
+  // 📈 Analytics : alertes sur seuil et rapports planifiés, toutes les 5 minutes.
+  // Chaque règle n'évalue qu'une fois sa période ; chaque rapport part à son heure.
+  cron.schedule('*/5 * * * *', async () => {
+    await runCronJob('analytics-alerts', async () => {
+      const { runAnalyticsAlerts } = await import('../services/analytics/analyticsAlertsService.js');
+      await runAnalyticsAlerts(client);
+    }, 2000);
+    await runCronJob('analytics-reports', async () => {
+      const { runAnalyticsReports } = await import('../services/analytics/analyticsReportService.js');
+      await runAnalyticsReports(client);
+    }, 4000);
   });
 
   // 📊 Channel Health Analysis: tous les jours à 4h du matin

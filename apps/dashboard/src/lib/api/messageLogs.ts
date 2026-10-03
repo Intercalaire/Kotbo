@@ -29,7 +29,12 @@ export interface MessageLogEntry {
 
 export interface MessageSearchResult {
   messages: MessageLogEntry[];
+  /** Nombre de résultats, plafonné côté serveur : voir `totalCapped`. */
   total: number;
+  /** Vrai quand il y a plus de `total` résultats : afficher « total+ ». */
+  totalCapped: boolean;
+  /** Vrai quand une page suivante existe. Seule source fiable pour paginer. */
+  hasMore: boolean;
   limit: number;
   offset: number;
 }
@@ -70,7 +75,12 @@ export async function searchMessages(
     guildId,
     errorContext: 'API Error (Message Search):',
   });
-  return data || { messages: [], total: 0, limit: 50, offset: 0 };
+  return data || { messages: [], total: 0, totalCapped: false, hasMore: false, limit: 50, offset: 0 };
+}
+
+/** Libellé du nombre de résultats : « 1000+ » quand le comptage est plafonné. */
+export function formatMessageSearchTotal(result: Pick<MessageSearchResult, 'total' | 'totalCapped'>): string {
+  return result.totalCapped ? `${result.total}+` : String(result.total);
 }
 
 export async function fetchMessageLogChannels(

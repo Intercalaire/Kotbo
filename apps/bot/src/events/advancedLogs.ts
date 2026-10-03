@@ -25,7 +25,8 @@ import { cache, getCachedGuild } from '../utils/cache.js';
 import { prendreIntentionVocale } from '../services/moderation/voiceIntentRegistry.js';
 import { recordStaffActivity, syncStaffHierarchyMembership } from '../services/staff/staffManagementService.js';
 import { resolveOnlineMembersCount } from '../services/core/presenceDetectionService.js';
-import { syncGuildInvites, markInviteAsDeleted, recordInvitedMemberLeave } from '../services/analytics/inviteService.js';
+import { syncGuildInvites, syncInvite, markInviteAsDeleted, recordInvitedMemberLeave } from '../services/analytics/inviteService.js';
+import { inheritSharedProfileFields } from '../services/progression/memberProfileSync.js';
 import {
   buildMemberCaseActionRow,
   touchMemberJoin,
@@ -72,6 +73,8 @@ type InviteSnapshot = {
   uses: number;
   inviterId: string | null;
   inviterTag: string | null;
+  /** Invitation créée par un bot (Kotbo compris) : elle ne désigne aucun parrain humain. */
+  inviterIsBot: boolean;
 };
 
 type MemberInviteUsage = {
@@ -530,6 +533,7 @@ async function fetchGuildInviteSnapshot(guild: Guild): Promise<Map<string, Invit
       uses: invite.uses ?? 0,
       inviterId: invite.inviter?.id ?? null,
       inviterTag: invite.inviter?.tag ?? invite.inviter?.username ?? null,
+      inviterIsBot: invite.inviter?.bot ?? false,
     });
   }
   return snapshot;
@@ -1223,12 +1227,8 @@ export function registerAdvancedLogsListener(client: Client): void {
       return; // Stop join operations
     }
 
-    void touchMemberJoin(member).catch((error) => {
+    void touchMemberJoin(member).then(() => inheritSharedProfileFields(member.id, member.guild.id)).catch((error) => {
       logger.warn('Casier', `Impossible de synchroniser l'arrivée du membre ${member.id}: ${String(error)}`);
-    });
-
-    void dcDetectionService.analyzeMemberJoin(member).catch((error) => {
-      logger.error('DC', `Erreur lors de l'analyse DC de ${member.id}:`, error);
     });
 
     if (usedInvite) {
@@ -1254,7 +1254,18 @@ export function registerAdvancedLogsListener(client: Client): void {
     }
 
     // 📊 Analytics: persist invite + increment daily join + hourly join
-    void persistMemberInvite(member.guild.id, member.id, usedInvite);
+    // L'analyse DC relit les arrivées en base (retours répétés, boucles
+    // d'invitation) : elle attend que celle-ci soit enregistrée. Lancée en
+    // parallèle, elle voyait tantôt l'arrivée précédente, tantôt aucune.
+    void persistMemberInvite(member.guild.id, member.id, usedInvite)
+      .then(() => dcDetectionService.analyzeMemberJoin(member, usedInvite && {
+        code: usedInvite.code,
+        inviterId: usedInvite.inviterId,
+        inviterIsBot: usedInvite.inviterIsBot,
+      }))
+      .catch((error) => {
+        logger.error('DC', `Erreur lors de l'analyse DC de ${member.id}:`, error);
+      });
     void incrementGuildDailyJoin(member.guild.id);
     void incrementGuildHourlyStat(member.guild.id, 'join');
 
@@ -1378,7 +1389,7 @@ export function registerAdvancedLogsListener(client: Client): void {
 
   client.on(Events.InviteCreate, async (invite) => {
     if (!isFullGuild(invite.guild)) return;
-    await syncGuildInvites(invite.guild);
+    await syncInvite(invite.guild.id, invite);
     await refreshGuildInviteCache(invite.guild);
   });
 
@@ -1649,7 +1660,13 @@ export function registerAdvancedLogsListener(client: Client): void {
   logger.success('Logs', 'Écouteur de logs avancés enregistré');
 
   for (const guild of client.guilds.cache.values()) {
-    void syncGuildInvites(guild);
     void refreshGuildInviteCache(guild);
   }
+  // Un serveur apres l'autre : lancees toutes ensemble, ces synchronisations
+  // occupaient le pool Postgres au demarrage et ralentissaient tout le reste.
+  void (async () => {
+    for (const guild of client.guilds.cache.values()) {
+      await syncGuildInvites(guild);
+    }
+  })();
 }

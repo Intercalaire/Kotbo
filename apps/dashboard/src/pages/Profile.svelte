@@ -3,7 +3,7 @@
   import { memberAvatarSrc } from '../lib/discordMedia';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
-  import { Tabs } from '../lib/components/ui';
+  import { Button, Callout, SectionCard, Tabs } from '../lib/components/ui';
   import { authStore } from '../lib/stores/auth.svelte';
   import {
     API_BASE_URL,
@@ -79,6 +79,17 @@
   let submittingResignation = $state(false);
 
   const isOwnProfile = $derived(targetUserId === authStore.user?.id);
+
+  // Une seule teinte pour toutes les pastilles de chiffres : la couleur ne dit
+  // rien de plus que le libelle, elle ne faisait que bigarrer la page.
+  const NEUTRAL_TONE = 'bg-surface-container text-on-surface-variant';
+
+  const profileName = $derived(
+    staffMember?.displayName || publicProfile?.displayName || publicProfile?.username || authStore.user?.username || '',
+  );
+  const profileUsername = $derived(
+    publicProfile?.username || staffMember?.username || authStore.user?.username || '',
+  );
 
   const tabs = $derived([
     ...(staffMember ? [
@@ -228,26 +239,6 @@
     if (g.includes('dev')) return 'Code';
     if (g.includes('helper') || g.includes('test')) return 'LifeBuoy';
     return 'Badge';
-  };
-
-  const gradeColor = (grade: string) => {
-    const g = grade?.toLowerCase() || '';
-    if (g.includes('fondateur') || g.includes('direction')) return 'from-amber-400 via-orange-500 to-rose-600';
-    if (g.includes('admin')) return 'from-rose-500 to-orange-500';
-    if (g.includes('manager') || g.includes('responsable')) return 'from-purple-500 to-indigo-600';
-    if (g.includes('mod')) return 'from-blue-500 to-cyan-500';
-    if (g.includes('dev')) return 'from-emerald-500 to-teal-500';
-    return 'from-primary to-primary-container';
-  };
-
-  const gradeBorderColor = (grade: string) => {
-    const g = grade?.toLowerCase() || '';
-    if (g.includes('fondateur') || g.includes('direction')) return 'border-warning/20';
-    if (g.includes('admin')) return 'border-error/20';
-    if (g.includes('manager') || g.includes('responsable')) return 'border-purple-500/20';
-    if (g.includes('mod')) return 'border-blue-500/20';
-    if (g.includes('dev')) return 'border-success/20';
-    return 'border-primary/20';
   };
 
   async function createNewAPIKey() {
@@ -429,26 +420,34 @@
     return parts.join(', ');
   }
 
+  // L'API rend les jours du plus recent au plus ancien : sans ce tri, la
+  // courbe se lisait de droite a gauche.
+  const chronologicalActivities = $derived(
+    [...activities].sort((a, b) => new Date(a.activityDate).getTime() - new Date(b.activityDate).getTime()),
+  );
+
   const chartData = $derived(
-    activities.length > 0 ? {
-      labels: activities.map(a => new Date(a.activityDate).toLocaleDateString(dateLocale(), { day: '2-digit', month: 'short' })),
+    chronologicalActivities.length > 0 ? {
+      labels: chronologicalActivities.map(a => new Date(a.activityDate).toLocaleDateString(dateLocale(), { day: '2-digit', month: 'short' })),
       datasets: [
         {
           label: 'Messages',
-          data: activities.map(a => a.messageCount),
-          borderColor: 'rgb(var(--color-primary))',
-          backgroundColor: 'rgba(var(--color-primary), 0.1)',
+          data: chronologicalActivities.map(a => a.messageCount),
+          borderColor: 'var(--color-primary)',
+          backgroundColor: 'rgba(var(--color-primary), 0.12)',
+          borderWidth: 2,
           fill: true,
-          tension: 0.4,
+          tension: 0.35,
           pointRadius: 0
         },
         {
           label: m.pf_voice_min(),
-          data: activities.map(a => a.voiceMinutes || 0),
-          borderColor: 'rgb(var(--color-secondary))',
-          backgroundColor: 'rgba(var(--color-secondary), 0.1)',
+          data: chronologicalActivities.map(a => a.voiceMinutes || 0),
+          borderColor: 'var(--color-success)',
+          backgroundColor: 'rgba(var(--color-success), 0.10)',
+          borderWidth: 2,
           fill: true,
-          tension: 0.4,
+          tension: 0.35,
           pointRadius: 0
         }
       ]
@@ -457,287 +456,230 @@
 
 </script>
 
-<div class="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-1000 pb-24 font-sans">
+<div class="space-y-6 pb-16">
   {#if loading}
-    <div class="flex flex-col gap-10 animate-pulse w-full">
-      <div class="h-64 w-full bg-surface-variant/20 rounded-xl"></div>
-      <div class="flex justify-center h-16 w-full max-w-2xl mx-auto bg-surface-variant/20 rounded-full"></div>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="h-80 bg-surface-variant/20 rounded-xl"></div>
-        <div class="h-80 bg-surface-variant/20 rounded-xl"></div>
-        <div class="h-80 bg-surface-variant/20 rounded-xl"></div>
+    <div class="space-y-6 animate-pulse" aria-busy="true">
+      <div class="flex items-center gap-4">
+        <div class="w-16 h-16 rounded-full bg-surface-container"></div>
+        <div class="space-y-2">
+          <div class="h-5 w-48 rounded bg-surface-container"></div>
+          <div class="h-3.5 w-32 rounded bg-surface-container"></div>
+        </div>
+      </div>
+      <div class="h-10 w-80 max-w-full rounded-lg bg-surface-container"></div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="h-40 rounded-xl bg-surface-container"></div>
+        <div class="h-40 rounded-xl bg-surface-container"></div>
+        <div class="h-40 rounded-xl bg-surface-container"></div>
       </div>
     </div>
   {:else if error}
-    <div class="rounded-xl border-2 border-dashed border-error/20 bg-error/5 px-8 py-12 text-center max-w-2xl mx-auto">
-      <div class="w-20 h-20 rounded-xl bg-error/10 text-error flex items-center justify-center mx-auto mb-6">
-        <Papicon icon="AlertTriangle" size={40} />
-      </div>
-      <h3 class="text-2xl font-semibold text-error font-headline">{m.pf_error_label()}</h3>
-      <p class="mt-2 text-error/70 font-bold">{error}</p>
+    <div class="section-card max-w-lg mx-auto p-8 text-center">
+      <Papicon icon="AlertTriangle" size={22} class="text-error mx-auto mb-3" />
+      <h3 class="text-base font-semibold text-on-surface">{m.pf_error_label()}</h3>
+      <p class="mt-1 text-body-sm text-on-surface-variant">{error}</p>
     </div>
   {:else}
 
-    <!-- ── Hero Banner Section ──────────────────────────────────────── -->
-    <div class="relative overflow-hidden rounded-xl border border-outline-variant/10 bg-surface-container-lowest shadow-sm">
-      <div class="relative h-48 md:h-64 overflow-hidden">
-        {#if staffMember}
-          <div class="absolute inset-0 bg-linear-to-br {gradeColor(staffMember.grade)} opacity-40 blur-none hidden scale-150"></div>
-        {:else if publicProfile?.banner}
-          <img src={publicProfile.banner} alt="Banner" class="w-full h-full object-cover" />
-        {:else}
-          <div class="absolute inset-0 bg-linear-to-br from-primary/20 via-primary/5 to-transparent blur-none hidden scale-150"></div>
-        {/if}
-        <div class="absolute inset-0 bg-linear-to-b from-transparent to-surface-container-lowest"></div>
-        
-        {#if isBlacklisted}
-          <div class="absolute top-6 right-6 z-20">
-            <span class="inline-flex items-center gap-2 rounded-full bg-rose-500 px-4 py-2 text-xs font-semibold text-white shadow-sm">
-              <Papicon icon="Slash" size={14} />
-              Compte Restreint
+    <!-- Identite : pas de banniere vide ni de halo, l'avatar et le nom suffisent. -->
+    <header class="flex flex-col sm:flex-row sm:items-center gap-4">
+      <img
+        src={getUserAvatar()}
+        alt=""
+        width="64"
+        height="64"
+        class="w-16 h-16 rounded-full object-cover bg-surface-container shrink-0"
+      />
+      <div class="min-w-0 flex-1">
+        <div class="flex flex-wrap items-center gap-2">
+          <h1 class="text-xl font-semibold text-on-surface truncate">{profileName}</h1>
+          {#if staffMember}
+            <span class="inline-flex items-center gap-1.5 rounded-md border border-outline-variant px-2 py-0.5 text-xs font-medium text-on-surface-variant">
+              <Papicon icon={gradeIcon(staffMember.grade)} size={13} />
+              {staffMember.grade}
             </span>
-          </div>
-        {/if}
-      </div>
-
-      <div class="relative px-8 pb-10 -mt-20 md:-mt-24">
-        <div class="flex flex-col md:flex-row items-center md:items-end justify-between gap-8 text-center md:text-left">
-          <div class="flex flex-col md:flex-row items-center md:items-end gap-6">
-            <!-- Avatar Frame -->
-            <div class="relative shrink-0">
-              {#if staffMember}
-                <div class="absolute -inset-2 bg-linear-to-br {gradeColor(staffMember.grade)} rounded-xl blur-none hidden opacity-30"></div>
-              {/if}
-              <div class="relative w-32 h-32 md:w-40 md:h-40 rounded-xl border-[6px] border-surface-container-lowest shadow-sm overflow-hidden bg-surface-container-low">
-                <img src={getUserAvatar()} alt="Avatar" class="w-full h-full object-cover" />
-              </div>
-            </div>
-
-            <!-- Identity Info -->
-            <div class="space-y-2 pb-2">
-              <div class="flex flex-wrap items-center justify-center md:justify-start gap-3">
-                <h2 class="text-lg md:text-xl font-semibold text-on-surface tracking-tighter font-headline leading-none">
-                  {staffMember?.displayName || publicProfile?.displayName || publicProfile?.username || authStore.user?.username}
-                </h2>
-                {#if staffMember}
-                  <span class="inline-flex items-center gap-2 rounded-full border-2 {gradeBorderColor(staffMember.grade)} bg-surface-container-low/60 px-4 py-2 text-xs font-medium text-on-surface-variant shadow-sm">
-                    <Papicon icon={gradeIcon(staffMember.grade)} size={14} class="text-primary" />
-                    {staffMember.grade}
-                  </span>
-                {/if}
-              </div>
-              <p class="text-base text-on-surface-variant/60 font-bold">
-                @{publicProfile?.username || staffMember?.username || authStore.user?.username} • <span class="font-mono text-xs opacity-50">{targetUserId}</span>
-              </p>
-            </div>
-          </div>
+          {/if}
+          {#if isBlacklisted}
+            <span class="inline-flex items-center gap-1.5 rounded-md bg-error/10 px-2 py-0.5 text-xs font-medium text-error">
+              <Papicon icon="Slash" size={13} />
+              {m.pf_restricted_account()}
+            </span>
+          {/if}
         </div>
+        <p class="mt-0.5 text-body-sm text-on-surface-variant truncate">
+          @{profileUsername} · <span class="font-mono text-xs">{targetUserId}</span>
+        </p>
       </div>
-    </div>
+      {#if isOwnProfile}
+        <Button href="/me" size="sm" icon="edit">{m.me_edit_profile()}</Button>
+      {/if}
+    </header>
 
-    <div class="sticky z-30 flex justify-center top-[calc(var(--app-navbar-height)+0.5rem)]">
+    <div class="sticky z-30 top-[calc(var(--app-navbar-height)+0.5rem)]">
       <Tabs
         label={m.nav_my_profile()}
-        class="shadow-sm"
         {tabs}
         active={activeTab}
         onchange={(id) => gotoTab(profileBase, id, 'staff_overview')}
       />
     </div>
 
-    <!-- ── Content Panel ────────────────────────────────── -->
-    <div class="animate-in fade-in slide-in-from-bottom-4 duration-700">
-      
+    <div>
       {#if activeTab === 'staff_overview' && staffMember}
-        <!-- Staff Bento Overview -->
-        <div class="space-y-8">
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <MetricCard label="Messages" value={`${stats?.totalMessages ?? 0}`} note={m.pf_total_sent()} icon="MessageSquare" toneClass="bg-primary/10 text-primary" />
-            <MetricCard label={m.home_opt_voice()} value={`${Math.round((stats?.totalVoiceMinutes ?? 0))}m`} note={m.pf_time_spent()} icon="Mic" toneClass="bg-secondary/10 text-secondary" />
+        <div class="space-y-6">
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <MetricCard label="Messages" value={`${stats?.totalMessages ?? 0}`} note={m.pf_total_sent()} icon="MessageSquare" toneClass={NEUTRAL_TONE} />
+            <MetricCard label={m.home_opt_voice()} value={`${Math.round((stats?.totalVoiceMinutes ?? 0))}m`} note={m.pf_time_spent()} icon="Mic" toneClass={NEUTRAL_TONE} />
             {#if visibility.discipline}
-              <MetricCard label="Sanctions" value={`${stats?.sanctionsIssued ?? 0}`} note="Warns + blacklist" icon="Hammer" toneClass="bg-error/10 text-error" />
-              <MetricCard label={m.pf_warnings_label()} value={`${stats?.activeWarnings ?? 0}`} note={m.pf_active_received()} icon="ShieldAlert" toneClass="bg-warning/10 text-warning" />
+              <MetricCard label="Sanctions" value={`${stats?.sanctionsIssued ?? 0}`} note="Warns + blacklist" icon="Hammer" toneClass={NEUTRAL_TONE} />
+              <MetricCard label={m.pf_warnings_label()} value={`${stats?.activeWarnings ?? 0}`} note={m.pf_active_received()} icon="ShieldAlert" toneClass={NEUTRAL_TONE} />
             {/if}
           </div>
 
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Career Bento Card -->
-            <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm relative overflow-hidden group">
-              <div class="absolute -right-12 -bottom-12 opacity-[0.03] rotate-12 pointer-events-none transition-transform duration-1000">
-                <Papicon icon="User" size={240} />
-              </div>
-              
-              <div class="flex items-center gap-4 mb-8">
-                <div class="w-12 h-12 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-                  <Papicon icon="Badge" size={24} />
+          {#if isBlacklisted}
+            <Callout variant="danger" title={m.pf_restricted_account()}>
+              <p>{blacklistReason}</p>
+              <p class="mt-1">
+                {blacklistEndDate ? m.pf_restriction_end({ date: formatDate(blacklistEndDate) }) : m.pf_permanent_restriction()}
+              </p>
+            </Callout>
+          {/if}
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <SectionCard title={m.pf_identity_seniority()} description={m.pf_staff_career()}>
+              <dl class="grid grid-cols-2 gap-x-6 gap-y-5">
+                <div>
+                  <dt class="text-xs text-on-surface-variant">{m.pf_staff_since()}</dt>
+                  <dd class="mt-0.5 text-base font-semibold text-on-surface">{getDurationSince(staffMember.joinedStaffAt)}</dd>
+                  <dd class="text-xs text-on-surface-variant">{formatDate(staffMember.joinedStaffAt)}</dd>
                 </div>
                 <div>
-                  <p class="text-xs font-semibold text-primary">{m.pf_staff_career()}</p>
-                  <h4 class="text-xl font-semibold text-on-surface">{m.pf_identity_seniority()}</h4>
+                  <dt class="text-xs text-on-surface-variant">{m.pf_current_grade_since()}</dt>
+                  <dd class="mt-0.5 text-base font-semibold text-on-surface">{getDurationSince(staffMember.currentRoleStartedAt)}</dd>
+                  <dd class="text-xs text-on-surface-variant">{formatDate(staffMember.currentRoleStartedAt)}</dd>
                 </div>
-              </div>
+                <div>
+                  <dt class="text-xs text-on-surface-variant">{m.pf_tutor_status()}</dt>
+                  <dd class="mt-1">
+                    <span class="inline-flex rounded-md px-2 py-0.5 text-xs font-medium {staffMember.isTutor ? 'bg-success/10 text-success' : 'bg-surface-container text-on-surface-variant'}">
+                      {staffMember.isTutor ? m.pf_active_tutor() : m.pf_not_tutor()}
+                    </span>
+                  </dd>
+                </div>
+                <div class="min-w-0">
+                  <dt class="text-xs text-on-surface-variant">{m.pf_unique_id()}</dt>
+                  <dd class="mt-1 text-xs font-mono text-on-surface truncate">{staffMember.id}</dd>
+                </div>
+              </dl>
+            </SectionCard>
 
-              <div class="grid grid-cols-2 gap-8">
-                <div class="space-y-1">
-                  <p class="text-xs font-medium text-on-surface-variant/40">{m.pf_staff_since()}</p>
-                  <p class="text-xl font-semibold text-on-surface">{getDurationSince(staffMember.joinedStaffAt)}</p>
-                  <p class="text-2xs font-bold text-on-surface-variant/60">{formatDate(staffMember.joinedStaffAt)}</p>
-                </div>
-                <div class="space-y-1">
-                  <p class="text-xs font-medium text-on-surface-variant/40">{m.pf_current_grade_since()}</p>
-                  <p class="text-xl font-semibold text-on-surface">{getDurationSince(staffMember.currentRoleStartedAt)}</p>
-                  <p class="text-2xs font-bold text-on-surface-variant/60">{formatDate(staffMember.currentRoleStartedAt)}</p>
-                </div>
-                <div class="space-y-1">
-                  <p class="text-xs font-medium text-on-surface-variant/40">{m.pf_tutor_status()}</p>
-                  <span class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-body-sm font-medium {staffMember.isTutor ? 'bg-success/10 text-success border border-success/20' : 'bg-on-surface/5 text-on-surface-variant/40 border border-outline-variant/10'}">
-                    {staffMember.isTutor ? m.pf_active_tutor() : m.pf_not_tutor()}
-                  </span>
-                </div>
-                <div class="space-y-1">
-                  <p class="text-xs font-medium text-on-surface-variant/40">{m.pf_unique_id()}</p>
-                  <p class="text-xs font-mono font-bold text-on-surface-variant truncate">{staffMember.id}</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Grade History Card (if visible) -->
-            {#if gradeHistory.length > 0}
-              <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm relative overflow-hidden">
-                <h4 class="text-sm font-semibold text-primary mb-6">{m.pf_promotions_history()}</h4>
-                <div class="space-y-4 max-h-60 overflow-y-auto pr-2">
+            <SectionCard title={m.pf_promotions_history()}>
+              {#if gradeHistory.length > 0}
+                <ol class="space-y-3 max-h-60 overflow-y-auto pr-1">
                   {#each gradeHistory as event}
-                    <div class="flex items-start gap-3 border-b border-outline-variant/5 pb-3">
-                      <div class="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0"></div>
+                    <li class="flex items-start gap-3">
+                      <span class="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0"></span>
                       <div>
-                        <p class="text-xs font-bold text-on-surface">{event.details}</p>
-                        <p class="text-2xs font-bold text-on-surface-variant/40 uppercase mt-0.5">{formatDate(event.dateIso)} • {m.pf_by_user_cap({ user: event.user })}</p>
+                        <p class="text-sm text-on-surface">{event.details}</p>
+                        <p class="text-xs text-on-surface-variant mt-0.5">{formatDate(event.dateIso)} · {m.pf_by_user_cap({ user: event.user })}</p>
                       </div>
-                    </div>
+                    </li>
                   {/each}
-                </div>
-              </div>
-            {:else}
-              <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm flex flex-col justify-center items-center text-center">
-                <Papicon icon="Grid" size={40} class="text-on-surface-variant/20 mb-4" />
-                <p class="text-xs font-bold text-on-surface-variant/40">{m.pf_no_grade_history()}</p>
-              </div>
-            {/if}
+                </ol>
+              {:else}
+                <p class="text-body-sm text-on-surface-variant">{m.pf_no_grade_history()}</p>
+              {/if}
+            </SectionCard>
           </div>
 
-          <!-- Disciplinary & Restrictive Panels -->
-          {#if isBlacklisted}
-            <div class="rounded-xl border-2 border-error/20 bg-error/5 p-8 flex items-start gap-6">
-              <div class="w-14 h-14 rounded-xl bg-error/10 text-error flex items-center justify-center shrink-0">
-                <Papicon icon="AlertTriangle" size={28} />
-              </div>
-              <div class="space-y-1">
-                <h4 class="text-lg font-semibold text-error">{m.pf_restricted_account()}</h4>
-                <p class="text-sm text-error/80 font-bold leading-relaxed">{blacklistReason}</p>
-                {#if blacklistEndDate}
-                  <p class="text-xs font-medium text-error mt-2">{m.pf_restriction_end({ date: formatDate(blacklistEndDate) })}</p>
-                {:else}
-                  <p class="text-xs font-medium text-error mt-2">{m.pf_permanent_restriction()}</p>
-                {/if}
-              </div>
-            </div>
-          {/if}
-
-          <!-- Warnings & Absences -->
           {#if visibility.discipline || visibility.absences}
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {#if visibility.discipline}
-            <!-- Warnings Panel -->
-            <div class="rounded-xl bg-surface-container-low/40 border border-outline-variant/10 p-8 shadow-sm">
-              <h4 class="text-sm font-semibold text-primary mb-6">{m.pf_warnings_received()}</h4>
-              {#if warnings.length > 0}
-                <div class="space-y-4">
-                  {#each warnings as warn}
-                    <div class="p-4 rounded-lg bg-surface-container-high/40 border border-outline-variant/5 {warn.isActive ? 'border-warning/10 bg-warning/5' : ''}">
-                      <div class="flex items-center justify-between mb-2">
-                        <span class="text-body-sm font-medium {warn.isActive ? 'text-warning' : 'text-on-surface-variant/40'}">
-                          {warn.isActive ? m.pf_active() : m.pf_expired()}
-                        </span>
-                        <span class="text-2xs font-bold text-on-surface-variant/40">{formatDate(warn.createdAt)}</span>
-                      </div>
-                      <p class="text-sm font-bold text-on-surface">{warn.reason}</p>
-                      {#if warn.expiresAt}
-                        <p class="text-2xs font-bold text-on-surface-variant/40 mt-2">{m.pf_expires_on({ date: formatDate(warn.expiresAt) })}</p>
-                      {/if}
-                    </div>
-                  {/each}
-                </div>
-              {:else}
-                <p class="text-xs text-on-surface-variant/40 italic">{m.pf_no_warnings()}</p>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {#if visibility.discipline}
+                <SectionCard title={m.pf_warnings_received()}>
+                  {#if warnings.length > 0}
+                    <ul class="divide-y divide-outline-variant/60">
+                      {#each warnings as warn}
+                        <li class="py-3 first:pt-0 last:pb-0">
+                          <div class="flex items-center justify-between gap-3">
+                            <span class="text-xs font-medium {warn.isActive ? 'text-warning' : 'text-on-surface-variant'}">
+                              {warn.isActive ? m.pf_active() : m.pf_expired()}
+                            </span>
+                            <span class="text-xs text-on-surface-variant">{formatDate(warn.createdAt)}</span>
+                          </div>
+                          <p class="mt-1 text-sm text-on-surface">{warn.reason}</p>
+                          {#if warn.expiresAt}
+                            <p class="mt-1 text-xs text-on-surface-variant">{m.pf_expires_on({ date: formatDate(warn.expiresAt) })}</p>
+                          {/if}
+                        </li>
+                      {/each}
+                    </ul>
+                  {:else}
+                    <p class="text-body-sm text-on-surface-variant">{m.pf_no_warnings()}</p>
+                  {/if}
+                </SectionCard>
               {/if}
-            </div>
-            {/if}
 
-            {#if visibility.absences}
-            <!-- Absences Panel -->
-            <div class="rounded-xl bg-surface-container-low/40 border border-outline-variant/10 p-8 shadow-sm">
-              <h4 class="text-sm font-semibold text-primary mb-6">{m.pf_declared_absences()}</h4>
-              {#if absences.length > 0}
-                <div class="space-y-4 max-h-80 overflow-y-auto pr-2">
-                  {#each absences as abs}
-                    <div class="p-4 rounded-lg bg-surface-container-high/40 border border-outline-variant/5">
-                      <div class="flex items-center justify-between mb-2">
-                        <span class="text-body-sm font-medium text-primary">{abs.type}</span>
-                        <span class="inline-flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider {abs.status === 'APPROVED' ? 'bg-success/10 text-success' : (abs.status === 'PENDING' ? 'bg-warning/10 text-warning' : 'bg-on-surface/5 text-on-surface-variant/40')}">
-                          {abs.status}
-                        </span>
-                      </div>
-                      <p class="text-sm font-bold text-on-surface">{abs.reason}</p>
-                      <p class="text-2xs font-bold text-on-surface-variant/40 mt-2">
-                        {m.pf_from_to({ from: formatDate(abs.startDate), to: abs.isIndefinite ? m.pf_indefinite() : formatDate(abs.endDate) })}
-                      </p>
-                    </div>
-                  {/each}
-                </div>
-              {:else}
-                <p class="text-xs text-on-surface-variant/40 italic">{m.pf_no_absences()}</p>
+              {#if visibility.absences}
+                <SectionCard title={m.pf_declared_absences()}>
+                  {#if absences.length > 0}
+                    <ul class="divide-y divide-outline-variant/60 max-h-80 overflow-y-auto pr-1">
+                      {#each absences as abs}
+                        <li class="py-3 first:pt-0 last:pb-0">
+                          <div class="flex items-center justify-between gap-3">
+                            <span class="text-xs font-medium text-on-surface">{abs.type}</span>
+                            <span class="rounded-md px-2 py-0.5 text-xs font-medium {abs.status === 'APPROVED' ? 'bg-success/10 text-success' : (abs.status === 'PENDING' ? 'bg-warning/10 text-warning' : 'bg-surface-container text-on-surface-variant')}">
+                              {abs.status}
+                            </span>
+                          </div>
+                          <p class="mt-1 text-sm text-on-surface">{abs.reason}</p>
+                          <p class="mt-1 text-xs text-on-surface-variant">
+                            {m.pf_from_to({ from: formatDate(abs.startDate), to: abs.isIndefinite ? m.pf_indefinite() : formatDate(abs.endDate) })}
+                          </p>
+                        </li>
+                      {/each}
+                    </ul>
+                  {:else}
+                    <p class="text-body-sm text-on-surface-variant">{m.pf_no_absences()}</p>
+                  {/if}
+                </SectionCard>
               {/if}
             </div>
-            {/if}
-          </div>
           {/if}
 
-          <!-- Testing Periods & Mentoring reports -->
           {#if testingPeriods.length > 0}
-            <div class="rounded-xl bg-surface-container-low/40 border border-outline-variant/10 p-8 shadow-sm">
-              <h4 class="text-sm font-semibold text-primary mb-6">{m.pf_testing_periods()}</h4>
-              <div class="space-y-6">
+            <SectionCard title={m.pf_testing_periods()}>
+              <div class="space-y-4">
                 {#each testingPeriods as period}
-                  <div class="p-6 rounded-xl bg-surface-container-high/30 border border-outline-variant/5 space-y-4">
-                    <div class="flex items-center justify-between border-b border-outline-variant/5 pb-4">
+                  <div class="rounded-lg border border-outline-variant p-4 space-y-3">
+                    <div class="flex items-start justify-between gap-4">
                       <div>
-                        <span class="text-xs font-medium text-on-surface-variant/40">{m.pf_objective()}</span>
-                        <h5 class="text-base font-semibold text-on-surface">{period.targetGrade || m.pf_staff_grade()}</h5>
+                        <p class="text-xs text-on-surface-variant">{m.pf_objective()}</p>
+                        <p class="text-sm font-semibold text-on-surface">{period.targetGrade || m.pf_staff_grade()}</p>
                       </div>
                       <div class="text-right">
-                        <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-2xs font-semibold uppercase tracking-wider {period.status === 'PASSED' ? 'bg-success/10 text-success border border-success/20' : (period.status === 'ONGOING' ? 'bg-warning/10 text-warning border border-warning/20' : 'bg-error/10 text-error border border-error/20')}">
+                        <span class="rounded-md px-2 py-0.5 text-xs font-medium {period.status === 'PASSED' ? 'bg-success/10 text-success' : (period.status === 'ONGOING' ? 'bg-warning/10 text-warning' : 'bg-error/10 text-error')}">
                           {period.status === 'PASSED' ? m.pf_passed() : (period.status === 'ONGOING' ? m.home_in_progress() : m.pf_failed())}
                         </span>
-                        <p class="text-2xs font-bold text-on-surface-variant/40 mt-1">{m.pf_start_date({ date: formatDate(period.startDate) })}</p>
+                        <p class="mt-1 text-xs text-on-surface-variant">{m.pf_start_date({ date: formatDate(period.startDate) })}</p>
                       </div>
                     </div>
 
                     {#if period.mentor}
-                      <p class="text-xs font-bold text-on-surface-variant">{m.pf_assigned_mentor()} <span class="text-on-surface font-semibold">@{period.mentor.username}</span></p>
+                      <p class="text-xs text-on-surface-variant">{m.pf_assigned_mentor()} <span class="font-medium text-on-surface">@{period.mentor.username}</span></p>
                     {/if}
 
                     {#if period.reports && period.reports.length > 0}
-                      <div class="space-y-3 pt-2">
-                        <p class="text-xs font-medium text-on-surface-variant/40">{m.pf_mentor_reports()}</p>
+                      <div class="space-y-2">
+                        <p class="text-xs text-on-surface-variant">{m.pf_mentor_reports()}</p>
                         {#each period.reports as rep}
-                          <div class="p-3.5 rounded-xl bg-surface-container-low border border-outline-variant/5">
-                            <div class="flex items-center justify-between mb-1.5">
-                              <span class="text-2xs font-semibold uppercase tracking-wider {rep.type === 'POSITIVE' ? 'text-success' : (rep.type === 'NEGATIVE' ? 'text-error' : 'text-on-surface-variant/40')}">
+                          <div class="rounded-md bg-surface-container px-3 py-2">
+                            <div class="flex items-center justify-between gap-3">
+                              <span class="text-xs font-medium {rep.type === 'POSITIVE' ? 'text-success' : (rep.type === 'NEGATIVE' ? 'text-error' : 'text-on-surface-variant')}">
                                 {rep.type}
                               </span>
-                              <span class="text-2xs font-bold text-on-surface-variant/30">{formatDate(rep.createdAt)}</span>
+                              <span class="text-xs text-on-surface-variant">{formatDate(rep.createdAt)}</span>
                             </div>
-                            <p class="text-xs font-medium text-on-surface-variant">{rep.content}</p>
+                            <p class="mt-1 text-sm text-on-surface">{rep.content}</p>
                           </div>
                         {/each}
                       </div>
@@ -745,88 +687,48 @@
                   </div>
                 {/each}
               </div>
-            </div>
+            </SectionCard>
           {/if}
 
-          <!-- Manager Notes Pane (only visible if manager/admin) -->
           {#if visibility.managerNotes}
-            <div class="rounded-xl bg-surface-container-low/40 border border-outline-variant/10 p-8 shadow-sm">
-              <div class="flex items-center gap-3 mb-6">
-                <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                  <Papicon icon="ShieldCheck" size={20} />
-                </div>
-                <h4 class="text-sm font-semibold text-on-surface">{m.pf_manager_notes()}</h4>
-              </div>
-
-              <!-- Notes List -->
-              <div class="space-y-4 mb-6">
+            <SectionCard title={m.pf_manager_notes()}>
+              <ul class="divide-y divide-outline-variant/60 mb-4">
                 {#each notesAbout as note}
-                  <div class="p-4.5 rounded-lg bg-surface-container-high/40 border border-outline-variant/5 flex justify-between items-start gap-4">
+                  <li class="flex items-start justify-between gap-4 py-3 first:pt-0">
                     <div>
-                      <p class="text-sm font-bold text-on-surface">{note.content}</p>
-                      <p class="text-2xs font-bold text-on-surface-variant/40 uppercase mt-2">
+                      <p class="text-sm text-on-surface">{note.content}</p>
+                      <p class="mt-1 text-xs text-on-surface-variant">
                         {m.pf_posted_on({ date: formatDate(note.createdAt), author: note.author?.username || m.pf_a_manager() })}
                       </p>
                     </div>
-                    <button onclick={() => removeNote(note.id)} class="p-2 rounded-lg bg-error/10 text-error hover:bg-rose-500 hover:text-white transition-all">
-                      <Papicon icon="Trash" size={14} />
-                    </button>
-                  </div>
+                    <Button variant="ghost" size="sm" icon="Trash" aria-label={m.pf_delete_note_q()} onclick={() => removeNote(note.id)} />
+                  </li>
                 {:else}
-                  <p class="text-xs text-on-surface-variant/40 italic">{m.pf_no_notes()}</p>
+                  <li class="text-body-sm text-on-surface-variant">{m.pf_no_notes()}</li>
                 {/each}
-              </div>
+              </ul>
 
-              <!-- Add Note Form -->
-              <div class="flex flex-col md:flex-row gap-4 items-end">
-                <div class="flex-1 w-full">
+              <div class="flex flex-col md:flex-row gap-3 md:items-end">
+                <div class="flex-1">
                   <FormInput id="new-note" placeholder={m.pf_add_note_ph()} bind:value={newNoteContent} className="w-full" />
                 </div>
-                <button 
-                  onclick={submitManagerNote} 
-                  disabled={sendingNote || !newNoteContent.trim()}
-                  class="w-full md:w-auto px-8 py-4 bg-primary text-on-primary hover:bg-primary-hover font-semibold text-xs rounded-lg shadow-lg transition-all disabled:opacity-50"
-                >
-                  Ajouter Note
-                </button>
+                <Button variant="primary" onclick={submitManagerNote} loading={sendingNote} disabled={!newNoteContent.trim()}>
+                  {m.pf_add_note()}
+                </Button>
               </div>
-            </div>
+            </SectionCard>
           {/if}
 
-          <!-- ── Resignation Panel (Own profile only, staff members only) ──────── -->
           {#if isOwnProfile && staffMember}
-            <div class="rounded-xl border-2 {pendingResignation ? 'border-warning/20 bg-warning/5' : 'border-error/10 bg-surface-container-low/30'} p-8 shadow-sm">
-              <div class="flex items-center gap-4 mb-6">
-                <div class="w-12 h-12 rounded-lg {pendingResignation ? 'bg-warning/10 text-warning' : 'bg-error/10 text-error'} flex items-center justify-center">
-                  <Papicon icon="LogOut" size={24} />
-                </div>
-                <div>
-                  <p class="text-2xs font-semibold uppercase tracking-wider {pendingResignation ? 'text-warning' : 'text-error'}">Zone Sensible</p>
-                  <h4 class="text-xl font-semibold text-on-surface">{m.pf_resignation()}</h4>
-                </div>
-              </div>
-
+            <SectionCard title={m.pf_resignation()} description={pendingResignation ? '' : m.pf_resignation_info()}>
               {#if pendingResignation}
-                <!-- Demande en attente -->
-                <div class="p-5 rounded-lg bg-warning/10 border border-warning/20 mb-4">
-                  <div class="flex items-center gap-2 mb-2">
-                    <Papicon icon="Clock" size={16} class="text-warning" />
-                    <span class="text-xs font-semibold text-warning">Demande en attente d'approbation</span>
-                  </div>
-                  <p class="text-sm font-bold text-on-surface mb-1">Motif soumis :</p>
-                  <p class="text-sm text-on-surface-variant leading-relaxed italic">« {pendingResignation.reason} »</p>
-                  <p class="text-2xs font-bold text-on-surface-variant/40 uppercase mt-3">{m.pf_submitted_on({ date: formatDate(pendingResignation.createdAt) })}</p>
-                </div>
-                <p class="text-xs font-bold text-on-surface-variant/50">
-                  {m.pf_resignation_review()}
-                </p>
+                <Callout variant="warning" icon="Clock" title={m.pf_resignation_pending()}>
+                  <p>« {pendingResignation.reason} »</p>
+                  <p class="mt-1">{m.pf_submitted_on({ date: formatDate(pendingResignation.createdAt) })}</p>
+                </Callout>
+                <p class="mt-3 text-body-sm text-on-surface-variant">{m.pf_resignation_review()}</p>
               {:else if showResignationForm}
-                <!-- Formulaire de démission -->
-                <div class="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <p class="text-xs font-bold text-on-surface-variant/70 leading-relaxed">
-                    Une fois envoyée, ta demande sera transmise aux responsables pour approbation. 
-                    Explique clairement tes raisons.
-                  </p>
+                <div class="space-y-3">
                   <div>
                     <label for="resignation-reason" class="field-label">{m.pf_resignation_reason()}</label>
                     <textarea
@@ -835,437 +737,274 @@
                       placeholder={m.pf_resignation_ph()}
                       maxlength={500}
                       rows={4}
-                      class="w-full bg-surface-container-high/60 border border-outline-variant/20 rounded-lg px-4 py-3 text-sm font-medium text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-error/40 resize-none transition-colors"
+                      class="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary resize-none"
                     ></textarea>
-                    <p class="text-2xs font-bold text-on-surface-variant/30 text-right mt-1">{resignationReason.length}/500</p>
+                    <p class="mt-1 text-right text-xs text-on-surface-variant">{resignationReason.length}/500</p>
                   </div>
-                  <div class="flex gap-3 justify-end">
-                    <button
-                      onclick={() => { showResignationForm = false; resignationReason = ''; }}
-                      class="px-6 py-3 rounded-lg text-xs font-medium bg-surface-container-high/60 text-on-surface-variant hover:bg-surface-container-high transition-all"
-                    >
-                      Annuler
-                    </button>
-                    <button
+                  <div class="flex justify-end gap-2">
+                    <Button variant="ghost" onclick={() => { showResignationForm = false; resignationReason = ''; }}>
+                      {m.common_cancel()}
+                    </Button>
+                    <Button
                       id="btn-submit-resignation"
+                      variant="danger"
                       onclick={submitResignation}
-                      disabled={submittingResignation || !resignationReason.trim()}
-                      class="px-8 py-3 rounded-lg text-xs font-medium bg-rose-500 text-white shadow-sm hover:bg-rose-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      loading={submittingResignation}
+                      disabled={!resignationReason.trim()}
                     >
-                      {submittingResignation ? m.pf_sending() : m.pf_submit_request()}
-                    </button>
+                      {m.pf_submit_request()}
+                    </Button>
                   </div>
                 </div>
               {:else}
-                <!-- Bouton d'ouverture -->
-                <div class="space-y-3">
-                  <p class="text-xs font-bold text-on-surface-variant/60 leading-relaxed">
-                    {m.pf_resignation_info()}
-                  </p>
-                  <button
-                    id="btn-open-resignation"
-                    onclick={() => showResignationForm = true}
-                    class="w-full md:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-lg bg-error/10 text-error border border-error/20 text-xs font-medium hover:bg-rose-500 hover:text-white hover:border-error hover:shadow-lg hover:shadow-rose-500/25 transition-all duration-300"
-                  >
-                    <Papicon icon="LogOut" size={14} />
-                    {m.pf_request_resignation()}
-                  </button>
-                </div>
+                <Button id="btn-open-resignation" variant="danger" icon="LogOut" onclick={() => showResignationForm = true}>
+                  {m.pf_request_resignation()}
+                </Button>
               {/if}
-            </div>
+            </SectionCard>
           {/if}
-
         </div>
 
       {:else if activeTab === 'staff_activity' && staffMember}
-        <!-- Scorecard d'Activité RH -->
-        {#if scorecard}
-          <div class="mb-6 space-y-6">
-            <!-- Burnout warning alert -->
+        <div class="space-y-6">
+          {#if scorecard}
             {#if scorecard.burnoutRisk}
-              <div class="rounded-xl border border-error/20 bg-error/10 p-5 flex items-start gap-3">
-                <Papicon icon="ShieldAlert" size={24} class="text-error shrink-0 mt-0.5" />
-                <div>
-                  <h5 class="text-sm font-bold text-error">{m.pf_burnout_risk()}</h5>
-                  <p class="text-xs text-error/80 leading-relaxed mt-1">
-                    {m.pf_burnout_pre()} <strong>{scorecard.activityDropPercent}%</strong> {m.pf_burnout_post()}
-                  </p>
-                </div>
-              </div>
+              <Callout variant="danger" icon="ShieldAlert" title={m.pf_burnout_risk()}>
+                {m.pf_burnout_pre()} <strong>{scorecard.activityDropPercent}%</strong> {m.pf_burnout_post()}
+              </Callout>
             {/if}
 
             <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <!-- Score global -->
-              <div class="md:col-span-2 rounded-xl border border-outline-variant/10 bg-surface-container-low/30 p-6 flex flex-col items-center justify-center text-center">
-                <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">Performance Globale</p>
-                <div class="relative flex items-center justify-center h-28 w-28">
-                  <!-- Circular progress gauge -->
-                  <svg class="w-full h-full transform -rotate-90">
-                    <circle cx="56" cy="56" r="48" stroke="rgba(255,255,255,0.05)" stroke-width="8" fill="transparent" />
-                    <circle cx="56" cy="56" r="48" stroke="#5865F2" stroke-width="8" fill="transparent"
+              <div class="section-card md:col-span-2 p-5 flex flex-col items-center justify-center text-center">
+                <p class="text-xs text-on-surface-variant">{m.pf_overall_score()}</p>
+                <div class="relative mt-2 flex items-center justify-center h-28 w-28 text-primary">
+                  <svg class="w-full h-full -rotate-90" viewBox="0 0 112 112" aria-hidden="true">
+                    <circle cx="56" cy="56" r="48" class="stroke-surface-container-high" stroke-width="8" fill="transparent" />
+                    <circle cx="56" cy="56" r="48" stroke="currentColor" stroke-width="8" stroke-linecap="round" fill="transparent"
                       stroke-dasharray={2 * Math.PI * 48}
                       stroke-dashoffset={2 * Math.PI * 48 * (1 - scorecard.scores.overall / 100)}
                     />
                   </svg>
-                  <span class="absolute text-2xl font-bold text-on-surface">{scorecard.scores.overall}%</span>
+                  <span class="absolute text-2xl font-semibold text-on-surface">{scorecard.scores.overall}%</span>
                 </div>
-                <p class="text-xs text-on-surface-variant/60 mt-3 font-medium">{m.pf_health_index()}</p>
+                <p class="mt-2 text-xs text-on-surface-variant">{m.pf_health_index()}</p>
               </div>
 
-              <!-- Bento details subscores -->
               <div class="md:col-span-3 grid grid-cols-2 gap-4">
-                <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4">
-                  <div class="flex items-center justify-between mb-1">
-                    <span class="text-xs font-semibold text-on-surface-variant">Messages</span>
-                    <span class="text-xs font-bold text-primary">{scorecard.scores.messages}%</span>
+                {#each [
+                  { label: 'Messages', score: scorecard.scores.messages, bar: 'bg-primary', now: m.pf_this_week({ v: `${scorecard.messageCount} msg` }), before: m.pf_last_week({ v: `${scorecard.previousMessageCount} msg` }) },
+                  { label: m.home_opt_voice(), score: scorecard.scores.voice, bar: 'bg-success', now: m.pf_this_week({ v: `${scorecard.voiceMinutes} min` }), before: m.pf_last_week({ v: `${scorecard.previousVoiceMinutes} min` }) },
+                  { label: m.home_mod_moderation_title(), score: scorecard.scores.moderation, bar: 'bg-warning', now: m.pf_sanctions_count({ n: scorecard.sanctionsCount }), before: m.pf_last_week({ v: String(scorecard.previousSanctionsCount) }) },
+                  { label: 'Support', score: scorecard.scores.support, bar: 'bg-tertiary', now: m.pf_tickets_closed({ n: scorecard.ticketsClosed }), before: m.pf_last_week({ v: String(scorecard.previousTicketsClosed) }) },
+                ] as sub (sub.label)}
+                  <div class="section-card p-4">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-medium text-on-surface">{sub.label}</span>
+                      <span class="text-xs font-semibold text-on-surface">{sub.score}%</span>
+                    </div>
+                    <div class="mt-2 h-1.5 w-full rounded-full bg-surface-container-high overflow-hidden">
+                      <div class="h-full rounded-full {sub.bar}" style="width: {sub.score}%"></div>
+                    </div>
+                    <p class="mt-2 text-xs text-on-surface">{sub.now}</p>
+                    <p class="text-xs text-on-surface-variant">{sub.before}</p>
                   </div>
-                  <div class="h-1.5 w-full bg-on-surface/5 rounded-full overflow-hidden mb-2">
-                    <div class="h-full bg-primary" style="width: {scorecard.scores.messages}%"></div>
-                  </div>
-                  <p class="text-2xs text-on-surface-variant/50 font-bold">{m.pf_this_week({ v: `${scorecard.messageCount} msg` })}</p>
-                  <p class="text-2xs text-on-surface-variant/30">{m.pf_last_week({ v: `${scorecard.previousMessageCount} msg` })}</p>
-                </div>
-
-                <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4">
-                  <div class="flex items-center justify-between mb-1">
-                    <span class="text-xs font-semibold text-on-surface-variant">{m.home_opt_voice()}</span>
-                    <span class="text-xs font-bold text-success">{scorecard.scores.voice}%</span>
-                  </div>
-                  <div class="h-1.5 w-full bg-on-surface/5 rounded-full overflow-hidden mb-2">
-                    <div class="h-full bg-emerald-500" style="width: {scorecard.scores.voice}%"></div>
-                  </div>
-                  <p class="text-2xs text-on-surface-variant/50 font-bold">{m.pf_this_week({ v: `${scorecard.voiceMinutes} min` })}</p>
-                  <p class="text-2xs text-on-surface-variant/30">{m.pf_last_week({ v: `${scorecard.previousVoiceMinutes} min` })}</p>
-                </div>
-
-                <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4">
-                  <div class="flex items-center justify-between mb-1">
-                    <span class="text-xs font-semibold text-on-surface-variant">{m.home_mod_moderation_title()}</span>
-                    <span class="text-xs font-bold text-warning">{scorecard.scores.moderation}%</span>
-                  </div>
-                  <div class="h-1.5 w-full bg-on-surface/5 rounded-full overflow-hidden mb-2">
-                    <div class="h-full bg-amber-500" style="width: {scorecard.scores.moderation}%"></div>
-                  </div>
-                  <p class="text-2xs text-on-surface-variant/50 font-bold">{m.pf_sanctions_count({ n: scorecard.sanctionsCount })}</p>
-                  <p class="text-2xs text-on-surface-variant/30">{m.pf_last_week({ v: String(scorecard.previousSanctionsCount) })}</p>
-                </div>
-
-                <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4">
-                  <div class="flex items-center justify-between mb-1">
-                    <span class="text-xs font-semibold text-on-surface-variant">Support</span>
-                    <span class="text-xs font-bold text-purple-500">{scorecard.scores.support}%</span>
-                  </div>
-                  <div class="h-1.5 w-full bg-on-surface/5 rounded-full overflow-hidden mb-2">
-                    <div class="h-full bg-purple-500" style="width: {scorecard.scores.support}%"></div>
-                  </div>
-                  <p class="text-2xs text-on-surface-variant/50 font-bold">{m.pf_tickets_closed({ n: scorecard.ticketsClosed })}</p>
-                  <p class="text-2xs text-on-surface-variant/30">{m.pf_last_week({ v: String(scorecard.previousTicketsClosed) })}</p>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Statistiques de réunions -->
-            <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/30 p-4 flex items-center justify-between text-xs font-semibold text-on-surface-variant">
-              <span>{m.pf_meetings_attended()} <strong class="text-on-surface">{scorecard.meetingsAttended}</strong> {m.pf_meetings_last_week({ n: scorecard.previousMeetingsAttended })}</span>
-              <span class="text-on-surface-variant/40">{m.pf_realtime_update()}</span>
-            </div>
-          </div>
-        {/if}
-
-        <!-- Activity Chart & Metrics -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div class="lg:col-span-2 rounded-xl bg-surface-container-low/30 p-10 border border-outline-variant/10 shadow-sm">
-            <div class="flex items-center justify-between mb-10">
-              <div class="flex items-center gap-4">
-                <div class="w-12 h-12 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-                  <Papicon icon="TrendingUp" size={24} />
-                </div>
-                <div>
-                  <p class="text-xs font-semibold text-primary">Performances</p>
-                  <h4 class="text-2xl font-semibold text-on-surface font-headline">{m.pf_activity_trend()}</h4>
-                </div>
+                {/each}
               </div>
             </div>
 
+            <p class="text-body-sm text-on-surface-variant">
+              {m.pf_meetings_attended()} <strong class="font-semibold text-on-surface">{scorecard.meetingsAttended}</strong> {m.pf_meetings_last_week({ n: scorecard.previousMeetingsAttended })}
+            </p>
+          {/if}
+
+          <SectionCard title={m.pf_activity_trend()}>
+            {#snippet actions()}
+              {#if chartData}
+                <div class="flex items-center gap-4 text-xs text-on-surface-variant">
+                  <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-primary"></span>Messages</span>
+                  <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-success"></span>{m.pf_voice_min()}</span>
+                </div>
+              {/if}
+            {/snippet}
             {#if chartData}
-              <div class="h-[300px] w-full">
-                <Chart data={chartData} height={300} />
+              <div class="h-70 w-full">
+                <Chart data={chartData} height={280} />
               </div>
             {:else}
-              <div class="h-[300px] flex flex-col items-center justify-center text-center">
-                <Papicon icon="BarChart" size={48} class="text-on-surface-variant/20 mb-4" />
-                <p class="text-sm font-bold text-on-surface-variant/40">{m.pf_not_enough_data()}</p>
-              </div>
+              <p class="py-16 text-center text-body-sm text-on-surface-variant">{m.pf_not_enough_data()}</p>
             {/if}
-          </div>
-
-          <div class="space-y-6">
-            <div class="rounded-xl bg-primary/10 p-8 text-on-primary shadow-sm shadow-primary/20">
-               <Papicon icon="Sparkles" size={32} class="mb-4 opacity-50" />
-               <h5 class="text-lg font-semibold tracking-tight leading-tight mb-2">{m.pf_regular_activity()}</h5>
-               <p class="text-xs font-bold opacity-80 leading-relaxed">{m.pf_activity_sync()}</p>
-            </div>
-          </div>
+          </SectionCard>
         </div>
 
       {:else if activeTab === 'community_overview' && publicProfile}
-        <!-- Community Profile View -->
-        <div class="space-y-8">
-          <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
-            <MetricCard label="Messages" value={publicProfile.messageCount?.toLocaleString() || '0'} note={m.pf_total_sent_pl()} icon="MessageSquare" toneClass="bg-blue-500/10 text-blue-500" />
-            <MetricCard label={m.home_opt_voice()} value={`${Math.round((publicProfile.voiceTimeSeconds || 0) / 60)} min`} note={m.pf_time_spent()} icon="Mic" toneClass="bg-success/10 text-success" />
-            <MetricCard label={m.home_mod_events_title()} value={`${publicProfile.eventParticipations?.length || 0}`} note="Participations" icon="Zap" toneClass="bg-warning/10 text-warning" />
-            <MetricCard label={m.pf_seniority()} value={getDurationSince(publicProfile.guildJoinedAt)} note={m.pf_since_arrival()} icon="Calendar" toneClass="bg-purple-500/10 text-purple-500" />
+        <div class="space-y-6">
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <MetricCard label="Messages" value={publicProfile.messageCount?.toLocaleString() || '0'} note={m.pf_total_sent_pl()} icon="MessageSquare" toneClass={NEUTRAL_TONE} />
+            <MetricCard label={m.home_opt_voice()} value={`${Math.round((publicProfile.voiceTimeSeconds || 0) / 60)} min`} note={m.pf_time_spent()} icon="Mic" toneClass={NEUTRAL_TONE} />
+            <MetricCard label={m.home_mod_events_title()} value={`${publicProfile.eventParticipations?.length || 0}`} note="Participations" icon="Zap" toneClass={NEUTRAL_TONE} />
+            <MetricCard label={m.pf_seniority()} value={getDurationSince(publicProfile.guildJoinedAt)} note={m.pf_since_arrival()} icon="Calendar" toneClass={NEUTRAL_TONE} />
           </div>
 
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <!-- Left column bio/identity -->
-            <div class="space-y-6">
-              <div class="rounded-xl bg-surface-container-low/40 border border-outline-variant/10 p-8 shadow-sm">
-                <h4 class="text-xs font-semibold text-primary mb-4">Biographie</h4>
-                <p class="text-sm text-on-surface-variant leading-relaxed">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div class="space-y-4">
+              <SectionCard title={m.pf_bio_title()}>
+                <p class="text-sm text-on-surface leading-relaxed whitespace-pre-line">
                   {publicProfile.bio?.trim() || m.pf_no_bio()}
                 </p>
-              </div>
+              </SectionCard>
 
-              <div class="rounded-xl bg-surface-container-low/40 border border-outline-variant/10 p-8 shadow-sm">
-                <h4 class="text-xs font-semibold text-primary mb-6">{m.pf_account_details()}</h4>
-                <div class="space-y-4">
-                  <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                    <span class="text-xs font-semibold text-on-surface-variant/40">{m.pf_creation()}</span>
-                    <span class="text-xs font-bold text-on-surface">{formatDate(publicProfile.accountCreatedAt)}</span>
+              <SectionCard title={m.pf_account_details()}>
+                <dl class="divide-y divide-outline-variant/60">
+                  <div class="flex items-center justify-between gap-3 pb-2">
+                    <dt class="text-xs text-on-surface-variant">{m.pf_creation()}</dt>
+                    <dd class="text-xs font-medium text-on-surface">{formatDate(publicProfile.accountCreatedAt)}</dd>
                   </div>
-                  <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                    <span class="text-xs font-semibold text-on-surface-variant/40">{m.pf_arrival()}</span>
-                    <span class="text-xs font-bold text-on-surface">{formatDate(publicProfile.guildJoinedAt)}</span>
+                  <div class="flex items-center justify-between gap-3 py-2">
+                    <dt class="text-xs text-on-surface-variant">{m.pf_arrival()}</dt>
+                    <dd class="text-xs font-medium text-on-surface">{formatDate(publicProfile.guildJoinedAt)}</dd>
                   </div>
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-semibold text-on-surface-variant/40">Dernier message</span>
-                    <span class="text-xs font-bold text-on-surface">{formatTimeAgo(publicProfile.lastSeenAt)}</span>
+                  <div class="flex items-center justify-between gap-3 pt-2">
+                    <dt class="text-xs text-on-surface-variant">{m.pf_last_seen()}</dt>
+                    <dd class="text-xs font-medium text-on-surface">{formatTimeAgo(publicProfile.lastSeenAt)}</dd>
                   </div>
-                </div>
-              </div>
+                </dl>
+              </SectionCard>
 
               {#if publicProfile.roles && publicProfile.roles.length > 0}
-                <div class="rounded-xl bg-surface-container-low/40 border border-outline-variant/10 p-8 shadow-sm">
-                  <h4 class="text-xs font-semibold text-primary mb-4">{m.pf_roles()}</h4>
-                  <div class="flex flex-wrap gap-2">
+                <SectionCard title={m.pf_roles()}>
+                  <div class="flex flex-wrap gap-1.5">
                     {#each publicProfile.roles as role}
-                      <span class="inline-flex items-center gap-1.5 rounded-lg bg-surface-container-high/60 border border-outline-variant/10 px-3 py-1.5 text-xs font-semibold text-on-surface-variant">
-                        {role.name}
-                      </span>
+                      <span class="rounded-md border border-outline-variant px-2 py-0.5 text-xs text-on-surface">{role.name}</span>
                     {/each}
                   </div>
-                </div>
+                </SectionCard>
               {/if}
             </div>
 
-            <!-- Right column event participations -->
-            <div class="lg:col-span-2 space-y-6">
-              <div class="rounded-xl bg-surface-container-low/40 border border-outline-variant/10 p-10 shadow-sm">
-                <div class="flex items-center gap-3.5 mb-8 border-b border-outline-variant/5 pb-6">
-                  <div class="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center">
-                    <Papicon icon="Zap" size={24} />
-                  </div>
-                  <div>
-                    <h3 class="text-xl font-semibold text-on-surface font-headline leading-tight">{m.pf_events_history()}</h3>
-                    <p class="text-xs font-semibold text-on-surface-variant/40 mt-0.5">{m.pf_recent_participations()}</p>
-                  </div>
-                </div>
-
+            <div class="lg:col-span-2">
+              <SectionCard title={m.pf_events_history()} description={m.pf_recent_participations()}>
                 {#if publicProfile.eventParticipations && publicProfile.eventParticipations.length > 0}
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <ul class="divide-y divide-outline-variant/60">
                     {#each publicProfile.eventParticipations as event}
-                      <div class="flex items-center justify-between p-4.5 rounded-lg bg-surface-container-high/30 border border-outline-variant/5 hover:border-primary/25 hover:bg-surface-container-high/60 transition-all">
-                        <div>
-                          <h4 class="text-sm font-semibold text-on-surface leading-tight truncate max-w-[180px]">{event.title}</h4>
-                          <p class="text-xs font-semibold text-primary mt-0.5">{event.type}</p>
+                      <li class="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                        <div class="min-w-0">
+                          <p class="text-sm font-medium text-on-surface truncate">{event.title}</p>
+                          <p class="text-xs text-on-surface-variant">{event.type} · {formatDate(event.date)}</p>
                         </div>
-                        <div class="text-right">
-                          <span class="text-sm font-semibold text-primary">{event.score} pts</span>
-                          <p class="text-xs font-semibold text-on-surface-variant/30 mt-0.5">{formatDate(event.date)}</p>
-                        </div>
-                      </div>
+                        <span class="shrink-0 text-sm font-semibold text-on-surface">{event.score} pts</span>
+                      </li>
                     {/each}
-                  </div>
+                  </ul>
                 {:else}
-                  <div class="py-16 text-center opacity-30">
-                    <Papicon icon="Zap" size={48} class="mx-auto mb-4" />
-                    <p class="text-sm font-semibold">{m.pf_no_participations()}</p>
-                  </div>
+                  <p class="py-10 text-center text-body-sm text-on-surface-variant">{m.pf_no_participations()}</p>
                 {/if}
-              </div>
+              </SectionCard>
             </div>
           </div>
         </div>
 
       {:else if activeTab === 'rank_card' && isOwnProfile}
-        <div class="rounded-xl bg-surface-container-low/30 p-10 border border-outline-variant/10 shadow-sm">
+        <div class="section-card p-5">
           <RankCardCustomizer />
         </div>
 
       {:else if activeTab === 'api_keys' && staffMember && isOwnProfile && visibility.apiKeys}
-        <!-- API Keys Management Panel (Own profile only) -->
-        <div class="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-8">
-          <div class="rounded-xl bg-surface-container-low/30 p-10 border border-outline-variant/10 shadow-sm">
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-              <div class="flex items-center gap-4">
-                <div class="w-12 h-12 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-                  <Papicon icon="Lock" size={24} />
-                </div>
-                <div>
-                  <p class="text-xs font-semibold text-primary">{m.login_security()}</p>
-                  <h4 class="text-2xl font-semibold text-on-surface font-headline">{m.pf_personal_api_keys()}</h4>
-                </div>
-              </div>
-              <button 
+        <div class="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-4">
+          <SectionCard title={m.pf_personal_api_keys()}>
+            {#snippet actions()}
+              <Button
+                size="sm"
+                variant={showNewKeyForm ? 'ghost' : 'primary'}
+                icon={showNewKeyForm ? 'Cross' : 'Plus'}
                 onclick={() => { showNewKeyForm = !showNewKeyForm; newKeyCreatedValue = ''; }}
-                class="inline-flex items-center gap-2 rounded-lg px-6 py-3.5 text-xs font-medium transition-all {showNewKeyForm ? 'bg-error/10 text-error border border-error/20' : 'bg-primary text-on-primary hover:'}"
               >
-                <Papicon icon={showNewKeyForm ? 'Cross' : 'Plus'} size={14} />
                 {showNewKeyForm ? m.common_cancel() : m.pf_create_key()}
-              </button>
-            </div>
+              </Button>
+            {/snippet}
 
             {#if newKeyCreatedValue}
-              <div class="mb-8 p-6 rounded-xl bg-success/5 border border-success/20 animate-in zoom-in-95 duration-500">
-                <h5 class="text-sm font-semibold text-success mb-2">{m.pf_key_generated()}</h5>
-                <div class="flex items-center gap-3 bg-surface-container-high/60 px-4 py-3 rounded-lg mb-4 border border-outline-variant/10">
-                  <code class="text-xs font-mono font-bold text-on-surface break-all">{newKeyCreatedValue}</code>
-                  <button 
-                    onclick={() => copyToClipboard(newKeyCreatedValue, 'new-key')}
-                    class="p-2 rounded-lg hover:bg-surface-container-high transition-colors text-on-surface-variant/40 hover:text-primary"
-                  >
-                    <Papicon icon="Paper" size={16} />
-                  </button>
+              <Callout variant="success" title={m.pf_key_generated()} class="mb-4">
+                <div class="flex items-center gap-2 mt-1">
+                  <code class="flex-1 min-w-0 break-all rounded-md bg-surface-container px-2 py-1 text-xs font-mono text-on-surface">{newKeyCreatedValue}</code>
+                  <Button variant="ghost" size="sm" icon="Paper" aria-label={m.pf_copied()} onclick={() => copyToClipboard(newKeyCreatedValue, 'new-key')} />
                 </div>
-                <p class="text-2xs font-bold text-error">
-                  {m.pf_copy_key_warning()}
-                </p>
-              </div>
+                <p class="mt-2 text-error">{m.pf_copy_key_warning()}</p>
+              </Callout>
             {/if}
 
             {#if showNewKeyForm}
-              <div class="mb-10 p-6 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 animate-in zoom-in-95 duration-500">
-                <div class="flex flex-col gap-6">
-                  <div class="flex flex-col md:flex-row gap-4 items-end">
-                    <div class="flex-1 w-full">
-                      <label for="key-name" class="field-label">{m.pf_key_name_label()}</label>
-                      <FormInput id="key-name" bind:value={newKeyName} placeholder={m.pf_key_name_ph()} className="w-full" />
-                    </div>
-                  </div>
+              <div class="mb-4 rounded-lg border border-outline-variant p-4 space-y-4">
+                <div>
+                  <label for="key-name" class="field-label">{m.pf_key_name_label()}</label>
+                  <FormInput id="key-name" bind:value={newKeyName} placeholder={m.pf_key_name_ph()} className="w-full" />
+                </div>
 
-                  <div>
-                    <span class="text-xs font-medium text-on-surface-variant/40 block mb-3 px-1">{m.pf_key_permissions()}</span>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <!-- Recruitment Checkbox -->
-                      <label class="flex items-start gap-3 p-4 rounded-lg border border-outline-variant/10 bg-surface-container-low/50 hover:bg-surface-container-low cursor-pointer select-none transition-colors">
-                        <input type="checkbox" bind:checked={permRecruitment} class="mt-1 accent-primary" />
-                        <div>
-                          <p class="text-xs font-semibold text-on-surface">Module Recrutement</p>
-                          <p class="text-2xs font-bold text-on-surface-variant/50 mt-1 leading-relaxed">
-                            Lier un formulaire externe (ex: Google Forms) pour enregistrer les candidatures sur Kotbo.
-                          </p>
-                        </div>
-                      </label>
-
-                      <!-- Daily Algo Checkbox -->
-                      <label class="flex items-start gap-3 p-4 rounded-lg border border-outline-variant/10 bg-surface-container-low/50 hover:bg-surface-container-low cursor-pointer select-none transition-colors">
-                        <input type="checkbox" bind:checked={permDailyAlgo} class="mt-1 accent-primary" />
-                        <div>
-                          <p class="text-xs font-semibold text-on-surface">Daily Algo API</p>
-                          <p class="text-2xs font-bold text-on-surface-variant/50 mt-1 leading-relaxed">
-                            {m.pf_daily_algo_perm()}
-                          </p>
-                        </div>
-                      </label>
-                    </div>
+                <fieldset>
+                  <legend class="field-label">{m.pf_key_permissions()}</legend>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <label class="flex items-start gap-3 rounded-lg border border-outline-variant p-3 cursor-pointer hover:bg-surface-container">
+                      <input type="checkbox" bind:checked={permRecruitment} class="mt-0.5 accent-primary" />
+                      <span>
+                        <span class="block text-sm font-medium text-on-surface">Module Recrutement</span>
+                        <span class="block mt-0.5 text-xs text-on-surface-variant leading-relaxed">
+                          Lier un formulaire externe (ex: Google Forms) pour enregistrer les candidatures sur Kotbo.
+                        </span>
+                      </span>
+                    </label>
+                    <label class="flex items-start gap-3 rounded-lg border border-outline-variant p-3 cursor-pointer hover:bg-surface-container">
+                      <input type="checkbox" bind:checked={permDailyAlgo} class="mt-0.5 accent-primary" />
+                      <span>
+                        <span class="block text-sm font-medium text-on-surface">Daily Algo API</span>
+                        <span class="block mt-0.5 text-xs text-on-surface-variant leading-relaxed">{m.pf_daily_algo_perm()}</span>
+                      </span>
+                    </label>
                   </div>
+                </fieldset>
 
-                  <div class="flex justify-end border-t border-outline-variant/5 pt-4">
-                    <button 
-                      onclick={createNewAPIKey}
-                      class="w-full md:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 text-white px-8 py-4 text-xs font-medium shadow-sm hover:bg-emerald-600 transition-all"
-                    >
-                      <Papicon icon="Check" size={14} /> {m.pf_confirm_creation()}
-                    </button>
-                  </div>
+                <div class="flex justify-end">
+                  <Button variant="primary" icon="Check" onclick={createNewAPIKey}>{m.pf_confirm_creation()}</Button>
                 </div>
               </div>
             {/if}
 
             {#if apiKeys.length > 0}
-              <div class="grid gap-4">
+              <ul class="divide-y divide-outline-variant/60">
                 {#each apiKeys as key (key.id)}
-                  <div class="group flex items-center justify-between gap-4 rounded-xl border border-outline-variant/10 bg-surface-container-low/60 p-6 transition-all hover:bg-surface-container-low hover:border-primary/20">
+                  <li class="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
                     <div class="min-w-0 flex-1">
-                      <div class="flex items-center gap-3 mb-2">
-                        <span class="text-sm font-semibold text-on-surface">{key.name}</span>
-                        <div class="flex gap-1">
-                          {#each key.permissions as perm}
-                            <span class="px-2 py-0.5 rounded-lg bg-primary/5 text-2xs font-semibold text-primary uppercase tracking-tighter border border-primary/10">
-                              {perm === 'recruitment:forms' ? 'Recrutement' : perm === 'daily_algo:create_exercise' ? 'Daily Algo' : perm}
-                            </span>
-                          {/each}
-                        </div>
+                      <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-sm font-medium text-on-surface">{key.name}</span>
+                        {#each key.permissions as perm}
+                          <span class="rounded-md bg-surface-container px-1.5 py-0.5 text-xs text-on-surface-variant">
+                            {perm === 'recruitment:forms' ? 'Recrutement' : perm === 'daily_algo:create_exercise' ? 'Daily Algo' : perm}
+                          </span>
+                        {/each}
                       </div>
-                      <div class="flex items-center gap-3">
-                        <code class="text-xs font-mono text-on-surface-variant/60 bg-surface-container-high px-3 py-1 rounded-xl">{key.displayKey}</code>
-                        <span class="text-2xs font-bold text-on-surface-variant/40 uppercase">
-                          {m.pf_used_on({ date: formatDate(key.lastUsedAt) })}
-                        </span>
+                      <div class="mt-1 flex flex-wrap items-center gap-2">
+                        <code class="rounded-md bg-surface-container px-2 py-0.5 text-xs font-mono text-on-surface-variant">{key.displayKey}</code>
+                        <span class="text-xs text-on-surface-variant">{m.pf_used_on({ date: formatDate(key.lastUsedAt) })}</span>
                       </div>
                     </div>
-                    <button 
-                      onclick={() => deleteKey(key.id)}
-                      class="opacity-0 group-hover:opacity-100 p-3 rounded-xl bg-error/10 text-error hover:bg-rose-500 hover:text-white transition-all duration-300"
-                    >
-                      <Papicon icon="Trash" size={18} />
-                    </button>
-                  </div>
+                    <Button variant="ghost" size="sm" icon="Trash" aria-label={m.pf_revoke()} onclick={() => deleteKey(key.id)} />
+                  </li>
                 {/each}
-              </div>
+              </ul>
             {:else}
-              <div class="py-20 flex flex-col items-center justify-center text-center bg-surface-container-low/20 rounded-xl border-2 border-dashed border-outline-variant/10">
-                <div class="w-16 h-16 rounded-xl bg-on-surface/5 flex items-center justify-center text-on-surface-variant/20 mb-6">
-                  <Papicon icon="Lock" size={32} />
-                </div>
-                <h5 class="text-lg font-semibold text-on-surface-variant/60">{m.pf_no_active_keys()}</h5>
-                <p class="mt-1 text-sm font-bold text-on-surface-variant/30">{m.pf_generate_key_hint()}</p>
+              <div class="py-10 text-center">
+                <p class="text-sm font-medium text-on-surface">{m.pf_no_active_keys()}</p>
+                <p class="mt-1 text-body-sm text-on-surface-variant">{m.pf_generate_key_hint()}</p>
               </div>
             {/if}
-          </div>
+          </SectionCard>
 
-          <div class="space-y-6">
-            <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm">
-               <div class="flex items-center gap-3 mb-6">
-                  <div class="w-10 h-10 rounded-xl bg-warning/10 text-warning flex items-center justify-center">
-                    <Papicon icon="ShieldAlert" size={20} />
-                  </div>
-                  <h5 class="text-sm font-semibold text-on-surface">{m.pf_api_key_security()}</h5>
-               </div>
-               <ul class="space-y-4">
-                 <li class="flex gap-3 text-xs font-bold text-on-surface-variant/60 leading-relaxed">
-                   <span class="text-warning">•</span>
-                   {m.pf_revoke_hint()}
-                 </li>
-                 <li class="flex gap-3 text-xs font-bold text-on-surface-variant/60 leading-relaxed">
-                   <span class="text-warning">•</span>
-                   {m.pf_no_share_keys()}
-                 </li>
-               </ul>
-            </div>
-          </div>
+          <SectionCard title={m.pf_api_key_security()}>
+            <ul class="list-disc pl-4 space-y-2 text-body-sm text-on-surface-variant">
+              <li>{m.pf_revoke_hint()}</li>
+              <li>{m.pf_no_share_keys()}</li>
+            </ul>
+          </SectionCard>
         </div>
       {/if}
-
     </div>
-
   {/if}
 </div>
-
-<style>
-  :global(.font-headline) {
-    font-family: 'Outfit', 'Inter', sans-serif;
-  }
-</style>

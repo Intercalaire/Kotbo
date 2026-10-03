@@ -3,6 +3,11 @@
  *
  * Trackers légers pour les statistiques avancées :
  *  - Fréquence des mots (agrégats anonymes, opt-in via wordStatsEnabled)
+ *  - Contenu des messages : types, emojis, stickers, GIF, liens, markdown
+ *    (contentStatsTracker.ts, rattrapage depuis message_logs au démarrage)
+ *  - Conversation : temps de réponse par salon, réponses et mentions entre
+ *    membres (conversationTracker.ts)
+ *  - Temps réel : fenêtre glissante de 30 minutes en mémoire (analyticsLiveTracker.ts)
  *  - Complétion de l'onboarding Discord (membership screening : pending → validé)
  */
 
@@ -13,6 +18,11 @@ import { getCachedGuild } from '../utils/cache.js';
 import { isGuildActivated } from '../utils/activation.js';
 import { trackMessageWords, startWordStatsFlusher } from '../services/analytics/wordStatsService.js';
 import { isAnalyticsCollectionEnabled } from '../services/analytics/analyticsConsent.js';
+import { registerContentStatsTracker } from './contentStatsTracker.js';
+import { registerConversationTracker } from './conversationTracker.js';
+import { registerAnalyticsLiveTracker } from './analyticsLiveTracker.js';
+import { scheduleContentStatsBackfills } from '../services/analytics/contentStatsBackfillService.js';
+import { scheduleConversationBackfills } from '../services/analytics/conversationStatsBackfillService.js';
 
 async function handleMessageForWordStats(message: Message): Promise<void> {
   const guildId = message.guild?.id;
@@ -30,6 +40,11 @@ async function handleMessageForWordStats(message: Message): Promise<void> {
 
 export function registerAnalyticsTrackers(client: Client): void {
   startWordStatsFlusher();
+  registerContentStatsTracker(client);
+  registerConversationTracker(client);
+  registerAnalyticsLiveTracker(client);
+  scheduleContentStatsBackfills();
+  scheduleConversationBackfills();
 
   client.on(Events.MessageCreate, (message: Message) => {
     void handleMessageForWordStats(message).catch((err) => {

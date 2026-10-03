@@ -622,6 +622,7 @@ export type DashboardState = {
   /** Roles Discord rattaches a la hierarchie staff, role moderateur inclus. */
   staffRoleIds: string[];
   moderatorRoleId: string;
+  sanctionAlertChannelId: string;
   commandRestrictions: CommandRestrictionState[];
   sidebarFavorites: string[];
   commandCatalog: CommandCatalogEntry[];

@@ -9,6 +9,7 @@ import {
 } from '../../../shared.js';
 import { optionalAuth } from '../../middleware/auth.js';
 import { UserId } from '../../schemas/common.js';
+import { syncMutualMemberProfiles } from '../../../routes/user.js';
 
 // ---------------------------------------------------------------------------
 // Schémas de réponse
@@ -301,31 +302,34 @@ export function createPublicProfileRouter(client: Client) {
     }
 
     try {
-      const snapshot = await getPublicProfileSnapshot(userId);
+      let snapshot = await getPublicProfileSnapshot(userId);
+      if (!snapshot) {
+        // Personne n'a encore ecrit nulle part : on ouvre ses fiches sur les
+        // serveurs partages plutot que de refuser l'enregistrement.
+        await syncMutualMemberProfiles(client, userId, authUser.discordToken, { force: true });
+        snapshot = await getPublicProfileSnapshot(userId);
+      }
       if (!snapshot) {
         return c.json({ error: 'Profil introuvable' }, 404);
       }
 
       const body = c.req.valid('json');
+      const profile = {
+        bio: typeof body.bio === 'string'
+          ? body.bio.trim().substring(0, 500)
+          : body.bio === null
+            ? null
+            : snapshot.memberProfile.bio,
+        isProfilePrivate: typeof body.isProfilePrivate === 'boolean'
+          ? body.isProfilePrivate
+          : snapshot.memberProfile.isProfilePrivate,
+      };
 
-      const updatedProfile = await prisma.memberProfile.update({
-        where: { id: snapshot.memberProfile.id },
-        data:  {
-          bio: typeof body.bio === 'string'
-            ? body.bio.trim().substring(0, 500)
-            : body.bio === null
-              ? null
-              : snapshot.memberProfile.bio,
-          isProfilePrivate: typeof body.isProfilePrivate === 'boolean'
-            ? body.isProfilePrivate
-            : snapshot.memberProfile.isProfilePrivate,
-        },
-      });
+      // Toutes les fiches, une par serveur : la lecture rend la plus recemment
+      // touchee, qui ne serait pas celle-ci des le prochain message ailleurs.
+      await prisma.memberProfile.updateMany({ where: { userId }, data: profile });
 
-      return c.json({
-        ok:      true,
-        profile: { bio: updatedProfile.bio, isProfilePrivate: updatedProfile.isProfilePrivate },
-      }, 200);
+      return c.json({ ok: true, profile }, 200);
     } catch (err) {
       logger.error('PublicAPI', `Error updating public profile for ${userId}:`, err);
       return c.json({ error: 'Erreur lors de la mise à jour du profil' }, 500);

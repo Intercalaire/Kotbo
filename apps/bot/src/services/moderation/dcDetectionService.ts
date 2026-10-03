@@ -15,8 +15,15 @@ import {
   classify,
   logDetectionSample,
   recordDecision,
+  assessWithLearnedModel,
+  blendScore,
+  resolveInviteSponsor,
+  listUsersInvitedBy,
+  findBotIds,
   type DcSignal,
   type Severity,
+  type JoinInvite,
+  type LearnedAssessment,
 } from './dc/index.js';
 
 // ─── Constantes de seuils ─────────────────────────────────────────────────────
@@ -81,6 +88,9 @@ export type DetectionEvidence = {
   suspectedAlts: string[];
   totalScore: number;
   detectedAt: string;
+  /** Score des seules heuristiques, avant mélange avec le modèle appris. */
+  heuristicScore?: number;
+  learned?: LearnedAssessment | null;
 };
 
 export type YoungAccountScanMatch = {
@@ -179,8 +189,47 @@ async function notifyManagersOfSuspectedDC(guildId: string, member: GuildMember)
   ).catch(() => null)));
 }
 
+// ─── Scoring commun (arrivée et recalcul dashboard) ───────────────────────────
+
+/**
+ * Un bot ne peut pas être le double compte d'un membre : ceux qui se glissent
+ * parmi les suspects (proximité d'arrivée, invitation…) sont retirés, avec les
+ * signaux qui les désignent. Sinon le bouton « Lier les comptes » proposait de
+ * lier le membre à un bot.
+ */
+async function dropBotAlts(guildId: string, reasons: DetectionReason[], suspectedAlts: Set<string>): Promise<void> {
+  const bots = await findBotIds(guildId, [...suspectedAlts]);
+  if (bots.size === 0) return;
+  for (const id of bots) suspectedAlts.delete(id);
+  for (let i = reasons.length - 1; i >= 0; i--) {
+    const matched = reasons[i].matchedUserId;
+    if (matched && bots.has(matched)) reasons.splice(i, 1);
+  }
+}
+
+/** Score heuristique pondéré, puis mélange avec le modèle appris des décisions staff. */
+async function scoreReasons(guildId: string, reasons: DetectionReason[]) {
+  const weights = await loadSignalWeights(guildId).catch(() => ({}));
+  const scoreResult = computeWeightedScore(reasons as DcSignal[], weights);
+  const learned = await assessWithLearnedModel(guildId, reasons as DcSignal[], scoreResult.distinctFamilies)
+    .catch(() => null);
+  const totalScore = learned
+    ? blendScore(scoreResult.totalScore, learned.probability, learned.confidence)
+    : scoreResult.totalScore;
+  return { scoreResult, heuristicScore: scoreResult.totalScore, totalScore, learned };
+}
+
 // ─── Analyse principale à l'arrivée ───────────────────────────────────────────
-export async function analyzeMemberJoin(member: GuildMember): Promise<DetectionEvidence | null> {
+
+/**
+ * @param joinInvite invitation résolue à l'événement d'arrivée ; `null` quand
+ * aucune n'a pu être identifiée (vanity, cache vide). Absente, on relit la
+ * dernière arrivée enregistrée en base.
+ */
+export async function analyzeMemberJoin(member: GuildMember, joinInvite?: JoinInvite | null): Promise<DetectionEvidence | null> {
+  // Un bot qui rejoint n'est le double compte de personne.
+  if (member.user.bot) return null;
+
   const guildId = member.guild.id;
   const userId = member.id;
   const reasons: DetectionReason[] = [];
@@ -199,71 +248,76 @@ export async function analyzeMemberJoin(member: GuildMember): Promise<DetectionE
   }
 
   // ── 1. Invite tracking ──────────────────────────────────────────────────────
-  const inviteRecord = await prisma.memberInvite.findFirst({
-    where: { guildId, userId },
-    orderBy: { joinedAt: 'desc' }
-  });
+  const inviteRecord: JoinInvite | null = joinInvite !== undefined
+    ? joinInvite
+    : await prisma.memberInvite.findFirst({
+        where: { guildId, userId },
+        orderBy: { joinedAt: 'desc' },
+        select: { inviteCode: true, inviterId: true },
+      }).then((row) => row && { code: row.inviteCode, inviterId: row.inviterId });
   // Une invitation très utilisée est probablement générale/publique : « invité par X »
   // n'est alors pas un indice fiable de double-compte, on ignore les signaux liés à l'inviteur.
-  const isGeneralInvite = inviteRecord?.inviteCode
-    ? (await prisma.memberInvite.count({ where: { guildId, inviteCode: inviteRecord.inviteCode } })) >= GENERAL_INVITE_USES_THRESHOLD
+  const isGeneralInvite = inviteRecord?.code
+    ? (await prisma.memberInvite.count({ where: { guildId, inviteCode: inviteRecord.code } })) >= GENERAL_INVITE_USES_THRESHOLD
     : false;
+  // Le créateur Discord peut être un bot (invitation recréée par Kotbo après
+  // validation staff) : on remonte au membre qui l'a réellement demandée.
+  const sponsor = isGeneralInvite ? null : await resolveInviteSponsor(guildId, inviteRecord);
 
-  if (inviteRecord?.inviterId && !isGeneralInvite) {
+  if (sponsor && sponsor.sponsorId !== userId) {
+    const sponsorId = sponsor.sponsorId;
     reasons.push({
-      type: 'invite_link', label: `Invité par <@${inviteRecord.inviterId}>`,
-      score: 20, matchedUserId: inviteRecord.inviterId,
-      detail: `Code invite utilisé par ce membre, créé par ${inviteRecord.inviterId}`,
+      type: 'invite_link', label: `Invité par <@${sponsorId}>`,
+      score: 20, matchedUserId: sponsorId,
+      detail: sponsor.viaApproval
+        ? `Invitation demandée par ${sponsorId}, recréée par Kotbo après validation staff`
+        : `Code invite utilisé par ce membre, créé par ${sponsorId}`,
     });
-    suspectedAlts.add(inviteRecord.inviterId);
+    suspectedAlts.add(sponsorId);
 
     // ── Signal 5 : L'inviteur est lui-même marqué comme DC suspect ────────────
     const inviterProfile = await prisma.memberProfile.findUnique({
-      where: { guildId_userId: { guildId, userId: inviteRecord.inviterId } },
+      where: { guildId_userId: { guildId, userId: sponsorId } },
       select: { isSuspectedDC: true }
     });
     if (inviterProfile?.isSuspectedDC) {
-      const existing = reasons.find(r => r.matchedUserId === inviteRecord.inviterId);
+      const existing = reasons.find(r => r.matchedUserId === sponsorId);
       if (existing) {
         existing.score += 25;
       } else {
         reasons.push({
           type: 'inviter_is_suspected_dc',
-          label: `L'inviteur <@${inviteRecord.inviterId}> est lui-même suspect DC`,
-          score: 25, matchedUserId: inviteRecord.inviterId,
+          label: `L'inviteur <@${sponsorId}> est lui-même suspect DC`,
+          score: 25, matchedUserId: sponsorId,
           detail: `Le profil de l'inviteur est marqué isSuspectedDC=true`,
         });
       }
     }
 
     // ── Signal 9 : L'inviteur a déjà invité plusieurs membres suspects ────────
-    const inviterSuspectCount = await prisma.memberProfile.count({
-      where: { guildId, isSuspectedDC: true,
-        userId: { in: (await prisma.memberInvite.findMany({
-          where: { guildId, inviterId: inviteRecord.inviterId },
-          select: { userId: true }
-        })).map(i => i.userId) }
-      }
-    });
+    const invitedBySponsor = await listUsersInvitedBy(guildId, sponsorId);
+    const inviterSuspectCount = invitedBySponsor.length > 0
+      ? await prisma.memberProfile.count({
+          where: { guildId, isSuspectedDC: true, userId: { in: invitedBySponsor } }
+        })
+      : 0;
     if (inviterSuspectCount >= 3) {
       reasons.push({
         type: 'same_inviter_multiple',
-        label: `L'inviteur <@${inviteRecord.inviterId}> a déjà invité ${inviterSuspectCount} membres suspects`,
-        score: 20, matchedUserId: inviteRecord.inviterId,
+        label: `L'inviteur <@${sponsorId}> a déjà invité ${inviterSuspectCount} membres suspects`,
+        score: 20, matchedUserId: sponsorId,
         detail: `Pattern typique d'un compte principal créant des alts via ses propres liens d'invitation`,
       });
     }
 
     // ── Signal 2 : Boucle d'invitation (A a invité B, et B a déjà invité A) ──
-    const reverseInvite = await prisma.memberInvite.findFirst({
-      where: { guildId, userId: inviteRecord.inviterId, inviterId: userId }
-    });
-    if (reverseInvite) {
+    const invitedByMember = await listUsersInvitedBy(guildId, userId);
+    if (invitedByMember.includes(sponsorId)) {
       reasons.push({
         type: 'invite_loop',
-        label: `Boucle d'invitation avec <@${inviteRecord.inviterId}>`,
-        score: 40, matchedUserId: inviteRecord.inviterId,
-        detail: `<@${userId}> a invité <@${inviteRecord.inviterId}> et vice-versa - comportement d'alt typique`,
+        label: `Boucle d'invitation avec <@${sponsorId}>`,
+        score: 40, matchedUserId: sponsorId,
+        detail: `<@${userId}> a invité <@${sponsorId}> et vice-versa - comportement d'alt typique`,
       });
     }
   }
@@ -578,6 +632,8 @@ export async function analyzeMemberJoin(member: GuildMember): Promise<DetectionE
     if (s.matchedUserId) suspectedAlts.add(s.matchedUserId);
   }
 
+  await dropBotAlts(guildId, reasons, suspectedAlts);
+
   // ═══════════════════════════════════════════════════════════════════════════
   // ANALYSE PROFONDE - signaux intelligents (comportemental, technique, vocal…)
   // ═══════════════════════════════════════════════════════════════════════════
@@ -591,13 +647,12 @@ export async function analyzeMemberJoin(member: GuildMember): Promise<DetectionE
 
   if (reasons.length === 0) return null;
 
-  // Scoring pondéré : familles, corroboration inter-familles, redondance, poids appris.
-  const weights = await loadSignalWeights(guildId).catch(() => ({}));
-  const scoreResult = computeWeightedScore(reasons as DcSignal[], weights);
-  const totalScore = scoreResult.totalScore;
+  // Scoring pondéré (familles, corroboration, poids appris) puis modèle appris.
+  const { scoreResult, heuristicScore, totalScore, learned } = await scoreReasons(guildId, reasons);
 
   const evidence: DetectionEvidence = {
     userId, reasons, suspectedAlts: Array.from(suspectedAlts), totalScore, detectedAt: new Date().toISOString(),
+    heuristicScore, learned,
   };
 
   // Persiste le flag + score + horodatage d'alerte
@@ -688,9 +743,13 @@ export async function getDetectionEvidence(guildId: string, userId: string): Pro
   const inviteIsGeneral = invite?.inviteCode
     ? (await prisma.memberInvite.count({ where: { guildId, inviteCode: invite.inviteCode } })) >= GENERAL_INVITE_USES_THRESHOLD
     : false;
-  if (invite?.inviterId && !inviteIsGeneral) {
-    reasons.push({ type: 'invite_link', label: `Invité par <@${invite.inviterId}>`, score: 20, matchedUserId: invite.inviterId });
-    suspectedAlts.add(invite.inviterId);
+  // Même remontée qu'à l'arrivée : une invitation créée par un bot désigne son demandeur, ou personne.
+  const sponsor = invite && !inviteIsGeneral
+    ? await resolveInviteSponsor(guildId, { code: invite.inviteCode, inviterId: invite.inviterId })
+    : null;
+  if (sponsor && sponsor.sponsorId !== userId) {
+    reasons.push({ type: 'invite_link', label: `Invité par <@${sponsor.sponsorId}>`, score: 20, matchedUserId: sponsor.sponsorId });
+    suspectedAlts.add(sponsor.sponsorId);
   }
 
   if (profile.accountCreatedAt) {
@@ -760,6 +819,8 @@ export async function getDetectionEvidence(guildId: string, userId: string): Pro
     if (s.matchedUserId) suspectedAlts.add(s.matchedUserId);
   }
 
+  await dropBotAlts(guildId, reasons, suspectedAlts);
+
   // Analyse profonde (comportemental, technique, vocal, pattern quotidien) - tout en base.
   const deepSignals = await runDeepAnalysis(guildId, userId, Array.from(suspectedAlts)).catch(() => [] as DcSignal[]);
   for (const s of deepSignals) {
@@ -777,13 +838,13 @@ export async function getDetectionEvidence(guildId: string, userId: string): Pro
     });
   }
 
-  const weights = await loadSignalWeights(guildId).catch(() => ({}));
-  const scoreResult = computeWeightedScore(reasons as DcSignal[], weights);
+  const { heuristicScore, totalScore, learned } = await scoreReasons(guildId, reasons);
 
   return {
     userId, reasons, suspectedAlts: Array.from(suspectedAlts),
-    totalScore: scoreResult.totalScore,
+    totalScore,
     detectedAt: new Date().toISOString(),
+    heuristicScore, learned,
   };
 }
 
@@ -793,7 +854,15 @@ export async function scanGuildMembersForYoungAccounts(guild: Guild, thresholdMs
   if (!fetchedMembers) return { scannedCount: 0, flaggedCount: 0, thresholdMs, matches: [] };
 
   const matches: YoungAccountScanMatch[] = [];
+  const newlyFlagged: { member: GuildMember; reason: string }[] = [];
   let scannedCount = 0;
+
+  // Les membres déjà suspects ont eu leur alerte au scan précédent : la renvoyer
+  // à chaque relance noyait le salon de logs et faisait expirer l'appel du dashboard.
+  const alreadyFlagged = new Set((await prisma.memberProfile.findMany({
+    where: { guildId: guild.id, isSuspectedDC: true },
+    select: { userId: true },
+  })).map((p) => p.userId));
 
   for (const member of fetchedMembers.values()) {
     if (member.user.bot) continue;
@@ -801,23 +870,19 @@ export async function scanGuildMembersForYoungAccounts(guild: Guild, thresholdMs
     const suspicion = buildYoungAccountSuspicion(member, thresholdMs);
     if (!suspicion) continue;
 
-    await prisma.memberProfile.upsert({
-      where: { guildId_userId: { guildId: guild.id, userId: member.id } },
-      update: { isSuspectedDC: true },
-      create: {
-        guildId: guild.id,
-        userId: member.id,
-        ...memberProfileIdentity(member),
-        isSuspectedDC: true,
-      }
-    }).catch(() => null);
-
-    const evidence: DetectionEvidence = {
-      userId: member.id, reasons: [{ type: 'young_account', label: suspicion.reason, score: 30 }],
-      suspectedAlts: [], totalScore: 30, detectedAt: new Date().toISOString(),
-    };
-    await reportSuspectedDC(member, evidence);
-    await notifyManagersOfSuspectedDC(guild.id, member);
+    if (!alreadyFlagged.has(member.id)) {
+      await prisma.memberProfile.upsert({
+        where: { guildId_userId: { guildId: guild.id, userId: member.id } },
+        update: { isSuspectedDC: true },
+        create: {
+          guildId: guild.id,
+          userId: member.id,
+          ...memberProfileIdentity(member),
+          isSuspectedDC: true,
+        }
+      }).catch(() => null);
+      newlyFlagged.push({ member, reason: suspicion.reason });
+    }
 
     matches.push({
       userId: member.id, username: member.user.username, displayName: member.displayName,
@@ -827,7 +892,24 @@ export async function scanGuildMembersForYoungAccounts(guild: Guild, thresholdMs
     });
   }
 
+  // Les envois Discord sont limités par salon : on n'attend pas qu'ils passent
+  // pour rendre le résultat, le suspect est déjà marqué en base.
+  void reportYoungAccounts(guild.id, newlyFlagged);
+
   return { scannedCount, flaggedCount: matches.length, thresholdMs, matches };
+}
+
+async function reportYoungAccounts(guildId: string, flagged: { member: GuildMember; reason: string }[]): Promise<void> {
+  for (const { member, reason } of flagged) {
+    const evidence: DetectionEvidence = {
+      userId: member.id, reasons: [{ type: 'young_account', label: reason, score: 30 }],
+      suspectedAlts: [], totalScore: 30, detectedAt: new Date().toISOString(),
+    };
+    await reportSuspectedDC(member, evidence).catch((err) => {
+      logger.warn('DCDetection', `Alerte de scan non envoyée pour ${member.id}: ${String(err)}`);
+    });
+    await notifyManagersOfSuspectedDC(guildId, member);
+  }
 }
 
 // ─── Embed de signalement dans le salon de logs ──────────────────────────────
@@ -865,6 +947,14 @@ async function reportSuspectedDC(
     ? `${distinctFamilies} familles de signaux${corroborationMultiplier > 1 ? ` (×${corroborationMultiplier.toFixed(2)} corroboration)` : ''}`
     : '1 seule famille de signaux';
 
+  // Ce que le modèle appris des décisions passées pense de cette détection.
+  const learned = evidence.learned;
+  const learnedText = learned
+    ? `${Math.round(learned.probability * 100)} % de probabilité · ${Math.round(learned.confidence * 100)} % du score` +
+      ` (${learned.guildSamples > 0 ? `${learned.guildSamples} décisions ici` : `${learned.globalSamples} décisions tous serveurs`})` +
+      (evidence.heuristicScore !== undefined ? ` · heuristiques seules : ${evidence.heuristicScore}/100` : '')
+    : null;
+
   const embed = new EmbedBuilder()
     .setTitle('🔍 Détection de Double Compte')
     .setColor(parseInt(scoreColor.replace('#', ''), 16))
@@ -879,6 +969,7 @@ async function reportSuspectedDC(
       { name: '👥 Comptes suspects', value: altsText },
     )
     .setTimestamp();
+  if (learnedText) embed.addFields({ name: '🧠 Modèle appris', value: learnedText });
 
   const primaryAlt = evidence.suspectedAlts[0] || 'none';
 
@@ -935,9 +1026,6 @@ export async function handleDCInteraction(interaction: Interaction): Promise<voi
       where: { userId: { in: [userId, altId] }, guildId: interaction.guildId! },
       data: { isSuspectedDC: false, dcScore: null }
     }).catch(() => null);
-
-    // Boucle d'apprentissage : lien confirmé = vrai positif.
-    void recordDecision(interaction.guildId!, [userId, altId], 'TRUE_POSITIVE', interaction.user.id);
 
     const dmEmbed = new EmbedBuilder()
       .setColor('#57F287')
