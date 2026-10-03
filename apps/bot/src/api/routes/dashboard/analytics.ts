@@ -1,6 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, Routes } from 'discord.js';
-import { prismaRead } from '../../../utils/db.js';
+import prisma, { prismaRead } from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { cache } from '../../../utils/cache.js';
 import { memberDisplaysGuildTag } from '../../../services/moderation/tagRoleService.js';
@@ -164,6 +164,94 @@ export async function handleAnalyticsRoutes(
     } catch (err) {
       logger.error('AnalyticsAPI', 'Erreur annotations:', err);
       jsonFailure(res, err, 'Erreur sur les annotations', 'AnalyticsAPI');
+      return true;
+    }
+  }
+
+  // …/analytics/alerts[/:id] et …/analytics/reports[/:id[/test]] : alertes sur
+  // seuil et rapports planifiés. Lecture pour qui voit Analytics ; écriture
+  // gardée par le répartiteur (droit de configuration).
+  if ((parts[5] === 'alerts' || parts[5] === 'reports') && parts.length >= 6 && parts.length <= 8) {
+    const isAlerts = parts[5] === 'alerts';
+    const id = parts[6];
+    try {
+      if (isAlerts) {
+        const alerts = await import('../../../services/analytics/analyticsAlertsService.js');
+        if (method === 'GET' && parts.length === 6) {
+          const [rules, events] = await Promise.all([
+            prismaRead.analyticsAlertRule.findMany({ where: { guildId }, orderBy: { createdAt: 'asc' } }),
+            prismaRead.analyticsAlertEvent.findMany({ where: { guildId }, orderBy: { triggeredAt: 'desc' }, take: 50 }),
+          ]);
+          json(res, 200, { rules, events });
+          return true;
+        }
+        if ((method === 'POST' && parts.length === 6) || (method === 'PUT' && parts.length === 7)) {
+          const input = alerts.validateAlertRule((await readJsonBody<Record<string, unknown>>(req)) ?? {});
+          if (typeof input === 'string') {
+            json(res, 400, { error: 'Règle invalide', field: input });
+            return true;
+          }
+          if (method === 'POST') {
+            const count = await prisma.analyticsAlertRule.count({ where: { guildId } });
+            if (count >= alerts.ALERT_RULES_PER_GUILD_MAX) {
+              json(res, 409, { error: `${alerts.ALERT_RULES_PER_GUILD_MAX} alertes au plus par serveur.` });
+              return true;
+            }
+            const rule = await prisma.analyticsAlertRule.create({ data: { ...input, guildId, createdById: user.userId } });
+            json(res, 201, rule);
+          } else {
+            // Une règle modifiée repart de zéro : sa prochaine période sera évaluée.
+            const updated = await prisma.analyticsAlertRule.updateMany({ where: { id: id!, guildId }, data: { ...input, lastPeriodKey: null } });
+            json(res, updated.count > 0 ? 200 : 404, updated.count > 0 ? { ok: true } : { error: 'Alerte introuvable' });
+          }
+          return true;
+        }
+        if (method === 'DELETE' && parts.length === 7) {
+          const deleted = await prisma.analyticsAlertRule.deleteMany({ where: { id: id!, guildId } });
+          json(res, deleted.count > 0 ? 200 : 404, deleted.count > 0 ? { ok: true } : { error: 'Alerte introuvable' });
+          return true;
+        }
+      } else {
+        const reports = await import('../../../services/analytics/analyticsReportService.js');
+        if (method === 'GET' && parts.length === 6) {
+          json(res, 200, { schedules: await prismaRead.analyticsReportSchedule.findMany({ where: { guildId }, orderBy: { createdAt: 'asc' } }) });
+          return true;
+        }
+        if (method === 'POST' && parts.length === 8 && parts[7] === 'test') {
+          const sent = await reports.sendReportNow(client, id!, guildId);
+          json(res, sent ? 200 : 422, sent ? { ok: true } : { error: 'Rapport non envoyé : vérifie le salon et les destinataires.' });
+          return true;
+        }
+        if ((method === 'POST' && parts.length === 6) || (method === 'PUT' && parts.length === 7)) {
+          const input = reports.validateReportSchedule((await readJsonBody<Record<string, unknown>>(req)) ?? {});
+          if (typeof input === 'string') {
+            json(res, 400, { error: 'Rapport invalide', field: input });
+            return true;
+          }
+          const { resolveGuildTimezone } = await import('../../../utils/timezone.js');
+          const nextRunAt = reports.computeNextRun(input, await resolveGuildTimezone(guildId), new Date());
+          if (method === 'POST') {
+            const count = await prisma.analyticsReportSchedule.count({ where: { guildId } });
+            if (count >= reports.REPORT_SCHEDULES_PER_GUILD_MAX) {
+              json(res, 409, { error: `${reports.REPORT_SCHEDULES_PER_GUILD_MAX} rapports au plus par serveur.` });
+              return true;
+            }
+            json(res, 201, await prisma.analyticsReportSchedule.create({ data: { ...input, nextRunAt, guildId, createdById: user.userId } }));
+          } else {
+            const updated = await prisma.analyticsReportSchedule.updateMany({ where: { id: id!, guildId }, data: { ...input, nextRunAt } });
+            json(res, updated.count > 0 ? 200 : 404, updated.count > 0 ? { ok: true } : { error: 'Rapport introuvable' });
+          }
+          return true;
+        }
+        if (method === 'DELETE' && parts.length === 7) {
+          const deleted = await prisma.analyticsReportSchedule.deleteMany({ where: { id: id!, guildId } });
+          json(res, deleted.count > 0 ? 200 : 404, deleted.count > 0 ? { ok: true } : { error: 'Rapport introuvable' });
+          return true;
+        }
+      }
+    } catch (err) {
+      logger.error('AnalyticsAPI', `Erreur ${isAlerts ? 'alertes' : 'rapports'}:`, err);
+      jsonFailure(res, err, 'Erreur lors de l\'enregistrement', 'AnalyticsAPI');
       return true;
     }
   }
