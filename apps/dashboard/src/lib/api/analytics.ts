@@ -582,6 +582,88 @@ export const fetchActivityCohorts = (query: AnalyticsQuery, guildId = authStore.
 export const fetchOnboardingFunnel = (query: AnalyticsQuery, guildId = authStore.selectedGuildId) => audienceRequest<OnboardingFunnel>('funnel', query, guildId);
 export const fetchLifecycle = (query: AnalyticsQuery, guildId = authStore.selectedGuildId) => audienceRequest<LifecycleAnalytics>('lifecycle', query, guildId);
 
+export interface ResponseSummary {
+  turns: number;
+  answered: number;
+  unanswered: number;
+  unansweredRate: number | null;
+  medianSec: number | null;
+  avgSec: number | null;
+  buckets: Array<{ key: 'under1m' | 'under5m' | 'under15m' | 'under1h' | 'under6h'; count: number }>;
+}
+
+export interface ResponseTimes {
+  userIgnored: boolean;
+  total: ResponseSummary;
+  previous: ResponseSummary;
+  daily: Array<{ dateKey: string; medianSec: number | null; unansweredRate: number | null; turns: number }>;
+  channels: Array<ResponseSummary & { channelId: string; name: string | null }>;
+}
+
+export interface ConcentrationStats {
+  members: number;
+  total: number;
+  top1Share: number;
+  top10Share: number;
+  top10MembersShare: number;
+  membersForHalf: number;
+  gini: number;
+  lorenz: Array<{ members: number; activity: number }>;
+}
+
+export interface Concentration {
+  available: boolean;
+  metric: ActivityMetricKind;
+  current?: ConcentrationStats;
+  previous?: ConcentrationStats;
+}
+
+export type ChannelHealthStatus = 'dead' | 'declining' | 'saturated' | 'quiet' | 'healthy' | 'growing';
+
+export interface ChannelHealthRow {
+  channelId: string;
+  name: string;
+  categoryId: string | null;
+  categoryName: string | null;
+  messages: number;
+  prevMessages: number;
+  authors: number;
+  days: number;
+  lastActiveDaysAgo: number | null;
+  lastActiveDate: string | null;
+  medianResponseSec: number | null;
+  unansweredRate: number | null;
+  status: ChannelHealthStatus;
+  score: number;
+  suggestion: 'archive' | 'revive' | 'split' | 'merge' | null;
+}
+
+export interface NetworkMember { userId: string; name: string | null; avatarUrl: string | null }
+
+export interface ConversationNetwork {
+  channelIgnored: boolean;
+  totals: { members: number; links: number; replies: number; mentions: number; reciprocity: number | null; activeMembers: number; isolatedCount: number };
+  groups: Array<{ id: string; size: number; internalWeight: number; leaders: NetworkMember[] }>;
+  bridges: Array<NetworkMember & { groups: number; outsideWeight: number }>;
+  pairs: Array<{ a: NetworkMember; b: NetworkMember; replies: number; mentions: number; reciprocal: boolean }>;
+  isolated: Array<NetworkMember & { messages: number }>;
+}
+
+function conversationRequest<T>(view: string, query: AnalyticsQuery, guildId: typeof authStore.selectedGuildId, extra = ''): Promise<T | null> {
+  return dashboardRequest<T>(`/analytics/conversation/${view}?${analyticsParams(query)}${extra}`, {
+    method: 'GET',
+    guildId,
+    errorContext: `API Error (Conversation ${view}):`
+  });
+}
+
+export const fetchResponseTimes = (query: AnalyticsQuery, guildId = authStore.selectedGuildId) => conversationRequest<ResponseTimes>('responses', query, guildId);
+export const fetchConcentration = (query: AnalyticsQuery, metric: ActivityMetricKind, guildId = authStore.selectedGuildId) =>
+  conversationRequest<Concentration>('concentration', query, guildId, `&metric=${metric}`);
+export const fetchChannelHealthReport = (query: AnalyticsQuery, guildId = authStore.selectedGuildId) =>
+  conversationRequest<{ channels: ChannelHealthRow[] }>('channel-health', { period: query.period, startDate: query.startDate, endDate: query.endDate }, guildId);
+export const fetchConversationNetwork = (query: AnalyticsQuery, guildId = authStore.selectedGuildId) => conversationRequest<ConversationNetwork>('network', query, guildId);
+
 export async function fetchChannelTree(query: AnalyticsQuery, guildId = authStore.selectedGuildId): Promise<ChannelTree | null> {
   return dashboardRequest<ChannelTree>(`/analytics/channel-tree?${analyticsParams({ period: query.period, startDate: query.startDate, endDate: query.endDate })}`, {
     method: 'GET',
