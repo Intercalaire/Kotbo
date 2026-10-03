@@ -1,37 +1,25 @@
 <!--
   Activité, un sous-onglet à la fois : messages, vocal, heures de pointe,
   records, comparaison hebdomadaire ou mensuelle, commandes, Algo du jour.
-  Les courbes de messages et de vocal suivent tous les filtres ; le reste suit
-  la période.
+  Messages et vocal (ActivityTrafficView) suivent tous les filtres ; le reste
+  suit la période.
 -->
 <script lang="ts" module>
   export type ActivityView = 'messages' | 'voice' | 'heatmap' | 'pulse' | 'weekly' | 'commands' | 'algo';
 </script>
 
 <script lang="ts">
-  import { Callout, EmptyState, SectionCard } from '../ui';
-  import BarList, { type BarListItem } from './BarList.svelte';
-  import TrendChart from './TrendChart.svelte';
-  import KpiTile from './KpiTile.svelte';
+  import { EmptyState, SectionCard } from '../ui';
   import AnalyticsSkeleton from './AnalyticsSkeleton.svelte';
-  import EngagementMetrics from './EngagementMetrics.svelte';
+  import ActivityTrafficView from './ActivityTrafficView.svelte';
   import HourlyHeatmap from './HourlyHeatmap.svelte';
   import CommandUsage from './CommandUsage.svelte';
   import DailyAlgoAnalyticsCard from './DailyAlgoAnalyticsCard.svelte';
   import WeeklyComparison from './WeeklyComparison.svelte';
   import AdvancedAnalyticsPanel from './AdvancedAnalyticsPanel.svelte';
-  import {
-    fetchActivityAnalytics,
-    fetchDailyAlgoAnalytics,
-    fetchHourlyHeatmap,
-    fetchWeeklyComparison,
-    type ActivityAnalytics,
-  } from '../../api';
-  import { channelDetailsModal } from '../../stores/channelDetailsModal.svelte';
+  import { fetchDailyAlgoAnalytics, fetchHourlyHeatmap, fetchWeeklyComparison } from '../../api';
   import { m } from '../../i18n';
-  import { errorMessage } from '@kotbo/shared';
-  import { analyticsExport, analyticsFilters as filters, relativeDelta } from './analyticsFilters.svelte';
-  import { fmtMinutes, fmtNumber, SERIES } from './analyticsFormat';
+  import { analyticsFilters as filters } from './analyticsFilters.svelte';
 
   const {
     view,
@@ -40,38 +28,11 @@
     onOpenMember,
   }: {
     view: ActivityView;
-    /** Réponse de l'ancien /analytics, pour les classements et les commandes. */
+    /** Réponse de l'ancien /analytics, pour les sessions vocales et les commandes. */
     legacy: any;
     legacyLoading: boolean;
     onOpenMember: (userId: string, name: string) => void;
   } = $props();
-
-  let activity = $state<ActivityAnalytics | null>(null);
-  let loading = $state(true);
-  let error = $state('');
-  let requestId = 0;
-
-  const needsActivity = $derived(view === 'messages' || view === 'voice');
-
-  $effect(() => {
-    if (!needsActivity) return;
-    const query = filters.query;
-    const id = ++requestId;
-    loading = true;
-    error = '';
-    fetchActivityAnalytics(query)
-      .then((res) => {
-        if (id !== requestId) return;
-        activity = res;
-        analyticsExport.activity = res;
-      })
-      .catch((e) => {
-        if (id === requestId) error = errorMessage(e) || m.an_error_generic();
-      })
-      .finally(() => {
-        if (id === requestId) loading = false;
-      });
-  });
 
   let heatmap = $state<any>(null);
   let algo = $state<any>(null);
@@ -96,101 +57,12 @@
       fetchDailyAlgoAnalytics(range).then((res) => (algo = res)).catch(() => (algo = null));
     }
   });
-
-  const dates = $derived(activity?.series.map((d) => d.dateKey) ?? []);
-  const k = $derived(activity?.kpis);
-  const topChannels: BarListItem[] = $derived(
-    (activity?.topChannels ?? []).map((c) => ({ id: c.channelId, label: c.name ? `#${c.name}` : m.anx_channel_deleted(), value: c.messages })),
-  );
-
-  /** Moyenne par jour et jour de pic de la courbe affichée. */
-  function dailyStats(values: number[]) {
-    const total = values.reduce((s, v) => s + v, 0);
-    let peakIndex = 0;
-    values.forEach((v, i) => {
-      if (v > (values[peakIndex] ?? 0)) peakIndex = i;
-    });
-    return { avg: values.length > 0 ? total / values.length : 0, peak: values[peakIndex] ?? 0, peakDate: dates[peakIndex] ?? null };
-  }
-
-  const messageStats = $derived(dailyStats(activity?.series.map((d) => d.messages) ?? []));
-  const voiceStats = $derived(dailyStats(activity?.series.map((d) => d.voiceMinutes) ?? []));
-  const voiceSessions = $derived((legacy?.dailyTrend ?? []).reduce((s: number, d: any) => s + (d.voiceSessions ?? 0), 0));
-  const peakVoice = $derived(Math.max(0, ...(legacy?.dailyTrend ?? []).map((d: any) => d.peakVoice ?? 0)));
 </script>
 
-{#if needsActivity}
-  {#if loading && !activity}
-    <AnalyticsSkeleton />
-  {:else if error}
-    <Callout variant="danger" title={m.an_error_generic()}>{error}</Callout>
-  {:else if activity && k}
-    <div class="flex flex-col gap-4" aria-busy={loading}>
-      {#if view === 'messages'}
-        <div class="kpi-grid kpi-grid--4">
-          <KpiTile label={m.anx_kpi_messages()} value={fmtNumber(k.messages.value)} delta={relativeDelta(k.messages.value, k.messages.previous)} compare={filters.compare} />
-          <KpiTile label={m.anx_kpi_per_day()} value={fmtNumber(Math.round(messageStats.avg))} />
-          <KpiTile label={m.anx_kpi_peak_day()} value={fmtNumber(messageStats.peak)} hint={messageStats.peakDate ?? ''} />
-          <KpiTile label={m.anx_kpi_active_members()} value={fmtNumber(k.activeMembers.value)} delta={relativeDelta(k.activeMembers.value, k.activeMembers.previous)} compare={filters.compare} />
-        </div>
-        <SectionCard title={m.anx_trend_messages_title()}>
-          <TrendChart
-            {dates}
-            values={activity.series.map((d) => d.messages)}
-            previous={activity.series.map((d) => d.prevMessages)}
-            label={m.anx_trend_current()}
-            previousLabel={m.anx_trend_previous()}
-            compare={filters.compare}
-            format={fmtNumber}
-          />
-        </SectionCard>
-        <div class="section-grid">
-          <div class="span-5">
-            <SectionCard title={m.anx_top_channels_title()}>
-              <BarList items={topChannels} empty={m.anx_top_channels_empty()} onselect={(item) => channelDetailsModal.show(item.id, item.label)} />
-            </SectionCard>
-          </div>
-          <div class="span-7">
-            <SectionCard title={m.anx_rankings_title()} description={m.anx_period_only_note()}>
-              {#if legacyLoading && !legacy}
-                <AnalyticsSkeleton />
-              {:else if legacy}
-                <EngagementMetrics data={legacy} mode="messages" {onOpenMember} />
-              {/if}
-            </SectionCard>
-          </div>
-        </div>
-      {:else if !activity.voiceAvailable}
-        <Callout variant="info">{m.anx_voice_unavailable()}</Callout>
-      {:else}
-        <div class="kpi-grid kpi-grid--4">
-          <KpiTile label={m.anx_kpi_voice()} value={fmtMinutes(k.voiceMinutes.value)} delta={relativeDelta(k.voiceMinutes.value, k.voiceMinutes.previous)} compare={filters.compare} />
-          <KpiTile label={m.anx_kpi_voice_per_day()} value={fmtMinutes(voiceStats.avg)} />
-          <KpiTile label={m.anx_kpi_voice_sessions()} value={legacy ? fmtNumber(voiceSessions) : '—'} hint={m.anx_period_only_note()} />
-          <KpiTile label={m.anx_kpi_peak_voice()} value={legacy ? fmtNumber(peakVoice) : '—'} hint={m.anx_kpi_peak_voice_hint()} />
-        </div>
-        <SectionCard title={m.anx_trend_voice_title()}>
-          <TrendChart
-            {dates}
-            values={activity.series.map((d) => d.voiceMinutes)}
-            previous={activity.series.map((d) => d.prevVoiceMinutes)}
-            label={m.anx_trend_current()}
-            previousLabel={m.anx_trend_previous()}
-            compare={filters.compare}
-            color={SERIES[1]}
-            format={fmtMinutes}
-          />
-        </SectionCard>
-        <SectionCard title={m.anx_rankings_title()} description={m.anx_period_only_note()}>
-          {#if legacyLoading && !legacy}
-            <AnalyticsSkeleton />
-          {:else if legacy}
-            <EngagementMetrics data={legacy} mode="voice" {onOpenMember} />
-          {/if}
-        </SectionCard>
-      {/if}
-    </div>
-  {/if}
+{#if view === 'messages' || view === 'voice'}
+  {#key view}
+    <ActivityTrafficView kind={view} {legacy} {legacyLoading} {onOpenMember} />
+  {/key}
 {:else if view === 'heatmap'}
   {#if heatmap}
     <HourlyHeatmap data={heatmap} />

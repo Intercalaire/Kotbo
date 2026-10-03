@@ -72,7 +72,7 @@
     {
       id: 'activity', label: m.anx_section_activity(), icon: 'Activity', description: m.anx_section_activity_desc(),
       tabs: [
-        { id: 'messages', label: m.an_tab_messages(), icon: 'ChatCircleDots', scope: 'full', legacy: true },
+        { id: 'messages', label: m.an_tab_messages(), icon: 'ChatCircleDots', scope: 'full' },
         { id: 'voice', label: m.an_tab_voice(), icon: 'Microphone', scope: 'full', legacy: true },
         { id: 'heatmap', label: m.an_tab_heatmap(), icon: 'Fire', scope: 'period' },
         { id: 'pulse', label: m.an_tab_pulse(), icon: 'Activity', scope: 'own' },
