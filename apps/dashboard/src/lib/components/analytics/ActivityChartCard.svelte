@@ -332,14 +332,18 @@
     const values = shaped.values;
     const total = values.reduce((s, v) => s + v, 0);
     let peak = 0;
+    let low = 0;
     values.forEach((v, i) => {
       if (v > (values[peak] ?? 0)) peak = i;
+      if (v < (values[low] ?? 0)) low = i;
     });
     return {
       total,
       avg: values.length > 0 ? total / values.length : 0,
       peakValue: values[peak] ?? 0,
       peakLabel: shaped.labels[peak] ?? '',
+      lowValue: values[low] ?? 0,
+      lowLabel: shaped.labels[low] ?? '',
       trend: trendPct(values),
     };
   });
@@ -572,6 +576,12 @@
       <dt>{m.anx_fact_peak()}</dt>
       <dd>{metric.format(facts.peakValue)} <span class="facts__sub">{facts.peakLabel}</span></dd>
     </div>
+    {#if metric.aggregate === 'avg'}
+      <div class="facts__item">
+        <dt>{m.anx_fact_min()}</dt>
+        <dd>{metric.format(facts.lowValue)} <span class="facts__sub">{facts.lowLabel}</span></dd>
+      </div>
+    {/if}
     <div class="facts__item">
       <dt title={m.anx_trend_vs_start()}>{m.anx_fact_trend()}</dt>
       <dd class={facts.trend === null || Math.abs(facts.trend) < 0.05 ? '' : (facts.trend > 0) !== Boolean(metric.invert) ? 'text-success' : 'text-error'}>
