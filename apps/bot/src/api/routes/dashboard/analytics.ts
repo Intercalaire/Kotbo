@@ -405,6 +405,23 @@ export async function handleAnalyticsRoutes(
     return true;
   }
 
+  // GET …/analytics/members/overview : effectif, arrivées par source, inviteurs
+  // et qualité des nouveaux. Période seule.
+  if (parts.length === 7 && parts[5] === 'members' && parts[6] === 'overview') {
+    try {
+      const { parseRange } = await import('../../../services/analytics/contentAnalyticsService.js');
+      const { getMemberOverview } = await import('../../../services/analytics/memberOverviewService.js');
+      const range = parseRange(url.searchParams);
+      const includeBots = url.searchParams.get('includeBots') === '1';
+      json(res, 200, await cache.wrap(`guild:${guildId}:analytics:members-overview:${range.start}:${range.end}:${includeBots ? 'b' : ''}`, 300, () =>
+        getMemberOverview(client, guildId, range, includeBots)));
+    } catch (err) {
+      logger.error('AnalyticsAPI', 'Erreur analytics (members/overview):', err);
+      jsonFailure(res, err, 'Erreur lors du calcul des statistiques', 'AnalyticsAPI');
+    }
+    return true;
+  }
+
   // GET …/analytics/insights/{growth|moderation|staff|words} : analyses poussées
   // de Croissance, Modération, Staff et Contenu. Période seule.
   if (parts.length === 7 && parts[5] === 'insights' && ['growth', 'moderation', 'staff', 'words'].includes(parts[6]!)) {
