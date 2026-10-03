@@ -19,12 +19,15 @@ import { registerTelemetryRoutes } from './telemetry';
 import { registerTicketsRoutes } from './tickets';
 import { registerPulseRoutes } from './pulse';
 import { registerAnalyticsRoutes } from './analytics';
+import { registerAnalyticsInsightsRoutes } from './analyticsInsights';
 import { registerRankCardRoutes } from './rankCard';
 import { registerServerRoutes } from './server';
 import { registerCommunityRoutes } from './community';
 import { registerPlanningRoutes } from './planning';
 
 export function registerDemoRoutes(): void {
+  // Avant les routes Analytics historiques : la première route qui correspond gagne.
+  registerAnalyticsInsightsRoutes();
   registerAnalyticsRoutes();
   registerRankCardRoutes();
   registerServerRoutes();

@@ -419,7 +419,7 @@ function content(days: number, query: URLSearchParams) {
 }
 
 /** Salon → catégorie, pour la vue en arbre. */
-const CATEGORY_OF: Record<string, string> = {
+export const CATEGORY_OF: Record<string, string> = {
   bienvenue: 'ACCUEIL', 'règlement': 'ACCUEIL', annonces: 'ACCUEIL',
   'général': 'DISCUSSIONS', 'recherche-de-groupe': 'DISCUSSIONS', niveaux: 'DISCUSSIONS', boutique: 'DISCUSSIONS', suggestions: 'DISCUSSIONS', Squad: 'DISCUSSIONS',
   'ouvrir-un-ticket': 'SUPPORT',
