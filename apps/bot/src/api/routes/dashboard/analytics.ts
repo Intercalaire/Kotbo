@@ -205,6 +205,34 @@ export async function handleAnalyticsRoutes(
     return true;
   }
 
+  // GET …/analytics/audience/{engagement|cohorts|funnel|lifecycle} : membres et
+  // rétention (DAU/WAU/MAU, cohortes d'activité, entonnoir, cycle de vie).
+  if (parts.length === 7 && parts[5] === 'audience' && ['engagement', 'cohorts', 'funnel', 'lifecycle'].includes(parts[6]!)) {
+    const service = await import('../../../services/analytics/contentAnalyticsService.js');
+    const audience = await import('../../../services/analytics/audienceInsightsService.js');
+    const view = parts[6]!;
+    try {
+      const range = service.parseRange(url.searchParams);
+      const scope = await service.resolveScope(client, guildId, url.searchParams);
+      const scopeKey = service.scopeCacheKey(scope, range);
+      const key = `guild:${guildId}:analytics:audience:${view}:${scopeKey}`;
+      if (view === 'engagement') {
+        json(res, 200, await cache.wrap(key, 600, () => audience.getEngagement(guildId, range, scope)));
+      } else if (view === 'cohorts') {
+        json(res, 200, await cache.wrap(`guild:${guildId}:analytics:audience:cohorts:${scope.roleFilter ?? ''}:${scope.excludeStaff ? 's' : ''}`, 1800, () =>
+          audience.getActivityCohorts(guildId, scope)));
+      } else if (view === 'funnel') {
+        json(res, 200, await cache.wrap(key, 600, () => audience.getOnboardingFunnel(client, guildId, range, scope)));
+      } else {
+        json(res, 200, await cache.wrap(key, 600, () => audience.getLifecycle(client, guildId, range, scope)));
+      }
+    } catch (err) {
+      logger.error('AnalyticsAPI', `Erreur analytics (audience/${view}):`, err);
+      jsonFailure(res, err, 'Erreur lors du calcul des statistiques', 'AnalyticsAPI');
+    }
+    return true;
+  }
+
   // GET …/analytics/{content|activity|channel-tree|filters} et …/analytics/categories/:id
   // Nouvelle page Analytics : période (`period` ou `startDate`/`endDate`) et
   // filtres (`channel`, `role`, `excludeStaff`, `userId`).
