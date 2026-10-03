@@ -31,6 +31,8 @@ export type BackgroundJobName =
   | 'history-scrape'
   | 'data-retention'
   | 'channel-health-analysis'
+  | 'analytics-alerts'
+  | 'analytics-reports'
   | 'pulse-snapshot'
   | 'widget-refresh'
   | 'season-check'

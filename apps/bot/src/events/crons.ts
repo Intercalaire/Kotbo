@@ -286,6 +286,14 @@ export async function registerCrons(client: Client): Promise<void> {
       const { runChannelHealthAnalysis } = await import('../services/analytics/channelHealthService.js');
       await runChannelHealthAnalysis(client);
     },
+    'analytics-alerts': async () => {
+      const { runAnalyticsAlerts } = await import('../services/analytics/analyticsAlertsService.js');
+      await runAnalyticsAlerts(client);
+    },
+    'analytics-reports': async () => {
+      const { runAnalyticsReports } = await import('../services/analytics/analyticsReportService.js');
+      await runAnalyticsReports(client);
+    },
     'pulse-snapshot': async () => {
       logger.debug('Cron', 'Calcul du Pulse pour tous les serveurs...');
       const { runPulseForAllGuilds } = await import('../services/analytics/pulseService.js');
@@ -996,6 +1004,19 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('leaderboard-refresh', async () => {
       await refreshAllAutoLeaderboards(client);
     }, 5000);
+  });
+
+  // 📈 Analytics : alertes sur seuil et rapports planifiés, toutes les 5 minutes.
+  // Chaque règle n'évalue qu'une fois sa période ; chaque rapport part à son heure.
+  cron.schedule('*/5 * * * *', async () => {
+    await runCronJob('analytics-alerts', async () => {
+      const { runAnalyticsAlerts } = await import('../services/analytics/analyticsAlertsService.js');
+      await runAnalyticsAlerts(client);
+    }, 2000);
+    await runCronJob('analytics-reports', async () => {
+      const { runAnalyticsReports } = await import('../services/analytics/analyticsReportService.js');
+      await runAnalyticsReports(client);
+    }, 4000);
   });
 
   // 📊 Channel Health Analysis: tous les jours à 4h du matin
