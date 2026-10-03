@@ -532,13 +532,20 @@ describe('CHANNEL_PATCHES', () => {
   test('rien de ce qui rouvre un salon n\'autorise explicitement', () => {
     expect(CHANNEL_PATCHES.unlock.Connect).toBeNull();
     expect(CHANNEL_PATCHES.clearReservation.Connect).toBeNull();
-    expect(CHANNEL_PATCHES.openChat.SendMessages).toBeNull();
+    // Ouvrir le chat ACCORDE desormais le droit d'ecrire : « Everyone »
+    // promet que tout le monde ecrit, et le rendre a la categorie le
+    // dementait des qu'elle le refusait. (PR #533)
+    expect(CHANNEL_PATCHES.openChat.SendMessages).toBe(true);
+    expect(CHANNEL_PATCHES.everyone.SendMessages).toBe(true);
 
     // Le type de `CHANNEL_PATCHES` interdit déjà `true` ; l'assertion garde le
     // jour où quelqu'un élargirait ce type sans y penser.
     const patches: Record<string, Record<string, boolean | null>> = CHANNEL_PATCHES;
     for (const patch of Object.values(patches)) {
       for (const [permission, value] of Object.entries(patch)) {
+        // La garde tient toujours pour les ACCES : un salon ne devient
+        // jamais plus ouvert que son parent parce qu'on l'a deverrouille.
+        if (!['Connect', 'ViewChannel'].includes(permission)) continue;
         expect(
           value === true,
           `${permission} ne doit jamais être autorisé explicitement : utiliser null, résolu par restoreFromCategory`,
@@ -600,11 +607,15 @@ describe('restoreFromCategory', () => {
       .toEqual({ Connect: false, SendMessages: null });
   });
 
-  test('rouvrir le chat garde le refus d\'écriture que porte la catégorie', () => {
+  test('ouvrir le chat accorde, meme si la categorie refuse', () => {
+    // L'inverse de ce que ce test defendait avant la PR #533.
+    // `restoreFromCategory` ne resout que les `null` : `openChat` portant
+    // desormais `true`, le refus recopie de la categorie ne le rattrape
+    // plus, et le chat s'ouvre vraiment.
     const categoryEveryone = { allow: 0n, deny: PermissionFlagsBits.SendMessages };
 
     expect(restoreFromCategory(CHANNEL_PATCHES.openChat, categoryEveryone))
-      .toEqual({ SendMessages: false });
+      .toEqual({ SendMessages: true });
   });
 
   test('reprend une autorisation de la catégorie, sans en inventer', () => {

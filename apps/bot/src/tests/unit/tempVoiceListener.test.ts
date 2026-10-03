@@ -27,6 +27,9 @@ let configDemandes: Record<string, unknown> | null = null;
 const prismaMock = {
   tempVoiceModPermissionsConfig: {
     findUnique: mock(async () => permissionsModerateur),
+    // Les reglages admin s'ecrivent aussi depuis le panneau, pas seulement
+    // depuis le dashboard.
+    upsert: mock(async (_args: unknown) => ({})),
   },
   tempVoiceAccessRequestConfig: {
     findUnique: mock(async () => configDemandes),
@@ -77,7 +80,7 @@ const ACTIONS_DU_PANNEAU = [
   // lorsque le salon est fermé.
   'salon', 'membres', 'propriete', 'demander',
   // Sous-panneaux éphémères.
-  'bascule_verrou', 'mode_select', 'membre_select', 'membre_ici',
+  'bascule_verrou', 'mode_select', 'membre_select', 'membre_ici', 'reglages_mod',
   'm_kick', 'm_ban', 'm_trust', 'm_untrust', 'm_transfer',
   'demande_ok', 'demande_non', 'demande_ban',
   // Identifiants des panneaux postés avant la refonte : toujours acceptés.
@@ -261,10 +264,12 @@ function fakeSelectInteraction(options: {
     // l'interaction tomber dans le vide, sans erreur et sans effet.
     isRoleSelectMenu: () => options.customId.includes('reserve'),
     isStringSelectMenu: () => options.customId.includes('mode_select')
-      || options.customId.includes('membre_ici'),
+      || options.customId.includes('membre_ici')
+      || options.customId.includes('reglages_mod'),
     isUserSelectMenu: () => !options.customId.includes('reserve')
       && !options.customId.includes('mode_select')
-      && !options.customId.includes('membre_ici'),
+      && !options.customId.includes('membre_ici')
+      && !options.customId.includes('reglages_mod'),
     isMessageComponent: () => true,
     isRepliable: () => true,
     message: { edit: mock(async () => undefined) },
@@ -798,13 +803,13 @@ describe('autorisation d\'un membre', () => {
     // Le nombre de droits d'un accès complet était écrit en dur ici alors qu'il
     // vit dans le service : le jour où la liste s'est allongée, toute réussite
     // s'est annoncée comme partielle, et le message de succès est devenu mort.
-    expect((await trust(trustCategory(FULL_ACCESS)))[0]).toContain('autorisé à rejoindre');
+    expect((await trust(trustCategory(FULL_ACCESS)))[0]).toContain('allowed to join');
     // Et la surcharge est réellement posée : annoncer sans écrire passerait
     // sinon pour une réussite.
     expect(dernieresEcritures.some((entry) => entry.id === OTHER)).toBe(true);
 
     const partial = FULL_ACCESS & ~PermissionFlagsBits.SendMessages;
-    expect((await trust(trustCategory(partial)))[0]).toContain('accès partiel');
+    expect((await trust(trustCategory(partial)))[0]).toContain('partial access');
   });
 
   test('ne fait pas entrer dans une catégorie qui refuse la vue à la cible', async () => {
@@ -1531,18 +1536,18 @@ describe('limite de places', () => {
     // part vers Discord. Et une limite négative n'a pas de sens.
     const texte = await submitLimit('abc');
     expect(texte.setUserLimit).not.toHaveBeenCalled();
-    expect(texte.messages[0]).toContain('invalide');
+    expect(texte.messages[0]).toContain('Invalid number');
 
     const negatif = await submitLimit('-3');
     expect(negatif.setUserLimit).not.toHaveBeenCalled();
-    expect(negatif.messages[0]).toContain('invalide');
+    expect(negatif.messages[0]).toContain('Invalid number');
   });
 
   test('zéro s\'annonce comme une absence de limite', async () => {
     const { messages, setUserLimit } = await submitLimit('0');
 
     expect(setUserLimit).toHaveBeenCalledWith(0);
-    expect(messages[0]).toContain('Limite de places retirée');
+    expect(messages[0]).toContain('Slot limit removed');
   });
 
   test('refuse une valeur au-delà de ce que Discord accepte', async () => {
@@ -1551,7 +1556,7 @@ describe('limite de places', () => {
     const { messages, setUserLimit } = await submitLimit(String(MAX_USER_LIMIT + 1));
 
     expect(setUserLimit).not.toHaveBeenCalled();
-    expect(messages[0]).toContain('invalide');
+    expect(messages[0]).toContain('Invalid number');
   });
 });
 
@@ -1705,11 +1710,11 @@ describe('chat textuel du salon', () => {
     await listeners.get(Events.InteractionCreate)?.(interaction);
 
     expect(guild.channels.fetch).toHaveBeenCalled();
-    expect(edits[0]?.patch.SendMessages).toBeNull();
+    expect(edits[0]?.patch.SendMessages).toBe(true);
     tempChannels.delete(CHANNEL);
   });
 
-  test('rouvre le chat en rendant le droit à la catégorie', async () => {
+  test('ouvrir le chat accorde le droit d ecrire a tout le monde', async () => {
     // Rouvrir en `true` ferait d'un salon temporaire le seul endroit où écrire
     // sur un serveur dont la catégorie réserve la parole : on rend le droit à
     // l'héritage, jamais on ne l'accorde.
@@ -1728,12 +1733,12 @@ describe('chat textuel du salon', () => {
     // la surcharge posée à la fermeture ferait du salon rouvert un endroit où
     // lui seul garde un droit explicite.
     expect(edits.map((entry) => entry.id)).toEqual([GUILD, OWNER]);
-    expect(edits[0]?.patch.SendMessages).toBeNull();
-    expect(edits[1]?.patch.SendMessages).toBeNull();
+    expect(edits[0]?.patch.SendMessages).toBe(true);
+    expect(edits[1]?.patch.SendMessages).toBe(true);
     tempChannels.delete(CHANNEL);
   });
 
-  test('ne rouvre pas un chat que la catégorie ferme à @everyone', async () => {
+  test('ouvrir le chat passe outre un refus de la categorie', async () => {
     // Le salon a recopié ce refus à sa création : le bouton le lit comme un
     // chat fermé, et `null` l'aurait effacé en un clic.
     guildConfig = { tempVoiceEnabled: true };
@@ -1751,7 +1756,7 @@ describe('chat textuel du salon', () => {
     const { interaction } = fakeButtonInteraction('chat', { channel, guild, member: fakeTarget(OWNER, false) });
     await listeners.get(Events.InteractionCreate)?.(interaction);
 
-    expect(edits[0]?.patch.SendMessages).toBe(false);
+    expect(edits[0]?.patch.SendMessages).toBe(true);
     tempChannels.delete(CHANNEL);
   });
 });
@@ -1894,8 +1899,8 @@ describe('renommage refusé', () => {
     await listeners.get(Events.InteractionCreate)?.(interaction);
 
     expect(messages).toHaveLength(1);
-    expect(messages[0]).toContain('refusé');
-    expect(messages[0]).not.toContain("n'a pas confirmé");
+    expect(messages[0]).toContain('rejected');
+    expect(messages[0]).not.toContain('did not confirm');
   });
 });
 
@@ -2036,7 +2041,7 @@ describe('renommage', () => {
     expect(messages).toHaveLength(1);
     // Ni « renommé » (faux), ni « échoue » (faux aussi : la requête suit son
     // cours) - le message doit dire que Discord n'a pas confirmé.
-    expect(messages[0]).toContain("n'a pas confirmé");
+    expect(messages[0]).toContain('did not confirm');
   });
 });
 
@@ -3514,8 +3519,8 @@ describe('Verrouiller met a jour le panneau de base', () => {
     // ...et il dit l'etat REEL, pas celui d'avant le clic.
     const appels = panneau.edit.mock.calls as unknown as unknown[][];
     const rendu = JSON.stringify(appels.at(-1)?.[0] ?? {});
-    expect(rendu).toContain('Verrouill');
-    expect(rendu).not.toContain('Ouvert');
+    expect(rendu).toContain('Locked');
+    expect(rendu).not.toContain('Open');
 
     tempChannels.delete(channel.id);
     guildConfig = null;
@@ -3642,8 +3647,8 @@ describe('Reactivite du panneau : chaque changement, tout de suite, et vrai', ()
   test('verrouiller : le panneau dit « Verrouille » tout de suite', async () => {
     const sc = scene('950000000000000001');
     const rendu = await panneauApres(sc, 'bascule_verrou');
-    expect(rendu).toContain('Verrouill');
-    expect(rendu).not.toContain('Ouvert');
+    expect(rendu).toContain('Locked');
+    expect(rendu).not.toContain('Open');
     sc.ranger();
   }, 10_000);
 
@@ -3653,23 +3658,23 @@ describe('Reactivite du panneau : chaque changement, tout de suite, et vrai', ()
     const sc = scene('950000000000000002');
     await panneauApres(sc, 'bascule_verrou');
     const rendu = await panneauApres(sc, 'bascule_verrou', undefined, 1_100);
-    expect(rendu).toContain('Ouvert');
-    expect(rendu).not.toContain('Verrouill');
+    expect(rendu).toContain('Open');
+    expect(rendu).not.toContain('Locked');
     sc.ranger();
   }, 15_000);
 
   test('mode d ecriture : le champ « Ecriture » suit le choix', async () => {
     const sc = scene('950000000000000003');
     const rendu = await panneauApres(sc, 'mode_select', ['ownerOnly']);
-    expect(rendu).toContain('Moi seul');
-    expect(rendu).not.toContain('Tout le monde');
+    expect(rendu).toContain('Me only');
+    expect(rendu).not.toContain('Everyone');
     sc.ranger();
   }, 10_000);
 
-  test('« Personne » se lit aussi dans le panneau', async () => {
+  test('« No one » se lit aussi dans le panneau', async () => {
     const sc = scene('950000000000000004');
     const rendu = await panneauApres(sc, 'mode_select', ['nobody']);
-    expect(rendu).toContain('Personne');
+    expect(rendu).toContain('No one');
     sc.ranger();
   }, 10_000);
 
@@ -3739,7 +3744,7 @@ describe('Reactivite du panneau : chaque changement, tout de suite, et vrai', ()
     // qu'un seul - le panneau reste fige sur « Verrouille ».
     const appels = sc.panneau.edit.mock.calls as unknown as unknown[][];
     expect(appels).toHaveLength(2);
-    expect(JSON.stringify(appels.at(-1)?.[0] ?? {})).toContain('Ouvert');
+    expect(JSON.stringify(appels.at(-1)?.[0] ?? {})).toContain('Open');
     sc.ranger();
   }, 20_000);
 
@@ -3756,4 +3761,144 @@ describe('Reactivite du panneau : chaque changement, tout de suite, et vrai', ()
     expect(ecritures).toBeLessThan(6);
     sc.ranger();
   }, 20_000);
+});
+
+describe('Reglages admin, depuis « Salon »', () => {
+  const ROLE_STAFF_ADMIN = '820000000000000001';
+
+  /** Ouvre « Salon » avec le role voulu et rend la charge envoyee. */
+  async function ouvrirSalon(role: 'admin' | 'moderateur' | 'proprietaire') {
+    guildConfig = {
+      tempVoiceEnabled: true,
+      baseStaffRoleId: ROLE_STAFF_ADMIN,
+      moderatorRoleId: null,
+      testStaffRoleId: null,
+    };
+    permissionsModerateur = null;
+
+    const { channel } = fakeChannel();
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const acteur = fakeTarget(role === 'proprietaire' ? OWNER : OTHER, false);
+    if (role === 'admin') acteur.permissions = { has: () => true };
+    if (role === 'moderateur') acteur.roles = { cache: { has: (r: string) => r === ROLE_STAFF_ADMIN } };
+
+    // L'acteur doit etre dans la map du serveur : le module ne garde
+    // `interaction.member` que si c'est une vraie instance `GuildMember`, sinon
+    // il le refetch — et un membre introuvable n'a aucun droit.
+    const scene = fakeButtonInteraction('salon', {
+      channel,
+      guild: fakeGuild(new Map([[acteur.id, acteur]])),
+      member: acteur,
+    });
+    scene.interaction.user = { id: acteur.id, bot: false };
+    await listeners.get(Events.InteractionCreate)?.(scene.interaction);
+
+    tempChannels.delete(CHANNEL);
+    guildConfig = null;
+
+    const appels = (scene.interaction.reply as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const charge = (appels[0]?.[0] ?? {}) as {
+      components?: Array<{ components: Array<{ data: Record<string, unknown> }> }>;
+    };
+    return (charge.components ?? [])
+      .flatMap((rangee) => rangee.components.map((c) => String(c.data.custom_id ?? '')));
+  }
+
+  test('un administrateur voit les reglages dans « Salon »', async () => {
+    // Ils n'existaient que dans le dashboard : un admin voyait exactement le
+    // meme panneau qu'un membre, et ne pouvait rien regler depuis Discord.
+    expect(await ouvrirSalon('admin')).toContain('tempvoice:reglages_mod');
+  }, 10_000);
+
+  test('le proprietaire et le moderateur ne les voient pas', async () => {
+    // Regler ce qu'un moderateur peut faire n'appartient qu'a l'administration.
+    expect(await ouvrirSalon('proprietaire')).not.toContain('tempvoice:reglages_mod');
+    expect(await ouvrirSalon('moderateur')).not.toContain('tempvoice:reglages_mod');
+  }, 10_000);
+
+  test('les sept lignes sont ecrites d un coup, meme celles decochees', async () => {
+    // L'absence de ligne en base vaut « tout permis » : n'ecrire que les cochees
+    // laisserait ouvertes celles qu'on vient de fermer.
+    guildConfig = {
+      tempVoiceEnabled: true,
+      baseStaffRoleId: ROLE_STAFF_ADMIN,
+      moderatorRoleId: null,
+      testStaffRoleId: null,
+    };
+    permissionsModerateur = null;
+    const ecrits: Array<Record<string, unknown>> = [];
+    prismaMock.tempVoiceModPermissionsConfig.upsert = mock(async (a: { create: Record<string, unknown> }) => {
+      ecrits.push(a.create);
+      return {};
+    }) as never;
+
+    const { channel } = fakeChannel();
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const admin = fakeTarget(OTHER, false);
+    admin.permissions = { has: () => true };
+    const { interaction } = fakeSelectInteraction({
+      customId: 'tempvoice:reglages_mod',
+      values: ['renommer', 'limite'],
+      channel,
+      member: admin,
+      guild: fakeGuild(new Map([[admin.id, admin]])),
+    });
+    interaction.user = { id: OTHER, bot: false };
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+
+    expect(ecrits).toHaveLength(1);
+    const ecrit = ecrits[0] ?? {};
+    // Les deux cochees sont permises...
+    expect(ecrit.canRename).toBe(true);
+    expect(ecrit.canChangeLimit).toBe(true);
+    // ...et les cinq autres sont FERMEES, pas absentes.
+    for (const cle of ['canLock', 'canChangeWriteMode', 'canReserve', 'canKickOrBan', 'canTransfer']) {
+      expect(ecrit[cle]).toBe(false);
+    }
+
+    tempChannels.delete(CHANNEL);
+    guildConfig = null;
+  }, 10_000);
+
+  test('un moderateur qui clique le menu se fait refuser', async () => {
+    // La garde tient au clic, pas seulement a l'affichage : un identifiant se
+    // rejoue.
+    guildConfig = {
+      tempVoiceEnabled: true,
+      baseStaffRoleId: ROLE_STAFF_ADMIN,
+      moderatorRoleId: null,
+      testStaffRoleId: null,
+    };
+    permissionsModerateur = null;
+    const ecrits: unknown[] = [];
+    prismaMock.tempVoiceModPermissionsConfig.upsert = mock(async () => { ecrits.push(1); return {}; }) as never;
+
+    const { channel } = fakeChannel();
+    const { client, listeners } = fakeClient();
+    registerTempVoiceListener(client);
+    tempChannels.set(CHANNEL, { creatorId: OWNER });
+
+    const moderateur = fakeTarget(OTHER, false);
+    moderateur.roles = { cache: { has: (r: string) => r === ROLE_STAFF_ADMIN } };
+    const { interaction } = fakeSelectInteraction({
+      customId: 'tempvoice:reglages_mod',
+      values: [],
+      channel,
+      member: moderateur,
+      guild: fakeGuild(new Map([[moderateur.id, moderateur]])),
+    });
+    interaction.user = { id: OTHER, bot: false };
+    await listeners.get(Events.InteractionCreate)?.(interaction);
+
+    expect(ecrits).toHaveLength(0);
+
+    tempChannels.delete(CHANNEL);
+    guildConfig = null;
+  }, 10_000);
 });

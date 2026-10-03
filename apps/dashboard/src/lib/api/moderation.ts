@@ -67,6 +67,17 @@ interface TempVoiceGeneratorFields {
   categoryId?: string;
   nameTemplate?: string;
   requiredRoleId?: string | null;
+  /**
+   * Surcharges de présentation du panneau POUR CE GÉNÉRATEUR — mêmes noms et
+   * mêmes unions que les cinq réglages de `tempVoiceModPermissions` plus bas.
+   * Absente ou `null` : hérite du réglage serveur. N'a aucun effet tant que
+   * `tempVoiceModPermissions.perGeneratorPresentation` est faux (voir sa doc).
+   */
+  panelMode?: 'CLASSIC' | 'FLAT' | null;
+  stateLayout?: 'GRID3' | 'GRID2' | 'TABLE' | 'CARDS' | null;
+  stateColors?: 'NEUTRAL' | 'DARK' | 'LIGHT' | null;
+  panelComponents?: 'V1' | 'V2' | null;
+  reservationFallbackMode?: 'MEMBERS' | 'ANY_ROLE' | 'FORBIDDEN' | null;
 }
 
 /**
@@ -185,6 +196,27 @@ export async function updateChannelsManagementConfig(
       reservationOverflow: 'ASK' | 'NOTHING' | 'MOVE' | 'DISCONNECT';
       /** Salon vers lequel déplacer quand la décision est `MOVE`. */
       reservationFallbackChannelId: string | null;
+      /**
+       * Cinq réglages de présentation du panneau, décrits ici parce que ce type
+       * est le seul garde-fou entre la page et la route du bot : un champ absent
+       * de cette liste part quand même (le corps est sérialisé tel quel), mais
+       * une faute de frappe d'un côté ou de l'autre passerait alors le typecheck
+       * en silence et le réglage deviendrait fantôme.
+       */
+      panelMode: 'CLASSIC' | 'FLAT';
+      stateLayout: 'GRID3' | 'GRID2' | 'TABLE' | 'CARDS';
+      stateColors: 'NEUTRAL' | 'DARK' | 'LIGHT';
+      panelComponents: 'V1' | 'V2';
+      /** Nommé comme la colonne Prisma `reservationFallbackMode`. */
+      reservationFallbackMode: 'MEMBERS' | 'ANY_ROLE' | 'FORBIDDEN';
+      /**
+       * L'interrupteur de secours de la personnalisation par générateur.
+       * Défaut `false` : au déploiement, aucun serveur existant ne change de
+       * comportement. Le couper IGNORE les surcharges des générateurs, il ne
+       * les EFFACE PAS — elles restent dans `tempVoiceGenerators` et reviennent
+       * telles quelles au rallumage.
+       */
+      perGeneratorPresentation: boolean;
     };
     honeypotEnabled?: boolean;
     honeypotChannelId?: string | null;

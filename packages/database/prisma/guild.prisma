@@ -602,7 +602,7 @@ model Guild {
   tempVoiceEnabled        Boolean  @default(false)
   tempVoiceChannelId      String?
   tempVoiceCategoryId     String?
-  tempVoiceNameTemplate   String   @default("🔊 Salon de {user}")
+  tempVoiceNameTemplate   String   @default("🔊 {user}'s channel")
   tempVoiceRequiredRoleId String?
   // Politique appliquee aux salons crees par le generateur principal :
   // places, verrouillage, roles autorises d'office, chat texte et pouvoirs du
@@ -1117,6 +1117,23 @@ model TempVoiceChannel {
   /// Sans elle, un redemarrage effacait le silence de dix minutes : quelqu'un
   /// qui venait d'etre refuse pouvait redemander aussitot.
   accessRequests Json?
+
+  /// Le generateur qui a cree ce salon : `Guild.tempVoiceChannelId` pour le
+  /// principal, le `channelId` de l'entree correspondante de
+  /// `Guild.tempVoiceGenerators` pour un additionnel.
+  ///
+  /// NULLABLE ET SANS REMPLISSAGE RETROACTIF, deliberement : un salon cree
+  /// avant cette colonne ne garde aucune trace de son generateur, et personne
+  /// ne peut la deviner apres coup — deux generateurs peuvent viser la meme
+  /// categorie et le meme gabarit de nom. `null` vaut donc « salon d'avant » :
+  /// il herite de la presentation du serveur, ce qui est exactement ce qu'il
+  /// affichait deja. Meme motif que `writeMode` et `renameHistory` ci-dessus.
+  ///
+  /// Ce n'est PAS une relation : le generateur est un salon Discord que rien ne
+  /// garantit vivant, et sa suppression ne doit pas emporter en cascade les
+  /// salons qu'il a crees. Un generateur disparu se lit comme un generateur
+  /// absent — la presentation du serveur s'applique, sans erreur.
+  generatorChannelId String?
 
   createdAt  DateTime @default(now())
 
