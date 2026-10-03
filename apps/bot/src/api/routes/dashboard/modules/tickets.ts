@@ -11,6 +11,7 @@ import { type ProvisionedEntry, acquireProvisionLock, missingProvisionPermission
 import { Prisma } from '@prisma/client';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, type ColorResolvable, EmbedBuilder, type OverwriteResolvable, PermissionFlagsBits, TextChannel } from 'discord.js';
 import { type ModuleRouteContext, msgEmbedsMap } from './_shared.js';
+import { parseTranscriptHtml } from '../../../../services/features/transcriptService.js';
 import { clampCommentTimeout } from '../../../../services/features/ticketSatisfactionService.js';
 
 import { jsonFailure } from '../../../shared/failure.js';
@@ -1003,6 +1004,52 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
               }));
               messages.reverse();
             } catch { /* ignored */ }
+          }
+        }
+
+        // Un ticket fermé n'a plus de salon à lire : on relit alors sa transcription
+        // archivée, sans quoi le panneau affiche « Aucun message ».
+        if (messages.length === 0 && ticket.transcriptId) {
+          try {
+            const transcript = await prisma.transcript.findFirst({
+              where: { id: ticket.transcriptId, guildId },
+              select: { html: true, endTime: true, createdAt: true },
+            });
+            if (transcript) {
+              const fallbackDate = (transcript.endTime ?? transcript.createdAt).toISOString();
+              messages = parseTranscriptHtml(transcript.html).map((m, i) => {
+                const parsed = new Date(m.timestamp);
+                return {
+                  id: `transcript-${i}`,
+                  authorId: '',
+                  authorName: m.username,
+                  authorAvatar: m.avatarUrl,
+                  isStaff: m.isBot,
+                  content: m.content,
+                  htmlContent: parseDiscordMarkdown(m.content, null),
+                  mediaUrls: extractMediaUrls(m.content),
+                  stickers: [],
+                  attachments: m.imageUrls.map(url => ({ url, contentType: 'image/png' })),
+                  embeds: m.embeds.map(e => ({
+                    title: e.title,
+                    description: e.description,
+                    htmlDescription: e.description ? parseDiscordMarkdown(e.description, null) : '',
+                    color: e.color,
+                    fields: e.fields.map(f => ({
+                      name: f.name,
+                      value: f.value,
+                      htmlValue: f.value ? parseDiscordMarkdown(f.value, null) : '',
+                    })),
+                    image: e.imageUrl ? { url: e.imageUrl } : null,
+                    thumbnail: e.thumbnailUrl ? { url: e.thumbnailUrl } : null,
+                    video: null,
+                  })),
+                  createdAt: Number.isNaN(parsed.getTime()) ? fallbackDate : parsed.toISOString(),
+                };
+              });
+            }
+          } catch (err) {
+            logger.warn('TicketsAPI', `Transcript fallback failed for ticket ${ticketId}: ${(err as Error).message}`);
           }
         }
 
