@@ -10,7 +10,8 @@
   pic ou un creux. L'infobulle du jour les liste en clair.
 -->
 <script lang="ts" module>
-  export type ChartMode = 'line' | 'bar' | 'stacked';
+  /** `lines` : plusieurs séries côte à côte (segments comparés), sans empilement. */
+  export type ChartMode = 'line' | 'bar' | 'stacked' | 'lines';
 
   export interface ChartMarker {
     index: number;
@@ -63,6 +64,23 @@
   }
 
   const data = $derived.by(() => {
+    if (mode === 'lines') {
+      return {
+        labels,
+        datasets: stacks.map((s) => ({
+          type: 'line',
+          label: s.label,
+          data: s.values,
+          borderColor: s.color,
+          backgroundColor: s.color,
+          borderWidth: 2,
+          fill: false,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          tension: 0.25,
+        })),
+      };
+    }
     if (mode === 'stacked') {
       return {
         labels,

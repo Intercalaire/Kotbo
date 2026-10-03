@@ -1,4 +1,4 @@
-import type { AnalyticsQuery } from '../../api';
+import type { AnalyticsQuery, SavedViewPayload } from '../../api';
 
 /**
  * Filtres globaux de la page Analytics : période, comparaison avec la période
@@ -112,6 +112,35 @@ class AnalyticsFiltersStore {
   toggleCompare() {
     this.compare = !this.compare;
     this.persist();
+  }
+
+  /** État des filtres à enregistrer dans une vue (l'onglet est ajouté par la page). */
+  snapshot(): Omit<SavedViewPayload, 'tab'> {
+    return {
+      period: this.period,
+      ...(this.isCustom ? { start: this.appliedStart, end: this.appliedEnd } : {}),
+      compare: this.compare,
+      channel: this.channel,
+      role: this.role,
+      excludeStaff: this.excludeStaff,
+      includeBots: this.includeBots,
+    };
+  }
+
+  /** Remet les filtres d'une vue enregistrée. */
+  apply(view: Omit<SavedViewPayload, 'tab'>) {
+    if (view.period === 'custom' && view.start && view.end) {
+      this.customStart = this.appliedStart = view.start;
+      this.customEnd = this.appliedEnd = view.end;
+      this.period = 'custom';
+    } else if (PRESETS.includes(view.period as PeriodPreset)) {
+      this.setPeriod(view.period as PeriodPreset);
+    }
+    if (this.compare !== view.compare) this.toggleCompare();
+    this.channel = view.channel ?? null;
+    this.role = view.role ?? null;
+    this.excludeStaff = Boolean(view.excludeStaff);
+    this.includeBots = Boolean(view.includeBots);
   }
 
   clearScope() {

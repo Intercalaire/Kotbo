@@ -49,6 +49,8 @@
   import RisingWordsView from '../lib/components/analytics/RisingWordsView.svelte';
   import LivePanel from '../lib/components/analytics/LivePanel.svelte';
   import AlertsView from '../lib/components/analytics/AlertsView.svelte';
+  import CompareView from '../lib/components/analytics/CompareView.svelte';
+  import SavedViewsMenu from '../lib/components/analytics/SavedViewsMenu.svelte';
   import ReportsView from '../lib/components/analytics/ReportsView.svelte';
   import AdvancedAnalyticsPanel from '../lib/components/analytics/AdvancedAnalyticsPanel.svelte';
   import ModerationAudit from '../lib/components/analytics/ModerationAudit.svelte';
@@ -90,6 +92,7 @@
         { id: 'messages', label: m.an_tab_messages(), icon: 'ChatCircleDots', scope: 'full' },
         { id: 'voice', label: m.an_tab_voice(), icon: 'Microphone', scope: 'full', legacy: true },
         { id: 'live', label: m.anx_tab_live(), icon: 'Radio', scope: 'own' },
+        { id: 'compare', label: m.anx_tab_compare(), icon: 'GitCompare', scope: 'period' },
         { id: 'heatmap', label: m.an_tab_heatmap(), icon: 'Fire', scope: 'period' },
         { id: 'pulse', label: m.an_tab_pulse(), icon: 'Activity', scope: 'own' },
         { id: 'weekly', label: m.an_tab_weekly(), icon: 'Calendar', scope: 'own' },
@@ -445,7 +448,10 @@
       <h1 class="font-headline text-2xl font-semibold text-on-surface">{m.anx_page_title()}</h1>
       <p class="max-w-2xl text-body-sm text-on-surface-variant">{section.description}</p>
     </div>
-    <ExportDropdown onExportCSV={exportCSV} onExportXLSX={exportXLSX} onExportImage={exportImages} />
+    <div class="flex items-center gap-2">
+      <SavedViewsMenu {activeTab} onApply={goTab} />
+      <ExportDropdown onExportCSV={exportCSV} onExportXLSX={exportXLSX} onExportImage={exportImages} />
+    </div>
   </header>
 
   <div class="analytics-v2__layout" class:analytics-v2__layout--collapsed={sidebarCollapsed}>
@@ -571,6 +577,8 @@
           </div>
         {:else if activeTab === 'tickets'}
           <StaffInsightsView onOpenMember={openMemberDetails} />
+        {:else if activeTab === 'compare'}
+          <CompareView />
         {:else if activeTab === 'alerts'}
           <AlertsView />
         {:else if activeTab === 'reports'}

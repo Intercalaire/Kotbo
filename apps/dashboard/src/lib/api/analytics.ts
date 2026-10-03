@@ -786,6 +786,24 @@ export const updateReportSchedule = (id: string, input: ReportScheduleInput) => 
 export const deleteReportSchedule = (id: string) => req<{ ok: boolean }>(`/analytics/reports/${encodeURIComponent(id)}`, 'DELETE');
 export const testReportSchedule = (id: string) => req<{ ok: boolean }>(`/analytics/reports/${encodeURIComponent(id)}/test`, 'POST');
 
+export interface SavedViewPayload {
+  tab: string;
+  period: string;
+  start?: string;
+  end?: string;
+  compare: boolean;
+  channel: string | null;
+  role: string | null;
+  excludeStaff: boolean;
+  includeBots: boolean;
+}
+
+export interface SavedView { id: string; name: string; payload: SavedViewPayload; shared: boolean; mine: boolean; createdAt: string }
+
+export const fetchSavedViews = () => req<SavedView[]>('/analytics/views', 'GET');
+export const createSavedView = (input: { name: string; payload: SavedViewPayload; shared: boolean }) => req<SavedView>('/analytics/views', 'POST', input);
+export const deleteSavedView = (id: string) => req<{ ok: boolean }>(`/analytics/views/${encodeURIComponent(id)}`, 'DELETE');
+
 export async function fetchChannelTree(query: AnalyticsQuery, guildId = authStore.selectedGuildId): Promise<ChannelTree | null> {
   return dashboardRequest<ChannelTree>(`/analytics/channel-tree?${analyticsParams({ period: query.period, startDate: query.startDate, endDate: query.endDate })}`, {
     method: 'GET',
