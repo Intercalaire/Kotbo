@@ -13,6 +13,8 @@ import { enqueueBackgroundJob, registerBackgroundJobHandlers, type BackgroundJob
 import { captureException } from '../observability/sentry.js';
 import { checkYoutubeFollows } from '../services/integrations/youtubeService.js';
 import { checkTwitchFollows } from '../services/integrations/twitchService.js';
+import { checkGithubFollows } from '../services/integrations/githubService.js';
+import { checkHuggingFaceFollows } from '../services/integrations/huggingFaceService.js';
 import { initializeDatabaseBackup } from '../services/system/databaseBackupService.js';
 import { checkTicketInactivity } from '../services/features/ticketService.js';
 import { checkExpiredGiveaways } from '../services/features/giveawayService.js';
@@ -187,6 +189,14 @@ export async function registerCrons(client: Client): Promise<void> {
     twitch: async () => {
       logger.debug('Cron', 'Vérification Twitch...');
       await checkTwitchFollows(client);
+    },
+    github: async () => {
+      logger.debug('Cron', 'Vérification GitHub...');
+      await checkGithubFollows(client);
+    },
+    huggingface: async () => {
+      logger.debug('Cron', 'Vérification Hugging Face...');
+      await checkHuggingFaceFollows(client);
     },
     'partnerships-hourly': async () => {
       logger.debug('Cron', 'Cycle horaire des partenariats...');
@@ -954,6 +964,12 @@ export async function registerCrons(client: Client): Promise<void> {
       }, 5000),
       runCronJob('twitch', async () => {
         await checkTwitchFollows(client);
+      }, 5000),
+      runCronJob('github', async () => {
+        await checkGithubFollows(client);
+      }, 5000),
+      runCronJob('huggingface', async () => {
+        await checkHuggingFaceFollows(client);
       }, 5000),
     ]);
   });

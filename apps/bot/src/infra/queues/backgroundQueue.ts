@@ -8,6 +8,8 @@ export type BackgroundJobName =
   | 'rss'
   | 'youtube'
   | 'twitch'
+  | 'github'
+  | 'huggingface'
   | 'digest'
   | 'daily-algo'
   | 'daily-algo-summary'
