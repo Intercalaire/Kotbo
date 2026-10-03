@@ -728,6 +728,64 @@ export const fetchModerationTrends = (query: AnalyticsQuery, guildId = authStore
 export const fetchStaffInsights = (query: AnalyticsQuery, guildId = authStore.selectedGuildId) => insightsRequest<StaffInsights>('staff', query, guildId);
 export const fetchRisingWords = (query: AnalyticsQuery, guildId = authStore.selectedGuildId) => insightsRequest<RisingWords>('words', query, guildId);
 
+export type AlertMetric = 'messages' | 'voiceMinutes' | 'activeMembers' | 'joins' | 'leaves' | 'netJoins' | 'sanctions' | 'channelRate' | 'unansweredRate';
+export type AlertCondition = 'drop_pct' | 'rise_pct' | 'above' | 'below';
+export type AlertWindow = 'hour' | 'day' | 'week';
+
+export interface AlertRuleInput {
+  name: string;
+  metric: AlertMetric;
+  condition: AlertCondition;
+  threshold: number;
+  window: AlertWindow;
+  channelId: string | null;
+  notifyChannelId: string | null;
+  notifyUserIds: string[];
+  enabled: boolean;
+  cooldownHours: number;
+}
+
+export interface AlertRule extends AlertRuleInput {
+  id: string;
+  lastTriggeredAt: string | null;
+  createdById: string;
+  createdAt: string;
+}
+
+export interface AlertEvent { id: string; ruleId: string; periodKey: string; value: number; baseline: number | null; delivered: boolean; triggeredAt: string }
+
+export type ReportSection = 'overview' | 'top_members' | 'top_channels' | 'anomalies' | 'moderation' | 'responses';
+
+export interface ReportScheduleInput {
+  frequency: 'weekly' | 'monthly';
+  weekday: number;
+  monthDay: number;
+  hour: number;
+  channelId: string | null;
+  userIds: string[];
+  sections: ReportSection[];
+  enabled: boolean;
+}
+
+export interface ReportSchedule extends ReportScheduleInput {
+  id: string;
+  nextRunAt: string;
+  lastSentAt: string | null;
+}
+
+const req = <T>(path: string, method: string, payload?: unknown, guildId = authStore.selectedGuildId) =>
+  dashboardRequest<T>(path, { method, payload, guildId, errorContext: `API Error (${method} ${path}):` });
+
+export const fetchAlertRules = () => req<{ rules: AlertRule[]; events: AlertEvent[] }>('/analytics/alerts', 'GET');
+export const createAlertRule = (input: AlertRuleInput) => req<AlertRule>('/analytics/alerts', 'POST', input);
+export const updateAlertRule = (id: string, input: AlertRuleInput) => req<{ ok: boolean }>(`/analytics/alerts/${encodeURIComponent(id)}`, 'PUT', input);
+export const deleteAlertRule = (id: string) => req<{ ok: boolean }>(`/analytics/alerts/${encodeURIComponent(id)}`, 'DELETE');
+export const fetchReportSchedules = () => req<{ schedules: ReportSchedule[] }>('/analytics/reports', 'GET');
+export const createReportSchedule = (input: ReportScheduleInput) => req<ReportSchedule>('/analytics/reports', 'POST', input);
+export const updateReportSchedule = (id: string, input: ReportScheduleInput) => req<{ ok: boolean }>(`/analytics/reports/${encodeURIComponent(id)}`, 'PUT', input);
+export const deleteReportSchedule = (id: string) => req<{ ok: boolean }>(`/analytics/reports/${encodeURIComponent(id)}`, 'DELETE');
+export const testReportSchedule = (id: string) => req<{ ok: boolean }>(`/analytics/reports/${encodeURIComponent(id)}/test`, 'POST');
+
 export async function fetchChannelTree(query: AnalyticsQuery, guildId = authStore.selectedGuildId): Promise<ChannelTree | null> {
   return dashboardRequest<ChannelTree>(`/analytics/channel-tree?${analyticsParams({ period: query.period, startDate: query.startDate, endDate: query.endDate })}`, {
     method: 'GET',
