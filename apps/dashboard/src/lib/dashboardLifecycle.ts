@@ -49,6 +49,8 @@ class DashboardLifecycleManager {
   private intentionallyClosed = false;
   private isConnecting = false;
   private initialized = false;
+  /** Serveurs dont le temps réel d'Analytics est suivi : renvoyés à chaque reconnexion. */
+  private liveGuilds = new Map<string, number>();
   private readonly handleRefreshRequest = () => {
     void dashboardStore.refresh();
   };
@@ -140,6 +142,36 @@ class DashboardLifecycleManager {
     }
   }
 
+  /** Envoie un message au serveur si la connexion est ouverte ; sinon il est perdu. */
+  send(payload: Record<string, unknown>): boolean {
+    if (this.socket?.readyState !== WebSocket.OPEN) return false;
+    this.socket.send(JSON.stringify(payload));
+    return true;
+  }
+
+  /**
+   * Suivre le temps réel d'Analytics d'un serveur. Compté : deux vues qui
+   * suivent le même serveur ne s'abonnent qu'une fois, et le dernier départ
+   * désabonne. Rend la fonction de désabonnement.
+   */
+  subscribeAnalyticsLive(guildId: string): () => void {
+    const count = this.liveGuilds.get(guildId) ?? 0;
+    this.liveGuilds.set(guildId, count + 1);
+    if (count === 0) this.send({ type: 'analytics_live_subscribe', guildId });
+    let done = false;
+    return () => {
+      if (done) return;
+      done = true;
+      const left = (this.liveGuilds.get(guildId) ?? 1) - 1;
+      if (left > 0) {
+        this.liveGuilds.set(guildId, left);
+        return;
+      }
+      this.liveGuilds.delete(guildId);
+      this.send({ type: 'analytics_live_unsubscribe', guildId });
+    };
+  }
+
   async connect() {
     if (!authStore.token) return;
     if (this.isConnecting) return;
@@ -175,6 +207,7 @@ class DashboardLifecycleManager {
         // Declenche le rattrapage des abonnes si la connexion revient d'une
         // coupure : tout ce qui a ete diffuse entre-temps est perdu.
         setRealtimeStatus('live');
+        for (const guildId of this.liveGuilds.keys()) this.send({ type: 'analytics_live_subscribe', guildId });
       };
 
       this.socket.onmessage = (event) => {
