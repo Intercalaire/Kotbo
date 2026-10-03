@@ -262,6 +262,32 @@ export async function handleAnalyticsRoutes(
     return true;
   }
 
+  // GET …/analytics/insights/{growth|moderation|staff|words} : analyses poussées
+  // de Croissance, Modération, Staff et Contenu. Période seule.
+  if (parts.length === 7 && parts[5] === 'insights' && ['growth', 'moderation', 'staff', 'words'].includes(parts[6]!)) {
+    const service = await import('../../../services/analytics/contentAnalyticsService.js');
+    const insights = await import('../../../services/analytics/sectionInsightsService.js');
+    const view = parts[6]!;
+    try {
+      const range = service.parseRange(url.searchParams);
+      const key = `guild:${guildId}:analytics:insights:${view}:${range.start}:${range.end}`;
+      if (view === 'growth') {
+        json(res, 200, await cache.wrap(key, 600, () => insights.getGrowthInsights(client, guildId, range)));
+      } else if (view === 'moderation') {
+        json(res, 200, await cache.wrap(key, 300, () => insights.getModerationTrends(client, guildId, range)));
+      } else if (view === 'staff') {
+        const timezone = await resolveViewTimezone(url.searchParams.get('tz'), guildId);
+        json(res, 200, await cache.wrap(`${key}:${timezone}`, 300, () => insights.getStaffInsights(client, guildId, range, timezone)));
+      } else {
+        json(res, 200, await cache.wrap(key, 900, () => insights.getRisingWords(guildId, range)));
+      }
+    } catch (err) {
+      logger.error('AnalyticsAPI', `Erreur analytics (insights/${view}):`, err);
+      jsonFailure(res, err, 'Erreur lors du calcul des statistiques', 'AnalyticsAPI');
+    }
+    return true;
+  }
+
   // GET …/analytics/{content|activity|channel-tree|filters} et …/analytics/categories/:id
   // Nouvelle page Analytics : période (`period` ou `startDate`/`endDate`) et
   // filtres (`channel`, `role`, `excludeStaff`, `userId`).
