@@ -1,17 +1,27 @@
 <!--
-  Vue d'ensemble : les chiffres clés de la période, leurs tendances jour par
-  jour, et trois faits marquants qui mènent vers la section concernée.
+  Vue d'ensemble : la carte de courbe (messages, membres actifs, vocal,
+  arrivées nettes), la présence en direct, les faits de la période et trois
+  faits marquants qui mènent vers la section concernée.
 -->
 <script lang="ts">
   import { Button, Callout, SectionCard } from '../ui';
-  import KpiTile from './KpiTile.svelte';
-  import TrendChart from './TrendChart.svelte';
+  import { untrack } from 'svelte';
   import AnalyticsSkeleton from './AnalyticsSkeleton.svelte';
-  import { fetchActivityAnalytics, fetchContentAnalytics, type ActivityAnalytics, type ContentAnalytics } from '../../api';
+  import ActivityChartCard from './ActivityChartCard.svelte';
+  import { buildActivityMetrics } from './activityMetrics';
+  import { analyticsAnnotations } from './annotations.svelte';
+  import {
+    fetchActivityAnalytics,
+    fetchActivityBreakdown,
+    fetchActivityHourly,
+    fetchContentAnalytics,
+    type ActivityAnalytics,
+    type ContentAnalytics,
+  } from '../../api';
   import { m } from '../../i18n';
   import { errorMessage } from '@kotbo/shared';
-  import { analyticsExport, analyticsFilters as filters, pct, relativeDelta } from './analyticsFilters.svelte';
-  import { fmtMinutes, fmtNumber, fmtPct, shortDate, SERIES } from './analyticsFormat';
+  import { analyticsExport, analyticsFilters as filters, pct } from './analyticsFilters.svelte';
+  import { fmtNumber, fmtPct, shortDate } from './analyticsFormat';
 
   const {
     onNavigate,
@@ -66,6 +76,15 @@
   const k = $derived(activity?.kpis);
   const dates = $derived(activity?.series.map((d) => d.dateKey) ?? []);
 
+  $effect(() => {
+    const period = filters.periodQuery;
+    untrack(() => analyticsAnnotations.load(period));
+  });
+
+  let activeMetric = $state('messages');
+  const metrics = $derived(activity ? buildActivityMetrics(activity, ['messages', 'active', 'voice', 'net-joins']) : []);
+  const hourlyPossible = $derived(filters.days <= 14 && !filters.channel && !filters.role && !filters.excludeStaff);
+
   const TYPE_KEYS: Array<[string, () => string]> = [
     ['typeImage', () => m.anx_type_image()], ['typeGif', () => m.anx_type_gif()], ['typeLink', () => m.anx_type_link()],
     ['typeVideo', () => m.anx_type_video()], ['typeSticker', () => m.anx_type_sticker()], ['typeForward', () => m.anx_type_forward()],
@@ -97,17 +116,26 @@
   <Callout variant="danger" title={m.an_error_generic()}>{error}</Callout>
 {:else if activity && k}
   <div class="flex flex-col gap-4" aria-busy={loading}>
-    <div class="kpi-grid kpi-grid--5">
-      <KpiTile label={m.anx_kpi_messages()} value={fmtNumber(k.messages.value)} delta={relativeDelta(k.messages.value, k.messages.previous)} compare={filters.compare} />
-      <KpiTile label={m.anx_kpi_active_members()} value={fmtNumber(k.activeMembers.value)} delta={relativeDelta(k.activeMembers.value, k.activeMembers.previous)} compare={filters.compare} hint={m.anx_kpi_active_members_hint()} />
-      {#if activity.voiceAvailable}
-        <KpiTile label={m.anx_kpi_voice()} value={fmtMinutes(k.voiceMinutes.value)} delta={relativeDelta(k.voiceMinutes.value, k.voiceMinutes.previous)} compare={filters.compare} />
-      {/if}
-      <KpiTile label={m.anx_kpi_net_joins()} value={`${k.netJoins.value > 0 ? '+' : ''}${fmtNumber(k.netJoins.value)}`} delta={k.netJoins.value - k.netJoins.previous} unit="abs" compare={filters.compare} hint={m.anx_kpi_net_joins_hint({ joined: fmtNumber(k.joined), left: fmtNumber(k.left) })} />
-      {#if k.memberCount !== null}
-        <KpiTile label={filters.includeBots ? m.anx_kpi_members_with_bots() : m.anx_kpi_members()} value={fmtNumber(k.memberCount)} />
-      {/if}
-    </div>
+    <ActivityChartCard
+      {metrics}
+      active={activeMetric}
+      onchange={(id) => (activeMetric = id)}
+      {dates}
+      days={filters.days}
+      compare={filters.compare}
+      onToggleCompare={() => filters.toggleCompare()}
+      {hourlyPossible}
+      loadHourly={() => fetchActivityHourly(filters.query)}
+      loadBreakdown={(metric, dimension) => fetchActivityBreakdown(filters.query, metric, dimension)}
+      reloadKey={filters.key}
+      anomalies={activity.anomalies ?? []}
+      annotations={analyticsAnnotations.items}
+      onAnnotate={(dateKey, label) => analyticsAnnotations.add(dateKey, label, filters.periodQuery)}
+      onDeleteAnnotation={(id) => analyticsAnnotations.remove(id)}
+      canDeleteAnnotation={(a) => analyticsAnnotations.canDelete(a)}
+      busy={loading}
+      forecastAllowed={!filters.isCustom}
+    />
 
     {#if legacy}
       <div class="section-grid">
@@ -121,6 +149,9 @@
                 <div><dt>{m.anx_live_voice()}</dt><dd>{fmtNumber(live.voiceConnected)}</dd></div>
                 <div><dt>{m.anx_live_humans()}</dt><dd>{fmtNumber(live.humansCount)}</dd></div>
                 <div><dt>{m.anx_live_bots()}</dt><dd>{fmtNumber(live.botsCount)}</dd></div>
+                {#if k.memberCount !== null}
+                  <div><dt>{filters.includeBots ? m.anx_kpi_members_with_bots() : m.anx_kpi_members()}</dt><dd>{fmtNumber(k.memberCount)}</dd></div>
+                {/if}
               </dl>
             </SectionCard>
           </div>
@@ -154,38 +185,6 @@
         {/if}
       </div>
     {/if}
-
-    <div class="section-grid">
-      <div class={activity.voiceAvailable ? 'span-6' : 'span-12'}>
-        <SectionCard title={m.anx_trend_messages_title()}>
-          <TrendChart
-            {dates}
-            values={activity.series.map((d) => d.messages)}
-            previous={activity.series.map((d) => d.prevMessages)}
-            label={m.anx_trend_current()}
-            previousLabel={m.anx_trend_previous()}
-            compare={filters.compare}
-            format={fmtNumber}
-          />
-        </SectionCard>
-      </div>
-      {#if activity.voiceAvailable}
-        <div class="span-6">
-          <SectionCard title={m.anx_trend_voice_title()}>
-            <TrendChart
-              {dates}
-              values={activity.series.map((d) => d.voiceMinutes)}
-              previous={activity.series.map((d) => d.prevVoiceMinutes)}
-              label={m.anx_trend_current()}
-              previousLabel={m.anx_trend_previous()}
-              compare={filters.compare}
-              color={SERIES[1]}
-              format={fmtMinutes}
-            />
-          </SectionCard>
-        </div>
-      {/if}
-    </div>
 
     <div class="section-grid">
       <div class="span-4">
