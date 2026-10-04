@@ -235,7 +235,7 @@ export function towerFloorsSaved(floors: readonly TowerLayout[]) {
 export const TOWER_READ_CARDS_MAX = 20;
 
 export const towerCardsReadSchema = {
-  fromCard: z.number().int().min(1).max(TOWER_FLOORS_MAX).optional().describe(`Première carte lue en entier (1 = première, variantes comptées). Défaut : 1.`),
+  fromCard: z.number().int().min(1).max(TOWER_FLOORS_MAX).optional().describe('Première carte lue en entier (1 = première, variantes comptées). Défaut : 1.'),
   toCard: z.number().int().min(1).max(TOWER_FLOORS_MAX).optional().describe(`Dernière carte lue en entier, ${TOWER_READ_CARDS_MAX} cartes au plus à partir de fromCard. Les autres n'indiquent que leur nom, leur taille et leur nombre de salles.`),
 };
 
@@ -243,7 +243,7 @@ export const towerCardsReadSchema = {
  * Cartes lisibles par un outil : les salles des cartes `fromCard` à `toCard` seulement, un aperçu
  * pour les autres. Une tour de 300 cartes entières dépasse de loin la taille d'une réponse.
  */
-function towerFloorsView(floors: readonly TowerLayout[], cards: { fromCard?: number; toCard?: number }) {
+function towerFloorsView(floors: readonly TowerLayout[], cards: { fromCard?: number; toCard?: number } = {}) {
   const from = cards.fromCard ?? 1;
   const to = Math.min(cards.toCard ?? Number.POSITIVE_INFINITY, from + TOWER_READ_CARDS_MAX - 1);
   return floors.map((layout, index) => {
@@ -254,7 +254,7 @@ function towerFloorsView(floors: readonly TowerLayout[], cards: { fromCard?: num
   });
 }
 
-export function compactTowerSettings<T extends { floors: readonly TowerLayout[] }>(settings: T, cards: { fromCard?: number; toCard?: number }) {
+export function compactTowerSettings<T extends { floors: readonly TowerLayout[] }>(settings: T, cards?: { fromCard?: number; toCard?: number }) {
   return { ...settings, floors: towerFloorsView(settings.floors, cards) };
 }
 
