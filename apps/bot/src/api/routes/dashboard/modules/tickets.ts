@@ -14,6 +14,7 @@ import { type ModuleRouteContext, msgEmbedsMap } from './_shared.js';
 import { parseTranscriptHtml } from '../../../../services/features/transcriptService.js';
 import { clampCommentTimeout } from '../../../../services/features/ticketSatisfactionService.js';
 import { INBOX_VIEWS, computeSla, normalizeView, viewWhere, waitingOn, type SlaConfig } from '../../../../services/features/ticketHelpdesk.js';
+import { handleTicketHelpdeskRoutes } from './ticketHelpdesk.js';
 
 import { jsonFailure } from '../../../shared/failure.js';
 /** Champs acceptes pour une macro, valides un par un plutot qu'en bloc. */
@@ -113,6 +114,11 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
     // Voir n'est pas effacer : sans ce controle, tout staff a qui la section
     // est ouverte pouvait supprimer une macro ou vider la liste noire.
     const canDeleteTickets = () => !!featureAccess.tickets?.canDelete;
+
+    // Centre de support : propriétés, attribution, staff, statistiques. Avant
+    // la lecture générique `GET /tickets/:id`, qui prendrait « stats » pour
+    // un identifiant de ticket.
+    if (await handleTicketHelpdeskRoutes(ctx)) return true;
 
     // GET /api/dashboard/guilds/:guildId/tickets/config
     if (parts.length === 6 && parts[5] === 'config' && method === 'GET') {
