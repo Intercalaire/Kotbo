@@ -825,6 +825,8 @@ model Guild {
   channelLockdowns     ChannelLockdown[]
   memberReports        MemberReport[]
   scamImageHashes      ScamImageHash[]
+  scamDomains          ScamDomain[]
+  scamTextSamples      ScamTextSample[]
   inviteApprovalRequests InviteApprovalRequest[]
   memberRoleSnapshots    MemberRoleSnapshot[]
 
