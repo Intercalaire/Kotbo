@@ -13,6 +13,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, type ColorRe
 import { type ModuleRouteContext, msgEmbedsMap } from './_shared.js';
 import { parseTranscriptHtml } from '../../../../services/features/transcriptService.js';
 import { clampCommentTimeout } from '../../../../services/features/ticketSatisfactionService.js';
+import { INBOX_VIEWS, computeSla, normalizeView, viewWhere, waitingOn, type SlaConfig } from '../../../../services/features/ticketHelpdesk.js';
 
 import { jsonFailure } from '../../../shared/failure.js';
 /** Champs acceptes pour une macro, valides un par un plutot qu'en bloc. */
@@ -80,6 +81,13 @@ function parseMacroInput(body: Record<string, unknown>): { data: MacroData } | {
       closeTicket: body.closeTicket === true,
     },
   };
+}
+
+/** Objectif de service : entier strictement positif et borne, ou `null` pour « aucun ». */
+function slaTarget(value: unknown, max: number): number | null {
+  if (value === null || value === '' || value === undefined) return null;
+  const n = Math.trunc(Number(value));
+  return Number.isFinite(n) && n > 0 ? Math.min(n, max) : null;
 }
 
 export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<boolean> {
@@ -168,6 +176,8 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             ticketQuotaStaffLoadBypassRoleIds: true,
             ticketQuotaReopenEnabled: true,
             ticketQuotaReopenMax: true,
+            ticketSlaFirstResponseMinutes: true,
+            ticketSlaResolutionHours: true,
           }
         });
         json(res, 200, guildConfig || {});
@@ -331,6 +341,8 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         ticketQuotaStaffLoadBypassRoleIds?: unknown;
         ticketQuotaReopenEnabled?: unknown;
         ticketQuotaReopenMax?: unknown;
+        ticketSlaFirstResponseMinutes?: unknown;
+        ticketSlaResolutionHours?: unknown;
       }
 
       /**
@@ -510,6 +522,10 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
               : [],
             ticketQuotaReopenEnabled: body.ticketQuotaReopenEnabled === true,
             ticketQuotaReopenMax: quotaNumber(body.ticketQuotaReopenMax, 3, 50),
+            // Objectifs de service : ecrits seulement s'ils sont envoyes, pour
+            // qu'un ancien ecran qui ne les connait pas ne les efface pas.
+            ...('ticketSlaFirstResponseMinutes' in body ? { ticketSlaFirstResponseMinutes: slaTarget(body.ticketSlaFirstResponseMinutes, 7 * 24 * 60) } : {}),
+            ...('ticketSlaResolutionHours' in body ? { ticketSlaResolutionHours: slaTarget(body.ticketSlaResolutionHours, 30 * 24) } : {}),
           }
         });
 
@@ -875,10 +891,47 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
           }
         };
 
+        // Vues du centre de support (`view`) : remplacent le filtre par statut,
+        // qui reste accepte pour les anciens appels.
+        const slaRow = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: { ticketSlaFirstResponseMinutes: true, ticketSlaResolutionHours: true },
+        });
+        const sla: SlaConfig = {
+          firstResponseMinutes: slaRow?.ticketSlaFirstResponseMinutes ?? null,
+          resolutionHours: slaRow?.ticketSlaResolutionHours ?? null,
+        };
+        const now = new Date();
+        const viewContext = { guildId, userId: user.userId, now, sla, staffTurnField: prisma.ticket.fields.lastStaffMessageAt };
+        const requestedView = url.searchParams.get('view');
+        const query = (url.searchParams.get('q') ?? '').trim().slice(0, 100);
+        const search: Prisma.TicketWhereInput = query
+          ? { OR: [
+            { username: { contains: query, mode: 'insensitive' } },
+            { reason: { contains: query, mode: 'insensitive' } },
+            { userId: query },
+            { tags: { has: query.toLowerCase() } },
+          ] }
+          : {};
+        const viewFilter = requestedView ? viewWhere(normalizeView(requestedView), viewContext) : null;
+        const listWhere: Prisma.TicketWhereInput = requestedView
+          ? { AND: [viewFilter ?? { id: '__aucun__' }, search] }
+          : { guildId, ...(status ? { status } : {}), ...search };
+        // Les files de travail se traitent du plus ancien au plus récent ; les
+        // archives se relisent du plus récent au plus ancien.
+        const sort = url.searchParams.get('sort') === 'oldest' ? 'asc' : 'desc';
+
+        const viewCounts = requestedView
+          ? Object.fromEntries(await Promise.all(INBOX_VIEWS.filter((view) => view !== 'all' && view !== 'closed').map(async (view) => {
+            const where = viewWhere(view, viewContext);
+            return [view, where ? await prisma.ticket.count({ where }) : 0] as const;
+          })))
+          : null;
+
         const [ticketRows, guildConfig] = await Promise.all([
           prisma.ticket.findMany({
-            where: { guildId, ...(status ? { status } : {}) },
-            orderBy: { createdAt: 'desc' },
+            where: listWhere,
+            orderBy: [{ createdAt: sort }, { id: sort }],
             skip: offset,
             // Une ligne supplémentaire permet de signaler la page suivante
             // sans imposer un COUNT(*) à chaque affichage.
@@ -893,6 +946,13 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
               claimedByName: true,
               transcriptId: true,
               createdAt: true,
+              ticketTypeLabel: true,
+              priority: true,
+              tags: true,
+              firstResponseAt: true,
+              closedAt: true,
+              lastMemberMessageAt: true,
+              lastStaffMessageAt: true,
             },
           }),
           prisma.guild.findUnique({
@@ -937,6 +997,8 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
               ticketLockUntilClaim: true,
               ticketApprovalEnabled: true,
               ticketApprovalChannelId: true,
+              ticketSlaFirstResponseMinutes: true,
+              ticketSlaResolutionHours: true,
             }
           }),
         ]);
@@ -946,12 +1008,13 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         const enrichedTickets = tickets.map((t) => {
           const userAvatar = avatarFromCache(t.userId);
           const claimedByAvatar = t.claimedById ? avatarFromCache(t.claimedById) : null;
-          return { ...t, userAvatar, claimedByAvatar };
+          return { ...t, userAvatar, claimedByAvatar, waitingOn: waitingOn(t), sla: computeSla(t, sla, now) };
         });
 
         json(res, 200, {
           tickets: enrichedTickets,
           config: guildConfig || {},
+          ...(viewCounts ? { views: viewCounts } : {}),
           pagination: {
             limit,
             offset,
