@@ -273,11 +273,17 @@ export async function isTowerOpen(guildId: string): Promise<boolean> {
 }
 
 export async function getOrCreateTowerProfile(guildId: string, userId: string) {
-  return prisma.rpgTowerProfile.upsert({
-    where: { guildId_userId: { guildId, userId } },
-    update: {},
-    create: { guildId, userId },
-  });
+  const where = { guildId_userId: { guildId, userId } };
+  try {
+    return await prisma.rpgTowerProfile.upsert({ where, update: {}, create: { guildId, userId } });
+  } catch (err) {
+    // L'upsert Prisma n'est pas atomique : deux appels simultanés pour un nouveau joueur
+    // tentent tous deux l'insertion, et le second échoue sur la contrainte d'unicité.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      return prisma.rpgTowerProfile.findUniqueOrThrow({ where });
+    }
+    throw err;
+  }
 }
 
 /** Record de tous les temps du serveur, relu au plus une fois par minute : il s'affiche à chaque pas. */
