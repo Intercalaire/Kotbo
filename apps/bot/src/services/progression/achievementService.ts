@@ -9,7 +9,7 @@ import {
   type RankCardAchievementMetric,
   type RankCardAchievementMetrics,
 } from '@kotbo/shared';
-import prisma, { prismaRead } from '../../utils/db.js';
+import prisma, { prismaRead, upsertRetryingRace } from '../../utils/db.js';
 import { cache } from '../../utils/cache.js';
 import { logger } from '../../utils/logger.js';
 
@@ -104,11 +104,11 @@ async function backfillSupporter(userId: string) {
     : new Date();
   const coveredUntil = new Date(Math.max(...guilds.map((guild) => guild.stripeCurrentPeriodEnd!.getTime())));
 
-  return prisma.rankCardSupporter.upsert({
+  return upsertRetryingRace(() => prisma.rankCardSupporter.upsert({
     where: { userId },
     update: {},
     create: { userId, streakStartedAt: startedAt, coveredUntil },
-  });
+  }));
 }
 
 async function supporterMonths(userId: string): Promise<number> {

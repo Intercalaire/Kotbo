@@ -1,5 +1,5 @@
 /** Routes dashboard de la mise en place guidee du serveur. */
-import prisma from '../../../../utils/db.js';
+import prisma, { upsertRetryingRace } from '../../../../utils/db.js';
 import { errorMessage } from '../../../../utils/errors.js';
 import { resolveGuildLocale } from '../../../../utils/i18n.js';
 import { logger } from '../../../../utils/logger.js';
@@ -518,7 +518,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
       // La mise en place est souvent le premier geste sur un serveur neuf : la
       // ligne peut ne pas encore exister, et tout l'enregistrement au fil de
       // l'eau passe par des `update`.
-      await prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } });
+      await upsertRetryingRace(() => prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } }));
 
       const result = await applyServerTemplate({ guild: discordGuild, locale, selection, adopt, auditUser });
 
@@ -603,7 +603,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
       const locale = await resolveGuildLocale(guildId, discordGuild.preferredLocale);
       // Premier geste possible sur un serveur neuf : la ligne peut ne pas
       // exister encore, et la trace des elements poses s'ecrit par `update`.
-      await prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } });
+      await upsertRetryingRace(() => prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } }));
 
       const channel = await provisionOnboardingChannel({
         guild: discordGuild,
@@ -656,7 +656,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
       }
 
       const locale = await resolveGuildLocale(guildId, discordGuild.preferredLocale);
-      await prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } });
+      await upsertRetryingRace(() => prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } }));
 
       const result = await provisionOnboardingRoles({
         guild: discordGuild,

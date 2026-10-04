@@ -37,7 +37,7 @@ import {
 import { creditRpFromXp } from './ranked/rankedService.js';
 import { visiblePresenceStatus } from '../core/presencePrivacyService.js';
 import { kotboEventBus } from '@kotbo/core';
-import prisma, { prismaRead } from '../../utils/db.js';
+import prisma, { prismaRead, upsertRetryingRace } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { cache, getCachedGuild } from '../../utils/cache.js';
 import { type BotLocale, resolveGuildLocale } from '../../utils/i18n.js';
@@ -126,11 +126,11 @@ export async function getOrCreateLevelConfig(guildId: string) {
 
   if (!config) {
     // Ensure the Guild row exists before creating the FK-dependent LevelConfig
-    await prisma.guild.upsert({
+    await upsertRetryingRace(() => prisma.guild.upsert({
       where: { id: guildId },
       update: {},
       create: { id: guildId },
-    });
+    }));
 
     config = await prisma.levelConfig.create({
       data: {

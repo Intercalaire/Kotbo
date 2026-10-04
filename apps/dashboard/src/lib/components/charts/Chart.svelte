@@ -29,6 +29,25 @@
   } from 'chart.js';
   import gradient from 'chartjs-plugin-gradient';
 
+  // Le plugin lit `legend.legendItems[i].datasetIndex` pour chaque dataset sans
+  // verifier que l'item existe. Quand la legende a moins d'items que de
+  // datasets (items filtres, doughnut, legende vide), il leve
+  // "s is undefined" et fait tomber toute la page. Le degrade de legende est
+  // cosmetique : on le saute plutot que de perdre le graphe.
+  const safeGradient = {
+    ...gradient,
+    afterUpdate(chartInstance: any, args: any, opts: any) {
+      const items = chartInstance.legend?.legendItems;
+      const count = chartInstance.data?.datasets?.length ?? 0;
+      if (!items || items.length < count || items.some((item: any) => !item)) return;
+      try {
+        (gradient as any).afterUpdate?.(chartInstance, args, opts);
+      } catch {
+        // legende sans degrade, sans consequence sur le rendu des datasets
+      }
+    },
+  };
+
   Chart.register(
     BarController,
     BarElement,
@@ -221,7 +240,7 @@
     const config: ChartConfiguration = {
       type: type as any,
       data: processedData,
-      plugins: [gradient, verticalLinePlugin, ...plugins],
+      plugins: [safeGradient, verticalLinePlugin, ...plugins],
       options: {
 
         responsive: true,

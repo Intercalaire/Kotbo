@@ -19,7 +19,7 @@ import {
   type RankedLadder,
   type StreakConfig,
 } from '@kotbo/shared';
-import prisma, { prismaRead } from '../../../utils/db.js';
+import prisma, { prismaRead, upsertRetryingRace } from '../../../utils/db.js';
 import { cache } from '../../../utils/cache.js';
 
 const CONFIG_TTL_SECONDS = 60;
@@ -41,7 +41,7 @@ export async function getOrCreateRankedConfig(guildId: string): Promise<RankedCo
 
   if (!config) {
     // La guilde doit exister avant la config, qui en dépend par clé étrangère.
-    await prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } });
+    await upsertRetryingRace(() => prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } }));
     config = await prisma.rankedConfig.create({ data: { guildId } });
   }
 
@@ -255,7 +255,7 @@ export async function getTierRoles(guildId: string) {
 }
 
 export async function setTierRole(guildId: string, tierKey: string, roleId: string) {
-  await prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } });
+  await upsertRetryingRace(() => prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } }));
   return prisma.rankedTierRole.upsert({
     where: { guildId_tierKey: { guildId, tierKey } },
     update: { roleId },

@@ -6,7 +6,7 @@ import {
   MessageFlags,
   ContainerBuilder,
 } from 'discord.js';
-import prisma from '../../utils/db.js';
+import prisma, { upsertRetryingRace } from '../../utils/db.js';
 import { text, successContainer, errorContainer, v2, COLORS_RAW } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import { MAX_XP } from '@kotbo/shared';
@@ -190,7 +190,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     return;
   }
 
-  await prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } });
+  await upsertRetryingRace(() => prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } }));
 
   const numberLocale = locale === 'fr' ? 'fr-FR' : 'en-US';
 

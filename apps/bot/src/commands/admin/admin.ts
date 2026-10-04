@@ -8,7 +8,7 @@ import {
 } from 'discord.js';
 import { errorContainer, infoContainer, kotboContainer, successContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
-import prisma from '../../utils/db.js';
+import prisma, { upsertRetryingRace } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { getModuleStatsSummary, getModuleActivationStats, getModuleUsageStats, getModulePerformanceStats , KOTBO_MODULES, type KotboModule } from '../../services/analytics/moduleStatsService.js';
 import { separator, v2Message } from '@arcscord/components';
@@ -160,7 +160,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     return;
   }
 
-  await prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } });
+  await upsertRetryingRace(() => prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } }));
 
   if (subcommand === 'info') {
     const guild = await prisma.guild.findUnique({

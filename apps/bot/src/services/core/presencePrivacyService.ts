@@ -19,7 +19,7 @@
  */
 
 import type { Prisma } from '@prisma/client';
-import prisma from '../../utils/db.js';
+import prisma, { upsertRetryingRace } from '../../utils/db.js';
 import { cache } from '../../utils/cache.js';
 import { logger } from '../../utils/logger.js';
 
@@ -99,7 +99,7 @@ export async function setPresenceTrackingOptOut(
 
   // La ligne `guilds` peut manquer sur un serveur jamais configuré : la clé
   // étrangère du profil ferait alors échouer l'écriture du choix du membre.
-  await prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } });
+  await upsertRetryingRace(() => prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } }));
 
   await prisma.memberProfile.upsert({
     where: { guildId_userId: { guildId, userId } },

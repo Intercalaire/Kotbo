@@ -28,7 +28,7 @@ import {
   type RankedLadderEntry,
   type RpSource,
 } from '@kotbo/shared';
-import prisma, { prismaRead } from '../../../utils/db.js';
+import prisma, { prismaRead, upsertRetryingRace } from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { resolveGuildLocale, type BotLocale } from '../../../utils/i18n.js';
 import * as m from '../../../lib/paraglide/messages.js';
@@ -48,12 +48,12 @@ export async function getOrCreateRankedMember(guildId: string, userId: string): 
   });
   if (existing) return existing;
 
-  await prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } });
-  return prisma.rankedMember.upsert({
+  await upsertRetryingRace(() => prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } }));
+  return upsertRetryingRace(() => prisma.rankedMember.upsert({
     where: { guildId_userId: { guildId, userId } },
     update: {},
     create: { guildId, userId },
-  });
+  }));
 }
 
 /**
