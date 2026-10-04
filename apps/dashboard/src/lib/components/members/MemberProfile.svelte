@@ -462,6 +462,7 @@
   loading={caseLoading}
   error={caseError}
   initialTab={modalTab}
+  showProfileLink={false}
   onClose={() => {
     modalOpen = false;
     // Une action ou une note a pu changer le dossier : la fiche se relit.

@@ -50,6 +50,7 @@
     onClose = () => {},
     onSelectUser = (_userId: string) => {},
     initialTab = 'resume' as MemberCaseTab,
+    showProfileLink = true,
   } = $props<{
     open?: boolean;
     userName?: string;
@@ -67,6 +68,8 @@
     onSelectUser?: (userId: string) => void;
     /** Onglet affiché à l'ouverture : la fiche complète ouvre directement les actions. */
     initialTab?: MemberCaseTab;
+    /** Lien vers la fiche complète, masqué quand le dossier s'ouvre depuis elle. */
+    showProfileLink?: boolean;
   }>();
 
   let activeTab = $state<MemberCaseTab>('resume');
@@ -968,6 +971,15 @@
         onchange={(id) => (activeTab = id as typeof activeTab)}
       />
 
+        {#if showProfileLink && userId}
+          <a
+            href={`/members/${userId}`}
+            class="flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-on-surface-variant transition-colors hover:bg-on-surface/10 hover:text-on-surface"
+          >
+            <Papicon icon="maximize-2" size={14} />
+            {m.mcm_open_profile()}
+          </a>
+        {/if}
         <button
           type="button"
           onclick={onClose}

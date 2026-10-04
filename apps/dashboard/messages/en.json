@@ -13001,5 +13001,6 @@
   "mp_with_whom_empty": "No exchanges recorded yet.",
   "mp_linked": "Linked accounts",
   "mp_linked_validated": "validated",
-  "mp_linked_pending": "to check"
+  "mp_linked_pending": "to check",
+  "mcm_open_profile": "Full profile"
 }

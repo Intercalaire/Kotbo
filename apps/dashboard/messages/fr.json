@@ -13001,5 +13001,6 @@
   "mp_with_whom_empty": "Pas encore d'échanges enregistrés.",
   "mp_linked": "Comptes liés",
   "mp_linked_validated": "validé",
-  "mp_linked_pending": "à vérifier"
+  "mp_linked_pending": "à vérifier",
+  "mcm_open_profile": "Fiche complète"
 }
