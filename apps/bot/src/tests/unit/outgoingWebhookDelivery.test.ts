@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import path from 'node:path';
 import { verifyWebhookSignature } from '../../services/integrations/outgoingWebhookSecurity.js';
 
-type Row = Record<string, any>;
+type Row = Record<string, unknown>;
 let delivery: Row;
 let webhook: Row;
 const deliveryUpdates: Row[] = [];
