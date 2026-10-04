@@ -26,9 +26,8 @@ import {
   TOWER_MAP_ROOMS_MAX,
   TOWER_MAP_SIZE,
   TOWER_VARIANT_WEIGHT,
-  towerFloorCount,
 } from '../../../services/features/rpg/rpgTowerMap.js';
-import { compactTowerFloors, compactTowerSettings, editTowerFloors, floorSchema, roomSchema } from './rpg-tower.js';
+import { compactTowerSettings, editTowerFloors, floorSchema, roomSchema, towerFloorsSaved } from './rpg-tower.js';
 
 const fail = (e: unknown) => err(e instanceof Error ? e.message : String(e));
 
@@ -123,9 +122,9 @@ export function registerRpgClanTowerTools(ctx: McpToolContext) {
           const next = editTowerFloors((await getClanTowerConfig(guildId)).floors, input);
           if (typeof next === 'string') return err(next);
           const settings = await saveClanTowerFloors(guildId, { floors: next });
-          const rooms = settings.floors.reduce((sum, entry) => sum + entry.rooms.length, 0);
-          await audit(key_name, 'Étages de la Tour de clan MCP', 'Carte', `${towerFloorCount(settings.floors)} étage(s), ${settings.floors.length} carte(s), ${rooms} salles`);
-          return ok({ ok: true, floors: compactTowerFloors(settings.floors) });
+          const saved = towerFloorsSaved(settings.floors, input);
+          await audit(key_name, 'Étages de la Tour de clan MCP', 'Carte', `${saved.floors} étage(s), ${saved.cards} carte(s), ${saved.rooms} salles`);
+          return ok(saved);
         } catch (e) {
           return fail(e);
         }
