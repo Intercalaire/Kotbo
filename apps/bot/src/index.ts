@@ -81,6 +81,7 @@ import { registerClanListener } from './events/clanEvents.js';
 import { registerEventBusBridge } from './events/eventBusBridge.js';
 import { registerAnalyticsBusSubscribers } from './modules/analytics.module.js';
 import { registerWorkflowBusSubscribers } from './modules/workflow.module.js';
+import { registerOutgoingWebhookSubscribers } from './services/integrations/outgoingWebhookService.js';
 import { registerLevelingBusSubscribers } from './modules/leveling.module.js';
 import { registerRankedBusSubscribers } from './modules/ranked.module.js';
 import { registerAutoModBusSubscribers } from './modules/autoMod.module.js';
@@ -445,6 +446,7 @@ client.once(Events.ClientReady, async (c) => {
   // sont restés sur `client.on()` reçoivent la vue filtrée du client.
   registerAnalyticsBusSubscribers(client);
   registerWorkflowBusSubscribers(client);
+  registerOutgoingWebhookSubscribers();
   registerLevelingBusSubscribers(client);
   registerRankedBusSubscribers(client);
   registerAutoModBusSubscribers(scopeClientToModule(client, 'automod'));

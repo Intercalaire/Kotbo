@@ -764,6 +764,15 @@ export async function registerCrons(client: Client): Promise<void> {
     await runLocalSweep('workflow-schedule', () => dispatchScheduledWorkflows(client));
   });
 
+  // Webhooks sortants : relances dues et purge du journal (30 jours). Chaque
+  // envoi est réservé avant d'être tenté, deux processus ne le doublent pas.
+  cron.schedule('* * * * *', async () => {
+    await runLocalSweep('outgoing-webhooks', async () => {
+      const { runOutgoingWebhookSweep } = await import('../services/integrations/outgoingWebhookService.js');
+      await runOutgoingWebhookSweep();
+    });
+  });
+
   // Workflows : purge du journal des exécutions (tous les jours à 04:25). En
   // file, contrairement aux balayages : elle porte sur toute la base, un seul
   // processus suffit.
