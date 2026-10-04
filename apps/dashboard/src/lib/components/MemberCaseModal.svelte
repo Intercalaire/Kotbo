@@ -49,6 +49,7 @@
     actionIsError = false,
     onClose = () => {},
     onSelectUser = (_userId: string) => {},
+    initialTab = 'resume' as MemberCaseTab,
   } = $props<{
     open?: boolean;
     userName?: string;
@@ -64,6 +65,8 @@
     onClose?: (e: MouseEvent) => void;
     onAction?: (action: 'WARN' | 'KICK' | 'TIMEOUT' | 'BAN') => void;
     onSelectUser?: (userId: string) => void;
+    /** Onglet affiché à l'ouverture : la fiche complète ouvre directement les actions. */
+    initialTab?: MemberCaseTab;
   }>();
 
   let activeTab = $state<MemberCaseTab>('resume');
@@ -778,7 +781,7 @@
 
   $effect(() => {
     if (open) {
-      activeTab = 'resume';
+      activeTab = initialTab;
       messageQuery = '';
       messageChannelId = '';
       messageIncludeDeleted = true;
