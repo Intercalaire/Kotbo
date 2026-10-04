@@ -861,6 +861,34 @@
     URL.revokeObjectURL(url);
   }
 
+  /** Étage lu dans un fichier exporté ; lève une erreur s'il n'en a pas la forme. */
+  function parseFloor(raw: any): Layout {
+    const inRange = (value: unknown) => Number.isInteger(value) && (value as number) >= sizeLimits.min && (value as number) <= sizeLimits.max;
+    if (!raw || !Array.isArray(raw.rooms) || raw.rooms.length > roomsMax || !inRange(raw.width) || !inRange(raw.height)) throw new Error('invalid');
+    // Salles hors de la grille ou sur une case déjà prise : ignorées, la première posée l'emporte.
+    const taken = new Set<string>();
+    const rooms: Room[] = [];
+    for (const entry of raw.rooms as Partial<Room>[]) {
+      if (!ROOM_TYPES.includes(entry.type as RoomType) || !Number.isInteger(entry.x) || !Number.isInteger(entry.y)) continue;
+      const room: Room = { ...newRoom(entry.x!, entry.y!, entry.type!), ...entry, id: `${entry.x}-${entry.y}` };
+      const cells = cellsOf(room);
+      if (cells.some(([x, y]) => x < 0 || y < 0 || x >= raw.width || y >= raw.height || taken.has(`${x},${y}`))) continue;
+      cells.forEach(([x, y]) => taken.add(`${x},${y}`));
+      rooms.push(room);
+    }
+    return cloneLayout({
+      name: typeof raw.name === 'string' ? raw.name.slice(0, 40) : '',
+      fog: raw.fog === true,
+      modifier: MODIFIERS.includes(raw.modifier) ? raw.modifier : 'NONE',
+      theme: THEMES.includes(raw.theme) ? raw.theme : 'AUTO',
+      variant: raw.variant === true,
+      weight: Number.isInteger(raw.weight) ? Math.min(WEIGHT.max, Math.max(WEIGHT.min, raw.weight)) : WEIGHT.default,
+      width: raw.width,
+      height: raw.height,
+      rooms,
+    });
+  }
+
   /** Remplace l'étage ouvert par un fichier exporté ; le bot revalide tout à l'enregistrement. */
   async function importFloor(event: Event) {
     const input = event.currentTarget as HTMLInputElement;
@@ -870,36 +898,75 @@
     importError = false;
     try {
       const raw = JSON.parse(await file.text());
-      const inRange = (value: unknown) => Number.isInteger(value) && (value as number) >= sizeLimits.min && (value as number) <= sizeLimits.max;
-      if (!raw || !Array.isArray(raw.rooms) || raw.rooms.length > roomsMax || !inRange(raw.width) || !inRange(raw.height)) throw new Error('invalid');
-      // Salles hors de la grille ou sur une case déjà prise : ignorées, la première posée l'emporte.
-      const taken = new Set<string>();
-      const rooms: Room[] = [];
-      for (const entry of raw.rooms as Partial<Room>[]) {
-        if (!ROOM_TYPES.includes(entry.type as RoomType) || !Number.isInteger(entry.x) || !Number.isInteger(entry.y)) continue;
-        const room: Room = { ...newRoom(entry.x!, entry.y!, entry.type!), ...entry, id: `${entry.x}-${entry.y}` };
-        const cells = cellsOf(room);
-        if (cells.some(([x, y]) => x < 0 || y < 0 || x >= raw.width || y >= raw.height || taken.has(`${x},${y}`))) continue;
-        cells.forEach(([x, y]) => taken.add(`${x},${y}`));
-        rooms.push(room);
-      }
+      const parsed = parseFloor(raw);
       remember();
-      layout = cloneLayout({
-        name: typeof raw.name === 'string' ? raw.name.slice(0, 40) : layout.name,
-        fog: raw.fog === true,
-        modifier: MODIFIERS.includes(raw.modifier) ? raw.modifier : 'NONE',
-        theme: THEMES.includes(raw.theme) ? raw.theme : 'AUTO',
-        variant: layout.variant,
-        weight: layout.weight,
-        width: raw.width,
-        height: raw.height,
-        rooms,
-      });
+      layout = { ...parsed, name: typeof raw.name === 'string' ? parsed.name : layout.name, variant: layout.variant, weight: layout.weight };
       selectedId = null;
       dirty = true;
     } catch {
       importError = true;
     }
+  }
+
+  // ── Export / import de toute la tour ────────────────────────────
+  /** Carte fautive d'un import de tour (numéro à partir de 1), 0 quand c'est le fichier lui-même. */
+  let towerImportError = $state<number | null>(null);
+
+  function exportTower() {
+    commit();
+    // Sans indentation : une longue tour pèse vite plusieurs mégaoctets.
+    const blob = new Blob([JSON.stringify({ floors: $state.snapshot(floors) })], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'tour.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Remplace toutes les cartes par un fichier `{ floors: [...] }` (ou la liste seule). Rien n'est
+   * enregistré avant le bouton d'enregistrement, et le bot revalide chaque carte.
+   */
+  async function importTower(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file || !canManage || disabled) return;
+    towerImportError = null;
+    let list: unknown;
+    try {
+      const raw = JSON.parse(await file.text());
+      list = Array.isArray(raw) ? raw : raw?.floors;
+    } catch {
+      towerImportError = 0;
+      return;
+    }
+    if (!Array.isArray(list) || list.length === 0 || list.length > floorsMax) {
+      towerImportError = 0;
+      return;
+    }
+    const parsed: Layout[] = [];
+    for (const [index, entry] of list.entries()) {
+      try {
+        parsed.push(parseFloor(entry));
+      } catch {
+        towerImportError = index + 1;
+        return;
+      }
+    }
+    const confirmed = await confirmDialog.danger(
+      m.eco_tower_import_all_confirm({ cards: parsed.length }),
+      m.eco_tower_import_all_confirm_desc({ current: floors.length }),
+    );
+    if (!confirmed) return;
+    floors = parsed;
+    current = 0;
+    layout = cloneLayout(floors[0]);
+    anchorFirst();
+    selectedId = null;
+    resetHistory();
+    dirty = true;
   }
 
   // ── Remplissage par zone (Maj+glisser) ──────────────────────────
@@ -1532,7 +1599,21 @@
           <button type="button" onclick={removeFloor} disabled={disabled} class="px-2 py-1.5 rounded-md bg-error/10 hover:bg-error/20 text-error text-2xs font-bold flex items-center justify-center gap-1 disabled:opacity-40">
             <Papicon icon="trash" size={11} /> {m.eco_tower_floor_delete()}
           </button>
+          <button type="button" onclick={exportTower} title={m.eco_tower_export_all_tip()} class="px-2 py-1.5 rounded-md bg-outline-variant/10 hover:bg-outline-variant/25 text-2xs font-bold flex items-center justify-center gap-1">
+            <Papicon icon="Download" size={11} /> {m.eco_tower_export_all()}
+          </button>
+          <label title={m.eco_tower_import_all_tip()}
+            class="px-2 py-1.5 rounded-md bg-outline-variant/10 hover:bg-outline-variant/25 text-2xs font-bold flex items-center justify-center gap-1 {disabled ? 'opacity-40 pointer-events-none' : 'cursor-pointer'}">
+            <Papicon icon="UploadCloud" size={11} /> {m.eco_tower_import_all()}
+            <input type="file" accept="application/json,.json" class="hidden" disabled={disabled} onchange={importTower} />
+          </label>
         </div>
+        {#if towerImportError !== null}
+          <p class="text-2xs text-error flex items-center gap-1">
+            <Papicon icon="AlertTriangle" size={11} />
+            {towerImportError === 0 ? m.eco_tower_import_all_invalid({ max: floorsMax }) : m.eco_tower_import_all_invalid_card({ card: towerImportError })}
+          </p>
+        {/if}
       {/if}
     </div>
 
