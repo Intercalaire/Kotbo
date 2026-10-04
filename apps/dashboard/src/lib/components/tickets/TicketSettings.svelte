@@ -84,6 +84,10 @@
   // Objectifs de service, en minutes et en heures ; vide = pas d'objectif.
   let ticketSlaFirstResponseMinutes = $state<number | null>(null);
   let ticketSlaResolutionHours = $state<number | null>(null);
+  // Avertissement d'enregistrement montré avant la création d'un ticket.
+  let ticketRecordingNoticeEnabled = $state(true);
+  let ticketRecordingNoticeSeconds = $state(10);
+  let ticketRecordingNoticeText = $state('');
   let ticketEmbedThumbnail = $state('');
   let ticketEmbedImage = $state('');
   let ticketEmbedFooter = $state('');
@@ -190,6 +194,9 @@
     ticketQuotaReopenMax,
     ticketSlaFirstResponseMinutes,
     ticketSlaResolutionHours,
+    ticketRecordingNoticeEnabled,
+    ticketRecordingNoticeSeconds,
+    ticketRecordingNoticeText,
     ticketTypes,
     ticketEmbedThumbnail,
     ticketEmbedImage,
@@ -272,6 +279,9 @@
     ticketWelcomeFooter = savedSettingsConfig.ticketWelcomeFooter;
     ticketSlaFirstResponseMinutes = savedSettingsConfig.ticketSlaFirstResponseMinutes ?? null;
     ticketSlaResolutionHours = savedSettingsConfig.ticketSlaResolutionHours ?? null;
+    ticketRecordingNoticeEnabled = savedSettingsConfig.ticketRecordingNoticeEnabled;
+    ticketRecordingNoticeSeconds = savedSettingsConfig.ticketRecordingNoticeSeconds;
+    ticketRecordingNoticeText = savedSettingsConfig.ticketRecordingNoticeText;
   }
 
   // Derived values from Dashboard Store
@@ -595,6 +605,11 @@
     ticketQuotaReopenMax = config.ticketQuotaReopenMax ?? 3;
     ticketSlaFirstResponseMinutes = config.ticketSlaFirstResponseMinutes ?? null;
     ticketSlaResolutionHours = config.ticketSlaResolutionHours ?? null;
+    // Actif par défaut côté serveur : `!== false`, comme l'historique.
+    ticketRecordingNoticeEnabled = config.ticketRecordingNoticeEnabled !== false;
+    ticketRecordingNoticeSeconds = config.ticketRecordingNoticeSeconds ?? 10;
+    // Vide : le bot affiche son texte par défaut.
+    ticketRecordingNoticeText = config.ticketRecordingNoticeText || '';
     ticketTypes = normalizeTicketTypes(config);
     ticketEmbedThumbnail = config.ticketEmbedThumbnail || '';
     ticketEmbedImage = config.ticketEmbedImage || '';
@@ -652,6 +667,9 @@
       ticketQuotaReopenMax,
       ticketSlaFirstResponseMinutes,
       ticketSlaResolutionHours,
+      ticketRecordingNoticeEnabled,
+      ticketRecordingNoticeSeconds,
+      ticketRecordingNoticeText,
       ticketTypes: JSON.parse(JSON.stringify(ticketTypes)),
       ticketEmbedThumbnail,
       ticketEmbedImage,
@@ -733,6 +751,9 @@
           ticketQuotaReopenMax,
           ticketSlaFirstResponseMinutes: ticketSlaFirstResponseMinutes || null,
           ticketSlaResolutionHours: ticketSlaResolutionHours || null,
+          ticketRecordingNoticeEnabled,
+          ticketRecordingNoticeSeconds,
+          ticketRecordingNoticeText: ticketRecordingNoticeText.trim() || null,
           ticketTypes: serializeTicketTypes(),
           ticketAllowOverclaim,
           ticketOverclaimPermission,
@@ -1307,6 +1328,61 @@
               <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_inactivity_message_label()}</span>
               <FormTextarea bind:value={ticketInactivityMessage} placeholder={m.e1_tickets_inactivity_ph({ user: '{user}' })} className="w-full h-20" />
             </label>
+          </div>
+        {/if}
+      </div>
+    {/if}
+  </div>
+
+  <!-- ─── Avertissement d'enregistrement ──────────────────────────────── -->
+  <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
+    <button onclick={() => toggleConfigSection('recording')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+          <Papicon icon="info" size={18} />
+        </div>
+        <div>
+          <p class="text-sm font-semibold text-on-surface">{m.tn_section_title()}</p>
+          <p class="text-2xs text-on-surface-variant mt-0.5">{m.tn_section_desc()}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        {#if ticketRecordingNoticeEnabled}
+          <span class="px-2 py-0.5 rounded-full text-2xs font-semibold bg-success/10 text-success border border-success/20">{m.e1_tickets_active_badge()}</span>
+        {/if}
+        <Papicon icon={expandedConfigSection === 'recording' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40" />
+      </div>
+    </button>
+    {#if expandedConfigSection === 'recording'}
+      <div class="px-4 lg:px-5 pb-5 space-y-4 border-t border-outline-variant/10 pt-4">
+        <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+          <input type="checkbox" bind:checked={ticketRecordingNoticeEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+          <div>
+            <span class="text-xs font-semibold text-on-surface">{m.tn_enable()}</span>
+            <p class="text-2xs text-on-surface-variant">{m.tn_enable_desc()}</p>
+          </div>
+        </label>
+        {#if ticketRecordingNoticeEnabled}
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <label class="block">
+              <span class="text-xs font-semibold text-on-surface-variant ml-1 mb-2 block">{m.tn_seconds()}</span>
+              <input type="number" min="5" max="30" bind:value={ticketRecordingNoticeSeconds} class="input" />
+              <span class="text-2xs text-on-surface-variant ml-1 mt-1 block">{m.tn_seconds_hint()}</span>
+            </label>
+            <label class="block sm:col-span-2">
+              <span class="text-xs font-semibold text-on-surface-variant ml-1 mb-2 block">{m.tn_text()}</span>
+              <FormTextarea bind:value={ticketRecordingNoticeText} placeholder={m.tn_text_ph()} className="w-full h-28" />
+              <span class="text-2xs text-on-surface-variant ml-1 mt-1 block">{m.tn_text_hint()}</span>
+            </label>
+          </div>
+          <!-- Aperçu : ce que voit le membre, lui seul, avant la création. -->
+          <div class="tn-preview" aria-label={m.tn_preview()}>
+            <p class="tn-preview__only"><Papicon icon="eye" size={12} /> {m.tn_only_you()}</p>
+            <div class="tn-preview__embed">
+              <p class="font-semibold text-on-surface text-body-sm">ℹ️ {m.tn_preview_title()}</p>
+              <p class="text-body-sm text-on-surface-variant whitespace-pre-line mt-1">{ticketRecordingNoticeText.trim() || m.tn_default_text()}</p>
+              <p class="text-body-sm text-on-surface-variant mt-2">⏳ {m.tn_preview_countdown({ seconds: Math.min(30, Math.max(5, Number(ticketRecordingNoticeSeconds) || 10)) })}</p>
+            </div>
           </div>
         {/if}
       </div>
@@ -1905,3 +1981,27 @@
 
 </div>
 {/await}
+
+<style>
+  .tn-preview {
+    padding: 0.75rem 0.9rem;
+    border-radius: 0.75rem;
+    background: var(--surface-container-lowest);
+    border: 1px solid var(--outline-variant);
+  }
+  .tn-preview__only {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.6875rem;
+    color: var(--on-surface-variant);
+  }
+  /* Le bandeau bleu à gauche reprend celui d'un embed Discord. */
+  .tn-preview__embed {
+    padding: 0.6rem 0.8rem;
+    border-left: 4px solid #5865f2;
+    border-radius: 0.25rem;
+    background: var(--surface-container);
+  }
+</style>
