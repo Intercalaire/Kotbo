@@ -9,7 +9,6 @@
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import Papicon from '../Papicon.svelte';
   import Skeleton from '../Skeleton.svelte';
   import { Button, Callout, EmptyState, Field, Modal, SectionCard } from '../ui';
   import { confirmDialog } from '../../stores/confirmDialog.svelte';
