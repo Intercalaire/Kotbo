@@ -73,6 +73,11 @@ export async function handleReportErrorRoute(
       }
 
       const sanitizeMarkdown = (str: string) => str.replace(/`/g, '\\`');
+      // Discord refuse une valeur de champ d'embed > 1024 caracteres : on tronque
+      // apres echappement, en reservant la place des balises autour.
+      const FIELD_MAX = 1024;
+      const fitField = (str: string, wrapperLength: number) =>
+        sanitizeMarkdown(str).slice(0, FIELD_MAX - wrapperLength);
 
       const user = await verifyAuth(req);
       if (!user) {
@@ -105,14 +110,14 @@ export async function handleReportErrorRoute(
         .setTimestamp()
         .addFields(
           { name: '👤 Utilisateur', value: userInfo },
-          { name: '🌐 Page / URL', value: `\`${sanitizeMarkdown(urlStr)}\`` },
-          { name: '💻 Navigateur', value: `\`${sanitizeMarkdown(userAgentStr)}\`` },
-          { name: '🏰 Serveur sélectionné (Guild ID)', value: `\`${sanitizeMarkdown(guildIdStr)}\`` },
-          { name: '❌ Erreur', value: `\`\`\`\n${sanitizeMarkdown(errorStr)}\n\`\`\`` }
+          { name: '🌐 Page / URL', value: `\`${fitField(urlStr, 2)}\`` },
+          { name: '💻 Navigateur', value: `\`${fitField(userAgentStr, 2)}\`` },
+          { name: '🏰 Serveur sélectionné (Guild ID)', value: `\`${fitField(guildIdStr, 2)}\`` },
+          { name: '❌ Erreur', value: `\`\`\`\n${fitField(errorStr, 8)}\n\`\`\`` }
         );
 
       if (stackStr) {
-        embed.addFields({ name: '🥞 Stack Trace', value: `\`\`\`javascript\n${sanitizeMarkdown(stackStr)}\n\`\`\`` });
+        embed.addFields({ name: '🥞 Stack Trace', value: `\`\`\`javascript\n${fitField(stackStr, 21)}\n\`\`\`` });
       }
 
       let sentCount = 0;
