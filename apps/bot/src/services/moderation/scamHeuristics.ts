@@ -69,14 +69,14 @@ const BARE_DOMAIN_TLDS = [
   'eu', 'in', 'tk', 'ml', 'ga', 'cf', 'gq', 'rest', 'bond', 'monster',
 ].join('|');
 
-const SCHEME_URL = /\bhttps?:\/\/([^\s/?#<>()\[\]"'`]+)/gi;
+const SCHEME_URL = /\bhttps?:\/\/([^\s/?#<>()[\]"'`]+)/gi;
 const BARE_DOMAIN = new RegExp(
   `(?<![@\\w.-])((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+(?:${BARE_DOMAIN_TLDS}))(?![a-z0-9-])`,
   'gi'
 );
 
 /** Caractères invisibles ou de largeur nulle, utilisés pour casser les filtres. */
-const INVISIBLE_CHARS = /[​-‏⁠⁦-⁩﻿­]/g;
+const INVISIBLE_CHARS = new RegExp('[\\u200B-\\u200F\\u2060\\u2066-\\u2069\\uFEFF\\u00AD]', 'g');
 
 /** Aplatit les variantes d'écriture : plein-chasse, invisibles, liens « défanged ». */
 export function foldText(text: string): string {
