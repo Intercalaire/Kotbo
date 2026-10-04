@@ -42,6 +42,7 @@ import { handleSetupRoutes } from './dashboard/setup.js';
 import { handleMCPKeyRoutes } from './dashboard/mcp.js';
 import { handleOutgoingWebhookRoutes } from './dashboard/outgoingWebhooks.js';
 import { handleAutomodSimulationRoute } from './dashboard/automodSimulation.js';
+import { handleWelcomeExperimentRoutes } from './dashboard/welcomeExperiments.js';
 import { handleCustomBotRoutes } from './dashboard/customBot.js';
 import { handleChannelLinkRoutes } from './dashboard/channelLinks.js';
 import { handleStaffServerRoutes } from './dashboard/staffServer.js';
@@ -549,6 +550,10 @@ export async function handleDashboardRoutes(
       return true;
     }
     if (await handleMCPKeyRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleWelcomeExperimentRoutes(req, res, parts, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }

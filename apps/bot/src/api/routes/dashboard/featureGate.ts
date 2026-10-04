@@ -39,6 +39,7 @@ export const SEGMENT_FEATURE_KEYS: Record<string, string | string[]> = {
   'partner-applications': 'partnerships',
   'partnership-directory': 'partnerships',
   'welcome-thread': 'welcome_goodbye',
+  'welcome-experiments': 'welcome_goodbye',
   'audit-events': 'activity',
   'auto-thread': 'auto_thread',
   'channels-management': 'auto_thread',
