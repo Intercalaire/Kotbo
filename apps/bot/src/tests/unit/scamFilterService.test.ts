@@ -52,6 +52,14 @@ describe('detectScam', () => {
     expect(result.matched && result.pattern).toContain('fake_giveaway');
   });
 
+  it('détecte le faux recrutement sans aucun lien', () => {
+    const text =
+      "J'ai préparé quelques informations pour les personnes sans emploi ou à la recherche d'un revenu complémentaire. " +
+      "Il vous suffit d'un ordinateur. Merci de m'envoyer un message privé en précisant votre nationalité.";
+    const result = detectScam(text, makeConfig());
+    expect(result.matched && result.pattern).toContain('recruitment_scam');
+  });
+
   it('ne bloque pas une annonce de giveaway de serveur', () => {
     const text = 'Giveaway de la semaine : un bonus de 500 XP pour tous, tirage vendredi sur https://youtube.com/live';
     expect(detectScam(text, makeConfig()).matched).toBe(false);

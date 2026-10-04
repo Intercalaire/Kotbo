@@ -7,7 +7,7 @@ import { fetchExternal } from '../../utils/http.js';
 import { getRaidProtectionConfig } from './raidProtectionService.js';
 import { registerWarnSanction, registerTimeoutSanction, registerBanSanction } from './sanctionService.js';
 import { analyzeImage, hammingDistance, PHASH_MATCH_THRESHOLD } from './imageForensics.js';
-import { LEGIT_DOMAINS, compactOcrText, extractDomains, looksLikeFakeGiveaway } from './scamHeuristics.js';
+import { LEGIT_DOMAINS, compactOcrText, extractDomains, looksLikeFakeGiveaway, looksLikeRecruitmentScam } from './scamHeuristics.js';
 import { findKnownScamDomain, findKnownScamText, promoteImageIfWidespread, recordScamSignals } from './scamDatasetService.js';
 import { readImageText } from './ocrService.js';
 import type { RaidProtectionConfig } from '@prisma/client';
@@ -67,6 +67,12 @@ export function detectScam(content: string, config: RaidProtectionConfig): ScamD
     const giveaway = looksLikeFakeGiveaway(content);
     if (giveaway.matched) {
       return { matched: true, pattern: `fake_giveaway:${giveaway.signals.join('+')}` };
+    }
+    // Faux recrutement (« revenu complémentaire, il suffit d'un ordinateur,
+    // MP avec ta nationalité ») : aucun lien, le piège se referme en privé.
+    const recruitment = looksLikeRecruitmentScam(content);
+    if (recruitment.matched) {
+      return { matched: true, pattern: `recruitment_scam:${recruitment.signals.join('+')}` };
     }
   }
 
@@ -343,6 +349,7 @@ async function isNewcomer(message: Message, config: RaidProtectionConfig): Promi
 function reasonFor(detection: ScamDetection): string {
   if (!detection.matched) return '';
   if (detection.pattern.startsWith('fake_giveaway')) return "Faux giveaway crypto/casino détecté (cumul d'indices : appât, code promo, célébrité…)";
+  if (detection.pattern.startsWith('recruitment_scam')) return "Faux recrutement détecté (promesse de revenu facile et invitation à poursuivre en privé)";
   if (detection.pattern === 'known_scam_text') return "Texte d'arnaque connu détecté (copie d'une campagne repérée par un honeypot)";
   if (detection.pattern === 'known_scam_domain') return `Domaine d'arnaque connu détecté${detection.domain ? ` (${detection.domain})` : ''}`;
   return `Lien d'arnaque détecté${detection.domain ? ` (${detection.domain})` : ''}`;

@@ -86,6 +86,17 @@ describe('recordScamSignals', () => {
     expect(prismaMock.scamTextSample.rows[0].signals).toContain('promo_code');
   });
 
+  test('enregistre un faux recrutement, qui n’a pourtant aucun domaine', async () => {
+    const text =
+      "Infos pour les personnes sans emploi : il vous suffit d'un ordinateur pour générer un revenu convenable. " +
+      'Envoyez-moi un message privé en précisant votre nationalité.';
+    const result = await recordScamSignals('g1', text);
+
+    expect(result).toEqual({ domains: [], textRecorded: true });
+    expect(prismaMock.scamTextSample.rows[0].signals).toEqual(expect.arrayContaining(['income_promise', 'dm_lure']));
+    expect(await findKnownScamText('g1', text.replace('ordinateur', 'ORDINATEUR'))).toBe(true);
+  });
+
   test('incrémente le compteur au lieu de dupliquer', async () => {
     await recordScamSignals('g1', FAKE_GIVEAWAY);
     await recordScamSignals('g1', FAKE_GIVEAWAY);

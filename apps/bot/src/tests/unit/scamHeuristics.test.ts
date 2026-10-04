@@ -4,6 +4,7 @@ import {
   fingerprintText,
   isBenignDomain,
   looksLikeFakeGiveaway,
+  looksLikeRecruitmentScam,
   normalizeScamText,
   registrableDomain,
   suspiciousDomainsOf,
@@ -89,6 +90,45 @@ describe('looksLikeFakeGiveaway', () => {
 
   it('ne signale pas une discussion sur la crypto', () => {
     expect(looksLikeFakeGiveaway('le bitcoin a pris 5% aujourd’hui, mon wallet est content').matched).toBe(false);
+  });
+});
+
+describe('looksLikeRecruitmentScam', () => {
+  it('détecte le faux recrutement « revenu complémentaire, MP avec ta nationalité »', () => {
+    const text = `Bonjour à tous !
+
+J'ai préparé quelques informations à l'intention des personnes actuellement sans emploi ou à la recherche d'un revenu complémentaire.
+
+Il vous suffit d'un ordinateur (fixe ou portable) et d'un peu d'accompagnement pour générer un revenu convenable.
+
+Si cela vous intéresse, merci de m'envoyer un message privé en précisant votre nationalité.`;
+    const result = looksLikeRecruitmentScam(text);
+    expect(result.matched).toBe(true);
+    expect(result.signals).toEqual(
+      expect.arrayContaining(['income_promise', 'job_targeting', 'low_barrier', 'dm_lure', 'qualifier'])
+    );
+  });
+
+  it('détecte la variante anglaise « earn $100k, 10% commission, ask me HOW »', () => {
+    const text =
+      "I'll help 10 people how to earn $100k in 72 hours from the crypto market. You will pay me 10% commission " +
+      'when you receive your profit. If interested send me a direct message via WhatsApp by asking me (HOW)';
+    expect(looksLikeRecruitmentScam(text).matched).toBe(true);
+  });
+
+  it('ne signale pas une vraie offre de mission', () => {
+    const text = 'Je cherche un développeur Svelte pour une mission de 3 mois, payé 450 € par jour, envoie-moi un MP avec ton portfolio';
+    expect(looksLikeRecruitmentScam(text).matched).toBe(false);
+  });
+
+  it('ne signale pas un recrutement de modérateurs', () => {
+    const text = 'On recrute des modérateurs ! Envoyez un message privé en précisant votre âge et vos disponibilités.';
+    expect(looksLikeRecruitmentScam(text).matched).toBe(false);
+  });
+
+  it('ne signale pas un membre qui parle de sa recherche d’emploi', () => {
+    const text = "Je suis sans emploi depuis 3 mois, quelqu'un connaît une boîte qui recrute à Lyon ? Écrivez-moi si vous avez une piste";
+    expect(looksLikeRecruitmentScam(text).matched).toBe(false);
   });
 });
 

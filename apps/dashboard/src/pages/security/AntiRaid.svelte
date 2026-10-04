@@ -707,7 +707,7 @@
     {#if activeTab === 'scams'}
       <SectionCard
         title="Filtre anti-arnaque"
-        description="Bloque les liens de phishing (faux Nitro, faux Steam), les faux giveaways crypto/casino et les images d'arnaque connues."
+        description="Bloque les liens de phishing (faux Nitro, faux Steam), les faux giveaways crypto/casino, les faux recrutements « revenu facile » et les images d'arnaque connues."
         icon="Fishing"
       >
         <div class="space-y-3">
