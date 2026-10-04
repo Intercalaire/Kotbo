@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import prisma from '../../utils/db.js';
+import prisma, { upsertRetryingRace } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { isShopItemAvailable, normalizeRpgGuildLevel, type ShopModuleState } from './economyPolicy.js';
 import { seedRpgContent } from './rpg/rpgSeedService.js';
@@ -73,7 +73,7 @@ export async function getOrCreateEconomyConfig(guildId: string) {
   // `upsert` plutôt que `create` : deux interactions simultanées du même serveur
   // (deux membres qui ouvrent `/rpg` en même temps) passaient toutes les deux le
   // `findUnique` ci-dessus et la seconde plantait sur la contrainte d'unicité.
-  return prisma.economyConfig.upsert({
+  return upsertRetryingRace(() => prisma.economyConfig.upsert({
     where: { guildId },
     update: {},
     create: {
@@ -96,7 +96,7 @@ export async function getOrCreateEconomyConfig(guildId: string) {
       maxTransferAmount: 5000,
       transferCooldownMin: 15
     }
-  });
+  }));
 }
 
 /**
@@ -134,7 +134,7 @@ export async function getOrCreateRpgProfile(guildId: string, userId: string) {
   if (!profile) {
     // `upsert` : deux clics d'un nouveau joueur passaient tous deux le `findUnique` et le
     // second échouait sur la contrainte d'unicité.
-    profile = await prisma.rpgProfile.upsert({
+    profile = await upsertRetryingRace(() => prisma.rpgProfile.upsert({
       where: { guildId_userId: { guildId, userId } },
       update: {},
       create: {
@@ -151,7 +151,7 @@ export async function getOrCreateRpgProfile(guildId: string, userId: string) {
         speed: 10
       },
       include: RPG_PROFILE_INCLUDE
-    });
+    }));
   }
 
   // Auto recovery of health and energy based on time elapsed since the last energy tick.

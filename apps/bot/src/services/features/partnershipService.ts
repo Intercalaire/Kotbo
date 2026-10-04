@@ -20,7 +20,7 @@ import {
   type GuildMember,
   type OverwriteResolvable,
 } from 'discord.js';
-import prisma from '../../utils/db.js';
+import prisma, { upsertRetryingRace } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { admitJoiningMember } from '../moderation/joinAdmissionService.js';
 import { buildTicketChannelName } from './ticketService.js';
@@ -138,7 +138,7 @@ async function createPartnershipTicket(
   if (!member) return null;
 
   // FK Ticket → Guild : s'assurer que la ligne existe
-  await prisma.guild.upsert({ where: { id: guild.id }, update: {}, create: { id: guild.id } });
+  await upsertRetryingRace(() => prisma.guild.upsert({ where: { id: guild.id }, update: {}, create: { id: guild.id } }));
 
   const guildConfig = await prisma.guild.findUnique({
     where: { id: guild.id },
