@@ -547,6 +547,11 @@ model Guild {
   ticketQuotaReopenEnabled    Boolean  @default(false)
   ticketQuotaReopenMax        Int      @default(3)
 
+  // Objectifs de service (SLA) des tickets. Vide = pas d'objectif : la boîte
+  // de réception n'affiche alors ni compte à rebours ni dépassement.
+  ticketSlaFirstResponseMinutes Int?
+  ticketSlaResolutionHours      Int?
+
   // Catégorie où sont rangés les salons des tickets archivés. Vide = le salon
   // reste où il est, seules ses permissions passent en lecture seule.
   ticketArchiveCategoryId     String?
