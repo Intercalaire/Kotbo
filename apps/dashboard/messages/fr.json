@@ -13184,5 +13184,19 @@
   "wx_image_off": "Sans carte",
   "wx_thread_off": "Sans fil d'accueil",
   "wx_remove_variant": "Retirer cette version",
-  "wx_add_variant": "Ajouter une version"
+  "wx_add_variant": "Ajouter une version",
+  "tn_section_title": "Avertissement d'enregistrement",
+  "tn_section_desc": "Prévient le membre, avant la création de son ticket, que l'échange sera enregistré, transcrit et archivé.",
+  "tn_enable": "Afficher l'avertissement avant chaque ticket",
+  "tn_enable_desc": "Le membre le lit dans un message que lui seul voit ; le ticket est créé une fois le délai écoulé.",
+  "tn_seconds": "Délai de lecture (secondes)",
+  "tn_seconds_hint": "Entre 5 et 30 secondes. 10 à 15 laissent le temps de lire.",
+  "tn_text": "Texte de l'avertissement",
+  "tn_text_ph": "Vide : texte par défaut (enregistrement, transcription à la fermeture, archivage, formation et qualité de service).",
+  "tn_text_hint": "Le compte à rebours est ajouté automatiquement sous le texte.",
+  "tn_preview": "Aperçu de l'avertissement",
+  "tn_only_you": "Seul·e toi peux voir ceci",
+  "tn_preview_title": "Avant d'ouvrir ton ticket",
+  "tn_default_text": "Ce ticket va être enregistré : les messages échangés sont conservés.\n\nÀ sa fermeture, une transcription complète est générée et archivée.\n\nCes enregistrements servent à la formation de l'équipe et à la qualité de service. Ils ne sont accessibles qu'au staff habilité.",
+  "tn_preview_countdown": "Ton ticket sera créé dans {seconds} secondes."
 }

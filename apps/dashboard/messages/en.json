@@ -13184,5 +13184,19 @@
   "wx_image_off": "Without card",
   "wx_thread_off": "No welcome thread",
   "wx_remove_variant": "Remove this version",
-  "wx_add_variant": "Add a version"
+  "wx_add_variant": "Add a version",
+  "tn_section_title": "Recording notice",
+  "tn_section_desc": "Tells the member, before their ticket is created, that the conversation will be recorded, transcribed and archived.",
+  "tn_enable": "Show the notice before every ticket",
+  "tn_enable_desc": "The member reads it in a message only they can see; the ticket is created once the delay has passed.",
+  "tn_seconds": "Reading delay (seconds)",
+  "tn_seconds_hint": "Between 5 and 30 seconds. 10 to 15 leave time to read.",
+  "tn_text": "Notice text",
+  "tn_text_ph": "Empty: default text (recording, transcript on close, archiving, training and service quality).",
+  "tn_text_hint": "The countdown is added automatically below the text.",
+  "tn_preview": "Notice preview",
+  "tn_only_you": "Only you can see this",
+  "tn_preview_title": "Before opening your ticket",
+  "tn_default_text": "This ticket will be recorded: the messages exchanged are kept.\n\nWhen it is closed, a full transcript is generated and archived.\n\nThese records are used for team training and service quality. Only authorised staff can access them.",
+  "tn_preview_countdown": "Your ticket will be created in {seconds} seconds."
 }
