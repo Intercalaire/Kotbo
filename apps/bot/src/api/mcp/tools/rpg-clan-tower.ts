@@ -27,7 +27,7 @@ import {
   TOWER_MAP_SIZE,
   TOWER_VARIANT_WEIGHT,
 } from '../../../services/features/rpg/rpgTowerMap.js';
-import { compactTowerSettings, editTowerFloors, floorSchema, roomSchema, towerFloorsSaved } from './rpg-tower.js';
+import { appendFailed, compactTowerSettings, editTowerFloors, floorSchema, roomSchema, towerCardsReadSchema, towerFloorsSaved, towerSettingsSaved } from './rpg-tower.js';
 
 const fail = (e: unknown) => err(e instanceof Error ? e.message : String(e));
 
@@ -43,15 +43,15 @@ export function registerRpgClanTowerTools(ctx: McpToolContext) {
     server.registerTool(
       'get_rpg_clan_tower',
       {
-        description: `Lit la Tour de clan. ${RULES} Contient : réglages (settings, dont les étages dessinés settings.floors), clansEnabled (sans les clans du serveur, elle n'ouvre pas), la semaine en cours (current : fin, classement des clans avec étage conquis, meilleurs grimpeurs, étages gravis au total et paliers franchis), le bilan de la semaine précédente (last.results) et la prochaine ouverture (nextOpensAt). Une salle n'indique que les réglages qui s'écartent du défaut.`,
-        inputSchema: {},
+        description: `Lit la Tour de clan. ${RULES} Contient : réglages (settings, dont les étages dessinés settings.floors), clansEnabled (sans les clans du serveur, elle n'ouvre pas), la semaine en cours (current : fin, classement des clans avec étage conquis, meilleurs grimpeurs, étages gravis au total et paliers franchis), le bilan de la semaine précédente (last.results) et la prochaine ouverture (nextOpensAt). Une salle n'indique que les réglages qui s'écartent du défaut. Seules les cartes fromCard à toCard (20 au plus) sont lues en entier ; les autres n'indiquent que leur nom, leur taille et leur nombre de salles (roomCount).`,
+        inputSchema: towerCardsReadSchema,
         _meta: toolMeta,
       },
-      guard('READ_ECONOMY', async () => {
+      guard('READ_ECONOMY', async (cards) => {
         const dashboard = await getClanTowerDashboard(guildId);
         return ok({
           ...dashboard,
-          settings: compactTowerSettings(dashboard.settings),
+          settings: compactTowerSettings(dashboard.settings, cards),
           reference: {
             ranges: CLAN_TOWER_RANGES,
             podiumSize: CLAN_TOWER_PODIUM_SIZE,
@@ -88,7 +88,7 @@ export function registerRpgClanTowerTools(ctx: McpToolContext) {
         try {
           const settings = await saveClanTowerSettings(guildId, input);
           await audit(key_name, 'Réglages de la Tour de clan MCP', settings.name, `${settings.enabled ? 'activée' : 'désactivée'}, ${settings.pointsPerFloor} pts par étage`);
-          return ok({ ok: true, settings: compactTowerSettings(settings) });
+          return ok({ ok: true, settings: towerSettingsSaved(settings) });
         } catch (e) {
           return fail(e);
         }
@@ -98,9 +98,10 @@ export function registerRpgClanTowerTools(ctx: McpToolContext) {
     server.registerTool(
       'save_rpg_clan_tower_layout',
       {
-        description: `Dessine les étages de la Tour de clan, au même format que save_rpg_tower_layout (voir sa description pour les règles d'une carte). \`floors\` remplace toute la tour ; sinon \`floor\` (1 = première carte, variantes comptées) désigne la carte à modifier ou à ajouter à la suite, avec \`name\`, \`variant\`, \`weight\`, \`width\`, \`height\`, \`rooms\`, ou \`useDefault: true\` pour la carte d'exemple. \`removeFloor\` retire la carte \`floor\`. Sans aucun étage, la Tour de clan génère les siens. ${TOWER_FLOORS_MAX} cartes au plus. Un étage redessiné en cours de semaine perd les salles déjà conquises par les clans. Requiert WRITE_MEMBERS.`,
+        description: `Dessine les étages de la Tour de clan, au même format que save_rpg_tower_layout (voir sa description pour les règles d'une carte). \`floors\` remplace toute la tour, \`appendFloors\` ajoute plusieurs cartes à la fin (à préférer pour dessiner une longue tour) ; sinon \`floor\` (1 = première carte, variantes comptées) désigne la carte à modifier ou à ajouter à la suite, avec \`name\`, \`variant\`, \`weight\`, \`width\`, \`height\`, \`rooms\`, ou \`useDefault: true\` pour la carte d'exemple. \`removeFloor\` retire la carte \`floor\`. Sans aucun étage, la Tour de clan génère les siens. ${TOWER_FLOORS_MAX} cartes au plus. Un étage redessiné en cours de semaine perd les salles déjà conquises par les clans. Requiert WRITE_MEMBERS.`,
         inputSchema: {
           floors: z.array(floorSchema).max(TOWER_FLOORS_MAX).optional().describe('Remplace tous les étages, dans l\'ordre de la montée'),
+          appendFloors: z.array(floorSchema).max(TOWER_FLOORS_MAX).optional().describe('Cartes ajoutées à la fin de la tour, dans l\'ordre de la montée, sans toucher aux cartes existantes'),
           floor: z.number().int().min(1).max(TOWER_FLOORS_MAX).optional().describe('Carte à modifier (1 = première, variantes comptées). Défaut : 1.'),
           removeFloor: z.boolean().optional().describe('Retire la carte `floor`'),
           useDefault: z.boolean().optional().describe('Remplacer la carte par la carte d\'exemple'),
@@ -119,10 +120,13 @@ export function registerRpgClanTowerTools(ctx: McpToolContext) {
       },
       guard('WRITE_MEMBERS', async ({ key_name, ...input }) => {
         try {
-          const next = editTowerFloors((await getClanTowerConfig(guildId)).floors, input);
+          const existing = (await getClanTowerConfig(guildId)).floors;
+          const next = editTowerFloors(existing, input);
           if (typeof next === 'string') return err(next);
-          const settings = await saveClanTowerFloors(guildId, { floors: next });
-          const saved = towerFloorsSaved(settings.floors, input);
+          const settings = await saveClanTowerFloors(guildId, { floors: next }).catch((e: unknown) => {
+            throw appendFailed(e, existing.length, input.appendFloors);
+          });
+          const saved = towerFloorsSaved(settings.floors);
           await audit(key_name, 'Étages de la Tour de clan MCP', 'Carte', `${saved.floors} étage(s), ${saved.cards} carte(s), ${saved.rooms} salles`);
           return ok(saved);
         } catch (e) {
