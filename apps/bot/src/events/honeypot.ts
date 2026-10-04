@@ -15,6 +15,7 @@ import { getDashboardUrl } from '../api/shared.js';
 import { mirrorModlogToStaffServer } from '../services/staff/staffServerService.js';
 import { recordScamImagesFromMessage } from '../services/moderation/scamFilterService.js';
 import { recordScamSignals } from '../services/moderation/scamDatasetService.js';
+import { scheduleScamDatasetBackfill } from '../services/moderation/scamBackfillService.js';
 import { INVITE_SOURCE, recordBotInvite } from '../services/analytics/inviteService.js';
 
 export function registerHoneypotListener(client: Client): void {
@@ -222,6 +223,10 @@ export function registerHoneypotListener(client: Client): void {
       logger.error('Honeypot', `Erreur lors de la gestion du message dans le honeypot (${guild?.id}) :`, err);
     }
   });
+
+  // Ce que le honeypot a piégé avant l'ajout des domaines, textes et OCR
+  // rejoint le jeu de données (une fois par instance).
+  scheduleScamDatasetBackfill(client.shard?.ids);
 
   logger.success('Honeypot', 'Écouteur Honeypot enregistré');
 }

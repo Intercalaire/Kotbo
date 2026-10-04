@@ -154,13 +154,52 @@ async function analyzeAttachments(message: Message, withOcr = false): Promise<Fe
   return results;
 }
 
+type ImageSource = 'HONEYPOT' | 'MANUAL' | 'QR';
+
+/** Enregistre une image analysée, ses empreintes et le texte qu'on y a lu. */
+async function storeScamImage(
+  guildId: string,
+  image: FetchedImage,
+  source: ImageSource,
+  addedBy: string | null,
+  countRepeat: boolean
+): Promise<boolean> {
+  try {
+    const ocrText = image.ocrText ? compactOcrText(image.ocrText) : null;
+    await prisma.scamImageHash.upsert({
+      where: { guildId_hash: { guildId, hash: image.sha256 } },
+      create: {
+        guildId,
+        hash: image.sha256,
+        phash: image.phash,
+        filename: image.name,
+        source,
+        addedBy,
+        ocrText,
+      },
+      // Une entrée créée avant l'ajout du perceptuel ou de l'OCR peut être complétée.
+      update: {
+        ...(image.phash ? { phash: image.phash } : {}),
+        ...(ocrText ? { ocrText } : {}),
+      },
+    });
+    await promoteImageIfWidespread(image.sha256, image.phash, image.name);
+    // Domaines et texte lus dans la capture rejoignent le jeu de données.
+    if (image.ocrText) await recordScamSignals(guildId, image.ocrText, 'OCR', { countRepeat });
+    return true;
+  } catch (err) {
+    logger.error('ScamFilter', `Enregistrement du hash d'image impossible (${guildId})`, err);
+    return false;
+  }
+}
+
 /**
  * Enregistre les empreintes des images d'un message dans la base d'arnaques.
  * Appelé par le honeypot quand un compte piégé poste une image.
  */
 export async function recordScamImagesFromMessage(
   message: Message,
-  source: 'HONEYPOT' | 'MANUAL' | 'QR' = 'HONEYPOT'
+  source: ImageSource = 'HONEYPOT'
 ): Promise<number> {
   if (!message.guild) return 0;
   let recorded = 0;
@@ -168,32 +207,7 @@ export async function recordScamImagesFromMessage(
   // Le honeypot est rare et ses images sont par définition suspectes : on lit
   // toujours leur texte, sans le garde-fou de coût des contrôles en continu.
   for (const image of await analyzeAttachments(message, true)) {
-    try {
-      const ocrText = image.ocrText ? compactOcrText(image.ocrText) : null;
-      await prisma.scamImageHash.upsert({
-        where: { guildId_hash: { guildId: message.guild.id, hash: image.sha256 } },
-        create: {
-          guildId: message.guild.id,
-          hash: image.sha256,
-          phash: image.phash,
-          filename: image.name,
-          source,
-          addedBy: message.author.id,
-          ocrText,
-        },
-        // Une entrée créée avant l'ajout du perceptuel ou de l'OCR peut être complétée.
-        update: {
-          ...(image.phash ? { phash: image.phash } : {}),
-          ...(ocrText ? { ocrText } : {}),
-        },
-      });
-      await promoteImageIfWidespread(image.sha256, image.phash, image.name);
-      // Domaines et texte lus dans la capture rejoignent le jeu de données.
-      if (image.ocrText) await recordScamSignals(message.guild.id, image.ocrText, 'OCR');
-      recorded++;
-    } catch (err) {
-      logger.error('ScamFilter', `Enregistrement du hash d'image impossible (${message.guild.id})`, err);
-    }
+    if (await storeScamImage(message.guild.id, image, source, message.author.id, true)) recorded++;
   }
 
   if (recorded > 0) {
@@ -201,6 +215,18 @@ export async function recordScamImagesFromMessage(
     logger.info('ScamFilter', `${recorded} empreinte(s) d'image scam enregistrée(s) pour ${message.guild.id} (source: ${source})`);
   }
   return recorded;
+}
+
+/**
+ * Variante par URL, pour le rattrapage des transcripts honeypot. Retourne false
+ * si l'image n'est plus téléchargeable (lien CDN expiré, message supprimé).
+ */
+export async function recordScamImageFromUrl(guildId: string, url: string, name: string): Promise<boolean> {
+  const image = await fetchAndAnalyze(url, name, true);
+  if (!image) return false;
+  const stored = await storeScamImage(guildId, image, 'HONEYPOT', null, false);
+  if (stored) invalidatePhashCache(guildId);
+  return stored;
 }
 
 // Les empreintes perceptuelles ne se comparent pas en SQL : la distance de

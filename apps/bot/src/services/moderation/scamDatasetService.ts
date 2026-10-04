@@ -175,9 +175,10 @@ export async function promoteImageIfWidespread(hash: string, phash: string | nul
 
 // ── Enregistrement ──────────────────────────────────────────────────────────
 
-async function recordDomain(guildId: string, domain: string, source: ScamSource): Promise<void> {
+async function recordDomain(guildId: string, domain: string, source: ScamSource, countRepeat: boolean): Promise<void> {
   const existing = await prisma.scamDomain.findFirst({ where: { guildId, domain }, select: { id: true } });
   if (existing) {
+    if (!countRepeat) return;
     await prisma.scamDomain.update({
       where: { id: existing.id },
       data: { hits: { increment: 1 }, lastSeenAt: new Date() },
@@ -199,10 +200,12 @@ async function recordText(
   sample: string,
   signals: string[],
   domains: string[],
-  source: ScamSource
+  source: ScamSource,
+  countRepeat: boolean
 ): Promise<void> {
   const existing = await prisma.scamTextSample.findFirst({ where: { guildId, fingerprint }, select: { id: true } });
   if (existing) {
+    if (!countRepeat) return;
     await prisma.scamTextSample.update({
       where: { id: existing.id },
       data: { hits: { increment: 1 }, lastSeenAt: new Date() },
@@ -227,7 +230,19 @@ export type RecordedSignals = { domains: string[]; textRecorded: boolean };
  * bots de spam envoient aussi des « hello » qu'il serait désastreux d'apprendre.
  * Les mentions et les montants sont retirés avant stockage.
  */
-export async function recordScamSignals(guildId: string, text: string, source: ScamSource = 'HONEYPOT'): Promise<RecordedSignals> {
+export async function recordScamSignals(
+  guildId: string,
+  text: string,
+  source: ScamSource = 'HONEYPOT',
+  options: {
+    /**
+     * false = une observation déjà connue n'est pas recomptée. Le rattrapage
+     * historique s'en sert pour pouvoir être relancé sans gonfler les compteurs.
+     */
+    countRepeat?: boolean;
+  } = {}
+): Promise<RecordedSignals> {
+  const countRepeat = options.countRepeat ?? true;
   const result: RecordedSignals = { domains: [], textRecorded: false };
   if (!text.trim()) return result;
 
@@ -238,7 +253,7 @@ export async function recordScamSignals(guildId: string, text: string, source: S
   );
   for (const domain of domains) {
     try {
-      await recordDomain(guildId, domain, source);
+      await recordDomain(guildId, domain, source, countRepeat);
       await promoteDomainIfWidespread(domain);
       result.domains.push(domain);
     } catch (err) {
@@ -251,7 +266,7 @@ export async function recordScamSignals(guildId: string, text: string, source: S
   if (normalized.length >= MIN_FINGERPRINT_LENGTH && (signals.length >= 2 || domains.length > 0)) {
     const fingerprint = fingerprintText(normalized);
     try {
-      await recordText(guildId, fingerprint, normalized, signals, domains, source);
+      await recordText(guildId, fingerprint, normalized, signals, domains, source, countRepeat);
       await promoteTextIfWidespread(fingerprint, normalized, signals, domains);
       result.textRecorded = true;
     } catch (err) {
