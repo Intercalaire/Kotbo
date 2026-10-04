@@ -28,6 +28,7 @@ import { handleCustomFormRoutes } from './dashboard/customForms.js';
 import { handleBanAppealRoutes } from './dashboard/banAppeals.js';
 import { handleAdminLockRoutes } from './dashboard/adminLock.js';
 import { handleMembersRoutes } from './dashboard/members.js';
+import { handleMemberProfileRoutes } from './dashboard/memberProfile.js';
 import { handleLeadershipRoutes, handleGuildLeadershipRoutes } from './dashboard/leadership.js';
 import { handleModulesRoutes } from './dashboard/modules.js';
 import { handleEventsRoutes } from './dashboard/events.js';
@@ -493,6 +494,9 @@ export async function handleDashboardRoutes(
       // remonter « peut configurer » sur chaque fonctionnalite sans regle de
       // role, et la lecture suivante relirait ce mensonge dans le cache.
       const featureAccess = await getCachedFeatureAccess(client, guildId, access, user.userId);
+      if (await handleMemberProfileRoutes(req, res, parts, url, guildId, effectiveAccess, featureAccess)) {
+        return true;
+      }
       if (await handleMembersRoutes(req, res, parts, url, client, user, guildId, effectiveAccess, featureAccess)) {
         if (method !== 'GET') await cache.invalidateGuild(guildId);
         return true;
