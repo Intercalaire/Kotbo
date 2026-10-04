@@ -204,6 +204,22 @@ export function compactTowerFloors(floors: readonly TowerLayout[]) {
   return floors.map((layout) => ({ ...layout, rooms: layout.rooms.map(compactTowerRoom) }));
 }
 
+/**
+ * Réponse d'un enregistrement d'étages : un résumé, plus la carte touchée quand une seule l'est.
+ * Renvoyer toute la tour dépasserait la taille d'une réponse d'outil dès quelques dizaines de cartes.
+ */
+export function towerFloorsSaved(floors: readonly TowerLayout[], input: TowerFloorsEdit) {
+  const summary = {
+    ok: true,
+    floors: towerFloorCount(floors),
+    cards: floors.length,
+    rooms: floors.reduce((sum, entry) => sum + entry.rooms.length, 0),
+  };
+  if (input.floors || input.removeFloor) return summary;
+  const card = floors[(input.floor ?? 1) - 1];
+  return card ? { ...summary, card: compactTowerFloors([card])[0] } : summary;
+}
+
 export function compactTowerSettings<T extends { floors: readonly TowerLayout[] }>(settings: T) {
   return { ...settings, floors: compactTowerFloors(settings.floors) };
 }
@@ -378,9 +394,9 @@ export function registerRpgTowerTools(ctx: McpToolContext) {
           const next = editTowerFloors((await getTowerConfig(guildId)).floors, input);
           if (typeof next === 'string') return err(next);
           const settings = await saveTowerFloors(guildId, { floors: next });
-          const roomCount = settings.floors.reduce((sum, entry) => sum + entry.rooms.length, 0);
-          await audit(key_name, 'Étages de la Tour MCP', 'Carte', `${towerFloorCount(settings.floors)} étage(s), ${settings.floors.length} carte(s), ${roomCount} salles`);
-          return ok({ ok: true, floors: compactTowerFloors(settings.floors) });
+          const saved = towerFloorsSaved(settings.floors, input);
+          await audit(key_name, 'Étages de la Tour MCP', 'Carte', `${saved.floors} étage(s), ${saved.cards} carte(s), ${saved.rooms} salles`);
+          return ok(saved);
         } catch (e) {
           return fail(e);
         }
