@@ -3,7 +3,7 @@ import { Client, TextChannel } from 'discord.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BannedWord } from '@prisma/client';
-import prisma from '../../utils/db.js';
+import prisma, { upsertRetryingRace } from '../../utils/db.js';
 import { getQueryStats, isReadReplicaConfigured, resetQueryStats } from '../../observability/queryMetrics.js';
 import { cache } from '../../utils/cache.js';
 import { logger } from '../../utils/logger.js';
@@ -601,11 +601,11 @@ export async function handleAdminRoutes(
          try {
             const discordUser = await client.users.fetch(body.userId);
             if (!discordUser) throw new Error();
-            await prisma.globalAdmin.upsert({
+            await upsertRetryingRace(() => prisma.globalAdmin.upsert({
               where: { userId: body.userId },
               update: {},
               create: { userId: body.userId, addedBy: user.userId }
-            });
+            }));
             await recordAdminAudit({
               actorId: user.userId,
               action: 'admin.grant',

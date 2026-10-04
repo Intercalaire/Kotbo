@@ -21,7 +21,7 @@
  * encaissé. Il est journalisé en avertissement, ce qui le rend rattrapable.
  */
 
-import prisma from '../../utils/db.js';
+import prisma, { upsertRetryingRace } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { CGV_VERSION, type Stripe } from './stripeService.js';
 
@@ -52,7 +52,7 @@ export async function recordBillingConsent(
   const discordUserId = metadata.initiatedBy ?? metadata.purchasedById ?? null;
 
   try {
-    await prisma.billingConsent.upsert({
+    await upsertRetryingRace(() => prisma.billingConsent.upsert({
       where: { checkoutSessionId: session.id },
       // Rien à mettre à jour : un consentement ne se corrige pas après coup.
       // L'upsert sert uniquement à absorber le rejeu sans lever d'erreur.
@@ -71,7 +71,7 @@ export async function recordBillingConsent(
         plan: metadata.plan ?? null,
         interval: metadata.interval ?? null,
       },
-    });
+    }));
 
     if (!accepted) {
       logger.warn(

@@ -2,7 +2,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, ActivityType, PresenceStatusData } from 'discord.js';
 import type { CustomBotConfig } from '@prisma/client';
 import { normalizePlanKey } from '@kotbo/contracts';
-import prisma from '../../../utils/db.js';
+import prisma, { upsertRetryingRace } from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { fetchExternal } from '../../../utils/http.js';
 import { SecretBoxUnavailableError, openSecret, sealSecret } from '../../../utils/secretBox.js';
@@ -121,11 +121,11 @@ export async function handleCustomBotRoutes(
         return true;
       }
 
-      const config = await prisma.customBotConfig.upsert({
+      const config = await upsertRetryingRace(() => prisma.customBotConfig.upsert({
         where: { guildId },
         update: {},
         create: { guildId },
-      });
+      }));
 
       json(res, 200, { allowed: true, config: serializeConfig(config) });
     } catch (err) {

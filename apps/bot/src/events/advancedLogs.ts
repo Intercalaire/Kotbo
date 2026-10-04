@@ -17,7 +17,7 @@ import {
   type VoiceState,
 } from 'discord.js';
 import { kotboEventBus } from '@kotbo/core';
-import prisma from '../utils/db.js';
+import prisma, { upsertRetryingRace } from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { isLogIgnoredChannel, sendLogEmbed } from '../utils/logDispatch.js';
 import { queueAuditLog } from '../utils/auditLogger.js';
@@ -258,11 +258,11 @@ export async function runActivitySnapshot(client: Client): Promise<void> {
 async function processSingleGuildSnapshot(guild: Guild, dateKey: string, hour: number): Promise<void> {
   try {
     // Ensure the guild exists in our database before recording stats
-    await prisma.guild.upsert({
+    await upsertRetryingRace(() => prisma.guild.upsert({
       where: { id: guild.id },
       update: {},
       create: { id: guild.id }
-    });
+    }));
 
     // 1. Gather counts
     const totalMembers = guild.memberCount;

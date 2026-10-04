@@ -5,7 +5,7 @@ import { gzip } from 'node:zlib';
 import { type Client, TextChannel, Collection, GuildMember, Guild } from 'discord.js';
 import { SanctionType } from '@prisma/client';
 import jwt from 'jsonwebtoken';
-import prisma from '../../utils/db.js';
+import prisma, { upsertRetryingRace } from '../../utils/db.js';
 import { cache } from '../../utils/cache.js';
 import { logger } from '../../utils/logger.js';
 import { fetchExternal } from '../../utils/http.js';
@@ -1582,7 +1582,7 @@ export const getOrCreateRuntime = async (guildId: string): Promise<RuntimeState>
   await ensureDashboardSchemaPatches();
 
   try {
-    const settings = await prisma.dashboardSettings.upsert({
+    const settings = await upsertRetryingRace(() => prisma.dashboardSettings.upsert({
       where: { guildId },
       update: {},
       create: {
@@ -1597,7 +1597,7 @@ export const getOrCreateRuntime = async (guildId: string): Promise<RuntimeState>
         sidebarFavorites: [],
         messageTemplate: DEFAULT_MESSAGE_TEMPLATE,
       },
-    });
+    }));
 
     return toRuntimeState(settings);
   } catch (error) {
