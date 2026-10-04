@@ -51,7 +51,7 @@ const PATCHABLE_FIELDS = [
   'rolePersistEnabled', 'rolePersistMode', 'rolePersistRoleIds', 'rolePersistMaxDays',
   'scamFilterEnabled', 'scamFilterAction', 'scamFilterTimeoutMin', 'scamFilterCustomDomains',
   'scamFilterWhitelist', 'scamFilterAlertChannelId', 'scamImageFilterEnabled',
-  'scamQrFilterEnabled', 'scamQrTrustedMessages',
+  'scamQrFilterEnabled', 'scamQrTrustedMessages', 'scamOcrEnabled',
   'inviteGuardEnabled', 'inviteRequireUnitary', 'inviteValidationEnabled',
   'inviteSpamThreshold', 'inviteSpamWindowSec', 'inviteAlertChannelId', 'inviteBypassRoleIds',
 ] as const;

@@ -26,6 +26,8 @@ export const GLOBAL_PROMOTION_GUILDS = 3;
 
 export type ScamSource = 'HONEYPOT' | 'MANUAL' | 'OCR';
 
+const MIN_OCR_DOMAIN_LABEL = 4;
+
 function isUniqueViolation(err: unknown): boolean {
   return typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2002';
 }
@@ -43,6 +45,12 @@ const GLOBAL_KEY = '__global__';
 function invalidateCaches(guildId: string | null): void {
   domainCache.delete(guildId ?? GLOBAL_KEY);
   textCache.delete(guildId ?? GLOBAL_KEY);
+}
+
+/** Vide les caches de correspondance (tests). */
+export function clearScamDatasetCaches(): void {
+  domainCache.clear();
+  textCache.clear();
 }
 
 async function loadDomains(guildId: string | null): Promise<Set<string>> {
@@ -223,7 +231,11 @@ export async function recordScamSignals(guildId: string, text: string, source: S
   const result: RecordedSignals = { domains: [], textRecorded: false };
   if (!text.trim()) return result;
 
-  const domains = suspiciousDomainsOf(text);
+  // L'OCR produit du bruit (« w.to », « m.in ») qui ressemble à un domaine : on
+  // exige un nom d'au moins quatre caractères pour ne pas polluer la base.
+  const domains = suspiciousDomainsOf(text).filter(
+    (domain) => source !== 'OCR' || (domain.split('.')[0]?.length ?? 0) >= MIN_OCR_DOMAIN_LABEL
+  );
   for (const domain of domains) {
     try {
       await recordDomain(guildId, domain, source);

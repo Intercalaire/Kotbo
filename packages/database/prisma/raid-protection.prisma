@@ -83,7 +83,14 @@ model RaidProtectionConfig {
   scamQrFilterEnabled     Boolean  @default(false)
   // Au-delà de ce nombre de messages, un membre est considéré comme installé
   // et ses codes QR ne sont plus bloqués (partage légitime : wifi, 2FA, jeu).
+  // Le même seuil réserve la lecture OCR aux comptes sans historique.
   scamQrTrustedMessages   Int      @default(50)
+
+  // ── Lecture du texte des images (OCR local) ────────────────────────────────
+  // Rattrape les captures photographiées ou recadrées que le hash ne reconnaît
+  // pas : le domaine ou le texte lu dans l'image est comparé au jeu de données.
+  // Coûteux en CPU, d'où l'activation explicite par serveur.
+  scamOcrEnabled          Boolean  @default(false)
 
   // ── Invite Guard (contrôle des invitations) ────────────────────────────────
   inviteGuardEnabled      Boolean  @default(false)

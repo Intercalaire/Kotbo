@@ -7,8 +7,9 @@ import { fetchExternal } from '../../utils/http.js';
 import { getRaidProtectionConfig } from './raidProtectionService.js';
 import { registerWarnSanction, registerTimeoutSanction, registerBanSanction } from './sanctionService.js';
 import { analyzeImage, hammingDistance, PHASH_MATCH_THRESHOLD } from './imageForensics.js';
-import { LEGIT_DOMAINS, extractDomains, looksLikeFakeGiveaway } from './scamHeuristics.js';
-import { findKnownScamDomain, findKnownScamText, promoteImageIfWidespread } from './scamDatasetService.js';
+import { LEGIT_DOMAINS, compactOcrText, extractDomains, looksLikeFakeGiveaway } from './scamHeuristics.js';
+import { findKnownScamDomain, findKnownScamText, promoteImageIfWidespread, recordScamSignals } from './scamDatasetService.js';
+import { readImageText } from './ocrService.js';
 import type { RaidProtectionConfig } from '@prisma/client';
 
 // ── Heuristiques de détection d'arnaques (faux Nitro, phishing Steam/Discord…) ─
@@ -96,16 +97,24 @@ async function detectKnownScam(guildId: string, content: string, config: RaidPro
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_IMAGES_PER_MESSAGE = 5;
 
-type FetchedImage = { name: string; sha256: string; phash: string | null; qr: boolean };
+type FetchedImage = {
+  name: string;
+  sha256: string;
+  phash: string | null;
+  qr: boolean;
+  /** Texte lu dans l'image ; null si l'OCR n'a pas été demandé ou a échoué. */
+  ocrText: string | null;
+};
 
 /**
- * Télécharge une image et en calcule les deux empreintes.
+ * Télécharge une image et en calcule les empreintes.
  *
  * Le SHA-256 attrape le repost à l'identique ; l'empreinte perceptuelle
  * attrape la même image recompressée ou légèrement recadrée, ce qui est le
- * mode de rediffusion réel des captures d'arnaque.
+ * mode de rediffusion réel des captures d'arnaque. Le texte lu par OCR couvre
+ * le reste : la capture photographiée, que ni l'un ni l'autre ne reconnaît.
  */
-async function fetchAndAnalyze(url: string, name: string): Promise<FetchedImage | null> {
+async function fetchAndAnalyze(url: string, name: string, withOcr: boolean): Promise<FetchedImage | null> {
   try {
     const res = await fetchExternal(url, {}, 5_000);
     if (!res.ok) return null;
@@ -115,12 +124,14 @@ async function fetchAndAnalyze(url: string, name: string): Promise<FetchedImage 
     const buffer = Buffer.from(buf);
     const sha256 = createHash('sha256').update(buffer).digest('hex');
     const analysis = await analyzeImage(buffer);
+    const ocrText = withOcr ? await readImageText(buffer) : null;
 
     return {
       name,
       sha256,
       phash: analysis?.phash ?? null,
       qr: analysis?.qr.detected ?? false,
+      ocrText,
     };
   } catch {
     return null;
@@ -134,10 +145,10 @@ function imageAttachmentsOf(message: Message): { url: string; name: string }[] {
     .map((a) => ({ url: a.url, name: a.name }));
 }
 
-async function analyzeAttachments(message: Message): Promise<FetchedImage[]> {
+async function analyzeAttachments(message: Message, withOcr = false): Promise<FetchedImage[]> {
   const results: FetchedImage[] = [];
   for (const attachment of imageAttachmentsOf(message)) {
-    const analyzed = await fetchAndAnalyze(attachment.url, attachment.name);
+    const analyzed = await fetchAndAnalyze(attachment.url, attachment.name, withOcr);
     if (analyzed) results.push(analyzed);
   }
   return results;
@@ -154,8 +165,11 @@ export async function recordScamImagesFromMessage(
   if (!message.guild) return 0;
   let recorded = 0;
 
-  for (const image of await analyzeAttachments(message)) {
+  // Le honeypot est rare et ses images sont par définition suspectes : on lit
+  // toujours leur texte, sans le garde-fou de coût des contrôles en continu.
+  for (const image of await analyzeAttachments(message, true)) {
     try {
+      const ocrText = image.ocrText ? compactOcrText(image.ocrText) : null;
       await prisma.scamImageHash.upsert({
         where: { guildId_hash: { guildId: message.guild.id, hash: image.sha256 } },
         create: {
@@ -165,11 +179,17 @@ export async function recordScamImagesFromMessage(
           filename: image.name,
           source,
           addedBy: message.author.id,
+          ocrText,
         },
-        // Une entrée créée avant l'ajout du perceptuel peut être complétée.
-        update: image.phash ? { phash: image.phash } : {},
+        // Une entrée créée avant l'ajout du perceptuel ou de l'OCR peut être complétée.
+        update: {
+          ...(image.phash ? { phash: image.phash } : {}),
+          ...(ocrText ? { ocrText } : {}),
+        },
       });
       await promoteImageIfWidespread(image.sha256, image.phash, image.name);
+      // Domaines et texte lus dans la capture rejoignent le jeu de données.
+      if (image.ocrText) await recordScamSignals(message.guild.id, image.ocrText, 'OCR');
       recorded++;
     } catch (err) {
       logger.error('ScamFilter', `Enregistrement du hash d'image impossible (${message.guild.id})`, err);
@@ -275,7 +295,15 @@ async function isSuspiciousQrSender(
 ): Promise<boolean> {
   if (!config.scamQrFilterEnabled) return false;
   if (!images.some((i) => i.qr)) return false;
+  return isNewcomer(message, config);
+}
 
+/**
+ * Le membre est-il sans historique sur ce serveur ? Seuil partagé par les
+ * filtres QR et OCR : au-delà de `scamQrTrustedMessages` messages, un membre est
+ * considéré comme installé.
+ */
+async function isNewcomer(message: Message, config: RaidProtectionConfig): Promise<boolean> {
   const profile = await prisma.memberProfile
     .findUnique({
       where: { guildId_userId: { guildId: message.guild!.id, userId: message.author.id } },
@@ -284,6 +312,21 @@ async function isSuspiciousQrSender(
     .catch(() => null);
 
   return (profile?.messageCount ?? 0) <= config.scamQrTrustedMessages;
+}
+
+function reasonFor(detection: ScamDetection): string {
+  if (!detection.matched) return '';
+  if (detection.pattern.startsWith('fake_giveaway')) return "Faux giveaway crypto/casino détecté (cumul d'indices : appât, code promo, célébrité…)";
+  if (detection.pattern === 'known_scam_text') return "Texte d'arnaque connu détecté (copie d'une campagne repérée par un honeypot)";
+  if (detection.pattern === 'known_scam_domain') return `Domaine d'arnaque connu détecté${detection.domain ? ` (${detection.domain})` : ''}`;
+  return `Lien d'arnaque détecté${detection.domain ? ` (${detection.domain})` : ''}`;
+}
+
+/** Contrôles appliqués au texte lu dans une image (capture d'un faux giveaway, d'un faux site de retrait). */
+async function detectInImageText(guildId: string, text: string, config: RaidProtectionConfig): Promise<ScamDetection> {
+  const direct = detectScam(text, config);
+  if (direct.matched) return direct;
+  return detectKnownScam(guildId, text, config);
 }
 
 /** Traite un message : détection + action configurée. Retourne true si un scam a été traité. */
@@ -304,16 +347,19 @@ export async function handleScamMessage(message: Message): Promise<boolean> {
       return { matched: false } as ScamDetection;
     });
   }
-  let reason = `Lien d'arnaque détecté${detection.matched && detection.domain ? ` (${detection.domain})` : ''}`;
+  let reason = reasonFor(detection);
 
   // Analyse d'image : une seule fois pour tous les contrôles qui en dépendent.
   const needsImageAnalysis =
     !detection.matched &&
     message.attachments.size > 0 &&
-    (config.scamImageFilterEnabled || config.scamQrFilterEnabled);
+    (config.scamImageFilterEnabled || config.scamQrFilterEnabled || config.scamOcrEnabled);
 
   if (needsImageAnalysis) {
-    const images = await analyzeAttachments(message);
+    // La lecture du texte est le contrôle le plus coûteux : réservée aux
+    // membres sans historique, qui sont aussi ceux qui postent ces captures.
+    const withOcr = config.scamOcrEnabled && (await isNewcomer(message, config));
+    const images = await analyzeAttachments(message, withOcr);
 
     if (config.scamImageFilterEnabled) {
       const imageMatch = await matchKnownScamImages(message.guild.id, images);
@@ -333,6 +379,18 @@ export async function handleScamMessage(message: Message): Promise<boolean> {
     if (!detection.matched && (await isSuspiciousQrSender(message, config, images))) {
       detection = { matched: true, pattern: 'qr_code_from_newcomer' };
       reason = 'Code QR posté par un compte sans historique (phishing par QR de connexion)';
+    }
+
+    if (!detection.matched && withOcr) {
+      for (const image of images) {
+        if (!image.ocrText) continue;
+        const found = await detectInImageText(message.guild.id, image.ocrText, config).catch(() => null);
+        if (found?.matched) {
+          detection = { ...found, pattern: `image_text:${found.pattern}` };
+          reason = `${reasonFor(found)} - lu dans une image`;
+          break;
+        }
+      }
     }
   }
 

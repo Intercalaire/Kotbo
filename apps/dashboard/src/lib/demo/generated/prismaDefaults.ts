@@ -3494,6 +3494,7 @@ export const PRISMA_DEFAULTS: Record<string, Record<string, unknown>> = {
     "scamImageFilterEnabled": false,
     "scamQrFilterEnabled": false,
     "scamQrTrustedMessages": 50,
+    "scamOcrEnabled": false,
     "inviteGuardEnabled": false,
     "inviteEmergencyEnabled": false,
     "inviteRequireUnitary": false,

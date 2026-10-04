@@ -253,6 +253,15 @@ export function normalizeScamText(text: string): string {
     .slice(0, MAX_SAMPLE_LENGTH);
 }
 
+/**
+ * Texte lu par OCR, compacté pour le stockage : on garde les domaines et les
+ * montants (c'est ce qui rend l'exemple exploitable), on ne retire que le bruit
+ * de mise en page.
+ */
+export function compactOcrText(text: string, maxLength = 1000): string {
+  return foldText(text).replace(/\s+/g, ' ').trim().slice(0, maxLength);
+}
+
 export function fingerprintText(normalized: string): string {
   return createHash('sha256').update(normalized).digest('hex');
 }
