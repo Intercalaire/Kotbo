@@ -295,7 +295,12 @@
     customWords: parseLines(customWordsInput),
     customWordsAllowList: parseLines(customWordsAllowInput),
   });
-  let simulatorKind = $state<SimulatedRuleKind>('keywords');
+  // `?rule=scam` : le lien « Tester » d'une autre page ouvre directement sa règle.
+  const SIMULATOR_KINDS: SimulatedRuleKind[] = ['keywords', 'links', 'caps', 'emojis', 'mentions', 'everyone', 'spam', 'scam', 'regex'];
+  const requestedRule = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('rule');
+  let simulatorKind = $state<SimulatedRuleKind>(
+    SIMULATOR_KINDS.includes(requestedRule as SimulatedRuleKind) ? requestedRule as SimulatedRuleKind : 'keywords',
+  );
 
   function openSimulator(kind: SimulatedRuleKind) {
     simulatorKind = kind;

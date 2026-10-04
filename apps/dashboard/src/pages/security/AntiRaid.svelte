@@ -24,6 +24,7 @@
   import SectionCard from '../../lib/components/SectionCard.svelte';
   import ToggleSwitch from '../../lib/components/ToggleSwitch.svelte';
   import RefreshButton from '../../lib/components/RefreshButton.svelte';
+  import Button from '../../lib/components/ui/Button.svelte';
   import EmptyState from '../../lib/components/EmptyState.svelte';
   import LoadingHint from '../../lib/components/LoadingHint.svelte';
 
@@ -710,6 +711,11 @@
         description="Bloque les liens de phishing (faux Nitro, faux Steam), les faux giveaways crypto/casino, les faux recrutements « revenu facile » et les images d'arnaque connues."
         icon="Fishing"
       >
+        {#snippet actions()}
+          <!-- Le simulateur vit dans les filtres AutoMod : il rejoue l'analyse
+               de texte et de domaines sur les messages passés. -->
+          <Button size="sm" variant="ghost" icon="history" href="/security/filters/simulator?rule=scam">Tester sur l'historique</Button>
+        {/snippet}
         <div class="space-y-3">
           {@render switchRow('scamFilterEnabled', 'Filtre anti-arnaque', 'Analyse les domaines et les combinaisons de texte typiques des campagnes de phishing.')}
           {@render switchRow('scamImageFilterEnabled', 'Filtre d\'images', 'Compare les images postées aux empreintes d\'arnaques déjà identifiées sur le serveur, alimentées automatiquement par le honeypot. La comparaison est perceptuelle : une capture recompressée ou légèrement recadrée reste reconnue.')}
