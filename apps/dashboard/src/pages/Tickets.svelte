@@ -39,11 +39,15 @@
   import Modal from '../lib/components/Modal.svelte';
 
   import { errorMessage } from '@kotbo/shared';
+  import TicketInboxList from '../lib/components/tickets/TicketInboxList.svelte';
+  import TicketProperties from '../lib/components/tickets/TicketProperties.svelte';
+  import TicketPerformance from '../lib/components/tickets/TicketPerformance.svelte';
+  import type { InboxTicket, InboxView } from '../lib/api';
   import { resolveUserAvatarSrc } from '../lib/discordMedia';
   // Navigation & Tabs
-  const ticketsTabs = ['tickets', 'transcripts', 'satisfaction', 'macros', 'blacklist', 'config'] as const;
+  const ticketsTabs = ['tickets', 'performance', 'transcripts', 'satisfaction', 'macros', 'blacklist', 'config'] as const;
   const DEFAULT_TICKETS_TAB = 'tickets';
-  let activeTab = $state<'tickets' | 'transcripts' | 'satisfaction' | 'macros' | 'blacklist' | 'config'>(DEFAULT_TICKETS_TAB);
+  let activeTab = $state<'tickets' | 'performance' | 'transcripts' | 'satisfaction' | 'macros' | 'blacklist' | 'config'>(DEFAULT_TICKETS_TAB);
 
   $effect(() => {
     const _path = $router.path;
@@ -56,6 +60,26 @@
   let loadingMoreTickets = $state(false);
   type TicketFilter = 'ALL' | 'PENDING' | 'OPEN' | 'CLAIMED' | 'CLOSED' | 'ARCHIVED' | 'REJECTED' | 'ORPHANED';
   let ticketFilter = $state<TicketFilter>('ALL');
+
+  // Centre de support : la file affichée est une vue (non attribués, mes
+  // tickets, en attente du staff...), plus un simple filtre de statut.
+  let inboxView = $state<InboxView>('open');
+  let inboxQuery = $state('');
+  let inboxSort = $state<'newest' | 'oldest'>('newest');
+  let viewCounts = $state<Partial<Record<InboxView, number>>>({});
+
+  function inboxParams(params: URLSearchParams) {
+    params.set('view', inboxView);
+    params.set('sort', inboxSort);
+    if (inboxQuery) params.set('q', inboxQuery);
+  }
+
+  function changeInbox(patch: { view?: InboxView; query?: string; sort?: 'newest' | 'oldest' }) {
+    if (patch.view !== undefined) inboxView = patch.view;
+    if (patch.query !== undefined) inboxQuery = patch.query;
+    if (patch.sort !== undefined) inboxSort = patch.sort;
+    void loadTicketsAndConfig(true);
+  }
   
   // Data State
   let tickets = $state<any[]>([]);
@@ -123,6 +147,9 @@
   let ticketQuotaStaffLoadBypassRoleIds = $state([] as string[]);
   let ticketQuotaReopenEnabled = $state(false);
   let ticketQuotaReopenMax = $state(3);
+  // Objectifs de service, en minutes et en heures ; vide = pas d'objectif.
+  let ticketSlaFirstResponseMinutes = $state<number | null>(null);
+  let ticketSlaResolutionHours = $state<number | null>(null);
   let ticketEmbedThumbnail = $state('');
   let ticketEmbedImage = $state('');
   let ticketEmbedFooter = $state('');
@@ -351,6 +378,8 @@
     ticketQuotaStaffLoadBypassRoleIds,
     ticketQuotaReopenEnabled,
     ticketQuotaReopenMax,
+    ticketSlaFirstResponseMinutes,
+    ticketSlaResolutionHours,
     ticketTypes,
     ticketEmbedThumbnail,
     ticketEmbedImage,
@@ -431,6 +460,8 @@
     ticketWelcomeThumbnail = savedSettingsConfig.ticketWelcomeThumbnail;
     ticketWelcomeImage = savedSettingsConfig.ticketWelcomeImage;
     ticketWelcomeFooter = savedSettingsConfig.ticketWelcomeFooter;
+    ticketSlaFirstResponseMinutes = savedSettingsConfig.ticketSlaFirstResponseMinutes ?? null;
+    ticketSlaResolutionHours = savedSettingsConfig.ticketSlaResolutionHours ?? null;
   }
 
   async function changeTab(tab: typeof activeTab) {
@@ -899,7 +930,7 @@
         limit: String(TICKETS_PAGE_SIZE),
         offset: String(reset ? 0 : ticketsOffset),
       });
-      if (ticketFilter !== 'ALL') params.set('status', ticketFilter);
+      inboxParams(params);
 
       const res = await dashboardFetch(`/tickets?${params}`);
       if (!res.ok) throw new Error(m.e1_tickets_err_load_system());
@@ -908,6 +939,7 @@
       tickets = reset ? incomingTickets : [...tickets, ...incomingTickets];
       ticketsHasMore = data.pagination?.hasMore === true;
       ticketsOffset = data.pagination?.nextOffset ?? ticketsOffset;
+      if (data.views) viewCounts = data.views;
       config = data.config || {};
       
       // Populate config bindings
@@ -960,6 +992,8 @@
       ticketQuotaStaffLoadBypassRoleIds = config.ticketQuotaStaffLoadBypassRoleIds || [];
       ticketQuotaReopenEnabled = config.ticketQuotaReopenEnabled === true;
       ticketQuotaReopenMax = config.ticketQuotaReopenMax ?? 3;
+      ticketSlaFirstResponseMinutes = config.ticketSlaFirstResponseMinutes ?? null;
+      ticketSlaResolutionHours = config.ticketSlaResolutionHours ?? null;
       ticketTypes = normalizeTicketTypes(config);
       ticketEmbedThumbnail = config.ticketEmbedThumbnail || '';
       ticketEmbedImage = config.ticketEmbedImage || '';
@@ -1015,6 +1049,8 @@
         ticketQuotaStaffLoadBypassRoleIds,
         ticketQuotaReopenEnabled,
         ticketQuotaReopenMax,
+        ticketSlaFirstResponseMinutes,
+        ticketSlaResolutionHours,
         ticketTypes: JSON.parse(JSON.stringify(ticketTypes)),
         ticketEmbedThumbnail,
         ticketEmbedImage,
@@ -1043,12 +1079,13 @@
         limit: String(Math.max(TICKETS_PAGE_SIZE, tickets.length || TICKETS_PAGE_SIZE)),
         offset: '0',
       });
-      if (ticketFilter !== 'ALL') params.set('status', ticketFilter);
+      inboxParams(params);
 
       const res = await dashboardFetch(`/tickets?${params}`);
       if (!res.ok) return;
       const data = await res.json();
       tickets = data.tickets || [];
+      if (data.views) viewCounts = data.views;
       ticketsHasMore = data.pagination?.hasMore === true;
       ticketsOffset = data.pagination?.nextOffset ?? tickets.length;
 
@@ -1120,6 +1157,16 @@
   }
 
   // Fetch details & messages for selected ticket
+  const selectedInboxRow = $derived(tickets.find((t) => t.id === selectedTicketId) as InboxTicket | undefined);
+  const knownTags = $derived([...new Set(tickets.flatMap((t) => (t as InboxTicket).tags ?? []))].sort());
+
+  /** Reporte une modification de propriétés sur la liste et le détail. */
+  function patchSelectedTicket(patch: Record<string, unknown>) {
+    tickets = tickets.map((t) => (t.id === selectedTicketId ? { ...t, ...patch } : t));
+    if (selectedTicketDetail) selectedTicketDetail = { ...selectedTicketDetail, ...patch };
+    void refreshTicketsOnly();
+  }
+
   async function loadTicketDetail(ticketId: string, autoScroll = true) {
     if (!authStore.selectedGuildId) return;
     loadingDetail = true;
@@ -1454,6 +1501,8 @@
           ticketQuotaStaffLoadBypassRoleIds,
           ticketQuotaReopenEnabled,
           ticketQuotaReopenMax,
+          ticketSlaFirstResponseMinutes: ticketSlaFirstResponseMinutes || null,
+          ticketSlaResolutionHours: ticketSlaResolutionHours || null,
           ticketTypes: serializeTicketTypes(),
           ticketAllowOverclaim,
           ticketOverclaimPermission,
@@ -1802,90 +1851,23 @@
 
       <!-- Left Panel: Tickets Browser -->
       <div data-tour="tickets-list" class="lg:col-span-4 bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-4 lg:p-6 flex flex-col overflow-hidden {showMobileChat && selectedTicketId ? 'hidden lg:flex' : 'flex'} h-[50vh] lg:h-full">
-        <div class="flex items-center gap-1.5 mb-4 overflow-x-auto pb-2 scrollbar-hide">
-          {#each ['ALL', 'PENDING', 'OPEN', 'CLAIMED', 'CLOSED', 'ARCHIVED', 'ORPHANED'] as filterType}
-            <button
-              onclick={() => changeTicketFilter(filterType as TicketFilter)}
-              class="px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap shrink-0 {ticketFilter === filterType ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}"
-            >
-              {filterType === 'ALL' ? m.e1_tickets_filter_all() : getStatusLabel(filterType)}
-            </button>
-          {/each}
-        </div>
-
-        <div class="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-hide">
-          {#if loading}
-            {#each Array(5) as _}
-              <div class="w-full p-3 lg:p-4 rounded-lg border border-outline-variant/10 bg-surface-container/30 animate-pulse">
-                <div class="flex items-start gap-3">
-                  <div class="w-9 h-9 lg:w-10 lg:h-10 rounded-xl bg-surface-container-high shrink-0"></div>
-                  <div class="flex-1 min-w-0 space-y-2">
-                    <div class="flex items-center justify-between gap-2">
-                      <div class="h-3.5 w-24 bg-surface-container-high rounded-md"></div>
-                      <div class="h-4 w-16 bg-surface-container-high rounded-full"></div>
-                    </div>
-                    <div class="h-2.5 w-40 bg-surface-container-high rounded-md"></div>
-                    <div class="h-2 w-20 bg-surface-container-high rounded-md"></div>
-                  </div>
-                </div>
-              </div>
-            {/each}
-          {:else if filteredTickets.length === 0}
-            <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/30">
-              <Papicon icon="inbox" size={28} class="opacity-50 mb-2" />
-              <p class="text-xs font-bold">{m.e1_tickets_empty_list()}</p>
-            </div>
-          {:else}
-            {#each filteredTickets as ticket (ticket.id)}
-              <button
-                onclick={() => { selectTicket(ticket.id); showMobileChat = true; }}
-                class="w-full text-left p-3 lg:p-4 rounded-lg border transition-all duration-200 {selectedTicketId === ticket.id ? 'bg-primary/5 border-primary shadow-sm' : 'bg-surface-container/30 border-outline-variant/10 hover:border-outline-variant/40 hover:bg-surface-container/50'}"
-              >
-                <div class="flex items-start gap-3">
-                  {#if ticket.userAvatar}
-                    <img src={ticket.userAvatar} alt={ticket.username} class="w-9 h-9 lg:w-10 lg:h-10 rounded-xl object-cover shadow-sm shrink-0" />
-                  {:else}
-                    <div class="w-9 h-9 lg:w-10 lg:h-10 rounded-xl bg-surface-container flex items-center justify-center text-primary font-semibold text-sm shadow-sm shrink-0">
-                      {ticket.username?.charAt(0).toUpperCase() || '?'}
-                    </div>
-                  {/if}
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center justify-between gap-2">
-                      <p class="text-sm font-semibold text-on-surface truncate">@{ticket.username || m.e1_tickets_anonymous()}</p>
-                      <span class="px-2 py-0.5 rounded-full text-xs font-semibold border shrink-0 {getStatusColor(ticket.status)}">
-                        {getStatusLabel(ticket.status)}
-                      </span>
-                    </div>
-                    {#if ticket.reason}
-                      <p class="text-2xs text-on-surface-variant/70 mt-0.5 truncate">{ticket.reason}</p>
-                    {/if}
-                    <p class="text-2xs text-on-surface-variant/40 mt-0.5">{new Date(ticket.createdAt).toLocaleDateString(dateLocale())}</p>
-                  </div>
-                </div>
-                {#if ticket.claimedByName}
-                  <div class="mt-2 pt-2 border-t border-outline-variant/10 flex items-center gap-1.5 text-2xs font-semibold text-primary/80">
-                    {#if ticket.claimedByAvatar}
-                      <img src={ticket.claimedByAvatar} alt={ticket.claimedByName} class="w-5 h-5 rounded-full object-cover border border-primary/20" />
-                    {:else}
-                      <Papicon icon="user" size={11} />
-                    {/if}
-                    @{ticket.claimedByName}
-                  </div>
-                {/if}
-              </button>
-            {/each}
-            {#if ticketsHasMore}
-              <button
-                type="button"
-                onclick={() => loadTicketsAndConfig(false)}
-                disabled={loadingMoreTickets}
-                class="w-full mt-2 px-3 py-2 rounded-lg border border-outline-variant/20 bg-surface-container/40 text-xs font-medium text-on-surface-variant hover:bg-surface-container disabled:opacity-50"
-              >
-                {loadingMoreTickets ? m.e1_tickets_loading_more() : m.e1_tickets_load_more()}
-              </button>
-            {/if}
-          {/if}
-        </div>
+        <TicketInboxList
+          tickets={tickets as InboxTicket[]}
+          view={inboxView}
+          counts={viewCounts}
+          sort={inboxSort}
+          {loading}
+          loadingMore={loadingMoreTickets}
+          hasMore={ticketsHasMore}
+          selectedId={selectedTicketId}
+          slaConfigured={!!(config.ticketSlaFirstResponseMinutes || config.ticketSlaResolutionHours)}
+          statusLabel={getStatusLabel}
+          onview={(view) => { selectedTicketId = null; selectedTicketDetail = null; messages = []; changeInbox({ view }); }}
+          onsearch={(query) => changeInbox({ query })}
+          onsort={(sort) => changeInbox({ sort })}
+          onselect={(id) => { selectTicket(id); showMobileChat = true; }}
+          onloadmore={() => loadTicketsAndConfig(false)}
+        />
       </div>
 
       <!-- Right Panel: Live Chat & Actions -->
@@ -1935,6 +1917,14 @@
                 {/if}
               </div>
             </div>
+
+            {#if selectedTicketDetail}
+              <TicketProperties
+                ticket={{ ...(selectedInboxRow ?? {}), ...selectedTicketDetail, sla: selectedInboxRow?.sla ?? null }}
+                {knownTags}
+                onchange={patchSelectedTicket}
+              />
+            {/if}
 
             <!-- Demande en attente ou refusée : aucun salon n'existe, l'écran
                  doit dire pourquoi plutôt que rester vide. -->
@@ -2260,6 +2250,8 @@
       </div>
 
     </div>
+  {:else if activeTab === 'performance'}
+    <TicketPerformance />
   {:else if activeTab === 'config'}
     {#await Promise.all([
       import('../lib/components/SearchableSelect.svelte'),
@@ -2725,6 +2717,43 @@
                 </label>
               </div>
             {/if}
+          </div>
+        {/if}
+      </div>
+
+      <!-- ─── Objectifs de service ───────────────────────────────────────── -->
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
+        <button onclick={() => toggleConfigSection('sla')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Papicon icon="timer" size={18} />
+            </div>
+            <div>
+              <p class="text-sm font-semibold text-on-surface">{m.th_sla_section_title()}</p>
+              <p class="text-2xs text-on-surface-variant mt-0.5">{m.th_sla_section_desc()}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            {#if ticketSlaFirstResponseMinutes || ticketSlaResolutionHours}
+              <span class="px-2 py-0.5 rounded-full text-2xs font-semibold bg-success/10 text-success border border-success/20">{m.e1_tickets_active_badge()}</span>
+            {/if}
+            <Papicon icon={expandedConfigSection === 'sla' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40" />
+          </div>
+        </button>
+        {#if expandedConfigSection === 'sla'}
+          <div class="px-4 lg:px-5 pb-5 space-y-4 border-t border-outline-variant/10 pt-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <label class="block">
+                <span class="text-xs font-semibold text-on-surface-variant ml-1 mb-2 block">{m.th_sla_first_label()}</span>
+                <input type="number" min="1" max="10080" placeholder={m.th_sla_none_placeholder()} bind:value={ticketSlaFirstResponseMinutes} class="input" />
+                <span class="text-2xs text-on-surface-variant ml-1 mt-1 block">{m.th_sla_first_hint()}</span>
+              </label>
+              <label class="block">
+                <span class="text-xs font-semibold text-on-surface-variant ml-1 mb-2 block">{m.th_sla_resolution_label()}</span>
+                <input type="number" min="1" max="720" placeholder={m.th_sla_none_placeholder()} bind:value={ticketSlaResolutionHours} class="input" />
+                <span class="text-2xs text-on-surface-variant ml-1 mt-1 block">{m.th_sla_resolution_hint()}</span>
+              </label>
+            </div>
           </div>
         {/if}
       </div>

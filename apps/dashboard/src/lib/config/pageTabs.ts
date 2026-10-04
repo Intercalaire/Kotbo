@@ -218,6 +218,7 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
 
   '/tickets': [
     { id: 'tickets', label: () => m.e1_tickets_tab_tickets(), icon: 'message-square' },
+    { id: 'performance', label: () => m.th_tab_performance(), icon: 'trending-up' },
     { id: 'transcripts', label: () => m.e1_tickets_tab_transcripts(), icon: 'file-text' },
     { id: 'satisfaction', label: () => m.e1_tickets_tab_satisfaction(), icon: 'star' },
     { id: 'macros', label: () => m.e1_tickets_tab_macros(), icon: 'message-circle' },
