@@ -39,6 +39,7 @@ import { handleCampaignRoutes } from './dashboard/campaigns.js';
 import { handlePartnershipRoutes } from './dashboard/partnerships.js';
 import { handleSetupRoutes } from './dashboard/setup.js';
 import { handleMCPKeyRoutes } from './dashboard/mcp.js';
+import { handleOutgoingWebhookRoutes } from './dashboard/outgoingWebhooks.js';
 import { handleCustomBotRoutes } from './dashboard/customBot.js';
 import { handleChannelLinkRoutes } from './dashboard/channelLinks.js';
 import { handleStaffServerRoutes } from './dashboard/staffServer.js';
@@ -433,6 +434,9 @@ export async function handleDashboardRoutes(
         // Créer un emoji ajoute un asset permanent au serveur Discord :
         // rien ne le retire ensuite depuis le dashboard.
         || parts[4] === 'emojis'
+        // Test et renvoi d'un webhook sortant : chacun appelle un serveur
+        // tiers et attend sa réponse.
+        || (parts[4] === 'outgoing-webhooks' && (parts[6] === 'test' || parts[8] === 'redeliver'))
         // Le prestige crée un salon d'annonce, et jusqu'à trente rôles d'un
         // coup : même catégorie que les mises en route ci-dessus.
         || (parts[4] === 'ranked' && parts[5] === 'announce-channel')
@@ -531,6 +535,10 @@ export async function handleDashboardRoutes(
       return true;
     }
     if (await handleMCPKeyRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleOutgoingWebhookRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
