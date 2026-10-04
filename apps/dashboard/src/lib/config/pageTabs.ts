@@ -111,6 +111,7 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
     { id: 'security', label: () => m.am_tab_security(), icon: 'lock' },
     { id: 'behavioral', label: () => m.am_tab_behavioral(), icon: 'activity' },
     { id: 'exceptions', label: () => m.am_tab_exceptions(), icon: 'filter' },
+    { id: 'simulator', label: () => m.sim_tab_label(), icon: 'history' },
   ],
 
   '/security/filters/nicknames': [
