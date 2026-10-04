@@ -5,6 +5,8 @@
  *   POST  /tickets/:id/assign       attribuer à un membre du staff (ou retirer)
  *   GET   /tickets/agents           qui peut recevoir un ticket, et sa charge
  *   GET   /tickets/stats?days=      performance du support
+ *   POST  /tickets/:id/approve      valider une demande en attente
+ *   POST  /tickets/:id/reject       la refuser, motif facultatif
  *
  * Appelées par `handleTicketsRoutes` une fois le droit d'accès aux tickets
  * vérifié.
@@ -18,6 +20,7 @@ import { resolveViewTimezone } from '../../../../utils/timezone.js';
 import { broadcastDashboardStateChange, getGuildName, json, pushAudit, readJsonBody } from '../../../shared.js';
 import { normalizePriority, normalizeTags } from '../../../../services/features/ticketHelpdesk.js';
 import { getTicketStats } from '../../../../services/features/ticketStatsService.js';
+import { approvePendingTicket, approvalErrorMessage, rejectPendingTicket } from '../../../../services/features/ticketService.js';
 import type { ModuleRouteContext } from './_shared.js';
 
 const PRIORITY_LABEL: Record<string, string> = { LOW: 'basse', NORMAL: 'normale', HIGH: 'haute', URGENT: 'urgente' };
@@ -124,6 +127,56 @@ export async function handleTicketHelpdeskRoutes(ctx: ModuleRouteContext): Promi
     } catch (err) {
       logger.error('TicketHelpdeskAPI', `Propriétés du ticket ${ticketId} : ${errorMessage(err)}`);
       json(res, 500, { error: 'Erreur lors de la mise à jour du ticket' });
+    }
+    return true;
+  }
+
+  // POST /tickets/:id/approve et /tickets/:id/reject { reason? }
+  // Mêmes fonctions que les boutons « Valider » et « Refuser » de Discord.
+  if ((parts[6] === 'approve' || parts[6] === 'reject') && method === 'POST') {
+    const guild = client.guilds.cache.get(guildId);
+    const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, guildId } });
+    if (!ticket || !guild) {
+      json(res, 404, { error: 'Demande introuvable' });
+      return true;
+    }
+    if (ticket.status !== 'PENDING') {
+      json(res, 409, { error: 'Cette demande a déjà été traitée.' });
+      return true;
+    }
+    const reviewer = { id: user.userId, username: user.username ?? user.userId };
+    try {
+      if (parts[6] === 'approve') {
+        const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
+        const result = await approvePendingTicket(client, guild, guildConfig, ticket, reviewer);
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Demande de ticket validée',
+          context: getGuildName(client, guildId),
+          module: 'Tickets',
+          eventType: 'Manuel',
+          details: `Demande de ${ticket.username} validée depuis le dashboard.`,
+          channelId: null,
+        }).catch(() => null);
+        json(res, 200, { ok: true, message: result.userMessage, ticketId: result.ticketId ?? ticket.id });
+      } else {
+        const body = await readJsonBody<{ reason?: unknown }>(req);
+        const reason = typeof body?.reason === 'string' && body.reason.trim() ? body.reason.trim().slice(0, 500) : null;
+        await rejectPendingTicket(client, guild, ticket, reviewer, reason);
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Demande de ticket refusée',
+          context: getGuildName(client, guildId),
+          module: 'Tickets',
+          eventType: 'Manuel',
+          details: `Demande de ${ticket.username} refusée depuis le dashboard${reason ? ` : ${reason}` : ''}.`,
+          channelId: null,
+        }).catch(() => null);
+        json(res, 200, { ok: true });
+      }
+    } catch (err) {
+      // Les messages sont écrits pour Discord : on retire l'émoji de tête.
+      json(res, 409, { error: approvalErrorMessage(err).replace(/^(?:❌|⚠️|\s)+/u, '') });
     }
     return true;
   }
