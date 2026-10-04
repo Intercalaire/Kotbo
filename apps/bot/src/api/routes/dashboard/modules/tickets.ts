@@ -15,6 +15,7 @@ import { parseTranscriptHtml } from '../../../../services/features/transcriptSer
 import { clampCommentTimeout } from '../../../../services/features/ticketSatisfactionService.js';
 import { INBOX_VIEWS, computeSla, normalizeView, viewWhere, waitingOn, type SlaConfig } from '../../../../services/features/ticketHelpdesk.js';
 import { handleTicketHelpdeskRoutes } from './ticketHelpdesk.js';
+import { noticeSeconds } from '../../../../services/features/ticketRecordingNotice.js';
 
 import { jsonFailure } from '../../../shared/failure.js';
 /** Champs acceptes pour une macro, valides un par un plutot qu'en bloc. */
@@ -184,6 +185,9 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             ticketQuotaReopenMax: true,
             ticketSlaFirstResponseMinutes: true,
             ticketSlaResolutionHours: true,
+            ticketRecordingNoticeEnabled: true,
+            ticketRecordingNoticeSeconds: true,
+            ticketRecordingNoticeText: true,
           }
         });
         json(res, 200, guildConfig || {});
@@ -349,6 +353,9 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         ticketQuotaReopenMax?: unknown;
         ticketSlaFirstResponseMinutes?: unknown;
         ticketSlaResolutionHours?: unknown;
+        ticketRecordingNoticeEnabled?: unknown;
+        ticketRecordingNoticeSeconds?: unknown;
+        ticketRecordingNoticeText?: unknown;
       }
 
       /**
@@ -532,6 +539,12 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             // qu'un ancien ecran qui ne les connait pas ne les efface pas.
             ...('ticketSlaFirstResponseMinutes' in body ? { ticketSlaFirstResponseMinutes: slaTarget(body.ticketSlaFirstResponseMinutes, 7 * 24 * 60) } : {}),
             ...('ticketSlaResolutionHours' in body ? { ticketSlaResolutionHours: slaTarget(body.ticketSlaResolutionHours, 30 * 24) } : {}),
+            // Avertissement d'enregistrement : même règle, écrit seulement s'il est envoyé.
+            ...(typeof body.ticketRecordingNoticeEnabled === 'boolean' ? { ticketRecordingNoticeEnabled: body.ticketRecordingNoticeEnabled } : {}),
+            ...('ticketRecordingNoticeSeconds' in body ? { ticketRecordingNoticeSeconds: noticeSeconds(body.ticketRecordingNoticeSeconds) } : {}),
+            ...('ticketRecordingNoticeText' in body
+              ? { ticketRecordingNoticeText: typeof body.ticketRecordingNoticeText === 'string' && body.ticketRecordingNoticeText.trim() ? body.ticketRecordingNoticeText.trim().slice(0, 3000) : null }
+              : {}),
           }
         });
 
@@ -1005,6 +1018,9 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
               ticketApprovalChannelId: true,
               ticketSlaFirstResponseMinutes: true,
               ticketSlaResolutionHours: true,
+              ticketRecordingNoticeEnabled: true,
+              ticketRecordingNoticeSeconds: true,
+              ticketRecordingNoticeText: true,
             }
           }),
         ]);
