@@ -1601,45 +1601,11 @@ export async function handleTicketButton(client: Client, customId: string, inter
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
-    const ticketType = resolveTicketPanelType(guildConfig, ticket.ticketTypeId);
-    const opener = await client.users.fetch(ticket.userId).catch(() => null);
-    const locale = await resolveGuildLocale(guildId, guild.preferredLocale);
-
     try {
-      const result = await createTicketWorkspace(client, {
-        guild,
-        user: { id: ticket.userId, username: opener?.username ?? ticket.username },
-        ticketType,
-        guildConfig,
-        reason: ticket.reason,
-        description: ticket.description,
-        locale,
-        existingTicketId: ticket.id,
-      });
-
-      await prisma.ticket.update({
-        where: { id: ticket.id },
-        data: { reviewedById: user.id, reviewedByName: user.username, reviewedAt: new Date() },
-      });
-
-      await updateTicketReviewCard(client, ticket, 'APPROVED', user, null);
-
-      // Le membre n'est pas forcement encore devant Discord : le MP le ramene
-      // vers son ticket sans qu'il ait a surveiller la liste des salons.
-      if (opener) {
-        await opener.send({
-          embeds: [successEmbed('Demande de ticket acceptée', `Votre demande sur **${guild.name}** a été validée par <@${user.id}>.\n\n${result.userMessage}`)],
-          allowedMentions: { parse: [] },
-        }).catch(() => null);
-      }
-
+      const result = await approvePendingTicket(client, guild, guildConfig, ticket, { id: user.id, username: user.username });
       await interaction.editReply({ content: `✅ Demande validée. ${result.userMessage}` });
     } catch (err) {
-      logger.error('Ticket', 'Error approving ticket request:', err);
-      const message = err instanceof Error && err.message.startsWith('❌')
-        ? err.message
-        : "❌ Impossible de créer le ticket. Vérifiez la configuration du module.";
-      await interaction.editReply({ content: message });
+      await interaction.editReply({ content: approvalErrorMessage(err) });
     }
     return;
   }
@@ -2502,6 +2468,126 @@ async function createPendingTicketRequest(
  * Fige la carte de validation apres decision : boutons retires et verdict
  * affiche, pour qu'aucun autre membre du staff ne rejoue la meme demande.
  */
+export class TicketReviewError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TicketReviewError';
+  }
+}
+
+export function approvalErrorMessage(err: unknown): string {
+  if (err instanceof TicketReviewError) return err.message;
+  logger.error('Ticket', 'Error reviewing ticket request:', err);
+  return err instanceof Error && err.message.startsWith('❌')
+    ? err.message
+    : "❌ Impossible de créer le ticket. Vérifiez la configuration du module.";
+}
+
+/**
+ * Réserve une demande en attente pour la personne qui la traite. Le bouton
+ * Discord et le dashboard peuvent agir au même instant : sans cette
+ * écriture conditionnelle, les deux créeraient chacun un salon.
+ */
+async function reservePendingTicket(ticketId: string, reviewer: { id: string; username: string }): Promise<boolean> {
+  const { count } = await prisma.ticket.updateMany({
+    where: { id: ticketId, status: 'PENDING', reviewedAt: null },
+    data: { reviewedById: reviewer.id, reviewedByName: reviewer.username, reviewedAt: new Date() },
+  });
+  return count === 1;
+}
+
+/**
+ * Accepte une demande de ticket en attente : crée son salon (ou fil, ou MP),
+ * met à jour la carte de validation et prévient le membre. Utilisé par le
+ * bouton « Valider » de Discord et par le dashboard.
+ */
+export async function approvePendingTicket(
+  client: Client,
+  guild: Guild,
+  guildConfig: any,
+  ticket: Ticket,
+  reviewer: { id: string; username: string },
+): Promise<{ userMessage: string; ticketId: string | null }> {
+  if (ticket.status !== 'PENDING') throw new TicketReviewError('⚠️ Cette demande a déjà été traitée.');
+  if (!(await reservePendingTicket(ticket.id, reviewer))) throw new TicketReviewError('⚠️ Cette demande a déjà été traitée.');
+
+  const ticketType = resolveTicketPanelType(guildConfig, ticket.ticketTypeId);
+  const opener = await client.users.fetch(ticket.userId).catch(() => null);
+  const locale = await resolveGuildLocale(guild.id, guild.preferredLocale);
+
+  let result: Awaited<ReturnType<typeof createTicketWorkspace>>;
+  try {
+    result = await createTicketWorkspace(client, {
+      guild,
+      user: { id: ticket.userId, username: opener?.username ?? ticket.username },
+      ticketType,
+      guildConfig,
+      reason: ticket.reason,
+      description: ticket.description,
+      locale,
+      existingTicketId: ticket.id,
+    });
+  } catch (err) {
+    // La création a échoué : la demande redevient traitable par quelqu'un d'autre.
+    await prisma.ticket.updateMany({
+      where: { id: ticket.id, status: 'PENDING' },
+      data: { reviewedById: null, reviewedByName: null, reviewedAt: null },
+    }).catch(() => null);
+    throw err;
+  }
+
+  await updateTicketReviewCard(client, ticket, 'APPROVED', reviewer, null);
+
+  // Le membre n'est pas forcement encore devant Discord : le MP le ramene
+  // vers son ticket sans qu'il ait a surveiller la liste des salons.
+  if (opener) {
+    await opener.send({
+      embeds: [successEmbed('Demande de ticket acceptée', `Votre demande sur **${guild.name}** a été validée par <@${reviewer.id}>.\n\n${result.userMessage}`)],
+      allowedMentions: { parse: [] },
+    }).catch(() => null);
+  }
+
+  broadcastDashboardStateChange(guild.id, 'tickets_updated');
+  return { userMessage: result.userMessage, ticketId: result.ticketId };
+}
+
+/** Refuse une demande de ticket en attente et prévient le membre en MP. */
+export async function rejectPendingTicket(
+  client: Client,
+  guild: Guild,
+  ticket: Ticket,
+  reviewer: { id: string; username: string },
+  rejectionReason: string | null,
+): Promise<void> {
+  if (ticket.status !== 'PENDING') throw new TicketReviewError('⚠️ Cette demande a déjà été traitée.');
+  const { count } = await prisma.ticket.updateMany({
+    where: { id: ticket.id, status: 'PENDING', reviewedAt: null },
+    data: {
+      status: 'REJECTED',
+      rejectionReason,
+      reviewedById: reviewer.id,
+      reviewedByName: reviewer.username,
+      reviewedAt: new Date(),
+    },
+  });
+  if (count !== 1) throw new TicketReviewError('⚠️ Cette demande a déjà été traitée.');
+
+  await updateTicketReviewCard(client, ticket, 'REJECTED', reviewer, rejectionReason);
+
+  const opener = await client.users.fetch(ticket.userId).catch(() => null);
+  if (opener) {
+    await opener.send({
+      embeds: [errorEmbed(
+        'Demande de ticket refusée',
+        `Votre demande sur **${guild.name}** a été refusée.${rejectionReason ? `\n\n**Motif :** ${rejectionReason}` : ''}`,
+      )],
+      allowedMentions: { parse: [] },
+    }).catch(() => null);
+  }
+
+  broadcastDashboardStateChange(guild.id, 'tickets_updated');
+}
+
 async function updateTicketReviewCard(
   client: Client,
   ticket: { id: string; reviewChannelId: string | null; reviewMessageId: string | null; userId: string; username: string; reason: string; description: string; ticketTypeLabel: string | null },
@@ -2691,31 +2777,12 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
 
     const rejectionReason = interaction.fields.getTextInputValue('reason')?.trim() || null;
 
-    await prisma.ticket.update({
-      where: { id: ticket.id },
-      data: {
-        status: 'REJECTED',
-        rejectionReason,
-        reviewedById: interaction.user.id,
-        reviewedByName: interaction.user.username,
-        reviewedAt: new Date(),
-      },
-    });
-
-    await updateTicketReviewCard(client, ticket, 'REJECTED', interaction.user, rejectionReason);
-
-    const opener = await client.users.fetch(ticket.userId).catch(() => null);
-    if (opener) {
-      await opener.send({
-        embeds: [errorEmbed(
-          'Demande de ticket refusée',
-          `Votre demande sur **${guild.name}** a été refusée.${rejectionReason ? `\n\n**Motif :** ${rejectionReason}` : ''}`,
-        )],
-        allowedMentions: { parse: [] },
-      }).catch(() => null);
+    try {
+      await rejectPendingTicket(client, guild, ticket, { id: interaction.user.id, username: interaction.user.username }, rejectionReason);
+      await interaction.editReply({ content: '⛔ Demande refusée. Le membre a été prévenu en message privé.' });
+    } catch (err) {
+      await interaction.editReply({ content: approvalErrorMessage(err) });
     }
-
-    await interaction.editReply({ content: '⛔ Demande refusée. Le membre a été prévenu en message privé.' });
     return;
   }
 
