@@ -14,6 +14,7 @@ import { generateTranscript } from '../services/features/transcriptService.js';
 import { getDashboardUrl } from '../api/shared.js';
 import { mirrorModlogToStaffServer } from '../services/staff/staffServerService.js';
 import { recordScamImagesFromMessage } from '../services/moderation/scamFilterService.js';
+import { recordScamSignals } from '../services/moderation/scamDatasetService.js';
 import { INVITE_SOURCE, recordBotInvite } from '../services/analytics/inviteService.js';
 
 export function registerHoneypotListener(client: Client): void {
@@ -58,6 +59,15 @@ export function registerHoneypotListener(client: Client): void {
       if (message.attachments.size > 0) {
         await recordScamImagesFromMessage(message, 'HONEYPOT').catch((err) =>
           logger.error('Honeypot', `Enregistrement des images scam impossible (${guild.id}):`, err)
+        );
+      }
+
+      // Domaines et texte du message : le filtre anti-scam reconnaîtra ensuite la
+      // même campagne (même domaine, même texte recopié) sur ce serveur, puis sur
+      // tous une fois le seuil de promotion atteint.
+      if (message.content) {
+        await recordScamSignals(guild.id, message.content, 'HONEYPOT').catch((err) =>
+          logger.error('Honeypot', `Enregistrement des signaux scam impossible (${guild.id}):`, err)
         );
       }
 

@@ -7,15 +7,11 @@ import { fetchExternal } from '../../utils/http.js';
 import { getRaidProtectionConfig } from './raidProtectionService.js';
 import { registerWarnSanction, registerTimeoutSanction, registerBanSanction } from './sanctionService.js';
 import { analyzeImage, hammingDistance, PHASH_MATCH_THRESHOLD } from './imageForensics.js';
+import { LEGIT_DOMAINS, extractDomains, looksLikeFakeGiveaway } from './scamHeuristics.js';
+import { findKnownScamDomain, findKnownScamText, promoteImageIfWidespread } from './scamDatasetService.js';
 import type { RaidProtectionConfig } from '@prisma/client';
 
 // ── Heuristiques de détection d'arnaques (faux Nitro, phishing Steam/Discord…) ─
-
-// Domaines légitimes qui ne doivent jamais être bloqués
-const LEGIT_DOMAINS = new Set([
-  'discord.com', 'discord.gg', 'discordapp.com', 'discordapp.net', 'discord.gift',
-  'steamcommunity.com', 'steampowered.com', 'store.steampowered.com',
-]);
 
 // Patterns de domaines typiques des campagnes de scam
 const SCAM_DOMAIN_PATTERNS: RegExp[] = [
@@ -60,6 +56,36 @@ export function detectScam(content: string, config: RaidProtectionConfig): ScamD
   // 2. Analyse des combinaisons de texte
   for (const pattern of SCAM_TEXT_PATTERNS) {
     if (pattern.test(content)) return { matched: true, pattern: pattern.source };
+  }
+
+  // 3. Faux giveaway crypto/casino (célébrité + bonus + code promo…). Un domaine
+  // que le serveur a explicitement autorisé désarme ce contrôle : le staff qui
+  // annonce un vrai partenariat ne doit pas être bloqué par un cumul de mots.
+  const mentionsWhitelisted = extractDomains(content).some((d) => whitelist.has(d));
+  if (!mentionsWhitelisted) {
+    const giveaway = looksLikeFakeGiveaway(content);
+    if (giveaway.matched) {
+      return { matched: true, pattern: `fake_giveaway:${giveaway.signals.join('+')}` };
+    }
+  }
+
+  return { matched: false };
+}
+
+/**
+ * Contrôles qui interrogent le jeu de données (alimenté par le honeypot) :
+ * domaine déjà vu dans une arnaque, texte copié-collé d'une arnaque connue.
+ */
+async function detectKnownScam(guildId: string, content: string, config: RaidProtectionConfig): Promise<ScamDetection> {
+  const whitelist = new Set(config.scamFilterWhitelist.map((d) => d.toLowerCase()));
+
+  const domain = await findKnownScamDomain(guildId, content);
+  if (domain && !whitelist.has(domain)) {
+    return { matched: true, domain, pattern: 'known_scam_domain' };
+  }
+
+  if (await findKnownScamText(guildId, content)) {
+    return { matched: true, pattern: 'known_scam_text' };
   }
 
   return { matched: false };
@@ -143,6 +169,7 @@ export async function recordScamImagesFromMessage(
         // Une entrée créée avant l'ajout du perceptuel peut être complétée.
         update: image.phash ? { phash: image.phash } : {},
       });
+      await promoteImageIfWidespread(image.sha256, image.phash, image.name);
       recorded++;
     } catch (err) {
       logger.error('ScamFilter', `Enregistrement du hash d'image impossible (${message.guild.id})`, err);
@@ -271,6 +298,12 @@ export async function handleScamMessage(message: Message): Promise<boolean> {
   if (message.member.permissions.has(PermissionFlagsBits.ManageMessages)) return false;
 
   let detection: ScamDetection = message.content ? detectScam(message.content, config) : { matched: false };
+  if (!detection.matched && message.content) {
+    detection = await detectKnownScam(message.guild.id, message.content, config).catch((err) => {
+      logger.error('ScamFilter', `Contrôle du jeu de données impossible (${message.guild!.id})`, err);
+      return { matched: false } as ScamDetection;
+    });
+  }
   let reason = `Lien d'arnaque détecté${detection.matched && detection.domain ? ` (${detection.domain})` : ''}`;
 
   // Analyse d'image : une seule fois pour tous les contrôles qui en dépendent.
