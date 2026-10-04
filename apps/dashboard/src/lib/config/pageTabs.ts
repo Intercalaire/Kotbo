@@ -190,6 +190,7 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
     { id: 'boost', label: () => m.announcements_tab_boost(), icon: 'Zap' },
     { id: 'autoroles', label: () => m.announcements_tab_autoroles(), icon: 'Shield' },
     { id: 'thread', label: () => m.announcements_tab_thread(), icon: 'chat' },
+    { id: 'experiments', label: () => m.wx_tab(), icon: 'git-branch' },
   ],
 
   '/news': [
