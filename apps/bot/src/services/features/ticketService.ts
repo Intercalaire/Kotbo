@@ -2946,6 +2946,9 @@ export async function relayDmToThread(client: Client, message: Message): Promise
 
     const files = message.attachments.map(a => a.url);
     await (thread as ThreadChannel).send({ embeds: [relayEmbed], files, allowedMentions: { parse: [] } });
+    // Le message du membre arrive par MP : le relais est signé du bot, le
+    // suivi du tour de parole ne le verrait pas passer.
+    await prisma.ticket.update({ where: { id: ticket.id }, data: { lastMemberMessageAt: message.createdAt } }).catch(() => null);
 
     await message.react('✅').catch(() => null);
   } catch (err) {
@@ -3012,6 +3015,26 @@ export async function recordTicketFirstResponse(message: Message): Promise<void>
       OR: [{ channelId: message.channelId }, { threadId: message.channelId }],
     },
     data: { firstResponseAt: message.createdAt, firstResponderId: message.author.id },
+  });
+}
+
+/**
+ * Tour de parole : date du dernier message de l'auteur du ticket et de celui
+ * du staff. C'est ce qui range un ticket dans « en attente du staff » sans
+ * relire le salon. Deux écritures conditionnelles, l'une ou l'autre seulement
+ * touchant une ligne.
+ */
+export async function recordTicketTurn(message: Message): Promise<void> {
+  if (message.author.bot || !message.guildId) return;
+  if (!(await mayBeTicketChannel(message.channelId))) return;
+  const inTicket = { OR: [{ channelId: message.channelId }, { threadId: message.channelId }] };
+  await prisma.ticket.updateMany({
+    where: { guildId: message.guildId, userId: message.author.id, ...inTicket },
+    data: { lastMemberMessageAt: message.createdAt },
+  });
+  await prisma.ticket.updateMany({
+    where: { guildId: message.guildId, userId: { not: message.author.id }, status: { in: ['OPEN', 'CLAIMED'] }, ...inTicket },
+    data: { lastStaffMessageAt: message.createdAt },
   });
 }
 

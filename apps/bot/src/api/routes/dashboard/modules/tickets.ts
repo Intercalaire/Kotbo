@@ -1100,6 +1100,12 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         }
 
         const sent = await discordChannel.send(`💬 **[Kotbo Dashboard - ${user.username}]** ${body.content}`);
+        // Envoyé sous le nom du bot : le suivi du tour de parole, qui ignore les
+        // bots, ne le compterait pas comme une réponse du staff.
+        await prisma.ticket.update({
+          where: { id: ticket.id },
+          data: { lastStaffMessageAt: sent.createdAt, ...(ticket.firstResponseAt ? {} : { firstResponseAt: sent.createdAt, firstResponderId: user.userId }) },
+        }).catch(() => null);
         
         json(res, 200, {
           success: true,
