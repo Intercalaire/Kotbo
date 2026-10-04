@@ -11374,6 +11374,7 @@
   "eco_tower_import_all_invalid_card": "Invalid tower file: map {card} is not a valid floor.",
   "eco_tower_import_all_confirm": "Replace the tower with the {cards} map(s) from the file?",
   "eco_tower_import_all_confirm_desc": "The {current} current map(s) will be replaced once the tower is saved. Until then, reloading the page restores them.",
+  "eco_tower_import_all_confirm_button": "Replace",
   "eco_tower_map_power_value_reward": "Power: {percent}%, rewards included",
   "eco_tower_map_power_reward": "Rewards follow too ({factor} gold and loot chance)",
   "eco_tower_map_power_reward_tip": "Unchecked: the room is harder (or easier) without paying more (or less). Handy for a punishing guardian.",

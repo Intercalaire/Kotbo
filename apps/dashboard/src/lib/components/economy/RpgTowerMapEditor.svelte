@@ -958,6 +958,7 @@
     const confirmed = await confirmDialog.danger(
       m.eco_tower_import_all_confirm({ cards: parsed.length }),
       m.eco_tower_import_all_confirm_desc({ current: floors.length }),
+      m.eco_tower_import_all_confirm_button(),
     );
     if (!confirmed) return;
     floors = parsed;
