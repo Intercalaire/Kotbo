@@ -444,6 +444,7 @@ model Guild {
   analyticsSavedViews AnalyticsSavedView[]
   commandUsageDailyStats CommandUsageDailyStat[]
   contentItemDailyStats ContentItemDailyStat[]
+  outgoingWebhooks OutgoingWebhook[]
   memberInvites MemberInvite[]
   guildInvites  GuildInvite[]
   suspendedInviters SuspendedInviter[]
