@@ -398,6 +398,7 @@ model Guild {
   giveawayTemplates GiveawayTemplate[]
   giveawayConfigPresets GiveawayConfigPreset[]
   welcomeConfig WelcomeConfig?
+  welcomeExperiments WelcomeExperiment[]
   welcomeThreadConfig WelcomeThreadConfig?
   reactionRoleMenus ReactionRoleMenu[]
   autoResponses AutoResponse[]
