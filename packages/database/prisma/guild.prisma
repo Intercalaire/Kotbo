@@ -553,6 +553,14 @@ model Guild {
   ticketSlaFirstResponseMinutes Int?
   ticketSlaResolutionHours      Int?
 
+  // Avertissement d'enregistrement, montré au membre (lui seul) avant la
+  // création de son ticket : conservation, transcription à la fermeture,
+  // archivage. Le ticket n'est créé qu'après le délai de lecture.
+  ticketRecordingNoticeEnabled Boolean @default(true)
+  ticketRecordingNoticeSeconds Int     @default(10)
+  // Texte propre au serveur ; vide = texte par défaut.
+  ticketRecordingNoticeText    String?
+
   // Catégorie où sont rangés les salons des tickets archivés. Vide = le salon
   // reste où il est, seules ses permissions passent en lecture seule.
   ticketArchiveCategoryId     String?
