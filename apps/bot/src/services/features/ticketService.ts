@@ -13,6 +13,7 @@ import { broadcastDashboardStateChange } from '../../api/shared/sharding.js';
 import { COLORS, COLORS_RAW, successEmbed, errorEmbed, v2 } from '../../utils/embeds.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 import { generateTranscript } from './transcriptService.js';
+import { beginTicketOpening, endTicketOpening, showRecordingNotice } from './ticketRecordingNotice.js';
 import { resolveExecutor } from '../analytics/auditDiffService.js';
 import { buildMemberCasePanel } from '../moderation/memberCaseService.js';
 import { handleTicketTrigger } from './autoResponseService.js';
@@ -2586,13 +2587,24 @@ export async function executeTicketCreation(
   // d'accueil est lu dans le salon par tous ceux qui y ont acces.
   const locale = await resolveGuildLocale(guildId, guild.preferredLocale);
 
+  // Pendant le délai de lecture, un second clic ne doit pas lancer une
+  // seconde création : les contrôles de doublon ne voient le ticket qu'une
+  // fois écrit en base.
+  if (!beginTicketOpening(guildId, user.id)) {
+    await interaction.editReply({ content: '⏳ Ton ticket est déjà en préparation, il arrive dans quelques secondes.' });
+    return null;
+  }
+
   try {
+    // Avertissement d'enregistrement, lu avant que le ticket n'existe.
+    await showRecordingNotice(interaction, guildConfig);
+
     const params = { guild, user, ticketType, guildConfig, reason, description, locale };
     const result = resolveRequireApproval(ticketType, guildConfig)
       ? await createPendingTicketRequest(client, params)
       : await createTicketWorkspace(client, params);
 
-    await interaction.editReply({ content: result.userMessage });
+    await interaction.editReply({ content: result.userMessage, embeds: [] });
     return result.ticketId;
   } catch (err) {
     logger.error('Ticket', 'Error creating ticket:', err);
@@ -2602,8 +2614,10 @@ export async function executeTicketCreation(
     const message = err instanceof Error && err.message.startsWith('❌')
       ? err.message
       : "❌ Une erreur est survenue lors de l'ouverture du ticket. Veuillez contacter un administrateur.";
-    await interaction.editReply({ content: message });
+    await interaction.editReply({ content: message, embeds: [] });
     return null;
+  } finally {
+    endTicketOpening(guildId, user.id);
   }
 }
 
@@ -2810,6 +2824,18 @@ async function handleDmDirectTicket(
 
   const reason = interaction.fields.getTextInputValue('reason');
   const description = interaction.fields.getTextInputValue('description');
+
+  // Même avertissement d'enregistrement qu'à l'ouverture depuis le serveur.
+  if (!beginTicketOpening(targetGuildId, user.id)) {
+    await interaction.editReply({ content: '⏳ Ton ticket est déjà en préparation, il arrive dans quelques secondes.' });
+    return;
+  }
+  try {
+    await showRecordingNotice(interaction, guildConfig);
+  } finally {
+    endTicketOpening(targetGuildId, user.id);
+  }
+  await interaction.editReply({ embeds: [] }).catch(() => null);
 
   const ticketStaffRoleId = guildConfig.ticketStaffRoleId || null;
   const staffMention = ticketStaffRoleId ? `<@&${ticketStaffRoleId}>` : null;
