@@ -1,4 +1,4 @@
-import prisma from './db.js';
+import prisma, { upsertRetryingRace } from './db.js';
 
 let cached: string | null = null;
 
@@ -14,11 +14,11 @@ let cached: string | null = null;
 export async function getMachineFingerprint(): Promise<string> {
   if (cached) return cached;
 
-  const row = await prisma.localInstanceIdentity.upsert({
+  const row = await upsertRetryingRace(() => prisma.localInstanceIdentity.upsert({
     where: { id: 'singleton' },
     update: {},
     create: { id: 'singleton' },
-  });
+  }));
 
   cached = row.machineFingerprint;
   return cached;

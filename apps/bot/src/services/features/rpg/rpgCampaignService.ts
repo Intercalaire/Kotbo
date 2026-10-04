@@ -8,7 +8,7 @@
  */
 
 import type { Prisma } from '@prisma/client';
-import prisma from '../../../utils/db.js';
+import prisma, { upsertRetryingRace } from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import {
   FIRST_CHAPTER_ID,
@@ -27,11 +27,11 @@ import type { RpgQuestObjective } from './rpgQuestPolicy.js';
 
 /** Progression d'un joueur, créée à la volée au premier accès. */
 async function getOrCreateProgress(guildId: string, userId: string) {
-  return prisma.rpgCampaignProgress.upsert({
+  return upsertRetryingRace(() => prisma.rpgCampaignProgress.upsert({
     where: { guildId_userId: { guildId, userId } },
     create: { guildId, userId, chapterId: FIRST_CHAPTER_ID },
     update: {},
-  });
+  }));
 }
 
 export type CampaignStepView = {

@@ -9,7 +9,7 @@
 
 import { EmbedBuilder, type Client } from 'discord.js';
 import { Prisma, type RpgTowerReward, type RpgTowerRun } from '@prisma/client';
-import prisma from '../../../utils/db.js';
+import prisma, { upsertRetryingRace } from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { resolveGuildLocale } from '../../../utils/i18n.js';
 import { resolveGuildTimezone } from '../../../utils/timezone.js';
@@ -273,11 +273,11 @@ export async function isTowerOpen(guildId: string): Promise<boolean> {
 }
 
 export async function getOrCreateTowerProfile(guildId: string, userId: string) {
-  return prisma.rpgTowerProfile.upsert({
+  return upsertRetryingRace(() => prisma.rpgTowerProfile.upsert({
     where: { guildId_userId: { guildId, userId } },
     update: {},
     create: { guildId, userId },
-  });
+  }));
 }
 
 /** Record de tous les temps du serveur, relu au plus une fois par minute : il s'affiche à chaque pas. */

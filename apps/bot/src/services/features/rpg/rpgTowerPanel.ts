@@ -162,7 +162,12 @@ import { listClanTowerStandings } from './rpgClanTowerService.js';
 import type { ClanTowerBonus } from './rpgClanTowerPolicy.js';
 
 const COLOR = RPG_COLORS.combat;
-const REWARDS_PER_PAGE = 4;
+/**
+ * Articles par page de la boutique, améliorations et récompenses confondues. Chaque article
+ * est une section (trois composants) : les améliorations s'affichaient toutes en plus des
+ * récompenses, et au-delà de six l'écran dépassait les 40 composants permis par Discord.
+ */
+const SHOP_ENTRIES_PER_PAGE = 6;
 
 type TowerRoute = { action: string; ownerId: string; rest: string[] };
 
@@ -1838,10 +1843,21 @@ async function buildTowerShopView(guildId: string, ownerId: string, locale: Loca
   ].join('\n'));
   separator(container);
 
-  if (shop.upgrades.length > 0) {
+  const entries = [
+    ...shop.upgrades.map((upgrade) => ({ kind: 'upgrade' as const, upgrade })),
+    ...shop.rewards.map((reward) => ({ kind: 'reward' as const, reward })),
+  ];
+  const pageCount = Math.max(1, Math.ceil(entries.length / SHOP_ENTRIES_PER_PAGE));
+  const current = Math.min(Math.max(0, page), pageCount - 1);
+  const shown = entries.slice(current * SHOP_ENTRIES_PER_PAGE, (current + 1) * SHOP_ENTRIES_PER_PAGE);
+
+  const shownUpgrades = shown.flatMap((entry) => (entry.kind === 'upgrade' ? [entry.upgrade] : []));
+  const shownRewards = shown.flatMap((entry) => (entry.kind === 'reward' ? [entry.reward] : []));
+
+  if (shownUpgrades.length > 0) {
     textBlock(container, `### ${m.tower_shop_upgrades_title({}, { locale })}\n-# ${m.tower_shop_upgrades_hint({}, { locale })}`);
   }
-  for (const upgrade of shop.upgrades) {
+  for (const upgrade of shownUpgrades) {
     const level = shop.levels[upgrade.id] ?? 0;
     const maxed = level >= upgrade.maxLevel;
     const cost = towerUpgradeCost(upgrade, level);
@@ -1856,7 +1872,7 @@ async function buildTowerShopView(guildId: string, ownerId: string, locale: Loca
         500,
       )))
       .setButtonAccessory(button(
-        `twr:upg:${ownerId}:${upgrade.id}:${page}`,
+        `twr:upg:${ownerId}:${upgrade.id}:${current}`,
         maxed ? m.tower_shop_maxed({}, { locale }) : String(cost),
         ButtonStyle.Success,
         maxed ? undefined : shardButtonEmoji(config),
@@ -1864,13 +1880,14 @@ async function buildTowerShopView(guildId: string, ownerId: string, locale: Loca
       )));
   }
 
-  separator(container);
-  textBlock(container, `### ${m.tower_shop_rewards_title({}, { locale })}`);
-  const pageCount = Math.max(1, Math.ceil(shop.rewards.length / REWARDS_PER_PAGE));
-  const current = Math.min(Math.max(0, page), pageCount - 1);
-  const shown = shop.rewards.slice(current * REWARDS_PER_PAGE, (current + 1) * REWARDS_PER_PAGE);
-  if (shown.length === 0) textBlock(container, `*${m.tower_shop_empty({}, { locale })}*`);
-  for (const reward of shown) {
+  // Les récompenses commencent sur la page où les améliorations s'arrêtent.
+  const noRewards = shop.rewards.length === 0 && current === pageCount - 1;
+  if (shownRewards.length > 0 || noRewards) {
+    if (shownUpgrades.length > 0) separator(container);
+    textBlock(container, `### ${m.tower_shop_rewards_title({}, { locale })}`);
+  }
+  if (noRewards) textBlock(container, `*${m.tower_shop_empty({}, { locale })}*`);
+  for (const reward of shownRewards) {
     const owned = !reward.repeatable && shop.profile.claimedRewardIds.includes(reward.id);
     const bought = shop.purchases[reward.id] ?? 0;
     const limited = reward.maxPurchases > 0;

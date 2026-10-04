@@ -11,7 +11,7 @@
  * chaque duel. Le coût du duel est l'énergie et le temps d'attente, pas la santé.
  */
 
-import prisma from '../../../utils/db.js';
+import prisma, { upsertRetryingRace } from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { loadAvailableSkills, loadEffectiveStats } from '../combatService.js';
 import { computeAttack } from './rpgCombatMath.js';
@@ -70,11 +70,11 @@ function toRecordView(record: {
 
 /** Classement d'un joueur, créé à la volée au premier accès. */
 export async function getOrCreateArenaRecord(guildId: string, userId: string) {
-  return prisma.rpgArenaRecord.upsert({
+  return upsertRetryingRace(() => prisma.rpgArenaRecord.upsert({
     where: { guildId_userId: { guildId, userId } },
     create: { guildId, userId, rating: ARENA_START_RATING, bestRating: ARENA_START_RATING },
     update: {},
-  });
+  }));
 }
 
 export type ArenaTurn = {

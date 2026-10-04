@@ -1,6 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
-import prisma from '../../../utils/db.js';
+import prisma, { upsertRetryingRace } from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, getGuildName, pushAudit, broadcastDashboardStateChange, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import { clanTasks, runDistribution, runClear, runClanArtifactCleanup, handleEndSeason, settleRaidBeforeSeasonEnd } from '../../../services/community/clanService.js';
@@ -1215,11 +1215,11 @@ export async function handleClansRoutes(
 
         // S'assurer que le profil membre existe en base de données. Le membre
         // Discord est résolu avant, pour ne jamais créer de profil anonyme.
-        await prisma.memberProfile.upsert({
+        await upsertRetryingRace(() => prisma.memberProfile.upsert({
           where: { guildId_userId: { guildId, userId } },
           update: {},
           create: { guildId, userId, ...memberProfileIdentity(member) },
-        }).catch(() => null);
+        })).catch(() => null);
 
         const clans = await prisma.clan.findMany({ where: { guildId } });
         const memberClan = clans.find(c => member.roles.cache.has(c.roleId));

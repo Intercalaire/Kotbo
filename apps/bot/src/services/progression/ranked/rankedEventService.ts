@@ -16,7 +16,7 @@ import {
   type RankedEventType,
   type RpSource,
 } from '@kotbo/shared';
-import prisma, { prismaRead } from '../../../utils/db.js';
+import prisma, { prismaRead, upsertRetryingRace } from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { cache } from '../../../utils/cache.js';
 import { resolveGuildLocale } from '../../../utils/i18n.js';
@@ -134,7 +134,7 @@ export async function createRankedEvent(guildId: string, input: CreateRankedEven
   if (!(endsAt instanceof Date) || Number.isNaN(endsAt.getTime())) throw new Error('endsAt invalide');
   if (endsAt <= startsAt) throw new Error('La fin doit suivre le début');
 
-  await prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } });
+  await upsertRetryingRace(() => prisma.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } }));
 
   const event = await prisma.rankedEvent.create({
     data: {

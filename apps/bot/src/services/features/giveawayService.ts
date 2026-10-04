@@ -4,7 +4,7 @@ import type { Prisma } from '@prisma/client';
 import { getLocale, resolveGuildLocale, type BotLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, type ButtonInteraction, type ColorResolvable, type Guild, type Message, type MessageMentionOptions } from 'discord.js';
-import prisma from '../../utils/db.js';
+import prisma, { upsertRetryingRace } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 import { isStaffServerGuild } from '../staff/staffServerService.js';
@@ -1289,7 +1289,7 @@ async function distributeGiveawayPrizes(giveaway: {
           `Objet ${rpgItemId} introuvable sur ${giveaway.guildId} : lot du concours « ${giveaway.prize} » non remis à ${userId}.`,
         );
       } else {
-        const profile = await prisma.rpgProfile.upsert({
+        const profile = await upsertRetryingRace(() => prisma.rpgProfile.upsert({
           where: { guildId_userId: { guildId: giveaway.guildId, userId } },
           update: {},
           create: {
@@ -1305,7 +1305,7 @@ async function distributeGiveawayPrizes(giveaway: {
             defense: 10,
             speed: 10
           }
-        });
+        }));
 
         await prisma.rpgInventoryItem.upsert({
           where: {
