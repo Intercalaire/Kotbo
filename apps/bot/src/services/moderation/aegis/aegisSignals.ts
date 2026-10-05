@@ -12,13 +12,20 @@ import type { AegisEmotion } from './aegisClient.js';
 export type ToxicDecision = 'auto' | 'review' | 'none';
 
 /**
- * Au-dessus du seuil automatique le bot agit seul, sauf si la note arrive en
- * retard : supprimer un message vieux de plusieurs minutes déroute le salon,
- * le staff tranche alors.
+ * Au-dessus du seuil automatique le bot agit seul, sauf :
+ * - si la note arrive en retard : supprimer un message vieux de plusieurs
+ *   minutes déroute le salon ;
+ * - si l'auteur est exempté (administrateur, rôle ou salon exempté) : il est
+ *   noté comme tout le monde, mais c'est le staff qui tranche.
  */
-export function decideToxicity(toxicity: number, thresholds: { reviewThreshold: number; autoThreshold: number }, late: boolean): ToxicDecision {
+export function decideToxicity(
+  toxicity: number,
+  thresholds: { reviewThreshold: number; autoThreshold: number },
+  late: boolean,
+  exempt = false,
+): ToxicDecision {
   const points = toxicity * 100;
-  if (points >= thresholds.autoThreshold) return late ? 'review' : 'auto';
+  if (points >= thresholds.autoThreshold) return late || exempt ? 'review' : 'auto';
   if (points >= thresholds.reviewThreshold) return 'review';
   return 'none';
 }

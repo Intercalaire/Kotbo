@@ -20,6 +20,12 @@ describe('decideToxicity', () => {
   test('une note en retard ne supprime plus, elle part en revue', () => {
     expect(decideToxicity(0.99, thresholds, true)).toBe('review');
   });
+
+  test("un membre exempté est noté, mais jamais sanctionné d'office", () => {
+    expect(decideToxicity(0.99, thresholds, false, true)).toBe('review');
+    expect(decideToxicity(0.85, thresholds, false, true)).toBe('review');
+    expect(decideToxicity(0.1, thresholds, false, true)).toBe('none');
+  });
 });
 
 describe('isHeated', () => {
