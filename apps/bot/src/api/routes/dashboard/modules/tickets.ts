@@ -972,6 +972,10 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
               closedAt: true,
               lastMemberMessageAt: true,
               lastStaffMessageAt: true,
+              // Humeur du demandeur (Kotbo × AegisAI).
+              moodLabel: true,
+              moodScore: true,
+              peakToxicity: true,
             },
           }),
           prisma.guild.findUnique({

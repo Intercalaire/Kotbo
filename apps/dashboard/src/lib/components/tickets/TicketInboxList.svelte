@@ -12,6 +12,7 @@
   import { FilterPills, type FilterOption } from '../ui';
   import { m } from '../../i18n';
   import type { InboxTicket, InboxView } from '../../api';
+  import { EMOTION_COLORS, emotionLabel } from '../aegis/aegisFormat';
 
   const {
     tickets,
@@ -200,6 +201,11 @@
                 <span class="inbox-chip {ticket.priority === 'URGENT' ? 'bg-error/10 text-error' : 'bg-warning/10 text-warning'}">{ticket.priority === 'URGENT' ? m.th_priority_urgent() : m.th_priority_high()}</span>
               {/if}
               {#if badge}<span class="inbox-chip {badge.tone}">{badge.label}</span>{/if}
+              {#if ticket.moodLabel === 'anger' || ticket.moodLabel === 'sad' || ticket.moodLabel === 'fear'}
+                <span class="inbox-chip bg-surface-container text-on-surface-variant" title={m.aegis_ticket_mood({ mood: emotionLabel(ticket.moodLabel) })}>
+                  <span class="inbox-mood" style="background: {EMOTION_COLORS[ticket.moodLabel]};" aria-hidden="true"></span>{emotionLabel(ticket.moodLabel)}
+                </span>
+              {/if}
               {#if ticket.waitingOn === 'member'}<span class="inbox-chip bg-surface-container text-on-surface-variant">{m.th_waiting_member()}</span>{/if}
               {#each ticket.tags.slice(0, 3) as tag (tag)}<span class="inbox-chip bg-surface-container text-on-surface-variant">#{tag}</span>{/each}
               {#if ticket.claimedByName}
@@ -246,6 +252,14 @@
     border-color: color-mix(in srgb, var(--primary) 45%, transparent);
     background: color-mix(in srgb, var(--primary) 7%, transparent);
   }
+  .inbox-mood {
+    display: inline-block;
+    width: 0.4375rem;
+    height: 0.4375rem;
+    margin-right: 0.25rem;
+    border-radius: 999px;
+  }
+
   .inbox-row__priority {
     position: absolute;
     left: 0.3rem;
