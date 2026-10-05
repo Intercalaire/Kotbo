@@ -13207,5 +13207,8 @@
   "tr_reject_desc": "The member receives the rejection by DM, with the reason if there is one.",
   "tr_reject_reason": "Reason given to the member",
   "tr_reject_reason_ph": "E.g. already handled, not enough information…",
-  "tr_reject_confirm": "Reject request"
+  "tr_reject_confirm": "Reject request",
+  "th_previous_period": "Previous period",
+  "th_compare_previous": "Compare with previous period",
+  "th_kpi_oldest": "Oldest open"
 }
