@@ -191,6 +191,13 @@
               {#if d.messageId && d.status !== 'AUTO' && d.source !== 'NICKNAME'}
                 <Button size="sm" variant="ghost" iconRight="external-link" href={messageUrl(d)} target="_blank">{m.aegis_open_message()}</Button>
               {/if}
+              {#if d.evidenceUrl}
+                <Button size="sm" variant="ghost" icon="file-text" href={d.evidenceUrl} target="_blank">{m.aegis_evidence()}</Button>
+              {/if}
+            </div>
+          {:else if d.evidenceUrl}
+            <div class="card__actions">
+              <Button size="sm" variant="ghost" icon="file-text" href={d.evidenceUrl} target="_blank">{m.aegis_evidence()}</Button>
             </div>
           {/if}
         </li>

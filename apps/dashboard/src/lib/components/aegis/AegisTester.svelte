@@ -64,6 +64,7 @@
       <AegisScale {review} {auto} marker={points(result.toxicity)} />
       <div class="tester__facts">
         <p class="tester__verdict {zone ? ZONE_TONE[zone] : ''}">{verdict}</p>
+        {#if result.saved}<p class="tester__shared">{m.aegis_test_shared()}</p>{/if}
         <dl>
           <div>
             <dt>{m.aegis_test_toxicity()}</dt>
@@ -120,6 +121,14 @@
     margin: 0;
     font-size: 0.875rem;
     font-weight: 600;
+  }
+
+  .tester__shared {
+    margin: 0;
+    width: 100%;
+    order: 3;
+    font-size: 0.75rem;
+    color: var(--color-on-surface-variant);
   }
 
   dl {

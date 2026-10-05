@@ -66,7 +66,6 @@ export interface AegisStatus {
     processed: number;
     failed: number;
     dropped: number;
-    emotionsShed: number;
   };
 }
 
@@ -84,6 +83,8 @@ export interface AegisTestResult {
   toxicity: number;
   emotion: { label: AegisEmotion; score: number };
   decision: 'auto' | 'review' | 'none';
+  /** Envoyée avec `save: true` : le serveur partage pour l'entraînement. */
+  saved: boolean;
 }
 
 export interface AegisDetection {
@@ -104,6 +105,8 @@ export interface AegisDetection {
   status: AegisDetectionStatus;
   late: boolean;
   sanctionId: string | null;
+  /** Transcription du salon prise avant tout retrait. */
+  evidenceUrl: string | null;
   previousSlowmode: number | null;
   restoreAt: string | null;
   restoredAt: string | null;
