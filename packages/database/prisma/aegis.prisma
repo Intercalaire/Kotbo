@@ -89,6 +89,11 @@ model AegisDetection {
   late   Boolean @default(false)
 
   sanctionId     String?
+  // Escalade : mode lent posé par le module, à lever à `restoreAt` en
+  // remettant `previousSlowmode` (survit à un redémarrage du bot).
+  previousSlowmode Int?
+  restoreAt        DateTime?
+  restoredAt       DateTime?
   alertChannelId String?
   alertMessageId String?
   reviewedById   String?
@@ -101,6 +106,7 @@ model AegisDetection {
   @@index([guildId, createdAt])
   @@index([guildId, status, createdAt])
   @@index([guildId, authorId, createdAt])
+  @@index([restoreAt])
   @@map("aegis_detections")
 }
 

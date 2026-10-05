@@ -57,6 +57,9 @@ CREATE TABLE IF NOT EXISTS "aegis_detections" (
     "status" TEXT NOT NULL DEFAULT 'PENDING',
     "late" BOOLEAN NOT NULL DEFAULT false,
     "sanctionId" TEXT,
+    "previousSlowmode" INTEGER,
+    "restoreAt" TIMESTAMP(3),
+    "restoredAt" TIMESTAMP(3),
     "alertChannelId" TEXT,
     "alertMessageId" TEXT,
     "reviewedById" TEXT,
@@ -67,6 +70,7 @@ CREATE TABLE IF NOT EXISTS "aegis_detections" (
 CREATE INDEX IF NOT EXISTS "aegis_detections_guildId_createdAt_idx" ON "aegis_detections"("guildId", "createdAt");
 CREATE INDEX IF NOT EXISTS "aegis_detections_guildId_status_createdAt_idx" ON "aegis_detections"("guildId", "status", "createdAt");
 CREATE INDEX IF NOT EXISTS "aegis_detections_guildId_authorId_createdAt_idx" ON "aegis_detections"("guildId", "authorId", "createdAt");
+CREATE INDEX IF NOT EXISTS "aegis_detections_restoreAt_idx" ON "aegis_detections"("restoreAt");
 DO $$ BEGIN
     ALTER TABLE "aegis_detections" ADD CONSTRAINT "aegis_detections_guildId_fkey"
         FOREIGN KEY ("guildId") REFERENCES "guilds"("id") ON DELETE CASCADE ON UPDATE CASCADE;
