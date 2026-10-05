@@ -14,6 +14,7 @@
   import Skeleton from '../Skeleton.svelte';
   import MemberCaseModal from '../MemberCaseModal.svelte';
   import BarList from '../analytics/BarList.svelte';
+  import MemberClimateCard from '../aegis/MemberClimateCard.svelte';
   import { fmtNumber } from '../analytics/analyticsFormat';
   import { Button, Callout, EmptyState, FilterPills, SectionCard, type FilterOption } from '../ui';
   import { memberAvatarSrc } from '../../discordMedia';
@@ -24,6 +25,7 @@
     fetchMemberSummary,
     fetchMemberTimeline,
     type MemberActivityStats,
+    type MemberClimate,
     type MemberSummary,
     type TimelineCategory,
     type TimelineItem,
@@ -37,6 +39,7 @@
   let caseError = $state('');
   let summary = $state<MemberSummary | null>(null);
   let stats = $state<MemberActivityStats | null>(null);
+  let climate = $state<MemberClimate | null>(null);
   let summaryLoading = $state(true);
 
   async function loadCase(id: string) {
@@ -57,9 +60,11 @@
       const res = await fetchMemberSummary(id);
       summary = res?.summary ?? null;
       stats = res?.insights ?? null;
+      climate = res?.climate ?? null;
     } catch {
       summary = null;
       stats = null;
+      climate = null;
     } finally {
       summaryLoading = false;
     }
@@ -70,6 +75,7 @@
     caseData = null;
     summary = null;
     stats = null;
+    climate = null;
     void loadCase(id);
     void loadSummary(id);
   });
@@ -411,6 +417,10 @@
             </p>
           </div>
         </SectionCard>
+
+        {#if climate}
+          <MemberClimateCard {climate} />
+        {/if}
 
         <SectionCard title={m.mp_where()}>
           <div class="px-5 pb-5 pt-3">
