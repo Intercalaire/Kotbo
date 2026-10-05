@@ -8,7 +8,8 @@ import { jsonFailure } from '../../shared/failure.js';
 import { getAegisClient, AegisRequestError, AegisUnavailableError } from '../../../services/moderation/aegis/aegisClient.js';
 import { AegisConfigError, invalidateAegisConfig, sanitizeAegisPatch } from '../../../services/moderation/aegis/aegisConfig.js';
 import { getAegisQueueStats } from '../../../services/moderation/aegis/aegisQueue.js';
-import { chunkText, prepareText } from '../../../services/moderation/aegis/aegisText.js';
+import { prepareText } from '../../../services/moderation/aegis/aegisText.js';
+import { scanText } from '../../../services/moderation/aegis/aegisProcessor.js';
 import { decideToxicity } from '../../../services/moderation/aegis/aegisSignals.js';
 import { confirmDetection, dismissDetection, unslowDetection } from '../../../services/moderation/aegis/aegisActions.js';
 
@@ -64,7 +65,7 @@ function canReview(access: DashboardAccess): boolean {
  *
  *   GET    /aegis                              réglages, état de l'API et de la file
  *   PATCH  /aegis                              réglages (consentement d'entraînement compris)
- *   POST   /aegis/test                         noter une phrase, sans rien enregistrer
+ *   POST   /aegis/test                         noter une phrase (partagée si le serveur l'a accepté)
  *   GET    /aegis/detections                   détections (filtres status, kind, before)
  *   POST   /aegis/detections/:id/confirm       confirmer (sanction pour un message toxique)
  *   POST   /aegis/detections/:id/dismiss       faux positif (défait l'action automatique)
@@ -176,15 +177,16 @@ export async function handleAegisRoutes(
         return true;
       }
       const config = (await prisma.aegisConfig.findUnique({ where: { guildId } })) ?? defaultConfig(guildId);
-      // Un essai ne nourrit jamais l'entraînement, quel que soit le réglage.
-      let toxicity = 0;
-      for (const chunk of chunkText(text)) toxicity = Math.max(toxicity, (await api.toxicity(chunk, false)).toxicity);
-      const emotion = await api.emotion(chunkText(text)[0]!);
+      // Même règle que les messages : partagé pour l'entraînement seulement si
+      // le serveur l'a accepté (Vie privée).
+      const save = config.trainingConsent === true;
+      const scan = await scanText(text, save, config.autoThreshold);
       json(res, 200, {
         text,
-        toxicity,
-        emotion,
-        decision: decideToxicity(toxicity, config, false),
+        toxicity: scan.toxicity,
+        emotion: scan.emotion,
+        decision: decideToxicity(scan.toxicity, config, false),
+        saved: save,
       });
       return true;
     }
