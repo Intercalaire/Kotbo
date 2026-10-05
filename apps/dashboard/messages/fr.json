@@ -13210,5 +13210,14 @@
   "tr_reject_confirm": "Refuser la demande",
   "th_previous_period": "Période d'avant",
   "th_compare_previous": "Comparer à la période d'avant",
-  "th_kpi_oldest": "Plus ancien en cours"
+  "th_kpi_oldest": "Plus ancien en cours",
+  "tmp_label": "Profil de l'auteur du ticket",
+  "tmp_member_since": "Membre depuis",
+  "tmp_record": "Casier",
+  "tmp_record_clean": "Aucune sanction.",
+  "tmp_warn": "Avert.",
+  "tmp_timeout": "Sourdine",
+  "tmp_kick": "Exclusion",
+  "tmp_ban": "Ban",
+  "tmp_tickets": "{count} ticket(s) ouvert(s) au total"
 }

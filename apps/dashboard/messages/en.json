@@ -13210,5 +13210,14 @@
   "tr_reject_confirm": "Reject request",
   "th_previous_period": "Previous period",
   "th_compare_previous": "Compare with previous period",
-  "th_kpi_oldest": "Oldest open"
+  "th_kpi_oldest": "Oldest open",
+  "tmp_label": "Ticket author profile",
+  "tmp_member_since": "Member since",
+  "tmp_record": "Record",
+  "tmp_record_clean": "No sanctions.",
+  "tmp_warn": "Warns",
+  "tmp_timeout": "Timeouts",
+  "tmp_kick": "Kicks",
+  "tmp_ban": "Bans",
+  "tmp_tickets": "{count} ticket(s) opened in total"
 }
