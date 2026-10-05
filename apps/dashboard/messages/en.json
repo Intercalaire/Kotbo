@@ -13422,5 +13422,6 @@
   "aegis_member_title": "Tone",
   "aegis_member_desc": "Toxicity and emotions of their messages over 30 days (Kotbo × AegisAI).",
   "aegis_member_none": "No message analyzed over the period.",
-  "aegis_member_recent": "Latest detections"
+  "aegis_member_recent": "Latest detections",
+  "aegis_ticket_mood": "Requester's mood: {mood}"
 }

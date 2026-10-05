@@ -13422,5 +13422,6 @@
   "aegis_member_title": "Climat",
   "aegis_member_desc": "Toxicité et émotions de ses messages sur 30 jours (Kotbo × AegisAI).",
   "aegis_member_none": "Aucun message analysé sur la période.",
-  "aegis_member_recent": "Dernières détections"
+  "aegis_member_recent": "Dernières détections",
+  "aegis_ticket_mood": "Humeur du demandeur : {mood}"
 }
