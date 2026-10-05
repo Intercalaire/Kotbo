@@ -89,6 +89,9 @@ model AegisDetection {
   late   Boolean @default(false)
 
   sanctionId     String?
+  // Transcription du salon autour du message, prise avant tout retrait :
+  // jointe en preuve à la sanction et à la carte du staff.
+  evidenceUrl    String?
   // Escalade : mode lent posé par le module, à lever à `restoreAt` en
   // remettant `previousSlowmode` (survit à un redémarrage du bot).
   previousSlowmode Int?
