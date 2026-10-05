@@ -85,6 +85,7 @@ import { registerOutgoingWebhookSubscribers } from './services/integrations/outg
 import { registerLevelingBusSubscribers } from './modules/leveling.module.js';
 import { registerRankedBusSubscribers } from './modules/ranked.module.js';
 import { registerAutoModBusSubscribers } from './modules/autoMod.module.js';
+import { registerAegisModule } from './modules/aegis.module.js';
 import { registerAdminLockModule } from './modules/adminLock.module.js';
 import { registerAutoThreadBusSubscribers } from './modules/autoThread.module.js';
 import { registerStickyMessageBusSubscribers } from './modules/stickyMessage.module.js';
@@ -451,6 +452,9 @@ client.once(Events.ClientReady, async (c) => {
   registerRankedBusSubscribers(client);
   registerAutoModBusSubscribers(scopeClientToModule(client, 'automod'));
   registerAdminLockModule(scopeClientToModule(client, 'automod'));
+  // Kotbo × AegisAI : sous-module d'AutoMod, allumé par sa propre config.
+  void registerAegisModule(client, scopeClientToModule(client, 'automod'))
+    .catch((error) => logger.error('Modules', 'Module AegisAI non démarré :', error));
   registerAutoThreadBusSubscribers(client);
   registerStickyMessageBusSubscribers(client);
   registerWelcomeGoodbyeBusSubscribers(client);
