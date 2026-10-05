@@ -24,7 +24,7 @@ const mockDb = {
       ];
     },
   },
-  ticketSatisfaction: { findMany: async () => [{ rating: 5, staffId: 'a' }, { rating: 3, staffId: 'b' }] },
+  ticketSatisfaction: { findMany: async () => [{ rating: 5, staffId: 'a', createdAt: ago(60) }, { rating: 3, staffId: 'b', createdAt: ago(30) }, { rating: 1, staffId: 'a', createdAt: ago(40 * 24 * 60) }] },
 };
 for (const file of ['db.ts', 'db.js']) {
   mock.module(path.resolve(import.meta.dir, '../../utils', file), () => ({ default: mockDb, prisma: mockDb, prismaRead: mockDb, upsertRetryingRace: (upsert: () => Promise<unknown>) => upsert() }));
@@ -52,5 +52,11 @@ describe('performance du support', () => {
     expect(stats.agents.map((a) => [a.name, a.handled, a.rating, a.openNow])).toEqual([['alice', 1, 5, 0], ['bob', 1, 3, 1]]);
     expect(stats.byTag).toEqual([{ tag: 'bug', count: 2 }, { tag: 'paiement', count: 1 }]);
     expect(stats.byType.map((t) => t.label)).toEqual(['Support', 'Sans type']);
+    // Séries pour la courbe : une case par jour, la période d'avant alignée.
+    expect(stats.daily.dates).toHaveLength(30);
+    expect(stats.daily.previous.created).toHaveLength(30);
+    expect(stats.daily.current.created.reduce((a, b) => a + b, 0)).toBe(2);
+    // La note d'il y a 40 jours tombe dans la période d'avant.
+    expect(stats.previous.satisfaction).toBe(1);
   });
 });

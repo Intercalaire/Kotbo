@@ -35,8 +35,24 @@ export interface AgentStats {
   openNow: number;
 }
 
+/** Une mesure jour par jour, sur la période et sur celle d'avant (même longueur). */
+export interface DailySeries {
+  created: number[];
+  closed: number[];
+  /** Médiane en minutes, par jour d'ouverture. */
+  firstResponse: (number | null)[];
+  /** Médiane en minutes, par jour de fermeture. */
+  resolution: (number | null)[];
+  /** Note moyenne du jour. */
+  satisfaction: (number | null)[];
+}
+
 export interface TicketStats {
   window: { days: number; from: string; to: string };
+  /** Séries pour la courbe pilotée par les tuiles, comme dans Analytics. */
+  daily: { dates: string[]; current: DailySeries; previous: DailySeries };
+  /** Totaux de la période d'avant, pour les écarts des tuiles. */
+  previous: { created: number; closed: number; firstResponseMedian: number | null; resolutionMedian: number | null; satisfaction: number | null };
   timezone: string;
   volume: { created: number; closed: number; byDay: Array<{ date: string; created: number; closed: number }> };
   firstResponse: DurationStats;
@@ -72,16 +88,60 @@ export function durationStats(minutes: number[]): DurationStats {
 
 const minutesBetween = (from: Date, to: Date) => Math.max(0, (to.getTime() - from.getTime()) / 60_000);
 
+/** Comptes, médianes et moyennes par jour, dans l'ordre de `keys`. */
+export function dailySeries(
+  keys: string[],
+  zoner: BucketZoner,
+  created: Array<{ createdAt: Date; firstResponseAt: Date | null }>,
+  closed: Array<{ createdAt: Date; closedAt: Date | null }>,
+  ratings: Array<{ createdAt: Date; rating: number }>,
+): DailySeries {
+  const index = new Map(keys.map((key, i) => [key, i]));
+  const bucket = () => keys.map(() => [] as number[]);
+  const createdCount = keys.map(() => 0);
+  const closedCount = keys.map(() => 0);
+  const frt = bucket();
+  const res = bucket();
+  const notes = bucket();
+
+  for (const ticket of created) {
+    const i = index.get(zoner.fromDate(ticket.createdAt).dateKey);
+    if (i === undefined) continue;
+    createdCount[i] += 1;
+    if (ticket.firstResponseAt) frt[i].push(minutesBetween(ticket.createdAt, ticket.firstResponseAt));
+  }
+  for (const ticket of closed) {
+    if (!ticket.closedAt) continue;
+    const i = index.get(zoner.fromDate(ticket.closedAt).dateKey);
+    if (i === undefined) continue;
+    closedCount[i] += 1;
+    res[i].push(minutesBetween(ticket.createdAt, ticket.closedAt));
+  }
+  for (const row of ratings) {
+    const i = index.get(zoner.fromDate(row.createdAt).dateKey);
+    if (i !== undefined) notes[i].push(row.rating);
+  }
+
+  return {
+    created: createdCount,
+    closed: closedCount,
+    firstResponse: frt.map((values) => quantile(values, 0.5)),
+    resolution: res.map((values) => quantile(values, 0.5)),
+    satisfaction: notes.map((values) => (values.length ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10 : null)),
+  };
+}
+
 export async function getTicketStats(guildId: string, days: number, timezone: string): Promise<TicketStats> {
   const span = Math.min(90, Math.max(7, Math.trunc(days) || 30));
   const now = new Date();
   const since = new Date(now.getTime() - span * 86_400_000);
+  const prevSince = new Date(since.getTime() - span * 86_400_000);
   const zoner = new BucketZoner(timezone);
 
-  const [guild, created, closedInWindow, active, ratings] = await Promise.all([
+  const [guild, createdAll, closedAll, active, ratingsAll] = await Promise.all([
     prisma.guild.findUnique({ where: { id: guildId }, select: { ticketSlaFirstResponseMinutes: true, ticketSlaResolutionHours: true } }),
     prisma.ticket.findMany({
-      where: { guildId, createdAt: { gte: since }, status: { notIn: ['PENDING', 'REJECTED'] } },
+      where: { guildId, createdAt: { gte: prevSince }, status: { notIn: ['PENDING', 'REJECTED'] } },
       select: {
         status: true, createdAt: true, firstResponseAt: true, firstResponderId: true, closedAt: true, claimedById: true,
         claimedByName: true, ticketTypeLabel: true, tags: true, lastMemberMessageAt: true, lastStaffMessageAt: true,
@@ -89,7 +149,7 @@ export async function getTicketStats(guildId: string, days: number, timezone: st
       take: MAX_TICKETS,
     }),
     prisma.ticket.findMany({
-      where: { guildId, closedAt: { gte: since } },
+      where: { guildId, closedAt: { gte: prevSince } },
       select: { createdAt: true, closedAt: true },
       take: MAX_TICKETS,
     }),
@@ -102,11 +162,18 @@ export async function getTicketStats(guildId: string, days: number, timezone: st
       take: MAX_TICKETS,
     }),
     prisma.ticketSatisfaction.findMany({
-      where: { guildId, createdAt: { gte: since } },
-      select: { rating: true, staffId: true },
+      where: { guildId, createdAt: { gte: prevSince } },
+      select: { rating: true, staffId: true, createdAt: true },
       take: MAX_TICKETS,
     }),
   ]);
+
+  const created = createdAll.filter((ticket) => ticket.createdAt >= since);
+  const createdPrev = createdAll.filter((ticket) => ticket.createdAt < since);
+  const closedInWindow = closedAll.filter((ticket) => ticket.closedAt && ticket.closedAt >= since);
+  const closedPrev = closedAll.filter((ticket) => ticket.closedAt && ticket.closedAt < since);
+  const ratings = ratingsAll.filter((row) => row.createdAt >= since);
+  const ratingsPrev = ratingsAll.filter((row) => row.createdAt < since);
 
   const sla: SlaConfig = {
     firstResponseMinutes: guild?.ticketSlaFirstResponseMinutes ?? null,
@@ -230,8 +297,29 @@ export async function getTicketStats(guildId: string, days: number, timezone: st
     for (const tag of ticket.tags) tags.set(tag, (tags.get(tag) ?? 0) + 1);
   }
 
+  const prevKeys: string[] = [];
+  for (let offset = 2 * span - 1; offset >= span; offset -= 1) {
+    const key = zoner.fromDate(new Date(now.getTime() - offset * 86_400_000)).dateKey;
+    if (!prevKeys.includes(key)) prevKeys.push(key);
+  }
+  const average = (values: number[]) => (values.length ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10 : null);
+
   return {
     window: { days: span, from: since.toISOString(), to: now.toISOString() },
+    daily: {
+      dates: dayKeys,
+      current: dailySeries(dayKeys, zoner, created, closedInWindow, ratings),
+      // Alignée sur la période courante, jour pour jour : le 1er jour d'avant
+      // sous le 1er jour d'aujourd'hui, comme les pointillés d'Analytics.
+      previous: dailySeries(prevKeys.slice(-dayKeys.length), zoner, createdPrev, closedPrev, ratingsPrev),
+    },
+    previous: {
+      created: createdPrev.length,
+      closed: closedPrev.length,
+      firstResponseMedian: quantile(createdPrev.flatMap((t) => (t.firstResponseAt ? [minutesBetween(t.createdAt, t.firstResponseAt)] : [])), 0.5),
+      resolutionMedian: quantile(createdPrev.flatMap((t) => (t.closedAt ? [minutesBetween(t.createdAt, t.closedAt)] : [])), 0.5),
+      satisfaction: average(ratingsPrev.map((row) => row.rating)),
+    },
     timezone,
     volume: {
       created: created.length,
