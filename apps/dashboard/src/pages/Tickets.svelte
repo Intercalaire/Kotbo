@@ -1046,6 +1046,16 @@
                             {:else if embed.thumbnail?.url}
                               <img src={embed.thumbnail.url} alt="embed-thumbnail" class="mt-2 max-w-full rounded-lg border border-white/10 max-h-32 object-contain bg-[#1e1f22]" />
                             {/if}
+                            {#if embed.images?.length}
+                              <div class="mt-2 grid grid-cols-2 gap-1.5">
+                                {#each embed.images as url (url)}
+                                  <img src={url} alt="" class="w-full rounded-lg border border-white/10 max-h-40 object-cover bg-[#1e1f22]" />
+                                {/each}
+                              </div>
+                            {/if}
+                            {#if embed.buttons?.length}
+                              {@render messageButtons(embed.buttons)}
+                            {/if}
                           </div>
                         {/each}
                       </div>
@@ -1066,6 +1076,25 @@
                               <Papicon icon="file" size={14} /> {m.e1_tickets_attachment()}
                             </a>
                           {/if}
+                        {/each}
+                      </div>
+                    {/if}
+
+                    {#if msg.buttons?.length}
+                      {@render messageButtons(msg.buttons)}
+                    {/if}
+
+                    {#if msg.reactions?.length}
+                      <div class="mt-1.5 flex flex-wrap gap-1">
+                        {#each msg.reactions as reaction (reaction.imageUrl ?? reaction.emoji ?? reaction.name)}
+                          <span class="chat-reaction" title={`:${reaction.name}:`}>
+                            {#if reaction.imageUrl}
+                              <img src={reaction.imageUrl} alt={`:${reaction.name}:`} class="w-4 h-4 object-contain" />
+                            {:else}
+                              <span class="text-sm leading-none">{reaction.emoji}</span>
+                            {/if}
+                            <span class="tabular-nums">{reaction.count}</span>
+                          </span>
                         {/each}
                       </div>
                     {/if}
@@ -1120,6 +1149,27 @@
 <!-- ============================================== -->
 <!-- MODALS -->
 <!-- ============================================== -->
+
+{#snippet messageButtons(buttons: Array<{ label: string; emoji: string | null; url: string | null; style: number; disabled: boolean }>)}
+  <!-- Les boutons d'un message Discord, en lecture seule : ils agissent dans
+       Discord, pas depuis le dashboard. Les liens restent cliquables. -->
+  <div class="mt-2 flex flex-wrap gap-1.5">
+    {#each buttons as button, index (index)}
+      {#if button.url}
+        <a href={button.url} target="_blank" rel="noopener noreferrer" class="chat-button chat-button--link">
+          {#if button.emoji?.startsWith('https://')}<img src={button.emoji} alt="" class="w-4 h-4" />{:else if button.emoji}<span>{button.emoji}</span>{/if}
+          {button.label}
+          <Papicon icon="external-link" size={11} />
+        </a>
+      {:else}
+        <span class="chat-button chat-button--style-{button.style} {button.disabled ? 'opacity-50' : ''}">
+          {#if button.emoji?.startsWith('https://')}<img src={button.emoji} alt="" class="w-4 h-4" />{:else if button.emoji}<span>{button.emoji}</span>{/if}
+          {button.label}
+        </span>
+      {/if}
+    {/each}
+  </div>
+{/snippet}
 
 <!-- Refus d'une demande en attente -->
 <Modal bind:open={showRejectModal} title={m.tr_reject_title()} subtitle={m.tr_reject_desc()} size="md" closeOnBackdropClick={!reviewBusy}>
@@ -1301,6 +1351,35 @@
 {/if}
 
 <style>
+  .chat-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #fff;
+    background: #4e5058;
+    cursor: default;
+  }
+  .chat-button--style-1 { background: #5865f2; }
+  .chat-button--style-3 { background: #248046; }
+  .chat-button--style-4 { background: #da373c; }
+  .chat-button--link { cursor: pointer; }
+  .chat-button--link:hover { background: #6d6f78; }
+
+  .chat-reaction {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.1rem 0.45rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.5rem;
+    background: rgba(255, 255, 255, 0.06);
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.85);
+  }
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
