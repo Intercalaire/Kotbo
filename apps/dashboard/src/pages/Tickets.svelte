@@ -796,8 +796,9 @@
               </div>
             {/if}
 
-            <!-- Quick actions - scrollable on mobile -->
-            <div class="flex items-center gap-2 mt-3 overflow-x-auto pb-1 scrollbar-hide">
+            <!-- Actions : elles passent à la ligne. En défilement horizontal à barre
+                 masquée, celles qui dépassaient de la colonne disparaissaient. -->
+            <div class="flex flex-wrap items-center gap-2 mt-3">
               <button
                 onclick={() => openMemberCase(selectedTicketDetail.userId, selectedTicketDetail.username)}
                 class="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-lg text-xs font-semibold hover:bg-indigo-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
@@ -805,8 +806,8 @@
                 <Papicon icon="shield" size={12} /> {m.e1_tickets_btn_case()}
               </button>
 
-              {#if selectedTicketDetail?.status === 'OPEN'}
-                {#if selectedTicketDetail.claimedBy !== authStore.user?.id}
+              {#if selectedTicketDetail?.status === 'OPEN' || selectedTicketDetail?.status === 'CLAIMED'}
+                {#if selectedTicketDetail.status === 'OPEN'}
                   <button onclick={claimTicket}
                     class="px-3 py-1.5 bg-warning/10 text-warning border border-warning/20 rounded-lg text-xs font-semibold hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                   >
