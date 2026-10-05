@@ -446,6 +446,13 @@ model Guild {
   commandUsageDailyStats CommandUsageDailyStat[]
   contentItemDailyStats ContentItemDailyStat[]
   outgoingWebhooks OutgoingWebhook[]
+
+  // Kotbo × AegisAI (toxicité et émotions)
+  aegisConfig           AegisConfig?
+  aegisDetections       AegisDetection[]
+  aegisHourlyStats      AegisHourlyStat[]
+  aegisMemberDailyStats AegisMemberDailyStat[]
+
   memberInvites MemberInvite[]
   guildInvites  GuildInvite[]
   suspendedInviters SuspendedInviter[]

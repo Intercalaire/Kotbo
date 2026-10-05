@@ -89,6 +89,13 @@ model Ticket {
   deletionLockedByName String?
   deletionLockReason   String?
 
+  // ── Humeur (Kotbo × AegisAI) ──────────────────────────────────────────────
+  // Dernière émotion marquée de l'auteur et pic de toxicité de ses messages.
+  moodLabel     String?
+  moodScore     Float?
+  peakToxicity  Float?
+  moodUpdatedAt DateTime?
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@index([guildId, createdAt])
