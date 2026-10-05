@@ -1,9 +1,9 @@
 /**
- * Client de l'API AegisAI (marvideo) : toxicité (`/analyze`) et émotion
- * (`/emotion`) d'un texte.
+ * Client de l'API AegisAI (marvideo) : `/scan` rend en un appel la toxicité
+ * et l'émotion d'un texte. Chaque requête porte `save` : le texte n'entre dans
+ * le jeu d'entraînement d'AegisAI que si le serveur l'a accepté.
  *
- * Mesuré le 2026-10-05 : ~15 req/s au mieux, au-delà la latence grimpe et le
- * débit non. La capacité doit augmenter : rien ici ne la suppose, la file
+ * Mesuré le 2026-10-05 : ~110 ms par appel, débit borné côté serveur. La capacité doit augmenter : rien ici ne la suppose, la file
  * (aegisQueue.ts) ajuste sa concurrence sur la latence relevée par ce client.
  * Ici, un coupe-circuit : après une série d'échecs on cesse d'appeler pendant
  * un moment au lieu d'empiler des requêtes qui expireront toutes.
@@ -17,6 +17,7 @@ export type AegisEmotion = (typeof AEGIS_EMOTIONS)[number];
 
 export type ToxicityResult = { toxicity: number };
 export type EmotionResult = { label: AegisEmotion; score: number };
+export type ScanResult = { toxicity: number; emotion: EmotionResult };
 
 /** L'API n'a pas été appelée : clé absente ou coupe-circuit ouvert. */
 export class AegisUnavailableError extends Error {
@@ -61,6 +62,15 @@ export function parseEmotionResponse(body: unknown): EmotionResult | null {
   const { label, score } = body as { label?: unknown; score?: unknown };
   if (typeof label !== 'string' || !(AEGIS_EMOTIONS as readonly string[]).includes(label)) return null;
   return isScore(score) ? { label: label as AegisEmotion, score } : null;
+}
+
+/** `{"toxic": {...}, "emotion": {...}}` : les deux parties doivent être lisibles. */
+export function parseScanResponse(body: unknown): ScanResult | null {
+  if (!body || typeof body !== 'object') return null;
+  const { toxic, emotion } = body as { toxic?: unknown; emotion?: unknown };
+  const toxicity = parseToxicityResponse(toxic);
+  const parsedEmotion = parseEmotionResponse(emotion);
+  return toxicity && parsedEmotion ? { toxicity: toxicity.toxicity, emotion: parsedEmotion } : null;
 }
 
 export type AegisClientStatus = {
@@ -120,19 +130,14 @@ export class AegisClient {
     return Math.max(0, this.openUntil - this.now());
   }
 
-  /** Toxicité de 0 à 1. `save` verse le texte dans le jeu d'entraînement d'AegisAI. */
-  async toxicity(text: string, save: boolean): Promise<ToxicityResult> {
-    const body = await this.post('analyze', { text, save });
-    const parsed = parseToxicityResponse(body);
-    if (!parsed) throw this.malformed('analyze', body);
-    return parsed;
-  }
-
-  /** Émotion dominante. Rien n'est conservé côté AegisAI pour cette route. */
-  async emotion(text: string): Promise<EmotionResult> {
-    const body = await this.post('emotion', { text });
-    const parsed = parseEmotionResponse(body);
-    if (!parsed) throw this.malformed('emotion', body);
+  /**
+   * Toxicité (0 à 1) et émotion dominante en un appel. `save` verse le texte
+   * dans le jeu d'entraînement d'AegisAI : il suit le choix du serveur.
+   */
+  async scan(text: string, save: boolean): Promise<ScanResult> {
+    const body = await this.post('scan', { text, save });
+    const parsed = parseScanResponse(body);
+    if (!parsed) throw this.malformed('scan', body);
     return parsed;
   }
 
