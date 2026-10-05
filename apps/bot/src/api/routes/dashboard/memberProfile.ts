@@ -6,10 +6,13 @@ import { jsonFailure } from '../../shared/failure.js';
 import { getMemberSummary } from '../../../services/moderation/memberSummaryService.js';
 import { getMemberTimeline, TIMELINE_CATEGORIES, type TimelineCategory } from '../../../services/moderation/memberTimelineService.js';
 import { getMemberInsights } from '../../../services/analytics/memberInsightsService.js';
+import { getMemberClimate } from '../../../services/moderation/aegis/aegisInsights.js';
+import prisma from '../../../utils/db.js';
 
 /**
  * Fiche membre complète :
- *   GET /members/:userId/summary   synthèse, signaux et statistiques d'activité
+ *   GET /members/:userId/summary   synthèse, signaux, statistiques d'activité
+ *                                  et climat (Kotbo × AegisAI, si le module a servi)
  *   GET /members/:userId/timeline  chronologie, paginée par `before`
  *
  * Même droit que le dossier membre (`GET /members/:userId`) : la section
@@ -43,14 +46,22 @@ export async function handleMemberProfileRoutes(
     if (parts[6] === 'summary') {
       const days = Math.min(90, Math.max(7, Number(url.searchParams.get('days')) || 90));
       const timezone = await resolveViewTimezone(url.searchParams.get('tz'), guildId);
-      const [summary, insights] = await Promise.all([
+      const aegisUsed = await prisma.aegisConfig.count({ where: { guildId } }).catch(() => 0);
+      const [summary, insights, climate] = await Promise.all([
         getMemberSummary(guildId, userId),
         getMemberInsights(guildId, userId, days, timezone).catch((err) => {
           logger.warn('MemberProfileAPI', `Statistiques de ${userId} indisponibles :`, err);
           return null;
         }),
+        // Les extraits de messages restent au staff de modération.
+        aegisUsed
+          ? getMemberClimate(guildId, userId, Math.min(days, 30), access.level === 'admin' || access.level === 'moderator').catch((err) => {
+            logger.warn('MemberProfileAPI', `Climat de ${userId} indisponible :`, err);
+            return null;
+          })
+          : null,
       ]);
-      json(res, 200, { summary, insights });
+      json(res, 200, { summary, insights, climate });
       return true;
     }
 
