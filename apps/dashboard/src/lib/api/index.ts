@@ -60,3 +60,4 @@ export * from './automodSimulation';
 export * from './memberProfile';
 export * from './ticketHelpdesk';
 export * from './welcomeExperiments';
+export * from './aegis';
