@@ -31,6 +31,7 @@
   import TicketSatisfactionTab from '../lib/components/tickets/TicketSatisfactionTab.svelte';
   import TicketMacros from '../lib/components/tickets/TicketMacros.svelte';
   import TicketSettings from '../lib/components/tickets/TicketSettings.svelte';
+  import TicketMemberPanel from '../lib/components/tickets/TicketMemberPanel.svelte';
   import type { InboxTicket, InboxView } from '../lib/api';
   import { resolveUserAvatarSrc } from '../lib/discordMedia';
   // Navigation & Tabs
@@ -696,7 +697,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 h-auto lg:h-[75vh]">
 
       <!-- Left Panel: Tickets Browser -->
-      <div data-tour="tickets-list" class="lg:col-span-4 bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-4 lg:p-6 flex flex-col overflow-hidden {showMobileChat && selectedTicketId ? 'hidden lg:flex' : 'flex'} h-[50vh] lg:h-full">
+      <div data-tour="tickets-list" class="lg:col-span-4 xl:col-span-3 bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-4 lg:p-6 flex flex-col overflow-hidden {showMobileChat && selectedTicketId ? 'hidden lg:flex' : 'flex'} h-[50vh] lg:h-full">
         <TicketInboxList
           tickets={tickets as InboxTicket[]}
           view={inboxView}
@@ -717,7 +718,7 @@
       </div>
 
       <!-- Right Panel: Live Chat & Actions -->
-      <div data-tour="tickets-chat" class="lg:col-span-8 bg-surface-container-low/40 border border-outline-variant/10 rounded-xl flex flex-col overflow-hidden {!showMobileChat && selectedTicketId ? 'hidden lg:flex' : !selectedTicketId ? 'hidden lg:flex' : 'flex'} h-[75vh] lg:h-full">
+      <div data-tour="tickets-chat" class="lg:col-span-8 xl:col-span-6 bg-surface-container-low/40 border border-outline-variant/10 rounded-xl flex flex-col overflow-hidden {!showMobileChat && selectedTicketId ? 'hidden lg:flex' : !selectedTicketId ? 'hidden lg:flex' : 'flex'} h-[75vh] lg:h-full">
         {#if !selectedTicketId}
           <div class="flex-1 flex flex-col items-center justify-center text-on-surface-variant/30 py-20">
             <div class="w-16 h-16 rounded-xl bg-surface-container flex items-center justify-center mb-4 shadow-inner">
@@ -1130,6 +1131,20 @@
         {/if}
       </div>
 
+      <!-- Profil de l'auteur, comme le panneau de profil de Discord. Sur les
+           écrans plus étroits, le même dossier reste accessible par le bouton
+           « Dossier » de l'en-tête. -->
+      {#if selectedTicketDetail?.userId}
+        <aside class="hidden xl:flex xl:col-span-3 flex-col bg-surface-container-low/40 border border-outline-variant/10 rounded-xl overflow-hidden h-full" aria-label={m.tmp_label()}>
+          <TicketMemberPanel
+            userId={selectedTicketDetail.userId}
+            fallbackName={selectedTicketDetail.username}
+            onopencase={(id, name) => openMemberCase(id, name)}
+          />
+        </aside>
+      {:else}
+        <div class="hidden xl:block xl:col-span-3"></div>
+      {/if}
     </div>
   {:else if activeTab === 'performance'}
     <TicketPerformance />
