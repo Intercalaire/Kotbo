@@ -20,7 +20,7 @@ import { resolveViewTimezone } from '../../../../utils/timezone.js';
 import { broadcastDashboardStateChange, getGuildName, json, pushAudit, readJsonBody } from '../../../shared.js';
 import { normalizePriority, normalizeTags } from '../../../../services/features/ticketHelpdesk.js';
 import { getTicketStats } from '../../../../services/features/ticketStatsService.js';
-import { approvePendingTicket, approvalErrorMessage, rejectPendingTicket } from '../../../../services/features/ticketService.js';
+import { announceTicketClaim, approvePendingTicket, approvalErrorMessage, rejectPendingTicket } from '../../../../services/features/ticketService.js';
 import type { ModuleRouteContext } from './_shared.js';
 
 const PRIORITY_LABEL: Record<string, string> = { LOW: 'basse', NORMAL: 'normale', HIGH: 'haute', URGENT: 'urgente' };
@@ -233,11 +233,13 @@ export async function handleTicketHelpdeskRoutes(ctx: ModuleRouteContext): Promi
         }
       }
 
-      await channel?.send({
-        content: `<@${member.id}>`,
-        embeds: [successEmbed('Ticket attribué', `Ce ticket est confié à <@${member.id}> par **${user.username}** depuis le dashboard.`)],
-        allowedMentions: { users: [member.id] },
-      }).catch(() => null);
+      if (channel) {
+        await announceTicketClaim(
+          channel,
+          successEmbed('Ticket attribué', `Ce ticket est confié à <@${member.id}> par **${user.username}** depuis le dashboard.`),
+          { content: `<@${member.id}>`, mentionUserIds: [member.id] },
+        );
+      }
 
       await pushAudit(guildId, {
         user: auditUser,

@@ -1320,9 +1320,8 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
               logger.error('TicketsAPI', `Error updating welcome embed from dashboard API: ${welcomeErr}`);
             }
 
-            await ch.send({
-              embeds: [successEmbed('Pris en charge', `Ce ticket a été revendiqué depuis le Dashboard Kotbo par **${user.username}**.`)]
-            }).catch(() => null);
+            const { announceTicketClaim } = await import('../../../../services/features/ticketService.js');
+            await announceTicketClaim(ch, successEmbed('Pris en charge', `Ce ticket a été revendiqué depuis le Dashboard Kotbo par **${user.username}**.`));
           }
         }
 

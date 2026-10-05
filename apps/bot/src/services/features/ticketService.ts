@@ -1576,10 +1576,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
         logger.error('Ticket', 'Error updating welcome message container:', err);
       }
 
-      await ticketChannel.send({
-        embeds: [successEmbed('Pris en charge', `Ce ticket est désormais pris en charge par <@${user.id}>.`)],
-        allowedMentions: { users: [user.id] },
-      });
+      await announceTicketClaim(ticketChannel, successEmbed('Pris en charge', `Ce ticket est désormais pris en charge par <@${user.id}>.`), { mentionUserIds: [user.id] });
     }
 
     // Logger
@@ -2390,10 +2387,39 @@ export async function createTicketWorkspace(
   }
 }
 
+const TICKET_LOCK_NOTICE_TITLE = '🔒 Ticket verrouillé';
+
+/**
+ * Annonce la prise en charge d'un ticket. Si l'encart « Ticket verrouillé »
+ * est encore dans le salon, il est remplacé par l'annonce plutôt que laissé
+ * au-dessus d'elle : il n'a plus rien de vrai une fois le ticket pris en
+ * charge, et deux encarts à la suite se contredisaient.
+ */
+export async function announceTicketClaim(
+  channel: TextChannel | ThreadChannel,
+  embed: EmbedBuilder,
+  options: { content?: string; mentionUserIds?: string[] } = {},
+): Promise<void> {
+  const allowedMentions = { users: options.mentionUserIds ?? [] };
+  const recent = await channel.messages.fetch({ limit: 50 }).catch(() => null);
+  const notice = recent?.find((message) =>
+    message.author.id === channel.client.user?.id && message.embeds[0]?.title === TICKET_LOCK_NOTICE_TITLE);
+  if (notice) {
+    const edited = await notice.edit({ embeds: [embed], allowedMentions }).then(() => true).catch(() => false);
+    // Le contenu d'un message modifié ne notifie personne : la mention part
+    // dans un message à part, sans second encart.
+    if (edited) {
+      if (options.content) await channel.send({ content: options.content, allowedMentions }).catch(() => null);
+      return;
+    }
+  }
+  await channel.send({ ...(options.content ? { content: options.content } : {}), embeds: [embed], allowedMentions }).catch(() => null);
+}
+
 /** Encart depose dans un ticket verrouille pour expliquer l'absence d'ecriture. */
 function buildTicketLockNoticeEmbed(staffMention: string | null): EmbedBuilder {
   return new EmbedBuilder()
-    .setTitle('🔒 Ticket verrouillé')
+    .setTitle(TICKET_LOCK_NOTICE_TITLE)
     .setDescription(
       `Ce ticket est visible mais **verrouillé** : personne ne peut y écrire tant qu'un membre du staff${staffMention ? ` (${staffMention})` : ''} ne l'a pas pris en charge.\n\n` +
       'Le salon s\'ouvrira automatiquement dès la prise en charge.',
@@ -3196,10 +3222,11 @@ export async function autoClaimTicketOnStaffMessage(client: Client, message: Mes
       });
     }
 
-    await ticketChannel.send({
-      embeds: [successEmbed('Pris en charge automatiquement', `Ce ticket est désormais pris en charge par <@${message.author.id}>, suite à son intervention.`)],
-      allowedMentions: { users: [message.author.id] },
-    });
+    await announceTicketClaim(
+      ticketChannel,
+      successEmbed('Pris en charge automatiquement', `Ce ticket est désormais pris en charge par <@${message.author.id}>, suite à son intervention.`),
+      { mentionUserIds: [message.author.id] },
+    );
   } catch (err) {
     logger.error('Ticket', 'Error updating welcome message after auto-claim:', err);
   }
