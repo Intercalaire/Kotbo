@@ -5,7 +5,7 @@
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { pageTabItems } from '../lib/config/pageTabs';
-  import { Callout, Tabs } from '../lib/components/ui';
+  import { Button, Callout, Modal, Tabs } from '../lib/components/ui';
   import { authStore } from '../lib/stores/auth.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
@@ -437,6 +437,45 @@
     return data;
   }
 
+  // ─── Demandes en attente de validation ──────────────────────────────────────
+  // Mêmes gestes que les boutons « Valider » et « Refuser » de la carte posée
+  // dans le salon de validation sur Discord.
+  let reviewBusy = $state(false);
+  let showRejectModal = $state(false);
+  let rejectReason = $state('');
+
+  async function approvePendingTicket() {
+    if (!selectedTicketId) return;
+    reviewBusy = true;
+    try {
+      await postTicketAction('approve');
+      toast.success(m.tr_approved());
+      await refreshTicketsOnly();
+      await loadTicketDetail(selectedTicketId);
+    } catch (err) {
+      toast.error(errorMessage(err) || m.e1_tickets_action_failed());
+    } finally {
+      reviewBusy = false;
+    }
+  }
+
+  async function rejectPendingTicket() {
+    if (!selectedTicketId) return;
+    reviewBusy = true;
+    try {
+      await postTicketAction('reject', { reason: rejectReason.trim() || null });
+      toast.success(m.tr_rejected());
+      showRejectModal = false;
+      rejectReason = '';
+      await refreshTicketsOnly();
+      await loadTicketDetail(selectedTicketId);
+    } catch (err) {
+      toast.error(errorMessage(err) || m.e1_tickets_action_failed());
+    } finally {
+      reviewBusy = false;
+    }
+  }
+
   async function archiveTicket(unarchive = false) {
     if (!selectedTicketId || !authStore.selectedGuildId) return;
     try {
@@ -738,7 +777,13 @@
             {#if selectedTicketDetail?.status === 'PENDING'}
               <div class="mt-3 flex items-start gap-2 p-3 rounded-xl bg-sky-500/5 border border-sky-500/20">
                 <Papicon icon="clock" size={14} class="text-sky-400 shrink-0 mt-0.5" />
-                <p class="text-2xs text-on-surface-variant">{m.e1_tickets_pending_notice()}</p>
+                <div class="flex-1 min-w-0">
+                  <p class="text-2xs text-on-surface-variant">{m.e1_tickets_pending_notice()}</p>
+                  <div class="flex flex-wrap gap-2 mt-2">
+                    <Button size="sm" variant="primary" icon="check" loading={reviewBusy} onclick={approvePendingTicket}>{m.tr_approve()}</Button>
+                    <Button size="sm" variant="danger" icon="x" disabled={reviewBusy} onclick={() => { rejectReason = ''; showRejectModal = true; }}>{m.tr_reject()}</Button>
+                  </div>
+                </div>
               </div>
             {:else if selectedTicketDetail?.status === 'REJECTED'}
               <div class="mt-3 flex items-start gap-2 p-3 rounded-xl bg-error/5 border border-error/20">
@@ -1075,6 +1120,18 @@
 <!-- ============================================== -->
 <!-- MODALS -->
 <!-- ============================================== -->
+
+<!-- Refus d'une demande en attente -->
+<Modal bind:open={showRejectModal} title={m.tr_reject_title()} subtitle={m.tr_reject_desc()} size="md" closeOnBackdropClick={!reviewBusy}>
+  <label class="block">
+    <span class="text-xs font-semibold text-on-surface-variant mb-2 block">{m.tr_reject_reason()}</span>
+    <textarea class="input h-28" maxlength="500" bind:value={rejectReason} placeholder={m.tr_reject_reason_ph()}></textarea>
+  </label>
+  {#snippet footer()}
+    <Button variant="ghost" onclick={() => (showRejectModal = false)}>{m.common_cancel()}</Button>
+    <Button variant="danger" loading={reviewBusy} onclick={rejectPendingTicket}>{m.tr_reject_confirm()}</Button>
+  {/snippet}
+</Modal>
 
 <!-- Ticket Close Modal -->
 {#if showCloseModal}
