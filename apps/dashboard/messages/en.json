@@ -13198,5 +13198,14 @@
   "tn_only_you": "Only you can see this",
   "tn_preview_title": "Before opening your ticket",
   "tn_default_text": "This ticket will be recorded: the messages exchanged are kept.\n\nWhen it is closed, a full transcript is generated and archived.\n\nThese records are used for team training and service quality. Only authorised staff can access them.",
-  "tn_preview_countdown": "Your ticket will be created in {seconds} seconds."
+  "tn_preview_countdown": "Your ticket will be created in {seconds} seconds.",
+  "tr_approve": "Approve request",
+  "tr_reject": "Reject",
+  "tr_approved": "Request approved: the ticket is open and the member notified.",
+  "tr_rejected": "Request rejected: the member was notified by DM.",
+  "tr_reject_title": "Reject the request",
+  "tr_reject_desc": "The member receives the rejection by DM, with the reason if there is one.",
+  "tr_reject_reason": "Reason given to the member",
+  "tr_reject_reason_ph": "E.g. already handled, not enough information…",
+  "tr_reject_confirm": "Reject request"
 }

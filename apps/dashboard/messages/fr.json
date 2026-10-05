@@ -13198,5 +13198,14 @@
   "tn_only_you": "Seul·e toi peux voir ceci",
   "tn_preview_title": "Avant d'ouvrir ton ticket",
   "tn_default_text": "Ce ticket va être enregistré : les messages échangés sont conservés.\n\nÀ sa fermeture, une transcription complète est générée et archivée.\n\nCes enregistrements servent à la formation de l'équipe et à la qualité de service. Ils ne sont accessibles qu'au staff habilité.",
-  "tn_preview_countdown": "Ton ticket sera créé dans {seconds} secondes."
+  "tn_preview_countdown": "Ton ticket sera créé dans {seconds} secondes.",
+  "tr_approve": "Valider la demande",
+  "tr_reject": "Refuser",
+  "tr_approved": "Demande validée : le ticket est ouvert et le membre prévenu.",
+  "tr_rejected": "Demande refusée : le membre a été prévenu en message privé.",
+  "tr_reject_title": "Refuser la demande",
+  "tr_reject_desc": "Le membre reçoit le refus en message privé, avec le motif s'il y en a un.",
+  "tr_reject_reason": "Motif communiqué au membre",
+  "tr_reject_reason_ph": "Ex : demande déjà traitée, informations insuffisantes…",
+  "tr_reject_confirm": "Refuser la demande"
 }
