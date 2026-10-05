@@ -14,6 +14,7 @@ import type { AegisRuntimeConfig } from './aegisConfig.js';
 import type { AegisJob } from './aegisQueue.js';
 import { buildButtons, buildConflictEmbed, buildDistressEmbed, buildHarassmentEmbed, postAlert } from './aegisAlerts.js';
 import { liftSlowmode } from './aegisActions.js';
+import { captureEvidence, evidenceLinks, reasonWithExcerpt } from './aegisEvidence.js';
 
 // ── Escalade ────────────────────────────────────────────────────────────────
 
@@ -61,6 +62,8 @@ export async function raiseConflict(
   authors: string[],
   count: number,
 ): Promise<void> {
+  // L'échange qui a fait monter le ton, pris avant que le mode lent ne le fige.
+  const evidenceUrl = await captureEvidence(guild, job.channelId, null, 25);
   const channel = guild.channels.cache.get(job.channelId);
   let previousSlowmode: number | null = null;
   let applied = false;
@@ -89,6 +92,7 @@ export async function raiseConflict(
       status: applied ? 'AUTO' : 'PENDING',
       previousSlowmode,
       restoreAt,
+      evidenceUrl,
     },
   });
   if (restoreAt) scheduleRestore(client, detection.id, guild.id, restoreAt);
@@ -113,23 +117,29 @@ export async function raiseHarassment(
   const recent = await prisma.aegisDetection.findMany({
     where: { guildId: guild.id, kind: 'TOXIC', authorId: job.authorId, targetUserId: job.targetUserId, createdAt: { gte: since } },
     orderBy: { createdAt: 'desc' },
-    select: { excerpt: true },
+    select: { excerpt: true, evidenceUrl: true },
     take: 5,
   });
+  // Le fil de l'échange en cours, puis la preuve de chaque message en cause
+  // (ceux que le bot a retirés n'existent plus que là).
+  const evidenceUrl = await captureEvidence(guild, job.channelId, job.messageId, 20);
+  const links = evidenceLinks(evidenceUrl, ...recent.map((r) => r.evidenceUrl));
 
   let action = 'ALERT';
   let sanctionId: string | null = null;
-  if (config.harassmentAction === 'TIMEOUT') {
+  // Un membre exempté n'est jamais exclu d'office : le staff tranche sur la carte.
+  if (config.harassmentAction === 'TIMEOUT' && !job.exempt) {
     const member = await guild.members.fetch(job.authorId).catch(() => null);
     if (member) {
       const sanction = await registerTimeoutSanction({
         guildId: guild.id,
         target: { id: job.authorId, tag: member.user.tag },
         moderator: { id: client.user!.id, tag: client.user!.tag },
-        reason: `[AegisAI] Harcèlement de ${job.targetUserId} (${count} messages toxiques)`,
+        reason: reasonWithExcerpt(`[AegisAI] Harcèlement de ${job.targetUserId} (${count} messages toxiques)`, job.excerpt),
         durationMs: config.timeoutMinutes * 60_000,
         member,
         client,
+        evidenceLinks: links,
       }).catch((err) => {
         logger.warn('AegisAI', 'Exclusion pour harcèlement impossible :', err);
         return null;
@@ -154,6 +164,7 @@ export async function raiseHarassment(
       action,
       status: action === 'TIMEOUT' ? 'AUTO' : 'PENDING',
       sanctionId,
+      evidenceUrl,
     },
   });
 

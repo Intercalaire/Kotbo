@@ -16,6 +16,7 @@ import type { EmotionResult } from './aegisClient.js';
 import type { AegisRuntimeConfig } from './aegisConfig.js';
 import type { AegisJob } from './aegisQueue.js';
 import { buildButtons, buildToxicEmbed, closeAlert, pct, postAlert } from './aegisAlerts.js';
+import { captureEvidence, evidenceLinks, reasonWithExcerpt } from './aegisEvidence.js';
 
 export type Actor = { id: string; tag: string };
 
@@ -36,6 +37,7 @@ async function fetchMessage(guild: Guild, channelId: string, messageId: string |
 
 type SanctionOutcome = { action: 'DELETE' | 'WARN' | 'TIMEOUT'; sanctionId: string | null };
 
+
 /** Applique la sanction de `autoAction` à l'auteur ; le retrait du message est à part. */
 async function sanctionAuthor(
   client: Client,
@@ -44,12 +46,13 @@ async function sanctionAuthor(
   config: Pick<AegisRuntimeConfig, 'autoAction' | 'warnWeight' | 'timeoutMinutes'>,
   reason: string,
   moderator: Actor,
+  evidence: string[],
 ): Promise<SanctionOutcome> {
   const member = await guild.members.fetch(authorId).catch(() => null);
   const target = { id: authorId, tag: member?.user.tag ?? authorId };
   try {
     if (config.autoAction === 'DELETE_AND_WARN') {
-      const sanction = await registerWarnSanction({ guildId: guild.id, target, moderator, reason, client, weight: config.warnWeight });
+      const sanction = await registerWarnSanction({ guildId: guild.id, target, moderator, reason, client, weight: config.warnWeight, evidenceLinks: evidence });
       return { action: 'WARN', sanctionId: sanction?.id ?? null };
     }
     if (config.autoAction === 'DELETE_AND_TIMEOUT' && member) {
@@ -61,6 +64,7 @@ async function sanctionAuthor(
         durationMs: config.timeoutMinutes * 60_000,
         member,
         client,
+        evidenceLinks: evidence,
       });
       return { action: 'TIMEOUT', sanctionId: sanction?.id ?? null };
     }
@@ -98,11 +102,17 @@ export type ToxicContext = {
   emotion?: EmotionResult;
   late: boolean;
   decision: 'auto' | 'review';
+  /** Précision affichée sur la carte (membre exempté, par exemple). */
+  note?: string;
 };
 
 /** Retire et sanctionne, ou demande l'avis du staff. Rend la détection créée. */
 export async function handleToxic(ctx: ToxicContext): Promise<AegisDetection> {
   const { client, guild, job, config } = ctx;
+  // Avant tout retrait : une fois le message supprimé, il n'y a plus rien à
+  // transcrire. Prise aussi pour une revue, l'auteur pouvant effacer son
+  // message avant que le staff ne tranche.
+  const evidenceUrl = job.source === 'NICKNAME' ? null : await captureEvidence(guild, job.channelId, job.messageId);
   const base = {
     guildId: guild.id,
     channelId: job.channelId,
@@ -116,10 +126,11 @@ export async function handleToxic(ctx: ToxicContext): Promise<AegisDetection> {
     emotionScore: ctx.emotion?.score ?? null,
     excerpt: job.excerpt,
     late: ctx.late,
+    evidenceUrl,
   };
 
   let decision = ctx.decision;
-  let note: string | undefined;
+  let note: string | undefined = ctx.note;
   let message: Message | null = null;
   if (decision === 'auto' && job.source !== 'NICKNAME') {
     message = await fetchMessage(guild, job.channelId, job.messageId);
@@ -145,13 +156,21 @@ export async function handleToxic(ctx: ToxicContext): Promise<AegisDetection> {
   let sanctionId: string | null = null;
 
   if (job.source === 'NICKNAME') {
-    const renamed = await resetNickname(guild, job.authorId, `[AegisAI] Pseudo toxique${scoreText}`);
+    const renamed = await resetNickname(guild, job.authorId, reasonWithExcerpt(`[AegisAI] Pseudo toxique${scoreText}`, job.excerpt));
     action = renamed ? 'NICKNAME_RESET' : 'ALERT';
     if (!renamed) note = 'Le pseudo n’a pas pu être remplacé (rôle du membre au-dessus de celui du bot ?).';
   } else {
     await message!.delete().catch((err) => logger.warn('AegisAI', 'Suppression impossible :', err));
     if (config.notifyMember) await noticeInChannel(message!);
-    const outcome = await sanctionAuthor(client, guild, job.authorId, config, `[AegisAI] Propos toxiques${scoreText}`, botActor(client));
+    const outcome = await sanctionAuthor(
+      client,
+      guild,
+      job.authorId,
+      config,
+      reasonWithExcerpt(`[AegisAI] Propos toxiques${scoreText}`, job.excerpt),
+      botActor(client),
+      evidenceLinks(evidenceUrl),
+    );
     action = outcome.action;
     sanctionId = outcome.sanctionId;
   }
@@ -199,19 +218,23 @@ export async function confirmDetection(client: Client, guild: Guild, detectionId
 
   let action = detection.action;
   let sanctionId: string | null = detection.sanctionId;
+  let evidenceUrl = detection.evidenceUrl;
   let decision = `Pris en charge par <@${actor.id}>`;
 
   if (detection.kind === 'TOXIC') {
     const config = await prisma.aegisConfig.findUnique({ where: { guildId: guild.id } });
-    const reason = `[AegisAI] Propos toxiques confirmés par ${actor.tag}`;
+    const reason = reasonWithExcerpt(`[AegisAI] Propos toxiques confirmés par ${actor.tag}`, detection.excerpt);
     if (detection.source === 'NICKNAME') {
       action = (await resetNickname(guild, detection.authorId, reason)) ? 'NICKNAME_RESET' : 'ALERT';
       decision = `Confirmé par <@${actor.id}>${action === 'NICKNAME_RESET' ? ' : pseudo remplacé' : ' (pseudo non modifiable)'}`;
     } else {
+      // Détection antérieure à la capture des preuves : on la prend maintenant,
+      // avant de retirer le message.
+      evidenceUrl ??= await captureEvidence(guild, detection.channelId, detection.messageId);
       const message = await fetchMessage(guild, detection.channelId, detection.messageId);
       if (message) await message.delete().catch(() => null);
       const outcome = config
-        ? await sanctionAuthor(client, guild, detection.authorId, config, reason, actor)
+        ? await sanctionAuthor(client, guild, detection.authorId, config, reason, actor, evidenceLinks(evidenceUrl))
         : { action: 'DELETE' as const, sanctionId: null };
       action = outcome.action;
       sanctionId = outcome.sanctionId;
@@ -219,7 +242,7 @@ export async function confirmDetection(client: Client, guild: Guild, detectionId
     }
   }
 
-  const updated = await prisma.aegisDetection.update({ where: { id: detection.id }, data: { action, sanctionId } });
+  const updated = await prisma.aegisDetection.update({ where: { id: detection.id }, data: { action, sanctionId, evidenceUrl } });
   await closeAlert(guild, updated, decision);
   return { ok: true, detection: updated };
 }

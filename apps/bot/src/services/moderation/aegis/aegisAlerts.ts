@@ -159,7 +159,10 @@ export function buildDistressEmbed(detection: CardDetection): EmbedBuilder {
 }
 
 /** Boutons d'une carte selon ce qu'il reste à trancher. */
-export function buildButtons(detection: Pick<CardDetection, 'id' | 'kind' | 'status' | 'guildId' | 'channelId' | 'messageId' | 'source'>, opts: { canUnslow?: boolean } = {}): ActionRowBuilder<ButtonBuilder>[] {
+export function buildButtons(
+  detection: Pick<CardDetection, 'id' | 'kind' | 'status' | 'guildId' | 'channelId' | 'messageId' | 'source'> & { evidenceUrl?: string | null },
+  opts: { canUnslow?: boolean } = {},
+): ActionRowBuilder<ButtonBuilder>[] {
   const row = new ActionRowBuilder<ButtonBuilder>();
   if (detection.status === 'PENDING') {
     const confirmLabel = detection.kind === 'TOXIC' ? 'Confirmer et sanctionner' : 'Pris en charge';
@@ -183,6 +186,10 @@ export function buildButtons(detection: Pick<CardDetection, 'id' | 'kind' | 'sta
     row.addComponents(
       new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Voir le message').setURL(messageUrl(detection.guildId, detection.channelId, detection.messageId)),
     );
+  }
+  // La transcription survit au retrait du message : c'est elle qui fait foi.
+  if (detection.evidenceUrl && /^https?:\/\//.test(detection.evidenceUrl)) {
+    row.addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Preuve').setURL(detection.evidenceUrl));
   }
   return row.components.length ? [row] : [];
 }
