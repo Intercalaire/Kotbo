@@ -59,7 +59,10 @@ describe('messages en Components V2 lus comme des embeds', () => {
 
 describe('markdown Discord', () => {
   test('titres, sous-texte et citations', () => {
-    expect(parseDiscordMarkdown('### Titre')).toContain('<span class="block font-bold text-sm text-white">Titre</span>');
+    expect(parseDiscordMarkdown('### Titre')).toContain('dc-heading dc-h3');
+    expect(parseDiscordMarkdown('### Titre')).toContain('>Titre</span>');
+    // Classe stable pour le CSS du dashboard, qui ne génère pas les classes Tailwind du bot.
+    expect(parseDiscordMarkdown('<:kotbo:42>')).toContain('class="dc-emoji');
     expect(parseDiscordMarkdown('-# pied')).toContain('text-white/50">pied</span>');
     expect(parseDiscordMarkdown('> cité')).toContain('border-l-4');
   });
