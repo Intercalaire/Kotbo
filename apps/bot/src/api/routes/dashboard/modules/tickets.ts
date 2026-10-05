@@ -10,7 +10,7 @@ import { broadcastDashboardStateChange, extractMediaUrls, getDashboardUrl, getGu
 import { type ProvisionedEntry, acquireProvisionLock, missingProvisionPermissions, provisionCooldown, provisionCooldownMessage, releaseProvisionLock, startProvisionCooldown } from '../../../../services/core/channelProvisioningService.js';
 import { Prisma } from '@prisma/client';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, type ColorResolvable, EmbedBuilder, type OverwriteResolvable, PermissionFlagsBits, TextChannel } from 'discord.js';
-import { type ModuleRouteContext, msgEmbedsMap } from './_shared.js';
+import { type ModuleRouteContext, msgComponentsV2Map, msgEmbedsMap, msgReactionsMap } from './_shared.js';
 import { parseTranscriptHtml } from '../../../../services/features/transcriptService.js';
 import { clampCommentTimeout } from '../../../../services/features/ticketSatisfactionService.js';
 import { INBOX_VIEWS, computeSla, normalizeView, viewWhere, waitingOn, type SlaConfig } from '../../../../services/features/ticketHelpdesk.js';
@@ -1066,27 +1066,40 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
 
         let channelName: string | null = null;
         let messages: unknown[] = [];
-        if (ticket.channelId) {
-          const discordChannel = client.channels.cache.get(ticket.channelId);
-          if (discordChannel && discordChannel instanceof TextChannel) {
+        // Salon du ticket, ou fil pour les modes « fil » et MP relayé : sans
+        // le fil, ces tickets s'affichaient vides.
+        const conversationId = ticket.channelId ?? ticket.threadId;
+        if (conversationId) {
+          const discordChannel = client.channels.cache.get(conversationId)
+            ?? await client.channels.fetch(conversationId).catch(() => null);
+          if (discordChannel && (discordChannel instanceof TextChannel || discordChannel.isThread())) {
             channelName = discordChannel.name;
             try {
               const fetched = await discordChannel.messages.fetch({ limit: 50 });
               const guild = discordChannel.guild;
-              messages = fetched.map(m => ({
-                id: m.id,
-                authorId: m.author.id,
-                authorName: m.member?.displayName || m.author.displayName || m.author.username,
-                authorAvatar: m.author.displayAvatarURL(),
-                isStaff: m.author.bot,
-                content: m.content,
-                htmlContent: parseDiscordMarkdown(m.content, guild),
-                mediaUrls: extractMediaUrls(m.content),
-                stickers: m.stickers ? m.stickers.map(s => ({ id: s.id, name: s.name, url: s.url })) : [],
-                attachments: m.attachments.map(a => ({ url: a.url, contentType: a.contentType })),
-                embeds: msgEmbedsMap(m.embeds, guild),
-                createdAt: m.createdAt.toISOString()
-              }));
+              messages = fetched.map(m => {
+                // Les messages du bot sont en Components V2 : leur texte et
+                // leurs « embeds » vivent dans des conteneurs, pas dans
+                // `content` ni `embeds`.
+                const v2 = msgComponentsV2Map(m.components, guild);
+                const content = [m.content, v2.text].filter(Boolean).join('\n');
+                return {
+                  id: m.id,
+                  authorId: m.author.id,
+                  authorName: m.member?.displayName || m.author.displayName || m.author.username,
+                  authorAvatar: m.author.displayAvatarURL(),
+                  isStaff: m.author.bot,
+                  content,
+                  htmlContent: parseDiscordMarkdown(content, guild),
+                  mediaUrls: extractMediaUrls(content),
+                  stickers: m.stickers ? m.stickers.map(s => ({ id: s.id, name: s.name, url: s.url })) : [],
+                  attachments: m.attachments.map(a => ({ url: a.url, contentType: a.contentType })),
+                  embeds: [...msgEmbedsMap(m.embeds, guild), ...v2.cards],
+                  buttons: v2.buttons,
+                  reactions: msgReactionsMap(m.reactions.cache.values()),
+                  createdAt: m.createdAt.toISOString()
+                };
+              });
               messages.reverse();
             } catch { /* ignored */ }
           }
