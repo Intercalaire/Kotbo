@@ -85,6 +85,7 @@ import { registerOutgoingWebhookSubscribers } from './services/integrations/outg
 import { registerLevelingBusSubscribers } from './modules/leveling.module.js';
 import { registerRankedBusSubscribers } from './modules/ranked.module.js';
 import { registerAutoModBusSubscribers } from './modules/autoMod.module.js';
+import { registerAegisModule } from './modules/aegis.module.js';
 import { registerAdminLockModule } from './modules/adminLock.module.js';
 import { registerAutoThreadBusSubscribers } from './modules/autoThread.module.js';
 import { registerStickyMessageBusSubscribers } from './modules/stickyMessage.module.js';
@@ -451,6 +452,9 @@ client.once(Events.ClientReady, async (c) => {
   registerRankedBusSubscribers(client);
   registerAutoModBusSubscribers(scopeClientToModule(client, 'automod'));
   registerAdminLockModule(scopeClientToModule(client, 'automod'));
+  // Kotbo × AegisAI : sous-module d'AutoMod, allumé par sa propre config.
+  void registerAegisModule(client, scopeClientToModule(client, 'automod'))
+    .catch((error) => logger.error('Modules', 'Module AegisAI non démarré :', error));
   registerAutoThreadBusSubscribers(client);
   registerStickyMessageBusSubscribers(client);
   registerWelcomeGoodbyeBusSubscribers(client);
@@ -1045,6 +1049,13 @@ function flushAndStop(exitCode = 0): Promise<void> {
     clearInterval(flushInterval);
     try {
       await flushIndexBuffers();
+      // Kotbo × AegisAI : compteurs de la dernière minute, et le worker de la
+      // file rend ses jobs en cours à Redis plutôt que de les laisser bloqués.
+      const [{ flushAegisStats }, { stopAegisQueue }] = await Promise.all([
+        import('./services/moderation/aegis/aegisStats.js'),
+        import('./services/moderation/aegis/aegisQueue.js'),
+      ]);
+      await Promise.allSettled([flushAegisStats(), stopAegisQueue()]);
     } finally {
       process.exit(exitCode);
     }

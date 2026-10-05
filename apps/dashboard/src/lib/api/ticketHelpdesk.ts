@@ -40,6 +40,10 @@ export interface InboxTicket {
   claimedByAvatar: string | null;
   waitingOn: 'staff' | 'member' | null;
   sla: TicketSla;
+  /** Dernière émotion marquée du demandeur (Kotbo × AegisAI), absente sans le module. */
+  moodLabel?: string | null;
+  moodScore?: number | null;
+  peakToxicity?: number | null;
 }
 
 export interface TicketAgent {

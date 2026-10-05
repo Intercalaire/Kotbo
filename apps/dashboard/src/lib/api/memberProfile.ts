@@ -1,6 +1,7 @@
 /** Fiche membre complète : synthèse, statistiques et chronologie. */
 import { authStore } from '../stores/auth.svelte';
 import { dashboardRequest } from './client';
+import type { MemberClimate } from './aegis';
 
 export type TimelineCategory = 'membership' | 'moderation' | 'support' | 'community' | 'changes';
 export type TimelineTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info';
@@ -76,7 +77,7 @@ export interface MemberActivityStats {
 
 export function fetchMemberSummary(userId: string, guildId = authStore.selectedGuildId) {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  return dashboardRequest<{ summary: MemberSummary; insights: MemberActivityStats | null }>(
+  return dashboardRequest<{ summary: MemberSummary; insights: MemberActivityStats | null; climate?: MemberClimate | null }>(
     `/members/${userId}/summary?days=90&tz=${encodeURIComponent(tz)}`,
     { guildId, errorContext: 'API Error (Member summary):' },
   );

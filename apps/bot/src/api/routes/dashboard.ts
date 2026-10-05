@@ -43,6 +43,7 @@ import { handleMCPKeyRoutes } from './dashboard/mcp.js';
 import { handleOutgoingWebhookRoutes } from './dashboard/outgoingWebhooks.js';
 import { handleAutomodSimulationRoute } from './dashboard/automodSimulation.js';
 import { handleWelcomeExperimentRoutes } from './dashboard/welcomeExperiments.js';
+import { handleAegisRoutes } from './dashboard/aegis.js';
 import { handleCustomBotRoutes } from './dashboard/customBot.js';
 import { handleChannelLinkRoutes } from './dashboard/channelLinks.js';
 import { handleStaffServerRoutes } from './dashboard/staffServer.js';
@@ -322,6 +323,12 @@ export async function handleDashboardRoutes(
     // configuration, sinon l'onglet « Notes Modérateur » renvoie une erreur
     // d'enregistrement à tous les modérateurs (issue #215). Le niveau d'accès
     // exact est revérifié dans handleMembersRoutes.
+    // Kotbo × AegisAI : trancher une détection ou essayer une phrase revient
+    // au staff de modération, pas seulement aux administrateurs. Le droit
+    // exact est revérifié dans handleAegisRoutes.
+    const isAegisReviewAction = parts[4] === 'aegis' && method === 'POST'
+      && (parts[5] === 'test' || (parts[5] === 'detections' && parts.length === 8));
+
     const isMemberModerationAction = parts.length === 7
       && parts[4] === 'members'
       && ((parts[6] === 'note' && method === 'PATCH') || (parts[6] === 'actions' && method === 'POST'));
@@ -388,7 +395,7 @@ export async function handleDashboardRoutes(
       ? { ...access, canManageSettings: true }
       : access;
 
-    if (!access.canManageSettings && method !== 'GET' && !hasFeatureWriteRight && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isStaffResignationAction && !isNotificationAction && !isMeetingAction && !isNewsAction && !isMemberModerationAction && !isGiveawayManagerAction && !isAnalyticsAnnotationAction) {
+    if (!access.canManageSettings && method !== 'GET' && !hasFeatureWriteRight && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isStaffResignationAction && !isNotificationAction && !isMeetingAction && !isNewsAction && !isMemberModerationAction && !isGiveawayManagerAction && !isAnalyticsAnnotationAction && !isAegisReviewAction) {
       json(res, 403, { error: 'Action réservée aux administrateurs du dashboard.' });
       return true;
     }
@@ -442,6 +449,8 @@ export async function handleDashboardRoutes(
         || (parts[4] === 'outgoing-webhooks' && (parts[6] === 'test' || parts[8] === 'redeliver'))
         // Simulation d'une règle : relit jusqu'à cent mille messages.
         || (parts[4] === 'automod' && parts[5] === 'simulate')
+        // Essai d'une phrase : deux appels à l'API AegisAI.
+        || (parts[4] === 'aegis' && parts[5] === 'test')
         // Le prestige crée un salon d'annonce, et jusqu'à trente rôles d'un
         // coup : même catégorie que les mises en route ci-dessus.
         || (parts[4] === 'ranked' && parts[5] === 'announce-channel')
@@ -550,6 +559,10 @@ export async function handleDashboardRoutes(
       return true;
     }
     if (await handleMCPKeyRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleAegisRoutes(req, res, parts, url, client, user, guildId, effectiveAccess)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }

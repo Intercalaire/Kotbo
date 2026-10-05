@@ -44,6 +44,7 @@ export const SEGMENT_FEATURE_KEYS: Record<string, string | string[]> = {
   'auto-thread': 'auto_thread',
   'channels-management': 'auto_thread',
   automod: 'automod',
+  aegis: 'automod',
   // La liste de mots bannis n'appartient pas a AutoMod : la moderation des
   // pseudos la lit par le meme service, sans passer par AutoMod. Une seule
   // clef fermait la page Pseudos a un role qui n'avait que cette section.
