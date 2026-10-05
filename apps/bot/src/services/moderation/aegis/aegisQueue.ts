@@ -1,23 +1,18 @@
 /**
  * File d'attente des analyses AegisAI.
  *
- * Chaque message coûte deux appels à une API dont la capacité est bornée
- * (~15 req/s mesurées le 2026-10-05, appelée à grandir). Les messages ne sont
- * donc jamais notés sur le chemin de `MessageCreate` : ils entrent ici et
- * sortent dans l'ordre d'arrivée.
+ * Chaque message coûte un appel (`/scan`) à une API dont la capacité est
+ * bornée et appelée à grandir. Les messages ne sont donc jamais notés sur le
+ * chemin de `MessageCreate` : ils entrent ici et sortent dans l'ordre
+ * d'arrivée (FIFO).
  *
  * La concurrence n'est pas figée : un régulateur (`nextConcurrency`) ajoute
  * un appel en parallèle tant qu'il reste du retard et que l'API répond vite,
  * et divise par deux dès qu'elle ralentit ou renvoie 429/5xx. Si la capacité
  * de l'API augmente, le débit suit sans rien reconfigurer.
  *
- * Deux voies :
- * - priorité haute : ce qui peut mener à une action de modération ;
- * - priorité basse : ce qui ne sert qu'aux statistiques d'émotions.
- *
- * Quand la file s'allonge, on lâche d'abord les émotions, puis tout au-delà
- * d'un plafond. Un message noté trop tard n'est plus supprimé d'office : il
- * part en revue (voir `isLate`).
+ * Au-delà d'un plafond, plus rien n'entre. Un message noté trop tard n'est
+ * plus supprimé d'office : il part en revue (voir `isLate`).
  *
  * BullMQ quand Redis répond : la file survit à un redéploiement. Sinon une
  * file en mémoire, mêmes règles.
@@ -45,10 +40,11 @@ export type AegisJob = {
   excerpt: string;
   /** Membre visé : auteur du message auquel on répond, ou unique mention. */
   targetUserId: string | null;
-  /** Note de toxicité utile (modération active et membre non exempté). */
-  wantToxicity: boolean;
-  /** Émotion utile (statistiques, escalade, détresse, tickets). */
-  wantEmotion: boolean;
+  /**
+   * Administrateur, rôle ou salon exempté : le message est noté comme les
+   * autres, mais le bot n'agit jamais seul, le staff tranche.
+   */
+  exempt: boolean;
   /** Le message compte dans les statistiques (collecte Analytics autorisée). */
   countStats: boolean;
   enqueuedAt: number;
@@ -56,7 +52,7 @@ export type AegisJob = {
 
 export type AegisProcessor = (job: AegisJob) => Promise<void>;
 
-export type EnqueueOutcome = 'queued' | 'queued_without_emotion' | 'dropped';
+export type EnqueueOutcome = 'queued' | 'dropped';
 
 function readPositiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? '', 10);
@@ -69,8 +65,6 @@ export const QUEUE_LIMITS = {
   maxConcurrency: readPositiveInt(process.env.AEGISAI_MAX_CONCURRENCY, 32),
   /** Latence médiane visée : en dessous, on peut ajouter un appel en parallèle. */
   targetLatencyMs: readPositiveInt(process.env.AEGISAI_TARGET_LATENCY_MS, 300),
-  /** Au-delà, les émotions ne sont plus demandées. */
-  emotionShedDepth: readPositiveInt(process.env.AEGISAI_EMOTION_SHED_DEPTH, 300),
   /** Au-delà, plus rien n'entre. */
   maxDepth: readPositiveInt(process.env.AEGISAI_QUEUE_MAX, 5000),
   /** Âge au-delà duquel une note ne déclenche plus d'action automatique. */
@@ -82,17 +76,9 @@ export function isLate(job: Pick<AegisJob, 'enqueuedAt'>, now = Date.now()): boo
   return now - job.enqueuedAt > QUEUE_LIMITS.staleMs;
 }
 
-/**
- * Décide du sort d'un job selon la profondeur de la file. Pur, pour les tests.
- * Un job qui ne voulait que l'émotion disparaît avec elle.
- */
-export function admitJob(job: AegisJob, depth: number, limits = QUEUE_LIMITS): { job: AegisJob | null; outcome: EnqueueOutcome } {
-  if (depth >= limits.maxDepth) return { job: null, outcome: 'dropped' };
-  if (depth >= limits.emotionShedDepth && job.wantEmotion) {
-    if (!job.wantToxicity) return { job: null, outcome: 'dropped' };
-    return { job: { ...job, wantEmotion: false }, outcome: 'queued_without_emotion' };
-  }
-  return { job, outcome: 'queued' };
+/** Décide du sort d'un job selon la profondeur de la file. Pur, pour les tests. */
+export function admitJob(depth: number, limits = QUEUE_LIMITS): EnqueueOutcome {
+  return depth >= limits.maxDepth ? 'dropped' : 'queued';
 }
 
 export type ConcurrencyWindow = { requests: number; p50Ms: number | null; overloaded: number };
@@ -122,22 +108,20 @@ export type AegisQueueStats = {
   processed: number;
   failed: number;
   dropped: number;
-  emotionsShed: number;
 };
 
-const counters = { processed: 0, failed: 0, dropped: 0, emotionsShed: 0 };
+const counters = { processed: 0, failed: 0, dropped: 0 };
 
 // ── Backend mémoire ──────────────────────────────────────────────────────────
 
 class MemoryQueue {
-  private high: AegisJob[] = [];
-  private low: AegisJob[] = [];
+  private jobs: AegisJob[] = [];
   private active = 0;
 
   constructor(private readonly processor: AegisProcessor, public concurrency: number) {}
 
   get depth(): number {
-    return this.high.length + this.low.length;
+    return this.jobs.length;
   }
 
   get running(): number {
@@ -145,7 +129,7 @@ class MemoryQueue {
   }
 
   push(job: AegisJob): void {
-    (job.wantToxicity ? this.high : this.low).push(job);
+    this.jobs.push(job);
     this.pump();
   }
 
@@ -156,7 +140,7 @@ class MemoryQueue {
 
   private pump(): void {
     while (this.active < this.concurrency) {
-      const job = this.high.shift() ?? this.low.shift();
+      const job = this.jobs.shift();
       if (!job) return;
       this.active += 1;
       void this.processor(job)
@@ -207,7 +191,7 @@ function startRegulator(): void {
 async function refreshRedisDepth(): Promise<void> {
   if (!queue) return;
   try {
-    redisDepth = await queue.getWaitingCount() + await queue.getPrioritizedCount();
+    redisDepth = await queue.getWaitingCount();
   } catch {
     // Profondeur inconnue un instant : on garde la dernière lue.
   }
@@ -290,26 +274,23 @@ export function aegisQueueDepth(): number {
 
 export async function enqueueAegisJob(job: AegisJob): Promise<EnqueueOutcome> {
   if (!processorRef) return 'dropped';
-  const admitted = admitJob(job, aegisQueueDepth());
-  if (!admitted.job) {
+  if (admitJob(aegisQueueDepth()) === 'dropped') {
     counters.dropped += 1;
-    return admitted.outcome;
+    return 'dropped';
   }
-  if (admitted.outcome === 'queued_without_emotion') counters.emotionsShed += 1;
 
   if (queue) {
     try {
-      // Priorité BullMQ : plus petit = plus tôt. FIFO à priorité égale.
-      await queue.add(admitted.job.source, admitted.job, { priority: admitted.job.wantToxicity ? 1 : 10 });
+      await queue.add(job.source, job);
       redisDepth += 1;
-      return admitted.outcome;
+      return 'queued';
     } catch (error) {
       logger.warn('AegisQueue', 'Enfilage Redis impossible, traitement en mémoire :', error);
       memory ??= new MemoryQueue(processorRef, concurrency);
     }
   }
-  memory?.push(admitted.job);
-  return admitted.outcome;
+  memory?.push(job);
+  return 'queued';
 }
 
 export async function getAegisQueueStats(): Promise<AegisQueueStats> {
