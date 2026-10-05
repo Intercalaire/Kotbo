@@ -102,4 +102,19 @@ describe('AegisClient', () => {
     const client = new AegisClient({ apiKey: 'k', fetchImpl: async () => jsonResponse({ ok: true }) });
     await expect(client.emotion('x')).rejects.toBeInstanceOf(AegisRequestError);
   });
+
+  test('takeWindow rend la latence et la surcharge puis repart de zéro', async () => {
+    let status = 200;
+    const client = new AegisClient({
+      apiKey: 'k',
+      fetchImpl: async () => (status === 200 ? jsonResponse({ toxicity: 0.1 }) : new Response('', { status })),
+    });
+    await client.toxicity('a', false);
+    status = 429;
+    await expect(client.toxicity('b', false)).rejects.toBeInstanceOf(AegisRequestError);
+    const window = client.takeWindow();
+    expect(window.requests).toBe(2);
+    expect(window.overloaded).toBe(1);
+    expect(client.takeWindow()).toEqual({ requests: 0, p50Ms: null, overloaded: 0 });
+  });
 });

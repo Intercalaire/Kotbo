@@ -1,10 +1,15 @@
 /**
  * File d'attente des analyses AegisAI.
  *
- * L'API sert ~15 requêtes par seconde au mieux, tous serveurs confondus, et
- * chaque message en coûte deux. Les messages ne sont donc jamais notés sur le
- * chemin de `MessageCreate` : ils entrent ici et sortent dans l'ordre
- * d'arrivée, deux à la fois (au-delà, le débit de l'API n'augmente plus).
+ * Chaque message coûte deux appels à une API dont la capacité est bornée
+ * (~15 req/s mesurées le 2026-10-05, appelée à grandir). Les messages ne sont
+ * donc jamais notés sur le chemin de `MessageCreate` : ils entrent ici et
+ * sortent dans l'ordre d'arrivée.
+ *
+ * La concurrence n'est pas figée : un régulateur (`nextConcurrency`) ajoute
+ * un appel en parallèle tant qu'il reste du retard et que l'API répond vite,
+ * et divise par deux dès qu'elle ralentit ou renvoie 429/5xx. Si la capacité
+ * de l'API augmente, le débit suit sans rien reconfigurer.
  *
  * Deux voies :
  * - priorité haute : ce qui peut mener à une action de modération ;
@@ -21,6 +26,7 @@ import { Queue, Worker, type Job } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { createRedisForWorker } from '../../../infra/redis.js';
 import { logger } from '../../../utils/logger.js';
+import { getAegisClient } from './aegisClient.js';
 
 export type AegisJobSource = 'MESSAGE' | 'EDIT' | 'NICKNAME';
 
@@ -58,7 +64,11 @@ function readPositiveInt(value: string | undefined, fallback: number): number {
 }
 
 export const QUEUE_LIMITS = {
+  /** Concurrence de départ, puis ajustée entre 1 et `maxConcurrency`. */
   concurrency: readPositiveInt(process.env.AEGISAI_CONCURRENCY, 2),
+  maxConcurrency: readPositiveInt(process.env.AEGISAI_MAX_CONCURRENCY, 32),
+  /** Latence médiane visée : en dessous, on peut ajouter un appel en parallèle. */
+  targetLatencyMs: readPositiveInt(process.env.AEGISAI_TARGET_LATENCY_MS, 300),
   /** Au-delà, les émotions ne sont plus demandées. */
   emotionShedDepth: readPositiveInt(process.env.AEGISAI_EMOTION_SHED_DEPTH, 300),
   /** Au-delà, plus rien n'entre. */
@@ -85,10 +95,30 @@ export function admitJob(job: AegisJob, depth: number, limits = QUEUE_LIMITS): {
   return { job, outcome: 'queued' };
 }
 
+export type ConcurrencyWindow = { requests: number; p50Ms: number | null; overloaded: number };
+
+/**
+ * Concurrence suivante. Pur, pour les tests.
+ * - surcharge (429, 5xx, délais) ou latence au double de la cible : moitié ;
+ * - latence au-dessus de la cible : un de moins ;
+ * - retard en file et latence sous la cible : un de plus ;
+ * - sinon : inchangé (inutile de grimper quand la file est vide).
+ */
+export function nextConcurrency(current: number, window: ConcurrencyWindow, depth: number, limits = QUEUE_LIMITS): number {
+  const max = Math.max(1, limits.maxConcurrency);
+  if (window.overloaded > 0 || (window.p50Ms !== null && window.p50Ms > limits.targetLatencyMs * 2)) {
+    return Math.max(1, Math.floor(current / 2));
+  }
+  if (window.p50Ms !== null && window.p50Ms > limits.targetLatencyMs) return Math.max(1, current - 1);
+  if (depth > 0 && window.requests > 0 && window.p50Ms !== null) return Math.min(max, current + 1);
+  return Math.min(max, current);
+}
+
 export type AegisQueueStats = {
   backend: 'redis' | 'memory' | 'stopped';
   depth: number;
   active: number;
+  concurrency: number;
   processed: number;
   failed: number;
   dropped: number;
@@ -104,7 +134,7 @@ class MemoryQueue {
   private low: AegisJob[] = [];
   private active = 0;
 
-  constructor(private readonly processor: AegisProcessor, private readonly concurrency: number) {}
+  constructor(private readonly processor: AegisProcessor, public concurrency: number) {}
 
   get depth(): number {
     return this.high.length + this.low.length;
@@ -116,6 +146,11 @@ class MemoryQueue {
 
   push(job: AegisJob): void {
     (job.wantToxicity ? this.high : this.low).push(job);
+    this.pump();
+  }
+
+  setConcurrency(value: number): void {
+    this.concurrency = value;
     this.pump();
   }
 
@@ -150,6 +185,24 @@ let worker: Worker<AegisJob> | null = null;
 let connections: Redis[] = [];
 let redisDepth = 0;
 let depthTimer: ReturnType<typeof setInterval> | null = null;
+let regulatorTimer: ReturnType<typeof setInterval> | null = null;
+let concurrency = QUEUE_LIMITS.concurrency;
+const REGULATOR_INTERVAL_MS = 5000;
+
+function applyConcurrency(value: number): void {
+  if (value === concurrency) return;
+  logger.debug('AegisQueue', `Concurrence ${concurrency} → ${value}`);
+  concurrency = value;
+  memory?.setConcurrency(value);
+  if (worker) worker.concurrency = value;
+}
+
+function startRegulator(): void {
+  regulatorTimer = setInterval(() => {
+    applyConcurrency(nextConcurrency(concurrency, getAegisClient().takeWindow(), aegisQueueDepth()));
+  }, REGULATOR_INTERVAL_MS);
+  if (typeof regulatorTimer.unref === 'function') regulatorTimer.unref();
+}
 
 async function refreshRedisDepth(): Promise<void> {
   if (!queue) return;
@@ -177,7 +230,7 @@ async function startRedisBackend(processor: AegisProcessor): Promise<boolean> {
       async (job: Job<AegisJob>) => processor(job.data),
       // Le traitement attend l'API quand le coupe-circuit est ouvert (30 s) :
       // le verrou doit tenir plus longtemps pour ne pas passer pour bloqué.
-      { connection: workerConnection, concurrency: QUEUE_LIMITS.concurrency, lockDuration: 90_000 },
+      { connection: workerConnection, concurrency, lockDuration: 90_000 },
     );
     worker.on('completed', () => { counters.processed += 1; });
     worker.on('failed', (_job, error) => {
@@ -206,17 +259,20 @@ async function startRedisBackend(processor: AegisProcessor): Promise<boolean> {
 export async function startAegisQueue(processor: AegisProcessor): Promise<void> {
   if (processorRef) return;
   processorRef = processor;
+  startRegulator();
   if (await startRedisBackend(processor)) {
-    logger.success('AegisQueue', `File AegisAI sur Redis (${QUEUE_LIMITS.concurrency} en parallèle).`);
+    logger.success('AegisQueue', `File AegisAI sur Redis (concurrence auto, ${concurrency} au départ, ${QUEUE_LIMITS.maxConcurrency} au plus).`);
     return;
   }
-  memory = new MemoryQueue(processor, QUEUE_LIMITS.concurrency);
-  logger.info('AegisQueue', `File AegisAI en mémoire (${QUEUE_LIMITS.concurrency} en parallèle).`);
+  memory = new MemoryQueue(processor, concurrency);
+  logger.info('AegisQueue', `File AegisAI en mémoire (concurrence auto, ${concurrency} au départ, ${QUEUE_LIMITS.maxConcurrency} au plus).`);
 }
 
 export async function stopAegisQueue(): Promise<void> {
   if (depthTimer) clearInterval(depthTimer);
+  if (regulatorTimer) clearInterval(regulatorTimer);
   depthTimer = null;
+  regulatorTimer = null;
   await worker?.close().catch(() => undefined);
   await queue?.close().catch(() => undefined);
   for (const connection of connections) connection.disconnect();
@@ -249,7 +305,7 @@ export async function enqueueAegisJob(job: AegisJob): Promise<EnqueueOutcome> {
       return admitted.outcome;
     } catch (error) {
       logger.warn('AegisQueue', 'Enfilage Redis impossible, traitement en mémoire :', error);
-      memory ??= new MemoryQueue(processorRef, QUEUE_LIMITS.concurrency);
+      memory ??= new MemoryQueue(processorRef, concurrency);
     }
   }
   memory?.push(admitted.job);
@@ -263,6 +319,7 @@ export async function getAegisQueueStats(): Promise<AegisQueueStats> {
     backend: queue ? 'redis' : memory ? 'memory' : 'stopped',
     depth: aegisQueueDepth(),
     active,
+    concurrency,
     ...counters,
   };
 }

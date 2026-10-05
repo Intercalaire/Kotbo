@@ -2,11 +2,11 @@
  * Client de l'API AegisAI (marvideo) : toxicité (`/analyze`) et émotion
  * (`/emotion`) d'un texte.
  *
- * Mesuré le 2026-10-05 : le serveur traite une requête à la fois, ~10 req/s
- * à un appelant, ~15 req/s à deux, rien de plus au-delà (la latence grimpe,
- * le débit non). D'où la file en amont (aegisQueue.ts) et, ici, un
- * coupe-circuit : après une série d'échecs on cesse d'appeler pendant un
- * moment au lieu d'empiler des requêtes qui expireront toutes.
+ * Mesuré le 2026-10-05 : ~15 req/s au mieux, au-delà la latence grimpe et le
+ * débit non. La capacité doit augmenter : rien ici ne la suppose, la file
+ * (aegisQueue.ts) ajuste sa concurrence sur la latence relevée par ce client.
+ * Ici, un coupe-circuit : après une série d'échecs on cesse d'appeler pendant
+ * un moment au lieu d'empiler des requêtes qui expireront toutes.
  */
 import { logger } from '../../../utils/logger.js';
 
@@ -94,6 +94,9 @@ export class AegisClient {
   private latencies: number[] = [];
   private requests = 0;
   private failures = 0;
+  // Fenêtre courante pour le réglage de la concurrence (voir takeWindow).
+  private windowLatencies: number[] = [];
+  private windowOverload = 0;
 
   constructor(options: AegisClientOptions = {}) {
     this.apiKey = options.apiKey ?? process.env.AEGISAI_API_KEY ?? '';
@@ -148,6 +151,22 @@ export class AegisClient {
     };
   }
 
+  /**
+   * Latence médiane et signes de surcharge (429, 5xx, délais dépassés) depuis
+   * le dernier appel, puis remise à zéro. Lu par le régulateur de la file.
+   */
+  takeWindow(): { requests: number; p50Ms: number | null; overloaded: number } {
+    const sorted = this.windowLatencies.sort((a, b) => a - b);
+    const result = {
+      requests: sorted.length,
+      p50Ms: sorted.length ? sorted[Math.floor(sorted.length / 2)]! : null,
+      overloaded: this.windowOverload,
+    };
+    this.windowLatencies = [];
+    this.windowOverload = 0;
+    return result;
+  }
+
   private malformed(route: string, body: unknown): AegisRequestError {
     // Une réponse 200 illisible est une panne côté API : elle compte comme
     // un échec pour le coupe-circuit.
@@ -168,6 +187,7 @@ export class AegisClient {
   private recordLatency(ms: number): void {
     this.latencies.push(ms);
     if (this.latencies.length > LATENCY_SAMPLES) this.latencies.shift();
+    if (this.windowLatencies.length < 10_000) this.windowLatencies.push(ms);
   }
 
   private async post(route: string, payload: Record<string, unknown>): Promise<unknown> {
@@ -197,6 +217,7 @@ export class AegisClient {
         // tombée : il ne doit pas ouvrir le circuit. 401/403 font exception,
         // une clé refusée fera échouer tous les appels suivants.
         if (res.status >= 500 || res.status === 401 || res.status === 403 || res.status === 429) this.recordFailure();
+        if (res.status >= 500 || res.status === 429) this.windowOverload += 1;
         const detail = (await res.text().catch(() => '')).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
         throw new AegisRequestError(res.status, `/${route} a répondu ${res.status}${detail ? ` : ${detail}` : ''}`);
       }
@@ -208,6 +229,7 @@ export class AegisClient {
       if (error instanceof AegisRequestError) throw error;
       this.recordFailure();
       const aborted = error instanceof Error && error.name === 'AbortError';
+      if (aborted) this.windowOverload += 1;
       throw new AegisRequestError(0, aborted ? `/${route} : pas de réponse en ${this.timeoutMs} ms` : `/${route} injoignable : ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       clearTimeout(timeoutId);
