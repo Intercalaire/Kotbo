@@ -137,7 +137,7 @@
       <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-on-surface-variant"><Papicon icon="search" size={14} /></span>
       <input
         type="search"
-        class="input w-full pl-9"
+        class="input w-full inbox-search"
         placeholder={m.th_search_placeholder()}
         value={query}
         oninput={(event) => updateQuery(event.currentTarget.value)}
@@ -222,6 +222,11 @@
 </div>
 
 <style>
+  /* `.input` fixe son propre retrait gauche : sans cette règle, plus précise,
+     le texte passait sous la loupe. */
+  .inbox-search {
+    padding-left: 2.25rem;
+  }
   .inbox-row {
     position: relative;
     display: flex;
