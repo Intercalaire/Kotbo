@@ -1,6 +1,6 @@
 /**
- * Traitement d'un job de la file AegisAI : notes, statistiques, décision de
- * modération et modules dérivés.
+ * Traitement d'un job de la file AegisAI : note (`/scan`), statistiques,
+ * décision de modération et modules dérivés.
  *
  * Une panne d'AegisAI ne laisse pas passer une insulte évidente : la liste de
  * mots bannis du serveur prend le relais et envoie le message en revue (jamais
@@ -9,7 +9,7 @@
 import type { Client } from 'discord.js';
 import { logger } from '../../../utils/logger.js';
 import { containsBannedWord, loadBannedWords } from '../bannedWordsService.js';
-import { AegisUnavailableError, getAegisClient, type EmotionResult } from './aegisClient.js';
+import { AegisUnavailableError, getAegisClient, type EmotionResult, type ScanResult } from './aegisClient.js';
 import { getAegisConfig, type AegisRuntimeConfig } from './aegisConfig.js';
 import { isLate, type AegisJob } from './aegisQueue.js';
 import { recordAegisObservation } from './aegisStats.js';
@@ -26,25 +26,25 @@ export function setAegisDiscordClient(client: Client): void {
 
 // ── Cache des notes ─────────────────────────────────────────────────────────
 // Un raid copie-colle le même texte des centaines de fois : une note suffit.
+// La clé porte `save` : un texte noté sans partage n'est pas réputé partagé.
 
 const RESULT_TTL_MS = 10 * 60_000;
 const RESULT_MAX = 5000;
-const toxicityCache = new Map<string, { value: number; at: number }>();
-const emotionCache = new Map<string, { value: EmotionResult; at: number }>();
+const scanCache = new Map<string, { value: ScanResult; at: number }>();
 
-function cached<T>(map: Map<string, { value: T; at: number }>, key: string): T | undefined {
-  const hit = map.get(key);
+function cached(key: string): ScanResult | undefined {
+  const hit = scanCache.get(key);
   if (!hit) return undefined;
   if (Date.now() - hit.at > RESULT_TTL_MS) {
-    map.delete(key);
+    scanCache.delete(key);
     return undefined;
   }
   return hit.value;
 }
 
-function remember<T>(map: Map<string, { value: T; at: number }>, key: string, value: T): void {
-  map.set(key, { value, at: Date.now() });
-  if (map.size > RESULT_MAX) map.delete(map.keys().next().value!);
+function remember(key: string, value: ScanResult): void {
+  scanCache.set(key, { value, at: Date.now() });
+  if (scanCache.size > RESULT_MAX) scanCache.delete(scanCache.keys().next().value!);
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -55,28 +55,24 @@ async function waitForApi(): Promise<void> {
   if (!api.available && api.configured) await sleep(Math.min(api.retryInMs, 30_000));
 }
 
-/** Pire note des morceaux du texte ; on s'arrête dès qu'un morceau franchit le seuil automatique. */
-async function scoreToxicity(text: string, save: boolean, autoThreshold: number): Promise<number> {
-  const key = textFingerprint(text);
-  const hit = cached(toxicityCache, key);
-  if (hit !== undefined) return hit;
-  let worst = 0;
-  for (const chunk of chunkText(text)) {
-    const { toxicity } = await getAegisClient().toxicity(chunk, save);
-    worst = Math.max(worst, toxicity);
-    if (worst * 100 >= autoThreshold) break;
-  }
-  remember(toxicityCache, key, worst);
-  return worst;
-}
-
-async function scoreEmotion(text: string): Promise<EmotionResult> {
-  const key = textFingerprint(text);
-  const hit = cached(emotionCache, key);
+/**
+ * Note d'un texte : la pire toxicité de ses morceaux (le modèle dilue un long
+ * texte), l'émotion du premier. On s'arrête dès qu'un morceau franchit le
+ * seuil automatique.
+ */
+export async function scanText(text: string, save: boolean, autoThreshold: number): Promise<ScanResult> {
+  const key = `${save ? 1 : 0}:${textFingerprint(text)}`;
+  const hit = cached(key);
   if (hit) return hit;
-  const result = await getAegisClient().emotion(chunkText(text)[0]!);
-  remember(emotionCache, key, result);
-  return result;
+  let result: ScanResult | null = null;
+  for (const chunk of chunkText(text)) {
+    const scan = await getAegisClient().scan(chunk, save);
+    if (!result) result = scan;
+    else if (scan.toxicity > result.toxicity) result = { toxicity: scan.toxicity, emotion: result.emotion };
+    if (result.toxicity * 100 >= autoThreshold) break;
+  }
+  remember(key, result!);
+  return result!;
 }
 
 // ── Modules ─────────────────────────────────────────────────────────────────
@@ -121,6 +117,8 @@ async function runModules(job: AegisJob, config: AegisRuntimeConfig, toxicity: n
 
 // ── Traitement ──────────────────────────────────────────────────────────────
 
+const EXEMPT_NOTE = "Membre exempté (administrateur, rôle ou salon exempté) : pas d'action automatique, à toi de trancher.";
+
 export async function processAegisJob(job: AegisJob): Promise<void> {
   const config = await getAegisConfig(job.guildId);
   if (!config) return;
@@ -128,26 +126,20 @@ export async function processAegisJob(job: AegisJob): Promise<void> {
   if (!api.configured) return;
   await waitForApi();
 
-  let toxicity: number | undefined;
+  let scan: ScanResult | undefined;
   let fallbackHit = false;
-  if (job.wantToxicity) {
-    try {
-      toxicity = await scoreToxicity(job.text, config.trainingConsent === true, config.autoThreshold);
-    } catch (error) {
-      const words = await loadBannedWords(job.guildId).catch(() => [] as string[]);
-      fallbackHit = containsBannedWord(job.text, words);
-      if (!(error instanceof AegisUnavailableError)) logger.warn('AegisAI', `Toxicité non notée (${job.guildId}) :`, error);
-    }
+  try {
+    scan = await scanText(job.text, config.trainingConsent === true, config.autoThreshold);
+  } catch (error) {
+    const words = await loadBannedWords(job.guildId).catch(() => [] as string[]);
+    fallbackHit = containsBannedWord(job.text, words);
+    if (!(error instanceof AegisUnavailableError)) logger.warn('AegisAI', `Message non noté (${job.guildId}) :`, error);
   }
+  const toxicity = scan?.toxicity;
+  // L'émotion d'une édition ou d'un pseudo ne dit rien du climat du salon.
+  const emotion = job.source === 'MESSAGE' ? scan?.emotion : undefined;
 
-  let emotion: EmotionResult | undefined;
-  // Les émotions d'un message en retard de plus de 15 min ne servent plus
-  // qu'aux statistiques : sous forte charge on les laisse.
-  if (job.wantEmotion && Date.now() - job.enqueuedAt < 15 * 60_000) {
-    emotion = await scoreEmotion(job.text).catch(() => undefined);
-  }
-
-  if (job.countStats && job.source === 'MESSAGE') {
+  if (job.countStats && job.source === 'MESSAGE' && scan) {
     recordAegisObservation({
       guildId: job.guildId,
       channelId: job.statsChannelId,
@@ -166,9 +158,20 @@ export async function processAegisJob(job: AegisJob): Promise<void> {
 
   if (toxicity !== undefined || fallbackHit) {
     const late = isLate(job);
-    const decision = toxicity !== undefined ? decideToxicity(toxicity, config, late) : 'review';
+    const decision = toxicity !== undefined ? decideToxicity(toxicity, config, late, job.exempt) : 'review';
     if (decision !== 'none') {
-      await handleToxic({ client, guild, job, config, toxicity: toxicity ?? null, emotion, late, decision });
+      const wouldAct = toxicity !== undefined && decideToxicity(toxicity, config, false) === 'auto';
+      await handleToxic({
+        client,
+        guild,
+        job,
+        config,
+        toxicity: toxicity ?? null,
+        emotion,
+        late,
+        decision,
+        note: job.exempt && wouldAct ? EXEMPT_NOTE : undefined,
+      });
     }
   }
 
