@@ -60,6 +60,20 @@ export function parseDiscordMarkdown(text: string, guild?: Guild | null): string
     return `<pre class="p-3 my-2 rounded bg-zinc-800 font-mono text-sm overflow-x-auto"><code class="language-${safeLang}">${safeCode}</code></pre>`;
   });
 
+  // Titres et sous-texte, très employés par les messages en Components V2 du
+  // bot (`### Titre`, `-# pied de page`). Une ligne entière à la fois.
+  escaped = escaped.replace(/^(#{1,3}) (.+)$/gm, (_, hashes: string, title: string) => {
+    const size = hashes.length === 1 ? 'text-lg' : hashes.length === 2 ? 'text-base' : 'text-sm';
+    return `<span class="block font-bold ${size} text-white">${title}</span>`;
+  });
+  escaped = escaped.replace(/^-# (.+)$/gm, '<span class="block text-xs text-white/50">$1</span>');
+  escaped = escaped.replace(/^&gt; (.+)$/gm, '<span class="block border-l-4 border-white/20 pl-2">$1</span>');
+
+  // Liens masqués [texte](https://…) : seuls http(s) sont acceptés, et le texte
+  // est déjà échappé, l'URL aussi (ni guillemet ni chevron ne peuvent sortir).
+  escaped = escaped.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline">$1</a>');
+
   escaped = escaped.replace(/&lt;:([a-zA-Z0-9_]+):(\d+)&gt;/g, (_, name, id) => {
     const safeName = escapeHtml(name);
     const safeId = escapeHtml(id);
