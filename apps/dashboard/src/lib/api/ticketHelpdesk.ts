@@ -55,8 +55,18 @@ export interface DurationStats {
   p90: number | null;
 }
 
+export interface TicketDailySeries {
+  created: number[];
+  closed: number[];
+  firstResponse: (number | null)[];
+  resolution: (number | null)[];
+  satisfaction: (number | null)[];
+}
+
 export interface TicketStats {
   window: { days: number; from: string; to: string };
+  daily: { dates: string[]; current: TicketDailySeries; previous: TicketDailySeries };
+  previous: { created: number; closed: number; firstResponseMedian: number | null; resolutionMedian: number | null; satisfaction: number | null };
   timezone: string;
   volume: { created: number; closed: number; byDay: Array<{ date: string; created: number; closed: number }> };
   firstResponse: DurationStats;

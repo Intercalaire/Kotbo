@@ -1,18 +1,23 @@
 <!--
-  Performance du support : volume, délais (médiane et 90e centile), respect
-  des objectifs, satisfaction, file actuelle et tableau par membre du staff.
-  La lecture qu'un responsable fait chaque semaine dans un outil de support.
+  Performance du support, présentée comme Analytics : des tuiles de chiffres
+  clés qui pilotent la courbe du dessous (écart et mini-courbe dans chacune),
+  la période d'avant en pointillés, puis les chiffres de la file, le tableau
+  par membre du staff et les classements par type et par étiquette.
 -->
 <script lang="ts">
-  import Skeleton from '../Skeleton.svelte';
+  import { Callout, FilterPills, SectionCard, type FilterOption } from '../ui';
+  import AnalyticsSkeleton from '../analytics/AnalyticsSkeleton.svelte';
+  import MetricTabs, { type MetricTab } from '../analytics/MetricTabs.svelte';
+  import TimeSeriesChart from '../analytics/TimeSeriesChart.svelte';
   import BarList from '../analytics/BarList.svelte';
-  import { fmtNumber } from '../analytics/analyticsFormat';
-  import { Callout, EmptyState, FilterPills, SectionCard, type FilterOption } from '../ui';
+  import { fmtDuration, fmtNumber, fmtPct, shortDate, SERIES } from '../analytics/analyticsFormat';
+  import { relativeDelta } from '../analytics/analyticsFilters.svelte';
   import { m, dateLocale } from '../../i18n';
-  import { fetchTicketStats, type DurationStats, type TicketStats } from '../../api';
+  import { fetchTicketStats, type TicketStats } from '../../api';
 
   type Period = '7' | '30' | '90';
   let period = $state<Period>('30');
+  let compare = $state(true);
   let stats = $state<TicketStats | null>(null);
   let loading = $state(true);
   let error = $state('');
@@ -33,223 +38,271 @@
       .finally(() => { loading = false; });
   });
 
-  function duration(minutes: number | null): string {
-    if (minutes === null) return '—';
-    if (minutes < 60) return m.th_min({ count: Math.max(1, Math.round(minutes)) });
-    const hours = minutes / 60;
-    if (hours < 48) return m.th_hours_decimal({ count: hours.toLocaleString(dateLocale(), { maximumFractionDigits: 1 }) });
-    return m.th_days({ count: Math.round(hours / 24) });
-  }
+  /** Minutes en durée lisible, à l'échelle utile. */
+  const duration = (minutes: number | null) => (minutes === null ? '—' : fmtDuration(minutes * 60));
+  const rating = (value: number | null) => (value === null ? '—' : `${value.toLocaleString(dateLocale(), { maximumFractionDigits: 1 })}/5`);
+  const deltaOf = (value: number | null, previous: number | null) =>
+    value === null || previous === null ? null : relativeDelta(value, previous);
+  const spark = (values: (number | null)[]) => values.map((value) => value ?? 0);
 
-  const p90 = (value: DurationStats) => (value.p90 === null ? '' : m.th_p90({ time: duration(value.p90) }));
-  const pct = (value: number | null) => (value === null ? '—' : `${value.toLocaleString(dateLocale(), { maximumFractionDigits: 1 })} %`);
+  // ── Tuiles qui pilotent la courbe ─────────────────────
+  type MetricId = 'created' | 'closed' | 'firstResponse' | 'resolution' | 'satisfaction';
+  let active = $state<MetricId>('created');
 
-  const maxDay = $derived(Math.max(1, ...(stats?.volume.byDay.flatMap((day) => [day.created, day.closed]) ?? [0])));
-  const maxRating = $derived(Math.max(1, ...(stats?.satisfaction.distribution ?? [0])));
-  const formatDay = (key: string) => new Date(`${key}T12:00:00Z`).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short' });
+  const tiles: MetricTab[] = $derived(stats ? [
+    {
+      id: 'created', label: m.th_kpi_created(), value: fmtNumber(stats.volume.created), color: SERIES[0],
+      delta: relativeDelta(stats.volume.created, stats.previous.created), spark: stats.daily.current.created,
+    },
+    {
+      id: 'closed', label: m.th_legend_closed(), value: fmtNumber(stats.volume.closed), color: SERIES[1],
+      delta: relativeDelta(stats.volume.closed, stats.previous.closed), spark: stats.daily.current.closed,
+    },
+    {
+      id: 'firstResponse', label: m.th_kpi_first_response(), value: duration(stats.firstResponse.median), color: SERIES[2],
+      hint: stats.firstResponse.p90 !== null ? m.th_p90({ time: duration(stats.firstResponse.p90) }) : undefined,
+      // Un délai qui monte est une mauvaise nouvelle.
+      invert: true, delta: deltaOf(stats.firstResponse.median, stats.previous.firstResponseMedian), spark: spark(stats.daily.current.firstResponse),
+    },
+    {
+      id: 'resolution', label: m.th_kpi_resolution(), value: duration(stats.resolution.median), color: SERIES[3],
+      hint: stats.resolution.p90 !== null ? m.th_p90({ time: duration(stats.resolution.p90) }) : undefined,
+      invert: true, delta: deltaOf(stats.resolution.median, stats.previous.resolutionMedian), spark: spark(stats.daily.current.resolution),
+    },
+    {
+      id: 'satisfaction', label: m.th_kpi_csat(), value: rating(stats.satisfaction.average), color: SERIES[4],
+      hint: m.th_kpi_csat_count({ count: stats.satisfaction.count }),
+      delta: deltaOf(stats.satisfaction.average, stats.previous.satisfaction), spark: spark(stats.daily.current.satisfaction),
+    },
+  ] : []);
 
-  function ageOf(iso: string | null): string {
-    if (!iso) return '—';
-    return duration((Date.now() - new Date(iso).getTime()) / 60_000);
-  }
+  const chart = $derived.by(() => {
+    if (!stats) return null;
+    const tile = tiles.find((t) => t.id === active);
+    const current = stats.daily.current[active];
+    const previous = stats.daily.previous[active];
+    const isCount = active === 'created' || active === 'closed';
+    return {
+      labels: stats.daily.dates.map(shortDate),
+      mode: isCount ? 'bar' as const : 'line' as const,
+      main: { label: tile?.label ?? '', values: current, color: tile?.color ?? SERIES[0] },
+      previous: compare ? { label: m.th_previous_period(), values: previous } : null,
+      format: active === 'satisfaction'
+        ? (value: number) => rating(value)
+        : isCount ? fmtNumber : (value: number) => duration(value),
+    };
+  });
+
+  // ── Chiffres de la file, sans courbe ──────────────────
+  const queueTiles: MetricTab[] = $derived(stats ? [
+    {
+      id: 'sla', label: m.th_kpi_sla(), value: stats.sla.configured ? (stats.sla.firstResponseMet ?? stats.sla.resolutionMet) === null ? '—' : fmtPct(stats.sla.firstResponseMet ?? stats.sla.resolutionMet ?? 0) : '—',
+      hint: stats.sla.configured
+        ? m.th_kpi_sla_hint({ first: stats.sla.firstResponseMet === null ? '—' : fmtPct(stats.sla.firstResponseMet), resolution: stats.sla.resolutionMet === null ? '—' : fmtPct(stats.sla.resolutionMet) })
+        : m.th_kpi_sla_none(),
+    },
+    { id: 'active', label: m.th_kpi_backlog(), value: fmtNumber(stats.backlog.active) },
+    { id: 'unassigned', label: m.th_view_unassigned(), value: fmtNumber(stats.backlog.unassigned) },
+    { id: 'waiting', label: m.th_view_waiting(), value: fmtNumber(stats.backlog.waitingStaff) },
+    { id: 'breached', label: m.th_view_breached(), value: fmtNumber(stats.backlog.breached) },
+    {
+      id: 'oldest', label: m.th_kpi_oldest(),
+      value: stats.backlog.oldestActiveAt ? duration((Date.now() - new Date(stats.backlog.oldestActiveAt).getTime()) / 60_000) : '—',
+    },
+  ] : []);
+
+  // ── Tableau du staff ──────────────────────────────────
+  type SortKey = 'handled' | 'closed' | 'firstResponse' | 'resolution' | 'rating' | 'openNow';
+  let sort = $state<SortKey>('handled');
+  const sortValue = (agent: TicketStats['agents'][number], key: SortKey): number => {
+    switch (key) {
+      case 'firstResponse': return -(agent.firstResponse.median ?? Number.POSITIVE_INFINITY);
+      case 'resolution': return -(agent.resolution.median ?? Number.POSITIVE_INFINITY);
+      case 'rating': return agent.rating ?? -1;
+      default: return agent[key];
+    }
+  };
+  const agents = $derived([...(stats?.agents ?? [])].sort((a, b) => sortValue(b, sort) - sortValue(a, sort)));
+  const maxHandled = $derived(Math.max(1, ...(stats?.agents.map((agent) => agent.handled) ?? [1])));
+
+  const columns: Array<{ key: SortKey; label: () => string }> = [
+    { key: 'handled', label: () => m.th_col_handled() },
+    { key: 'closed', label: () => m.th_col_closed() },
+    { key: 'firstResponse', label: () => m.th_col_first_response() },
+    { key: 'resolution', label: () => m.th_col_resolution() },
+    { key: 'rating', label: () => m.th_col_csat() },
+    { key: 'openNow', label: () => m.th_col_open() },
+  ];
 </script>
 
-<div class="space-y-4">
+<div class="flex flex-col gap-4">
   <div class="flex flex-wrap items-center justify-between gap-3">
     <p class="text-body-sm text-on-surface-variant">{m.th_stats_intro()}</p>
-    <FilterPills label={m.th_period()} options={periodOptions} value={period} onchange={(value) => (period = value)} />
+    <div class="flex flex-wrap items-center gap-3">
+      <label class="flex items-center gap-2 text-body-sm text-on-surface-variant">
+        <input type="checkbox" bind:checked={compare} />
+        {m.th_compare_previous()}
+      </label>
+      <FilterPills label={m.th_period()} options={periodOptions} value={period} onchange={(value) => (period = value)} />
+    </div>
   </div>
 
   {#if loading && !stats}
-    <div class="grid gap-3 grid-cols-2 lg:grid-cols-6">{#each Array(6) as _}<Skeleton height="h-24" />{/each}</div>
-    <Skeleton height="h-56" />
-  {:else if error}
+    <AnalyticsSkeleton />
+  {:else if error && !stats}
     <Callout variant="danger">{error}</Callout>
   {:else if stats}
-    <div class="grid gap-3 grid-cols-2 lg:grid-cols-6">
-      <div class="tps-kpi"><span>{m.th_kpi_created()}</span><strong>{fmtNumber(stats.volume.created)}</strong><small>{m.th_kpi_closed({ count: fmtNumber(stats.volume.closed) })}</small></div>
-      <div class="tps-kpi"><span>{m.th_kpi_first_response()}</span><strong>{duration(stats.firstResponse.median)}</strong><small>{p90(stats.firstResponse)}</small></div>
-      <div class="tps-kpi"><span>{m.th_kpi_resolution()}</span><strong>{duration(stats.resolution.median)}</strong><small>{p90(stats.resolution)}</small></div>
-      <div class="tps-kpi">
-        <span>{m.th_kpi_sla()}</span>
-        <strong>{stats.sla.configured ? pct(stats.sla.firstResponseMet ?? stats.sla.resolutionMet) : '—'}</strong>
-        <small>{stats.sla.configured ? m.th_kpi_sla_hint({ first: pct(stats.sla.firstResponseMet), resolution: pct(stats.sla.resolutionMet) }) : m.th_kpi_sla_none()}</small>
-      </div>
-      <div class="tps-kpi">
-        <span>{m.th_kpi_csat()}</span>
-        <strong class={stats.satisfaction.average !== null && stats.satisfaction.average < 3.5 ? 'text-warning' : ''}>{stats.satisfaction.average === null ? '—' : `${stats.satisfaction.average.toLocaleString(dateLocale())}/5`}</strong>
-        <small>{m.th_kpi_csat_count({ count: stats.satisfaction.count })}</small>
-      </div>
-      <div class="tps-kpi">
-        <span>{m.th_kpi_backlog()}</span>
-        <strong class={stats.backlog.breached > 0 ? 'text-error' : ''}>{fmtNumber(stats.backlog.active)}</strong>
-        <small>{m.th_kpi_backlog_hint({ breached: stats.backlog.breached, oldest: ageOf(stats.backlog.oldestActiveAt) })}</small>
-      </div>
-    </div>
-
-    {#if stats.backlog.unassigned > 0 || stats.backlog.waitingStaff > 0}
-      <Callout variant={stats.backlog.breached > 0 ? 'warning' : 'info'}>
-        {m.th_backlog_callout({ unassigned: stats.backlog.unassigned, waiting: stats.backlog.waitingStaff })}
-      </Callout>
-    {/if}
-
-    <SectionCard title={m.th_volume_title()} description={m.th_volume_desc()}>
-      <div class="px-5 pb-5 pt-4">
-        <div class="tps-bars" role="img" aria-label={m.th_volume_title()}>
-          {#each stats.volume.byDay as day (day.date)}
-            <div class="tps-day" title={m.th_volume_tip({ date: formatDay(day.date), created: day.created, closed: day.closed })}>
-              <span class="tps-bar tps-bar--created" style="height: {day.created ? Math.max(4, (day.created / maxDay) * 100) : 0}%"></span>
-              <span class="tps-bar tps-bar--closed" style="height: {day.closed ? Math.max(4, (day.closed / maxDay) * 100) : 0}%"></span>
-            </div>
-          {/each}
+    <div class="flex flex-col gap-4" class:opacity-60={loading}>
+      <SectionCard>
+        <div class="p-4 flex flex-col gap-4">
+          <MetricTabs metrics={tiles} {active} onchange={(id) => (active = id as MetricId)} {compare} label={m.th_tab_performance()} />
+          {#if chart}
+            <TimeSeriesChart labels={chart.labels} mode={chart.mode} main={chart.main} previous={chart.previous} format={chart.format} height={260} />
+          {/if}
         </div>
-        <div class="flex justify-between mt-1.5 text-2xs text-on-surface-variant">
-          <span>{formatDay(stats.volume.byDay[0]?.date ?? '')}</span>
-          <span class="flex items-center gap-3">
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm" style="background: var(--series-1)"></span>{m.th_legend_created()}</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm" style="background: var(--series-2)"></span>{m.th_legend_closed()}</span>
-          </span>
-          <span>{formatDay(stats.volume.byDay[stats.volume.byDay.length - 1]?.date ?? '')}</span>
-        </div>
-      </div>
-    </SectionCard>
+      </SectionCard>
 
-    <SectionCard title={m.th_agents_title()} description={m.th_agents_desc()} flush>
-      {#if stats.agents.length === 0}
-        <EmptyState icon="users" title={m.th_agents_empty()} description={m.th_agents_empty_desc()} />
-      {:else}
-        <div class="overflow-x-auto">
-          <table class="tps-table">
-            <thead>
-              <tr>
-                <th>{m.th_col_agent()}</th>
-                <th>{m.th_col_handled()}</th>
-                <th>{m.th_col_closed()}</th>
-                <th>{m.th_col_first_response()}</th>
-                <th>{m.th_col_resolution()}</th>
-                <th>{m.th_col_csat()}</th>
-                <th>{m.th_col_open()}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each stats.agents as agent (agent.userId)}
-                <tr>
-                  <td><a class="hover:underline" href={`/members/${agent.userId}`}>{agent.name}</a></td>
-                  <td>{agent.handled}</td>
-                  <td>{agent.closed}</td>
-                  <td>{duration(agent.firstResponse.median)}</td>
-                  <td>{duration(agent.resolution.median)}</td>
-                  <td>{agent.rating === null ? '—' : `${agent.rating.toLocaleString(dateLocale())} (${agent.ratings})`}</td>
-                  <td>{agent.openNow}</td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
+      <MetricTabs metrics={queueTiles} active="" onchange={() => {}} label={m.th_kpi_backlog()} interactive={false} />
+
+      {#if stats.backlog.unassigned > 0 || stats.backlog.waitingStaff > 0}
+        <Callout variant={stats.backlog.breached > 0 ? 'warning' : 'info'}>
+          {m.th_backlog_callout({ unassigned: stats.backlog.unassigned, waiting: stats.backlog.waitingStaff })}
+        </Callout>
       {/if}
-    </SectionCard>
 
-    <div class="grid gap-4 lg:grid-cols-3">
-      <SectionCard title={m.th_by_type()}>
-        <div class="px-5 pb-5 pt-3">
+      <SectionCard title={m.th_agents_title()} description={m.th_agents_desc()} flush>
+        {#if agents.length === 0}
+          <p class="px-5 py-6 text-body-sm text-on-surface-variant">{m.th_agents_empty_desc()}</p>
+        {:else}
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">{m.th_col_agent()}</th>
+                  {#each columns as column (column.key)}
+                    <th scope="col" class="num" aria-sort={sort === column.key ? 'descending' : undefined}>
+                      <button type="button" class="th-sort" onclick={() => (sort = column.key)}>{column.label()}</button>
+                    </th>
+                  {/each}
+                </tr>
+              </thead>
+              <tbody>
+                {#each agents as agent (agent.userId)}
+                  <tr>
+                    <th scope="row">
+                      <a class="agent-name" href={`/members/${agent.userId}`}>{agent.name}</a>
+                      <span class="agent-bar" aria-hidden="true"><span style="width: {Math.max(2, (agent.handled / maxHandled) * 100)}%;"></span></span>
+                    </th>
+                    <td class="num">{fmtNumber(agent.handled)}</td>
+                    <td class="num">{fmtNumber(agent.closed)}</td>
+                    <td class="num">{duration(agent.firstResponse.median)}</td>
+                    <td class="num">{duration(agent.resolution.median)}</td>
+                    <td class="num {agent.rating !== null && agent.rating < 3.5 ? 'text-warning' : ''}">
+                      {rating(agent.rating)}{#if agent.ratings} <span class="text-on-surface-variant">· {agent.ratings}</span>{/if}
+                    </td>
+                    <td class="num">{fmtNumber(agent.openNow)}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {/if}
+      </SectionCard>
+
+      <div class="grid gap-4 lg:grid-cols-3">
+        <SectionCard title={m.th_by_type()}>
           <BarList
             items={stats.byType.map((type) => ({ id: type.label, label: type.label, value: type.count, sub: type.resolution.median !== null ? m.th_type_resolution({ time: duration(type.resolution.median) }) : undefined }))}
             empty={m.th_none()}
           />
-        </div>
-      </SectionCard>
-      <SectionCard title={m.th_by_tag()}>
-        <div class="px-5 pb-5 pt-3">
-          <BarList items={stats.byTag.map((tag) => ({ id: tag.tag, label: `#${tag.tag}`, value: tag.count }))} empty={m.th_by_tag_empty()} />
-        </div>
-      </SectionCard>
-      <SectionCard title={m.th_csat_title()}>
-        <div class="px-5 pb-5 pt-3 space-y-1.5">
-          {#each [5, 4, 3, 2, 1] as score (score)}
-            {@const count = stats.satisfaction.distribution[score - 1] ?? 0}
-            <div class="flex items-center gap-2 text-2xs text-on-surface-variant">
-              <span class="w-6 tabular-nums">{score}★</span>
-              <span class="flex-1 h-2 rounded-full bg-surface-container-low overflow-hidden"><span class="block h-full rounded-full" style="width: {(count / maxRating) * 100}%; background: var(--series-1)"></span></span>
-              <span class="w-8 text-right tabular-nums">{count}</span>
-            </div>
-          {/each}
-        </div>
-      </SectionCard>
+        </SectionCard>
+        <SectionCard title={m.th_by_tag()}>
+          <BarList items={stats.byTag.map((tag) => ({ id: tag.tag, label: `#${tag.tag}`, value: tag.count }))} color={SERIES[1]} empty={m.th_by_tag_empty()} />
+        </SectionCard>
+        <SectionCard title={m.th_csat_title()}>
+          <BarList
+            items={[5, 4, 3, 2, 1].map((score) => ({ id: String(score), label: `${score} ★`, value: stats!.satisfaction.distribution[score - 1] ?? 0 }))}
+            color={SERIES[4]}
+            empty={m.th_none()}
+          />
+        </SectionCard>
+      </div>
     </div>
   {/if}
 </div>
 
 <style>
-  .tps-kpi {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-    padding: 0.875rem 1rem;
-    border: 1px solid var(--outline-variant);
-    border-radius: 0.875rem;
-    background: var(--surface-container-lowest);
-  }
-  .tps-kpi span {
-    font-size: 0.75rem;
-    color: var(--on-surface-variant);
-  }
-  .tps-kpi strong {
-    font-size: 1.3rem;
-    font-weight: 600;
-    color: var(--on-surface);
-    font-variant-numeric: tabular-nums;
-  }
-  .tps-kpi small {
-    font-size: 0.6875rem;
-    color: var(--on-surface-variant);
+  .table-wrap {
+    max-height: 30rem;
+    overflow: auto;
   }
 
-  .tps-bars {
-    display: flex;
-    align-items: flex-end;
-    gap: 3px;
-    height: 8rem;
-  }
-  .tps-day {
-    flex: 1;
-    height: 100%;
-    display: flex;
-    align-items: flex-end;
-    gap: 1px;
-  }
-  .tps-bar {
-    flex: 1;
-    border-radius: 2px 2px 0 0;
-  }
-  .tps-bar--created {
-    background: var(--series-1);
-  }
-  .tps-bar--closed {
-    background: var(--series-2);
-  }
-
-  .tps-table {
+  .data-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.8125rem;
   }
-  .tps-table th {
-    padding: 0.6rem 1.25rem;
+
+  .data-table th,
+  .data-table td {
+    padding: 0.5rem 1rem;
     text-align: left;
+    border-bottom: 1px solid var(--color-outline-variant);
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  .data-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--color-surface-container-low);
     font-weight: 500;
     font-size: 0.75rem;
-    color: var(--on-surface-variant);
-    border-bottom: 1px solid var(--outline-variant);
-    white-space: nowrap;
+    color: var(--color-on-surface-variant);
   }
-  .tps-table td {
-    padding: 0.55rem 1.25rem;
-    color: var(--on-surface);
+
+  .data-table .num {
+    text-align: right;
     font-variant-numeric: tabular-nums;
-    border-bottom: 1px solid color-mix(in srgb, var(--outline-variant) 50%, transparent);
-    white-space: nowrap;
   }
-  .tps-table tr:last-child td {
-    border-bottom: none;
+
+  .data-table tbody tr:hover {
+    background: var(--color-surface-container-low);
+  }
+
+  .th-sort {
+    font: inherit;
+    color: inherit;
+  }
+
+  .th-sort:hover {
+    color: var(--color-on-surface);
+  }
+
+  .agent-name {
+    display: block;
+    font-weight: 500;
+    color: var(--color-on-surface);
+  }
+
+  .agent-name:hover {
+    text-decoration: underline;
+  }
+
+  .agent-bar {
+    display: block;
+    width: 8rem;
+    height: 3px;
+    margin-top: 0.3rem;
+    border-radius: 999px;
+    background: var(--color-surface-container-high);
+    overflow: hidden;
+  }
+
+  .agent-bar span {
+    display: block;
+    height: 100%;
+    background: var(--series-1);
   }
 </style>
