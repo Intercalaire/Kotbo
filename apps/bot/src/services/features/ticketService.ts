@@ -3666,6 +3666,36 @@ export async function renameChannelToOpen(client: Client, channelId: string): Pr
   }
 }
 
+/** Droits qu'il faut au bot dans le salon pour lire le dernier message et relancer. */
+const INACTIVITY_REQUIRED_PERMISSIONS = [
+  PermissionFlagsBits.ViewChannel,
+  PermissionFlagsBits.ReadMessageHistory,
+  PermissionFlagsBits.SendMessages,
+];
+
+/** Refus Discord qui tiennent aux droits du bot : « Missing Access », « Missing Permissions ». */
+const INACTIVITY_FORBIDDEN_CODES = new Set([50001, 50013]);
+
+/**
+ * Tickets dont le salon est ferme au bot, deja signales depuis le demarrage.
+ *
+ * Le drapeau `inactivityAlertSent` ne se pose qu'apres un envoi reussi : un
+ * salon ou le bot a perdu l'acces reste donc dans la file et repasse a chaque
+ * tour du cron. Sans ce registre, chaque tour remontait le meme 403 « Missing
+ * Access » en erreur, pour un ticket ou il n'y a rien a reparer cote bot.
+ */
+const inactivityUnreachableReported = new Set<string>();
+
+function reportInactivityUnreachable(ticketId: string, channelId: string, detail: string): void {
+  if (inactivityUnreachableReported.has(ticketId)) return;
+  inactivityUnreachableReported.add(ticketId);
+  logger.warn(
+    'Ticket',
+    `Rappel d'inactivité impossible pour le ticket ${ticketId} : Kotbo n'a plus accès au salon ${channelId} (${detail}). `
+    + `Il sera relancé dès que l'accès sera rendu.`,
+  );
+}
+
 /**
  * Checks open tickets for inactivity and sends automated warnings if configured.
  */
@@ -3709,6 +3739,19 @@ export async function checkTicketInactivity(client: Client): Promise<void> {
         const channel = await client.channels.fetch(ticket.channelId).catch(() => null);
         if (!channel || !(channel instanceof TextChannel)) continue;
 
+        // Salon ferme au bot : la lecture du dernier message echouait sans bruit,
+        // le ticket passait pour inactif depuis sa creation, et l'envoi tombait
+        // sur un 403 a chaque tour. On ne tente rien tant que l'acces manque.
+        const me = channel.guild?.members?.me;
+        const permissions = me ? channel.permissionsFor(me) : null;
+        if (permissions) {
+          const missing = permissions.missing(INACTIVITY_REQUIRED_PERMISSIONS);
+          if (missing.length > 0) {
+            reportInactivityUnreachable(ticket.id, ticket.channelId, missing.join(', '));
+            continue;
+          }
+        }
+
         const messages = await channel.messages.fetch({ limit: 1 }).catch(() => null);
         const lastMessage = messages?.first();
 
@@ -3751,6 +3794,11 @@ export async function checkTicketInactivity(client: Client): Promise<void> {
             .send({ content: formattedMessage })
             .then(() => true)
             .catch((sendError: unknown) => {
+              const code = (sendError as { code?: unknown } | null)?.code;
+              if (typeof code === 'number' && INACTIVITY_FORBIDDEN_CODES.has(code)) {
+                reportInactivityUnreachable(ticket.id, ticket.channelId, `code ${code}`);
+                return false;
+              }
               logger.error(
                 'Ticket',
                 `Rappel d'inactivité refusé pour le ticket ${ticket.id} (salon ${ticket.channelId}) :`,
@@ -3760,6 +3808,7 @@ export async function checkTicketInactivity(client: Client): Promise<void> {
             });
 
           if (sent) {
+            inactivityUnreachableReported.delete(ticket.id);
             await prisma.ticket.update({
               where: { id: ticket.id },
               data: { inactivityAlertSent: true },
