@@ -14669,5 +14669,14 @@
   "sx_fact_grade_since": "Grade actuel depuis",
   "sx_show_all_warnings": "Voir tous les avertissements",
   "sx_see_directory": "Voir l'annuaire du staff",
-  "sx_move_role_hint": "Déplacer « {name} » (glisser, ou flèches haut et bas)"
+  "sx_move_role_hint": "Déplacer « {name} » (glisser, ou flèches haut et bas)",
+  "mcx_trend_desc": "30 derniers jours, comparés aux 30 jours d'avant en pointillés.",
+  "mcx_arrival": "Arrivée sur le serveur",
+  "mcx_clear_filters": "Effacer les filtres",
+  "mcx_open_in_discord": "Ouvrir dans Discord",
+  "mcx_previous": "Page précédente",
+  "mcx_next": "Page suivante",
+  "mcx_report": "Rapport",
+  "mcx_see_recruitment": "Voir le recrutement",
+  "mcx_open_sanctions": "Ouvrir les sanctions"
 }
