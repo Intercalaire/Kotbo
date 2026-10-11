@@ -894,15 +894,85 @@ class StaffStore {
     }
   }
 
-  private async saveRoleOrder(orderedRoleIds: string[]): Promise<void> {
-    if (!this.guildId) return;
+
+
+  /**
+   * Deplace un grade : avant `beforeRoleId`, ou en bas de la hierarchie visee.
+   *
+   * L'ordre affiche, celui de la promotion, suit le poids (`level`) avant
+   * `sortOrder`. Glisser un grade ne changeait que `sortOrder` : entre deux
+   * grades de poids differents, il revenait aussitot a sa place. Le grade
+   * deplace prend donc un poids entre ses nouveaux voisins ; s'il n'y a pas de
+   * place entre eux, les poids sont reespaces de 10 en 10 dans le nouvel ordre.
+   */
+  async moveRole(roleId: string, target: { beforeRoleId?: string; hierarchyId: string | null }): Promise<void> {
+    if (!this.guildId || roleId === target.beforeRoleId) return;
+    const current = this.orderedRoles;
+    const moved = current.find((role) => role.id === roleId);
+    if (!moved) return;
+
+    const rest = current.filter((role) => role.id !== roleId);
+    let insertAt: number;
+    if (target.beforeRoleId) {
+      insertAt = rest.findIndex((role) => role.id === target.beforeRoleId);
+      if (insertAt < 0) return;
+    } else {
+      // Bas de la hierarchie visee ; hierarchie vide : le grade garde son rang.
+      let last = -1;
+      rest.forEach((role, index) => {
+        if ((role.hierarchyId ?? null) === target.hierarchyId) last = index;
+      });
+      insertAt = last >= 0 ? last + 1 : -1;
+    }
+
+    const hierarchyChanged = (moved.hierarchyId ?? null) !== target.hierarchyId;
+    const levels = new Map<string, number>();
+
+    if (insertAt >= 0) {
+      const above = rest[insertAt - 1];
+      const below = rest[insertAt];
+      const hi = above ? above.level : (below ? below.level + 20 : moved.level);
+      const lo = below ? below.level : Math.max(0, hi - 20);
+      const order = [...rest.slice(0, insertAt), moved, ...rest.slice(insertAt)];
+      if (hi - lo >= 2) {
+        levels.set(moved.id, Math.floor((hi + lo) / 2));
+      } else {
+        order.forEach((role, index) => {
+          const level = (order.length - index) * 10;
+          if (level !== role.level) levels.set(role.id, level);
+        });
+      }
+      if (order.indexOf(moved) === current.indexOf(moved) && !hierarchyChanged) return;
+    } else if (!hierarchyChanged) {
+      return;
+    }
+
+    // Affichage immediat, puis enregistrement.
+    this.roles = this.roles.map((role) => ({
+      ...role,
+      level: levels.get(role.id) ?? role.level,
+      hierarchyId: role.id === roleId ? target.hierarchyId : role.hierarchyId,
+    }));
+
     this.savingRoleOrder = true;
     try {
+      const writes: Promise<boolean>[] = [];
+      for (const [id, level] of levels) {
+        const data: Record<string, unknown> = { level };
+        if (id === roleId && hierarchyChanged) data.hierarchyId = target.hierarchyId;
+        writes.push(updateStaffRole(id, data, this.guildId));
+      }
+      if (hierarchyChanged && !levels.has(roleId)) {
+        writes.push(updateStaffRole(roleId, { hierarchyId: target.hierarchyId }, this.guildId));
+      }
+      const results = await Promise.all(writes);
+      if (results.some((ok) => !ok)) throw new Error(m.sm_err_reorder());
+      // `sortOrder` ne departage que les poids egaux, mais il suit l'ordre affiche.
       const res = await dashboardFetch(`/staff/roles/order`, {
         guildId: this.guildId,
         method: 'PATCH',
         headers: JSON_HEADERS,
-        body: JSON.stringify({ orderedRoleIds }),
+        body: JSON.stringify({ orderedRoleIds: this.orderedRoles.map((role) => role.id) }),
       });
       if (!res.ok) throw new Error(m.sm_err_reorder());
     } catch (err) {
@@ -912,66 +982,6 @@ class StaffStore {
       await this.loadRoles(true);
       this.savingRoleOrder = false;
     }
-  }
-
-  private async setRoleHierarchy(roleId: string, hierarchyId: string | null): Promise<void> {
-    const ok = await updateStaffRole(roleId, { hierarchyId }, this.guildId!);
-    if (!ok) throw new Error(m.sm_err_role_hierarchy_update());
-  }
-
-  /** Depot d'un grade dans un pole (ou hors pole) : il se range en dernier. */
-  async moveRoleToHierarchy(roleId: string, targetHierarchyId: string | null): Promise<void> {
-    const next = [...this.orderedRoles];
-    const sourceIndex = next.findIndex((role) => role.id === roleId);
-    if (sourceIndex < 0) return;
-    const source = next[sourceIndex];
-    if ((source.hierarchyId ?? null) === targetHierarchyId) return;
-
-    const [moved] = next.splice(sourceIndex, 1);
-    const updated = { ...moved, hierarchyId: targetHierarchyId };
-    let lastIndex = -1;
-    for (let i = next.length - 1; i >= 0; i--) {
-      if ((next[i].hierarchyId ?? null) === targetHierarchyId) {
-        lastIndex = i;
-        break;
-      }
-    }
-    if (lastIndex >= 0) next.splice(lastIndex + 1, 0, updated);
-    else next.push(updated);
-
-    this.roles = next.map((role, index) => ({ ...role, sortOrder: index }));
-    try {
-      await this.setRoleHierarchy(roleId, targetHierarchyId);
-      await this.saveRoleOrder(next.map((role) => role.id));
-    } catch (err) {
-      toast.error(m.sm_err_hierarchy_update_prefix() + (err instanceof Error ? err.message : String(err)));
-      await this.loadRoles(true);
-    }
-  }
-
-  /** Depot d'un grade sur un autre : il prend sa place, et son pole si besoin. */
-  async moveRoleBefore(roleId: string, targetRoleId: string): Promise<void> {
-    if (roleId === targetRoleId) return;
-    const next = [...this.orderedRoles];
-    const sourceIndex = next.findIndex((role) => role.id === roleId);
-    const targetIndex = next.findIndex((role) => role.id === targetRoleId);
-    if (sourceIndex < 0 || targetIndex < 0) return;
-    const targetHierarchyId = next[targetIndex].hierarchyId ?? null;
-
-    if ((next[sourceIndex].hierarchyId ?? null) !== targetHierarchyId) {
-      try {
-        await this.setRoleHierarchy(roleId, targetHierarchyId);
-      } catch (err) {
-        toast.error(m.sm_err_hierarchy_update_prefix() + (err instanceof Error ? err.message : String(err)));
-        await this.loadRoles(true);
-        return;
-      }
-    }
-
-    const [moved] = next.splice(sourceIndex, 1);
-    next.splice(targetIndex, 0, { ...moved, hierarchyId: targetHierarchyId });
-    this.roles = next.map((role, index) => ({ ...role, sortOrder: index }));
-    await this.saveRoleOrder(next.map((role) => role.id));
   }
 
   async saveHierarchy(payload: HierarchyPayload, editingId: string | null): Promise<boolean> {

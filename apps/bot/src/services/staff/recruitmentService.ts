@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 import type { CandidatureStatus } from '@prisma/client';
 import { type ButtonInteraction, type Client, EmbedBuilder, TextChannel } from 'discord.js';
 import prisma from '../../utils/db.js';
+import { upsertHierarchyGradeRow, upsertStaffMemberRow } from './staffRowUpsert.js';
 import { createNotification } from './staffLeadershipService.js';
 import { logger } from '../../utils/logger.js';
 import { COLORS } from '../../utils/embeds.js';
@@ -597,8 +598,7 @@ export async function completeOral(
   }
 
   // Create the staff member
-  const staffMember = await prisma.staffMember.upsert({
-    where: { guildId_userId: { guildId, userId: candidature.discordId } },
+  const staffMember = await upsertStaffMemberRow(guildId, candidature.discordId, {
     update: {
       grade: gradeName,
       userTag,
@@ -607,8 +607,6 @@ export async function completeOral(
       avatarUrl,
     },
     create: {
-      guildId,
-      userId: candidature.discordId,
       grade: gradeName,
       userTag,
       username,
@@ -619,11 +617,7 @@ export async function completeOral(
 
   // Associate with hierarchy if specified (explicit override or derived from the source form)
   if (effectiveHierarchyId && effectiveHierarchyGrade) {
-    await prisma.staffMemberHierarchyGrade.upsert({
-      where: { staffMemberId_hierarchyId: { staffMemberId: staffMember.id, hierarchyId: effectiveHierarchyId } },
-      update: { grade: effectiveHierarchyGrade },
-      create: { staffMemberId: staffMember.id, hierarchyId: effectiveHierarchyId, grade: effectiveHierarchyGrade },
-    }).catch(() => null);
+    await upsertHierarchyGradeRow(staffMember.id, effectiveHierarchyId, effectiveHierarchyGrade).catch(() => null);
   }
 
   // Create a testing period

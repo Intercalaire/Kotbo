@@ -25,6 +25,22 @@
   let overRole = $state<string | null>(null);
   let overZone = $state<string | null>(null);
 
+  /** Fleches haut et bas sur la poignee : le meme deplacement qu'au glisser. */
+  function moveWithKeys(event: KeyboardEvent, role: StaffRole) {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+    event.preventDefault();
+    const siblings = staff.rolesInHierarchy(role.hierarchyId ?? null);
+    const index = siblings.findIndex((r) => r.id === role.id);
+    if (event.key === 'ArrowUp' && index > 0) {
+      void staff.moveRole(role.id, { beforeRoleId: siblings[index - 1].id, hierarchyId: role.hierarchyId ?? null });
+    } else if (event.key === 'ArrowDown' && index >= 0 && index < siblings.length - 1) {
+      const after = siblings[index + 2];
+      void staff.moveRole(role.id, after
+        ? { beforeRoleId: after.id, hierarchyId: role.hierarchyId ?? null }
+        : { hierarchyId: role.hierarchyId ?? null });
+    }
+  }
+
   function endDrag() {
     dragged = null;
     overRole = null;
@@ -181,20 +197,30 @@
     class:role-row--dragging={dragged === role.id}
     ondragover={(e) => { if (!dragged) return; e.preventDefault(); e.stopPropagation(); overRole = role.id; }}
     ondragleave={() => { if (overRole === role.id) overRole = null; }}
-    ondrop={(e) => { e.preventDefault(); e.stopPropagation(); const id = dragged; endDrag(); if (id) void staff.moveRoleBefore(id, role.id); }}
+    ondrop={(e) => { e.preventDefault(); e.stopPropagation(); const id = dragged; endDrag(); if (id) void staff.moveRole(id, { beforeRoleId: role.id, hierarchyId: role.hierarchyId ?? null }); }}
   >
     {#if canEdit}
-      <button
-        type="button"
+      <!-- Une poignee en <span> : Firefox refuse de faire glisser un <button>,
+           le grade ne bougeait pas du tout. Au clavier, fleches haut et bas. -->
+      <span
         class="role-handle"
+        role="button"
+        tabindex="0"
         draggable="true"
-        ondragstart={(e) => { dragged = role.id; e.dataTransfer?.setData('text/plain', role.id); }}
+        ondragstart={(e) => {
+          dragged = role.id;
+          if (e.dataTransfer) {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', role.id);
+          }
+        }}
         ondragend={endDrag}
-        aria-label={m.sm_aria_move_role({ name: role.name })}
-        title={m.sm_aria_move_role({ name: role.name })}
+        onkeydown={(e) => moveWithKeys(e, role)}
+        aria-label={m.sx_move_role_hint({ name: role.name })}
+        title={m.sx_move_role_hint({ name: role.name })}
       >
         <Papicon icon="grip-vertical" size={14} />
-      </button>
+      </span>
     {/if}
     <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background: {role.color || 'var(--outline)'}" aria-hidden="true"></span>
     <div class="min-w-0 flex-1">
@@ -233,7 +259,7 @@
     aria-label={emptyText}
     ondragover={(e) => { if (!dragged) return; e.preventDefault(); overZone = id; }}
     ondragleave={(e) => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) overZone = null; }}
-    ondrop={(e) => { e.preventDefault(); const roleId = dragged; endDrag(); if (roleId) void staff.moveRoleToHierarchy(roleId, hierarchyId); }}
+    ondrop={(e) => { e.preventDefault(); const roleId = dragged; endDrag(); if (roleId) void staff.moveRole(roleId, { hierarchyId }); }}
   >
     {#each roles as role (role.id)}
       {@render roleRow(role)}

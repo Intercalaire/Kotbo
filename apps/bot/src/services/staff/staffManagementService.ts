@@ -1,4 +1,5 @@
 import prisma from '../../utils/db.js';
+import { upsertHierarchyGradeRow, upsertStaffMemberRow } from './staffRowUpsert.js';
 import { resolveMemberAvatarUrl } from '../moderation/memberIdentityService.js';
 import { cache } from '../../utils/cache.js';
 
@@ -179,11 +180,7 @@ export const syncStaffHierarchyMembership = async (guildId: string, userId: stri
       if (newLevel <= existingLevel) return;
     }
 
-    await prisma.staffMemberHierarchyGrade.upsert({
-      where: { staffMemberId_hierarchyId: { staffMemberId: staffMember.id, hierarchyId: membership.hierarchyId } },
-      update: { grade: membership.grade },
-      create: { staffMemberId: staffMember.id, hierarchyId: membership.hierarchyId, grade: membership.grade },
-    });
+    await upsertHierarchyGradeRow(staffMember.id, membership.hierarchyId, membership.grade);
     updated++;
   }));
 
@@ -283,13 +280,9 @@ export const syncStaffHierarchyMemberships = async (guildId: string) => {
   }
 
   if (pendingUpserts.length > 0) {
-    await prisma.$transaction(
-      pendingUpserts.map((entry) => prisma.staffMemberHierarchyGrade.upsert({
-        where: { staffMemberId_hierarchyId: { staffMemberId: entry.staffMemberId, hierarchyId: entry.hierarchyId } },
-        update: { grade: entry.grade },
-        create: entry,
-      }))
-    );
+    for (const entry of pendingUpserts) {
+      await upsertHierarchyGradeRow(entry.staffMemberId, entry.hierarchyId, entry.grade);
+    }
   }
 
   return { updated: pendingUpserts.length, scanned: staffMembers.length };
@@ -423,8 +416,7 @@ export const addStaffMember = async (
   hierarchyId?: string,
   hierarchyGrade?: string
 ) => {
-  const result = await prisma.staffMember.upsert({
-    where: { guildId_userId: { guildId, userId } },
+  const result = await upsertStaffMemberRow(guildId, userId, {
     update: {
       grade,
       userTag,
@@ -437,8 +429,6 @@ export const addStaffMember = async (
       suspendedById: null,
     },
     create: {
-      guildId,
-      userId,
       grade,
       userTag,
       username,
@@ -451,11 +441,7 @@ export const addStaffMember = async (
 
   // Si le grade global correspond à une hiérarchie, créer/mettre à jour automatiquement le grade hiérarchique
   if (resolvedHierarchyAssignment) {
-    await prisma.staffMemberHierarchyGrade.upsert({
-      where: { staffMemberId_hierarchyId: { staffMemberId: result.id, hierarchyId: resolvedHierarchyAssignment.hierarchyId } },
-      update: { grade: resolvedHierarchyAssignment.grade },
-      create: { staffMemberId: result.id, hierarchyId: resolvedHierarchyAssignment.hierarchyId, grade: resolvedHierarchyAssignment.grade },
-    }).catch(() => null);
+    await upsertHierarchyGradeRow(result.id, resolvedHierarchyAssignment.hierarchyId, resolvedHierarchyAssignment.grade).catch(() => null);
   }
 
   // Sync Discord roles in background
@@ -1510,12 +1496,7 @@ export const addMemberToHierarchy = async (
     throw new Error('Impossible de détecter automatiquement la hiérarchie ou le grade. Veuillez les renseigner manuellement.');
   }
 
-  return prisma.staffMemberHierarchyGrade.upsert({
-    where: { staffMemberId_hierarchyId: { staffMemberId: staffMember.id, hierarchyId: resolvedHierarchyId } },
-    update: { grade: resolvedGrade },
-    create: { staffMemberId: staffMember.id, hierarchyId: resolvedHierarchyId, grade: resolvedGrade },
-    include: { hierarchy: true },
-  });
+  return upsertHierarchyGradeRow(staffMember.id, resolvedHierarchyId, resolvedGrade, { hierarchy: true });
 };
 
 export const removeMemberFromHierarchy = async (
@@ -1567,16 +1548,13 @@ export const importRoleMembers = async (
   for (const [userId, discordMember] of membersWithRole) {
     try {
       // Upsert du StaffMember
-      const staffMember = await prisma.staffMember.upsert({
-        where: { guildId_userId: { guildId, userId } },
+      const staffMember = await upsertStaffMemberRow(guildId, userId, {
         update: {
           username: discordMember.user.username,
           displayName: discordMember.displayName || discordMember.user.globalName || discordMember.user.username,
           avatarUrl: resolveMemberAvatarUrl(discordMember, 256) ?? '',
         },
         create: {
-          guildId,
-          userId,
           grade,
           username: discordMember.user.username,
           displayName: discordMember.displayName || discordMember.user.globalName || discordMember.user.username,
@@ -1585,11 +1563,7 @@ export const importRoleMembers = async (
       });
 
       // Upsert du grade dans la hiérarchie
-      await prisma.staffMemberHierarchyGrade.upsert({
-        where: { staffMemberId_hierarchyId: { staffMemberId: staffMember.id, hierarchyId } },
-        update: { grade },
-        create: { staffMemberId: staffMember.id, hierarchyId, grade },
-      });
+      await upsertHierarchyGradeRow(staffMember.id, hierarchyId, grade);
 
       imported++;
     } catch (err) {
