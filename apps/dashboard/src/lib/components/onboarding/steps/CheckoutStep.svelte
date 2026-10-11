@@ -18,6 +18,7 @@
   import { wizard } from '../../../stores/onboardingWizard.svelte';
   import { onboardingData } from '../../../stores/onboardingData.svelte';
   import { activateGuildWithCode, completeOnboarding, startCheckout } from '../../../api';
+  import type { BillingInterval } from '../../../api/billing';
   import KotboMark from '../KotboMark.svelte';
   import Papicon from '../../Papicon.svelte';
   import WizardShell from '../WizardShell.svelte';
@@ -83,6 +84,21 @@
 
   const trialDays = $derived(billing?.trial.available ? billing.trial.days : 0);
 
+  /**
+   * Periodicite de l'abonnement. Le mensuel reste le choix par defaut : c'est
+   * le plus petit engagement a cote d'un essai. L'annuel n'est propose que si
+   * l'offre a vraiment un prix annuel - sinon le bouton menerait a une session
+   * Stripe sans tarif.
+   */
+  let interval = $state<BillingInterval>('month');
+  const yearlyAvailable = $derived((offer?.priceCents?.year ?? 0) > 0);
+  const yearlySavingPercent = $derived.by(() => {
+    const price = offer?.priceCents;
+    if (!price || price.month <= 0 || price.year <= 0) return 0;
+    return Math.round((1 - price.year / (price.month * 12)) * 100);
+  });
+  const effectiveInterval = $derived<BillingInterval>(yearlyAvailable ? interval : 'month');
+
   function formatPrice(cents: number): string {
     return (cents / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
   }
@@ -90,7 +106,7 @@
   async function goToCheckout() {
     if (onboardingData.busy || !offer) return;
     onboardingData.busy = true;
-    const url = await startCheckout(offer.key as 'PLUS' | 'PRO' | 'ULTIMATE', 'month');
+    const url = await startCheckout(offer.key as 'PLUS' | 'PRO' | 'ULTIMATE', effectiveInterval);
     onboardingData.busy = false;
     if (!url) {
       toast.error("La page de paiement n'a pas pu être ouverte. Réessaie dans un instant.");
@@ -167,10 +183,39 @@
         <p class="text-sm font-semibold text-on-surface">{offer.name}</p>
         {#if offer.priceCents}
           <p class="text-lg font-bold tracking-tight text-on-surface">
-            {formatPrice(offer.priceCents.month)}<span class="text-body-sm font-medium text-on-surface-variant/60">/mois</span>
+            {formatPrice(effectiveInterval === 'year' ? offer.priceCents.year : offer.priceCents.month)}<span class="text-body-sm font-medium text-on-surface-variant/60">/{effectiveInterval === 'year' ? 'an' : 'mois'}</span>
           </p>
         {/if}
       </div>
+      {#if yearlyAvailable}
+        <div class="mb-3 inline-flex gap-1 p-1 rounded-lg bg-surface-container-low border border-outline-variant/40">
+          <button
+            type="button"
+            onclick={() => (interval = 'month')}
+            aria-pressed={interval === 'month'}
+            class="px-3.5 h-7 rounded-md text-xs font-medium transition-colors {interval === 'month'
+              ? 'bg-primary text-on-primary'
+              : 'text-on-surface-variant hover:text-on-surface'}"
+          >
+            Mensuel
+          </button>
+          <button
+            type="button"
+            onclick={() => (interval = 'year')}
+            aria-pressed={interval === 'year'}
+            class="px-3.5 h-7 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 {interval === 'year'
+              ? 'bg-primary text-on-primary'
+              : 'text-on-surface-variant hover:text-on-surface'}"
+          >
+            Annuel
+            {#if yearlySavingPercent > 0}
+              <span class="text-2xs px-1.5 py-0.5 rounded bg-success/20 text-success font-semibold">
+                −{yearlySavingPercent}%
+              </span>
+            {/if}
+          </button>
+        </div>
+      {/if}
       <p class="text-body-sm text-on-surface-variant leading-relaxed">
         {offer.description}
       </p>
