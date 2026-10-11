@@ -16,6 +16,7 @@
   import { m } from '../../i18n';
   import { fetchSiteAnalytics, type SiteAnalyticsReport } from '../../api/site';
   import { siteErrorMessage } from './siteErrors';
+  import SiteFunnelCard from './SiteFunnelCard.svelte';
 
   let { guildId }: { guildId: string } = $props();
 
@@ -67,6 +68,7 @@
   {#if loading && !report}
     <AnalyticsSkeleton />
   {:else if report}
+    <SiteFunnelCard funnel={report.funnel} />
     <MetricTabs metrics={tiles} active={metric} onchange={(id) => (metric = id as 'views' | 'visitors')} label={m.ste_traffic()} />
     <SectionCard>
       <div class="p-4">

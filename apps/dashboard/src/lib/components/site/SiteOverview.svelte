@@ -139,6 +139,7 @@
         <ul class="px-5 pb-5 counts">
           <li><strong>{report.totals.views}</strong><span>{m.ste_views()} · {delta(report.totals.views, report.previous.views)}</span></li>
           <li><strong>{report.totals.visitors}</strong><span>{m.ste_visitors()} · {delta(report.totals.visitors, report.previous.visitors)}</span></li>
+          {#if report.funnel.attributable}<li><strong>{report.funnel.arrivals}</strong><span>{m.ste_funnel_arrivals_short()}</span></li>{/if}
         </ul>
       </SectionCard>
     {/if}

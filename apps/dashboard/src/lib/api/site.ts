@@ -131,9 +131,22 @@ export interface SiteComment {
   page: { title: string; slug: string };
 }
 
+/** Tunnel du site : visiteurs → clics « Rejoindre » → arrivées → présents à 7 jours. */
+export interface SiteFunnel {
+  visitors: number;
+  clickers: number;
+  clicks: number;
+  arrivals: number;
+  eligible: number;
+  retained: number;
+  attributable: boolean;
+  sources: Array<{ source: string; clicks: number }>;
+}
+
 export interface SiteAnalyticsReport {
   from: string;
   to: string;
+  funnel: SiteFunnel;
   totals: { views: number; visitors: number };
   previous: { views: number; visitors: number };
   daily: Array<{ date: string; views: number; visitors: number }>;
