@@ -4136,6 +4136,7 @@
   "an_adv_coactivation_title": "Co-activation des salons",
   "an_adv_coactivation_desc": "Nombre de membres actifs dans les deux salons à la fois (30 j)",
   "an_adv_logging_required": "Journalisation des messages requise",
+  "an_adv_logging_cta": "Activer la journalisation",
   "an_adv_coactivation_locked_desc": "Active la journalisation des messages (Gestion des salons) pour débloquer cette matrice.",
   "an_adv_coactivation_empty": "Pas encore assez de données croisées",
   "an_adv_coactivation_cell": "{a} × {b} : {count} membres",

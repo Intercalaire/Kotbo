@@ -4136,6 +4136,7 @@
   "an_adv_coactivation_title": "Channel co-activation",
   "an_adv_coactivation_desc": "Members active in both channels at once (30 d)",
   "an_adv_logging_required": "Message logging required",
+  "an_adv_logging_cta": "Turn on message logging",
   "an_adv_coactivation_locked_desc": "Enable message logging (Channel management) to unlock this matrix.",
   "an_adv_coactivation_empty": "Not enough cross data yet",
   "an_adv_coactivation_cell": "{a} × {b}: {count} members",

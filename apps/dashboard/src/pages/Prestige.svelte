@@ -52,6 +52,7 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import UserDisplay from '../lib/components/UserDisplay.svelte';
   import EmptyState from '../lib/components/EmptyState.svelte';
+  import ModuleDisabledNotice from '../lib/components/ModuleDisabledNotice.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import SimpleModeToggle from '../lib/components/SimpleModeToggle.svelte';
@@ -2288,7 +2289,11 @@
             {#if boardLoading && boardRows.length === 0}
               <LoadingHint context="members" />
             {:else if boardRows.length === 0}
-              <EmptyState icon="crown" title={boardSearch.trim() ? m.prg_board_no_result() : m.prg_leaderboard_empty()} />
+              {#if boardSearch.trim()}
+                <EmptyState icon="crown" title={m.prg_board_no_result()} actionLabel={m.common_clear_search()} actionIcon="Eraser" onAction={() => (boardSearch = '')} />
+              {:else}
+                <EmptyState icon="crown" title={m.prg_leaderboard_empty()} />
+              {/if}
             {:else}
               <div class="space-y-0.5">
                 {#each boardRows as entry (entry.userId)}
@@ -2489,11 +2494,7 @@
   {:else if !moduleEnabled}
     <!-- L'API refuse les routes d'un module eteint : il n'y a pas de
          configuration a montrer, seulement la raison. -->
-    <EmptyState
-      icon="crown"
-      title={m.prg_module_off_title()}
-      description={m.prg_module_off_desc()}
-    />
+    <ModuleDisabledNotice moduleKey="prestige" />
   {:else if loadFailed}
     <EmptyState icon="warning" title={m.prg_load_error()} description={m.prg_load_error_hint()}>
       {#snippet action()}

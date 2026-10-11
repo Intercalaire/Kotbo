@@ -446,7 +446,7 @@
 
     <SectionCard title={m.an_adv_coactivation_title()} description={m.an_adv_coactivation_desc()} icon="Compass" flush>
       {#if !data.coActivation.available}
-        <EmptyState icon="lock" title={m.an_adv_logging_required()} description={m.an_adv_coactivation_locked_desc()} />
+        <EmptyState icon="lock" title={m.an_adv_logging_required()} description={m.an_adv_coactivation_locked_desc()} actionLabel={m.an_adv_logging_cta()} actionIcon="ArrowRight" actionHref="/channels-management" />
       {:else if data.coActivation.channels.length === 0}
         <EmptyState icon="compass" title={m.an_adv_coactivation_empty()} />
       {:else}
@@ -503,7 +503,7 @@
 {:else if section === 'social' && ready}
   {#if !data.available}
     <SectionCard title={m.an_adv_social_title()} icon="Users">
-      <EmptyState icon="lock" title={m.an_adv_logging_required()} description={m.an_adv_social_locked_desc()} />
+      <EmptyState icon="lock" title={m.an_adv_logging_required()} description={m.an_adv_social_locked_desc()} actionLabel={m.an_adv_logging_cta()} actionIcon="ArrowRight" actionHref="/channels-management" />
     </SectionCard>
   {:else}
     <div class="space-y-4">
