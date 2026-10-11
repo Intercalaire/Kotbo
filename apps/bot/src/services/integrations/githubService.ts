@@ -165,14 +165,36 @@ export async function githubGet<T>(path: string, fetchImpl: FetchLike = fetch): 
   return { ok: true, data };
 }
 
-/** Dépôt existant et public : nom canonique et branche par défaut. */
-export async function resolveGithubRepo(
-  repo: string,
-  fetchImpl: FetchLike = fetch,
-): Promise<{ repo: string; defaultBranch: string } | null> {
+export type GithubRepoFailure = 'not_found' | 'rate_limited' | 'unauthorized' | 'unavailable';
+
+export type ResolvedGithubRepo =
+  | { ok: true; repo: string; defaultBranch: string }
+  | { ok: false; reason: GithubRepoFailure };
+
+/**
+ * Dépôt existant et public : nom canonique et branche par défaut. En cas
+ * d'échec, la cause est gardée : un quota épuisé ou un jeton refusé ne doit
+ * pas se faire passer pour un dépôt inexistant.
+ */
+export async function resolveGithubRepo(repo: string, fetchImpl: FetchLike = fetch): Promise<ResolvedGithubRepo> {
   const res = await githubGet<{ full_name: string; default_branch: string; private?: boolean }>(`/repos/${repo}`, fetchImpl);
-  if (!res.ok || res.data.private) return null;
-  return { repo: res.data.full_name.toLowerCase(), defaultBranch: res.data.default_branch };
+  if (res.ok) {
+    if (res.data.private) return { ok: false, reason: 'not_found' };
+    return { ok: true, repo: res.data.full_name.toLowerCase(), defaultBranch: res.data.default_branch };
+  }
+  switch (res.status) {
+    case 404:
+    case 451:
+      return { ok: false, reason: 'not_found' };
+    case 401:
+      logger.warn('GithubService', 'GITHUB_TOKEN refusé par GitHub (401) : jeton expiré ou révoqué.');
+      return { ok: false, reason: 'unauthorized' };
+    case 403:
+    case 429:
+      return { ok: false, reason: 'rate_limited' };
+    default:
+      return { ok: false, reason: 'unavailable' };
+  }
 }
 
 // ==================== MESSAGES ====================
