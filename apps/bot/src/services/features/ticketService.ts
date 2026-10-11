@@ -3734,9 +3734,10 @@ export async function checkTicketInactivity(client: Client): Promise<void> {
       const locale = await resolveGuildLocale(guildConfig.id, discordGuild?.preferredLocale ?? null);
 
       for (const ticket of activeTickets) {
-        if (!ticket.channelId) continue;
+        const channelId = ticket.channelId;
+        if (!channelId) continue;
 
-        const channel = await client.channels.fetch(ticket.channelId).catch(() => null);
+        const channel = await client.channels.fetch(channelId).catch(() => null);
         if (!channel || !(channel instanceof TextChannel)) continue;
 
         // Salon ferme au bot : la lecture du dernier message echouait sans bruit,
@@ -3747,7 +3748,7 @@ export async function checkTicketInactivity(client: Client): Promise<void> {
         if (permissions) {
           const missing = permissions.missing(INACTIVITY_REQUIRED_PERMISSIONS);
           if (missing.length > 0) {
-            reportInactivityUnreachable(ticket.id, ticket.channelId, missing.join(', '));
+            reportInactivityUnreachable(ticket.id, channelId, missing.join(', '));
             continue;
           }
         }
@@ -3796,7 +3797,7 @@ export async function checkTicketInactivity(client: Client): Promise<void> {
             .catch((sendError: unknown) => {
               const code = (sendError as { code?: unknown } | null)?.code;
               if (typeof code === 'number' && INACTIVITY_FORBIDDEN_CODES.has(code)) {
-                reportInactivityUnreachable(ticket.id, ticket.channelId, `code ${code}`);
+                reportInactivityUnreachable(ticket.id, channelId, `code ${code}`);
                 return false;
               }
               logger.error(
