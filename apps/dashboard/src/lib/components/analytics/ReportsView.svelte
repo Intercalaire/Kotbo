@@ -49,9 +49,9 @@
     void loadRecipientOptions(authStore.selectedGuildId).then((o) => (channelNames = new Map(o.channels.map((c) => [c.id, c.name]))));
   });
 
-  const SECTIONS: ReportSection[] = ['overview', 'top_members', 'top_channels', 'anomalies', 'moderation', 'responses'];
+  const SECTIONS: ReportSection[] = ['kotbo_work', 'overview', 'top_members', 'top_channels', 'anomalies', 'moderation', 'responses'];
   const sectionLabel = (s: ReportSection) =>
-    ({ overview: m.anx_rep_s_overview(), top_members: m.anx_top_members_messages(), top_channels: m.anx_top_channels_messages(), anomalies: m.anx_rep_s_anomalies(), moderation: m.anx_fact_sanctions(), responses: m.anx_tab_responses() })[s];
+    ({ kotbo_work: m.anx_rep_s_kotbo_work(), overview: m.anx_rep_s_overview(), top_members: m.anx_top_members_messages(), top_channels: m.anx_top_channels_messages(), anomalies: m.anx_rep_s_anomalies(), moderation: m.anx_fact_sanctions(), responses: m.anx_tab_responses() })[s];
   const DAYS = $derived([m.anx_rep_day_0(), m.anx_rep_day_1(), m.anx_rep_day_2(), m.anx_rep_day_3(), m.anx_rep_day_4(), m.anx_rep_day_5(), m.anx_rep_day_6()]);
 
   function describe(s: ReportScheduleInput): string {
@@ -71,7 +71,7 @@
   let form = $state<FormState>(blank());
 
   function blank(): FormState {
-    return { frequency: 'weekly', weekday: '1', monthDay: '1', hour: '9', channelId: null, userIds: [], sections: ['overview', 'top_members', 'top_channels', 'anomalies'], enabled: true };
+    return { frequency: 'weekly', weekday: '1', monthDay: '1', hour: '9', channelId: null, userIds: [], sections: ['kotbo_work', 'overview', 'top_members', 'top_channels', 'anomalies'], enabled: true };
   }
 
   function openForm(s?: ReportSchedule) {

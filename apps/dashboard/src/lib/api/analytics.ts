@@ -754,7 +754,7 @@ export interface AlertRule extends AlertRuleInput {
 
 export interface AlertEvent { id: string; ruleId: string; periodKey: string; value: number; baseline: number | null; delivered: boolean; triggeredAt: string }
 
-export type ReportSection = 'overview' | 'top_members' | 'top_channels' | 'anomalies' | 'moderation' | 'responses';
+export type ReportSection = 'kotbo_work' | 'overview' | 'top_members' | 'top_channels' | 'anomalies' | 'moderation' | 'responses';
 
 export interface ReportScheduleInput {
   frequency: 'weekly' | 'monthly';
