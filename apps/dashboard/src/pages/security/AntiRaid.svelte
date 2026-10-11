@@ -384,7 +384,7 @@
   {#if loading}
     <LoadingHint context="config" />
   {:else if error}
-    <EmptyState icon="AlertTriangle" title="Configuration indisponible" description={error} />
+    <EmptyState icon="AlertTriangle" title="Configuration indisponible" description={error} actionLabel="Réessayer" actionIcon="RefreshCw" onAction={load} />
   {:else}
     <!-- ── Barre d'etat & actions d'urgence ───────────────────────────── -->
     <!-- Seulement sur l'onglet des verrous : repetee sur chaque onglet, elle

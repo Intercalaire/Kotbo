@@ -163,7 +163,7 @@
   {#if loading && !plan}
     <LoadingHint context="config" />
   {:else if !plan}
-    <EmptyState icon="alert-triangle" title="Analyse indisponible" description="Relance l'analyse du serveur." />
+    <EmptyState icon="alert-triangle" title="Analyse indisponible" description="L'analyse du serveur n'a pas pu se terminer." actionLabel="Relancer l'analyse" actionIcon="RefreshCw" onAction={load} />
   {:else}
     <div class="space-y-4">
       <!-- ── Bots détectés ──────────────────────────────────────────────── -->

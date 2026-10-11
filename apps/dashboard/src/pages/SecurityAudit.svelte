@@ -295,7 +295,7 @@
   {#if loading && !report}
     <LoadingHint context="config" />
   {:else if error}
-    <EmptyState icon="AlertTriangle" title="Audit indisponible" description={error} />
+    <EmptyState icon="AlertTriangle" title="Audit indisponible" description={error} actionLabel="Réessayer" actionIcon="RefreshCw" onAction={() => load()} />
   {:else if report}
     <!-- ── Synthese ───────────────────────────────────────────────────── -->
     <div class="grid gap-4 lg:grid-cols-[minmax(0,320px)_1fr]">
@@ -505,7 +505,10 @@
         <EmptyState
           icon="ShieldCheck"
           title="Aucun constat pour ce filtre"
-          description="Élargissez le filtre ou lancez une nouvelle analyse."
+          description="Aucun point à corriger dans cette catégorie et ce niveau de gravité."
+          actionLabel="Afficher tous les constats"
+          actionIcon="Eraser"
+          onAction={() => { severityFilter = 'ALL'; categoryFilter = 'ALL'; }}
         />
       {:else}
         <!--

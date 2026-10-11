@@ -215,7 +215,7 @@
   {#if loading && steps.length === 0}
     <LoadingHint context="config" />
   {:else if steps.length === 0}
-    <EmptyState icon="compass" title="Liste indisponible" description="Réessaie avec le bouton Actualiser." />
+    <EmptyState icon="compass" title="Liste indisponible" description="La liste des étapes n'a pas pu se charger." actionLabel="Réessayer" actionIcon="RefreshCw" onAction={load} />
   {:else}
     <div class="space-y-4">
       <!-- Une ligne d'avancement plutot qu'un anneau de 110px : l'anneau
