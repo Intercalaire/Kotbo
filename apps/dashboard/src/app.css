@@ -824,6 +824,11 @@
   z-index: var(--layer-modal-overlay);
 }
 
+/* Fenetre ouverte depuis le dossier membre (avertir, rattacher...) : au-dessus de lui. */
+.app-modal.app-modal--above-case {
+  z-index: var(--layer-popover);
+}
+
 /* Cette surcouche est portee dans le body comme les autres modales, mais elle
    etait la seule sans plan : la navbar (z-index 40 et isolation) passait donc
    par-dessus, non assombrie. */

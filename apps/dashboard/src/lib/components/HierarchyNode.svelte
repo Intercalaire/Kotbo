@@ -1,5 +1,6 @@
 <script lang="ts">
   import HierarchyNode from './HierarchyNode.svelte';
+  import Papicon from './Papicon.svelte';
   import { m } from '../i18n';
 
   export type HierarchyTreeNode = {
@@ -52,7 +53,12 @@
     
     <div class="node-icon-wrapper flex items-center justify-center w-14 h-14 rounded-2xl mb-4 transition-all duration-300 group-hover:scale-110"
          style="background: color-mix(in srgb, var(--node-color) 12%, transparent); color: var(--node-color); border: 1px solid color-mix(in srgb, var(--node-color) 25%, transparent); box-shadow: 0 4px 12px color-mix(in srgb, var(--node-color) 6%, transparent);">
-      <span class="text-2xl">{node.icon || '📁'}</span>
+      {#if node.icon && /^[A-Za-z][\w-]*$/.test(node.icon)}
+        <!-- Nom d'icone (« Shield ») plutot qu'emoji : il s'affichait en toutes lettres. -->
+        <Papicon icon={node.icon} size={26} />
+      {:else}
+        <span class="text-2xl">{node.icon || '📁'}</span>
+      {/if}
     </div>
     
     <h3 class="text-base font-bold text-on-surface tracking-tight">{node.name}</h3>
