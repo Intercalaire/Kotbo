@@ -4,7 +4,7 @@
    * dataset ou d'un space (nouveaux commits), ou d'un auteur (nouveaux dépôts).
    */
   import { m } from '../../i18n';
-  import { confirmDialog } from '../../stores/confirmDialog.svelte';
+  import { removeWithUndo } from '../../undoRemoval';
   import Papicon from '../Papicon.svelte';
   import SearchableSelect from '../SearchableSelect.svelte';
   import { saveHuggingFaceFollow, deleteHuggingFaceFollow, fetchSocialFollows, type HuggingFaceKind } from '../../api';
@@ -89,13 +89,13 @@
   }
 
   async function handleDelete(id: string) {
-    if (!(await confirmDialog.danger(m.social_hf_confirm_delete_title(), '', m.social_hf_confirm_delete_btn()))) return;
-    await actionState.run(async () => {
-      const ok = await deleteHuggingFaceFollow(id);
-      if (!ok) throw new Error("Ça n'a pas marché. Réessaie.");
-      follows = follows.filter((f) => f.id !== id);
-      return true;
-    }, { successMessage: m.social_hf_toast_deleted() });
+    await removeWithUndo({
+      get: () => follows,
+      set: (next) => (follows = next),
+      match: (f) => f.id === id,
+      message: m.social_hf_toast_deleted(),
+      commit: () => deleteHuggingFaceFollow(id, undefined, { silent: true }),
+    });
   }
 
   const inputClass = 'w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#FFD21E]/40 transition-all text-on-surface';

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { m } from '../lib/i18n';
+  import { removeWithUndo } from '../lib/undoRemoval';
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
@@ -7,7 +8,6 @@
   import { Tabs } from '../lib/components/ui';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
-  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
@@ -139,15 +139,13 @@
   }
 
   async function handleDeleteYoutube(id: string) {
-    if (!(await confirmDialog.danger(m.social_yt_confirm_delete_title(), '', m.social_yt_confirm_delete_btn()))) return;
-
-    await actionState.run(async () => {
-      const ok = await deleteYoutubeFollow(id);
-      if (!ok) throw new Error("Ça n'a pas marché. Réessaie.");
-
-      youtubeFollows = youtubeFollows.filter(f => f.id !== id);
-      return true;
-    }, { successMessage: m.social_yt_toast_deleted() });
+    await removeWithUndo({
+      get: () => youtubeFollows,
+      set: (next) => (youtubeFollows = next),
+      match: (f) => f.id === id,
+      message: m.social_yt_toast_deleted(),
+      commit: () => deleteYoutubeFollow(id, undefined, { silent: true }),
+    });
   }
 
   async function handleAddTwitch() {
@@ -195,15 +193,13 @@
   }
 
   async function handleDeleteTwitch(id: string) {
-    if (!(await confirmDialog.danger(m.social_twitch_confirm_delete_title(), '', m.social_twitch_confirm_delete_btn()))) return;
-
-    await actionState.run(async () => {
-      const ok = await deleteTwitchFollow(id);
-      if (!ok) throw new Error("Ça n'a pas marché. Réessaie.");
-
-      twitchFollows = twitchFollows.filter(f => f.id !== id);
-      return true;
-    }, { successMessage: m.social_twitch_toast_deleted() });
+    await removeWithUndo({
+      get: () => twitchFollows,
+      set: (next) => (twitchFollows = next),
+      match: (f) => f.id === id,
+      message: m.social_twitch_toast_deleted(),
+      commit: () => deleteTwitchFollow(id, undefined, { silent: true }),
+    });
   }
 </script>
 
