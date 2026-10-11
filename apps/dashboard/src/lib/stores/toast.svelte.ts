@@ -22,6 +22,8 @@ export interface UndoableOptions {
   onUndo?: () => void;
   /** L'action a echoue apres coup : remettre l'element. Un message d'erreur s'affiche deja. */
   onError?: (error: unknown) => void;
+  /** L'appel signale deja son echec lui-meme (dashboardRequest) : pas de second message. */
+  quietError?: boolean;
   duration?: number;
 }
 
@@ -110,7 +112,7 @@ class ToastStore {
     } catch (error) {
       console.error('Undoable action failed:', error);
       entry.onError?.(error);
-      this.error(m.toast_undoable_failed());
+      if (!entry.quietError) this.error(m.toast_undoable_failed());
       entry.resolve(false);
     }
   }
