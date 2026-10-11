@@ -97,7 +97,13 @@
     if (!price || price.month <= 0 || price.year <= 0) return 0;
     return Math.round((1 - price.year / (price.month * 12)) * 100);
   });
-  const effectiveInterval = $derived<BillingInterval>(yearlyAvailable ? interval : 'month');
+  /** Ce que l'annuel fait gagner sur douze mensualites. */
+  const yearlySavedCents = $derived.by(() => {
+    const price = offer?.priceCents;
+    if (!price || price.month <= 0 || price.year <= 0) return 0;
+    return Math.max(0, price.month * 12 - price.year);
+  });
+  const effectiveInterval =$derived<BillingInterval>(yearlyAvailable ? interval : 'month');
 
   function formatPrice(cents: number): string {
     return (cents / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
@@ -179,12 +185,25 @@
     </div>
   {:else if offer}
     <div class="rounded-2xl border border-outline-variant/35 bg-surface-container-low/40 p-5">
-      <div class="flex items-baseline justify-between gap-4 mb-2">
-        <p class="text-sm font-semibold text-on-surface">{offer.name}</p>
+      <div class="flex items-start justify-between gap-4 mb-2">
+        <p class="text-sm font-semibold text-on-surface pt-1">{offer.name}</p>
         {#if offer.priceCents}
-          <p class="text-lg font-bold tracking-tight text-on-surface">
-            {formatPrice(effectiveInterval === 'year' ? offer.priceCents.year : offer.priceCents.month)}<span class="text-body-sm font-medium text-on-surface-variant/60">/{effectiveInterval === 'year' ? 'an' : 'mois'}</span>
-          </p>
+          <div class="text-right">
+            <p class="text-lg font-bold tracking-tight text-on-surface">
+              {formatPrice(effectiveInterval === 'year' ? offer.priceCents.year : offer.priceCents.month)}<span class="text-body-sm font-medium text-on-surface-variant/60">/{effectiveInterval === 'year' ? 'an' : 'mois'}</span>
+            </p>
+            {#if effectiveInterval === 'year'}
+              <p class="text-xs text-on-surface-variant/70">
+                soit {formatPrice(Math.round(offer.priceCents.year / 12))}/mois
+                {#if yearlySavedCents > 0}
+                  <span class="ml-1 line-through text-on-surface-variant/45">{formatPrice(offer.priceCents.month)}</span>
+                {/if}
+              </p>
+              {#if yearlySavedCents > 0}
+                <p class="text-xs font-medium text-success">{formatPrice(yearlySavedCents)} d'économie par an</p>
+              {/if}
+            {/if}
+          </div>
         {/if}
       </div>
       {#if yearlyAvailable}
