@@ -67,7 +67,8 @@ import {
 } from '../../../services/site/siteAdminService.js';
 import { deleteSiteAsset, listSiteAssets, storeSiteAsset, SITE_UPLOAD_MAX_BYTES } from '../../../services/site/siteUploads.js';
 import { getSiteAnalytics } from '../../../services/site/siteAnalyticsService.js';
-import { createPreviewToken } from '../../../services/site/sitePreview.js';
+import { createPreviewToken, createSitePreviewToken } from '../../../services/site/sitePreview.js';
+import { ensureInstantSite } from '../../../services/site/siteInstantService.js';
 import { isSiteTemplate, SITE_TEMPLATES } from '../../../services/site/siteTemplates.js';
 import { flushCollabRoom, resetCollabRoom } from '../../../services/site/siteCollabService.js';
 import { allowAgentAgain, getAgentLockStatus, interruptAgent, isSiteAgentLocked } from '../../../services/site/siteAgentLock.js';
@@ -196,12 +197,15 @@ export function createSiteAdminRouter(client: Client): OpenAPIHono {
     const kinds: SitePageKind[] = (['PAGE', 'WIKI', 'BLOG'] as const).filter((k) => canEditKind(rights, k));
     const pages = current ? await listAdminPages(current.id, kinds) : [];
     const guild = client.guilds.cache.get(guildId);
+    const baseUrl = `${getDashboardUrl().replace(/\/$/, '')}/s/`;
     return c.json({
       site: current && (rights.manage || rights.dashboard) ? current : current ? { id: current.id, slug: current.slug, published: current.published, theme: current.theme } : null,
+      // Lien d'aperçu privé du site entier, tant qu'il n'est pas en ligne.
+      previewUrl: current && !current.published && rights.manage ? `${baseUrl}${current.slug}?apercu=${encodeURIComponent(createSitePreviewToken(current.id).token)}` : null,
       pages,
       rights: { manage: rights.manage, wiki: rights.wiki, blog: rights.blog, moderateComments: rights.moderateComments, viewStats: rights.viewStats },
       modules: { site: states.site !== false, site_wiki: states.site_wiki !== false, site_blog: states.site_blog !== false },
-      baseUrl: `${getDashboardUrl().replace(/\/$/, '')}/s/`,
+      baseUrl,
       suggestedSlug: current ? null : await suggestSiteSlug(guild?.name ?? guildId),
       templates: SITE_TEMPLATES,
       guild: guild ? { name: guild.name, iconUrl: guild.iconURL({ size: 128 }), bannerUrl: guild.bannerURL({ size: 1024 }) } : null,
@@ -214,6 +218,18 @@ export function createSiteAdminRouter(client: Client): OpenAPIHono {
     if (typeof input.slug !== 'string' || !isSiteTemplate(input.template)) return c.json({ error: 'invalid_field' }, 400);
     try {
       return c.json({ site: await createSite(client, c.req.param('guildId'), c.var.siteRights.userId, { slug: input.slug, template: input.template }) }, 201);
+    } catch (err) {
+      return fail(c, err);
+    }
+  });
+
+  // Site instantané : composé d'après le serveur, sans question, hors ligne.
+  app.post('/api/site-admin/:guildId/instant', async (c) => {
+    if (!c.var.siteRights.manage) return c.json({ error: 'forbidden' }, 403);
+    try {
+      const result = await ensureInstantSite(client, c.req.param('guildId'), c.var.siteRights.userId);
+      if (!result) return c.json({ error: 'guild_unavailable' }, 409);
+      return c.json(result, result.created ? 201 : 200);
     } catch (err) {
       return fail(c, err);
     }

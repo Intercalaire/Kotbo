@@ -643,6 +643,15 @@ client.on(Events.GuildCreate, async (guild) => {
     scheduleGuildDataSync(client, guild.id);
   }
 
+  // Le site communautaire existe des l'arrivee, hors ligne : le proprietaire le
+  // decouvre en apercu prive depuis le dashboard et le met en ligne d'un clic.
+  if (justActivated) {
+    const { ensureInstantSite } = await import('./services/site/siteInstantService.js');
+    void ensureInstantSite(client, guild.id).catch((err) =>
+      logger.warn('Site', `Site instantane non cree pour ${guild.id}:`, err)
+    );
+  }
+
   // Seulement a la premiere arrivee : un serveur deja active qui reapparait
   // apres un redemarrage n'a pas a etre accueilli une seconde fois.
   if (justActivated) {
@@ -662,6 +671,8 @@ client.on(Events.GuildCreate, async (guild) => {
 
 `
         + `*Configurer ne coûte rien.* Les modules se mettent en place tout de suite et s'allument le jour où vous choisissez une offre - il n'y a rien à refaire.
+
+`        + `🌐 **Votre site est déjà prêt.** Kotbo l'a composé d'après votre serveur : il vous attend en aperçu privé dans la section Site du tableau de bord.
 
 `
         + `🔗 **Vous ne vouliez qu'un pont entre deux communautés ?**
