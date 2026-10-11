@@ -38,6 +38,7 @@ import { forumIndexPage, parseForumPage, renderForumPosts, renderForumTopics, to
 import { getSitePulse, renderPulseInner } from '../../../../services/site/sitePulse.js';
 import { getModuleStates } from '../../../../services/core/moduleGate.js';
 import { isSiteJoinSource, recordSiteJoinClick } from '../../../../services/site/siteAnalyticsService.js';
+import { publicErrorMessage } from '../../../../utils/publicError.js';
 
 // ============================================================================
 // API DU SCRIPT DES SITES COMMUNAUTAIRES
@@ -390,7 +391,7 @@ export function createSiteApiRouter(client: Client): OpenAPIHono {
       }
     } catch (err) {
       logger.error('SiteApi', `Action ${c.req.param('action')} en échec sur ${guildId} :`, err);
-      return c.json({ error: err instanceof Error && err.message ? err.message : m.site_error_generic({}, o) }, 500);
+      return c.json({ error: publicErrorMessage(err, m.site_error_generic({}, o)) }, 500);
     }
   });
 

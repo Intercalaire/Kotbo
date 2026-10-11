@@ -1,4 +1,3 @@
-import { errorMessage } from '../utils/errors.js';
 import { type Interaction, type Client, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalSubmitInteraction, MessageFlags, type AnySelectMenuInteraction, PermissionFlagsBits, type GuildMember, TextInputBuilder, TextInputStyle, ModalBuilder, StringSelectMenuBuilder } from 'discord.js';
 import prisma from '../utils/db.js';
 import { getCachedGuild } from '../utils/cache.js';
@@ -28,6 +27,7 @@ import { handleVerifyButtonClick, handleVerificationStaffAction } from '../servi
 import { showModeratorNoteModal } from '../commands/moderation/note.js';
 import { sendReportToAdmin } from '../commands/moderation/signal.js';
 import { parseDurationToMs, registerBanSanction, registerKickSanction, registerTimeoutSanction, registerWarnSanction, runGuildBan } from '../services/moderation/sanctionService.js';
+import { publicErrorMessage } from '../utils/publicError.js';
 
 
 /** Modal de saisie de raison (et durée pour timeout) partagé entre le select historique et les boutons rapides du casier. */
@@ -328,7 +328,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       }).catch(() => null);
 
     } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : 'Impossible de réclamer le drop.';
+      const errMsg = publicErrorMessage(err, 'Impossible de réclamer le drop.');
       await interaction.followUp({
         content: `❌ ${errMsg}`,
         flags: [MessageFlags.Ephemeral]
@@ -1765,7 +1765,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       });
     } catch (err: unknown) {
       await interaction.reply({
-        content: `❌ Impossible de publier la suggestion : ${errorMessage(err) || 'erreur inconnue'}`,
+        content: `❌ Impossible de publier la suggestion : ${publicErrorMessage(err, 'erreur inconnue')}`,
         flags: [MessageFlags.Ephemeral],
       });
     }
@@ -2043,7 +2043,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
         await interaction.editReply({ embeds: [successEmbed('Bannissement appliqué', `L'utilisateur a été banni.`)] });
       }
     } catch (error) {
-      await interaction.editReply({ embeds: [errorEmbed('Erreur', error instanceof Error ? error.message : 'Une erreur est survenue.')] });
+      await interaction.editReply({ embeds: [errorEmbed('Erreur', publicErrorMessage(error, 'Une erreur est survenue.'))] });
     }
     return;
   }
@@ -2112,7 +2112,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
         scores: { correctness, comments, compactness, optimization, readability },
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Impossible de valider cette soumission.';
+      const message = publicErrorMessage(error, 'Impossible de valider cette soumission.');
       await interaction.editReply({ content: `❌ ${message}` });
       return;
     }
@@ -2169,7 +2169,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
         feedback,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Impossible de valider cette soumission.';
+      const message = publicErrorMessage(error, 'Impossible de valider cette soumission.');
       await interaction.editReply({ content: `❌ ${message}` });
       return;
     } finally {

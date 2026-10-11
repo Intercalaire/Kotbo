@@ -18,6 +18,7 @@ import { handleTicketHelpdeskRoutes } from './ticketHelpdesk.js';
 import { noticeSeconds } from '../../../../services/features/ticketRecordingNotice.js';
 
 import { jsonFailure } from '../../../shared/failure.js';
+import { publicErrorMessage } from '../../../../utils/publicError.js';
 
 /**
  * Configuration tickets lue par le dashboard. Partagee entre `GET /tickets` et
@@ -579,7 +580,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         json(res, 200, { success: true });
       } catch (err: unknown) {
         logger.error('TicketsAPI', `Error sending ticket setup embed: ${errorMessage(err)}`);
-        json(res, 500, { error: errorMessage(err) || "Erreur lors de l'envoi de l'embed" });
+        json(res, 500, { error: publicErrorMessage(err, "Erreur lors de l'envoi de l'embed") });
       }
       return true;
     }
@@ -669,7 +670,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
       } catch (err: unknown) {
         await persist().catch(() => null);
         logger.error('TicketsAPI', `Error provisioning ticket module: ${errorMessage(err)}`, errorStack(err));
-        json(res, 500, { error: `Mise en route interrompue : ${errorMessage(err)}`, items });
+        json(res, 500, { error: `Mise en route interrompue : ${publicErrorMessage(err)}`, items });
       } finally {
         releaseProvisionLock(lockKey);
       }
@@ -1474,7 +1475,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         json(res, 200, { success: true, channelId: result.channelId, restoreCount: result.ticket.restoreCount });
       } catch (err: unknown) {
         logger.error('TicketsAPI', `Error restoring ticket: ${errorStack(err)}`);
-        json(res, 500, { error: `Erreur lors de la restauration: ${errorMessage(err)}` });
+        json(res, 500, { error: `Erreur lors de la restauration: ${publicErrorMessage(err)}` });
       }
       return true;
     }
@@ -1512,7 +1513,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         }
       } catch (err: unknown) {
         logger.error('TicketsAPI', `Error on ticket ${parts[6]}: ${errorMessage(err)}`);
-        json(res, 400, { error: errorMessage(err) });
+        json(res, 400, { error: publicErrorMessage(err) });
       }
       return true;
     }

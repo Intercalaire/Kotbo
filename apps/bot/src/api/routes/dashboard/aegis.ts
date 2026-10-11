@@ -251,7 +251,14 @@ export async function handleAegisRoutes(
       return true;
     }
     if (err instanceof AegisUnavailableError || err instanceof AegisRequestError) {
-      json(res, 503, { error: `AegisAI ne répond pas pour l'instant (${err.message}).` });
+      // Le détail (clé absente, route en échec) concerne l'hébergeur, pas
+      // l'administrateur du serveur : il reste dans les journaux.
+      logger.warn(LOG, `AegisAI indisponible sur ${method} ${parts.join('/')} : ${err.message}`);
+      json(res, 503, {
+        error: err instanceof AegisUnavailableError && err.reason === 'not_configured'
+          ? "AegisAI n'est pas configuré sur cette instance de Kotbo."
+          : "AegisAI ne répond pas pour l'instant. Réessayez dans quelques instants.",
+      });
       return true;
     }
     logger.error(LOG, `Erreur sur ${method} ${parts.join('/')} :`, err);

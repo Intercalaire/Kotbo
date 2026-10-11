@@ -1,4 +1,3 @@
-import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags, EmbedBuilder } from 'discord.js';
 import { claimDaily, getOrCreateEconomyConfig } from '../../services/features/economyService.js';
@@ -6,6 +5,7 @@ import { errorEmbed, COLORS } from '../../utils/embeds.js';
 import { dailyStreakLine } from '../../services/features/rpgPanelService.js';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
+import { publicErrorMessage } from '../../utils/publicError.js';
 
 const meta = getCommandMetadata('b2_daily');
 
@@ -50,7 +50,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     await interaction.reply({ embeds: [embed] });
   } catch (err: unknown) {
     await interaction.reply({
-      embeds: [errorEmbed(m.b2_err_title({}, { locale }), errorMessage(err) || m.b2_daily_error({}, { locale }))],
+      embeds: [errorEmbed(m.b2_err_title({}, { locale }), publicErrorMessage(err, m.b2_daily_error({}, { locale })))],
       flags: [MessageFlags.Ephemeral]
     });
   }

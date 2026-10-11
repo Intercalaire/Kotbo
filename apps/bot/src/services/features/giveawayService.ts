@@ -36,6 +36,7 @@ import {
   type GiveawayGeneratedLabels,
   type GiveawayTextContext,
 } from './giveawayAppearance.js';
+import { publicErrorMessage } from '../../utils/publicError.js';
 
 // Cooldown map to prevent spamming/double clicks on the join button
 const joinCooldowns = new Map<string, number>();
@@ -420,7 +421,7 @@ export async function createGiveaway(
     // Ne pas conserver un concours impossible à rejoindre dans le dashboard.
     await publishedMessage?.delete().catch(() => undefined);
     await prisma.giveaway.delete({ where: { id: giveaway.id } }).catch(() => undefined);
-    throw new Error(m.gvw_err_publish({ reason: errorMessage(error) }, { locale }));
+    throw new Error(m.gvw_err_publish({ reason: publicErrorMessage(error) }, { locale }));
   }
 
   return giveaway;

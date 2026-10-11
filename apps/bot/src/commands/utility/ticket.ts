@@ -1,4 +1,3 @@
-import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { ActionRowBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, PermissionFlagsBits, MessageFlags, TextChannel, Role, User, type GuildMember, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder } from 'discord.js';
 import prisma from '../../utils/db.js';
@@ -20,6 +19,7 @@ import { isGuildActivated } from '../../utils/activation.js';
 import { isModuleEnabled } from '../../services/core/moduleGate.js';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
+import { publicErrorMessage } from '../../utils/publicError.js';
 
 const meta = getCommandMetadata('c7_ticket');
 
@@ -355,7 +355,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         await interaction.editReply({ content: m.c7_ticket_unarchive_success({}, { locale }) });
       }
     } catch (error: unknown) {
-      await interaction.editReply({ content: `❌ ${errorMessage(error) || m.c7_ticket_unknown_error({}, { locale })}` });
+      await interaction.editReply({ content: `❌ ${publicErrorMessage(error, m.c7_ticket_unknown_error({}, { locale }))}` });
     }
     return;
   }
@@ -496,7 +496,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       }, 3000);
     } catch (error: unknown) {
       await interaction.editReply({
-        content: m.c7_ticket_delete_err_failed({ error: errorMessage(error) || m.c7_ticket_unknown_error({}, { locale }) }, { locale }),
+        content: m.c7_ticket_delete_err_failed({ error: publicErrorMessage(error, m.c7_ticket_unknown_error({}, { locale })) }, { locale }),
       });
     }
     return;
@@ -544,7 +544,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         content: m.c7_ticket_add_success({ mention: mentionString }, { locale }),
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : m.c7_ticket_unknown_error({}, { locale });
+      const message = publicErrorMessage(error, m.c7_ticket_unknown_error({}, { locale }));
       await interaction.editReply({
         content: m.c7_ticket_add_err_failed({ error: message }, { locale }),
       });
@@ -596,7 +596,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         content: m.c7_ticket_remove_success({ mention: mentionString }, { locale }),
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : m.c7_ticket_unknown_error({}, { locale });
+      const message = publicErrorMessage(error, m.c7_ticket_unknown_error({}, { locale }));
       await interaction.editReply({
         content: m.c7_ticket_remove_err_failed({ error: message }, { locale }),
       });
@@ -641,7 +641,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     });
   } catch (error: unknown) {
     await interaction.editReply({
-      content: m.c7_ticket_rename_err_failed({ error: errorMessage(error) || m.c7_ticket_unknown_error({}, { locale }) }, { locale }),
+      content: m.c7_ticket_rename_err_failed({ error: publicErrorMessage(error, m.c7_ticket_unknown_error({}, { locale })) }, { locale }),
     });
   }
 }

@@ -28,6 +28,7 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { getCachedGuild } from '../../utils/cache.js';
 import { getRaidProtectionConfig } from './raidProtectionService.js';
+import { publicErrorMessage } from '../../utils/publicError.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -1517,6 +1518,6 @@ async function executeAuditFix(guild: Guild, finding: AuditFinding, reason: stri
     }
   } catch (err) {
     logger.error('SecurityAudit', `Correctif ${findingId} échoué sur ${guild.id}`, err);
-    return { ok: false, message: err instanceof Error ? err.message : 'Le correctif a échoué.' };
+    return { ok: false, message: publicErrorMessage(err, 'Le correctif a échoué.') };
   }
 }

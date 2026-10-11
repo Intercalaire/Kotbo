@@ -87,6 +87,7 @@ import { canViewFeatureSection } from '../featureGate.js';
 import { type OverwriteResolvable, Client, ChannelType, PermissionFlagsBits, EmbedBuilder, TextChannel } from 'discord.js';
 
 import { jsonFailure } from '../../../shared/failure.js';
+import { publicErrorMessage } from '../../../../utils/publicError.js';
 export async function handleStaffRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -1120,7 +1121,7 @@ export async function handleStaffRoutes(
           logger.error('StaffAPI', 'Error creating staff hierarchy:', err);
           json(res, err instanceof Error && /Hiérarchie/i.test(err.message)
             ? 400
-            : 500, { error: err instanceof Error ? err.message : 'Erreur lors de la création de la hiérarchie staff' });
+            : 500, { error: publicErrorMessage(err, 'Erreur lors de la création de la hiérarchie staff') });
         }
         return true;
       }
@@ -1226,7 +1227,7 @@ export async function handleStaffRoutes(
           json(res, 200, result);
         } catch (err: unknown) {
           logger.error('StaffAPI', 'Error importing role members:', err);
-          json(res, 500, { error: errorMessage(err) || "Erreur lors de l'import" });
+          json(res, 500, { error: publicErrorMessage(err, "Erreur lors de l'import") });
         }
         return true;
       }
@@ -1246,7 +1247,7 @@ export async function handleStaffRoutes(
           logger.error('StaffAPI', 'Error adding member to hierarchy:', err);
           json(res, /détecter automatiquement/i.test(errorMessage(err))
             ? 400
-            : 500, { error: errorMessage(err) || "Erreur lors de l'ajout" });
+            : 500, { error: publicErrorMessage(err, "Erreur lors de l'ajout") });
         }
         return true;
       }
@@ -1260,7 +1261,7 @@ export async function handleStaffRoutes(
           json(res, 200, { ok: true });
         } catch (err: unknown) {
           logger.error('StaffAPI', 'Error removing member from hierarchy:', err);
-          json(res, 500, { error: errorMessage(err) || 'Erreur lors du retrait' });
+          json(res, 500, { error: publicErrorMessage(err, 'Erreur lors du retrait') });
         }
         return true;
       }

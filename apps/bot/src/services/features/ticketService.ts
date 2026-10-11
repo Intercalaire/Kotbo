@@ -50,6 +50,7 @@ import {
   unlockTicketDeletion,
 } from './ticketLifecycleService.js';
 import { UserFacingError } from '../../utils/userFacingError.js';
+import { publicErrorMessage } from '../../utils/publicError.js';
 
 function sanitizeTicketChannelName(input: string): string {
   const cleaned = input
@@ -1324,7 +1325,7 @@ async function handleTicketHistoryAction(
     } catch (err) {
       logger.error('Ticket', 'Error on member-side ticket reopen:', err);
       await interaction.editReply({
-        embeds: [errorEmbed('Réouverture impossible', err instanceof Error ? err.message : 'Une erreur est survenue.')],
+        embeds: [errorEmbed('Réouverture impossible', publicErrorMessage(err, 'Une erreur est survenue.'))],
         components: [],
       });
     }
@@ -1811,7 +1812,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
       }
     } catch (err) {
       logger.error('Ticket', `Error on ticket ${action}:`, err);
-      await interaction.editReply({ content: `❌ ${err instanceof Error ? err.message : 'Opération impossible.'}` });
+      await interaction.editReply({ content: `❌ ${publicErrorMessage(err, 'Opération impossible.')}` });
     }
     return;
   }

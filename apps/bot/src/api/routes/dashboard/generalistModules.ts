@@ -60,6 +60,7 @@ import { resolveGuildLocale } from '../../../utils/i18n.js';
 import * as m from '../../../lib/paraglide/messages.js';
 
 import { jsonFailure } from '../../shared/failure.js';
+import { publicErrorMessage } from '../../../utils/publicError.js';
 /** Modules de ce fichier dont l'acces est filtre par les regles de role. */
 const FEATURE_GUARDED_MODULE_KEYS = new Set(['economy', 'fun']);
 
@@ -975,7 +976,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { preset });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error creating giveaway config preset:', err);
-        json(res, 400, { error: err instanceof Error ? err.message : 'Erreur lors de l\'enregistrement de la sauvegarde' });
+        json(res, 400, { error: publicErrorMessage(err, 'Erreur lors de l\'enregistrement de la sauvegarde') });
       }
       return true;
     }
@@ -1003,7 +1004,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { preset });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error updating giveaway config preset:', err);
-        json(res, 400, { error: err instanceof Error ? err.message : 'Erreur lors de la modification de la sauvegarde' });
+        json(res, 400, { error: publicErrorMessage(err, 'Erreur lors de la modification de la sauvegarde') });
       }
       return true;
     }
@@ -1074,7 +1075,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { template });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error creating giveaway template:', err);
-        json(res, 400, { error: err instanceof Error ? err.message : 'Erreur lors de la création du modèle' });
+        json(res, 400, { error: publicErrorMessage(err, 'Erreur lors de la création du modèle') });
       }
       return true;
     }
@@ -1103,7 +1104,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { template });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error updating giveaway template:', err);
-        json(res, 400, { error: err instanceof Error ? err.message : 'Erreur lors de la modification du modèle' });
+        json(res, 400, { error: publicErrorMessage(err, 'Erreur lors de la modification du modèle') });
       }
       return true;
     }
@@ -1244,7 +1245,7 @@ export async function handleGeneralistModulesRoutes(
         // qu'un serveur anglophone ne voyait jamais passer, et son lot d'objet
         // introuvable ou de salon muet remontait en erreur serveur.
         json(res, err instanceof Error ? 400 : 500, {
-          error: err instanceof Error ? err.message : 'Erreur lors de la création du giveaway',
+          error: publicErrorMessage(err, 'Erreur lors de la création du giveaway'),
         });
       }
       return true;

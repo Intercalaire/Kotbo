@@ -40,6 +40,7 @@ import { provisionHoneypotChannel } from '../moderation/honeypotProvisioning.js'
 import { setAutoThreadChannel } from '../features/autoThreadService.js';
 import type { TicketProvisionOutcome } from '../features/ticketProvisioning.js';
 import { type StatsConfig, readStatsConfig } from '../analytics/statsConfig.js';
+import { publicErrorMessage } from '../../utils/publicError.js';
 
 export const SERVER_TEMPLATE_SECTIONS = ['access', 'security', 'staff', 'captcha', 'tickets', 'welcome', 'stats', 'text', 'fun', 'bots', 'voice', 'modules'] as const;
 export type ServerTemplateSection = (typeof SERVER_TEMPLATE_SECTIONS)[number];
@@ -1030,7 +1031,7 @@ export async function applyServerTemplate(input: {
       } catch (err) {
         // Demande « Gerer les roles ». Le salon existe et reste utilisable :
         // seule l'interdiction manque, et il vaut mieux le dire que l'ignorer.
-        warnings.push(`Lecture seule sur #${channel.name} : ${errorMessage(err)}`);
+        warnings.push(`Lecture seule sur #${channel.name} : ${publicErrorMessage(err)}`);
       }
     };
 
@@ -1060,7 +1061,7 @@ export async function applyServerTemplate(input: {
           if (roleId) await channel.permissionOverwrites.edit(roleId, { ViewChannel: true }, { reason });
         }
       } catch (err) {
-        warnings.push(`Fermeture de #${channel.name} impossible, il reste visible de tous : ${errorMessage(err)}`);
+        warnings.push(`Fermeture de #${channel.name} impossible, il reste visible de tous : ${publicErrorMessage(err)}`);
       }
     };
 
@@ -1115,7 +1116,7 @@ export async function applyServerTemplate(input: {
           // de ne rien ecrire : c'est l'ecouteur qui en fait un piege.
           data.honeypotEnabled = true;
         } catch (err) {
-          warnings.push(`Salon piège : ${errorMessage(err)}`);
+          warnings.push(`Salon piège : ${publicErrorMessage(err)}`);
         }
       }
 
@@ -1393,7 +1394,7 @@ export async function applyServerTemplate(input: {
           try {
             await guild.setRulesChannel(channel.channel.id, reason);
           } catch (err) {
-            warnings.push(`Salon des règles Discord : ${errorMessage(err)}`);
+            warnings.push(`Salon des règles Discord : ${publicErrorMessage(err)}`);
           }
         }
       }
@@ -1794,6 +1795,6 @@ export async function applyServerTemplate(input: {
     await persist().catch(() => null);
     await cache.invalidateGuild(guildId).catch(() => null);
     logger.error('ServerTemplate', `Mise en place interrompue sur ${guildId}: ${errorMessage(err)}`);
-    return { items, modules, preparedModules, warnings, panelSent, interrupted: errorMessage(err) };
+    return { items, modules, preparedModules, warnings, panelSent, interrupted: publicErrorMessage(err) };
   }
 }

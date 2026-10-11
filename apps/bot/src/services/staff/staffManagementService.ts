@@ -9,6 +9,7 @@ import { logger } from '../../utils/logger.js';
 import * as altAccountService from '../moderation/altAccountService.js';
 import { fetchAllMembers } from '../../utils/discord.js';
 import type { GuildMember } from 'discord.js';
+import { publicErrorMessage } from '../../utils/publicError.js';
 
 /**
  * Service de gestion du personnel staff
@@ -1593,7 +1594,7 @@ export const importRoleMembers = async (
       imported++;
     } catch (err) {
       skipped++;
-      errors.push(`${userId}: ${err instanceof Error ? err.message : String(err)}`);
+      errors.push(`${userId}: ${publicErrorMessage(err)}`);
     }
   }
 

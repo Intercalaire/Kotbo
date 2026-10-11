@@ -12,6 +12,7 @@ import { createNotification } from '../staff/staffLeadershipService.js';
 import * as altAccountService from './altAccountService.js';
 import { getMissingReportReminderActions, type MissingReportReminderState } from './sanctionReportReminderPolicy.js';
 import { archiveScoreFilter } from './sanctionArchiveService.js';
+import { publicErrorMessage } from '../../utils/publicError.js';
 
 const MAX_DISCORD_TIMEOUT_MS = 27 * 24 * 60 * 60 * 1000;
 const RENEWAL_BUFFER_MS = 60 * 1000;
@@ -1332,7 +1333,7 @@ async function processTimeoutRenewals(client: Client): Promise<void> {
           status: SanctionStatus.FAILED,
           resolvedAt: new Date(),
           nextActionAt: null,
-          resolutionNote: `Échec du renouvellement du timeout: ${error instanceof Error ? error.message : 'erreur inconnue'}`
+          resolutionNote: `Échec du renouvellement du timeout: ${publicErrorMessage(error, 'erreur inconnue')}`
         }
       }).catch(() => null);
     }
@@ -1387,7 +1388,7 @@ async function processTempBans(client: Client): Promise<void> {
           status: SanctionStatus.FAILED,
           resolvedAt: new Date(),
           nextActionAt: null,
-          resolutionNote: `Échec de levée du tempban: ${error instanceof Error ? error.message : 'erreur inconnue'}`
+          resolutionNote: `Échec de levée du tempban: ${publicErrorMessage(error, 'erreur inconnue')}`
         }
       }).catch(() => null);
     }

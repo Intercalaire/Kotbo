@@ -32,6 +32,7 @@ import { type GuildMember,
 import type { AdminPermissionRequest, AdminPermissionRequestType } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { publicErrorMessage } from '../../utils/publicError.js';
 import { resolveLogChannel } from '../../utils/logChannel.js';
 import { getOrCreateAutoModConfig, invalidateAutoModCache } from './autoModService.js';
 import { mirrorModlogToStaffServer } from '../staff/staffServerService.js';
@@ -269,7 +270,7 @@ async function applyApprovedRequest(guild: Guild, request: AdminPermissionReques
 
     return null;
   } catch (e) {
-    return e instanceof Error ? e.message : String(e);
+    return publicErrorMessage(e, "La demande n'a pas pu être appliquée.", 'AdminLock');
   }
 }
 
