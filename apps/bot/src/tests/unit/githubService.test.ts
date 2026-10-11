@@ -132,7 +132,18 @@ describe('resolveGithubRepo', () => {
     expect(await reasonFor(404)).toBe('not_found');
     expect(await reasonFor(401)).toBe('unauthorized');
     expect(await reasonFor(403, { 'x-ratelimit-remaining': '0' })).toBe('rate_limited');
+    expect(await reasonFor(403, { 'retry-after': '30' })).toBe('rate_limited');
+    expect(await reasonFor(429)).toBe('rate_limited');
     expect(await reasonFor(502)).toBe('unavailable');
+  });
+
+  test('un 403 hors quota est un refus d\'accès, pas un quota', async () => {
+    const result = await resolveGithubRepo('a/b', async () => response(403, { message: 'Resource protected by organization SAML enforcement.' }));
+    expect(result).toEqual({ ok: false, reason: 'forbidden' });
+    // Aucune pause posée : le dépôt suivant doit encore être interrogé.
+    let called = false;
+    await githubGet('/repos/a/c', async () => { called = true; return response(200, {}); });
+    expect(called).toBeTrue();
   });
 
   test('un dépôt privé est traité comme introuvable', async () => {

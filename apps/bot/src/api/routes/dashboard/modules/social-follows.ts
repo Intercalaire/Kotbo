@@ -23,6 +23,7 @@ const GITHUB_RESOLVE_ERRORS: Record<GithubRepoFailure, { status: number; error: 
   not_found: { status: 400, error: 'Dépôt GitHub introuvable ou privé' },
   rate_limited: { status: 503, error: "Quota de l'API GitHub atteint, réessaie dans quelques minutes" },
   unauthorized: { status: 503, error: "Le jeton GitHub du bot est refusé par GitHub, préviens l'équipe Kotbo" },
+  forbidden: { status: 400, error: "GitHub refuse l'accès à ce dépôt (organisation à SSO ou jeton restreint)" },
   unavailable: { status: 502, error: 'GitHub ne répond pas, réessaie dans quelques minutes' },
 };
 
