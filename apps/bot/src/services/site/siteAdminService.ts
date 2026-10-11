@@ -211,6 +211,7 @@ function normalizeSiteSettings(current: unknown, patch: unknown): Record<string,
   const p = patch as Record<string, unknown>;
   if (typeof p.commentsByDefault === 'boolean') base.commentsByDefault = p.commentsByDefault;
   if (typeof p.showMemberCount === 'boolean') base.showMemberCount = p.showMemberCount;
+  if (typeof p.heroPulse === 'boolean') base.heroPulse = p.heroPulse;
   // Site automatique : relu en entier, fusionné sur ce qui est en place.
   if (p.auto !== undefined) base.auto = normalizeSiteAuto(mergeRecords(base.auto, p.auto));
   return base;

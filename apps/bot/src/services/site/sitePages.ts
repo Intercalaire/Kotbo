@@ -49,6 +49,7 @@ import { searchSite } from './siteSearch.js';
 import { forumCategoryPage, forumIndexPage, forumTopicPage, parseForumPage, type ForumPage } from './siteForumPages.js';
 import { verifyPreviewToken } from './sitePreview.js';
 import { recordSiteHit } from './siteAnalyticsService.js';
+import { renderPulse } from './sitePulse.js';
 import {
   checkPageAccess,
   getPublishedPage,
@@ -439,7 +440,13 @@ async function pageInviteUrl(ctx: SiteCtx): Promise<string | null> {
   return url || null;
 }
 
-/** Bannière d'accueil : image du serveur, nom, accroche, membres, bouton Rejoindre. */
+/** Pouls dans la bannière d'accueil, sauf si le propriétaire l'a retiré. */
+export function showHeroPulse(site: Pick<SiteRecord, 'settings'>): boolean {
+  const settings = (site.settings ?? {}) as Record<string, unknown>;
+  return settings.heroPulse !== false;
+}
+
+/** Bannière d'accueil : image du serveur, nom, accroche, pouls en direct, bouton Rejoindre. */
 async function homeHero(ctx: SiteCtx): Promise<string> {
   const o = { locale: ctx.locale };
   const banner = safeBannerUrl(ctx.site.bannerUrl ?? ctx.identity.bannerUrl);
@@ -449,15 +456,20 @@ async function homeHero(ctx: SiteCtx): Promise<string> {
     ? `<p class="hero-stats"><span class="presence-dot" aria-hidden="true"></span><span>${esc(m.site_members_online({ count: formatNumber(counts.online, ctx.locale) }, o))}</span><span class="hero-sep" aria-hidden="true">·</span><span>${esc(m.site_members_total({ count: formatNumber(counts.members, ctx.locale) }, o))}</span></p>`
     : '';
   const join = ctx.inviteUrl
-    ? `<p class="hero-actions"><a class="btn btn-primary btn-lg btn-discord"${attrs({ href: ctx.inviteUrl, rel: 'noopener', target: '_blank' })}>${esc(m.site_join_discord({}, o))}</a></p>`
+    ? `<p class="hero-actions"><a class="btn btn-primary btn-lg btn-discord"${attrs({ href: ctx.inviteUrl, rel: 'noopener', target: '_blank', 'data-join': 'hero' })}>${esc(m.site_join_discord({}, o))}</a></p>`
     : '';
+  // Le pouls remplace la ligne de compteurs : il les reprend, en direct.
+  const pulse = showHeroPulse(ctx.site) ? await renderPulse(ctx.block).catch(() => '') : '';
   return `<section${attrs({ class: banner ? 'site-hero has-image' : 'site-hero', style: banner ? `--hero-image:url("${banner}")` : null })}>
-  <div class="container hero-inner">
-    ${logo ? `<img class="hero-logo"${attrs({ src: logo, alt: '', width: 96, height: 96 })}>` : ''}
-    <h1 class="hero-title">${esc(ctx.identity.name)}</h1>
-    ${ctx.site.tagline ? `<p class="hero-lead">${esc(ctx.site.tagline)}</p>` : ''}
-    ${stats}
-    ${join}
+  <div${attrs({ class: pulse ? 'container hero-inner hero-with-pulse' : 'container hero-inner' })}>
+    <div class="hero-main">
+      ${logo ? `<img class="hero-logo"${attrs({ src: logo, alt: '', width: 96, height: 96 })}>` : ''}
+      <h1 class="hero-title">${esc(ctx.identity.name)}</h1>
+      ${ctx.site.tagline ? `<p class="hero-lead">${esc(ctx.site.tagline)}</p>` : ''}
+      ${pulse ? '' : stats}
+      ${join}
+    </div>
+    ${pulse}
   </div>
 </section>`;
 }

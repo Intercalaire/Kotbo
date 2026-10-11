@@ -238,7 +238,7 @@ async function renderGiveaways(ctx: BlockContext, config: Record<string, unknown
 
 // ─── Événements ─────────────────────────────────────────────────────────────
 
-interface EventItem {
+export interface EventItem {
   id: string;
   source: 'kotbo' | 'discord';
   title: string;
@@ -253,7 +253,7 @@ interface EventItem {
   url: string | null;
 }
 
-async function loadEvents(ctx: BlockContext, limit: number): Promise<EventItem[]> {
+export async function loadEvents(ctx: BlockContext, limit: number): Promise<EventItem[]> {
   const guildId = ctx.site.guildId;
   const kotbo = await prisma.event.findMany({
     where: { guildId, status: { in: ['PUBLISHED', 'ONGOING'] } },

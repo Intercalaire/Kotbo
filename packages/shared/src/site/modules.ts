@@ -89,6 +89,7 @@ export const SITE_MODULES = {
   changelog: { category: 'contenus', botModule: null, needsViewer: false, interactive: false, live: false, defaults: { days: 30, limit: 15 } },
 
   // Discord en direct
+  pulse: { category: 'discord', botModule: null, needsViewer: false, interactive: false, live: true, defaults: {} },
   members: { category: 'discord', botModule: null, needsViewer: false, interactive: false, live: true, defaults: {} },
   join: { category: 'discord', botModule: null, needsViewer: false, interactive: false, live: false, defaults: { label: '' } },
   voice: { category: 'discord', botModule: null, needsViewer: false, interactive: false, live: true, defaults: {} },

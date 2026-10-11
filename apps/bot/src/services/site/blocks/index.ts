@@ -47,9 +47,12 @@ const REGISTRY: BlockRegistry = {
   ...shopBlocks,
   ...autoBlocks,
   ...memberActivityBlocks,
+  // Import différé : le pouls lit des blocs qui, par le rendu, reviennent ici.
+  pulse: async (ctx) => (await import('../sitePulse.js')).renderPulse(ctx),
 };
 
 /** Fréquence de rafraîchissement des blocs en direct, en secondes. */
+// Le pouls n'y figure pas : le script du site le relit par sa propre route.
 const LIVE_REFRESH_SECONDS: Partial<Record<SiteModuleKey, number>> = {
   members: 120,
   serverStats: 300,

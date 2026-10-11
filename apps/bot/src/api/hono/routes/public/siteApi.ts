@@ -35,6 +35,8 @@ import { formatShopPrice, purchaseShopOffer, quoteShopOffer, setShopSubscription
 import { resolveShopRecipient, shopErrorMessage } from '../../../../services/site/blocks/shopBlocks.js';
 import { createForumTopic, deleteForumPost, ForumError, replyToForumTopic, type ForumAuthor, type ForumErrorCode } from '../../../../services/site/siteForumService.js';
 import { forumIndexPage, parseForumPage, renderForumPosts, renderForumTopics } from '../../../../services/site/siteForumPages.js';
+import { getSitePulse, renderPulseInner } from '../../../../services/site/sitePulse.js';
+import { getModuleStates } from '../../../../services/core/moduleGate.js';
 
 // ============================================================================
 // API DU SCRIPT DES SITES COMMUNAUTAIRES
@@ -223,6 +225,22 @@ export function createSiteApiRouter(client: Client): OpenAPIHono {
     const ctx = await buildSiteCtx({ client, query: new URLSearchParams(c.req.query()), acceptLanguage: c.req.header('accept-language') ?? null }, site, viewer, true);
     c.header('Cache-Control', 'private, no-store');
     return c.json({ html: await renderBlock(ctx.block, node.key, node.config, { pageId, index }) });
+  });
+
+  // ── Pouls ─────────────────────────────────────────────────────────────────
+  // Public et identique pour tous : relu toutes les quinze secondes par chaque
+  // page ouverte, il ne lit jamais le visiteur et se met en cache côté serveur.
+  app.get('/api/site/:siteId/pulse', async (c) => {
+    const site = await liveSite(c);
+    if (!site) return c.json({ error: 'Introuvable' }, 404);
+    if (rateLimited(`pulse:${clientIp(c)}`, 30, 60_000)) return c.json({ error: m.site_err_too_many({}, { locale: localeOf(c) }) }, 429);
+    const guild = client.guilds.cache.get(site.guildId) ?? null;
+    if (!guild) return c.json({ html: '' });
+    const locale = localeOf(c);
+    const block = { client, site, guild, locale, basePath: `/s/${site.slug}`, viewer: null, viewerKnown: false, moduleStates: await getModuleStates(site.guildId) };
+    const pulse = await getSitePulse(block);
+    c.header('Cache-Control', 'public, max-age=10');
+    return c.json({ html: renderPulseInner(pulse, locale), at: pulse.at });
   });
 
   // ── Actions ───────────────────────────────────────────────────────────────

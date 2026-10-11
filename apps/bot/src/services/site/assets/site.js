@@ -926,6 +926,94 @@
     return live.connected && SIGNALLED[section.getAttribute('data-module')] === true;
   }
 
+  // ─── Pouls ─────────────────────────────────────────────────────────────
+  // Relu toutes les quinze secondes tant que l'onglet est visible ; un chiffre
+  // qui change défile jusqu'à sa nouvelle valeur.
+
+  var LANG = root.getAttribute('lang') || 'fr';
+  var PULSE_MS = 15000;
+  var numberFormat = window.Intl ? new Intl.NumberFormat(LANG) : null;
+  var reducedMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function formatCount(value) {
+    return numberFormat ? numberFormat.format(value) : String(value);
+  }
+
+  function animateCount(node, from, to) {
+    var prefix = node.getAttribute('data-prefix') || '';
+    node.classList.add('pulse-bump');
+    setTimeout(function () { node.classList.remove('pulse-bump'); }, 900);
+    if (reducedMotion) return;
+    var start = null;
+    function step(now) {
+      if (start === null) start = now;
+      var t = Math.min(1, (now - start) / 700);
+      var eased = 1 - Math.pow(1 - t, 3);
+      node.textContent = prefix + formatCount(Math.round(from + (to - from) * eased));
+      if (t < 1) requestAnimationFrame(step);
+    }
+    node.textContent = prefix + formatCount(from);
+    requestAnimationFrame(step);
+  }
+
+  function countsOf(holder) {
+    var out = {};
+    holder.querySelectorAll('.pulse-stat').forEach(function (s) {
+      var dt = s.querySelector('dt');
+      var dd = s.querySelector('[data-count]');
+      if (dt && dd) out[dt.textContent] = Number(dd.getAttribute('data-count'));
+    });
+    return out;
+  }
+
+  /** « dans 2 heures », « dans 12 minutes » : l'échéance d'un événement, tenue à jour. */
+  function tickCountdowns() {
+    if (!window.Intl || !Intl.RelativeTimeFormat) return;
+    var rtf = new Intl.RelativeTimeFormat(LANG, { numeric: 'auto' });
+    document.querySelectorAll('[data-countdown]').forEach(function (node) {
+      var at = Date.parse(node.getAttribute('data-countdown') || '');
+      if (!at) return;
+      if (!node.getAttribute('title')) node.setAttribute('title', node.textContent);
+      var minutes = Math.round((at - Date.now()) / 60000);
+      if (minutes < 0) return;
+      if (minutes < 60) node.textContent = rtf.format(Math.max(1, minutes), 'minute');
+      else if (minutes < 48 * 60) node.textContent = rtf.format(Math.round(minutes / 60), 'hour');
+      else node.textContent = rtf.format(Math.round(minutes / 1440), 'day');
+    });
+  }
+
+  function refreshPulse() {
+    var holders = document.querySelectorAll('[data-pulse]');
+    if (holders.length === 0 || document.hidden) return;
+    request('GET', SITE_API + '/pulse?lang=' + encodeURIComponent(LANG))
+      .then(function (data) {
+        if (typeof data.html !== 'string' || !data.html) return;
+        holders.forEach(function (holder) {
+          var before = countsOf(holder);
+          holder.innerHTML = data.html;
+          holder.querySelectorAll('.pulse-stat').forEach(function (s) {
+            var dt = s.querySelector('dt');
+            var dd = s.querySelector('[data-count]');
+            if (!dt || !dd) return;
+            var prev = before[dt.textContent];
+            var next = Number(dd.getAttribute('data-count'));
+            if (typeof prev === 'number' && prev !== next) animateCount(dd, prev, next);
+          });
+        });
+        tickCountdowns();
+      })
+      .catch(function () {});
+  }
+
+  if (document.querySelector('[data-pulse]')) {
+    setInterval(refreshPulse, PULSE_MS);
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) refreshPulse();
+    });
+  }
+  tickCountdowns();
+  setInterval(tickCountdowns, 30000);
+
   // ─── Démarrage ─────────────────────────────────────────────────────────
 
   document.querySelectorAll('section.mod[data-live]').forEach(bindLive);
