@@ -21,6 +21,8 @@
   import { navigationStore } from '../lib/stores/navigation.svelte';
   import { canViewFeature } from '../lib/permissions.svelte';
   import { HOME_WIDGET_ACCESS } from '@kotbo/contracts';
+  import { brandingStore } from '../lib/stores/branding.svelte';
+  import { TOPGG_VOTE_URL } from '../lib/config/links';
 
   interface LayoutItem {
     id: string;
@@ -900,6 +902,13 @@
       <h1 class="min-w-0 text-2xl font-semibold font-headline text-on-surface">{isEditing ? m.home_edit_title() : dynamicGreeting}</h1>
       {#if !isEditing}
         <div class="flex items-center gap-1 shrink-0">
+          <!-- L'accueil est la page la plus vue du dashboard : le vote y est à
+               portée sans rien masquer. Jamais en marque blanche. -->
+          {#if brandingStore.loaded && !brandingStore.isWhiteLabel}
+            <Button variant="ghost" size="sm" icon="star" href={TOPGG_VOTE_URL} target="_blank" title={m.navbar_vote_topgg()}>
+              {$isMobile ? m.home_vote_short() : m.home_vote()}
+            </Button>
+          {/if}
           <Button variant="ghost" size="sm" icon="sliders" onclick={startEditing} data-tour="home-customize">
             {m.home_customize()}
           </Button>

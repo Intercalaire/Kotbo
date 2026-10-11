@@ -768,6 +768,8 @@
   "home_member": "Membre",
   "home_refresh_aria": "Actualiser",
   "home_customize": "Personnaliser",
+  "home_vote": "Voter sur Top.gg",
+  "home_vote_short": "Voter",
   "home_edit_title": "Personnaliser l'accueil",
   "home_edit_hint": "Déplace, agrandis ou retire les blocs, puis enregistre.",
   "home_edit_more": "Plus d'options pour l'accueil",

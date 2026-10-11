@@ -768,6 +768,8 @@
   "home_member": "Member",
   "home_refresh_aria": "Refresh",
   "home_customize": "Customize",
+  "home_vote": "Vote on Top.gg",
+  "home_vote_short": "Vote",
   "home_edit_title": "Customize home",
   "home_edit_hint": "Move, resize or remove blocks, then save.",
   "home_edit_more": "More home options",
