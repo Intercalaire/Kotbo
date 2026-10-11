@@ -397,7 +397,7 @@ export function verifyKotbo(rawBody, header, secret, toleranceSec = 300) {
 
 <ModulePage title={m.nav_outgoing_webhooks()} description={m.owh_page_desc()} icon="send" featureKey="settings">
   {#snippet actions()}
-    <Button variant="primary" size="sm" icon="plus" disabled={atLimit || loading} onclick={openCreate}>
+    <Button variant="primary" size="sm" icon="plus" disabled={atLimit || loading} disabledReason={atLimit ? m.owh_reason_limit({ max: overview?.limits.maxWebhooks ?? 0 }) : ''} onclick={openCreate}>
       {m.owh_add()}
     </Button>
   {/snippet}
@@ -438,7 +438,7 @@ export function verifyKotbo(rawBody, header, secret, toleranceSec = 300) {
             <ToggleSwitch size="sm" checked={hook.enabled} ariaLabel={m.owh_toggle_label()} onToggle={(value) => setEnabled(hook, value)} />
             {hook.enabled ? m.owh_enabled() : m.owh_disabled()}
           </label>
-          <Button size="sm" icon="send" loading={testing} disabled={!hook.enabled} onclick={() => sendTest(hook)}>{m.owh_test()}</Button>
+          <Button size="sm" icon="send" loading={testing} disabled={!hook.enabled} disabledReason={m.owh_reason_paused()} onclick={() => sendTest(hook)}>{m.owh_test()}</Button>
           <Button size="sm" icon="edit-2" onclick={() => openEdit(hook)}>{m.owh_edit()}</Button>
           <Button size="sm" variant="danger" icon="trash-2" aria-label={m.common_delete()} onclick={() => remove(hook)} />
         </div>
@@ -712,7 +712,7 @@ export function verifyKotbo(rawBody, header, secret, toleranceSec = 300) {
   {/if}
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (detailOpen = false)}>{m.common_close()}</Button>
-    <Button variant="primary" icon="repeat" loading={redelivering} disabled={!selected?.enabled} onclick={redeliverDetail}>{m.owh_redeliver()}</Button>
+    <Button variant="primary" icon="repeat" loading={redelivering} disabled={!selected?.enabled} disabledReason={m.owh_reason_paused()} onclick={redeliverDetail}>{m.owh_redeliver()}</Button>
   {/snippet}
 </Modal>
 

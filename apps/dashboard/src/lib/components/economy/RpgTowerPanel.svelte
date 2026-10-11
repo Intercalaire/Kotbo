@@ -1444,7 +1444,7 @@
               <SectionCard title={m.eco_tower_upgrades_title()} description={m.eco_tower_upgrades_desc()} flush>
                 {#snippet actions()}
                   {#if canManage}
-                    <Button variant="primary" size="sm" icon="plus" disabled={disabled || settings.upgrades.length >= UPGRADES_MAX} title={m.eco_tower_upgrades_max({ max: UPGRADES_MAX })} onclick={addUpgrade}>{m.eco_tower_upgrade_add()}</Button>
+                    <Button variant="primary" size="sm" icon="plus" disabled={disabled || settings.upgrades.length >= UPGRADES_MAX} disabledReason={settings.upgrades.length >= UPGRADES_MAX ? m.eco_tower_upgrades_max({ max: UPGRADES_MAX }) : ''} title={m.eco_tower_upgrades_max({ max: UPGRADES_MAX })} onclick={addUpgrade}>{m.eco_tower_upgrade_add()}</Button>
                   {/if}
                 {/snippet}
                 {#if settings.upgrades.length === 0}
@@ -1540,7 +1540,7 @@
               <SectionCard title={m.eco_tower_items_title()} description={m.eco_tower_items_desc()} flush>
                 {#snippet actions()}
                   {#if canManage}
-                    <Button variant="primary" size="sm" icon="plus" disabled={disabled || rewards.length >= limits.rewardsMax} onclick={() => openNew('SHOP')}>{m.eco_tower_new_shop_btn()}</Button>
+                    <Button variant="primary" size="sm" icon="plus" disabled={disabled || rewards.length >= limits.rewardsMax} disabledReason={rewards.length >= limits.rewardsMax ? m.eco_tower_rewards_reason_limit({ max: limits.rewardsMax }) : ''} onclick={() => openNew('SHOP')}>{m.eco_tower_new_shop_btn()}</Button>
                   {/if}
                 {/snippet}
                 {#if shopRewards.length === 0}
@@ -1557,7 +1557,7 @@
               <SectionCard title={m.eco_tower_milestones_title()} description={m.eco_tower_guide_milestones()} flush>
                 {#snippet actions()}
                   {#if canManage}
-                    <Button variant="primary" size="sm" icon="plus" disabled={disabled || rewards.length >= limits.rewardsMax} onclick={() => openNew('MILESTONE')}>{m.eco_tower_new_milestone_btn()}</Button>
+                    <Button variant="primary" size="sm" icon="plus" disabled={disabled || rewards.length >= limits.rewardsMax} disabledReason={rewards.length >= limits.rewardsMax ? m.eco_tower_rewards_reason_limit({ max: limits.rewardsMax }) : ''} onclick={() => openNew('MILESTONE')}>{m.eco_tower_new_milestone_btn()}</Button>
                   {/if}
                 {/snippet}
                 {#if milestones.length === 0}

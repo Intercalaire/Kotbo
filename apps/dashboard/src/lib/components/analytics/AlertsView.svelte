@@ -266,7 +266,7 @@
     {#if formError}<p class="text-body-sm text-error">{formError}</p>{/if}
     <div class="flex justify-end gap-2">
       <Button variant="ghost" onclick={() => (open = false)}>{m.anx_note_cancel()}</Button>
-      <Button variant="primary" type="submit" loading={saving} disabled={Boolean(formError)}>{m.anx_alert_save()}</Button>
+      <Button variant="primary" type="submit" loading={saving} disabled={Boolean(formError)} disabledReason={formError}>{m.anx_alert_save()}</Button>
     </div>
   </form>
 </Modal>

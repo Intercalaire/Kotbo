@@ -574,7 +574,7 @@
                   </div>
                 {/each}
                 <div class="flex flex-wrap items-center gap-3">
-                  <Button variant="secondary" size="sm" icon="plus" onclick={addRule} disabled={draft.namingRules.length >= AUTO_THREAD_LIMITS.namingRules}>
+                  <Button variant="secondary" size="sm" icon="plus" onclick={addRule} disabled={draft.namingRules.length >= AUTO_THREAD_LIMITS.namingRules} disabledReason={m.at_rules_reason_limit({ max: AUTO_THREAD_LIMITS.namingRules })}>
                     {m.at_rule_add()}
                   </Button>
                   <span class="text-xs text-on-surface-variant">{m.at_rule_max({ max: AUTO_THREAD_LIMITS.namingRules })}</span>

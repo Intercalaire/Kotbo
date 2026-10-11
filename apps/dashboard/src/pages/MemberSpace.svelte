@@ -142,7 +142,7 @@
           {/if}
 
           <div class="flex justify-end">
-            <Button variant="primary" onclick={save} loading={saving} disabled={!dirty || missingProfile}>
+            <Button variant="primary" onclick={save} loading={saving} disabled={!dirty || missingProfile} disabledReason={missingProfile ? m.me_no_profile() : ''}>
               {m.me_save()}
             </Button>
           </div>
