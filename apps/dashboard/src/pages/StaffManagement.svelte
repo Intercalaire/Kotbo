@@ -1000,8 +1000,44 @@
     }
   }
 
+  /**
+   * Ce qu'une suppression emporte, en chiffres connus de la page : on decide
+   * en sachant combien de membres et de grades sont touches.
+   */
+  function hierarchyImpacts(id: string): string[] {
+    const hierarchy = hierarchies.find((h) => h.id === id);
+    const impacts: string[] = [];
+    const roles = getRolesInHierarchy(id).length;
+    if (roles > 0) impacts.push(m.sm_impact_hierarchy_roles({ n: roles }));
+    const members = hierarchy?.memberGrades?.length ?? 0;
+    if (members > 0) impacts.push(m.sm_impact_hierarchy_members({ n: members }));
+    const children = hierarchies.filter((h) => h.parentHierarchyId === id).length;
+    if (children > 0) impacts.push(m.sm_impact_hierarchy_children({ n: children }));
+    return impacts;
+  }
+
+  function staffRoleImpacts(roleId: string, roleName: string): string[] {
+    const impacts: string[] = [];
+    const holders = staffMembers.filter((member) => normalizeText(member.grade ?? '') === normalizeText(roleName)).length;
+    if (holders > 0) impacts.push(m.sm_impact_role_members({ n: holders }));
+    const hierarchyId = staffRoles.find((role) => role.id === roleId)?.hierarchyId;
+    const hierarchy = hierarchyId ? hierarchies.find((h) => h.id === hierarchyId) : null;
+    if (hierarchy) impacts.push(m.sm_impact_role_hierarchy({ name: hierarchy.name }));
+    return impacts;
+  }
+
+  function staffMemberImpacts(userId: string): string[] {
+    const member = staffMembers.find((entry) => entry.userId === userId);
+    if (!member) return [];
+    const impacts: string[] = [];
+    if (member.grade) impacts.push(m.sm_impact_staff_grade({ grade: member.grade }));
+    const ranked = hierarchies.filter((h) => h.memberGrades?.some((g) => g.staffMemberId === member.id)).length;
+    if (ranked > 0) impacts.push(m.sm_impact_staff_hierarchies({ n: ranked }));
+    return impacts;
+  }
+
   async function deleteHierarchy(id: string) {
-    if (!(await confirmDialog.danger(m.sm_confirm_delete_hierarchy_title(), m.sm_confirm_delete_hierarchy_desc()))) return;
+    if (!(await confirmDialog.danger(m.sm_confirm_delete_hierarchy_title(), m.sm_confirm_delete_hierarchy_desc(), undefined, hierarchyImpacts(id)))) return;
     try {
       await deleteStaffHierarchy(id, guildId);
       await Promise.all([loadHierarchies(), loadHierarchySchema(), loadStaffRoles()]);
@@ -1181,7 +1217,7 @@
   }
 
   async function removeStaff(userId: string) {
-    if (!guildId || !authStore.token || !(await confirmDialog.danger(m.sm_confirm_remove_staff_title(), '', m.sm_confirm_remove_staff_btn()))) return;
+    if (!guildId || !authStore.token || !(await confirmDialog.danger(m.sm_confirm_remove_staff_title(), '', m.sm_confirm_remove_staff_btn(), staffMemberImpacts(userId)))) return;
 
     try {
       const res = await dashboardFetch(`/staff/members/${userId}`, { guildId,
@@ -1284,7 +1320,7 @@
 
   async function removeStaffRole(roleId: string, roleName: string) {
     if (!guildId || !authStore.token) return;
-    if (!(await confirmDialog.danger(m.sm_confirm_delete_role_title({ name: roleName }), m.sm_confirm_delete_role_desc()))) return;
+    if (!(await confirmDialog.danger(m.sm_confirm_delete_role_title({ name: roleName }), m.sm_confirm_delete_role_desc(), undefined, staffRoleImpacts(roleId, roleName)))) return;
 
     try {
       const success = await deleteStaffRole(roleId, guildId);
