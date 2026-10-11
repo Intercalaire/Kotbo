@@ -17,6 +17,7 @@ import { logger } from '../../utils/logger.js';
 import { isPubliclyVisible } from './blocks/discordBlocks.js';
 import { createSite, suggestSiteSlug, updateSite, SiteAdminError } from './siteAdminService.js';
 import { handleAnnouncementMessage, invalidateSiteAuto } from './siteAutoService.js';
+import { autoMirrorPublicForums } from './siteForumService.js';
 import type { SiteTemplateKey } from './siteTemplates.js';
 
 /** Mots qui trahissent un type de communauté, comparés sans accents ni casse. */
@@ -148,7 +149,17 @@ async function createInstantSite(client: Client, guildId: string, userId?: strin
     },
   });
   await invalidateSiteAuto(guildId);
+  // Forums Discord publics recopiés : leurs fils deviennent des sujets trouvables sur le web.
+  const forums = await autoMirrorPublicForums(client, guildId).catch(() => 0);
+  if (forums > 0) {
+    const current = await prisma.communitySite.findUnique({ where: { id: site.id }, select: { navigation: true } });
+    const navigation = Array.isArray(current?.navigation) ? [...(current.navigation as object[])] : [];
+    if (navigation.length > 0 && navigation.length < 12) {
+      navigation.push({ id: 'nav-auto-forum', label: 'Forum', target: { type: 'section', section: 'forum' }, children: [] });
+      await prisma.communitySite.update({ where: { id: site.id }, data: { navigation } });
+    }
+  }
   const articles = announceIds.length ? await backfillAnnouncements(client, guild, announceIds).catch(() => 0) : 0;
-  logger.info('Site', `Site instantané prêt pour ${guildId} : /s/${site.slug} (${template}, ${articles} article(s) repris)`);
+  logger.info('Site', `Site instantané prêt pour ${guildId} : /s/${site.slug} (${template}, ${articles} article(s) repris, ${forums} forum(s) recopié(s))`);
   return { siteId: site.id, slug: site.slug, created: true, template, articles };
 }
