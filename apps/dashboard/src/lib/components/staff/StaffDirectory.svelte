@@ -266,7 +266,7 @@
               <td class="hidden lg:table-cell">
                 <span class="text-sm text-on-surface" title={formatDate(member.joinedStaffAt)}>{formatTenure(member.joinedStaffAt)}</span>
               </td>
-              <td class="w-px whitespace-nowrap">{@render quickActions(member)}</td>
+              <td class="whitespace-nowrap text-right">{@render quickActions(member)}</td>
             </tr>
           {/each}
         </tbody>

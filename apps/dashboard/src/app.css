@@ -505,6 +505,11 @@
 .btn-sm { padding: 0.3125rem 0.75rem; font-size: 0.75rem; }
 
 /* Bouton icone seule : carre, meme hauteur que ses voisins a libelle. */
+/* L'icone d'un bouton garde sa taille. La regle globale `svg { max-width: 100% }`
+   la ramenait a 0 dans une cellule de tableau a largeur minimale (Firefox) :
+   le bouton restait, vide, et le « ... » disparaissait. */
+.btn svg { max-width: none; flex-shrink: 0; }
+
 .btn-icon { padding: 0.5rem; aspect-ratio: 1; }
 .btn-sm.btn-icon { padding: 0.3125rem; }
 
