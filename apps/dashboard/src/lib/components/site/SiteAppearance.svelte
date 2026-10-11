@@ -25,6 +25,29 @@
 
   let { siteState, guildId, onChanged }: { siteState: SiteState; guildId: string; onChanged: () => void } = $props();
 
+  /**
+   * Vingt polices a plat, on les relisait toutes a chaque choix. Rangees par
+   * famille (au plus sept par groupe), on va droit au style voulu. Une police
+   * ajoutee a SITE_FONTS sans famille tombe dans « Autres ».
+   */
+  const FONT_FAMILIES: Array<{ label: () => string; fonts: string[] }> = [
+    { label: m.ste_font_group_neutral, fonts: ['Inter', 'Roboto', 'Open Sans', 'Lato', 'Barlow'] },
+    { label: m.ste_font_group_geometric, fonts: ['Montserrat', 'Poppins', 'Outfit', 'DM Sans', 'Manrope', 'Space Grotesk'] },
+    { label: m.ste_font_group_rounded, fonts: ['Nunito', 'Rubik'] },
+    { label: m.ste_font_group_serif, fonts: ['Merriweather', 'Source Serif 4', 'Fraunces', 'Cinzel'] },
+    { label: m.ste_font_group_retro, fonts: ['JetBrains Mono', 'Press Start 2P', 'Orbitron'] },
+  ];
+  const fontGroups = (() => {
+    const all = SITE_FONTS as readonly string[];
+    const groups = FONT_FAMILIES
+      .map((family) => ({ label: family.label(), fonts: family.fonts.filter((font) => all.includes(font)) }))
+      .filter((group) => group.fonts.length > 0);
+    const placed = new Set(groups.flatMap((group) => group.fonts));
+    const others = all.filter((font) => !placed.has(font));
+    if (others.length > 0) groups.push({ label: m.ste_font_group_other(), fonts: [...others] });
+    return groups;
+  })();
+
   const site = $derived(siteState.site!);
   // Valeurs de départ du formulaire, modifiées localement jusqu'à l'enregistrement.
   const initial = untrack(() => siteState.site!);
@@ -169,14 +192,14 @@
         <Field label={m.ste_font()}>
           {#snippet children(id)}
             <select {id} class="input w-full" value={resolved.font} onchange={(e) => (settings = { ...settings, font: (e.currentTarget as HTMLSelectElement).value as SiteThemeSettings['font'] })}>
-              {#each SITE_FONTS as font (font)}<option value={font}>{font}</option>{/each}
+              {#each fontGroups as group (group.label)}<optgroup label={group.label}>{#each group.fonts as font (font)}<option value={font}>{font}</option>{/each}</optgroup>{/each}
             </select>
           {/snippet}
         </Field>
         <Field label={m.ste_heading_font()}>
           {#snippet children(id)}
             <select {id} class="input w-full" value={resolved.headingFont} onchange={(e) => (settings = { ...settings, headingFont: (e.currentTarget as HTMLSelectElement).value as SiteThemeSettings['font'] })}>
-              {#each SITE_FONTS as font (font)}<option value={font}>{font}</option>{/each}
+              {#each fontGroups as group (group.label)}<optgroup label={group.label}>{#each group.fonts as font (font)}<option value={font}>{font}</option>{/each}</optgroup>{/each}
             </select>
           {/snippet}
         </Field>
