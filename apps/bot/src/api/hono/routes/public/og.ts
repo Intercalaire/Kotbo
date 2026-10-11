@@ -272,8 +272,9 @@ export function createOgRouter(client: Client): OpenAPIHono {
       provider_name: meta.siteName,
       provider_url: getDashboardUrl().replace(/\/$/, ''),
       title: meta.title,
-      author_name: meta.authorName ?? meta.siteName,
-      author_url: target.toString(),
+      // Sans serveur a nommer, pas de ligne auteur : Discord afficherait
+      // « Kotbo » deux fois, une fois comme fournisseur et une fois comme auteur.
+      ...(meta.authorName ? { author_name: meta.authorName, author_url: target.toString() } : {}),
       ...(meta.imagePath
         ? {
             thumbnail_url: `${apiOrigin}${meta.imagePath}`,
