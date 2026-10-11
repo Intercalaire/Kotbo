@@ -46,7 +46,8 @@ import { getPublicMemberProfile } from './siteMemberService.js';
 import { getSiteScript, getSiteStylesheet } from './siteAssets.js';
 import { readSiteAsset, mimeForExtension } from './siteUploads.js';
 import { searchSite } from './siteSearch.js';
-import { forumCategoryPage, forumIndexPage, forumTopicPage, parseForumPage, type ForumPage } from './siteForumPages.js';
+import { forumCategoryPage, forumIndexPage, forumTopicPage, parseForumPage, topicPath, type ForumPage } from './siteForumPages.js';
+import { isForumCategoryIndexable, listSitemapTopics } from './siteForumService.js';
 import { readCookie, SITE_PREVIEW_COOKIE, verifyPreviewToken, verifySitePreviewToken } from './sitePreview.js';
 import { recordSiteHit } from './siteAnalyticsService.js';
 import { renderPulse } from './sitePulse.js';
@@ -602,8 +603,9 @@ async function meResponse(ctx: SiteCtx): Promise<SiteHttpResponse> {
 /** Pages du forum, habillées comme les autres pages du site. */
 function forumResponse(ctx: SiteCtx, page: ForumPage | null): SiteHttpResponse {
   if (!page) return notFound(ctx);
+  if (page.redirect) return redirect(page.redirect);
   const main = `${hero(page.title, page.lead ?? null)}<div class="forum">${page.main}</div>`;
-  return html(200, shell(ctx, { path: page.path, title: page.title, main, activeKey: 'forum', breadcrumbs: page.breadcrumbs, noindex: page.noindex }), ctx.nonce, ctx.req.apiOrigin, {
+  return html(200, shell(ctx, { path: page.path, title: page.title, description: page.description ?? null, jsonLd: page.jsonLd ?? null, main, activeKey: 'forum', breadcrumbs: page.breadcrumbs, noindex: page.noindex }), ctx.nonce, ctx.req.apiOrigin, {
     cacheSeconds: 15,
     noindex: page.noindex,
   });
@@ -733,8 +735,20 @@ ${items
   return plain(200, xml, 'application/rss+xml; charset=utf-8', 'public, max-age=600');
 }
 
-function sitemapResponse(ctx: SiteCtx): SiteHttpResponse {
+async function sitemapResponse(ctx: SiteCtx): Promise<SiteHttpResponse> {
   const urls: Array<{ loc: string; lastmod?: Date | null }> = [{ loc: ctx.basePath, lastmod: ctx.site.updatedAt }];
+  // Forum : catégories et sujets des seuls forums indexables (voir isForumCategoryIndexable).
+  const categories = (await prisma.siteForumCategory.findMany({ where: { siteId: ctx.site.id }, select: { id: true, slug: true, mode: true, channelId: true } })).filter((c) =>
+    isForumCategoryIndexable(ctx.guild, c),
+  );
+  if (categories.length) {
+    urls.push({ loc: `${ctx.basePath}/forum` });
+    const slugById = new Map(categories.map((c) => [c.id, c.slug]));
+    for (const c of categories) urls.push({ loc: `${ctx.basePath}/forum/${c.slug}` });
+    for (const t of await listSitemapTopics(categories.map((c) => c.id))) {
+      urls.push({ loc: topicPath(ctx.basePath, slugById.get(t.categoryId)!, t), lastmod: t.lastPostAt });
+    }
+  }
   if (ctx.pages.WIKI.some((p) => p.visibility === 'PUBLIC')) urls.push({ loc: `${ctx.basePath}/wiki` });
   if (ctx.pages.BLOG.some((p) => p.visibility === 'PUBLIC')) urls.push({ loc: `${ctx.basePath}/blog` });
   for (const page of publicPages(ctx)) {
@@ -902,7 +916,7 @@ export async function handleSiteRequest(req: SiteHttpRequest): Promise<SiteHttpR
   try {
     if (rest.length === 0) response = await homeResponse(ctx);
     else if (section === 'rss.xml' && rest.length === 1) (response = await rssResponse(ctx)), (trackPath = null);
-    else if (section === 'sitemap.xml' && rest.length === 1) (response = sitemapResponse(ctx)), (trackPath = null);
+    else if (section === 'sitemap.xml' && rest.length === 1) (response = await sitemapResponse(ctx)), (trackPath = null);
     else if (section === 'embed' && a && b && rest.length === 3) (response = await embedResponse(ctx, a, b)), (trackPath = null);
     else if (section === 'search' && rest.length === 1) response = await searchResponse(ctx);
     else if (section === 'me' && rest.length === 1) response = await meResponse(ctx);
@@ -911,8 +925,11 @@ export async function handleSiteRequest(req: SiteHttpRequest): Promise<SiteHttpR
     else if ((section === 'shop' || section === 'boutique') && rest.length === 1) response = await shopResponse(ctx);
     else if (section === 'forum' && rest.length === 1) response = forumResponse(ctx, await forumIndexPage(ctx.block));
     else if (section === 'forum' && a && rest.length === 2) response = forumResponse(ctx, await forumCategoryPage(ctx.block, a, parseForumPage(ctx.req.query.get('page'))));
-    else if (section === 'forum' && a && b && /^[a-z0-9]{20,32}$/.test(b) && rest.length === 3) {
-      response = forumResponse(ctx, await forumTopicPage(ctx.block, a, b, parseForumPage(ctx.req.query.get('page'))));
+    else if (section === 'forum' && a && b && rest.length === 3) {
+      response = forumResponse(
+        ctx,
+        await forumTopicPage(ctx.block, a, b, parseForumPage(ctx.req.query.get('page')), { inviteUrl: ctx.inviteUrl, serverName: ctx.identity.name, origin: ctx.req.origin }),
+      );
     }
     else if (section === 'form' && a && rest.length === 2) response = await formResponse(ctx, a);
     else if (section === 'wiki' && rest.length === 1) response = wikiIndexResponse(ctx);

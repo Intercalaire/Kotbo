@@ -689,6 +689,9 @@
     document.querySelectorAll('[data-forum-delete]').forEach(function (button) {
       button.hidden = !viewer || !(viewer.isStaff || viewer.userId === button.getAttribute('data-author'));
     });
+    document.querySelectorAll('[data-forum-accept]').forEach(function (button) {
+      button.hidden = !viewer || !(viewer.isStaff || viewer.userId === button.getAttribute('data-topic-author'));
+    });
     document.querySelectorAll('[data-staff-only]').forEach(function (node) {
       node.hidden = !(viewer && viewer.isStaff);
     });
@@ -715,6 +718,24 @@
         .catch(function () {});
     });
   }
+
+  // Solution d'un sujet : marquer une réponse, ou retirer celle qui l'est.
+  document.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-forum-accept]');
+    if (!button) return;
+    event.preventDefault();
+    var topicId = button.getAttribute('data-topic');
+    var accepted = button.getAttribute('data-accepted') === '1';
+    button.disabled = true;
+    request('POST', SITE_API + '/forum/topics/' + encodeURIComponent(topicId) + '/accept', { postId: accepted ? null : button.getAttribute('data-forum-accept') })
+      .then(function () {
+        reloadForum(topicId);
+      })
+      .catch(function (err) {
+        alertInline(button, err.message, 'error');
+        button.disabled = false;
+      });
+  });
 
   document.addEventListener('click', function (event) {
     var button = event.target.closest('[data-forum-delete]');

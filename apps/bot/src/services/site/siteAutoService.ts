@@ -17,7 +17,7 @@
 
 import { ChannelType, type Client, type Message, type PartialMessage } from 'discord.js';
 import { getModuleDefinition } from '@kotbo/contracts';
-import { isoWeekKey, markdownToSiteDocument, normalizeSiteAuto, splitAnnouncement, type SiteAutoSettings } from '@kotbo/shared';
+import { forumTopicSegment, isoWeekKey, markdownToSiteDocument, normalizeSiteAuto, splitAnnouncement, type SiteAutoSettings } from '@kotbo/shared';
 import prisma from '../../utils/db.js';
 import { cache } from '../../utils/cache.js';
 import { logger } from '../../utils/logger.js';
@@ -320,7 +320,7 @@ export async function buildWeeklySummary(client: Client, site: SiteRecord, local
   if (forumTopics.length) {
     sections.push(
       `## ${m.site_weekly_forum({}, o)}`,
-      forumTopics.map((t) => `- [${t.title}](${absolute}/forum/${t.category.slug}/${t.id}) · ${m.site_weekly_replies({ count: fmt(t.replyCount) }, o)}`).join('\n'),
+      forumTopics.map((t) => `- [${t.title}](${absolute}/forum/${t.category.slug}/${forumTopicSegment(t)}) · ${m.site_weekly_replies({ count: fmt(t.replyCount) }, o)}`).join('\n'),
     );
   }
   if (voteRows.length) {

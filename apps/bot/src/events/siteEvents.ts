@@ -1,4 +1,4 @@
-import { Client, Events, type AnyThreadChannel, type Message, type PartialMessage, type VoiceState } from 'discord.js';
+import { Client, Events, type AnyThreadChannel, type Message, type MessageReaction, type PartialMessage, type PartialMessageReaction, type PartialUser, type User, type VoiceState } from 'discord.js';
 import { handleSiteTicketMessage } from '../services/site/siteNotifyService.js';
 import { publishGuildSignal, type SiteLiveChannel } from '../services/site/siteLive.js';
 import { logger } from '../utils/logger.js';
@@ -6,6 +6,7 @@ import {
   handleForumMessageCreate,
   handleForumMessageDelete,
   handleForumMessageUpdate,
+  handleForumReactionAdd,
   handleForumThreadCreate,
   handleForumThreadDelete,
   handleForumThreadUpdate,
@@ -52,6 +53,10 @@ export function registerSiteListeners(client: Client) {
   client.on(Events.MessageDelete, (message: Message | PartialMessage) => {
     void handleForumMessageDelete(message).catch((err: unknown) => logger.error('Site', 'Suppression de forum non recopiée :', err));
     void handleAnnouncementDelete(message).catch((err: unknown) => logger.error('Site', 'Annonce supprimée non retirée :', err));
+  });
+  // ✅ de l'auteur d'un fil sur une réponse : elle devient la solution du sujet.
+  client.on(Events.MessageReactionAdd, (reaction: MessageReaction | PartialMessageReaction, user: User | PartialUser) => {
+    void handleForumReactionAdd(reaction, user).catch((err: unknown) => logger.error('Site', 'Solution de forum non recopiée :', err));
   });
   client.on(Events.ThreadCreate, (thread: AnyThreadChannel) => {
     void handleForumThreadCreate(thread).catch((err: unknown) => logger.error('Site', 'Fil de forum non recopié :', err));

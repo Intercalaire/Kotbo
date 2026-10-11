@@ -34,6 +34,15 @@ export function slugify(value: string, max = SITE_SLUG_MAX): string {
     .replace(/-+$/g, '');
 }
 
+/**
+ * Dernier segment de l'adresse d'un sujet du forum : identifiant, puis titre
+ * lisible (`<id>-<titre>`). L'identifiant seul mène aussi au sujet.
+ */
+export function forumTopicSegment(topic: { id: string; title: string }): string {
+  const slug = slugify(topic.title, 60);
+  return slug ? `${topic.id}-${slug}` : topic.id;
+}
+
 export type SiteSlugError = 'too_short' | 'too_long' | 'invalid' | 'reserved';
 
 export function validateSiteSlug(value: string): SiteSlugError | null {

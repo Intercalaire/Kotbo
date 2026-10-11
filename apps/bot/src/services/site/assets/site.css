@@ -224,6 +224,20 @@ h1, h2, h3, h4 { font-family: var(--site-heading-font), var(--site-font), sans-s
   .hero-with-pulse .hero-actions { justify-content: center; }
 }
 
+/* Forum : solution, encart Rejoindre, sujets proches. */
+.forum-cta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-bottom: 20px; padding: 14px 16px; background: var(--site-surface); border: 1px solid var(--site-border); border-left: 3px solid var(--site-accent); border-radius: calc(var(--site-radius) * 0.7); }
+.forum-cta p { margin: 0; }
+.forum-cta-title { font-weight: 600; }
+.forum-status, .forum-jump { margin: 0 0 12px; }
+.forum-jump a { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.forum-post.is-accepted { border-color: #22c55e; box-shadow: inset 3px 0 0 #22c55e; }
+.forum-accepted-label { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 4px; font-size: 0.8rem; font-weight: 700; color: #15803d; }
+[data-effective="dark"] .forum-accepted-label { color: #4ade80; }
+.forum-related { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--site-border); }
+.forum-related h2 { margin: 0 0 12px; font-size: 1.1rem; }
+.forum-related ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.forum-related li { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+
 /* Aperçu privé d'un site pas encore en ligne. */
 .preview-bar { background: #fef3c7; color: #422006; border-bottom: 1px solid #f59e0b; font-size: 0.92rem; }
 .preview-bar-inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding-top: 10px; padding-bottom: 10px; }

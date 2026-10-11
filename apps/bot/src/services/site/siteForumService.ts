@@ -19,8 +19,13 @@ import {
   WebhookClient,
   type AnyThreadChannel,
   type Client,
+  type Guild,
   type Message,
+  type MessageReaction,
   type PartialMessage,
+  type PartialMessageReaction,
+  type PartialUser,
+  type User,
 } from 'discord.js';
 import type { SiteForumCategory, SiteForumTopic } from '@prisma/client';
 import { slugify } from '@kotbo/shared';
@@ -30,6 +35,7 @@ import { logger } from '../../utils/logger.js';
 import { openSecret, sealSecret } from '../../utils/secretBox.js';
 import { publishGuildSignal } from './siteLive.js';
 import { getSiteByGuild } from './siteService.js';
+import { isPubliclyVisible } from './blocks/discordBlocks.js';
 
 export const FORUM_LIMITS = { categories: 30, name: 60, description: 300, title: 100, content: 2000, pageSize: 25 } as const;
 
@@ -357,6 +363,122 @@ export async function listRecentForumPosts(guildId: string, limit = 50) {
   });
 }
 
+// ─── Réponse acceptée ───────────────────────────────────────────────────────
+
+const ACCEPT_EMOJIS = new Set(['✅', '☑️', '✔️']);
+
+/**
+ * Marque une réponse comme la solution du sujet (ou retire la solution avec
+ * `postId` nul). Réservé à l'auteur du sujet et au staff ; le message
+ * d'ouverture ne peut pas être sa propre réponse. Côté Discord, Kotbo pose un
+ * ✅ sur le message : le miroir le relira sans effet, la réponse étant déjà
+ * acceptée.
+ */
+export async function acceptForumAnswer(
+  client: Client,
+  guildId: string,
+  topicId: string,
+  postId: string | null,
+  actor: { userId: string; isStaff: boolean },
+): Promise<void> {
+  const topic = await prisma.siteForumTopic.findFirst({ where: { id: topicId, guildId, deletedAt: null } });
+  if (!topic) throw new ForumError('topic_missing', 404);
+  if (topic.authorId !== actor.userId && !actor.isStaff) throw new ForumError('forbidden', 403);
+  if (postId === null) {
+    await prisma.siteForumTopic.update({ where: { id: topic.id }, data: { acceptedPostId: null } });
+    publishGuildSignal(guildId, `forum:${topic.id}`);
+    return;
+  }
+  const post = await prisma.siteForumPost.findFirst({ where: { id: postId, topicId: topic.id, deletedAt: null } });
+  if (!post) throw new ForumError('post_missing', 404);
+  const first = await prisma.siteForumPost.findFirst({ where: { topicId: topic.id, deletedAt: null }, orderBy: { createdAt: 'asc' }, select: { id: true } });
+  if (first?.id === post.id) throw new ForumError('forbidden', 403);
+  await prisma.siteForumTopic.update({ where: { id: topic.id }, data: { acceptedPostId: post.id, solved: true } });
+  publishGuildSignal(guildId, `forum:${topic.id}`);
+  if (topic.threadId && post.messageId) {
+    const thread = client.channels.cache.get(topic.threadId) ?? (await client.channels.fetch(topic.threadId).catch(() => null));
+    if (thread?.isThread()) {
+      const message = await thread.messages.fetch(post.messageId).catch(() => null);
+      await message?.react('✅').catch(() => null);
+    }
+  }
+}
+
+/** ✅ posé sur Discord par l'auteur du fil sur une réponse : elle devient la solution. */
+export async function handleForumReactionAdd(reaction: MessageReaction | PartialMessageReaction, user: User | PartialUser): Promise<void> {
+  if (user.bot || !reaction.emoji.name || !ACCEPT_EMOJIS.has(reaction.emoji.name)) return;
+  const message = reaction.message;
+  // Message partiel : son fil peut ne pas être en cache.
+  const channel = message.channel as typeof message.channel | undefined;
+  if (!message.guildId || !channel?.isThread()) return;
+  const mirror = await mirrorOf(channel.parentId);
+  if (!mirror) return;
+  const topic = await prisma.siteForumTopic.findUnique({ where: { threadId: channel.id } });
+  if (!topic || topic.deletedAt || topic.authorId !== user.id || message.id === topic.threadId) return;
+  const post = await prisma.siteForumPost.findUnique({ where: { messageId: message.id }, select: { id: true } });
+  if (!post || topic.acceptedPostId === post.id) return;
+  await prisma.siteForumTopic.update({ where: { id: topic.id }, data: { acceptedPostId: post.id, solved: true } });
+  publishGuildSignal(message.guildId, `forum:${topic.id}`);
+}
+
+// ─── Indexation ─────────────────────────────────────────────────────────────
+
+/**
+ * Une catégorie se montre aux moteurs de recherche si elle est propre au site,
+ * ou si son salon forum Discord est lisible par `@everyone` : un forum réservé
+ * au staff, même recopié par choix du propriétaire, ne s'indexe jamais.
+ */
+export function isForumCategoryIndexable(guild: Guild | null, category: Pick<SiteForumCategory, 'mode' | 'channelId'>): boolean {
+  if (category.mode === 'SITE') return true;
+  if (!guild || !category.channelId) return false;
+  const channel = guild.channels.cache.get(category.channelId);
+  return Boolean(channel && isPubliclyVisible(guild, channel, true));
+}
+
+/** Autres sujets de la catégorie à lire ensuite : résolus et discutés d'abord. */
+export async function listRelatedTopics(categoryId: string, excludeId: string, limit = 5) {
+  return prisma.siteForumTopic.findMany({
+    where: { categoryId, deletedAt: null, id: { not: excludeId }, replyCount: { gt: 0 } },
+    orderBy: [{ solved: 'desc' }, { replyCount: 'desc' }, { lastPostAt: 'desc' }],
+    take: limit,
+    select: { id: true, title: true, replyCount: true, solved: true },
+  });
+}
+
+/** Sujets à annoncer dans le plan du site, les plus récemment actifs d'abord. */
+export async function listSitemapTopics(categoryIds: string[], limit = 5000) {
+  if (categoryIds.length === 0) return [];
+  return prisma.siteForumTopic.findMany({
+    where: { categoryId: { in: categoryIds }, deletedAt: null },
+    orderBy: { lastPostAt: 'desc' },
+    take: limit,
+    select: { id: true, title: true, categoryId: true, lastPostAt: true },
+  });
+}
+
+/**
+ * Miroirs des salons forum publics, posés à la création d'un site
+ * instantané. Un salon sans droit de webhook est simplement passé.
+ */
+export async function autoMirrorPublicForums(client: Client, guildId: string, max = 5): Promise<number> {
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) return 0;
+  const forums = [...guild.channels.cache.values()]
+    .filter((c): c is ForumChannel => c instanceof ForumChannel && isPubliclyVisible(guild, c, true))
+    .sort((a, b) => a.rawPosition - b.rawPosition)
+    .slice(0, max);
+  let created = 0;
+  for (const channel of forums) {
+    try {
+      await saveForumCategory(client, guildId, null, { name: channel.name.replace(/-/g, ' '), description: channel.topic ?? '', mode: 'MIRROR', channelId: channel.id });
+      created += 1;
+    } catch (err) {
+      logger.debug('SiteForum', `Miroir automatique de ${channel.id} non créé :`, err);
+    }
+  }
+  return created;
+}
+
 // ─── Discord → site ─────────────────────────────────────────────────────────
 
 interface MirrorRef {
@@ -379,6 +501,18 @@ function attachmentsOf(message: Message): Array<{ name: string; url: string; con
   return [...message.attachments.values()].slice(0, 10).map((a) => ({ name: a.name, url: a.url, contentType: a.contentType ?? null }));
 }
 
+/** Étiquette de forum Discord qui marque une question réglée. */
+export function isSolvedTagName(name: string): boolean {
+  const folded = name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  return /(resolu|solved|resolved|answered|repondu|fixed|corrige|termine|done)/.test(folded);
+}
+
+function threadSolved(thread: AnyThreadChannel): boolean {
+  const parent = thread.parent;
+  if (!(parent instanceof ForumChannel) || thread.appliedTags.length === 0) return false;
+  return parent.availableTags.some((tag) => thread.appliedTags.includes(tag.id) && isSolvedTagName(tag.name));
+}
+
 async function ensureTopicForThread(thread: AnyThreadChannel, categoryId: string): Promise<SiteForumTopic> {
   const existing = await prisma.siteForumTopic.findUnique({ where: { threadId: thread.id } });
   if (existing) return existing;
@@ -391,6 +525,7 @@ async function ensureTopicForThread(thread: AnyThreadChannel, categoryId: string
         authorId: thread.ownerId ?? '0',
         threadId: thread.id,
         locked: Boolean(thread.locked),
+        solved: threadSolved(thread),
         createdAt: thread.createdAt ?? new Date(),
         lastPostAt: thread.createdAt ?? new Date(),
       },
@@ -488,7 +623,7 @@ export async function handleForumThreadUpdate(thread: AnyThreadChannel): Promise
   if (!mirror) return;
   const updated = await prisma.siteForumTopic.updateMany({
     where: { threadId: thread.id },
-    data: { title: thread.name.slice(0, FORUM_LIMITS.title), locked: Boolean(thread.locked) },
+    data: { title: thread.name.slice(0, FORUM_LIMITS.title), locked: Boolean(thread.locked), ...(threadSolved(thread) ? { solved: true } : {}) },
   });
   if (updated.count > 0) publishGuildSignal(thread.guildId, `forum:${mirror.id}`);
 }

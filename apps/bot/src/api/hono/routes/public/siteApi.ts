@@ -33,8 +33,8 @@ import { publishGuildSignal } from '../../../../services/site/siteLive.js';
 import { updateSiteMemberSettings } from '../../../../services/site/siteMemberService.js';
 import { formatShopPrice, purchaseShopOffer, quoteShopOffer, setShopSubscriptionCancelled, ShopError } from '../../../../services/shop/shopService.js';
 import { resolveShopRecipient, shopErrorMessage } from '../../../../services/site/blocks/shopBlocks.js';
-import { createForumTopic, deleteForumPost, ForumError, replyToForumTopic, type ForumAuthor, type ForumErrorCode } from '../../../../services/site/siteForumService.js';
-import { forumIndexPage, parseForumPage, renderForumPosts, renderForumTopics } from '../../../../services/site/siteForumPages.js';
+import { acceptForumAnswer, createForumTopic, deleteForumPost, ForumError, replyToForumTopic, type ForumAuthor, type ForumErrorCode } from '../../../../services/site/siteForumService.js';
+import { forumIndexPage, parseForumPage, renderForumPosts, renderForumTopics, topicPath } from '../../../../services/site/siteForumPages.js';
 import { getSitePulse, renderPulseInner } from '../../../../services/site/sitePulse.js';
 import { getModuleStates } from '../../../../services/core/moduleGate.js';
 
@@ -447,7 +447,7 @@ export function createSiteApiRouter(client: Client): OpenAPIHono {
     try {
       const topic = await createForumTopic(client, target.category, author, body.title, body.content);
       rewardParticipation(site.guildId, author.userId, `forum-topic:${topic.id}`);
-      return c.json({ ok: true, url: `/s/${site.slug}/forum/${target.category.slug}/${topic.id}` });
+      return c.json({ ok: true, url: topicPath(`/s/${site.slug}`, target.category.slug, topic) });
     } catch (err) {
       if (err instanceof ForumError) return c.json({ error: forumError(err.code, o) }, err.status as 400);
       throw err;
@@ -473,6 +473,27 @@ export function createSiteApiRouter(client: Client): OpenAPIHono {
       rewardParticipation(site.guildId, author.userId, `forum-post:${post.id}`);
       const total = await prisma.siteForumPost.count({ where: { topicId: target.topic.id, deletedAt: null } });
       return c.json({ ok: true, pages: Math.max(1, Math.ceil(total / 25)) });
+    } catch (err) {
+      if (err instanceof ForumError) return c.json({ error: forumError(err.code, o) }, err.status as 400);
+      throw err;
+    }
+  });
+
+  // Solution d'un sujet : l'auteur du sujet ou le staff ; `postId` nul la retire.
+  app.post('/api/site/:siteId/forum/topics/:topicId/accept', async (c) => {
+    const site = await liveSite(c);
+    if (!site) return c.json({ error: 'Introuvable' }, 404);
+    const o = { locale: localeOf(c) };
+    const viewer = await viewerFor(client, c, site);
+    if (!viewer) return c.json({ error: m.site_err_login({}, o) }, 401);
+    if (rateLimited(`forum-accept:${viewer.userId}`, 20, 60_000)) return c.json({ error: m.site_err_too_many({}, o) }, 429);
+    const target = await forumTarget(site.id, 'topic', c.req.param('topicId'));
+    if (!target?.topic) return c.json({ error: m.site_err_not_found({}, o) }, 404);
+    const body = await readBody(c);
+    const postId = typeof body.postId === 'string' && CUID.test(body.postId) ? body.postId : null;
+    try {
+      await acceptForumAnswer(client, site.guildId, target.topic.id, postId, { userId: viewer.userId, isStaff: viewer.isStaff });
+      return c.json({ ok: true });
     } catch (err) {
       if (err instanceof ForumError) return c.json({ error: forumError(err.code, o) }, err.status as 400);
       throw err;

@@ -4,6 +4,7 @@
    * Discord, recopié dans les deux sens) et modération des derniers messages.
    */
   import { onMount } from 'svelte';
+  import { forumTopicSegment } from '@kotbo/shared';
   import { Button, EmptyState, Field, Modal, SectionCard } from '../ui';
   import { toast } from '../../stores/toast.svelte';
   import { confirmDialog } from '../../stores/confirmDialog.svelte';
@@ -200,7 +201,7 @@
           <li>
             <div class="forum-main">
               <p class="forum-name">
-                <a href={`${siteUrl}/forum/${post.topic.category.slug}/${post.topic.id}#p-${post.id}`} target="_blank" rel="noopener">{post.topic.title}</a>
+                <a href={`${siteUrl}/forum/${post.topic.category.slug}/${forumTopicSegment(post.topic)}#p-${post.id}`} target="_blank" rel="noopener">{post.topic.title}</a>
                 {#if post.topic.pinned}<span class="forum-chip">{m.ste_forum_pinned()}</span>{/if}
                 {#if post.topic.locked}<span class="forum-chip">{m.ste_forum_locked()}</span>{/if}
               </p>
