@@ -1,5 +1,6 @@
 <script lang="ts">
   import { m, dateLocale } from '../lib/i18n';
+  import { removeWithUndo, orThrow } from '../lib/undoRemoval';
   import { memberAvatarSrc } from '../lib/discordMedia';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
@@ -325,17 +326,17 @@
   }
 
   async function removeNote(noteId: string) {
-    if (!staffMember || !(await confirmDialog.danger(m.pf_delete_note_q()))) return;
-    try {
-      const success = await deleteManagerNote(staffMember.userId, noteId, staffMember.guildId);
-      if (success) {
-        toast.success(m.pf_note_deleted());
-        notesAbout = await fetchManagerNotes(staffMember.userId, staffMember.guildId);
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error(m.home_delete_error());
-    }
+    if (!staffMember) return;
+    const { userId, guildId } = staffMember;
+    await removeWithUndo({
+      get: () => notesAbout,
+      set: (next) => (notesAbout = next),
+      match: (note) => note.id === noteId,
+      message: m.pf_note_deleted(),
+      // dashboardMutation annonce deja son echec.
+      commit: () => orThrow(deleteManagerNote(userId, noteId, guildId)),
+      quietError: true,
+    });
   }
 
   async function loadPendingResignation(guildId: string) {
