@@ -2,11 +2,10 @@ import type { Client } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { cache } from '../../utils/cache.js';
-import { BRAND_THEME_COLOR } from '../../utils/brandPalette.js';
 import { resolveGuildLocale, type BotLocale, FALLBACK_LOCALE } from '../../utils/i18n.js';
 import { sanitizeFormTheme } from '../../utils/formCustomization.js';
 import type { CustomFormStructure } from '../features/customFormService.js';
-import { normalizeAccent, type OgCardSpec } from './ogImageService.js';
+import { OG_ACCENT, normalizeAccent, type OgCardSpec } from './ogImageService.js';
 import * as m from '../../lib/paraglide/messages.js';
 
 // ============================================================================
@@ -224,7 +223,7 @@ function baseMetadata(locale: BotLocale): OgMetadata {
     description: m.og_default_desc({}, { locale }),
     imagePath: null,
     imageAlt: SITE_NAME,
-    themeColor: BRAND_THEME_COLOR,
+    themeColor: OG_ACCENT,
     siteName: SITE_NAME,
     authorName: null,
     ogType: 'website',
@@ -331,7 +330,7 @@ async function homeMetadata(): Promise<OgMetadata> {
     cacheKey: `home:${version}`,
     kicker: m.og_kicker_dashboard({}, { locale }),
     title: m.og_home_card_title({}, { locale }),
-    subtitle: meta.description,
+    subtitle: m.og_home_card_subtitle({}, { locale }),
     stats,
   };
   return meta;
@@ -481,7 +480,7 @@ async function formMetadata(client: Client, path: string, formId: string): Promi
   );
 
   const theme = sanitizeFormTheme(form.theme);
-  const accent = normalizeAccent(theme?.accentColor, BRAND_THEME_COLOR);
+  const accent = normalizeAccent(theme?.accentColor, OG_ACCENT);
 
   const title = structure.title?.trim() || form.name;
   const description = form.description?.trim() || structure.description?.trim() || '';

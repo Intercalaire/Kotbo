@@ -2246,6 +2246,7 @@
   "og_home_title": "Kotbo, le dashboard de ton serveur Discord",
   "og_home_desc": "Modération, tickets, staff, niveaux et analytics de ton serveur Discord, pilotés depuis un seul dashboard. Connexion avec Discord.",
   "og_home_card_title": "Ton serveur Discord, géré au même endroit",
+  "og_home_card_subtitle": "Modération, tickets, staff et analytics, depuis un seul dashboard.",
   "og_stat_servers": "Serveurs",
   "og_stat_community_members": "Membres",
   "og_dashboard_desc": "{section} - espace d'administration Kotbo. Connexion Discord requise.",
