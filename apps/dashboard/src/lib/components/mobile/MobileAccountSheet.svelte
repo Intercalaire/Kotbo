@@ -12,6 +12,8 @@
   import { onboardingStore } from '../../stores/tutorial.svelte';
   import { unsavedChanges } from '../../stores/unsavedChanges.svelte';
   import { userPrefs } from '../../stores/userPreferences.svelte';
+  import { brandingStore } from '../../stores/branding.svelte';
+  import { TOPGG_VOTE_URL } from '../../config/links';
   import BottomSheet from './BottomSheet.svelte';
   import Papicon from '../Papicon.svelte';
 
@@ -174,6 +176,22 @@
           <Papicon icon="external-link" size={16} class="account__chevron" />
         </a>
       </li>
+
+      {#if brandingStore.loaded && !brandingStore.isWhiteLabel}
+        <li>
+          <a
+            class="account__row"
+            href={TOPGG_VOTE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onclick={() => mobileNav.close()}
+          >
+            <span class="account__row-icon"><Papicon icon="star" size={20} /></span>
+            <span class="account__row-label">{m.navbar_vote_topgg()}</span>
+            <Papicon icon="external-link" size={16} class="account__chevron" />
+          </a>
+        </li>
+      {/if}
 
       <!-- Même règle que la barre latérale : la facturation n'apparaît que pour
            l'administrateur, le payeur, ou tout le staff quand le serveur l'a

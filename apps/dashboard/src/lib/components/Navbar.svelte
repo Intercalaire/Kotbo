@@ -13,6 +13,8 @@
   import { serverSwitcherStore } from '../stores/serverSwitcher.svelte';
   import { isMobile } from '../stores/media.svelte';
   import { userPrefs } from '../stores/userPreferences.svelte';
+  import { brandingStore } from '../stores/branding.svelte';
+  import { TOPGG_VOTE_URL } from '../config/links';
 
   /**
    * `standalone` : rendue hors de MainLayout, sans barre laterale a cote.
@@ -336,6 +338,18 @@
               <Papicon icon="pronote" size={16} />
               {m.navbar_documentation()}
             </a>
+            {#if brandingStore.loaded && !brandingStore.isWhiteLabel}
+              <a
+                href={TOPGG_VOTE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex items-center gap-2.5 px-3 py-2 text-sm text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+                onclick={() => userMenuOpen = false}
+              >
+                <Papicon icon="star" size={16} />
+                {m.navbar_vote_topgg()}
+              </a>
+            {/if}
             <button
               type="button"
               class="flex items-center gap-2.5 px-3 py-2 w-full text-left text-sm text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface cursor-pointer"
