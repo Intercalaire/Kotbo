@@ -160,7 +160,7 @@
       <Button size="sm" icon="plus" onclick={openCreate}>{m.ste_votes_add()}</Button>
     {/snippet}
     {#if !loading && voteSites.length === 0}
-      <div class="p-6"><EmptyState icon="trending-up" title={m.ste_votes_empty()} description={m.ste_votes_empty_desc()} /></div>
+      <div class="p-6"><EmptyState icon="trending-up" title={m.ste_votes_empty()} description={m.ste_votes_empty_desc()} actionLabel={m.ste_votes_empty_cta()} onAction={openCreate} /></div>
     {:else}
       <ul class="vote-list">
         {#each voteSites as site, index (site.id)}

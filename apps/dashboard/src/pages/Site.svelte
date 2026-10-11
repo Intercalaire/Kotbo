@@ -96,7 +96,7 @@
   {#if loading && !siteState}
     <div class="space-y-3"><Skeleton height="h-24" /><Skeleton height="h-64" /></div>
   {:else if !siteState}
-    <EmptyState icon="alert-circle" title={m.ste_load_error()} description="" />
+    <EmptyState icon="alert-circle" title={m.ste_load_error()} actionLabel={m.common_retry()} actionIcon="RefreshCw" onAction={load} />
   {:else if !siteState.site}
     {#if composing}
       <div class="composing" role="status" aria-live="polite">

@@ -399,7 +399,7 @@
       <Button size="sm" icon="plus" onclick={() => openOffer(null)}>{m.ste_shop_offer_add()}</Button>
     {/snippet}
     {#if !loading && (shop?.offers.length ?? 0) === 0}
-      <div class="p-6"><EmptyState icon="shopping-bag" title={m.ste_shop_offers_empty()} description={m.ste_shop_offers_empty_desc()} /></div>
+      <div class="p-6"><EmptyState icon="shopping-bag" title={m.ste_shop_offers_empty()} description={m.ste_shop_offers_empty_desc()} actionLabel={m.ste_shop_offers_empty_cta()} onAction={() => openOffer(null)} /></div>
     {:else if shop}
       <ul class="shop-list">
         {#each shop.offers as offer, index (offer.id)}

@@ -145,7 +145,13 @@
   {/snippet}
 
   {#if rows.length === 0}
-    <div class="p-6"><EmptyState icon="file-text" title={query ? m.ste_search_none() : m.ste_pages_empty()} description={query ? '' : m.ste_pages_empty_desc()} /></div>
+    <div class="p-6">
+      {#if query}
+        <EmptyState icon="file-text" title={m.ste_search_none()} actionLabel={m.common_clear_search()} actionIcon="Eraser" onAction={() => (query = '')} />
+      {:else}
+        <EmptyState icon="file-text" title={m.ste_pages_empty()} description={m.ste_pages_empty_desc()} actionLabel={newLabels[kind]()} onAction={() => (createOpen = true)} />
+      {/if}
+    </div>
   {:else}
     <ul class="page-list">
       {#each rows as { page, depth } (page.id)}
