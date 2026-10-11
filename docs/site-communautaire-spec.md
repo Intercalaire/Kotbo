@@ -167,3 +167,53 @@ Tout ce qui précède est codé, fusionné dans `recette`. Choix de détail fait
 - **Galerie** : 5 thèmes publiés au plus par serveur, 8 pages modèles par thème ; les réglages de bloc propres au serveur d'origine (salon, formulaire, hiérarchie) sont vidés ; pages appliquées en brouillon ; masquage d'office après 5 signalements de serveurs différents.
 
 Migrations à appliquer en plus des deux premières : `20261110100000_site_themes_v2`, `20261110110000_site_members`, `20261110120000_site_votes`, `20261111100000_shop`, `20261111110000_site_forum`, `20261111120000_site_auto_posts`, `20261111130000_site_theme_gallery`.
+
+## v3 : le site fait grandir le serveur
+
+Décidé avec Elouan le 2026-10-11. Constat : la v2 était complète mais restait une copie d'Azuriom, sans rien qui exige Kotbo. La v3 garde les fondations (rendu serveur, CSP, éditeur, droits, boutique) et refait la couche produit autour d'une seule promesse : le site amène des membres au serveur et le prouve. Toute nouvelle fonction se juge à cette aune.
+
+### Le pouls
+
+- Bannière d'accueil en deux colonnes : identité du serveur à gauche, serveur en direct à droite (`sitePulse.ts`).
+- Contenu : en ligne, en vocal (visages des salons publics), messages des 30 dernières minutes (fenêtre des Analytics en direct), arrivées sur 24 h, courbe des 24 dernières heures, salons qui s'agitent, prochain événement avec compte à rebours.
+- Humeur : le rythme de l'heure comparé à la moyenne de la même heure (UTC) sur 14 jours, en ne comptant que les jours couverts par l'historique. Il faut au moins trois jours d'historique et une moyenne d'au moins 4 messages, sinon on affiche seulement « ça discute ».
+- Seuls des agrégats sortent, et seulement pour des salons que `@everyone` lit.
+- Route publique `GET /api/site/:id/pulse`, en cache 15 s côté serveur, relue toutes les 15 s par le script tant que l'onglet est visible ; les chiffres défilent jusqu'à leur nouvelle valeur.
+- Aussi disponible en bloc `pulse`. Se retire avec `settings.heroPulse = false`.
+
+### Site instantané
+
+- Créé sans question à l'arrivée du bot, à l'ouverture de la section Site, ou par l'outil MCP `create_instant_site` (`siteInstantService.ts`).
+- Type de communauté deviné : nom et description pèsent double, il faut deux indices, et à égalité le plus spécifique l'emporte.
+- Salons d'annonces repérés (salons Annonces de Discord, puis noms), leurs six derniers messages repris en articles. Pages de modules et résumé hebdo activés.
+- Forums Discord publics recopiés (cinq au plus) et ajoutés au menu.
+- Reste hors ligne. Aperçu privé du site entier par `?apercu=<jeton>` : jeton signé valable 7 jours, posé en cookie `HttpOnly` sur `/s/<slug>`. Il montre le site même quand l'offre ne comprend pas encore le module (argument de vente), sans indexation, cache ni mesure.
+- Le dashboard affiche « Ton site est prêt » avec l'aperçu et la mise en ligne d'un clic. L'assistant de création ne sert plus que de repli.
+
+### Forum trouvable
+
+- Adresse `/forum/<catégorie>/<id>-<titre>` ; l'identifiant seul ou un ancien titre redirigent en 301.
+- Résolu : étiquette du fil Discord, ✅ de l'auteur du fil sur une réponse, ou bouton sur le site (auteur ou staff). Kotbo reporte la solution d'un ✅ sur Discord. Colonnes `solved` et `acceptedPostId` (migration `20261113100000_site_forum_answers`).
+- Balisage : `QAPage` quand le sujet est résolu et a des réponses, `DiscussionForumPosting` sinon. La description vient du premier message.
+- Catégories et sujets (5 000 au plus) dans le plan du site.
+- Un forum recopié d'un salon que `@everyone` ne lit pas n'est jamais indexé. Un membre au profil masqué apparaît « Membre », sans avatar ni lien.
+- Encart « Discussion du Discord X, N membres » avec le bouton Rejoindre, et sujets proches en bas de page.
+
+### Cartes partageables
+
+- `/s/<slug>/og.png` : carte du serveur 1200 × 630, image de partage par défaut de toutes les pages.
+- `/s/<slug>/u/<membre>/card.png` : carte d'un membre, seulement si son profil public existe.
+- Images lues uniquement depuis le CDN de Discord ou les images du site, jamais depuis une adresse saisie. Cartes gardées 10 minutes en mémoire.
+- Le profil propose de copier le lien et de télécharger la carte.
+
+### Tunnel
+
+- Visiteurs → visiteurs qui cliquent sur « Rejoindre » → arrivées par les invitations étiquetées « Site web » → arrivées encore là au bout de 7 jours.
+- Les clics partent par `sendBeacon` et se comptent sans cookie, par emplacement (bannière, forum, bloc, pied de page).
+- Le bouton Rejoindre passe désormais par l'invitation suivie avant l'URL personnalisée, qui ne permet pas de savoir d'où vient un arrivant.
+- Affiché dans « Ce que le site rapporte » (Fréquentation) et dans l'aperçu du site.
+
+### Limites connues
+
+- Le pouls lit le cache Discord et la fenêtre en direct du process qui porte l'API, comme le reste du rendu : avec plusieurs shards, un serveur porté par un autre shard n'a pas de messages en direct.
+- Rien de la v3 n'a encore été vu dans un navigateur ni contre une vraie base.
