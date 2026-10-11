@@ -517,7 +517,23 @@ export async function dashboardMutation(path: string, options: RequestOptions = 
     const error = asApiError(err, path, method);
     recordFailure(error, errorContext);
     if (!options.silent && !isExpectedRefusal(error)) {
-      toast.error(error.userMessage);
+      // Une erreur qui guide : quand la demande n'a pas ete traitee (reseau
+      // coupe, service indisponible, trop de requetes), le message propose de
+      // la rejouer telle quelle. Pas pour un delai depasse : le serveur a pu
+      // enregistrer quand meme, et rejouer creerait un doublon.
+      // Un conflit ou une reponse illisible demandent de recharger la page :
+      // le bouton est dans le message plutot que de laisser chercher F5.
+      const replayable = error.retryable && error.kind !== 'timeout';
+      const needsReload = error.kind === 'conflict' || error.kind === 'parse';
+      toast.error(
+        error.userMessage,
+        undefined,
+        replayable
+          ? { label: m.common_retry(), onClick: () => { void dashboardMutation(path, options); } }
+          : needsReload
+            ? { label: m.common_refresh(), onClick: () => window.location.reload() }
+            : undefined,
+      );
     }
     return false;
   }
