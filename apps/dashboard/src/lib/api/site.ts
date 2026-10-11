@@ -28,7 +28,7 @@ export interface CommunitySite {
   navigation: SiteNavItem[];
   homePageId: string | null;
   staffPage: { bio?: boolean; absence?: boolean; seniority?: boolean; stats?: boolean };
-  settings: { commentsByDefault?: boolean; showMemberCount?: boolean; auto?: unknown };
+  settings: { commentsByDefault?: boolean; showMemberCount?: boolean; heroPulse?: boolean; auto?: unknown };
   /** Récompenses de l'activité sur le site (voir `normalizeSiteRewards`). */
   rewards: Record<string, unknown>;
   wikiEditorRoleIds: string[];
@@ -85,6 +85,8 @@ export interface SiteState {
   rights: SiteRights;
   modules: { site: boolean; site_wiki: boolean; site_blog: boolean };
   baseUrl: string;
+  /** Aperçu privé du site entier tant qu'il n'est pas en ligne (gestionnaires seulement). */
+  previewUrl: string | null;
   suggestedSlug: string | null;
   templates: SiteTemplate[];
   guild: { name: string; iconUrl: string | null; bannerUrl: string | null } | null;
@@ -153,6 +155,14 @@ export function fetchSiteCatalog(guildId?: string) {
 
 export function createSite(input: { slug: string; template: SiteTemplate }, guildId?: string) {
   return apiRequest<{ site: CommunitySite }>(base(gid(guildId)), { method: 'POST', payload: input, errorContext: 'API Error (Create site):' });
+}
+
+/** Site composé d'après le serveur, sans question ; rend le site existant s'il y en a déjà un. */
+export function createInstantSite(guildId?: string) {
+  return apiRequest<{ siteId: string; slug: string; created: boolean; template: SiteTemplate; articles: number }>(`${base(gid(guildId))}/instant`, {
+    method: 'POST',
+    errorContext: 'API Error (Instant site):',
+  });
 }
 
 export function updateSite(patch: Partial<Omit<CommunitySite, 'id' | 'guildId' | 'updatedAt' | 'suspendedAt' | 'suspendedReason'>>, guildId?: string) {

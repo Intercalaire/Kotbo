@@ -14,7 +14,7 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { m } from '../lib/i18n';
-  import { fetchSiteCatalog, fetchSiteState, type SiteCatalog, type SiteState } from '../lib/api/site';
+  import { createInstantSite, fetchSiteCatalog, fetchSiteState, type SiteCatalog, type SiteState } from '../lib/api/site';
   import AgentLockBanner from '../lib/components/site/AgentLockBanner.svelte';
   import SiteCreateWizard from '../lib/components/site/SiteCreateWizard.svelte';
   import SiteOverview from '../lib/components/site/SiteOverview.svelte';
@@ -37,6 +37,10 @@
   let catalog = $state<SiteCatalog | null>(null);
   let loading = $state(true);
   let agentLocked = $state(false);
+  // Pas de site : Kotbo le compose d'après le serveur, sans question. L'assistant
+  // ne sert plus que de repli si cette composition échoue.
+  let composing = $state(false);
+  let instantFailed = $state(false);
 
   const active = $derived.by<Tab>(() => {
     void $router.path;
@@ -49,6 +53,17 @@
       const [s, c] = await Promise.all([fetchSiteState(guildId), fetchSiteCatalog(guildId).catch(() => null)]);
       siteState = s;
       catalog = c;
+      if (s && !s.site && s.rights.manage && !instantFailed) {
+        composing = true;
+        try {
+          await createInstantSite(guildId);
+          siteState = await fetchSiteState(guildId);
+        } catch {
+          instantFailed = true;
+        } finally {
+          composing = false;
+        }
+      }
     } catch {
       toast.error(m.ste_load_error());
     } finally {
@@ -83,7 +98,13 @@
   {:else if !siteState}
     <EmptyState icon="alert-circle" title={m.ste_load_error()} description="" />
   {:else if !siteState.site}
-    {#if siteState.rights.manage}
+    {#if composing}
+      <div class="composing" role="status" aria-live="polite">
+        <p class="text-body font-semibold text-on-surface">{m.ste_instant_composing()}</p>
+        <p class="text-body-sm text-on-surface-variant">{m.ste_instant_composing_desc()}</p>
+        <div class="space-y-3 mt-4"><Skeleton height="h-24" /><Skeleton height="h-48" /></div>
+      </div>
+    {:else if siteState.rights.manage}
       <SiteCreateWizard {siteState} {guildId} onCreated={load} />
     {:else}
       <EmptyState icon="globe" title={m.ste_no_site()} description={m.ste_no_site_desc()} />
@@ -133,4 +154,5 @@
 
 <style>
   .site-locked { opacity: 0.7; }
+  .composing { padding: 8px 0; }
 </style>

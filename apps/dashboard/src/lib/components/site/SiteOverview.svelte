@@ -91,6 +91,23 @@
 </script>
 
 <div class="overview">
+  {#if !site.published && siteState.rights.manage}
+    <SectionCard>
+      <div class="launch px-5 py-5">
+        <p class="launch-kicker">{m.ste_launch_kicker()}</p>
+        <h2 class="launch-title">{m.ste_launch_title()}</h2>
+        <p class="text-body-sm text-on-surface-variant launch-desc">{m.ste_launch_desc()}</p>
+        <div class="flex flex-wrap gap-2 mt-4">
+          <Button variant="primary" icon="globe" loading={publishing} disabled={!siteState.modules.site || !!site.suspendedAt} onclick={() => setPublished(true)}>{m.ste_launch_publish()}</Button>
+          {#if siteState.previewUrl}
+            <Button variant="secondary" icon="external-link" href={siteState.previewUrl} target="_blank">{m.ste_launch_preview()}</Button>
+          {/if}
+        </div>
+        {#if !siteState.modules.site}<p class="text-2xs text-on-surface-variant mt-3">{m.ste_launch_needs_plan()}</p>{/if}
+      </div>
+    </SectionCard>
+  {/if}
+
   <SectionCard>
     <div class="px-5 py-5 flex flex-wrap items-center justify-between gap-4">
       <div class="min-w-0">
@@ -162,6 +179,9 @@
 
 <style>
   .overview { display: flex; flex-direction: column; gap: 16px; }
+  .launch-kicker { margin: 0; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-primary); }
+  .launch-title { margin: 4px 0 6px; font-size: 1.35rem; font-weight: 700; color: var(--color-on-surface); }
+  .launch-desc { max-width: 62ch; }
   .bento-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
   .counts { list-style: none; margin: 0; display: flex; flex-wrap: wrap; gap: 24px; }
   .counts li { display: flex; flex-direction: column; }
