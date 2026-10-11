@@ -225,14 +225,78 @@
     return groups;
   });
 
-  const filteredItems = $derived(() => {
-    const q = normalize(query);
-    if (!q) return suggestedItems;
+  /** Distance d'edition entre deux mots courts (insertion, suppression, substitution). */
+  function editDistance(a: string, b: string): number {
+    const row = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      let previous = row[0];
+      row[0] = i;
+      for (let j = 1; j <= b.length; j++) {
+        const current = row[j];
+        row[j] = Math.min(row[j] + 1, row[j - 1] + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1));
+        previous = current;
+      }
+    }
+    return row[b.length];
+  }
 
-    const ranked = allPaletteItems
+  /**
+   * Seconde chance quand la recherche exacte ne trouve rien : « sactions » ou
+   * « anti raid » doivent mener a Sanctions et a Anti-raid. On compare la saisie
+   * au debut de chaque mot, avec une faute toleree (deux au-dela de 6 lettres).
+   */
+  function fuzzyScore(item: PaletteItem, q: string): number {
+    if (q.length < 3) return 0;
+    const tolerance = q.length >= 6 ? 2 : 1;
+    const compact = q.replace(/[\s-]+/g, '');
+    const words = normalize(item.label).split(/[\s›>/'-]+/).filter(Boolean);
+    const joined = words.join('');
+    const candidates = [...words.map((word) => word.slice(0, q.length)), joined.slice(0, compact.length)];
+    const best = Math.min(...candidates.map((word) => editDistance(compact, word.replace(/[\s-]+/g, ''))));
+    return best <= tolerance ? 10 - best : 0;
+  }
+
+  /** Resultats classes pour la saisie : exacts d'abord, sinon avec une faute toleree. */
+  const ranked = $derived.by(() => {
+    const q = normalize(query);
+    if (!q) return [];
+
+    const exact = allPaletteItems
       .map((item) => ({ item, value: score(item, q) }))
       .filter((entry) => entry.value > 0)
       .sort((x, y) => y.value - x.value);
+
+    if (exact.length > 0) return exact;
+    return allPaletteItems
+      .map((item) => ({ item, value: fuzzyScore(item, q) }))
+      .filter((entry) => entry.value > 0)
+      .sort((x, y) => y.value - x.value)
+      .slice(0, 8);
+  });
+
+  /** La saisie ne mene a rien, meme en tolerant une faute de frappe. */
+  const noMatch = $derived(normalize(query) !== '' && ranked.length === 0);
+
+  const filteredItems = $derived(() => {
+    if (!normalize(query)) return suggestedItems;
+
+    // Rien du tout : plutot qu'un mur « aucun résultat », on garde la personne
+    // dans le flux avec les pages qu'elle rouvre, et on lui propose de dire ce
+    // qu'elle cherchait - c'est la liste de ce qui manque a Kotbo.
+    if (noMatch) {
+      const { Actions: _actions, ...fallback } = suggestedItems;
+      return {
+        ...fallback,
+        'Il te manque quelque chose ?': [{
+          id: 'action-missing',
+          label: `Proposer « ${query.trim()} » à l'équipe Kotbo`,
+          sublabel: 'On lit chaque demande pour savoir quoi construire ensuite',
+          icon: 'lightbulb',
+          group: 'Il te manque quelque chose ?',
+          action: () => feedbackModal.show(),
+        }],
+      };
+    }
 
     // Les groupes apparaissent dans l'ordre de leur meilleur resultat.
     const groups: Record<string, PaletteItem[]> = {};
@@ -260,7 +324,7 @@
     const q = query.trim();
     if (!open || q.length < 2) return;
     const timer = setTimeout(() => {
-      trackEvent('palette', flatItems().length > 0 ? 'search_hit' : 'search_empty');
+      trackEvent('palette', noMatch ? 'search_empty' : 'search_hit');
     }, 800);
     return () => clearTimeout(timer);
   });
@@ -363,6 +427,12 @@
 
       <!-- Results -->
       <div class="max-h-[60vh] overflow-y-auto py-1">
+        {#if noMatch}
+          <p class="flex items-center gap-2 px-3.5 pt-2 pb-1 text-sm text-on-surface-variant">
+            <Papicon icon="SearchX" size={15} class="shrink-0" />
+            Aucun résultat pour « {query.trim()} ». Tu cherchais peut-être :
+          </p>
+        {/if}
         {#each Object.entries(filteredItems()) as [group, items]}
           <div class="px-1 pb-0.5">
             <p class="text-xs font-medium text-on-surface-variant px-2.5 py-1.5">{group}</p>
@@ -393,12 +463,6 @@
           </div>
         {/each}
 
-        {#if flatItems().length === 0}
-          <div class="flex flex-col items-center py-8 gap-1.5 text-center">
-            <Papicon icon="SearchX" size={24} class="text-on-surface-variant/30" />
-            <p class="text-sm text-on-surface-variant/50">Aucun résultat pour «{query}»</p>
-          </div>
-        {/if}
       </div>
 
       <!-- Footer hint -->
