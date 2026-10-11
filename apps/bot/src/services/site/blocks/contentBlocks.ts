@@ -125,6 +125,7 @@ async function renderProfile(ctx: BlockContext): Promise<string> {
   return `<div class="profile">
   <div class="profile-head">${avatar(viewer.avatarUrl, viewer.displayName, 'lg')}<div><p class="profile-name">${esc(viewer.displayName)}</p><p class="card-meta">@${esc(viewer.username)}${viewer.isStaff ? ` · <span class="pill">${esc(m.site_staff_other({}, o))}</span>` : ''}</p></div></div>
   ${tiles.length > 0 ? `<div class="stats">${tiles.join('')}</div>` : ''}
+  <p class="btn-row"><a class="btn btn-secondary btn-sm"${attrs({ href: `${ctx.basePath}/u/${viewer.userId}` })}>${esc(m.site_card_mine({}, o))}</a></p>
 </div>`;
 }
 

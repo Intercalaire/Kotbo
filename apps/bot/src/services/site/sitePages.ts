@@ -23,6 +23,7 @@ import {
   extractSiteDocumentText,
   normalizeSiteDocument,
   prepareSiteCss,
+  resolveSiteTheme,
   SITE_ASSET_PATH_PREFIX,
   siteIconSvg,
   type SiteDocument,
@@ -51,6 +52,7 @@ import { isForumCategoryIndexable, listSitemapTopics } from './siteForumService.
 import { readCookie, SITE_PREVIEW_COOKIE, verifyPreviewToken, verifySitePreviewToken } from './sitePreview.js';
 import { recordSiteHit } from './siteAnalyticsService.js';
 import { renderPulse } from './sitePulse.js';
+import { cachedCard, renderMemberCard, renderServerCard } from './siteCards.js';
 import {
   checkPageAccess,
   getPublishedPage,
@@ -229,6 +231,7 @@ function shell(
     apiOrigin: ctx.req.apiOrigin,
     nonce: ctx.nonce,
     navPages: publicPages(ctx),
+    defaultImage: `${ctx.basePath}/og.png`,
     hasWiki: ctx.pages.WIKI.some((p) => p.visibility === 'PUBLIC'),
     hasBlog: ctx.pages.BLOG.some((p) => p.visibility === 'PUBLIC'),
     inviteUrl: ctx.inviteUrl,
@@ -627,6 +630,80 @@ async function votesResponse(ctx: SiteCtx): Promise<SiteHttpResponse> {
   return html(200, shell(ctx, { path: `${ctx.basePath}/votes`, title: m.site_vote_page_title({}, o), main, activeKey: 'votes', pageId: VOTES_PAGE_ID }), ctx.nonce, ctx.req.apiOrigin, { cacheSeconds: 30 });
 }
 
+/** Chiffres d'une carte de membre : niveau, rang, messages, vocal ou réputation. */
+function memberCardStats(ctx: SiteCtx, profile: NonNullable<Awaited<ReturnType<typeof getPublicMemberProfile>>>): Array<{ value: string; label: string }> {
+  const o = { locale: ctx.locale };
+  const n = (v: number) => formatNumber(v, ctx.locale);
+  const stats: Array<{ value: string; label: string }> = [];
+  if (profile.level) {
+    stats.push({ value: n(profile.level.level), label: m.site_card_level({}, o) });
+    stats.push({ value: `#${n(profile.level.rank)}`, label: m.site_card_rank({}, o) });
+  }
+  stats.push({ value: n(profile.messageCount), label: m.site_member_messages({}, o) });
+  if (profile.voiceHours) stats.push({ value: n(profile.voiceHours), label: m.site_member_voice_hours({}, o) });
+  else if (profile.reputation) stats.push({ value: n(profile.reputation), label: m.site_rep({ value: '' }, o).trim() });
+  return stats.slice(0, 4);
+}
+
+function cardTheme(ctx: SiteCtx): { accent: string; onAccent: string } {
+  const theme = resolveSiteTheme(ctx.site.theme, ctx.site.themeSettings);
+  return { accent: theme.accent, onAccent: theme.onAccent };
+}
+
+function cardUrl(ctx: SiteCtx): string {
+  return `${ctx.req.host}${ctx.basePath}`;
+}
+
+function pngResponse(png: Buffer): SiteHttpResponse {
+  return plain(200, new Uint8Array(png), 'image/png', 'public, max-age=600');
+}
+
+/** Carte du serveur, image de partage par défaut de toutes les pages du site. */
+async function serverCardResponse(ctx: SiteCtx): Promise<SiteHttpResponse> {
+  const o = { locale: ctx.locale };
+  const counts = ctx.guild ? await getGuildCounts(ctx.block).catch(() => null) : null;
+  const key = `server:${ctx.site.id}:${ctx.locale}:${ctx.site.updatedAt instanceof Date ? ctx.site.updatedAt.getTime() : ''}:${counts?.online ?? ''}:${counts?.members ?? ''}`;
+  const png = await cachedCard(key, () =>
+    renderServerCard({
+      name: ctx.identity.name,
+      tagline: ctx.site.tagline,
+      iconUrl: ctx.site.logoUrl ?? ctx.identity.iconUrl,
+      bannerUrl: ctx.site.bannerUrl ?? ctx.identity.bannerUrl,
+      ...cardTheme(ctx),
+      membersLabel: counts ? m.site_members_total({ count: formatNumber(counts.members, ctx.locale) }, o) : null,
+      onlineLabel: counts?.online ? m.site_members_online({ count: formatNumber(counts.online, ctx.locale) }, o) : null,
+      url: cardUrl(ctx),
+      cta: m.site_card_cta({}, o),
+    }),
+  );
+  return pngResponse(png);
+}
+
+/** Carte d'un membre : n'existe que si son profil public existe. */
+async function memberCardResponse(ctx: SiteCtx, userId: string): Promise<SiteHttpResponse> {
+  const o = { locale: ctx.locale };
+  const profile = await getPublicMemberProfile(ctx.req.client, ctx.site.guildId, userId);
+  if (!profile) return plain(404, 'Not found', 'text/plain; charset=utf-8', 'no-store');
+  const stats = memberCardStats(ctx, profile);
+  const meta = [profile.username ? `@${profile.username}` : '', profile.joinedAt ? m.site_member_since({ date: formatDate(profile.joinedAt, ctx.locale, 'long') }, o) : ''].filter(Boolean).join(' · ');
+  const key = `member:${ctx.site.id}:${userId}:${ctx.locale}:${profile.displayName}:${profile.avatarUrl ?? ''}:${stats.map((s) => s.value).join(',')}`;
+  const png = await cachedCard(key, () =>
+    renderMemberCard({
+      serverName: ctx.identity.name,
+      serverIconUrl: ctx.site.logoUrl ?? ctx.identity.iconUrl,
+      bannerUrl: ctx.site.bannerUrl ?? ctx.identity.bannerUrl,
+      ...cardTheme(ctx),
+      displayName: profile.displayName,
+      avatarUrl: profile.avatarUrl,
+      meta,
+      stats,
+      url: cardUrl(ctx),
+      cta: m.site_card_cta({}, o),
+    }),
+  );
+  return pngResponse(png);
+}
+
 async function memberProfileResponse(ctx: SiteCtx, userId: string): Promise<SiteHttpResponse> {
   const o = { locale: ctx.locale };
   const profile = await getPublicMemberProfile(ctx.req.client, ctx.site.guildId, userId);
@@ -647,12 +724,21 @@ async function memberProfileResponse(ctx: SiteCtx, userId: string): Promise<Site
   const avatarHtml = profile.avatarUrl
     ? `<img class="member-avatar"${attrs({ src: profile.avatarUrl, alt: '', width: 96, height: 96 })}>`
     : `<span class="member-avatar" aria-hidden="true">${esc(profile.displayName.slice(0, 1).toUpperCase())}</span>`;
+  const path = `${ctx.basePath}/u/${profile.userId}`;
+  const card = `${path}/card.png`;
+  const share = `<section class="member-share" aria-labelledby="member-share-title">
+  <h2 id="member-share-title">${esc(m.site_card_share_title({}, o))}</h2>
+  <img class="member-card"${attrs({ src: card, alt: m.site_card_alt({ name: profile.displayName }, o), width: 1200, height: 630, loading: 'lazy', decoding: 'async' })}>
+  <p class="btn-row"><button type="button" class="btn btn-primary btn-sm"${attrs({ 'data-copy': path })}>${esc(m.site_copy_link({}, o))}</button><a class="btn btn-secondary btn-sm"${attrs({ href: card, download: `${profile.displayName}.png` })}>${esc(m.site_card_download({}, o))}</a></p>
+</section>`;
   const main = `<article class="member-profile">
   <header class="member-head">${avatarHtml}<div><h1 class="page-title">${esc(profile.displayName)}</h1><p class="page-meta">${meta}</p></div></header>
   ${profile.bio ? `<p class="member-bio">${esc(profile.bio)}</p>` : ''}
   <div class="stats">${tiles}</div>
+  ${share}
 </article>`;
-  return html(200, shell(ctx, { path: `${ctx.basePath}/u/${profile.userId}`, title: profile.displayName, main, image: profile.avatarUrl, noindex: true }), ctx.nonce, ctx.req.apiOrigin, { cacheSeconds: 60, noindex: true });
+  const description = memberCardStats(ctx, profile).map((s) => `${s.label} ${s.value}`).join(' · ');
+  return html(200, shell(ctx, { path, title: profile.displayName, description: `${description} · ${ctx.identity.name}`, main, image: card, noindex: true }), ctx.nonce, ctx.req.apiOrigin, { cacheSeconds: 60, noindex: true });
 }
 
 async function formResponse(ctx: SiteCtx, formId: string): Promise<SiteHttpResponse> {
@@ -921,6 +1007,8 @@ export async function handleSiteRequest(req: SiteHttpRequest): Promise<SiteHttpR
     else if (section === 'search' && rest.length === 1) response = await searchResponse(ctx);
     else if (section === 'me' && rest.length === 1) response = await meResponse(ctx);
     else if (section === 'u' && a && rest.length === 2) response = await memberProfileResponse(ctx, a);
+    else if (section === 'u' && a && b === 'card.png' && rest.length === 3) (response = await memberCardResponse(ctx, a)), (trackPath = null);
+    else if (section === 'og.png' && rest.length === 1) (response = await serverCardResponse(ctx)), (trackPath = null);
     else if (section === 'votes' && rest.length === 1) response = await votesResponse(ctx);
     else if ((section === 'shop' || section === 'boutique') && rest.length === 1) response = await shopResponse(ctx);
     else if (section === 'forum' && rest.length === 1) response = forumResponse(ctx, await forumIndexPage(ctx.block));

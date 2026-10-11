@@ -72,6 +72,8 @@ export interface ShellOptions {
   previewNotice?: boolean;
   /** Aperçu privé du site entier, pas encore en ligne : bandeau avec le lien vers le dashboard. */
   sitePreview?: boolean;
+  /** Image de partage quand la page n'en a pas : la carte du serveur. */
+  defaultImage?: string;
 }
 
 interface ResolvedNavItem {
@@ -316,7 +318,7 @@ export function renderSiteShell(opts: ShellOptions): string {
   const canonical = `${opts.origin}${opts.path}`;
   const fullTitle = opts.title === opts.identity.name ? opts.identity.name : `${opts.title} · ${opts.identity.name}`;
   const description = opts.description ?? opts.site.tagline ?? '';
-  const image = opts.image ?? opts.site.bannerUrl ?? opts.identity.bannerUrl ?? opts.site.logoUrl ?? opts.identity.iconUrl;
+  const image = opts.image ?? opts.defaultImage ?? opts.site.bannerUrl ?? opts.identity.bannerUrl ?? opts.site.logoUrl ?? opts.identity.iconUrl;
   const absoluteImage = image && image.startsWith('/') ? `${opts.origin}${image}` : image;
   const favicon = opts.site.faviconUrl ?? opts.site.logoUrl ?? opts.identity.iconUrl;
   const updated = opts.site.updatedAt instanceof Date ? opts.site.updatedAt.getTime() : Date.parse(String(opts.site.updatedAt));
@@ -335,7 +337,7 @@ ${opts.noindex ? '<meta name="robots" content="noindex, nofollow">' : ''}
 <meta property="og:url"${attrs({ content: canonical })}>
 <meta property="og:locale"${attrs({ content: opts.locale === 'fr' ? 'fr_FR' : 'en_GB' })}>
 ${description ? `<meta property="og:description"${attrs({ content: description })}>` : ''}
-${absoluteImage ? `<meta property="og:image"${attrs({ content: absoluteImage })}><meta name="twitter:card" content="summary_large_image">` : '<meta name="twitter:card" content="summary">'}
+${absoluteImage ? `<meta property="og:image"${attrs({ content: absoluteImage })}>${image === opts.defaultImage || opts.image?.endsWith('/card.png') ? '<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">' : ''}<meta name="twitter:card" content="summary_large_image">` : '<meta name="twitter:card" content="summary">'}
 ${favicon ? `<link rel="icon"${attrs({ href: favicon })}>` : ''}
 <link rel="alternate" type="application/rss+xml"${attrs({ title: opts.identity.name, href: `${opts.basePath}/rss.xml` })}>
 <script${attrs({ nonce: opts.nonce })}>${modeBootScript(opts.site.id, theme.mode)}</script>

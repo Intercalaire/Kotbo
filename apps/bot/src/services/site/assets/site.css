@@ -224,6 +224,11 @@ h1, h2, h3, h4 { font-family: var(--site-heading-font), var(--site-font), sans-s
   .hero-with-pulse .hero-actions { justify-content: center; }
 }
 
+/* Carte de membre à partager. */
+.member-share { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--site-border); }
+.member-share h2 { margin: 0 0 12px; font-size: 1.1rem; }
+.member-card { display: block; width: 100%; max-width: 600px; height: auto; border-radius: calc(var(--site-radius) * 0.7); border: 1px solid var(--site-border); }
+
 /* Forum : solution, encart Rejoindre, sujets proches. */
 .forum-cta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-bottom: 20px; padding: 14px 16px; background: var(--site-surface); border: 1px solid var(--site-border); border-left: 3px solid var(--site-accent); border-radius: calc(var(--site-radius) * 0.7); }
 .forum-cta p { margin: 0; }
