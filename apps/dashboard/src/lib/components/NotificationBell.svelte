@@ -5,10 +5,24 @@
   import { canViewFeature } from '../permissions.svelte';
   import { subscribeRealtime } from '../stores/realtime.svelte';
   import { slide } from 'svelte/transition';
+  import { router } from 'tinro';
   import Papicon from './Papicon.svelte';
   import { m } from '../i18n';
 
   let open = $state(false);
+
+  /**
+   * Une notification = une action : l'ouvrir mene a ce qu'elle annonce. Un lien
+   * interne passe par le routeur, sans recharger tout le dashboard, et le menu
+   * se referme pour laisser voir la page.
+   */
+  function openNotification(notif: { id: string; isRead: boolean; link?: string }) {
+    if (!notif.isRead) notificationsStore.markAsRead(notif.id);
+    if (!notif.link) return;
+    open = false;
+    if (notif.link.startsWith('/') && !notif.link.startsWith('//')) router.goto(notif.link);
+    else window.location.href = notif.link;
+  }
 
   /**
    * La cloche lit la meme boite que la section Inbox : sans ce test elle
@@ -130,15 +144,9 @@
             {#each notificationsStore.items as notif}
               <div
                 class="flex gap-3 px-3 py-2.5 border-b border-outline-variant last:border-0 hover:bg-surface-container transition-colors cursor-pointer {notif.isRead ? 'opacity-60' : ''}"
-                onclick={() => {
-                  if (!notif.isRead) notificationsStore.markAsRead(notif.id);
-                  if (notif.link) window.location.href = notif.link;
-                }}
+                onclick={() => openNotification(notif)}
                 onkeydown={(e) => {
-                  if (e.key === 'Enter') {
-                    if (!notif.isRead) notificationsStore.markAsRead(notif.id);
-                    if (notif.link) window.location.href = notif.link;
-                  }
+                  if (e.key === 'Enter') openNotification(notif);
                 }}
                 role="button"
                 tabindex="0"
@@ -158,6 +166,13 @@
                   <p class="text-2xs text-on-surface-variant leading-tight line-clamp-2">
                     {notif.message}
                   </p>
+                  {#if notif.link}
+                    <!-- L'action se voit : on sait qu'un clic mene quelque part. -->
+                    <span class="mt-1 inline-flex items-center gap-1 text-2xs font-medium text-primary">
+                      {m.notif_toast_view()}
+                      <Papicon icon="ArrowRight" size={11} />
+                    </span>
+                  {/if}
                 </div>
                 {#if !notif.isRead}
                   <div class="shrink-0 w-1.5 h-1.5 rounded-full bg-primary mt-1.5"></div>
