@@ -7538,7 +7538,7 @@
   "channel_health_action_split": "Split",
   "channel_health_action_archive": "Archive",
   "channel_health_no_analysis_title": "No analysis available",
-  "channel_health_no_analysis_desc": "Click \"Run analysis\" to evaluate your channels' health.",
+  "channel_health_no_analysis_desc": "Run a first analysis to assess the health of your channels.",
   "channel_health_no_alerts_title": "No alerts",
   "channel_health_no_alerts_desc": "All your channels are healthy. Alerts will appear here when recommendations are detected.",
   "channel_health_pending_alerts_heading": "Pending alerts ({count})",

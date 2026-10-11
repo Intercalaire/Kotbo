@@ -7538,7 +7538,7 @@
   "channel_health_action_split": "Split",
   "channel_health_action_archive": "Archiver",
   "channel_health_no_analysis_title": "Aucune analyse disponible",
-  "channel_health_no_analysis_desc": "Clique sur « Lancer une analyse » pour évaluer la santé de tes salons.",
+  "channel_health_no_analysis_desc": "Lance une première analyse pour évaluer la santé de tes salons.",
   "channel_health_no_alerts_title": "Aucune alerte",
   "channel_health_no_alerts_desc": "Tous tes salons sont en bonne santé. Les alertes apparaîtront ici quand des recommandations seront détectées.",
   "channel_health_pending_alerts_heading": "Alertes en attente ({count})",

@@ -1,5 +1,6 @@
 <script lang="ts">
 import { m } from '../lib/i18n';
+import EmptyState from '../lib/components/EmptyState.svelte';
 import { onMount, onDestroy, untrack } from 'svelte';
 import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
 import { router } from 'tinro';
@@ -381,11 +382,16 @@ onMount(async () => {
         </div>
       </div>
     {:else}
-      <!-- No analysis yet -->
-      <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-10 flex flex-col items-center justify-center text-center gap-4">
-        <Papicon icon="bar-chart" size={48} />
-        <h3 class="text-base font-semibold text-on-surface">{m.channel_health_no_analysis_title()}</h3>
-        <p class="text-sm text-on-surface-variant/60 max-w-md">{m.channel_health_no_analysis_desc()}</p>
+      <!-- Pas encore d'analyse : le bouton est dans le message, pas en haut de page. -->
+      <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl">
+        <EmptyState
+          icon="bar-chart"
+          title={m.channel_health_no_analysis_title()}
+          description={m.channel_health_no_analysis_desc()}
+          actionLabel={m.channel_health_run_analysis_btn()}
+          actionIcon="RefreshCw"
+          onAction={runAnalysis}
+        />
       </div>
     {/if}
   {/if}
