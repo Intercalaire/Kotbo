@@ -3494,6 +3494,8 @@
   "am_action_block": "Block the message",
   "am_action_block_timeout": "Block and time out",
   "am_action_alert_only": "Alert only (in the logs)",
+  "am_action_censor": "Hide the passage, keep the rest of the message",
+  "am_action_censor_hint": "Kotbo reposts the message under the member's name with the forbidden passage hidden. It needs the Manage Webhooks permission.",
   "am_timeout_duration_sec": "Timeout length (seconds)",
   "am_customwords_title": "Banned words",
   "am_customwords_desc": "Blocks messages containing the words or phrases on your list.",

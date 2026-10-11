@@ -449,7 +449,11 @@
                   >
                     <option value="DELETE_AND_WARN">{m.am_action_delete_warn()}</option>
                     <option value="DELETE_ONLY">{m.am_action_delete_silent()}</option>
+                    <option value="CENSOR">{m.am_action_censor()}</option>
                   </select>
+                  {#if config.linksAction === 'CENSOR'}
+                    <p class="text-2xs text-on-surface-variant/50 ml-2">{m.am_action_censor_hint()}</p>
+                  {/if}
                 </div>
 
                 <div class="space-y-1.5">
@@ -717,7 +721,11 @@
                     <option value="BLOCK">{m.am_action_block()}</option>
                     <option value="TIMEOUT">{m.am_action_block_timeout()}</option>
                     <option value="ALERT">{m.am_action_alert_only()}</option>
+                    <option value="CENSOR">{m.am_action_censor()}</option>
                   </select>
+                  {#if config.customWordsAction === 'CENSOR'}
+                    <p class="text-2xs text-on-surface-variant/50 ml-2">{m.am_action_censor_hint()}</p>
+                  {/if}
                 </div>
 
                 {#if config.customWordsAction === 'TIMEOUT'}
@@ -817,7 +825,11 @@
                     <option value="BLOCK">{m.am_action_block()}</option>
                     <option value="TIMEOUT">{m.am_action_block_timeout()}</option>
                     <option value="ALERT">{m.am_action_alert_only()}</option>
+                    <option value="CENSOR">{m.am_action_censor()}</option>
                   </select>
+                  {#if config.profanityAction === 'CENSOR'}
+                    <p class="text-2xs text-on-surface-variant/50 ml-2">{m.am_action_censor_hint()}</p>
+                  {/if}
                 </div>
 
                 {#if config.profanityAction === 'TIMEOUT'}
@@ -878,7 +890,11 @@
                     <option value="BLOCK">{m.am_action_block()}</option>
                     <option value="TIMEOUT">{m.am_action_block_timeout()}</option>
                     <option value="ALERT">{m.am_action_alert_only()}</option>
+                    <option value="CENSOR">{m.am_action_censor()}</option>
                   </select>
+                  {#if config.inviteFilterAction === 'CENSOR'}
+                    <p class="text-2xs text-on-surface-variant/50 ml-2">{m.am_action_censor_hint()}</p>
+                  {/if}
                 </div>
 
                 {#if config.inviteFilterAction === 'TIMEOUT'}

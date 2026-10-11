@@ -3494,6 +3494,8 @@
   "am_action_block": "Bloquer le message",
   "am_action_block_timeout": "Bloquer et exclure temporairement",
   "am_action_alert_only": "Alerter seulement (dans les journaux)",
+  "am_action_censor": "Masquer le passage, garder le reste du message",
+  "am_action_censor_hint": "Kotbo republie le message sous le nom du membre avec le passage interdit masqué. Il lui faut la permission « Gérer les webhooks ».",
   "am_timeout_duration_sec": "Durée de l'exclusion (secondes)",
   "am_customwords_title": "Mots interdits",
   "am_customwords_desc": "Bloque les messages qui contiennent les mots ou expressions de ta liste.",
