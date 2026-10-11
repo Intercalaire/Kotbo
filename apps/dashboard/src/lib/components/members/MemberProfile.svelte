@@ -215,8 +215,7 @@
   </div>
 {:else if caseError || !caseData}
   <SectionCard>
-    <EmptyState icon="user-x" title={m.mp_not_found()} description={caseError || m.mp_not_found_desc()} />
-    <div class="flex justify-center pb-6"><Button variant="ghost" icon="arrow-left" href="/members">{m.mp_back()}</Button></div>
+    <EmptyState icon="user-x" title={m.mp_not_found()} description={caseError || m.mp_not_found_desc()} actionLabel={m.mp_back()} actionIcon="ArrowLeft" actionHref="/members" />
   </SectionCard>
 {:else}
   <!-- Identité -->

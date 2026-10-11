@@ -108,7 +108,7 @@
 <SectionCard title={m.ste_nav_title()} description={m.ste_nav_desc()} icon="menu">
   <div class="px-5 pb-5 space-y-2">
     {#if items.length === 0}
-      <EmptyState icon="menu" title={m.ste_nav_empty()} description={m.ste_nav_empty_desc()} />
+      <EmptyState icon="menu" title={m.ste_nav_empty()} description={m.ste_nav_empty_desc()} actionLabel={m.ste_nav_add()} onAction={() => (items = [...items, blank()])} />
     {/if}
     {#each items as item, index (item.id)}
       {@render editor(item, items, index, false)}

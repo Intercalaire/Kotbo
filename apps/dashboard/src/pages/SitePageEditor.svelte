@@ -296,8 +296,7 @@
 {#if loading}
   <div class="space-y-3 p-4"><Skeleton height="h-14" /><Skeleton height="h-96" /></div>
 {:else if failed || !page || !siteState}
-  <EmptyState icon="alert-circle" title={m.ste_err_page_missing()} description={m.ste_editor_load_error()} />
-  <div class="flex justify-center"><Button variant="ghost" icon="arrow-left" href="/site">{m.ste_back()}</Button></div>
+  <EmptyState icon="alert-circle" title={m.ste_err_page_missing()} description={m.ste_editor_load_error()} actionLabel={m.ste_back()} actionIcon="ArrowLeft" actionHref="/site" />
 {:else}
   <div class="spe">
     <header class="spe-bar">

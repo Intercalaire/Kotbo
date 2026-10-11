@@ -175,7 +175,7 @@
     </div>
   {:else}
     <!-- Empty state -->
-    <EmptyState icon="award" title="Aucune évaluation générée" description="Clique sur « Générer toutes » pour créer les premières évaluations." />
+    <EmptyState icon="award" title="Aucune évaluation générée" description="Kotbo prépare une évaluation par membre du staff à partir de son activité des 30 derniers jours." actionLabel="Générer les premières évaluations" actionIcon="zap" onAction={handleGenerateAll} />
   {/if}
 
   <!-- ==================== HISTORY ==================== -->

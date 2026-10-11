@@ -408,8 +408,7 @@ export function verifyKotbo(rawBody, header, secret, toleranceSec = 300) {
       <Skeleton height="h-20" />
     </div>
   {:else if overview && selectedId && !selected}
-    <EmptyState icon="alert-circle" title={m.owh_not_found()} description={m.owh_not_found_desc()} />
-    <div class="flex justify-center"><Button variant="ghost" icon="arrow-left" href={ROOT}>{m.owh_back()}</Button></div>
+    <EmptyState icon="alert-circle" title={m.owh_not_found()} description={m.owh_not_found_desc()} actionLabel={m.owh_back()} actionIcon="ArrowLeft" actionHref={ROOT} />
   {:else if overview && selected}
     {@const hook = selected}
     {@const health = healthOf(hook)}
@@ -547,10 +546,7 @@ export function verifyKotbo(rawBody, header, secret, toleranceSec = 300) {
   {:else if overview}
     {#if overview.webhooks.length === 0}
       <SectionCard>
-        <EmptyState icon="send" title={m.owh_empty_title()} description={m.owh_empty_desc()} />
-        <div class="flex justify-center pb-6">
-          <Button variant="primary" icon="plus" onclick={openCreate}>{m.owh_add()}</Button>
-        </div>
+        <EmptyState icon="send" title={m.owh_empty_title()} description={m.owh_empty_desc()} actionLabel={m.owh_add()} onAction={openCreate} />
       </SectionCard>
     {:else}
       <SectionCard title={m.owh_list_title()} description={m.owh_list_desc({ count: overview.webhooks.length, max: overview.limits.maxWebhooks })} flush>

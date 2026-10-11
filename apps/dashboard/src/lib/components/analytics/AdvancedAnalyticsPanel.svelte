@@ -160,7 +160,7 @@
   </div>
 {:else if error}
   <SectionCard title={m.an_adv_error_title()} icon="Warning">
-    <EmptyState icon="warning" title={m.an_adv_error_section()} description={error} />
+    <EmptyState icon="warning" title={m.an_adv_error_section()} description={error} actionLabel={m.common_retry()} actionIcon="RefreshCw" onAction={() => load(section)} />
   </SectionCard>
 
 <!-- ═══════════════ RÉTENTION ═══════════════ -->
