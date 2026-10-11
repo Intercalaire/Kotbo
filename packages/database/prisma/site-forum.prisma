@@ -54,6 +54,11 @@ model SiteForumTopic {
   threadId String? @unique
   pinned   Boolean @default(false)
   locked   Boolean @default(false)
+  // Question résolue : étiquette « Résolu » du fil Discord, ou réponse acceptée
+  // (✅ de l'auteur sur Discord, ou bouton sur le site). Sert au balisage
+  // questions-réponses des moteurs de recherche.
+  solved         Boolean @default(false)
+  acceptedPostId String?
 
   replyCount Int      @default(0)
   lastPostAt DateTime @default(now())
