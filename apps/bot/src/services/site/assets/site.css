@@ -224,6 +224,12 @@ h1, h2, h3, h4 { font-family: var(--site-heading-font), var(--site-font), sans-s
   .hero-with-pulse .hero-actions { justify-content: center; }
 }
 
+/* Aperçu privé d'un site pas encore en ligne. */
+.preview-bar { background: #fef3c7; color: #422006; border-bottom: 1px solid #f59e0b; font-size: 0.92rem; }
+.preview-bar-inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding-top: 10px; padding-bottom: 10px; }
+.preview-bar p { margin: 0; }
+.layout-side > .preview-bar { grid-column: 1 / -1; }
+
 /* ─── Pouls ─────────────────────────────────────────────────────────────── */
 
 .pulse { display: grid; gap: 16px; padding: 18px 20px; text-align: left; background: var(--site-bg); color: var(--site-text); border: 1px solid var(--site-border); border-radius: var(--site-radius); box-shadow: 0 12px 32px rgb(0 0 0 / 0.22); }

@@ -47,7 +47,7 @@ import { getSiteScript, getSiteStylesheet } from './siteAssets.js';
 import { readSiteAsset, mimeForExtension } from './siteUploads.js';
 import { searchSite } from './siteSearch.js';
 import { forumCategoryPage, forumIndexPage, forumTopicPage, parseForumPage, type ForumPage } from './siteForumPages.js';
-import { verifyPreviewToken } from './sitePreview.js';
+import { readCookie, SITE_PREVIEW_COOKIE, verifyPreviewToken, verifySitePreviewToken } from './sitePreview.js';
 import { recordSiteHit } from './siteAnalyticsService.js';
 import { renderPulse } from './sitePulse.js';
 import {
@@ -75,6 +75,8 @@ export interface SiteHttpRequest {
   userAgent: string | null;
   referrer: string | null;
   ip: string;
+  /** En-tête `Cookie` relayé par le dashboard : seul l'aperçu privé du site s'en sert. */
+  cookie?: string | null;
 }
 
 export interface SiteHttpResponse {
@@ -148,6 +150,8 @@ export interface SiteCtx {
   pages: Record<SitePageKind, PageSummary[]>;
   /** Invitation Discord du site (pages HTML seulement), pour la bannière et le pied de page. */
   inviteUrl: string | null;
+  /** Aperçu privé d'un site pas encore en ligne. */
+  preview: boolean;
 }
 
 export function siteIdentity(site: SiteRecord, guild: Guild | null): SiteIdentity {
@@ -188,6 +192,7 @@ export async function buildSiteCtx(
     block: { client: req.client, site, guild, locale, basePath, viewer, viewerKnown, moduleStates },
     pages: { PAGE: pagesList, WIKI: wiki, BLOG: blog },
     inviteUrl: null,
+    preview: false,
   };
 }
 
@@ -226,6 +231,7 @@ function shell(
     hasWiki: ctx.pages.WIKI.some((p) => p.visibility === 'PUBLIC'),
     hasBlog: ctx.pages.BLOG.some((p) => p.visibility === 'PUBLIC'),
     inviteUrl: ctx.inviteUrl,
+    sitePreview: ctx.preview,
     ...options,
   });
 }
@@ -861,7 +867,23 @@ export async function handleSiteRequest(req: SiteHttpRequest): Promise<SiteHttpR
   const site = lookup.site;
   if (site.suspendedAt) return bareStatePage(req, 451, m.site_suspended_title({}, o), m.site_suspended_desc({}, o));
 
+  // Lien d'aperçu privé : le jeton passe en cookie sur le chemin du site, puis
+  // l'adresse est nettoyée pour que les liens partagés ne le portent pas.
+  const previewParam = req.query.get('apercu');
+  if (previewParam !== null) {
+    const query = new URLSearchParams(req.query);
+    query.delete('apercu');
+    const suffix = rest.length ? `/${rest.map(encodeURIComponent).join('/')}` : '';
+    const location = `/s/${site.slug}${suffix}${query.toString() ? `?${query}` : ''}`;
+    const headers: Record<string, string> = { Location: location, 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' };
+    if (verifySitePreviewToken(previewParam, site.id)) {
+      headers['Set-Cookie'] = `${SITE_PREVIEW_COOKIE}=${previewParam}; Path=/s/${site.slug}; Max-Age=${7 * 86_400}; HttpOnly; Secure; SameSite=Lax`;
+    }
+    return { status: 302, headers, body: '' };
+  }
+
   const ctx = await buildSiteCtx(req, site);
+  ctx.preview = !site.published && verifySitePreviewToken(readCookie(req.cookie, SITE_PREVIEW_COOKIE), site.id);
   ctx.inviteUrl = await pageInviteUrl(ctx);
   const [section, a, b] = rest;
 
@@ -869,7 +891,8 @@ export async function handleSiteRequest(req: SiteHttpRequest): Promise<SiteHttpR
   // c'est le moyen de relire un site en construction.
   if (section === '_' && a === 'theme.css' && rest.length === 2) return themeCssResponse(ctx);
   if (section === 'preview' && a && rest.length === 2) return previewResponse(ctx, a);
-  if (!site.published || ctx.block.moduleStates.site === false) return statePage(ctx, 404, m.site_unpublished_title({}, o), m.site_unpublished_desc({}, o));
+  // L'aperçu privé montre le site tel qu'il sera, même quand l'offre ne comprend pas encore le module.
+  if (!ctx.preview && (!site.published || ctx.block.moduleStates.site === false)) return statePage(ctx, 404, m.site_unpublished_title({}, o), m.site_unpublished_desc({}, o));
   const wikiOn = ctx.block.moduleStates.site_wiki !== false;
   const blogOn = ctx.block.moduleStates.site_blog !== false;
   if ((section === 'wiki' && !wikiOn) || (section === 'blog' && !blogOn)) return notFound(ctx);
@@ -914,6 +937,11 @@ export async function handleSiteRequest(req: SiteHttpRequest): Promise<SiteHttpR
     response = statePage(ctx, 500, m.site_error_generic({}, o), '');
   }
 
+  if (ctx.preview) {
+    response.headers['Cache-Control'] = 'no-store';
+    response.headers['X-Robots-Tag'] = 'noindex, nofollow';
+    return response;
+  }
   if (trackPath !== null && response.status === 200 && String(response.headers['Content-Type']).startsWith('text/html')) {
     void recordSiteHit({
       siteId: site.id,

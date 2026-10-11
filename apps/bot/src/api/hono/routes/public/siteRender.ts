@@ -140,6 +140,7 @@ export function createSiteRenderRouter(client: Client): OpenAPIHono {
         userAgent: c.req.header('user-agent') ?? null,
         referrer: c.req.header('referer') ?? null,
         ip,
+        cookie: c.req.header('cookie') ?? null,
       });
       const headers = new Headers({ ...response.headers, 'X-Kotbo-Handled': '1', Vary: 'Accept-Language' });
       // Les en-têtes communs de l'API (CSP `default-src 'self'`, X-Frame-Options)

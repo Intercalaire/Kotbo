@@ -70,6 +70,8 @@ export interface ShellOptions {
   jsonLd?: Record<string, unknown> | null;
   /** Aperçu de brouillon : bandeau d'avertissement. */
   previewNotice?: boolean;
+  /** Aperçu privé du site entier, pas encore en ligne : bandeau avec le lien vers le dashboard. */
+  sitePreview?: boolean;
 }
 
 interface ResolvedNavItem {
@@ -346,13 +348,16 @@ ${opts.jsonLd ? `<script type="application/ld+json"${attrs({ nonce: opts.nonce }
 <script defer${attrs({ src: `/s/_/site.js?v=${versions.js}`, nonce: opts.nonce })}></script>`;
 
   const preview = opts.previewNotice ? `<div class="notice" role="note">${esc(m.site_draft_preview({}, o))}</div>` : '';
+  const sitePreview = opts.sitePreview
+    ? `<div class="preview-bar" role="note"><div class="container preview-bar-inner"><p>${esc(m.site_preview_banner({}, o))}</p><a class="btn btn-primary btn-sm"${attrs({ href: `${opts.origin}/site` })}>${esc(m.site_preview_publish({}, o))}</a></div></div>`
+    : '';
   const main = `<main id="contenu" class="main container" tabindex="-1">${preview}${breadcrumbs(opts)}${opts.main}</main>`;
   const hero = opts.hero ?? '';
 
   const body =
     theme.navLayout === 'side'
-      ? `${sideNav(opts, nav)}<div class="layout-side-main">${hero}${main}${footer(opts, nav)}</div>`
-      : `${headerTop(opts, nav)}${hero}${main}${footer(opts, nav)}`;
+      ? `${sitePreview}${sideNav(opts, nav)}<div class="layout-side-main">${hero}${main}${footer(opts, nav)}</div>`
+      : `${sitePreview}${headerTop(opts, nav)}${hero}${main}${footer(opts, nav)}`;
 
   return `<!doctype html>
 <html${attrs({

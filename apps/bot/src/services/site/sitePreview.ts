@@ -33,3 +33,41 @@ export function verifyPreviewToken(token: string, now = Date.now()): string | nu
   if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
   return Number.parseInt(expiry, 36) > now ? pageId : null;
 }
+
+// ─── Aperçu du site entier ──────────────────────────────────────────────────
+// Un site pas encore en ligne se visite en entier avec ce jeton : le lien
+// `?apercu=<jeton>` le pose en cookie sur le chemin du site, et la navigation
+// continue sans rien ajouter aux liens. Pages non indexées, non mesurées.
+
+export const SITE_PREVIEW_COOKIE = 'kotbo_site_preview';
+
+function signSite(payload: string): string {
+  return createHmac('sha256', `site-preview-all:${getJwtSecret()}`).update(payload).digest('base64url');
+}
+
+export function createSitePreviewToken(siteId: string, now = Date.now()): { token: string; expiresAt: Date } {
+  const expiresAt = now + PREVIEW_TTL_MS;
+  const payload = `site.${siteId}.${expiresAt.toString(36)}`;
+  return { token: `${payload}.${signSite(payload)}`, expiresAt: new Date(expiresAt) };
+}
+
+/** Vrai si le jeton ouvre l'aperçu de ce site et n'a pas expiré. */
+export function verifySitePreviewToken(token: string | null | undefined, siteId: string, now = Date.now()): boolean {
+  if (!token) return false;
+  const parts = token.split('.');
+  if (parts.length !== 4 || parts[0] !== 'site' || parts[1] !== siteId || !/^[a-z0-9]{1,12}$/.test(parts[2])) return false;
+  const expected = Buffer.from(signSite(parts.slice(0, 3).join('.')));
+  const given = Buffer.from(parts[3]);
+  if (expected.length !== given.length || !timingSafeEqual(expected, given)) return false;
+  return Number.parseInt(parts[2], 36) > now;
+}
+
+/** Valeur d'un cookie dans un en-tête `Cookie`. */
+export function readCookie(header: string | null | undefined, name: string): string | null {
+  if (!header) return null;
+  for (const part of header.split(';')) {
+    const [key, ...rest] = part.trim().split('=');
+    if (key === name) return rest.join('=') || null;
+  }
+  return null;
+}

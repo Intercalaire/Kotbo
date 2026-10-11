@@ -3803,6 +3803,8 @@
   "site_pulse_voice_rooms": "En vocal maintenant",
   "site_pulse_next": "Prochain événement",
   "site_pulse_next_live": "En cours",
+  "site_preview_banner": "Aperçu privé : ce site n’est pas encore en ligne. Seules les personnes qui ont le lien le voient.",
+  "site_preview_publish": "Le mettre en ligne",
   "site_feed_empty": "Rien à afficher pour l'instant.",
   "site_wiki_index_title": "Pages du wiki",
   "site_login_to_continue": "Connecte-toi avec Discord pour continuer.",
