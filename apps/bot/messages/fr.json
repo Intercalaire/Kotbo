@@ -705,6 +705,7 @@
   "b2_daily_reward_title": "Récompense quotidienne récupérée !",
   "b2_daily_reward_desc": "Tu as reçu **{reward}** {emoji} {name}.",
   "b2_daily_new_balance": "Nouveau solde",
+  "b2_daily_vote_button": "Voter pour Kotbo",
   "b2_err_title": "Erreur",
   "b2_daily_error": "Une erreur est survenue lors de la récupération de la récompense.",
   "b2_giveitem_to_bot": "Tu ne peux pas donner un objet à un bot.",

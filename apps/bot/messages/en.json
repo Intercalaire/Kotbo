@@ -705,6 +705,7 @@
   "b2_daily_reward_title": "Daily reward claimed!",
   "b2_daily_reward_desc": "You received **{reward}** {emoji} {name}.",
   "b2_daily_new_balance": "New balance",
+  "b2_daily_vote_button": "Vote for Kotbo",
   "b2_err_title": "Error",
   "b2_daily_error": "An error occurred while claiming the reward.",
   "b2_giveitem_to_bot": "You can't give an item to a bot.",
