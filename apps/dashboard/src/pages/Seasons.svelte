@@ -281,7 +281,7 @@
     </div>
   {:else}
     <!-- Empty state -->
-    <EmptyState icon="flag" title={m.sea_empty_title()} description={m.sea_empty_desc()} />
+    <EmptyState icon="flag" title={m.sea_empty_title()} description={m.sea_empty_desc()} actionLabel={m.sea_empty_cta()} onAction={() => (showCreate = true)} />
   {/if}
 {/if}
 </ModulePage>

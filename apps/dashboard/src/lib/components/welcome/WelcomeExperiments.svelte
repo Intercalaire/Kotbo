@@ -242,7 +242,7 @@
     <Skeleton height="h-24" />
   {:else if data && data.experiments.length === 0}
     <SectionCard>
-      <EmptyState icon="git-branch" title={m.wx_empty_title()} description={m.wx_empty_desc()} />
+      <EmptyState icon="git-branch" title={m.wx_empty_title()} description={m.wx_empty_desc()} actionLabel={m.wx_empty_cta()} onAction={openCreate} />
     </SectionCard>
   {:else if data}
     <ul class="space-y-2">

@@ -291,6 +291,8 @@
       icon="megaphone"
       title="Aucune campagne"
       description="Une campagne enchaîne plusieurs messages autour d'une date : un teaser, l'annonce, une relance."
+      actionLabel="Créer ma première campagne"
+      onAction={openNew}
     />
   {:else}
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">

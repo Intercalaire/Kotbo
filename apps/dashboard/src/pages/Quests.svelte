@@ -280,7 +280,7 @@
 
   <!-- Quest List or Empty State -->
   {#if data.definitions.length === 0}
-    <EmptyState icon="compass" title={m.que_empty_title()} description={m.que_empty_desc()} />
+    <EmptyState icon="compass" title={m.que_empty_title()} description={m.que_empty_desc()} actionLabel={m.que_empty_cta()} actionIcon="sparkles" onAction={openTemplates} />
   {:else}
     <div class="space-y-3">
       {#each data.definitions as quest}
