@@ -6,6 +6,7 @@
  */
 import { embedToApiShape, resolveMentionsToText } from '../../services/features/transcriptService.js';
 import prisma from '../../utils/db.js';
+import { GENERIC_ERROR_MESSAGE, publicErrorMessage } from '../../utils/publicError.js';
 import { embedToV2 } from '../../utils/patchV2.js';
 import { type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { type APIEmbed, ChannelType, Client, ContainerBuilder, ForumChannel, type Guild, type Message, MessageFlags, type NewsChannel, TextChannel, TextDisplayBuilder, ThreadChannel } from 'discord.js';
@@ -29,6 +30,18 @@ export const err = (msg: string, meta?: Record<string, unknown>): CallToolResult
   isError: true,
   ...(meta ? { _meta: meta } : {}),
 });
+
+export { publicErrorMessage };
+
+/**
+ * Échec d'un outil : le message brut de l'erreur ne remonte que s'il est écrit
+ * pour l'utilisateur (voir utils/publicError.ts) ; sinon un message générique,
+ * le détail restant dans les journaux.
+ */
+export const toolError = (e: unknown, context?: string): CallToolResult => {
+  const message = publicErrorMessage(e, GENERIC_ERROR_MESSAGE, 'MCP');
+  return err(context ? `${context} : ${message}` : message);
+};
 
 // Renvoie une "erreur" structurée listant les candidats possibles quand une
 // recherche par nom est ambiguë, pour que l'agent (ou l'utilisateur) puisse

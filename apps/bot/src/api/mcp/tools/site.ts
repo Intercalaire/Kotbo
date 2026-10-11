@@ -19,7 +19,7 @@ import {
 } from '@kotbo/shared';
 import prisma from '../../../utils/db.js';
 import { getApiUrl, getDashboardUrl } from '../../shared.js';
-import { type McpToolContext, err, ok } from '../toolkit.js';
+import { type McpToolContext, err, ok, toolError } from '../toolkit.js';
 import { getModuleStates } from '../../../services/core/moduleGate.js';
 import {
   createPage,
@@ -88,7 +88,7 @@ function failure(error: unknown) {
   if (error instanceof SiteAdminError) return err(error.detail ? `${error.code}: ${error.detail}` : error.code, { code: error.code });
   if (error instanceof SiteVoteError) return err(error.code, { code: error.code });
   if (error instanceof ForumError) return err(error.code, { code: error.code });
-  return err(error instanceof Error ? error.message : String(error));
+  return toolError(error);
 }
 
 /** Contenu d'entrée : Markdown converti, ou document JSON normalisé. */

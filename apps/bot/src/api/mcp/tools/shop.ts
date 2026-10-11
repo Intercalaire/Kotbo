@@ -1,7 +1,7 @@
 /** Outils MCP - boutique du serveur (lecture READ_ECONOMY, écriture WRITE_MEMBERS). */
 import { z } from 'zod';
 import { SHOP_OFFER_KINDS } from '@kotbo/shared';
-import { type McpToolContext, err, ok } from '../toolkit.js';
+import { type McpToolContext, err, ok, toolError } from '../toolkit.js';
 import {
   decideShopOrder,
   deleteShopOffer,
@@ -24,7 +24,7 @@ import {
 
 function failure(error: unknown) {
   if (error instanceof ShopError) return err(error.code, { code: error.code });
-  return err(error instanceof Error ? error.message : String(error));
+  return toolError(error);
 }
 
 export function registerShopTools(ctx: McpToolContext) {
