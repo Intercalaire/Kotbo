@@ -66,7 +66,7 @@ describe('rapports', () => {
 
   test('validation : sections par défaut, bornes des réglages', () => {
     const r = validateReportSchedule({ frequency: 'weekly', hour: 40, channelId: '123456789012345678' });
-    expect(r).toMatchObject({ hour: 23, sections: ['overview', 'top_members', 'top_channels', 'anomalies'] });
+    expect(r).toMatchObject({ hour: 23, sections: ['kotbo_work', 'overview', 'top_members', 'top_channels', 'anomalies'] });
     expect(validateReportSchedule({ frequency: 'daily', channelId: '123456789012345678' })).toBe('frequency');
   });
 });
