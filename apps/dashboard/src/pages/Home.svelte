@@ -1045,29 +1045,33 @@
 
         {#if item.id === 'liveStats'}
           <!-- Une seule surface : quatre chiffres cote a cote, sans carte par
-               chiffre ni pastille d'icone. Les colonnes suivent la largeur du
+               chiffre ni pastille : juste une petite icone devant le libelle. Les colonnes suivent la largeur du
                bloc, pas celle de l'ecran, pour tenir aussi en bloc etroit. -->
           {@const stats = [
             {
               label: m.home_members_label(),
+              icon: 'user',
               value: liveStats ? formatNumber(liveStats.humansCount) : '-',
               note: liveStats ? (liveStats.botsCount === 1 ? m.home_bots_one() : m.home_bots_count({ n: liveStats.botsCount })) : '',
               tone: '',
             },
             {
               label: m.home_connected_label(),
+              icon: 'wifi',
               value: liveStats ? formatNumber(liveStats.onlineMembers + liveStats.idleMembers + liveStats.dndMembers) : '-',
               note: liveStats ? m.home_online_available({ n: liveStats.onlineMembers }) : '',
               tone: '',
             },
             {
               label: m.home_in_voice(),
+              icon: 'microphone',
               value: liveStats ? String(liveStats.voiceConnected) : '-',
               note: m.home_right_now(),
               tone: '',
             },
             {
               label: m.home_this_week(),
+              icon: 'chartlineup',
               value: totals ? `${totals.netGrowth > 0 ? '+' : ''}${totals.netGrowth}` : '-',
               note: totals ? m.home_joins_leaves_note({ joins: totals.joins, leaves: totals.leaves }) : '',
               tone: totals && totals.netGrowth < 0 ? 'text-error' : '',
@@ -1077,7 +1081,10 @@
             <dl class="w-full grid grid-cols-2 @xl:grid-cols-4 gap-x-6 gap-y-4">
               {#each stats as stat (stat.label)}
                 <div class="min-w-0 @xl:border-l @xl:border-outline-variant @xl:pl-5 @xl:first:border-l-0 @xl:first:pl-0">
-                  <dt class="text-xs text-on-surface-variant truncate">{stat.label}</dt>
+                  <dt class="flex items-center gap-1.5 text-xs text-on-surface-variant">
+                    <Papicon icon={stat.icon} size={14} />
+                    <span class="truncate">{stat.label}</span>
+                  </dt>
                   <dd class="mt-0.5">
                     {#if analyticsLoading && !liveStats}
                       <span class="block h-7 w-14 animate-pulse bg-surface-container-high rounded"></span>
@@ -1112,7 +1119,10 @@
                lesquels sont en erreur. -->
           <div class="flex flex-col gap-3 h-full">
             <div class="flex items-center justify-between gap-2 shrink-0">
-              <h3 class="text-sm font-medium text-on-surface">{m.home_mod_system_title()}</h3>
+              <h3 class="flex items-center gap-2 text-sm font-medium text-on-surface">
+                <Papicon icon="grid" size={16} class="text-on-surface-variant" />
+                {m.home_mod_system_title()}
+              </h3>
               <a href="/modules" class="text-2xs text-primary hover:underline">{m.home_manage()}</a>
             </div>
             <div class="grow flex flex-col justify-center gap-2">
@@ -1122,7 +1132,8 @@
               </p>
               {#if errorModules.length > 0}
                 <div>
-                  <p class="text-xs font-medium text-error">
+                  <p class="flex items-center gap-1.5 text-xs font-medium text-error">
+                    <Papicon icon="alert-triangle" size={14} />
                     {errorModules.length === 1 ? m.home_modules_failing_one() : m.home_modules_failing({ n: errorModules.length })}
                   </p>
                   <ul class="mt-1 space-y-0.5">
@@ -1132,7 +1143,10 @@
                   </ul>
                 </div>
               {:else}
-                <p class="text-xs text-on-surface-variant">{m.home_modules_none_failing()}</p>
+                <p class="flex items-center gap-1.5 text-xs text-on-surface-variant">
+                  <Papicon icon="check-circle" size={14} class="text-success" />
+                  {m.home_modules_none_failing()}
+                </p>
               {/if}
             </div>
           </div>
@@ -1140,6 +1154,7 @@
           <TopList
             bare
             title={m.anx_top_channels_messages()}
+            icon="forum"
             description={m.home_last_7_days()}
             kind="channels"
             limit={getListCount(5, 1, displayRowSpan(item))}
@@ -1152,14 +1167,17 @@
           />
         {:else if item.id === 'moderation'}
           {@const modStats = moderation ? [
-            { label: m.home_mod_warns(), value: moderation.totals.warns },
-            { label: m.home_mod_timeouts(), value: moderation.totals.timeouts },
-            { label: m.home_mod_kicks(), value: moderation.totals.kicks },
-            { label: m.home_mod_bans(), value: moderation.totals.bans },
+            { label: m.home_mod_warns(), value: moderation.totals.warns, icon: 'alert-triangle' },
+            { label: m.home_mod_timeouts(), value: moderation.totals.timeouts, icon: 'clock' },
+            { label: m.home_mod_kicks(), value: moderation.totals.kicks, icon: 'logout' },
+            { label: m.home_mod_bans(), value: moderation.totals.bans, icon: 'gavel' },
           ] : []}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between gap-2 mb-3 shrink-0">
-              <h3 class="text-sm font-medium text-on-surface">{m.home_mod_moderation_title()}</h3>
+              <h3 class="flex items-center gap-2 text-sm font-medium text-on-surface">
+                <Papicon icon="shield" size={16} class="text-on-surface-variant" />
+                {m.home_mod_moderation_title()}
+              </h3>
               <a href="/analytics" class="text-2xs text-primary hover:underline">{m.home_details()}</a>
             </div>
             <div class="space-y-3 grow flex flex-col justify-center">
@@ -1172,7 +1190,10 @@
                   {#each modStats as stat (stat.label)}
                     <div class="min-w-0">
                       <dd class="text-lg font-semibold tabular-nums text-on-surface">{stat.value}</dd>
-                      <dt class="text-xs text-on-surface-variant truncate">{stat.label}</dt>
+                      <dt class="flex items-center gap-1.5 text-xs text-on-surface-variant">
+                        <Papicon icon={stat.icon} size={13} />
+                        <span class="truncate">{stat.label}</span>
+                      </dt>
                     </div>
                   {/each}
                 </dl>
@@ -1203,6 +1224,7 @@
           <TopList
             bare
             title={m.anx_top_members_messages()}
+            icon="users"
             description={m.home_last_7_days()}
             kind="members"
             limit={getListCount(5, 1, displayRowSpan(item))}
