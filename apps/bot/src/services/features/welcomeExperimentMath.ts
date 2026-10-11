@@ -10,6 +10,7 @@
  * - le nombre d'arrivants qu'il faudrait pour conclure.
  */
 import crypto from 'node:crypto';
+import { UserFacingError } from '../../utils/userFacingError.js';
 
 export const EXPERIMENT_METRICS = ['retained_d1', 'retained_d7', 'retained_d30', 'activated_d7'] as const;
 export type ExperimentMetric = (typeof EXPERIMENT_METRICS)[number];
@@ -34,7 +35,7 @@ export interface ExperimentVariant {
   threadEnabled: boolean | null;
 }
 
-export class ExperimentValidationError extends Error {
+export class ExperimentValidationError extends UserFacingError {
   constructor(message: string) {
     super(message);
     this.name = 'ExperimentValidationError';

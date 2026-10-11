@@ -19,6 +19,7 @@
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { publishGuildSignal } from './siteLive.js';
+import { UserFacingError } from '../../utils/userFacingError.js';
 
 export const AGENT_IDLE_MS = 90_000;
 export const INTERRUPT_BLOCK_MS = 15 * 60_000;
@@ -42,7 +43,7 @@ interface Interruption {
 const sessions = new Map<string, AgentSession>();
 const interruptions = new Map<string, Interruption>();
 
-export class AgentLockError extends Error {
+export class AgentLockError extends UserFacingError {
   constructor(
     public readonly code: 'interrupted',
     public readonly byName: string,

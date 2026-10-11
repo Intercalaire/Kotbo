@@ -17,6 +17,7 @@ import { broadcastDashboardStateChange } from '../../api/shared/sharding.js';
 
 import { getClient } from '../../utils/client.js';
 import { formatGuildDateTime, formatInTimezone } from '../../utils/timezone.js';
+import { UserFacingError } from '../../utils/userFacingError.js';
 
 type AbsenceMutableStatus = 'PENDING' | 'ACKNOWLEDGED' | 'APPROVED' | 'REJECTED' | 'CANCELED' | 'ENDED';
 
@@ -466,7 +467,7 @@ export const getMeetings = async (guildId: string) => {
  * refus finissaient en erreur serveur, et la commande /meeting jetait meme
  * leur message pour repondre « Erreur lors de la creation de la reunion ».
  */
-export class MeetingValidationError extends Error {
+export class MeetingValidationError extends UserFacingError {
   constructor(message: string) {
     super(message);
     this.name = 'MeetingValidationError';

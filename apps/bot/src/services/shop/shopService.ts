@@ -28,6 +28,7 @@ import { adminSpawnItem, creditBalance, getOrCreateRpgProfile } from '../feature
 import { addXp, getGuildLevelCurve, getLevelFromXp } from '../progression/levelingService.js';
 import { notifySiteMember } from '../site/siteNotifyService.js';
 import { publishGuildSignal } from '../site/siteLive.js';
+import { UserFacingError } from '../../utils/userFacingError.js';
 
 export type ShopErrorCode =
   | ShopOfferError
@@ -60,7 +61,7 @@ export type ShopErrorCode =
   | 'too_many_offers'
   | 'too_many_codes';
 
-export class ShopError extends Error {
+export class ShopError extends UserFacingError {
   constructor(
     readonly code: ShopErrorCode,
     readonly status = 400,

@@ -1335,6 +1335,11 @@ export class HttpError extends Error {
     super(message);
     this.statusCode = statusCode;
   }
+
+  /** Un refus (4xx) est rédigé pour l'utilisateur ; une panne (5xx), non. */
+  get expose(): boolean {
+    return this.statusCode < 500;
+  }
 }
 
 /**

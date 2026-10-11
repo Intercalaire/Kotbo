@@ -5,6 +5,7 @@
 import type { AegisConfig } from '@prisma/client';
 import prisma from '../../../utils/db.js';
 import { cache } from '../../../utils/cache.js';
+import { UserFacingError } from '../../../utils/userFacingError.js';
 
 /** Ce que le traitement lit : sans dates, la valeur fait l'aller-retour Redis telle quelle. */
 export type AegisRuntimeConfig = Omit<AegisConfig, 'createdAt' | 'updatedAt' | 'trainingConsentAt' | 'trainingConsentById'>;
@@ -30,7 +31,7 @@ export async function invalidateAegisConfig(guildId: string): Promise<void> {
   await cache.delete(configKey(guildId));
 }
 
-export class AegisConfigError extends Error {}
+export class AegisConfigError extends UserFacingError {}
 
 type Patch = Partial<Omit<AegisConfig, 'guildId' | 'createdAt' | 'updatedAt' | 'trainingConsentAt' | 'trainingConsentById'>>;
 

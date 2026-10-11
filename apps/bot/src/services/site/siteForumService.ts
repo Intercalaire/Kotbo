@@ -36,6 +36,7 @@ import { openSecret, sealSecret } from '../../utils/secretBox.js';
 import { publishGuildSignal } from './siteLive.js';
 import { getSiteByGuild } from './siteService.js';
 import { isPubliclyVisible } from './blocks/discordBlocks.js';
+import { UserFacingError } from '../../utils/userFacingError.js';
 
 export const FORUM_LIMITS = { categories: 30, name: 60, description: 300, title: 100, content: 2000, pageSize: 25 } as const;
 
@@ -55,7 +56,7 @@ export type ForumErrorCode =
   | 'locked'
   | 'discord_failed';
 
-export class ForumError extends Error {
+export class ForumError extends UserFacingError {
   constructor(
     readonly code: ForumErrorCode,
     readonly status = 400,

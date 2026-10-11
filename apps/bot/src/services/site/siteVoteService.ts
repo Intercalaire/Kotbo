@@ -31,8 +31,9 @@ import { grantSiteReward } from './siteRewardService.js';
 import { publishGuildSignal } from './siteLive.js';
 import { notifySiteMember } from './siteNotifyService.js';
 import { verifyVote, voteKeyFromUrl } from './siteVoteVerifier.js';
+import { UserFacingError } from '../../utils/userFacingError.js';
 
-export class SiteVoteError extends Error {
+export class SiteVoteError extends UserFacingError {
   constructor(
     public readonly code: string,
     public readonly status = 400,

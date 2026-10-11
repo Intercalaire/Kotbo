@@ -12,6 +12,7 @@
  */
 import type { RaidProtectionConfig } from '@prisma/client';
 import { getUppercasePercentage } from './capsDetection.js';
+import { UserFacingError } from '../../utils/userFacingError.js';
 
 /**
  * Détecteur d'arnaques injecté : `scamFilterService` charge l'OCR et la
@@ -51,7 +52,7 @@ export interface RuleMatch {
 /** Règles dont la simulation ne peut pas reproduire exactement le bot. */
 export const APPROXIMATE_KINDS: ReadonlySet<SimulatedRuleKind> = new Set(['mentions', 'everyone', 'spam']);
 
-export class RuleSimulationError extends Error {
+export class RuleSimulationError extends UserFacingError {
   constructor(message: string) {
     super(message);
     this.name = 'RuleSimulationError';

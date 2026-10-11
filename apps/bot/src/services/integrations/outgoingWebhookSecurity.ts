@@ -11,8 +11,9 @@
 import crypto from 'node:crypto';
 import { lookup } from 'node:dns/promises';
 import net from 'node:net';
+import { UserFacingError } from '../../utils/userFacingError.js';
 
-export class WebhookUrlError extends Error {
+export class WebhookUrlError extends UserFacingError {
   constructor(message: string) {
     super(message);
     this.name = 'WebhookUrlError';

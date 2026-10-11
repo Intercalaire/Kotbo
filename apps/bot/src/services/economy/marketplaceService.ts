@@ -20,8 +20,9 @@ import {
   takeInventoryQuantity,
   takeItemInstance,
 } from '../features/rpg/rpgInventoryWrites.js';
+import { UserFacingError } from '../../utils/userFacingError.js';
 
-class MarketplacePurchaseError extends Error {}
+class MarketplacePurchaseError extends UserFacingError {}
 
 /** Durées proposées à la mise en vente, en heures. */
 export const LISTING_DURATION_RANGE = { min: 1, max: 168 } as const;

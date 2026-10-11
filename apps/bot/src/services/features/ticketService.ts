@@ -49,6 +49,7 @@ import {
   unarchiveTicket,
   unlockTicketDeletion,
 } from './ticketLifecycleService.js';
+import { UserFacingError } from '../../utils/userFacingError.js';
 
 function sanitizeTicketChannelName(input: string): string {
   const cleaned = input
@@ -2499,7 +2500,7 @@ export async function createPendingTicketRequest(
  * Fige la carte de validation apres decision : boutons retires et verdict
  * affiche, pour qu'aucun autre membre du staff ne rejoue la meme demande.
  */
-export class TicketReviewError extends Error {
+export class TicketReviewError extends UserFacingError {
   constructor(message: string) {
     super(message);
     this.name = 'TicketReviewError';

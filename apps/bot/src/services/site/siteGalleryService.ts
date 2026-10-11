@@ -29,12 +29,13 @@ import {
 import prisma from '../../utils/db.js';
 import { createPage, updateSite } from './siteAdminService.js';
 import { getSiteByGuild } from './siteService.js';
+import { UserFacingError } from '../../utils/userFacingError.js';
 
 export const GALLERY_LIMITS = { perGuild: 5, templates: 8, name: 60, description: 300, pageSize: 24, hideAfterReports: 5 } as const;
 
 export type GalleryErrorCode = 'site_missing' | 'share_missing' | 'name_required' | 'too_many_shares' | 'nothing_to_share';
 
-export class GalleryError extends Error {
+export class GalleryError extends UserFacingError {
   constructor(
     readonly code: GalleryErrorCode,
     readonly status = 400,

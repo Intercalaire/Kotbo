@@ -36,8 +36,9 @@ import { findScamInDocument } from './siteModeration.js';
 import { buildSiteBlueprint, blueprintNavigation, type SiteTemplateKey } from './siteTemplates.js';
 import { readStaffPageSettings } from './blocks/vitrineBlocks.js';
 import { afterCommentApproved } from './siteActivity.js';
+import { UserFacingError } from '../../utils/userFacingError.js';
 
-export class SiteAdminError extends Error {
+export class SiteAdminError extends UserFacingError {
   constructor(
     public readonly code: string,
     public readonly status = 400,
