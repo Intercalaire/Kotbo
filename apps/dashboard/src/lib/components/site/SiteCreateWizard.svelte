@@ -82,7 +82,7 @@
     <p class="text-body-sm text-on-surface-variant">{m.ste_create_note()}</p>
 
     <div class="flex justify-end">
-      <Button variant="primary" type="submit" icon="plus" loading={creating} disabled={!slug || !!slugError}>{m.ste_create_button()}</Button>
+      <Button variant="primary" type="submit" icon="plus" loading={creating} disabled={!slug || !!slugError} disabledReason={slugError || m.ste_reason_slug_missing()}>{m.ste_create_button()}</Button>
     </div>
   </form>
 </SectionCard>

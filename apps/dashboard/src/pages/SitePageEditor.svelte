@@ -336,7 +336,7 @@
           <Button size="sm" variant="ghost" icon="external-link" href={publicUrl} target="_blank">{m.ste_view()}</Button>
         {/if}
         <Button size="sm" icon="clock" onclick={() => (scheduleOpen = true)}>{m.ste_schedule()}</Button>
-        <Button size="sm" variant="primary" icon="send" loading={publishing} disabled={agentLocked || (!!page.publishedAt && !page.hasUnpublishedChanges)} onclick={publish}>
+        <Button size="sm" variant="primary" icon="send" loading={publishing} disabled={agentLocked || (!!page.publishedAt && !page.hasUnpublishedChanges)} disabledReason={agentLocked ? m.ste_reason_agent_locked() : m.ste_reason_nothing_to_publish()} onclick={publish}>
           {page.publishedAt ? m.ste_publish_changes() : m.ste_publish()}
         </Button>
       </div>

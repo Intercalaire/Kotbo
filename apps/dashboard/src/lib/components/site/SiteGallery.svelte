@@ -273,7 +273,7 @@
   </div>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (installOpen = false)}>{m.common_cancel()}</Button>
-    <Button variant="primary" loading={installBusy} disabled={!parts.style && !parts.css && !parts.templates && !parts.menu} onclick={install}>{m.ste_gallery_apply()}</Button>
+    <Button variant="primary" loading={installBusy} disabled={!parts.style && !parts.css && !parts.templates && !parts.menu} disabledReason={m.ste_gallery_reason_nothing()} onclick={install}>{m.ste_gallery_apply()}</Button>
   {/snippet}
 </Modal>
 

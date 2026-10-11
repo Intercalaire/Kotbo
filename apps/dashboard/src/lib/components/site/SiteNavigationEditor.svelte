@@ -117,7 +117,7 @@
       {/each}
     {/each}
     <div class="flex justify-between gap-2 pt-2">
-      <Button size="sm" icon="plus" disabled={items.length >= SITE_NAV_LIMITS.topLevel} onclick={() => (items = [...items, blank()])}>{m.ste_nav_add()}</Button>
+      <Button size="sm" icon="plus" disabled={items.length >= SITE_NAV_LIMITS.topLevel} disabledReason={m.ste_nav_reason_limit({ max: SITE_NAV_LIMITS.topLevel })} onclick={() => (items = [...items, blank()])}>{m.ste_nav_add()}</Button>
       <Button variant="primary" icon="check" loading={saving} disabled={!dirty} onclick={save}>{m.common_save()}</Button>
     </div>
   </div>

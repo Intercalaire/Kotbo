@@ -265,7 +265,7 @@
       <p class="text-body-sm text-on-surface-variant">{m.ste_delete_site_desc()}</p>
       <div class="flex flex-wrap gap-2">
         <input class="input w-64 font-mono" placeholder={site.slug} aria-label={m.ste_delete_site_type({ slug: site.slug })} bind:value={deleteConfirm} />
-        <Button variant="danger" icon="trash-2" disabled={deleteConfirm !== site.slug} onclick={remove}>{m.ste_delete_site()}</Button>
+        <Button variant="danger" icon="trash-2" disabled={deleteConfirm !== site.slug} disabledReason={m.ste_delete_site_type({ slug: site.slug })} onclick={remove}>{m.ste_delete_site()}</Button>
       </div>
       <p class="text-2xs text-on-surface-variant">{m.ste_delete_site_type({ slug: site.slug })}</p>
     </div>

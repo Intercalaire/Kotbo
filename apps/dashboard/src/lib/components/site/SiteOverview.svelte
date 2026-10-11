@@ -98,7 +98,7 @@
         <h2 class="launch-title">{m.ste_launch_title()}</h2>
         <p class="text-body-sm text-on-surface-variant launch-desc">{m.ste_launch_desc()}</p>
         <div class="flex flex-wrap gap-2 mt-4">
-          <Button variant="primary" icon="globe" loading={publishing} disabled={!siteState.modules.site || !!site.suspendedAt} onclick={() => setPublished(true)}>{m.ste_launch_publish()}</Button>
+          <Button variant="primary" icon="globe" loading={publishing} disabled={!siteState.modules.site || !!site.suspendedAt} disabledReason={!siteState.modules.site ? m.ste_reason_module_off() : m.ste_reason_suspended()} onclick={() => setPublished(true)}>{m.ste_launch_publish()}</Button>
           {#if siteState.previewUrl}
             <Button variant="secondary" icon="external-link" href={siteState.previewUrl} target="_blank">{m.ste_launch_preview()}</Button>
           {/if}
