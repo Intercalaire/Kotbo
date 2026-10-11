@@ -1,5 +1,6 @@
 <script lang="ts">
   import Papicon from './Papicon.svelte';
+  import Button from './ui/Button.svelte';
   import { m } from '../i18n';
   import { portal } from '../actions/portal';
 
@@ -32,14 +33,13 @@
   let inputValue = $state('');
   let executing = $state(false);
 
-  const variantConfig = $derived(() => {
-    switch (variant) {
-      case 'danger':  return { icon: 'AlertTriangle', iconBg: 'bg-error/10 border-error/20', iconColor: 'text-error', btnClass: 'bg-red-500 hover:bg-red-600 shadow-red-500/20' };
-      case 'warning': return { icon: 'AlertTriangle', iconBg: 'bg-warning/10 border-warning/20', iconColor: 'text-warning', btnClass: 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20' };
-      default:        return { icon: 'Info', iconBg: 'bg-primary/10 border-primary/20', iconColor: 'text-primary', btnClass: 'bg-primary hover:bg-primary/90 shadow-primary/20' };
-    }
-  });
+  const VARIANTS = {
+    danger: { icon: 'AlertTriangle', tone: 'bg-error/10 text-error', button: 'danger' },
+    warning: { icon: 'AlertTriangle', tone: 'bg-warning/10 text-warning', button: 'primary' },
+    default: { icon: 'Info', tone: 'bg-primary/10 text-primary', button: 'primary' },
+  } as const;
 
+  const config = $derived(VARIANTS[variant]);
   const canConfirm = $derived(requireInput ? inputValue === requireInput : true);
 
   function handleCancel() {
@@ -70,7 +70,6 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if open}
-  <!-- Backdrop -->
   <div
     use:portal
     class="confirm-modal fixed inset-0 flex items-center justify-center p-4"
@@ -80,63 +79,54 @@
     tabindex="-1"
     aria-modal="true"
     aria-labelledby="confirm-modal-title"
+    aria-describedby={description ? 'confirm-modal-description' : undefined}
   >
-    <div class="absolute inset-0 bg-black/40 animate-in fade-in duration-200"></div>
+    <div class="absolute inset-0 bg-black/40 animate-in fade-in duration-150"></div>
 
-    <!-- Modal -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="confirm-modal__panel relative z-10 w-full max-w-md bg-surface-container border border-outline-variant/20 rounded-lg shadow-sm shadow-black/50 p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200"
+      class="confirm-modal__panel relative z-10 w-full max-w-md bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg p-5 space-y-5 animate-in fade-in slide-up duration-150"
       onclick={(e) => e.stopPropagation()}
       onkeydown={(e) => e.stopPropagation()}
     >
-      <!-- Icon + Title -->
-      <div class="flex items-start gap-4">
-        <div class="w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 {variantConfig().iconBg}">
-          <Papicon icon={variantConfig().icon} size={20} class={variantConfig().iconColor} />
-        </div>
-        <div>
-          <h3 id="confirm-modal-title" class="font-semibold text-on-surface text-base">{title}</h3>
+      <div class="flex items-start gap-3">
+        <span class="w-9 h-9 rounded-full flex items-center justify-center shrink-0 {config.tone}" aria-hidden="true">
+          <Papicon icon={config.icon} size={17} />
+        </span>
+        <div class="min-w-0 pt-1.5">
+          <h3 id="confirm-modal-title" class="text-base font-semibold text-on-surface leading-snug">{title}</h3>
           {#if description}
-            <p class="text-sm text-on-surface-variant/60 mt-1 leading-relaxed">{description}</p>
+            <p id="confirm-modal-description" class="text-sm text-on-surface-variant mt-1.5 leading-relaxed">{description}</p>
           {/if}
         </div>
       </div>
 
-      <!-- Require input -->
       {#if requireInput}
-        <div class="space-y-1.5">
-          <p class="text-xs text-on-surface-variant/50 font-medium">
-            {m.d7_type_to_confirm_pre()} <span class="font-mono font-semibold text-on-surface">{requireInput}</span> {m.d7_type_to_confirm_post()}
-          </p>
+        <label class="field gap-1.5">
+          <span class="text-sm text-on-surface-variant">
+            {m.d7_type_to_confirm_pre()} <span class="font-mono font-medium text-on-surface">{requireInput}</span> {m.d7_type_to_confirm_post()}
+          </span>
           <input
             type="text"
             bind:value={inputValue}
             placeholder={requireInput}
             autocomplete="off"
-            class="w-full bg-on-surface/5 border border-outline-variant/15 rounded-xl px-4 py-2.5 text-sm text-on-surface placeholder-on-surface-variant/30 focus:outline-none focus:border-error/40 font-mono transition-all"
+            spellcheck="false"
+            class="input font-mono"
           />
-        </div>
+        </label>
       {/if}
 
-      <!-- Buttons -->
-      <div class="confirm-modal__actions flex items-center justify-end gap-2 pt-1">
-        <button
-          onclick={handleCancel}
-          class="px-4 py-2 rounded-xl text-sm font-bold text-on-surface-variant hover:bg-on-surface/8 border border-outline-variant/10 transition-all"
-        >
-          {cancelLabel}
-        </button>
-        <button
+      <div class="confirm-modal__actions flex items-center justify-end gap-2">
+        <Button variant="ghost" onclick={handleCancel}>{cancelLabel}</Button>
+        <Button
+          variant={config.button}
           onclick={handleConfirm}
-          disabled={!canConfirm || executing || loading}
-          class="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all shadow-lg active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100 {variantConfig().btnClass}"
+          disabled={!canConfirm}
+          loading={executing || loading}
         >
-          {#if executing || loading}
-            <div class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-          {/if}
           {confirmLabel}
-        </button>
+        </Button>
       </div>
     </div>
   </div>
