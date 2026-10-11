@@ -301,7 +301,45 @@ function dashboardMetadata(path: string, section: string, locale: BotLocale): Og
   return meta;
 }
 
+/**
+ * Accueil du dashboard (`dash.kotbo.fr/`).
+ *
+ * C'est le lien que l'on colle le plus souvent pour presenter Kotbo : il porte
+ * la marque, en francais (la langue de la communaute), et les deux totaux que
+ * kotbo.fr affiche deja - lus a la meme source, `botInstanceStats`. Sans ces
+ * chiffres la carte reste une carte de marque : ils ne sont jamais inventes.
+ */
+async function homeMetadata(): Promise<OgMetadata> {
+  const locale: BotLocale = 'fr';
+  const meta = baseMetadata(locale);
+  meta.title = m.og_home_title({}, { locale });
+  meta.description = m.og_home_desc({}, { locale });
+  meta.imageAlt = meta.title;
+
+  const stats: { value: string; label: string }[] = [];
+  try {
+    const { _sum } = await prisma.botInstanceStats.aggregate({ _sum: { guildCount: true, userCount: true } });
+    if (_sum.guildCount) stats.push({ value: formatNumber(_sum.guildCount, locale), label: m.og_stat_servers({}, { locale }) });
+    if (_sum.userCount) stats.push({ value: formatNumber(_sum.userCount, locale), label: m.og_stat_community_members({}, { locale }) });
+  } catch (err) {
+    logger.warn('OpenGraph', `Totaux indisponibles pour la carte d'accueil: ${String(err)}`);
+  }
+
+  const version = stats.map((stat) => stat.value).join('-') || 'brand';
+  meta.imagePath = imagePathFor('/', version);
+  meta.card = {
+    cacheKey: `home:${version}`,
+    kicker: m.og_kicker_dashboard({}, { locale }),
+    title: m.og_home_card_title({}, { locale }),
+    subtitle: meta.description,
+    stats,
+  };
+  return meta;
+}
+
 async function resolveByRoute(client: Client, path: string, segments: string[]): Promise<OgMetadata | null> {
+  if (segments.length === 0) return homeMetadata();
+
   // ── Ressources identifiees par un id ────────────────────────────────────
   if (segments[0] === 'transcripts' && segments[1] && !segments[2]) {
     return transcriptMetadata(client, path, segments[1]);
