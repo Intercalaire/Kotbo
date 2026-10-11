@@ -473,33 +473,34 @@
 }
 
 .btn:active { transform: scale(0.98); }
-.btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+.btn:disabled,
+.btn[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; transform: none; }
 
 .btn-primary {
   background: var(--primary-color);
   color: var(--on-primary-color);
 }
-.btn-primary:hover:not(:disabled) { opacity: 0.92; }
+.btn-primary:hover:not(:disabled):not([aria-disabled="true"]) { opacity: 0.92; }
 
 .btn-tonal {
   background: var(--surface-container);
   color: var(--on-surface);
   border-color: var(--outline-variant);
 }
-.btn-tonal:hover:not(:disabled) { background: var(--surface-container-high); }
+.btn-tonal:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--surface-container-high); }
 
 .btn-ghost {
   background: transparent;
   color: var(--on-surface-variant);
 }
-.btn-ghost:hover:not(:disabled) { background: var(--surface-hover); color: var(--on-surface); }
+.btn-ghost:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--surface-hover); color: var(--on-surface); }
 
 .btn-danger {
   background: transparent;
   color: var(--error-color);
   border-color: color-mix(in srgb, var(--error-color) 30%, transparent);
 }
-.btn-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--error-color) 10%, transparent); }
+.btn-danger:hover:not(:disabled):not([aria-disabled="true"]) { background: color-mix(in srgb, var(--error-color) 10%, transparent); }
 
 .btn-sm { padding: 0.3125rem 0.75rem; font-size: 0.75rem; }
 
