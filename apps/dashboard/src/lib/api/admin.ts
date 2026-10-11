@@ -805,3 +805,88 @@ export async function revokeManualAchievement(userId: string, achievementId: str
   );
   if (!response.ok) throw await adminAchievementError(response, 'Erreur lors du retrait du succès');
 }
+
+// ── Pages fonctionnalités du site vitrine (kotbo.fr) ─────────────────────────
+
+export type FeaturePageLocale = 'fr' | 'en';
+
+export interface FeaturePageSection {
+  h2: string;
+  body: string;
+  points?: string[];
+}
+
+export interface FeaturePageText {
+  name: string;
+  title: string;
+  description: string;
+  h1: string;
+  lead: string;
+  sections: FeaturePageSection[];
+  faq: { q: string; a: string }[];
+}
+
+export interface FeaturePage {
+  id: string;
+  key: string;
+  slug: Record<FeaturePageLocale, string>;
+  modules: string[];
+  content: Record<FeaturePageLocale, FeaturePageText>;
+  published: boolean;
+  position: number;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  /** Ce qui manque pour publier ; vide quand la page est publiable. */
+  missing: string[];
+}
+
+export type FeaturePageInput = Pick<FeaturePage, 'slug' | 'modules' | 'content' | 'published' | 'position'> & { key?: string };
+
+async function featurePageError(response: Response, fallback: string): Promise<Error> {
+  const error = await response.json().catch(() => ({}));
+  return new Error(error.error || fallback);
+}
+
+export async function fetchFeaturePages(): Promise<{
+  pages: FeaturePage[];
+  rebuildConfigured: boolean;
+  modulesWithoutSeed: string[];
+}> {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/feature-pages`, { method: 'GET' });
+  if (!response.ok) throw await featurePageError(response, 'Erreur lors du chargement des pages');
+  return response.json();
+}
+
+export async function createFeaturePage(input: FeaturePageInput): Promise<FeaturePage> {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/feature-pages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await featurePageError(response, 'Erreur lors de la création de la page');
+  return (await response.json()).page;
+}
+
+export async function updateFeaturePage(id: string, input: FeaturePageInput): Promise<FeaturePage> {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/feature-pages/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await featurePageError(response, 'Erreur lors de l’enregistrement de la page');
+  return (await response.json()).page;
+}
+
+export async function deleteFeaturePage(id: string): Promise<void> {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/feature-pages/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) throw await featurePageError(response, 'Erreur lors de la suppression de la page');
+}
+
+export async function importFeaturePages(): Promise<{ created: number; published: number; skipped: number }> {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/feature-pages/import`, { method: 'POST' });
+  if (!response.ok) throw await featurePageError(response, 'Erreur lors de l’import des pages');
+  return response.json();
+}
