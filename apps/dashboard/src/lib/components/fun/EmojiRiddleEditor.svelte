@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { removeWithUndo } from '../../undoRemoval';
   import { m } from '../../i18n';
   import { toast } from '../../stores/toast.svelte';
-  import { confirmDialog } from '../../stores/confirmDialog.svelte';
   import Papicon from '../Papicon.svelte';
   import ToggleSwitch from '../ToggleSwitch.svelte';
   import EmojiPicker from '../EmojiPicker.svelte';
@@ -103,18 +103,14 @@
 
   async function remove(riddle: Riddle) {
     if (!canManage || busy) return;
-    if (!(await confirmDialog.ask({ title: m.fun_riddles_delete_confirm_title(), confirmLabel: m.common_delete(), variant: 'danger' }))) return;
-
-    busy = true;
-    try {
-      await deleteEmojiRiddle(riddle.id);
-      riddles = riddles.filter((r) => r.id !== riddle.id);
-      if (editingId === riddle.id) resetForm();
-    } catch {
-      // Erreur déjà signalée par dashboardRequest.
-    } finally {
-      busy = false;
-    }
+    if (editingId === riddle.id) resetForm();
+    await removeWithUndo({
+      get: () => riddles,
+      set: (next) => (riddles = next),
+      match: (r) => r.id === riddle.id,
+      message: m.fun_riddles_deleted(),
+      commit: () => deleteEmojiRiddle(riddle.id, undefined, { silent: true }),
+    });
   }
 
   const CUSTOM_EMOJI_SPLIT = /(<a?:\w+:\d+>)/g;
