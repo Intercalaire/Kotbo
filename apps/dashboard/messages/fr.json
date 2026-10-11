@@ -2976,6 +2976,7 @@
   "d7_close": "Fermer",
   "toast_undo": "Annuler",
   "toast_undoable_failed": "L'action n'a pas abouti, rien n'a été modifié.",
+  "confirm_impacts_title": "Ce que ça entraîne",
   "d7_type_to_confirm_pre": "Tape",
   "d7_type_to_confirm_post": "pour confirmer",
   "d7_api_error": "Ça n'a pas marché. Réessaie.",

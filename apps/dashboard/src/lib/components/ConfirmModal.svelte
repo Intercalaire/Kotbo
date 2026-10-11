@@ -12,6 +12,8 @@
     cancelLabel?: string;
     variant?: 'danger' | 'warning' | 'default';
     requireInput?: string; // if set, user must type this to confirm
+    /** Consequences de l'action, une par ligne, affichees avant de valider. */
+    impacts?: string[];
     loading?: boolean;
     onConfirm?: () => void | Promise<void>;
     onCancel?: () => void;
@@ -25,6 +27,7 @@
     cancelLabel = m.d7_cancel(),
     variant = 'default',
     requireInput = '',
+    impacts = [],
     loading = false,
     onConfirm,
     onCancel,
@@ -100,6 +103,20 @@
           {/if}
         </div>
       </div>
+
+      {#if impacts.length > 0}
+        <div class="rounded-lg border border-outline-variant bg-surface-container-low px-3.5 py-3">
+          <p class="text-sm font-medium text-on-surface">{m.confirm_impacts_title()}</p>
+          <ul class="mt-1.5 space-y-1">
+            {#each impacts as impact}
+              <li class="flex items-start gap-2 text-sm text-on-surface-variant">
+                <Papicon icon="ArrowRight" size={13} class="mt-1 shrink-0" />
+                <span>{impact}</span>
+              </li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
 
       {#if requireInput}
         <label class="field gap-1.5">
