@@ -4,11 +4,15 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { notificationsStore } from '../lib/stores/notifications.svelte';
   import { staffStore } from '../lib/stores/staff.svelte';
-  import { fetchAnalytics, fetchUserSettings, updateUserSettings, fetchChangelog, fetchStaffServerLinks, fetchHomeWidgets } from '../lib/api';
+  import { fetchAnalytics, fetchActivityRankings, fetchUserSettings, updateUserSettings, fetchChangelog, fetchStaffServerLinks, fetchHomeWidgets } from '../lib/api';
   import type { ChangelogCommit, HomeWidgetsData, HomeWidgetSection } from '../lib/api';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import HomeTodo from '../lib/components/home/HomeTodo.svelte';
+  import HomeActivityCard from '../lib/components/home/HomeActivityCard.svelte';
+  import TopList from '../lib/components/analytics/TopList.svelte';
+  import { SERIES } from '../lib/components/analytics/analyticsFormat';
+  import { channelDetailsModal } from '../lib/stores/channelDetailsModal.svelte';
   import ServerLocaleSettings from '../lib/components/ServerLocaleSettings.svelte';
   import { Button, Callout, Menu, type MenuItem } from '../lib/components/ui';
   import { toast } from '../lib/stores/toast.svelte';
@@ -778,7 +782,9 @@
     // immédiatement 5 à 8 requêtes en concurrence avec la requête critique.
     const loadSecondaryWidgets = () => {
       if (authStore.selectedGuildId !== guildId) return;
-      if (['liveStats', 'analytics', 'channels', 'moderation', 'members'].some((id) => visibleIds.has(id))) {
+      // Courbe et classements lisent les routes d'Analytics v3 eux-memes ;
+      // l'ancienne reponse ne sert plus qu'aux chiffres du moment et a la moderation.
+      if (['liveStats', 'moderation'].some((id) => visibleIds.has(id))) {
         void loadAnalytics();
       }
       if (visibleIds.has('staff')) void staffStore.fetchAll();
@@ -838,66 +844,15 @@
     return m.home_subtitle_issues({ parts: joined, guild: guildName });
   });
 
-  // Chart data from analytics
-  let selectedStat = $state('messages');
-
-  $effect(() => {
-    if (authStore.selectedGuildId && authStore.user?.id) {
-      const saved = localStorage.getItem(`fav_stat_${authStore.selectedGuildId}_${authStore.user.id}`);
-      if (saved) selectedStat = saved;
-    }
-  });
-
-  const handleStatChange = (stat: string) => {
-    selectedStat = stat;
-    if (authStore.selectedGuildId && authStore.user?.id) {
-      localStorage.setItem(`fav_stat_${authStore.selectedGuildId}_${authStore.user.id}`, stat);
-    }
-  };
-
-  const statConfig = $derived.by(() => {
-    const trend = analyticsData?.dailyTrend || [];
-    switch (selectedStat) {
-      case 'voice':
-        return { title: m.home_stat_voice_title(), subtitle: m.home_stat_voice_sub(), color: 'var(--color-secondary)', values: trend.map(d => d.voiceMinutes || 0), unit: ' min' };
-      case 'joins':
-        return { title: m.home_stat_joins_title(), subtitle: m.home_stat_joins_sub(), color: 'var(--color-primary)', values: trend.map(d => d.membersJoined || 0), unit: '' };
-      case 'leaves':
-        return { title: m.home_stat_leaves_title(), subtitle: m.home_stat_leaves_sub(), color: 'var(--color-error)', values: trend.map(d => d.membersLeft || 0), unit: '' };
-      case 'sanctions':
-        return { title: m.nav_sanctions(), subtitle: m.home_stat_sanctions_sub(), color: 'var(--color-warning)', values: trend.map(d => d.sanctions || 0), unit: '' };
-      default:
-        return { title: 'Messages', subtitle: m.home_stat_messages_sub(), color: 'var(--color-tertiary)', values: trend.map(d => d.messages || 0), unit: '' };
-    }
-  });
-
-  const activityData = $derived(
-    (analyticsData?.dailyTrend || []).map((d, i) => ({
-      name: formatDateLabel(d.dateKey),
-      value: statConfig.values[i] || 0
-    }))
-  );
-
-  function formatDateLabel(dateKey: string): string {
-    try {
-      const d = new Date(dateKey + 'T12:00:00Z');
-      return d.toLocaleDateString(dateLocale(), { weekday: 'short', day: 'numeric' });
-    } catch {
-      return `J-${dateKey}`;
-    }
-  }
-
-  const statTotal = $derived(statConfig.values.reduce((a, b) => a + b, 0));
+  /**
+   * Relance la courbe et les classements, qui chargent leurs donnees
+   * eux-memes, quand on clique sur Actualiser.
+   */
+  let analyticsRefreshKey = $state(0);
 
   // Live stats from analytics
   const liveStats = $derived(analyticsData?.live || null);
   const totals = $derived(analyticsData?.totals || null);
-
-  // Top channels
-  const topChannels = $derived((analyticsData?.topChannels || []).slice(0, 5));
-
-  // Top members
-  const topMembers = $derived((analyticsData?.topMessageMembers || []).slice(0, 5));
 
   // Moderation
   const moderation = $derived(analyticsData?.moderation || null);
@@ -908,12 +863,13 @@
 
   const handleRefresh = () => {
     todoRefreshKey += 1;
+    analyticsRefreshKey += 1;
     dashboardStore.refresh();
     notificationsStore.fetchNotifications(true);
 
     const visibleIds = new Set(visibleLayout.map((item) => item.id));
     if (visibleIds.has('staff')) staffStore.fetchAll(true);
-    if (['liveStats', 'analytics', 'channels', 'moderation', 'members'].some((id) => visibleIds.has(id))) {
+    if (['liveStats', 'moderation'].some((id) => visibleIds.has(id))) {
       loadAnalytics(true);
     }
     void loadHomeWidgets(sectionsFor(visibleIds), true);
@@ -1138,58 +1094,10 @@
           </div>
         {:else if item.id === 'analytics'}
           {#if dashboardStore.state.featureAccess.analytics?.canView}
-            <div class="flex flex-col h-full justify-between">
-              <div class="flex items-start justify-between gap-3 mb-3 shrink-0">
-                <div class="min-w-0">
-                  <label for="home-stat-{item.id}" class="sr-only">{m.home_chart_pick()}</label>
-                  <select
-                    id="home-stat-{item.id}"
-                    value={selectedStat}
-                    onchange={(e) => handleStatChange(e.currentTarget.value)}
-                    class="-ml-1.5 pl-1.5 pr-1 py-0.5 rounded-md bg-transparent text-sm font-medium text-on-surface hover:bg-surface-container focus:bg-surface-container outline-none cursor-pointer"
-                  >
-                    <option value="messages">Messages</option>
-                    <option value="voice">{m.home_opt_voice()}</option>
-                    <option value="joins">{m.home_stat_joins_title()}</option>
-                    <option value="leaves">{m.home_stat_leaves_title()}</option>
-                    <option value="sanctions">{m.nav_sanctions()}</option>
-                  </select>
-                  <p class="text-xs text-on-surface-variant">{statConfig.subtitle}</p>
-                </div>
-                <div class="text-right shrink-0">
-                  {#if analyticsLoading}
-                    <div class="h-7 w-16 animate-pulse bg-surface-container-high rounded"></div>
-                  {:else}
-                    <span class="text-xl font-semibold tabular-nums text-on-surface">{formatNumber(statTotal)}{statConfig.unit}</span>
-                    <p class="text-xs text-on-surface-variant">{m.home_last_7_days()}</p>
-                  {/if}
-                </div>
-              </div>
-              <div class="w-full grow" style="min-height: {displayRowSpan(item) >= 3 ? 320 : displayRowSpan(item) >= 2 ? 220 : 128}px">
-                {#if activityData.length > 0}
-                  {#await import('../lib/components/LineChart.svelte')}
-                    <div
-                      class="w-full rounded-lg bg-surface-container animate-pulse"
-                      style:height={`${displayRowSpan(item) >= 3 ? 320 : displayRowSpan(item) >= 2 ? 220 : 128}px`}
-                      aria-hidden="true"
-                    ></div>
-                  {:then module}
-                    {@const LineChart = module.default}
-                    <LineChart
-                      data={activityData}
-                      height={displayRowSpan(item) >= 3 ? 320 : displayRowSpan(item) >= 2 ? 220 : 128}
-                      labelKey="name"
-                      valueKey="value"
-                      color={statConfig.color}
-                    />
-                  {/await}
-                {:else}
-                  <div class="h-full flex items-center justify-center text-on-surface-variant text-xs">
-                    {analyticsLoading ? m.common_loading() : m.home_no_data()}
-                  </div>
-                {/if}
-              </div>
-            </div>
+            <HomeActivityCard
+              height={displayRowSpan(item) >= 3 ? 340 : displayRowSpan(item) >= 2 ? 250 : 170}
+              refreshKey={analyticsRefreshKey}
+            />
           {/if}
         {:else if item.id === 'botLanguage' || item.id === 'timezone'}
           <!-- Reglages du serveur, pas des chiffres : le meme bloc vit dans
@@ -1229,41 +1137,19 @@
             </div>
           </div>
         {:else if item.id === 'channels'}
-          {@const channelCount = getListCount(5, displayColSpan(item), displayRowSpan(item))}
-          {@const channelsCols = displayColSpan(item) >= 2 ? 2 : 1}
-          <div class="flex flex-col h-full justify-between">
-            <div class="flex items-center justify-between mb-3 shrink-0">
-              <div class="flex items-center gap-2.5">
-                <h3 class="text-sm font-medium text-on-surface">{m.home_active_channels()}</h3>
-              </div>
-              <span class="text-2xs text-on-surface-variant">{m.home_last_7_days()}</span>
-            </div>
-            <div class="grow flex flex-col justify-center {channelsCols > 1 ? 'grid grid-cols-2 gap-x-4 gap-y-2 items-start' : 'space-y-2'}">
-              {#if analyticsLoading}
-                {#each Array(channelCount) as _}
-                  <div class="h-7 animate-pulse bg-surface-container-high rounded"></div>
-                {/each}
-              {:else if topChannels.length > 0}
-                {#each (analyticsData?.topChannels || []).slice(0, channelCount) as channel, i}
-                  {@const maxMsgs = topChannels[0]?.messagesCount || 1}
-                  <div class="flex items-center gap-2.5">
-                    <span class="text-2xs text-on-surface-variant w-4 text-right shrink-0">{i + 1}</span>
-                    <div class="grow min-w-0">
-                      <div class="flex items-center justify-between gap-2 mb-0.5">
-                        <span class="text-xs text-on-surface truncate"># {channel.channelName}</span>
-                        <span class="text-2xs text-on-surface-variant shrink-0">{formatNumber(channel.messagesCount)}</span>
-                      </div>
-                      <div class="h-1 w-full bg-surface-container-high rounded-full overflow-hidden">
-                        <div class="bg-tertiary/60 h-full rounded-full" style="width: {(channel.messagesCount / maxMsgs) * 100}%"></div>
-                      </div>
-                    </div>
-                  </div>
-                {/each}
-              {:else}
-                <div class="flex items-center justify-center h-full text-xs text-on-surface-variant {channelsCols > 1 ? 'col-span-2' : ''}">{m.home_no_data()}</div>
-              {/if}
-            </div>
-          </div>
+          <TopList
+            bare
+            title={m.anx_top_channels_messages()}
+            description={m.home_last_7_days()}
+            kind="channels"
+            limit={getListCount(5, 1, displayRowSpan(item))}
+            load={(limit) => fetchActivityRankings({ period: 7 }, 'messages', 'channels', limit)}
+            reloadKey={`${authStore.selectedGuildId}|${analyticsRefreshKey}`}
+            compare
+            color={SERIES[0]}
+            onselect={(entry) => channelDetailsModal.show(entry.id, entry.name ? `#${entry.name}` : m.anx_channel_deleted())}
+            exportName="top_salons_messages"
+          />
         {:else if item.id === 'moderation'}
           {@const modStats = moderation ? [
             { label: m.home_mod_warns(), value: moderation.totals.warns },
@@ -1314,42 +1200,18 @@
             </div>
           </div>
         {:else if item.id === 'members'}
-          {@const memberCount = getListCount(5, displayColSpan(item), displayRowSpan(item))}
-          {@const membersCols = displayColSpan(item) >= 2 ? 2 : 1}
-          <div class="flex flex-col h-full justify-between">
-            <div class="flex items-center justify-between mb-3 shrink-0">
-              <div class="flex items-center gap-2.5">
-                <h3 class="text-sm font-medium text-on-surface">{m.home_top_members()}</h3>
-              </div>
-              <span class="text-2xs text-on-surface-variant">{m.home_last_7_days()}</span>
-            </div>
-            <div class="grow flex flex-col justify-center {membersCols > 1 ? 'grid grid-cols-2 gap-x-4 gap-y-2 items-start' : 'space-y-2'}">
-              {#if analyticsLoading}
-                {#each Array(memberCount) as _}
-                  <div class="h-7 animate-pulse bg-surface-container-high rounded"></div>
-                {/each}
-              {:else if topMembers.length > 0}
-                {#each (analyticsData?.topMessageMembers || []).slice(0, memberCount) as member, i}
-                  <div class="flex items-center gap-2.5">
-                    <span class="text-2xs font-medium {i === 0 ? 'text-warning' : i === 1 ? 'text-on-surface-variant' : i === 2 ? 'text-orange-400' : 'text-on-surface-variant'} w-4 text-right shrink-0">{i + 1}</span>
-                    {#if member.avatarUrl}
-                      <img src={member.avatarUrl} alt="" class="w-6 h-6 rounded-full shrink-0" />
-                    {:else}
-                      <div class="w-6 h-6 rounded-full bg-surface-container-high shrink-0 flex items-center justify-center">
-                        <Papicon icon="user" size={12} class="text-on-surface-variant" />
-                      </div>
-                    {/if}
-                    <div class="grow min-w-0 flex items-center justify-between gap-2">
-                      <span class="text-xs text-on-surface truncate">{member.name}</span>
-                      <span class="text-2xs text-on-surface-variant shrink-0">{formatNumber(member.messageCount)} msg</span>
-                    </div>
-                  </div>
-                {/each}
-              {:else}
-                <div class="flex items-center justify-center h-full text-xs text-on-surface-variant {membersCols > 1 ? 'col-span-2' : ''}">{m.home_no_data()}</div>
-              {/if}
-            </div>
-          </div>
+          <TopList
+            bare
+            title={m.anx_top_members_messages()}
+            description={m.home_last_7_days()}
+            kind="members"
+            limit={getListCount(5, 1, displayRowSpan(item))}
+            load={(limit) => fetchActivityRankings({ period: 7 }, 'messages', 'members', limit)}
+            reloadKey={`${authStore.selectedGuildId}|${analyticsRefreshKey}`}
+            compare
+            color={SERIES[0]}
+            exportName="top_membres_messages"
+          />
         {:else if item.id === 'notifications'}
           {@const notifCount = getListCount(5, displayColSpan(item), displayRowSpan(item))}
           {@const notifCols = displayColSpan(item) >= 2 ? 2 : 1}
