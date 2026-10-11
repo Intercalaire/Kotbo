@@ -13909,6 +13909,8 @@
   "ste_block_search_desc": "A search box for the whole site.",
   "ste_block_members": "Members",
   "ste_block_members_desc": "Online and total members, live.",
+  "ste_block_pulse": "Server pulse",
+  "ste_block_pulse_desc": "What’s happening right now: online, voice, busy channels, today’s rhythm.",
   "ste_block_join": "Join the server",
   "ste_block_join_desc": "A Discord invite button.",
   "ste_block_voice": "Voice channels",

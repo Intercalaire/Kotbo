@@ -13909,6 +13909,8 @@
   "ste_block_search_desc": "Un champ de recherche dans tout le site.",
   "ste_block_members": "Membres",
   "ste_block_members_desc": "Membres en ligne et total, en direct.",
+  "ste_block_pulse": "Le pouls du serveur",
+  "ste_block_pulse_desc": "Ce qui se passe en ce moment : en ligne, vocal, salons actifs, rythme du jour.",
   "ste_block_join": "Rejoindre le serveur",
   "ste_block_join_desc": "Un bouton d'invitation Discord.",
   "ste_block_voice": "Salons vocaux",
