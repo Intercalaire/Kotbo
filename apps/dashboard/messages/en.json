@@ -14681,5 +14681,14 @@
   "sx_fact_grade_since": "Current grade since",
   "sx_show_all_warnings": "Show all warnings",
   "sx_see_directory": "See the staff directory",
-  "sx_move_role_hint": "Move « {name} » (drag, or up and down arrows)"
+  "sx_move_role_hint": "Move « {name} » (drag, or up and down arrows)",
+  "mcx_trend_desc": "Last 30 days, compared with the 30 days before (dotted).",
+  "mcx_arrival": "Arrival on the server",
+  "mcx_clear_filters": "Clear filters",
+  "mcx_open_in_discord": "Open in Discord",
+  "mcx_previous": "Previous page",
+  "mcx_next": "Next page",
+  "mcx_report": "Report",
+  "mcx_see_recruitment": "See recruitment",
+  "mcx_open_sanctions": "Open sanctions"
 }
