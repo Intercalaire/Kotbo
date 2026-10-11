@@ -11,6 +11,7 @@
     showCloseButton = true,
     closeOnBackdropClick = true,
     closeOnEscape = true,
+    aboveCase = false,
     children,
     footer
   } = $props<{
@@ -22,6 +23,8 @@
     showCloseButton?: boolean;
     closeOnBackdropClick?: boolean;
     closeOnEscape?: boolean;
+    /** Ouverte depuis le dossier membre : passe au-dessus de lui au lieu de dessous. */
+    aboveCase?: boolean;
     children?: any;
     /** Barre d'actions fixe sous le contenu défilant (ex : Annuler / Enregistrer). */
     footer?: any;
@@ -67,7 +70,7 @@
 {#if open}
   <div
     use:portal
-    class="app-modal fixed inset-0 flex items-center justify-center {isScreen ? 'p-0 sm:p-4' : 'p-4'}"
+    class="app-modal {aboveCase ? 'app-modal--above-case' : ''} fixed inset-0 flex items-center justify-center {isScreen ? 'p-0 sm:p-4' : 'p-4'}"
     role="dialog"
     aria-modal="true"
     aria-labelledby="modal-title"

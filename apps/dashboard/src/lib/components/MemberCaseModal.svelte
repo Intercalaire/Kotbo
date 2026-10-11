@@ -25,7 +25,7 @@
   import { renderLogHtml } from '../logDetails';
 
   import { errorMessage } from '@kotbo/shared';
-  type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics' | 'contenu' | 'candidatures' | 'linked_accounts' | 'notes';
+  type MemberCaseTab = 'extra' | 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics' | 'contenu' | 'candidatures' | 'linked_accounts' | 'notes';
 
   type MemberAnalyticsResponse = {
     totalMessages: number;
@@ -51,6 +51,7 @@
     onSelectUser = (_userId: string) => {},
     initialTab = 'resume' as MemberCaseTab,
     showProfileLink = true,
+    extraTab = null,
   } = $props<{
     open?: boolean;
     userName?: string;
@@ -70,6 +71,12 @@
     initialTab?: MemberCaseTab;
     /** Lien vers la fiche complète, masqué quand le dossier s'ouvre depuis elle. */
     showProfileLink?: boolean;
+    /**
+     * Onglet propre a la page qui ouvre le dossier, place en tete : la gestion
+     * du staff y montre grade, discipline et parcours. `initialTab: 'extra'`
+     * l'ouvre directement.
+     */
+    extraTab?: { label: string; icon: string; content: import('svelte').Snippet } | null;
   }>();
 
   let activeTab = $state<MemberCaseTab>('resume');
@@ -629,6 +636,7 @@
   );
 
   const tabs: { id: MemberCaseTab; label: string; icon: string; count?: () => number }[] = $derived([
+    ...(extraTab ? [{ id: 'extra' as const, label: extraTab.label, icon: extraTab.icon }] : []),
     { id: 'resume', label: m.mcm_tab_summary(), icon: 'layout' },
     { id: 'identite', label: m.mcm_tab_identity(), icon: 'user' },
     { id: 'activite', label: m.mcm_tab_activity(), icon: 'trending-up' },
@@ -1050,7 +1058,9 @@
               </div>
             {/if}
 
-            {#if activeTab === 'resume'}
+            {#if activeTab === 'extra' && extraTab}
+              {@render extraTab.content()}
+            {:else if activeTab === 'resume'}
               <!-- ── Bento Layout ────────────────── -->
               <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 
