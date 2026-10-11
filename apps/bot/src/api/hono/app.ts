@@ -14,6 +14,7 @@ import { createPublicFunnelRouter } from './routes/public/funnel.js';
 import { createPublicWidgetDataRouter } from './routes/public/widgetData.js';
 import { createVerificationRouter } from './routes/verification.js';
 import { createChangelogRouter } from './routes/public/changelog.js';
+import { createPublicFeaturePagesRouter } from './routes/public/featurePages.js';
 import { createOgRouter } from './routes/public/og.js';
 import { createBillingRouter } from './routes/billing.js';
 import { logger } from '../../utils/logger.js';
@@ -56,6 +57,7 @@ export function createHonoApp(client: Client): OpenAPIHono {
   app.route('/', createPublicWidgetDataRouter(client));
   app.route('/', createVerificationRouter(client));
   app.route('/', createChangelogRouter());
+  app.route('/', createPublicFeaturePagesRouter());
   app.route('/', createOgRouter(client));
   app.route('/', createBillingRouter(client));
 
