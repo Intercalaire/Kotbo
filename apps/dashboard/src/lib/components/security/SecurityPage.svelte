@@ -107,7 +107,9 @@
     </nav>
   {/if}
 
-  <main class="flex-1">
+  <!-- Les cartes d'un onglet sont rendues a plat : sans cet espacement,
+       deux SectionCard consecutives se touchaient. -->
+  <main class="flex flex-1 flex-col gap-6">
     {@render children(activeTab)}
   </main>
 </div>
