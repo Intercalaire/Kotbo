@@ -12,7 +12,7 @@
   import { feedbackModal } from '../stores/feedbackModal.svelte';
   import { getPageStatus } from '../config/pages';
   import { m } from '../i18n';
-  import { isCoreModule } from '@kotbo/contracts';
+  import { getModuleDefinition, isCoreModule } from '@kotbo/contracts';
 
   // `icon` reste accepte : les 59 pages qui le passent n'ont pas a changer,
   // mais l'en-tete ne l'affiche plus. Le menu montre deja l'icone de la page.
@@ -52,6 +52,9 @@
   const requiredPlanLabel = $derived(
     module?.requiredPlan ? PLAN_LABELS[module.requiredPlan] ?? module.requiredPlan : 'payante',
   );
+
+  /** Ce que le module apporte, pour vendre le resultat et non la fonction. */
+  const moduleBenefit = $derived(featureKey ? getModuleDefinition(featureKey)?.description ?? '' : '');
 
   const isBeta = $derived(getPageStatus($router.path, $router.url)?.beta ?? false);
 
@@ -145,10 +148,12 @@
        d'abord cet encadre, le reglage restant inerte tant qu'il est la. -->
   {#if module && !isFixed && lockedByPlan}
     <div data-guide-blocker="plan">
+      <!-- Une vitrine, pas un mur : on dit ce que le module apporte, et la page
+           reste visible en dessous pour qu'on voie ce qu'on debloque. -->
       <Callout variant="info" icon="Lock" title="« {title} » fait partie de l'offre {requiredPlanLabel}">
-        Tu peux en voir la page, mais pas l'activer tant que l'offre du serveur ne le comprend pas.
+        {#if moduleBenefit}{moduleBenefit} {/if}Parcours la page ci-dessous pour voir ce que tu débloques : elle s'active dès que l'offre du serveur la comprend.
         {#snippet actions()}
-          <Button href="/billing" variant="secondary" size="sm" iconRight="ArrowRight">Voir les offres</Button>
+          <Button href="/billing" variant="primary" size="sm" iconRight="ArrowRight">Débloquer avec l'offre {requiredPlanLabel}</Button>
         {/snippet}
       </Callout>
     </div>
