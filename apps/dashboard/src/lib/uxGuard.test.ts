@@ -19,7 +19,7 @@ const SRC = join(import.meta.dir, '..');
 const MESSAGES = join(import.meta.dir, '..', '..', 'messages', 'fr.json');
 
 const CEILINGS = {
-  emptyStateWithoutAction: 58,
+  emptyStateWithoutAction: 51,
   sendsToAnotherButton: 0,
 } as const;
 
@@ -59,6 +59,10 @@ describe('garde-fou des parcours', () => {
     const offenders = Object.entries(messages)
       .filter(([key, value]) => /[Cc]lique sur «/.test(value) && !EXTERNAL_BUTTON_TEXTS.has(key))
       .map(([key]) => key);
+    // Les textes ecrits en dur dans les composants comptent aussi.
+    for (const { file, text } of sources) {
+      if (/[Cc]lique sur «/.test(text)) offenders.push(file.slice(SRC.length + 1));
+    }
     if (offenders.length > CEILINGS.sendsToAnotherButton) {
       throw new Error(`Ces textes envoient chercher un bouton ailleurs ; mets le bouton dans le message :\n  ${offenders.join('\n  ')}`);
     }
