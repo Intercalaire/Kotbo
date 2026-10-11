@@ -749,6 +749,30 @@ import EmojiText from '../lib/components/EmojiText.svelte';
     return QUEST_OBJECTIVE_LABELS[objective]?.() ?? objective;
   }
 
+  /**
+   * Seize objectifs a plat, on les relit un par un a chaque ouverture du menu :
+   * au-dela d'une poignee, la memoire ne retient plus leur place. Regroupes par
+   * famille, on va droit a la bonne.
+   */
+  const QUEST_OBJECTIVE_GROUPS: Array<{ label: () => string; objectives: string[] }> = [
+    { label: m.eco_quest_group_combat, objectives: ['MONSTER_KILLS', 'BOSS_KILLS', 'ADVENTURES_COMPLETED'] },
+    { label: m.eco_quest_group_raid, objectives: ['RAID_ASSAULTS', 'RAID_DAMAGE'] },
+    { label: m.eco_quest_group_tower, objectives: ['TOWER_FLOORS', 'TOWER_MONSTER_KILLS', 'TOWER_BOSS_KILLS'] },
+    { label: m.eco_quest_group_gathering, objectives: ['ITEMS_LOOTED', 'FISH_CAUGHT', 'ITEMS_CRAFTED', 'UPGRADES_SUCCEEDED'] },
+    { label: m.eco_quest_group_economy, objectives: ['SHOP_PURCHASES', 'BLACK_MARKET_PURCHASES', 'COINS_SPENT', 'DAILY_CLAIMS'] },
+  ];
+
+  /** Les groupes, restreints a ce que l'API propose ; un objectif inconnu tombe dans « Autres ». */
+  const questObjectiveGroups = $derived.by(() => {
+    const known = new Set(QUEST_OBJECTIVE_GROUPS.flatMap((group) => group.objectives));
+    const groups = QUEST_OBJECTIVE_GROUPS
+      .map((group) => ({ label: group.label(), objectives: group.objectives.filter((o) => questObjectives.includes(o)) }))
+      .filter((group) => group.objectives.length > 0);
+    const others = questObjectives.filter((o) => !known.has(o));
+    if (others.length > 0) groups.push({ label: m.eco_quest_group_other(), objectives: others });
+    return groups;
+  });
+
   function blankQuest() {
     return {
       name: '',
@@ -4224,8 +4248,12 @@ import EmojiText from '../lib/components/EmojiText.svelte';
           <div class="space-y-1">
             <label for="questObjective" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.eco_quest_objective()}</label>
             <select id="questObjective" bind:value={editingQuest.objective} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none">
-              {#each questObjectives as objective (objective)}
-                <option value={objective}>{questObjectiveLabel(objective)}</option>
+              {#each questObjectiveGroups as group (group.label)}
+                <optgroup label={group.label}>
+                  {#each group.objectives as objective (objective)}
+                    <option value={objective}>{questObjectiveLabel(objective)}</option>
+                  {/each}
+                </optgroup>
               {/each}
             </select>
           </div>
