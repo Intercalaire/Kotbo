@@ -303,6 +303,7 @@
   <div class="section-card p-5 flex flex-col gap-3 {setupMissing ? 'lg:col-span-2' : 'lg:col-span-3'}">
     <div class="flex items-center justify-between gap-3">
       <h2 id="home-todo-title" class="text-base font-semibold text-on-surface flex items-center gap-2">
+        <Papicon icon="tasks" size={18} class="text-on-surface-variant" />
         {m.home_todo_title()}
         {#if tasks.length > 0}
           <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">{tasks.length}</span>
@@ -399,7 +400,10 @@
          tiennent chacune sur une ligne, consigne comprise. -->
     <div class="section-card p-5 flex flex-col gap-3">
       <div class="flex items-center justify-between gap-3">
-        <h2 class="text-base font-semibold text-on-surface">{m.home_setup_title()}</h2>
+        <h2 class="text-base font-semibold text-on-surface flex items-center gap-2">
+          <Papicon icon="gears" size={18} class="text-on-surface-variant" />
+          {m.home_setup_title()}
+        </h2>
         <div class="flex items-center gap-1">
           <span class="text-xs text-on-surface-variant">{m.home_setup_progress({ done: setup.done, total: setup.total })}</span>
           {#if prefsReady}
