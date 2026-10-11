@@ -68,6 +68,7 @@ import { collectUserData } from '../../services/system/gdprExportService.js';
 import { buildGdprZip } from '../../services/system/gdprZip.js';
 import { handleAdminAnalyticsRoutes } from './admin/analytics.js';
 import { handleAdminAchievementRoutes } from './admin/achievements.js';
+import { handleAdminFeaturePageRoutes } from './admin/featurePages.js';
 
 import { jsonFailure } from '../shared/failure.js';
 /**
@@ -128,6 +129,10 @@ export async function handleAdminRoutes(
 
   if (parts[2] === 'achievements') {
     return handleAdminAchievementRoutes(req, res, parts, client, user);
+  }
+
+  if (parts[2] === 'feature-pages') {
+    return handleAdminFeaturePageRoutes(req, res, parts, user);
   }
 
   // GET /api/admin/health/series - Historique de sante pour les courbes

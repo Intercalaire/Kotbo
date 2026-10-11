@@ -1,0 +1,31 @@
+// ============================================================================
+// PAGES FONCTIONNALITES DU SITE VITRINE (kotbo.fr)
+// ============================================================================
+
+// Une page par fonctionnalite, sur le modele des pages par plugin de MEE6 :
+// `/fonctionnalites/<slugFr>` et `/en/features/<slugEn>` sur kotbo.fr.
+// Redigees depuis la console admin du dashboard, lues par le site vitrine au
+// moment de son build (`GET /api/public/feature-pages`) : le site reste
+// statique, et chaque page sort prerendue, donc indexable.
+model FeaturePage {
+  id        String   @id @default(cuid())
+  // Cle stable : celle du module (`MODULE_REGISTRY`) quand la page en decrit
+  // un, sinon une cle libre. Sert a ne pas recreer une page a l'import.
+  key       String   @unique
+  slugFr    String   @unique
+  slugEn    String   @unique
+  // Noms des modules du catalogue de kotbo.fr (FR et EN) qui menent a la page.
+  modules   String[] @default([])
+  // `{ fr: FeaturePageText, en: FeaturePageText }`, forme validee par
+  // `featurePageService.ts`. Un brouillon peut etre incomplet, une page
+  // publiee non.
+  content   Json
+  published Boolean  @default(false)
+  position  Int      @default(0)
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([published, position])
+  @@map("feature_pages")
+}

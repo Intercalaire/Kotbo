@@ -58,6 +58,7 @@
       items: [
         { path: '/admin/broadcast', label: m.d4_nav_broadcast(), icon: 'Megaphone' },
         { path: '/admin/achievements', label: 'Succès attribués', icon: 'Award' },
+        { path: '/admin/feature-pages', label: 'Pages du site', icon: 'Globe' },
       ],
     },
     {

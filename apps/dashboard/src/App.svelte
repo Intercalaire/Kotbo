@@ -836,6 +836,10 @@
                 load={() => import("./pages/admin/Achievements.svelte")}
               />
               <LazyRoute
+                path="/admin/feature-pages"
+                load={() => import("./pages/admin/FeaturePages.svelte")}
+              />
+              <LazyRoute
                 path="/admin/gdpr"
                 load={() => import("./pages/admin/Gdpr.svelte")}
               />
