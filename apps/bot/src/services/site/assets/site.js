@@ -947,6 +947,24 @@
     return live.connected && SIGNALLED[section.getAttribute('data-module')] === true;
   }
 
+  // ─── Clics « Rejoindre » ───────────────────────────────────────────────
+  // Comptés pour le tunnel du site (visites → clics → arrivées). `sendBeacon`
+  // part même si l'onglet s'ouvre sur Discord ; corps en text/plain pour ne
+  // pas déclencher de pré-vérification CORS.
+
+  document.addEventListener('click', function (event) {
+    var link = event.target.closest('[data-join], a.btn-discord[href*="discord.gg/"]');
+    if (!link || !SITE) return;
+    var payload = JSON.stringify({ source: link.getAttribute('data-join') || 'other' });
+    var url = SITE_API + '/join';
+    try {
+      if (navigator.sendBeacon && navigator.sendBeacon(url, new Blob([payload], { type: 'text/plain' }))) return;
+    } catch (e) {
+      // repli ci-dessous
+    }
+    fetch(url, { method: 'POST', body: payload, keepalive: true, credentials: 'omit', headers: { 'Content-Type': 'text/plain' } }).catch(function () {});
+  });
+
   // ─── Pouls ─────────────────────────────────────────────────────────────
   // Relu toutes les quinze secondes tant que l'onglet est visible ; un chiffre
   // qui change défile jusqu'à sa nouvelle valeur.

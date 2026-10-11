@@ -12,6 +12,7 @@
  */
 
 import crypto from 'node:crypto';
+import { SITE_INVITE_SOURCE_LABEL } from '@kotbo/shared';
 import prisma from '../../utils/db.js';
 import { cache } from '../../utils/cache.js';
 import { logger } from '../../utils/logger.js';
@@ -101,6 +102,27 @@ export async function recordSiteHit(hit: SiteHit): Promise<void> {
   if (viewBuffer.size + visitorBuffer.size >= MAX_BUFFERED_KEYS) void flushSiteAnalytics();
 }
 
+// ─── Clics « Rejoindre » ────────────────────────────────────────────────────
+
+/** Emplacement du bouton cliqué : bannière d'accueil, sujet du forum, bloc, pied de page. */
+export const SITE_JOIN_SOURCES = ['hero', 'forum', 'block', 'footer', 'other'] as const;
+export type SiteJoinSource = (typeof SITE_JOIN_SOURCES)[number];
+
+export function isSiteJoinSource(value: unknown): value is SiteJoinSource {
+  return typeof value === 'string' && (SITE_JOIN_SOURCES as readonly string[]).includes(value);
+}
+
+/** Clic sur un bouton « Rejoindre le Discord » : compté par emplacement, et en visiteur unique du jour. */
+export async function recordSiteJoinClick(click: { siteId: string; guildId: string; source: SiteJoinSource; ip: string; userAgent: string | null }): Promise<void> {
+  if (isBotUserAgent(click.userAgent)) return;
+  ensureSiteAnalyticsFlusher();
+  const dateKey = dateKeyOf(new Date());
+  bump([click.siteId, click.guildId, dateKey, 'join', click.source].join(SEP));
+  const salt = await dailySalt(dateKey);
+  const visitor = crypto.createHash('sha256').update(`${salt}:${click.siteId}:${click.ip}:${click.userAgent ?? ''}`).digest('hex').slice(0, 32);
+  visitorBuffer.add([click.siteId, dateKey, 'join', visitor].join(SEP));
+}
+
 const VIEW_TARGET: BulkTarget = {
   label: 'SiteDailyStats',
   table: 'site_daily_stats',
@@ -170,15 +192,66 @@ export async function pruneSiteAnalytics(now: Date = new Date()): Promise<void> 
 
 // ─── Lecture (dashboard) ────────────────────────────────────────────────────
 
+/**
+ * Ce que le site rapporte au serveur : visiteurs, puis visiteurs qui cliquent
+ * sur « Rejoindre », puis arrivées par l'invitation du site, puis arrivées
+ * encore là sept jours après.
+ */
+export interface SiteFunnel {
+  visitors: number;
+  clickers: number;
+  clicks: number;
+  arrivals: number;
+  /** Arrivées d'au moins sept jours : la base du taux de rétention. */
+  eligible: number;
+  retained: number;
+  /** Faux quand rien ne distingue les arrivées venues du site (pas d'invitation suivie). */
+  attributable: boolean;
+  sources: Array<{ source: string; clicks: number }>;
+}
+
+/** Arrivées assez anciennes pour juger, et celles encore là au bout de `days` jours. */
+export function retentionOf(rows: Array<{ joinedAt: Date; leftAt: Date | null }>, now: Date, days = 7): { eligible: number; retained: number } {
+  const window = days * DAY_MS;
+  let eligible = 0;
+  let retained = 0;
+  for (const row of rows) {
+    if (now.getTime() - row.joinedAt.getTime() < window) continue;
+    eligible += 1;
+    if (!row.leftAt || row.leftAt.getTime() - row.joinedAt.getTime() >= window) retained += 1;
+  }
+  return { eligible, retained };
+}
+
 export interface SiteAnalyticsReport {
   from: string;
   to: string;
+  funnel: SiteFunnel;
   totals: { views: number; visitors: number };
   previous: { views: number; visitors: number };
   daily: Array<{ date: string; views: number; visitors: number }>;
   pages: Array<{ path: string; views: number; visitors: number }>;
   referrers: Array<{ host: string; views: number }>;
   devices: Array<{ device: string; views: number }>;
+}
+
+/**
+ * Arrivées par l'invitation du site depuis `from` (invitations étiquetées
+ * « Site web » par le bouton Rejoindre), et leur rétention à sept jours.
+ */
+async function siteArrivals(siteId: string, from: string): Promise<Pick<SiteFunnel, 'arrivals' | 'eligible' | 'retained' | 'attributable'>> {
+  const site = await prisma.communitySite.findUnique({ where: { id: siteId }, select: { guildId: true, settings: true } });
+  if (!site) return { arrivals: 0, eligible: 0, retained: 0, attributable: false };
+  const settings = (site.settings ?? {}) as Record<string, unknown>;
+  const labelled = await prisma.guildInvite.findMany({ where: { guildId: site.guildId, sourceLabel: SITE_INVITE_SOURCE_LABEL }, select: { code: true } });
+  const codes = [...new Set([...labelled.map((i) => i.code), ...(typeof settings.joinInviteCode === 'string' ? [settings.joinInviteCode] : [])])];
+  if (codes.length === 0) return { arrivals: 0, eligible: 0, retained: 0, attributable: false };
+  const rows = await prisma.memberInvite.findMany({
+    where: { guildId: site.guildId, inviteCode: { in: codes }, joinedAt: { gte: new Date(`${from}T00:00:00Z`) } },
+    select: { joinedAt: true, leftAt: true },
+    take: 50_000,
+  });
+  return { arrivals: rows.length, ...retentionOf(rows, new Date()), attributable: true };
 }
 
 function dayRange(from: string, to: string): string[] {
@@ -195,19 +268,23 @@ export async function getSiteAnalytics(siteId: string, days: number): Promise<Si
   const prevTo = dateKeyOf(new Date(Date.parse(from) - DAY_MS));
   const prevFrom = dateKeyOf(new Date(Date.parse(from) - span * DAY_MS));
 
-  const [stats, visitorsByDay, pageVisitors, prevViews, prevVisitors] = await Promise.all([
+  const [stats, visitorsByDay, pageVisitors, prevViews, prevVisitors, clickers, funnelBase] = await Promise.all([
     prisma.siteDailyStat.findMany({ where: { siteId, dateKey: { gte: from, lte: to } }, select: { dateKey: true, dimension: true, key: true, views: true } }),
     prisma.siteVisitor.groupBy({ by: ['dateKey'], where: { siteId, scope: 'all', dateKey: { gte: from, lte: to } }, _count: { _all: true } }),
     prisma.siteVisitor.groupBy({ by: ['scope'], where: { siteId, scope: { startsWith: 'path:' }, dateKey: { gte: from, lte: to } }, _count: { _all: true } }),
     prisma.siteDailyStat.aggregate({ where: { siteId, dimension: 'all', dateKey: { gte: prevFrom, lte: prevTo } }, _sum: { views: true } }),
     prisma.siteVisitor.count({ where: { siteId, scope: 'all', dateKey: { gte: prevFrom, lte: prevTo } } }),
+    prisma.siteVisitor.count({ where: { siteId, scope: 'join', dateKey: { gte: from, lte: to } } }),
+    siteArrivals(siteId, from),
   ]);
 
   const viewsByDay = new Map<string, number>();
   const pages = new Map<string, number>();
   const referrers = new Map<string, number>();
   const devices = new Map<string, number>();
+  const joins = new Map<string, number>();
   for (const s of stats) {
+    if (s.dimension === 'join') joins.set(s.key, (joins.get(s.key) ?? 0) + s.views);
     if (s.dimension === 'all') viewsByDay.set(s.dateKey, (viewsByDay.get(s.dateKey) ?? 0) + s.views);
     else if (s.dimension === 'path') pages.set(s.key, (pages.get(s.key) ?? 0) + s.views);
     else if (s.dimension === 'referrer') referrers.set(s.key, (referrers.get(s.key) ?? 0) + s.views);
@@ -217,9 +294,19 @@ export async function getSiteAnalytics(siteId: string, days: number): Promise<Si
   const visitorsPage = new Map(pageVisitors.map((v) => [v.scope.slice(5), v._count._all]));
   const daily = dayRange(from, to).map((date) => ({ date, views: viewsByDay.get(date) ?? 0, visitors: visitorsDay.get(date) ?? 0 }));
 
+  const totalVisitors = daily.reduce((s, d) => s + d.visitors, 0);
+  const funnel: SiteFunnel = {
+    visitors: totalVisitors,
+    clickers,
+    clicks: [...joins.values()].reduce((a, b) => a + b, 0),
+    ...funnelBase,
+    sources: [...joins.entries()].map(([source, clicks]) => ({ source, clicks })).sort((a, b) => b.clicks - a.clicks),
+  };
+
   return {
     from,
     to,
+    funnel,
     totals: { views: daily.reduce((s, d) => s + d.views, 0), visitors: daily.reduce((s, d) => s + d.visitors, 0) },
     previous: { views: prevViews._sum.views ?? 0, visitors: prevVisitors },
     daily,

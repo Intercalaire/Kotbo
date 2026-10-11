@@ -8,7 +8,7 @@
 
 import { ChannelType, PermissionFlagsBits, type Guild, type GuildBasedChannel, type TextChannel } from 'discord.js';
 import prisma from '../../../utils/db.js';
-import { siteIconSvg } from '@kotbo/shared';
+import { SITE_INVITE_SOURCE_LABEL, siteIconSvg } from '@kotbo/shared';
 import { cache } from '../../../utils/cache.js';
 import { logger } from '../../../utils/logger.js';
 import * as m from '../../../lib/paraglide/messages.js';
@@ -39,8 +39,6 @@ async function renderMembers(ctx: BlockContext): Promise<string> {
 
 // ─── Rejoindre ──────────────────────────────────────────────────────────────
 
-const SITE_INVITE_LABEL = 'Site web';
-
 /** Salon où créer l'invitation : celui des règles, l'accueil, ou le premier salon public. */
 function pickInviteChannel(guild: Guild): TextChannel | null {
   const me = guild.members.me;
@@ -62,14 +60,14 @@ function pickInviteChannel(guild: Guild): TextChannel | null {
 }
 
 /**
- * Lien d'invitation du site : l'URL personnalisée du serveur s'il en a une,
- * sinon une invitation permanente créée une fois et étiquetée « Site web »
- * dans le module Invitations, pour mesurer ce que le site amène.
+ * Lien d'invitation du site : une invitation permanente créée une fois et
+ * étiquetée « Site web » dans le module Invitations, pour mesurer ce que le
+ * site amène. Elle passe avant l'URL personnalisée du serveur, qui ne dit pas
+ * d'où vient un arrivant ; celle-ci ne sert que si l'invitation est impossible.
  */
 export async function getSiteInviteUrl(ctx: BlockContext): Promise<string | null> {
   const guild = ctx.guild;
   if (!guild) return null;
-  if (guild.vanityURLCode) return `https://discord.gg/${guild.vanityURLCode}`;
 
   const code = await cache.wrap(`guild:${guild.id}:site-invite`, 3600, async () => {
     const settings = (ctx.site.settings ?? {}) as Record<string, unknown>;
@@ -91,20 +89,21 @@ export async function getSiteInviteUrl(ctx: BlockContext): Promise<string | null
       prisma.communitySite.update({ where: { id: ctx.site.id }, data: { settings: { ...settings, joinInviteCode: invite.code } } }),
       prisma.guildInvite.upsert({
         where: { code: invite.code },
-        create: { guildId: guild.id, code: invite.code, inviterId: guild.client.user.id, sourceLabel: SITE_INVITE_LABEL },
-        update: { sourceLabel: SITE_INVITE_LABEL, isDeleted: false },
+        create: { guildId: guild.id, code: invite.code, inviterId: guild.client.user.id, sourceLabel: SITE_INVITE_SOURCE_LABEL },
+        update: { sourceLabel: SITE_INVITE_SOURCE_LABEL, isDeleted: false },
       }),
     ]);
     return invite.code;
   });
-  return code ? `https://discord.gg/${code}` : null;
+  if (code) return `https://discord.gg/${code}`;
+  return guild.vanityURLCode ? `https://discord.gg/${guild.vanityURLCode}` : null;
 }
 
 async function renderJoin(ctx: BlockContext, config: Record<string, unknown>): Promise<string> {
   const url = await getSiteInviteUrl(ctx);
   if (!url) return '';
   const label = (typeof config.label === 'string' && config.label) || m.site_join_server({}, { locale: ctx.locale });
-  return `<p class="btn-row ta-center"><a class="btn btn-primary btn-lg btn-discord"${attrs({ href: url, rel: 'noopener', target: '_blank' })}>${esc(label)}</a></p>`;
+  return `<p class="btn-row ta-center"><a class="btn btn-primary btn-lg btn-discord"${attrs({ href: url, rel: 'noopener', target: '_blank', 'data-join': 'block' })}>${esc(label)}</a></p>`;
 }
 
 // ─── Vocaux ─────────────────────────────────────────────────────────────────

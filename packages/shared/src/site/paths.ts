@@ -19,6 +19,9 @@ export const SITE_RESERVED_PAGE_SLUGS = new Set([
   'u', 'votes', 'form', 'preview', 'shop', 'boutique', 'forum',
 ]);
 
+/** Étiquette des invitations créées par le bouton « Rejoindre » du site, dans le module Invitations. */
+export const SITE_INVITE_SOURCE_LABEL = 'Site web';
+
 /** Slugs de site refusés : ils prêteraient à confusion avec Kotbo lui-même. */
 export const SITE_RESERVED_SITE_SLUGS = new Set([
   'kotbo', 'admin', 'api', 'www', 'dashboard', 'support', 'help', 'aide', 'login',

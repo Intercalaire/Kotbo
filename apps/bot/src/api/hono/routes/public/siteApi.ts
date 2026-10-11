@@ -37,6 +37,7 @@ import { acceptForumAnswer, createForumTopic, deleteForumPost, ForumError, reply
 import { forumIndexPage, parseForumPage, renderForumPosts, renderForumTopics, topicPath } from '../../../../services/site/siteForumPages.js';
 import { getSitePulse, renderPulseInner } from '../../../../services/site/sitePulse.js';
 import { getModuleStates } from '../../../../services/core/moduleGate.js';
+import { isSiteJoinSource, recordSiteJoinClick } from '../../../../services/site/siteAnalyticsService.js';
 
 // ============================================================================
 // API DU SCRIPT DES SITES COMMUNAUTAIRES
@@ -225,6 +226,18 @@ export function createSiteApiRouter(client: Client): OpenAPIHono {
     const ctx = await buildSiteCtx({ client, query: new URLSearchParams(c.req.query()), acceptLanguage: c.req.header('accept-language') ?? null }, site, viewer, true);
     c.header('Cache-Control', 'private, no-store');
     return c.json({ html: await renderBlock(ctx.block, node.key, node.config, { pageId, index }) });
+  });
+
+  // ── Clic sur « Rejoindre le Discord » ─────────────────────────────────────
+  // Envoyé par `sendBeacon` (corps en text/plain) : compté sans cookie, comme les vues.
+  app.post('/api/site/:siteId/join', async (c) => {
+    const site = await liveSite(c);
+    if (!site) return c.body(null, 204);
+    const ip = clientIp(c);
+    if (rateLimited(`join:${ip}`, 20, 60_000)) return c.body(null, 204);
+    const body = await readBody(c);
+    await recordSiteJoinClick({ siteId: site.id, guildId: site.guildId, source: isSiteJoinSource(body.source) ? body.source : 'other', ip, userAgent: c.req.header('user-agent') ?? null }).catch(() => null);
+    return c.body(null, 204);
   });
 
   // ── Pouls ─────────────────────────────────────────────────────────────────

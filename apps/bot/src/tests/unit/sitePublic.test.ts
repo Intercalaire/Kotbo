@@ -6,7 +6,7 @@ import { describe, expect, test } from 'bun:test';
 import { pickLocale, robotsTxt, siteCsp } from '../../services/site/sitePages.js';
 import { buildSnippet, searchTerms } from '../../services/site/siteSearch.js';
 import { createPreviewToken, verifyPreviewToken } from '../../services/site/sitePreview.js';
-import { deviceOf, isBotUserAgent, referrerHost } from '../../services/site/siteAnalyticsService.js';
+import { deviceOf, isBotUserAgent, isSiteJoinSource, referrerHost, retentionOf } from '../../services/site/siteAnalyticsService.js';
 import { renderSiteShell, renderThemeCss, safeBannerUrl, safeJson } from '../../services/site/siteLayout.js';
 import type { SiteRecord } from '../../services/site/siteService.js';
 
@@ -156,5 +156,29 @@ describe('gabarit', () => {
     expect(safeBannerUrl('http://exemple.fr/a.png')).toBeNull();
     expect(safeBannerUrl('https://a.fr/x.png")}body{display:none')).toBeNull();
     expect(safeBannerUrl("https://a.fr/x'.png")).toBeNull();
+  });
+});
+
+describe('tunnel du site', () => {
+  const now = new Date('2026-10-20T12:00:00Z');
+  const day = 86_400_000;
+  const at = (daysAgo: number) => new Date(now.getTime() - daysAgo * day);
+
+  test('rétention à 7 jours : arrivées trop récentes écartées, départs avant 7 jours perdus', () => {
+    const rows = [
+      { joinedAt: at(2), leftAt: null }, // trop récente
+      { joinedAt: at(10), leftAt: null }, // restée
+      { joinedAt: at(10), leftAt: at(8) }, // partie au bout de 2 jours
+      { joinedAt: at(20), leftAt: at(5) }, // partie au bout de 15 jours : comptée comme restée à 7 jours
+    ];
+    expect(retentionOf(rows, now)).toEqual({ eligible: 3, retained: 2 });
+    expect(retentionOf([], now)).toEqual({ eligible: 0, retained: 0 });
+  });
+
+  test('emplacements de bouton connus seulement', () => {
+    expect(isSiteJoinSource('hero')).toBe(true);
+    expect(isSiteJoinSource('forum')).toBe(true);
+    expect(isSiteJoinSource('<script>')).toBe(false);
+    expect(isSiteJoinSource(undefined)).toBe(false);
   });
 });

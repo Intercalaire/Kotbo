@@ -200,7 +200,7 @@ function footer(opts: ShellOptions, nav: ResolvedNavItem[]): string {
     .map((item) => `<li>${navLink(item, null)}</li>`)
     .join('');
   const community = [
-    opts.inviteUrl ? `<li><a${attrs({ href: opts.inviteUrl, rel: 'noopener', target: '_blank' })}>${esc(m.site_join_discord({}, o))}</a></li>` : '',
+    opts.inviteUrl ? `<li><a${attrs({ href: opts.inviteUrl, rel: 'noopener', target: '_blank', 'data-join': 'footer' })}>${esc(m.site_join_discord({}, o))}</a></li>` : '',
     `<li><a${attrs({ href: `${opts.basePath}/search` })}>${esc(m.site_search({}, o))}</a></li>`,
     opts.hasBlog ? `<li><a${attrs({ href: `${opts.basePath}/rss.xml` })}>${esc(m.site_rss_feed({}, o))}</a></li>` : '',
   ].join('');
