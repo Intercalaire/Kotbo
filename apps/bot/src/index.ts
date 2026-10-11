@@ -153,6 +153,8 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
     GatewayIntentBits.GuildInvites,
+    // Exécutions des règles AutoMod natives, pour republier les messages censurés.
+    GatewayIntentBits.AutoModerationExecution,
   ],
   partials: [Partials.Message, Partials.Reaction],
 });
