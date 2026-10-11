@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
   import { Button, Callout, Modal, SectionCard, ToggleSwitch } from '../ui';
+  import { removeWithUndo } from '../../undoRemoval';
   import FormSelect from '../FormSelect.svelte';
   import SearchableSelect from '../SearchableSelect.svelte';
   import AnalyticsSkeleton from './AnalyticsSkeleton.svelte';
@@ -23,7 +24,6 @@
     type AlertWindow,
   } from '../../api';
   import { authStore } from '../../stores/auth.svelte';
-  import { confirmDialog } from '../../stores/confirmDialog.svelte';
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import { toast } from '../../stores/toast.svelte';
   import { m, dateLocale } from '../../i18n';
@@ -145,13 +145,13 @@
   }
 
   async function remove(rule: AlertRule) {
-    if (!(await confirmDialog.danger(m.anx_alert_confirm_delete({ name: rule.name }), '', m.anx_alert_delete()))) return;
-    try {
-      await deleteAlertRule(rule.id);
-      rules = rules.filter((r) => r.id !== rule.id);
-    } catch (e) {
-      toast.error(errorMessage(e) || m.an_error_generic());
-    }
+    await removeWithUndo({
+      get: () => rules,
+      set: (next) => (rules = next),
+      match: (r) => r.id === rule.id,
+      message: m.anx_alert_deleted(),
+      commit: () => deleteAlertRule(rule.id),
+    });
   }
 
   const ruleName = (id: string) => rules.find((r) => r.id === id)?.name ?? m.anx_alert_deleted();

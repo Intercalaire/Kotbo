@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
   import { Button, Callout, Modal, SectionCard, ToggleSwitch } from '../ui';
+  import { removeWithUndo } from '../../undoRemoval';
   import FormSelect from '../FormSelect.svelte';
   import AnalyticsSkeleton from './AnalyticsSkeleton.svelte';
   import RecipientsField, { loadRecipientOptions } from './RecipientsField.svelte';
@@ -20,7 +21,6 @@
     type ReportSection,
   } from '../../api';
   import { authStore } from '../../stores/auth.svelte';
-  import { confirmDialog } from '../../stores/confirmDialog.svelte';
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import { toast } from '../../stores/toast.svelte';
   import { m, dateLocale } from '../../i18n';
@@ -131,13 +131,13 @@
   }
 
   async function remove(s: ReportSchedule) {
-    if (!(await confirmDialog.danger(m.anx_rep_confirm_delete(), '', m.anx_alert_delete()))) return;
-    try {
-      await deleteReportSchedule(s.id);
-      schedules = schedules.filter((x) => x.id !== s.id);
-    } catch (e) {
-      toast.error(errorMessage(e) || m.an_error_generic());
-    }
+    await removeWithUndo({
+      get: () => schedules,
+      set: (next) => (schedules = next),
+      match: (x) => x.id === s.id,
+      message: m.anx_rep_deleted(),
+      commit: () => deleteReportSchedule(s.id),
+    });
   }
 </script>
 
