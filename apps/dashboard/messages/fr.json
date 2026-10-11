@@ -13741,6 +13741,8 @@
   "ste_delete_site_type": "Tape {slug} pour confirmer.",
   "ste_delete_site_title": "Supprimer le site ?",
   "ste_delete_site_confirm": "Toutes les pages, images et statistiques seront perdues.",
+  "ste_delete_site_impact_pages": "Pages supprimées : {n}, dont {published} publiées",
+  "ste_delete_site_impact_url": "L'adresse {url} ne répondra plus",
   "ste_site_deleted": "Site supprimé",
   "ste_space_title": "Rédaction",
   "ste_space_desc": "Les wikis et blogs où tu peux écrire grâce à tes rôles.",

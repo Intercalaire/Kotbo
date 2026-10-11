@@ -13741,6 +13741,8 @@
   "ste_delete_site_type": "Type {slug} to confirm.",
   "ste_delete_site_title": "Delete the site?",
   "ste_delete_site_confirm": "All pages, images and statistics will be lost.",
+  "ste_delete_site_impact_pages": "Pages deleted: {n}, {published} of them published",
+  "ste_delete_site_impact_url": "{url} will stop responding",
   "ste_site_deleted": "Site deleted",
   "ste_space_title": "Writing",
   "ste_space_desc": "The wikis and blogs your roles let you write in.",

@@ -74,7 +74,14 @@
 
   async function remove() {
     if (deleteConfirm !== site.slug) return;
-    const ok = await confirmDialog.ask({ title: m.ste_delete_site_title(), description: m.ste_delete_site_confirm(), confirmLabel: m.common_delete(), variant: 'danger' });
+    // Ce qui part avec le site, en clair : combien de pages, et quelle adresse
+    // cesse de repondre (celle que les membres ont peut-etre deja partagee).
+    const published = siteState.pages.filter((page) => page.publishedAt).length;
+    const impacts = [
+      m.ste_delete_site_impact_pages({ n: siteState.pages.length, published }),
+      ...(site.published ? [m.ste_delete_site_impact_url({ url: `${siteState.baseUrl}${site.slug}` })] : []),
+    ];
+    const ok = await confirmDialog.ask({ title: m.ste_delete_site_title(), description: m.ste_delete_site_confirm(), confirmLabel: m.common_delete(), variant: 'danger', impacts });
     if (!ok) return;
     try {
       await deleteSite(guildId);
