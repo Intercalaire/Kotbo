@@ -387,6 +387,9 @@
     <EmptyState icon="AlertTriangle" title="Configuration indisponible" description={error} />
   {:else}
     <!-- ── Barre d'etat & actions d'urgence ───────────────────────────── -->
+    <!-- Seulement sur l'onglet des verrous : repetee sur chaque onglet, elle
+         repoussait le contenu propre a l'onglet sous la ligne de flottaison. -->
+    {#if activeTab === 'detection'}
     <SectionCard
       title="État du serveur"
       description="Ces bascules s'appliquent immédiatement, sans passer par l'enregistrement."
@@ -466,6 +469,7 @@
         </div>
       </div>
     </SectionCard>
+    {/if}
 
     {#if activeTab === 'detection'}
       <SectionCard
