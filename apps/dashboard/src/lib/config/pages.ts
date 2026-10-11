@@ -156,20 +156,28 @@ export const economyItems: PageConfig[] = [
   { name: m.nav_quests(),              icon: "compass",       href: "/quests",           featureKey: "quests",  beta: false, wip: false },
 ];
 
+/**
+ * Communaute et Communication etaient un seul groupe de treize lignes : au-dela
+ * de sept, on ne parcourt plus un menu, on le fouille. Le decoupage suit ce que
+ * l'on vient faire : faire vivre le serveur (ici) ou y publier (ci-dessous).
+ */
 export const communityItems: PageConfig[] = [
   { name: m.nav_giveaways(),           icon: "sparkles",      href: "/giveaways",        featureKey: "giveaways", beta: false, wip: false },
+  { name: m.nav_suggestions(),         icon: "thumbs-up",     href: "/suggestions",      featureKey: "suggestions", beta: false, wip: false },
+  { name: m.nav_reaction_roles(),      icon: "mouse-pointer", href: "/reaction-roles",   featureKey: "reaction_roles", beta: false, wip: false },
+  { name: m.nav_starboard(),           icon: "star",          href: "/starboard",        featureKey: "starboard", beta: true, wip: false },
+  { name: m.nav_fun_channels(),          icon: "smile",         href: "/fun",              featureKey: "fun",  beta: false, wip: false },
+  { name: m.nav_triggers(),        icon: "git-branch",    href: "/triggers",         featureKey: "workflows", beta: true, wip: false },
+];
+
+export const communicationItems: PageConfig[] = [
   { name: m.nav_announcements(), icon: "megaphone",    href: "/announcement",     featureKey: "welcome_goodbye", beta: false, wip: false },
   { name: "Campagnes",           icon: "send",         href: "/campaigns",        featureKey: "campaigns", beta: true, wip: false },
-  { name: m.nav_reaction_roles(),      icon: "mouse-pointer", href: "/reaction-roles",   featureKey: "reaction_roles", beta: false, wip: false },
-  { name: m.nav_triggers(),        icon: "git-branch",    href: "/triggers",         featureKey: "workflows", beta: true, wip: false },
-  { name: m.nav_suggestions(),         icon: "thumbs-up",     href: "/suggestions",      featureKey: "suggestions", beta: false, wip: false },
-  { name: m.nav_starboard(),           icon: "star",          href: "/starboard",        featureKey: "starboard", beta: true, wip: false },
   { name: m.nav_embeds(),              icon: "file-plus",     href: "/embed-builder",    featureKey: "embed_builder", beta: false, wip: false },
   { name: m.nav_regulation(),           icon: "book",          href: "/regulation",       featureKey: "regulation", beta: false, wip: false },
   { name: m.nav_news(),    icon: "rss",           href: "/news",             featureKey: "news", beta: false, wip: false },
-  { name: m.nav_site(),    icon: "globe",         href: "/site",             featureKey: "site", beta: true, wip: false },
-  { name: m.nav_fun_channels(),          icon: "smile",         href: "/fun",              featureKey: "fun",  beta: false, wip: false },
   { name: m.nav_social_networks(),     icon: "share-2",       href: "/social-networks",  featureKey: "social_networks", beta: true, wip: false },
+  { name: m.nav_site(),    icon: "globe",         href: "/site",             featureKey: "site", beta: true, wip: false },
 ];
 
 export const staffItems: PageConfig[] = [
@@ -180,8 +188,10 @@ export const staffItems: PageConfig[] = [
 // { name: m.nav_staff_evaluations(),   icon: "award",         href: "/evaluations",      featureKey: "staff_directory", beta: true, wip: false },
   { name: m.nav_tutoring(),             icon: "book-open",     href: "/tutoring",         featureKey: "tutoring", beta: false, wip: false },
   { name: m.nav_planning(),            icon: "calendar",      href: "/planning",         featureKey: "absences", beta: false, wip: false },
-  { name: m.nav_polls(),            icon: "bar-chart",     href: "/staff-management/polls",    featureKey: "polls", beta: false, wip: false },
-  { name: m.nav_discipline(),          icon: "alert-circle",  href: "/staff-management/warnings", featureKey: "discipline", beta: false, wip: false },
+  // Sondages et Discipline sont des onglets de la page staff : ils quittent le
+  // menu (huit lignes, une de trop) mais restent dans la palette et les onglets.
+  { name: m.nav_polls(),            icon: "bar-chart",     href: "/staff-management/polls",    featureKey: "polls", beta: false, wip: false, hidden: true },
+  { name: m.nav_discipline(),          icon: "alert-circle",  href: "/staff-management/warnings", featureKey: "discipline", beta: false, wip: false, hidden: true },
 ];
 
 export const crossServerItems: PageConfig[] = [
@@ -197,6 +207,10 @@ export const configItems: PageConfig[] = [
   { name: m.nav_commands(),           icon: "terminal",      href: "/command-access",       featureKey: "commands", beta: false, wip: false },
   { name: m.nav_backups(),         icon: "archive",        href: "/backups",              featureKey: "settings", beta: false, wip: false },
   { name: m.nav_schedules(),      icon: "calendar",      href: "/schedules",            featureKey: "settings", beta: false, wip: false },
+];
+
+/** Ce qui relie Kotbo a l'exterieur : agents, services tiers, autres serveurs. */
+export const integrationItems: PageConfig[] = [
   { name: m.nav_mcp_api(),             icon: "cpu",           href: "/mcp-settings",         featureKey: "settings", beta: false, wip: false },
   { name: m.nav_outgoing_webhooks(),   icon: "send",          href: "/webhooks",             featureKey: "settings", beta: true, wip: false },
   { name: m.nav_custom_bot(),          icon: "bot",           href: "/custom-bot",           featureKey: "settings", beta: false, wip: true, wipMessage: m.nav_custom_bot_wip() },
@@ -222,9 +236,11 @@ export const allPages: PageConfig[] = [
   ...levelingItems,
   ...economyItems,
   ...communityItems,
+  ...communicationItems,
   ...staffItems,
   ...crossServerItems,
   ...configItems,
+  ...integrationItems,
   ...otherPages
 ];
 

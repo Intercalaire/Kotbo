@@ -8,9 +8,11 @@ import {
   levelingItems,
   economyItems,
   communityItems,
+  communicationItems,
   staffItems,
   crossServerItems,
   configItems,
+  integrationItems,
   resolveLegacyHref,
   type PageConfig,
 } from '../config/pages';
@@ -197,6 +199,10 @@ class NavigationStore {
     this.isStaffServer ? [] : communityItems.filter(this.#isReachable),
   );
 
+  readonly #visibleCommunication = $derived(
+    this.isStaffServer ? [] : communicationItems.filter(this.#isReachable),
+  );
+
   readonly #visibleStaff = $derived.by((): PageConfig[] => {
     if (this.isAdmin) return staffItems.filter(this.#isReachable);
 
@@ -220,6 +226,10 @@ class NavigationStore {
     this.isAdmin ? configItems.filter(this.#isReachable) : [],
   );
 
+  readonly #visibleIntegrations = $derived(
+    this.isAdmin ? integrationItems.filter(this.#isReachable) : [],
+  );
+
   /** Navigation groups in reading order, empty groups removed. */
   readonly groups = $derived.by((): NavGroup[] => {
     const general = { key: 'general', label: m.nav_group_general(), icon: 'home', items: this.#visibleGeneral };
@@ -228,21 +238,23 @@ class NavigationStore {
     const leveling = { key: 'leveling', label: m.nav_group_xp(), icon: 'trophy', items: this.#visibleLeveling };
     const economy = { key: 'economy', label: m.nav_group_economy(), icon: 'coins', items: this.#visibleEconomy };
     const community = { key: 'community', label: m.nav_group_community(), icon: 'sparkles', items: this.#visibleCommunity };
+    const communication = { key: 'communication', label: m.nav_group_communication(), icon: 'megaphone', items: this.#visibleCommunication };
     const staff = { key: 'staff', label: m.nav_group_staff(), icon: 'message-square', items: this.#visibleStaff };
-    // Les outils multi-serveurs ne remplissaient plus qu'un groupe de deux
-    // lignes, reserve aux memes administrateurs que la configuration : ils
-    // rejoignent les reglages plutot que d'ouvrir un dixieme groupe.
-    const config = {
-      key: 'config',
-      label: m.nav_group_config(),
-      icon: 'settings',
-      items: [...this.#visibleConfig, ...this.#visibleCrossServer],
+    // Sept lignes au plus par groupe : les reglages du serveur d'un cote, ce
+    // qui le relie a l'exterieur de l'autre. Les outils multi-serveurs,
+    // reserves aux memes administrateurs, rejoignent les integrations.
+    const config = { key: 'config', label: m.nav_group_config(), icon: 'settings', items: this.#visibleConfig };
+    const integrations = {
+      key: 'integrations',
+      label: m.nav_group_integrations(),
+      icon: 'link',
+      items: [...this.#visibleIntegrations, ...this.#visibleCrossServer],
     };
 
     // On a staff server the staff tooling is the reason people are here.
     const ordered = this.isStaffServer
-      ? [general, staff, moderation, security, leveling, economy, community, config]
-      : [general, moderation, security, leveling, economy, community, staff, config];
+      ? [general, staff, moderation, security, leveling, economy, community, communication, config, integrations]
+      : [general, moderation, security, leveling, economy, community, communication, staff, config, integrations];
 
     return ordered.filter((group) => group.items.length > 0);
   });

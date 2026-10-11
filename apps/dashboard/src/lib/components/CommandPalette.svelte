@@ -18,9 +18,11 @@
     leveling: 'trophy',
     economy: 'coins',
     community: 'users',
+    communication: 'megaphone',
     staff: 'briefcase',
     crossserver: 'link',
     config: 'sliders',
+    integrations: 'link',
   };
 
   interface PaletteItem {
