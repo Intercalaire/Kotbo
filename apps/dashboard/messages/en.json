@@ -2974,6 +2974,8 @@
   "d7_confirm": "Confirm",
   "d7_cancel": "Cancel",
   "d7_close": "Close",
+  "toast_undo": "Undo",
+  "toast_undoable_failed": "The action didn't go through, nothing was changed.",
   "d7_type_to_confirm_pre": "Type",
   "d7_type_to_confirm_post": "to confirm",
   "d7_api_error": "That didn't work. Try again.",
