@@ -48,11 +48,12 @@ import { resetCollabRoom, flushCollabRoom } from '../../../services/site/siteCol
 import { searchSite } from '../../../services/site/siteSearch.js';
 import { getSiteAnalytics } from '../../../services/site/siteAnalyticsService.js';
 import { listSiteAssets, storeSiteAsset, SITE_UPLOAD_MAX_BYTES } from '../../../services/site/siteUploads.js';
-import { createPreviewToken } from '../../../services/site/sitePreview.js';
+import { createPreviewToken, createSitePreviewToken } from '../../../services/site/sitePreview.js';
+import { ensureInstantSite } from '../../../services/site/siteInstantService.js';
 import { isSiteTemplate, SITE_TEMPLATES } from '../../../services/site/siteTemplates.js';
 import { assertWebhookUrlReachable } from '../../../services/integrations/outgoingWebhookSecurity.js';
 import { deleteVoteSite, listAdminVoteSites, saveVoteSite, SiteVoteError, topVoters } from '../../../services/site/siteVoteService.js';
-import { deleteForumCategory, deleteForumPost, ForumError, listForumCategories, listRecentForumPosts, saveForumCategory, setForumTopicFlags } from '../../../services/site/siteForumService.js';
+import { acceptForumAnswer, deleteForumCategory, deleteForumPost, ForumError, listForumCategories, listRecentForumPosts, saveForumCategory, setForumTopicFlags } from '../../../services/site/siteForumService.js';
 
 /**
  * Tout ce que l'éditeur permet, un agent peut le faire ici. Deux règles en
@@ -345,6 +346,27 @@ export function registerSiteTools(ctx: McpToolContext) {
   );
 
   server.registerTool(
+    'create_instant_site',
+    {
+      description:
+        "Crée le site sans question, comme à l'arrivée du bot : type de communauté deviné d'après le serveur, adresse tirée du nom, salons d'annonces repérés et leurs derniers messages repris en articles, forums Discord publics recopiés. Hors ligne jusqu'à publish_site ; rend le site existant s'il y en a déjà un.",
+      inputSchema: { key_name: keyName },
+      _meta: toolMeta,
+    },
+    guard('WRITE_SITE', async ({ key_name }) => {
+      try {
+        lock(key_name, 'Création du site');
+        const result = await ensureInstantSite(client, guildId, actorId);
+        if (!result) return err('Serveur introuvable sur cette instance du bot.');
+        if (result.created) await audit(key_name, 'Site instantané créé (MCP)', `/s/${result.slug}`, `Modèle ${result.template}, ${result.articles} article(s) repris`);
+        return ok({ ...result, url: siteUrl(result.slug) });
+      } catch (error) {
+        return failure(error);
+      }
+    }),
+  );
+
+  server.registerTool(
     'update_site_settings',
     {
       description: "Réglages du site : adresse (l'ancienne redirige), nom, accroche, logo, bannière, favicon, page d'accueil, champs de la page Équipe, rôles rédacteurs du wiki/blog, salons d'annonce, récompenses de l'activité (pièces et XP pour la visite du jour, la participation, la lecture et le vote, plafonds et bonus de série).",
@@ -358,6 +380,7 @@ export function registerSiteTools(ctx: McpToolContext) {
         home_page_id: z.string().nullable().optional(),
         staff_page: z.object({ bio: z.boolean().optional(), absence: z.boolean().optional(), seniority: z.boolean().optional(), stats: z.boolean().optional() }).optional(),
         comments_by_default: z.boolean().optional(),
+        hero_pulse: z.boolean().optional().describe("Pouls du serveur en direct dans la bannière d'accueil (vrai par défaut)"),
         wiki_editor_role_ids: z.array(z.string()).optional(),
         blog_editor_role_ids: z.array(z.string()).optional(),
         wiki_announce_channel_id: z.string().nullable().optional(),
@@ -387,7 +410,10 @@ export function registerSiteTools(ctx: McpToolContext) {
           faviconUrl: args.favicon_url,
           homePageId: args.home_page_id,
           staffPage: args.staff_page,
-          settings: args.comments_by_default === undefined ? undefined : { commentsByDefault: args.comments_by_default },
+          settings:
+            args.comments_by_default === undefined && args.hero_pulse === undefined
+              ? undefined
+              : { ...(args.comments_by_default === undefined ? {} : { commentsByDefault: args.comments_by_default }), ...(args.hero_pulse === undefined ? {} : { heroPulse: args.hero_pulse }) },
           wikiEditorRoleIds: args.wiki_editor_role_ids,
           blogEditorRoleIds: args.blog_editor_role_ids,
           wikiAnnounceChannelId: args.wiki_announce_channel_id,
@@ -778,10 +804,19 @@ export function registerSiteTools(ctx: McpToolContext) {
 
   server.registerTool(
     'create_site_preview_link',
-    { description: "Lien d'aperçu du brouillon d'une page, valable 7 jours, sans compte.", inputSchema: { page_id: z.string() }, _meta: toolMeta },
+    {
+      description: "Lien d'aperçu valable 7 jours, sans compte : le brouillon d'une page (page_id), ou le site entier tant qu'il n'est pas en ligne (sans page_id).",
+      inputSchema: { page_id: z.string().optional() },
+      _meta: toolMeta,
+    },
     guard('WRITE_SITE', async ({ page_id }) => {
       try {
         const site = await requireSite();
+        if (!page_id) {
+          if (site.published) return ok({ url: siteUrl(site.slug), published: true });
+          const { token, expiresAt } = createSitePreviewToken(site.id);
+          return ok({ url: `${siteUrl(site.slug)}?apercu=${encodeURIComponent(token)}`, expiresAt });
+        }
         const page = await getAdminPage(site.id, page_id);
         if (!page) return err('Page introuvable.');
         await flushCollabRoom(page_id);
@@ -886,15 +921,24 @@ export function registerSiteTools(ctx: McpToolContext) {
   server.registerTool(
     'moderate_site_forum',
     {
-      description: 'Modère le forum : épingler ou verrouiller un sujet (topic_id), ou retirer un message (post_id ; le premier message d’un sujet retire le sujet).',
-      inputSchema: { topic_id: z.string().optional(), pinned: z.boolean().optional(), locked: z.boolean().optional(), post_id: z.string().optional(), key_name: keyName },
+      description:
+        'Modère le forum : épingler ou verrouiller un sujet (topic_id), désigner sa solution (accepted_post_id ; null la retire, le sujet passe en résolu et s’indexe en questions-réponses), ou retirer un message (post_id ; le premier message d’un sujet retire le sujet).',
+      inputSchema: {
+        topic_id: z.string().optional(),
+        pinned: z.boolean().optional(),
+        locked: z.boolean().optional(),
+        accepted_post_id: z.string().nullable().optional(),
+        post_id: z.string().optional(),
+        key_name: keyName,
+      },
       _meta: toolMeta,
     },
-    guard('WRITE_SITE', async ({ topic_id, pinned, locked, post_id, key_name }) => {
+    guard('WRITE_SITE', async ({ topic_id, pinned, locked, accepted_post_id, post_id, key_name }) => {
       try {
-        if (topic_id) await setForumTopicFlags(guildId, topic_id, { pinned, locked });
+        if (topic_id && (pinned !== undefined || locked !== undefined)) await setForumTopicFlags(guildId, topic_id, { pinned, locked });
+        if (topic_id && accepted_post_id !== undefined) await acceptForumAnswer(client, guildId, topic_id, accepted_post_id, { userId: ownerId ?? 'mcp_agent', isStaff: true });
         if (post_id) await deleteForumPost(client, guildId, post_id, { userId: ownerId ?? 'mcp_agent', isStaff: true });
-        await audit(key_name, 'Modération du forum (MCP)', topic_id ?? post_id ?? '', [pinned !== undefined ? `épinglé=${pinned}` : '', locked !== undefined ? `verrouillé=${locked}` : '', post_id ? 'message retiré' : ''].filter(Boolean).join(', '));
+        await audit(key_name, 'Modération du forum (MCP)', topic_id ?? post_id ?? '', [pinned !== undefined ? `épinglé=${pinned}` : '', locked !== undefined ? `verrouillé=${locked}` : '', accepted_post_id !== undefined ? `solution=${accepted_post_id ?? 'aucune'}` : '', post_id ? 'message retiré' : ''].filter(Boolean).join(', '));
         return ok({ ok: true });
       } catch (error) {
         return failure(error);
