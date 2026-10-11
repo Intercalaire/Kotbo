@@ -43,6 +43,14 @@ const UI = {
   textFaint: '#71717a',
 } as const;
 
+/**
+ * Version du dessin des cartes, portee par l'URL de l'image et par l'ETag.
+ * Les URL et ETag ne dependent sinon que des donnees : apres un changement de
+ * dessin, le proxy d'images de Discord et les CDN garderaient l'ancienne carte.
+ * A incrementer a chaque changement visible du rendu.
+ */
+export const OG_CARD_VERSION = 2;
+
 /** Indigo du dashboard en theme sombre : accent par defaut des cartes et barre de l'embed. */
 export const OG_ACCENT = '#818cf8';
 

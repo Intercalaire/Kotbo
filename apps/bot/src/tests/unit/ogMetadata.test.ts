@@ -113,7 +113,7 @@ describe('resolveOgMetadata - accueil', () => {
     const meta = await resolveOgMetadata(emptyClient, '/');
     expect(meta.card?.stats?.map((stat) => stat.label)).toEqual(['Serveurs', 'Membres']);
     // La version de l'image suit les totaux : un CDN ne garde pas d'anciens chiffres.
-    expect(meta.imagePath).toContain('v=63');
+    expect(meta.imagePath).toMatch(/v=\d+\.63/);
   });
 });
 

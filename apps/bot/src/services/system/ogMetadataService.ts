@@ -5,7 +5,7 @@ import { cache } from '../../utils/cache.js';
 import { resolveGuildLocale, type BotLocale, FALLBACK_LOCALE } from '../../utils/i18n.js';
 import { sanitizeFormTheme } from '../../utils/formCustomization.js';
 import type { CustomFormStructure } from '../features/customFormService.js';
-import { OG_ACCENT, normalizeAccent, type OgCardSpec } from './ogImageService.js';
+import { OG_ACCENT, OG_CARD_VERSION, normalizeAccent, type OgCardSpec } from './ogImageService.js';
 import * as m from '../../lib/paraglide/messages.js';
 
 // ============================================================================
@@ -93,7 +93,7 @@ function guildIdentity(client: Client, guildId: string): { name: string; iconUrl
 
 /** Chemin de l'image de carte pour un chemin de page donne. */
 function imagePathFor(path: string, version: string): string {
-  return `/api/og/image?path=${encodeURIComponent(path)}&v=${encodeURIComponent(version)}`;
+  return `/api/og/image?path=${encodeURIComponent(path)}&v=${OG_CARD_VERSION}.${encodeURIComponent(version)}`;
 }
 
 /**
