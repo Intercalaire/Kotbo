@@ -97,8 +97,9 @@ export interface TicketSla {
 }
 
 export function computeSla(ticket: SlaFields, config: SlaConfig, now = new Date()): TicketSla {
-  // Une demande en attente de validation n'a pas encore commencé à compter.
-  if (ticket.status === 'PENDING' || ticket.status === 'REJECTED') return { firstResponse: null, resolution: null, worst: null };
+  // Une demande en attente de validation, ou d'une place sur le serveur, n'a
+  // pas encore commencé à compter : le staff n'a nulle part où répondre.
+  if (ticket.status === 'PENDING' || ticket.status === 'QUEUED' || ticket.status === 'REJECTED') return { firstResponse: null, resolution: null, worst: null };
   const active = (ACTIVE_STATUSES as readonly string[]).includes(ticket.status);
 
   const firstResponse = config.firstResponseMinutes
