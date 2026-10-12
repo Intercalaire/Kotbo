@@ -1,4 +1,4 @@
-import type { Ticket } from '@prisma/client';
+import type { Ticket, TicketMacro } from '@prisma/client';
 import type { ColorResolvable } from 'discord.js';
 import { AuditLogEvent } from 'discord.js';
 import { type Client, type APIInteractionGuildMember, type ButtonInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction, TextChannel, ChannelType, PermissionFlagsBits, PermissionsBitField, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, MessageFlags, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, type Guild, type GuildMember, type ThreadChannel, Message, ComponentType } from 'discord.js';
@@ -1006,6 +1006,51 @@ async function showMacroPicker(
   });
 }
 
+/**
+ * Poste une macro dans le salon d'un ticket, applique ses actions puis le
+ * ferme si elle le demande.
+ *
+ * Le selecteur du staff et l'outil MCP `send_ticket_macro` passent tous deux
+ * par ici : une macro doit produire le meme effet quel que soit qui la lance.
+ */
+export async function postMacroInTicket(params: {
+  client: Client;
+  guild: Guild;
+  macro: TicketMacro;
+  ticket: Ticket;
+  channel: { send: (options: { content: string }) => Promise<{ id: string }> };
+  actor: { id: string; username: string };
+  staffTag: string;
+}): Promise<{ content: string; messageId: string; applied: string[]; closed: boolean }> {
+  const { client, guild, macro, ticket, actor } = params;
+
+  const content = renderMacroContent(macro.content, {
+    ticket,
+    staffTag: params.staffTag,
+    guildName: guild.name,
+  });
+
+  const sent = await params.channel.send({ content });
+  await markMacroUsed(macro.id);
+
+  const applied = await applyMacroActions({ client, guild, macro, ticket, actor });
+
+  // La fermeture vient apres les autres actions : elles ont besoin d'un ticket
+  // encore ouvert, et le message de confirmation doit pouvoir la mentionner.
+  let closed = false;
+  if (macro.closeTicket) {
+    try {
+      await closeTicket(client, ticket.id, actor.id, actor.username);
+      applied.push('ticket fermé');
+      closed = true;
+    } catch (err) {
+      logger.error('TicketMacro', `Fermeture par macro impossible (${macro.id})`, err);
+    }
+  }
+
+  return { content, messageId: sent.id, applied, closed };
+}
+
 /** Poste la macro choisie dans le salon du ticket, puis applique ses actions. */
 async function sendChosenMacro(
   client: Client,
@@ -1035,39 +1080,21 @@ async function sendChosenMacro(
     return;
   }
 
-  const content = renderMacroContent(macro.content, {
-    ticket,
-    staffTag: `<@${member.id}>`,
-    guildName: guild.name,
-  });
-
   const channel = interaction.channel;
   if (!channel || !channel.isTextBased() || !('send' in channel)) {
     await interaction.update({ content: '❌ Ce salon ne permet pas d’envoyer la macro.', components: [] });
     return;
   }
 
-  await channel.send({ content });
-  await markMacroUsed(macro.id);
-
-  const applied = await applyMacroActions({
+  const { applied } = await postMacroInTicket({
     client,
     guild,
     macro,
     ticket,
+    channel,
     actor: { id: member.id, username: member.user.username },
+    staffTag: `<@${member.id}>`,
   });
-
-  // La fermeture vient apres les autres actions : elles ont besoin d'un ticket
-  // encore ouvert, et le message de confirmation doit pouvoir la mentionner.
-  if (macro.closeTicket) {
-    try {
-      await closeTicket(client, ticket.id, member.id, member.user.username);
-      applied.push('ticket fermé');
-    } catch (err) {
-      logger.error('TicketMacro', `Fermeture par macro impossible (${macro.id})`, err);
-    }
-  }
 
   await interaction.update({
     content: applied.length > 0
