@@ -327,7 +327,7 @@
         <option value={item.id}>{item.name}</option>
       {/each}
     </select>
-    {#if help}<p class="text-2xs text-on-surface-variant/70 mt-1">{help}</p>{/if}
+    {#if help}<p class="text-2xs text-on-surface-variant mt-1">{help}</p>{/if}
   </label>
 {/snippet}
 
@@ -343,7 +343,7 @@
         <option value={role.id}>{role.name}</option>
       {/each}
     </select>
-    {#if help}<p class="text-2xs text-on-surface-variant/70 mt-1">{help}</p>{/if}
+    {#if help}<p class="text-2xs text-on-surface-variant mt-1">{help}</p>{/if}
   </label>
 {/snippet}
 
@@ -355,7 +355,7 @@
       bind:value={config[field]}
       class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface"
     />
-    {#if help}<p class="text-2xs text-on-surface-variant/70 mt-1">{help}</p>{/if}
+    {#if help}<p class="text-2xs text-on-surface-variant mt-1">{help}</p>{/if}
   </label>
 {/snippet}
 
@@ -495,7 +495,7 @@
               <option value="CAPTCHA">Forcer le captcha pour tous les arrivants</option>
               <option value="KICK">Expulser automatiquement les arrivants</option>
             </select>
-            <p class="text-2xs text-on-surface-variant/70 mt-1">
+            <p class="text-2xs text-on-surface-variant mt-1">
               « Expulser » est la plus brutale : elle rejette aussi les arrivées légitimes pendant toute la durée du mode raid.
             </p>
           </label>
@@ -561,7 +561,7 @@
                 bind:value={config.accountAgeMessage}
                 class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface resize-y"
               ></textarea>
-              <p class="text-2xs text-on-surface-variant/70 mt-1">Envoyé avant l'expulsion ou le bannissement.</p>
+              <p class="text-2xs text-on-surface-variant mt-1">Envoyé avant l'expulsion ou le bannissement.</p>
             </label>
           </div>
 
@@ -574,7 +574,7 @@
               placeholder="123456789012345678"
               class="mt-1 w-full rounded-lg bg-surface-container border border-outline-variant/40 px-3 py-2 text-body-sm text-on-surface font-mono resize-y"
             ></textarea>
-            <p class="text-2xs text-on-surface-variant/70 mt-1">Un identifiant par ligne. Permet de laisser entrer un compte récent légitime.</p>
+            <p class="text-2xs text-on-surface-variant mt-1">Un identifiant par ligne. Permet de laisser entrer un compte récent légitime.</p>
           </label>
         </div>
       </SectionCard>
@@ -662,7 +662,7 @@
               <option value="IMAGE">Image - le code est affiché</option>
               <option value="VOICE">Vocal - le code est énoncé en salon vocal</option>
             </select>
-            <p class="text-2xs text-on-surface-variant/70 mt-1">
+            <p class="text-2xs text-on-surface-variant mt-1">
               Le vocal est bien plus difficile à automatiser, mais la diffusion est sérielle : au-delà de la file configurée, les arrivants suivants basculent sur l'image.
             </p>
           </label>
@@ -857,7 +857,7 @@
                     <p class="text-body-sm text-on-surface">
                       <code class="text-2xs">{report.reporterId}</code> signale
                       <code class="text-2xs">{report.targetId}</code>
-                      <span class="text-on-surface-variant/60 ml-1">· {formatRelative(report.createdAt)}</span>
+                      <span class="text-on-surface-variant ml-1">· {formatRelative(report.createdAt)}</span>
                     </p>
                     <p class="mt-1 text-xs text-on-surface-variant leading-relaxed">{report.reason}</p>
                     {#if report.messageContent}
@@ -866,7 +866,7 @@
                       </p>
                     {/if}
                     {#if report.channelId}
-                      <p class="mt-1 text-2xs text-on-surface-variant/60">dans #{channelName(report.channelId)}</p>
+                      <p class="mt-1 text-2xs text-on-surface-variant">dans #{channelName(report.channelId)}</p>
                     {/if}
                   </div>
                   <div class="flex flex-col gap-1.5 shrink-0">
@@ -1030,7 +1030,7 @@
                   </button>
                 {/if}
               </div>
-              <p class="text-2xs text-on-surface-variant/70">
+              <p class="text-2xs text-on-surface-variant">
                 La quarantaine pose un rôle restrictif ou une exclusion de 24 h - jamais un bannissement.
                 Le staff n'est jamais touché. La décision définitive reste humaine.
               </p>
@@ -1052,7 +1052,7 @@
               <div class="flex items-center justify-between gap-3 rounded-lg border border-outline-variant/30 px-3 py-2">
                 <div class="min-w-0">
                   <p class="text-xs text-on-surface truncate">{image.filename ?? 'sans nom'}</p>
-                  <p class="text-2xs text-on-surface-variant/60 font-mono truncate">
+                  <p class="text-2xs text-on-surface-variant font-mono truncate">
                     {image.hash.slice(0, 24)}… · {image.source}{image.guildId === null ? ' · global' : ''}
                   </p>
                 </div>

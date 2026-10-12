@@ -116,7 +116,7 @@
   function trendBadge(pct: number): { cls: string; label: string } {
     if (pct > 0) return { cls: 'text-success bg-success/10', label: `+${pct}%` };
     if (pct < 0) return { cls: 'text-error bg-error/10', label: `${pct}%` };
-    return { cls: 'text-on-surface-variant/60 bg-surface-container', label: '0%' };
+    return { cls: 'text-on-surface-variant bg-surface-container', label: '0%' };
   }
 
   async function enableWordStats() {
@@ -188,7 +188,7 @@
               >
                 <div class="min-w-0">
                   <span class="font-mono text-xs text-on-surface">{src.inviteCode}</span>
-                  {#if src.inviterTag}<span class="text-xs text-on-surface-variant/60 ml-2">{m.an_adv_invited_by({ tag: src.inviterTag })}</span>{/if}
+                  {#if src.inviterTag}<span class="text-xs text-on-surface-variant ml-2">{m.an_adv_invited_by({ tag: src.inviterTag })}</span>{/if}
                 </div>
                 <div class="flex items-center gap-3 shrink-0">
                   <span class="text-xs text-on-surface-variant">{m.an_adv_joined_count({ count: src.joined })}</span>
@@ -208,7 +208,7 @@
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
-              <tr class="text-left text-xs text-on-surface-variant/50 border-b border-outline-variant">
+              <tr class="text-left text-xs text-on-surface-variant border-b border-outline-variant">
                 <th class="px-5 py-3">{m.an_adv_col_week()}</th>
                 <th class="px-3 py-3 text-right">{m.an_adv_col_joins()}</th>
                 <th class="px-3 py-3 text-right">{m.an_adv_col_d1()}</th>
@@ -250,7 +250,7 @@
         { label: m.an_adv_stickiness(), value: `${data.stickiness}%` },
       ] as stat}
         <div class="section-card p-5">
-          <p class="text-xs text-on-surface-variant/50 font-semibold">{stat.label}</p>
+          <p class="text-xs text-on-surface-variant font-semibold">{stat.label}</p>
           <p class="text-3xl font-bold text-on-surface mt-1.5">{stat.value}</p>
         </div>
       {/each}
@@ -292,7 +292,7 @@
                 {#if row.r}
                   <div class="flex items-center gap-3">
                     <span class="text-on-surface font-bold">{row.r.value.toLocaleString(dateLocale())}</span>
-                    <span class="font-mono text-2xs text-on-surface-variant/60">{row.r.date}</span>
+                    <span class="font-mono text-2xs text-on-surface-variant">{row.r.date}</span>
                   </div>
                 {:else}
                   <span class="text-on-surface-variant/30">-</span>
@@ -341,7 +341,7 @@
               </div>
             {/each}
           </div>
-          <p class="text-2xs text-on-surface-variant/60 mt-3">{m.an_adv_churn_hint()}</p>
+          <p class="text-2xs text-on-surface-variant mt-3">{m.an_adv_churn_hint()}</p>
         {/if}
       </SectionCard>
 
@@ -456,7 +456,7 @@
               <tr>
                 <th class="p-1"></th>
                 {#each data.coActivation.channels as c}
-                  <th class="p-1 font-medium text-on-surface-variant/60 max-w-16 truncate align-bottom" title={channelName(c)}>
+                  <th class="p-1 font-medium text-on-surface-variant max-w-16 truncate align-bottom" title={channelName(c)}>
                     <button
                       type="button"
                       onclick={() => channelDetailsModal.show(c, rawChannelName(c))}
@@ -588,7 +588,7 @@
             <div class="h-full rounded-full bg-primary transition-all duration-500" style="width: {pct}%"></div>
           </div>
         {/if}
-        <p class="text-2xs text-on-surface-variant/50">{m.an_adv_backfill_hint()}</p>
+        <p class="text-2xs text-on-surface-variant">{m.an_adv_backfill_hint()}</p>
       </div>
     {:else if data.backfill?.status === 'FAILED'}
       <EmptyState icon="warning" title={m.an_adv_backfill_failed()} description={data.backfill.error ?? m.an_adv_backfill_failed_desc()} />
@@ -697,7 +697,7 @@
                 </div>
               {/each}
             </div>
-            <p class="text-2xs text-on-surface-variant/60 mt-3">{m.an_adv_account_age_hint()}</p>
+            <p class="text-2xs text-on-surface-variant mt-3">{m.an_adv_account_age_hint()}</p>
           {/if}
         </SectionCard>
 
@@ -740,7 +740,7 @@
               <div class="text-center text-2xs text-on-surface-variant/40">{h}</div>
             {/each}
             {#each DOW_LABELS as day, d}
-              <div class="text-2xs text-on-surface-variant/60 flex items-center">{day}</div>
+              <div class="text-2xs text-on-surface-variant flex items-center">{day}</div>
               {#each Array(24) as _, h}
                 {@const v = hotMap.get(`${d + 1}-${h}`) ?? 0}
                 <div class="aspect-square rounded-sm {heatColor(v, maxHot)}" title={m.an_adv_hot_hours_cell({ day, hour: h, count: v })}></div>

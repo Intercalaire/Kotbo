@@ -109,7 +109,7 @@
       {/if}
     </span>
   {:else}
-    <span class="text-sm text-on-surface-variant/60">-</span>
+    <span class="text-sm text-on-surface-variant">-</span>
   {/if}
 {/snippet}
 
@@ -155,7 +155,7 @@
   <!-- Barre d'outils -->
   <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
     <div class="relative flex-1 lg:max-w-sm">
-      <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-on-surface-variant/60">
+      <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-on-surface-variant">
         <Papicon icon="search" size={15} />
       </span>
       <input
@@ -259,7 +259,7 @@
                   <span class="text-sm tabular-nums text-on-surface">{formatNumber(member.stats.totalMessages)}</span>
                   <span class="text-xs text-on-surface-variant"> {m.sm_word_msg()} · {formatVoice(member.stats.totalVoiceMinutes)}</span>
                 {:else}
-                  <span class="text-sm text-on-surface-variant/60">-</span>
+                  <span class="text-sm text-on-surface-variant">-</span>
                 {/if}
               </td>
               <td><WarnMeter count={member.warnings?.length ?? 0} {threshold} /></td>

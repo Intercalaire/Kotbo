@@ -184,7 +184,7 @@
          sa ligne de base, ce qui le décentrait verticalement dans le champ. -->
     <button
       type="button"
-      class="absolute right-3 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded-md text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-highest/60 transition-colors"
+      class="absolute right-3 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest/60 transition-colors"
       aria-label={m.common_clear()}
       title={m.common_clear()}
       on:click|preventDefault={clear}

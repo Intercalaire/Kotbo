@@ -330,7 +330,7 @@
                 </span>
                 <span class="text-xs text-on-surface-variant">/{interval === 'month' ? 'mois' : 'an'}</span>
               </div>
-              <p class="text-2xs text-on-surface-variant/70 mt-0.5">
+              <p class="text-2xs text-on-surface-variant mt-0.5">
                 TTC, par serveur Discord{#if trialAvailable && plan.purchasable}&nbsp;- après l'essai{/if}
               </p>
             {:else if plan.key === 'FREE'}
@@ -398,7 +398,7 @@
                  toutes : un serveur sous accord sur mesure a déjà tout, une
                  offre inférieure n'est pas un achat, et un prix Stripe manquant
                  est une erreur de configuration de l'instance. -->
-            <button disabled class="h-9 rounded-lg text-sm font-medium bg-surface-container text-on-surface-variant/50 cursor-default">
+            <button disabled class="h-9 rounded-lg text-sm font-medium bg-surface-container text-on-surface-variant cursor-default">
               {currentPlan === 'CUSTOM'
                 ? 'Compris dans ton accord'
                 : !isUpgrade
@@ -410,7 +410,7 @@
       {/each}
     </section>
 
-    <p class="text-xs text-on-surface-variant/70 text-center leading-relaxed max-w-2xl mx-auto">
+    <p class="text-xs text-on-surface-variant text-center leading-relaxed max-w-2xl mx-auto">
       Paiement sécurisé par Stripe. Résiliable à tout moment depuis « Gérer mon abonnement » ;
       l'accès est conservé jusqu'à la fin de la période déjà réglée.{#if trialAvailable}{' '}
         Résilier pendant l'essai n'entraîne aucun prélèvement.{/if}

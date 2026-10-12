@@ -309,7 +309,7 @@
       SPECTATOR: 'text-cyan-500',
       INACTIVE: 'text-orange-500',
       NEW: 'text-purple-500',
-      UNKNOWN: 'text-on-surface-variant/60',
+      UNKNOWN: 'text-on-surface-variant',
     };
     return Object.keys(labels)
       .map((key) => ({ key, label: labels[key](), color: colors[key], count: ghost[key] ?? 0 }))
@@ -435,7 +435,7 @@
               class="flex items-center gap-2 px-4 py-3 text-xs font-bold whitespace-nowrap border-b-2 transition-colors
                 {activeTab === tab.id
                   ? 'border-primary text-primary'
-                  : 'border-transparent text-on-surface-variant/60 hover:text-on-surface'}"
+                  : 'border-transparent text-on-surface-variant hover:text-on-surface'}"
             >
               <Papicon icon={tab.icon} size={16} />
               {tab.label}
@@ -446,7 +446,7 @@
 
       <div class="p-6 space-y-6">
         {#if loading}
-          <div class="flex items-center justify-center py-12 gap-3 text-on-surface-variant/60">
+          <div class="flex items-center justify-center py-12 gap-3 text-on-surface-variant">
             <div class="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
             <span class="text-sm font-bold">{m.d7_inv_loading_details()}</span>
           </div>
@@ -463,7 +463,7 @@
                     <Papicon icon="TrendingUp" size={18} />
                   </div>
                   <div>
-                    <h4 class="text-sm font-semibold text-on-surface-variant/60">{m.d7_inv_joins_trend()}</h4>
+                    <h4 class="text-sm font-semibold text-on-surface-variant">{m.d7_inv_joins_trend()}</h4>
                     <p class="text-xs text-on-surface-variant/40">{m.d7_inv_period_evolution()}</p>
                   </div>
                 </div>
@@ -471,7 +471,7 @@
                   {#if trendData}
                     <Chart data={trendData.data} options={trendData.options} type="line" height={200} />
                   {:else}
-                    <div class="flex items-center justify-center h-full text-on-surface-variant/60 text-sm">
+                    <div class="flex items-center justify-center h-full text-on-surface-variant text-sm">
                       {m.d7_inv_no_data_available()}
                     </div>
                   {/if}
@@ -481,20 +481,20 @@
               <div class="premium-card p-5 rounded-xl space-y-4">
                 <div class="grid grid-cols-1 gap-4">
                   <div>
-                    <p class="text-xs font-medium text-on-surface-variant/50">{m.d7_inv_joins()}</p>
+                    <p class="text-xs font-medium text-on-surface-variant">{m.d7_inv_joins()}</p>
                     <p class="text-lg font-semibold text-success">{details.trend?.totalJoined ?? 0}</p>
                   </div>
                   <div>
-                    <p class="text-xs font-medium text-on-surface-variant/50">{m.d7_inv_departures()}</p>
+                    <p class="text-xs font-medium text-on-surface-variant">{m.d7_inv_departures()}</p>
                     <p class="text-lg font-semibold text-orange-500">{details.trend?.totalLeft ?? 0}</p>
                   </div>
                   <div>
-                    <p class="text-xs font-medium text-on-surface-variant/50">{m.d7_inv_remaining()}</p>
+                    <p class="text-xs font-medium text-on-surface-variant">{m.d7_inv_remaining()}</p>
                     <p class="text-lg font-semibold text-cyan-500">{details.trend?.totalStayed ?? 0}</p>
                   </div>
                   <div class="pt-2 border-t border-outline-variant/10">
-                    <p class="text-xs font-medium text-on-surface-variant/50">{m.d7_inv_expires()}</p>
-                    <p class="text-sm font-bold text-on-surface-variant/70">{details.invite?.expiresAt ? formatDate(details.invite.expiresAt) : m.d7_never()}</p>
+                    <p class="text-xs font-medium text-on-surface-variant">{m.d7_inv_expires()}</p>
+                    <p class="text-sm font-bold text-on-surface-variant">{details.invite?.expiresAt ? formatDate(details.invite.expiresAt) : m.d7_never()}</p>
                   </div>
                 </div>
               </div>
@@ -511,7 +511,7 @@
                 </div>
                 <div class="space-y-2">
                   <div class="flex justify-between gap-3 text-xs">
-                    <span class="text-on-surface-variant/60 shrink-0">{m.d7_inv_source_label()}</span>
+                    <span class="text-on-surface-variant shrink-0">{m.d7_inv_source_label()}</span>
                     {#if details.invite?.sourceLabel}
                       <span class="px-2 py-0.5 rounded-lg bg-primary/10 text-primary font-bold truncate" title={details.invite.sourceLabel}>
                         {details.invite.sourceLabel}
@@ -521,28 +521,28 @@
                     {/if}
                   </div>
                   <div class="flex justify-between text-xs">
-                    <span class="text-on-surface-variant/60">{m.d7_inv_created_on()}</span>
+                    <span class="text-on-surface-variant">{m.d7_inv_created_on()}</span>
                     <span class="font-bold text-on-surface">{formatDate(details.invite?.createdAt)}</span>
                   </div>
                   <div class="flex justify-between text-xs">
-                    <span class="text-on-surface-variant/60">{m.d7_inv_uses()}</span>
+                    <span class="text-on-surface-variant">{m.d7_inv_uses()}</span>
                     <span class="font-bold text-on-surface">{details.invite?.uses ?? 0}</span>
                   </div>
                   <div class="flex justify-between text-xs">
-                    <span class="text-on-surface-variant/60">{m.d7_inv_max()}</span>
+                    <span class="text-on-surface-variant">{m.d7_inv_max()}</span>
                     <span class="font-bold text-on-surface">{details.invite?.maxUses ?? '∞'}</span>
                   </div>
                   <div class="flex justify-between text-xs">
-                    <span class="text-on-surface-variant/60">{m.d7_inv_temporary()}</span>
-                    <span class="font-bold {details.invite?.isTemporary ? 'text-warning' : 'text-on-surface-variant/70'}">{details.invite?.isTemporary ? m.d7_yes() : m.d7_no()}</span>
+                    <span class="text-on-surface-variant">{m.d7_inv_temporary()}</span>
+                    <span class="font-bold {details.invite?.isTemporary ? 'text-warning' : 'text-on-surface-variant'}">{details.invite?.isTemporary ? m.d7_yes() : m.d7_no()}</span>
                   </div>
                   <div class="flex justify-between text-xs">
-                    <span class="text-on-surface-variant/60">{m.d7_inv_suspended_label()}</span>
-                    <span class="font-bold {details.invite?.isSuspended ? 'text-warning' : 'text-on-surface-variant/70'}">{details.invite?.isSuspended ? m.d7_yes() : m.d7_no()}</span>
+                    <span class="text-on-surface-variant">{m.d7_inv_suspended_label()}</span>
+                    <span class="font-bold {details.invite?.isSuspended ? 'text-warning' : 'text-on-surface-variant'}">{details.invite?.isSuspended ? m.d7_yes() : m.d7_no()}</span>
                   </div>
                   <div class="flex justify-between text-xs">
-                    <span class="text-on-surface-variant/60">{m.d7_inv_deleted_label()}</span>
-                    <span class="font-bold {details.invite?.isDeleted ? 'text-error' : 'text-on-surface-variant/70'}">{details.invite?.isDeleted ? m.d7_yes() : m.d7_no()}</span>
+                    <span class="text-on-surface-variant">{m.d7_inv_deleted_label()}</span>
+                    <span class="font-bold {details.invite?.isDeleted ? 'text-error' : 'text-on-surface-variant'}">{details.invite?.isDeleted ? m.d7_yes() : m.d7_no()}</span>
                   </div>
                 </div>
               </div>
@@ -556,11 +556,11 @@
                 </div>
                 <div class="space-y-2">
                   <div class="flex justify-between text-xs">
-                    <span class="text-on-surface-variant/60">{m.d7_inv_tag()}</span>
+                    <span class="text-on-surface-variant">{m.d7_inv_tag()}</span>
                     <span class="font-bold text-on-surface">{details.invite?.inviterTag || m.d7_unknown()}</span>
                   </div>
                   <div class="flex justify-between text-xs">
-                    <span class="text-on-surface-variant/60">{m.d7_inv_id()}</span>
+                    <span class="text-on-surface-variant">{m.d7_inv_id()}</span>
                     <span class="font-bold text-on-surface font-mono text-xs">{details.invite?.inviterId || '-'}</span>
                   </div>
                 </div>
@@ -614,7 +614,7 @@
                       {details.ranking.rank ? `#${details.ranking.rank}` : '-'}
                       <span class="text-xs text-on-surface-variant/40">/ {details.ranking.totalCodes}</span>
                     </p>
-                    <p class="text-2xs font-bold text-on-surface-variant/50">{m.d7_inv_ranking_share({ pct: formatPct(details.ranking.sharePct) })}</p>
+                    <p class="text-2xs font-bold text-on-surface-variant">{m.d7_inv_ranking_share({ pct: formatPct(details.ranking.sharePct) })}</p>
                   </div>
                 </div>
                 {#if details.ranking.topCodes.length > 0}
@@ -646,22 +646,22 @@
                 <div class="premium-card p-5 rounded-xl">
                   <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_retention_rate()}</p>
                   <p class="text-2xl font-semibold text-success">{formatPct(details.retention.retentionPct)}</p>
-                  <p class="text-2xs font-bold text-on-surface-variant/50">{m.d7_inv_retention_ratio({ stayed: details.retention.stayed, total: details.retention.total })}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant">{m.d7_inv_retention_ratio({ stayed: details.retention.stayed, total: details.retention.total })}</p>
                 </div>
                 <div class="premium-card p-5 rounded-xl">
                   <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_avg_lifetime()}</p>
                   <p class="text-2xl font-semibold text-cyan-500">{formatDays(details.retention.avgLifetimeDays)}</p>
-                  <p class="text-2xs font-bold text-on-surface-variant/50">{m.d7_inv_median_lifetime({ value: formatDays(details.retention.medianLifetimeDays) })}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant">{m.d7_inv_median_lifetime({ value: formatDays(details.retention.medianLifetimeDays) })}</p>
                 </div>
                 <div class="premium-card p-5 rounded-xl">
                   <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_same_day_leavers()}</p>
                   <p class="text-2xl font-semibold text-orange-500">{details.retention.sameDayLeavers}</p>
-                  <p class="text-2xs font-bold text-on-surface-variant/50">{formatPct(details.retention.sameDayLeaversPct)}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant">{formatPct(details.retention.sameDayLeaversPct)}</p>
                 </div>
                 <div class="premium-card p-5 rounded-xl">
                   <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_departures()}</p>
                   <p class="text-2xl font-semibold text-error">{details.retention.left}</p>
-                  <p class="text-2xs font-bold text-on-surface-variant/50">{m.d7_inv_total_joins({ count: details.retention.total })}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant">{m.d7_inv_total_joins({ count: details.retention.total })}</p>
                 </div>
               </div>
 
@@ -679,7 +679,7 @@
                     <div class="space-y-1.5">
                       <div class="flex items-center justify-between text-xs">
                         <span class="font-bold text-on-surface">{label}</span>
-                        <span class="font-bold text-on-surface-variant/70">
+                        <span class="font-bold text-on-surface-variant">
                           {bucket.rate === null
                             ? m.d7_inv_survival_not_enough()
                             : m.d7_inv_survival_value({ pct: bucket.rate, eligible: bucket.eligible })}
@@ -693,7 +693,7 @@
                 </div>
               </div>
             {:else}
-              <p class="text-sm text-on-surface-variant/60 text-center py-10">{m.d7_inv_no_data_available()}</p>
+              <p class="text-sm text-on-surface-variant text-center py-10">{m.d7_inv_no_data_available()}</p>
             {/if}
 
           <!-- ══════════════ QUALITÉ ══════════════ -->
@@ -713,26 +713,26 @@
                 <div class="premium-card p-5 rounded-xl">
                   <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_avg_messages()}</p>
                   <p class="text-2xl font-semibold text-primary">{q.avgMessages ?? '-'}</p>
-                  <p class="text-2xs font-bold {msgDelta === null ? 'text-on-surface-variant/50' : msgDelta >= 0 ? 'text-success' : 'text-error'}">
+                  <p class="text-2xs font-bold {msgDelta === null ? 'text-on-surface-variant' : msgDelta >= 0 ? 'text-success' : 'text-error'}">
                     {msgDelta === null ? m.d7_inv_no_comparison() : m.d7_inv_vs_guild({ delta: `${msgDelta > 0 ? '+' : ''}${msgDelta}` })}
                   </p>
                 </div>
                 <div class="premium-card p-5 rounded-xl">
                   <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_avg_level()}</p>
                   <p class="text-2xl font-semibold text-purple-500">{q.avgLevel ?? '-'}</p>
-                  <p class="text-2xs font-bold {lvlDelta === null ? 'text-on-surface-variant/50' : lvlDelta >= 0 ? 'text-success' : 'text-error'}">
+                  <p class="text-2xs font-bold {lvlDelta === null ? 'text-on-surface-variant' : lvlDelta >= 0 ? 'text-success' : 'text-error'}">
                     {lvlDelta === null ? m.d7_inv_no_comparison() : m.d7_inv_vs_guild({ delta: `${lvlDelta > 0 ? '+' : ''}${lvlDelta}` })}
                   </p>
                 </div>
                 <div class="premium-card p-5 rounded-xl">
                   <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_young_accounts()}</p>
                   <p class="text-2xl font-semibold text-orange-500">{q.youngAccounts}</p>
-                  <p class="text-2xs font-bold text-on-surface-variant/50">{formatPct(q.youngAccountsPct)} • {m.d7_inv_young_hint()}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant">{formatPct(q.youngAccountsPct)} • {m.d7_inv_young_hint()}</p>
                 </div>
                 <div class="premium-card p-5 rounded-xl">
                   <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.d7_inv_sanctioned()}</p>
                   <p class="text-2xl font-semibold text-error">{q.sanctionedMembers}</p>
-                  <p class="text-2xs font-bold text-on-surface-variant/50">{m.d7_inv_sanctions_total({ count: q.sanctionsCount })}</p>
+                  <p class="text-2xs font-bold text-on-surface-variant">{m.d7_inv_sanctions_total({ count: q.sanctionsCount })}</p>
                 </div>
               </div>
 
@@ -752,7 +752,7 @@
                         <div class="space-y-1.5">
                           <div class="flex items-center justify-between text-xs">
                             <span class="font-bold {entry.color}">{entry.label}</span>
-                            <span class="font-bold text-on-surface-variant/70">{entry.count} ({pct} %)</span>
+                            <span class="font-bold text-on-surface-variant">{entry.count} ({pct} %)</span>
                           </div>
                           <div class="h-1.5 w-full rounded-full bg-on-surface/5 overflow-hidden">
                             <div class="h-full rounded-full bg-primary/70" style="width: {pct}%"></div>
@@ -761,7 +761,7 @@
                       {/each}
                     </div>
                   {:else}
-                    <p class="text-xs text-on-surface-variant/50 py-6 text-center">{m.d7_inv_no_data_available()}</p>
+                    <p class="text-xs text-on-surface-variant py-6 text-center">{m.d7_inv_no_data_available()}</p>
                   {/if}
                   {#if q.bots > 0}
                     <p class="pt-2 border-t border-outline-variant/10 text-2xs font-bold text-warning">{m.d7_inv_bots_detected({ count: q.bots })}</p>
@@ -787,12 +787,12 @@
                       {/each}
                     </div>
                   {:else}
-                    <p class="text-xs text-on-surface-variant/50 py-6 text-center">{m.d7_inv_no_sanctioned()}</p>
+                    <p class="text-xs text-on-surface-variant py-6 text-center">{m.d7_inv_no_sanctioned()}</p>
                   {/if}
                 </div>
               </div>
             {:else}
-              <p class="text-sm text-on-surface-variant/60 text-center py-10">{m.d7_inv_no_data_available()}</p>
+              <p class="text-sm text-on-surface-variant text-center py-10">{m.d7_inv_no_data_available()}</p>
             {/if}
 
           <!-- ══════════════ TEMPORALITÉ ══════════════ -->
@@ -809,7 +809,7 @@
                 {#if cumulativeData}
                   <Chart data={cumulativeData.data} options={cumulativeData.options} type="line" height={200} />
                 {:else}
-                  <div class="flex items-center justify-center h-full text-on-surface-variant/60 text-sm">{m.d7_inv_no_data_available()}</div>
+                  <div class="flex items-center justify-center h-full text-on-surface-variant text-sm">{m.d7_inv_no_data_available()}</div>
                 {/if}
               </div>
             </div>
@@ -831,7 +831,7 @@
                   {#if hourlyData}
                     <Chart data={hourlyData.data} options={hourlyData.options} type="bar" height={200} />
                   {:else}
-                    <div class="flex items-center justify-center h-full text-on-surface-variant/60 text-sm">{m.d7_inv_no_data_available()}</div>
+                    <div class="flex items-center justify-center h-full text-on-surface-variant text-sm">{m.d7_inv_no_data_available()}</div>
                   {/if}
                 </div>
               </div>
@@ -852,7 +852,7 @@
                   {#if weekdayData}
                     <Chart data={weekdayData.data} options={weekdayData.options} type="bar" height={200} />
                   {:else}
-                    <div class="flex items-center justify-center h-full text-on-surface-variant/60 text-sm">{m.d7_inv_no_data_available()}</div>
+                    <div class="flex items-center justify-center h-full text-on-surface-variant text-sm">{m.d7_inv_no_data_available()}</div>
                   {/if}
                 </div>
               </div>
@@ -898,11 +898,11 @@
                   </div>
                   <div>
                     <h4 class="text-sm font-semibold">{m.d7_inv_invited_people()}</h4>
-                    <p class="text-xs text-on-surface-variant/60">{m.d7_inv_click_to_open()}</p>
+                    <p class="text-xs text-on-surface-variant">{m.d7_inv_click_to_open()}</p>
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
-                  <span class="px-3 py-1 rounded-full text-xs font-semibold bg-surface-container-high/40 text-on-surface-variant/70">
+                  <span class="px-3 py-1 rounded-full text-xs font-semibold bg-surface-container-high/40 text-on-surface-variant">
                     {m.d7_inv_entries({ count: filteredJoins.length })}
                   </span>
                   <button type="button" onclick={exportCsv} class="px-3 py-2 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high text-xs font-bold transition-colors">CSV</button>
@@ -952,7 +952,7 @@
                       <img src={memberAvatarSrc(join.avatarUrl, join.userTag, join.userId)} alt="" class="w-10 h-10 rounded-xl object-cover" />
                       <div class="min-w-0">
                         <p class="text-sm font-semibold text-on-surface group-hover:text-primary transition-colors truncate">{join.userTag}</p>
-                        <p class="text-2xs text-on-surface-variant/50 font-mono truncate">{join.userId} • {formatDateTime(join.joinedAt)}</p>
+                        <p class="text-2xs text-on-surface-variant font-mono truncate">{join.userId} • {formatDateTime(join.joinedAt)}</p>
                       </div>
                     </div>
                     <div class="flex items-center gap-4 shrink-0">
@@ -970,7 +970,7 @@
                   </button>
                 {/each}
                 {#if filteredJoins.length === 0}
-                  <div class="text-center py-8 text-on-surface-variant/60 text-sm">
+                  <div class="text-center py-8 text-on-surface-variant text-sm">
                     {m.d7_inv_no_invited()}
                   </div>
                 {/if}
@@ -986,7 +986,7 @@
                   >
                     {m.d7_inv_previous()}
                   </button>
-                  <span class="text-xs font-bold text-on-surface-variant/60">{m.d7_inv_page_of({ current: joinPage, total: joinTotalPages })}</span>
+                  <span class="text-xs font-bold text-on-surface-variant">{m.d7_inv_page_of({ current: joinPage, total: joinTotalPages })}</span>
                   <button
                     type="button"
                     onclick={() => joinPage = Math.min(joinTotalPages, joinPage + 1)}

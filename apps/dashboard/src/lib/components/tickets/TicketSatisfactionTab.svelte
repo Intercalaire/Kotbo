@@ -298,7 +298,7 @@
         {/if}
         <div class="min-w-0 flex-1">
           <h3 class="text-base font-semibold truncate">{m.e1_tickets_sat_reviews_of({ name: getSatisfactionPersonName(reviewsModalStaff.staff, reviewsModalStaff.staffId) })}</h3>
-          <p class="text-2xs text-on-surface-variant/60">{m.e1_tickets_sat_reviews_count({ count: reviewsModalTotal })}</p>
+          <p class="text-2xs text-on-surface-variant">{m.e1_tickets_sat_reviews_count({ count: reviewsModalTotal })}</p>
         </div>
         <button type="button" class="sat-staff-chip" class:sat-chip-active={reviewsModalCommentsOnly} onclick={toggleReviewsCommentsOnly}>
           <Papicon icon="message-square" size={13} />

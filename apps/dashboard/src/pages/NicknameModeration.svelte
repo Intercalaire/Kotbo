@@ -468,7 +468,7 @@
       <div class="flex items-start justify-between gap-6">
         <div class="flex flex-col gap-1">
           <h2 class="text-base font-semibold tracking-tight text-on-surface">{m.nm_activation()}</h2>
-          <p class="text-sm text-on-surface-variant/70">
+          <p class="text-sm text-on-surface-variant">
             {m.nm_activation_desc_1()}
             <code class="font-mono text-primary dark:text-blue-300 bg-primary/10 dark:bg-blue-500/15 px-1.5 py-0.5 rounded-lg text-xs">{m.nm_safe_nickname({}, { locale: botLocale })}</code>.
             <br />
@@ -482,7 +482,7 @@
              En liste plate, on ne voyait pas que couper un groupe entier eteint
              le module sans eteindre son interrupteur principal. -->
         <div class="flex flex-col gap-2">
-          <p class="text-body-sm font-medium text-on-surface-variant/50">{m.nm_group_when()}</p>
+          <p class="text-body-sm font-medium text-on-surface-variant">{m.nm_group_when()}</p>
           <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
             <span class="text-sm text-on-surface-variant/80">{m.nm_watch_join()}</span>
             <ToggleSwitch checked={onJoin} onToggle={(value) => saveGranularToggle('onJoin', value)} disabled={saveToggleAction.state.loading} />
@@ -500,7 +500,7 @@
         </div>
 
         <div class="flex flex-col gap-2">
-          <p class="text-body-sm font-medium text-on-surface-variant/50">{m.nm_group_what()}</p>
+          <p class="text-body-sm font-medium text-on-surface-variant">{m.nm_group_what()}</p>
           <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
             <span class="text-sm text-on-surface-variant/80">{m.nm_watch_invisible()}</span>
             <ToggleSwitch checked={checkInvisible} onToggle={(value) => saveGranularToggle('checkInvisible', value)} disabled={saveToggleAction.state.loading} />
@@ -524,7 +524,7 @@
         <div class="flex items-center justify-between gap-4 py-3 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors border-t border-outline-variant/10">
           <div class="flex flex-col gap-0.5">
             <span class="text-sm font-semibold text-on-surface">{m.nm_discord_automod()}</span>
-            <span class="text-xs text-on-surface-variant/60">{m.nm_discord_automod_desc()}</span>
+            <span class="text-xs text-on-surface-variant">{m.nm_discord_automod_desc()}</span>
           </div>
           <ToggleSwitch checked={discordAutoModSync} onToggle={(value) => saveGranularToggle('discordAutoModSync', value)} disabled={saveToggleAction.state.loading} />
         </div>
@@ -541,7 +541,7 @@
     <section class="bg-surface-container-low/40 rounded-xl border border-outline-variant/30 p-8 flex flex-col gap-6">
       <div class="flex flex-col gap-1">
         <h2 class="text-base font-semibold tracking-tight text-on-surface">{m.nm_banned_words()}</h2>
-        <p class="text-sm text-on-surface-variant/70">
+        <p class="text-sm text-on-surface-variant">
           {m.nm_banned_words_desc_1()} <strong>{m.nm_banned_words_global()}</strong> {m.nm_banned_words_desc_2()}
           <strong>{m.nm_banned_words_custom()}</strong> {m.nm_banned_words_desc_3()}
         </p>
@@ -667,7 +667,7 @@
         <!-- Liste globale (read-only) -->
         {#if globalWords.length > 0}
           <div class="section-card-flush">
-            <div class="bg-surface-container/30 px-5 py-3 flex items-center gap-2 text-xs text-on-surface-variant/50 border-b border-outline-variant/10">
+            <div class="bg-surface-container/30 px-5 py-3 flex items-center gap-2 text-xs text-on-surface-variant border-b border-outline-variant/10">
               <Papicon icon="lock" size={12} />
               <span>{m.nm_global_readonly()}</span>
             </div>
@@ -718,7 +718,7 @@
     <section class="bg-surface-container-low/40 rounded-xl border border-outline-variant/30 p-8 flex flex-col gap-6">
       <div class="flex flex-col gap-1">
         <h2 class="text-base font-semibold tracking-tight text-on-surface">{m.nm_exceptions()}</h2>
-        <p class="text-sm text-on-surface-variant/70">
+        <p class="text-sm text-on-surface-variant">
           {m.nm_exceptions_desc()}
         </p>
       </div>
@@ -730,7 +730,7 @@
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-1">
             <h3 class="text-sm font-bold text-on-surface">{m.nm_allowed_nicks()}</h3>
-            <p class="text-xs text-on-surface-variant/50">
+            <p class="text-xs text-on-surface-variant">
               {m.nm_allowed_nicks_desc()}
             </p>
           </div>
@@ -779,7 +779,7 @@
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-1">
             <h3 class="text-sm font-bold text-on-surface">{m.nm_bypass_members()}</h3>
-            <p class="text-xs text-on-surface-variant/50">
+            <p class="text-xs text-on-surface-variant">
               {m.nm_bypass_members_desc()}
             </p>
           </div>

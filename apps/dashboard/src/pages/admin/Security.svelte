@@ -122,7 +122,7 @@
       <button
         onclick={() => adminTab = 'admins'}
         class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200
- {adminTab === 'admins' ? 'bg-surface-container text-on-surface shadow-sm' : 'text-on-surface-variant/50 hover:text-on-surface'}"
+ {adminTab === 'admins' ? 'bg-surface-container text-on-surface shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}"
       >
         <Papicon icon="ShieldCheck" size={13} />
         Administrateurs
@@ -130,7 +130,7 @@
       <button
         onclick={() => adminTab = 'blacklist'}
         class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200
- {adminTab === 'blacklist' ? 'bg-surface-container text-on-surface shadow-sm' : 'text-on-surface-variant/50 hover:text-on-surface'}"
+ {adminTab === 'blacklist' ? 'bg-surface-container text-on-surface shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}"
       >
         <Papicon icon="UserX" size={13} />
         Liste noire
@@ -154,7 +154,7 @@
         </div>
         <div>
           <p class="font-semibold text-on-surface">Erreur de chargement</p>
-          <p class="text-sm text-on-surface-variant/60 mt-1">{error}</p>
+          <p class="text-sm text-on-surface-variant mt-1">{error}</p>
         </div>
       </div>
 

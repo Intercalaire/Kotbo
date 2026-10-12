@@ -267,7 +267,7 @@
       <button
         type="button"
         onclick={() => authStore.logout()}
-        class="text-body-sm font-medium text-on-surface-variant/60 hover:text-on-surface transition-colors"
+        class="text-body-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors"
       >
         Se déconnecter
       </button>
@@ -308,7 +308,7 @@
       <KotboMark size={44} halo />
       <div class="text-center">
         <p class="text-sm font-semibold text-on-surface">Nous demandons tes serveurs à Discord…</p>
-        <p class="mt-1 text-body-sm text-on-surface-variant/60">Quelques secondes, le temps de savoir où Kotbo est déjà là.</p>
+        <p class="mt-1 text-body-sm text-on-surface-variant">Quelques secondes, le temps de savoir où Kotbo est déjà là.</p>
       </div>
     </div>
 
@@ -382,7 +382,7 @@
 
                 <div class="min-w-0 flex-1">
                   <p class="text-body-sm font-medium text-on-surface truncate">{server.name}</p>
-                  <p class="text-2xs text-on-surface-variant/60">
+                  <p class="text-2xs text-on-surface-variant">
                     {server.owner ? 'Propriétaire' : 'Administrateur'}
                   </p>
                 </div>
@@ -440,7 +440,7 @@
                       <span class="text-xs font-medium px-1 py-0.5 rounded bg-primary/10 text-primary">Actuel</span>
                     {/if}
                   </p>
-                  <p class="text-2xs {server.activated ? 'text-on-surface-variant/60' : 'text-warning'}">
+                  <p class="text-2xs {server.activated ? 'text-on-surface-variant' : 'text-warning'}">
                     {server.activated ? (server.owner ? 'Propriétaire' : 'Administrateur') : "En attente d'activation"}
                   </p>
                 </div>

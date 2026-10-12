@@ -189,12 +189,12 @@
                       class="w-7 h-7 rounded-lg object-cover shrink-0"
                     />
                   {:else}
-                    <Papicon icon="robot" size={14} class={bot.label ? 'text-primary' : 'text-on-surface-variant/50'} />
+                    <Papicon icon="robot" size={14} class={bot.label ? 'text-primary' : 'text-on-surface-variant'} />
                   {/if}
                   <div class="min-w-0">
                     <p class="text-body-sm font-medium text-on-surface truncate">{bot.label ?? bot.username}</p>
                     {#if bot.label && bot.label !== bot.username}
-                      <p class="text-2xs text-on-surface-variant/60 truncate">{bot.username}</p>
+                      <p class="text-2xs text-on-surface-variant truncate">{bot.username}</p>
                     {/if}
                   </div>
                 </div>
@@ -208,7 +208,7 @@
                       <span
                         class="text-2xs px-1.5 py-0.5 rounded {activeFeatures.has(feature)
                           ? 'bg-primary/10 text-primary'
-                          : 'bg-surface-container text-on-surface-variant/60'}"
+                          : 'bg-surface-container text-on-surface-variant'}"
                       >
                         {FEATURE_LABELS[feature] ?? feature}
                       </span>
@@ -217,7 +217,7 @@
                   {#if bot.activeFeatures.length > 0}
                     <ul class="mt-2 space-y-0.5">
                       {#each bot.activeFeatures as entry (entry.feature)}
-                        <li class="text-2xs text-on-surface-variant/70 leading-relaxed">
+                        <li class="text-2xs text-on-surface-variant leading-relaxed">
                           <span class="text-primary/80">{FEATURE_LABELS[entry.feature] ?? entry.feature}</span> · {entry.evidence}
                         </li>
                       {/each}
@@ -228,11 +228,11 @@
                        un bot de bump ou de musique. Le dire, plutot que de
                        renvoyer le staff verifier a la main un bot dont il n'y
                        a rien a reprendre. -->
-                  <p class="mt-1.5 text-2xs text-on-surface-variant/60">
+                  <p class="mt-1.5 text-2xs text-on-surface-variant">
                     Rien à reprendre  Kotbo ne couvre pas ce que fait ce bot.
                   </p>
                 {:else}
-                  <p class="mt-1.5 text-2xs text-on-surface-variant/60">Bot non reconnu  à vérifier à la main.</p>
+                  <p class="mt-1.5 text-2xs text-on-surface-variant">Bot non reconnu  à vérifier à la main.</p>
                 {/if}
               </div>
             {/each}
@@ -308,7 +308,7 @@
                         {finding.action}
                       </p>
                     {:else}
-                      <p class="mt-2 text-2xs text-on-surface-variant/60 italic">
+                      <p class="mt-2 text-2xs text-on-surface-variant italic">
                         Constat informatif : rien à appliquer automatiquement.
                       </p>
                     {/if}
@@ -344,7 +344,7 @@
                   <p class="text-xs font-medium text-on-surface truncate">
                     {candidate.kind === 'channel' ? '#' : '@'}{candidate.name}
                   </p>
-                  <p class="text-2xs text-on-surface-variant/60 font-mono truncate">{candidate.path}</p>
+                  <p class="text-2xs text-on-surface-variant font-mono truncate">{candidate.path}</p>
                 </div>
                 <FormSelect
                   value={assignments[candidate.value] ?? ''}

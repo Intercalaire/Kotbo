@@ -261,7 +261,7 @@
           oninput={updateQuery}
           placeholder={m.mb_search_placeholder()}
           aria-label={m.mb_search_placeholder()}
-          class="w-full h-10 rounded-lg border border-outline-variant/40 bg-surface-container-low pl-9 pr-9 text-sm text-on-surface placeholder:text-on-surface-variant/50 outline-hidden focus:border-primary/40 focus:ring-2 focus:ring-primary/40"
+          class="w-full h-10 rounded-lg border border-outline-variant/40 bg-surface-container-low pl-9 pr-9 text-sm text-on-surface placeholder:text-on-surface-variant outline-hidden focus:border-primary/40 focus:ring-2 focus:ring-primary/40"
         />
         {#if loadingSearch}
           <span class="absolute inset-y-0 right-3 flex items-center text-on-surface-variant">
@@ -282,7 +282,7 @@
               <option value={option.value}>{option.label}</option>
             {/each}
           </select>
-          <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant/60">
+          <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant">
             <Papicon icon="chevron-down" size={14} />
           </span>
         </div>
@@ -403,7 +403,7 @@
           <Papicon icon="users" size={32} />
         </div>
         <h3 class="mt-6 text-xl font-bold text-on-surface">{m.mb_no_result()}</h3>
-        <p class="mt-2 text-sm text-on-surface-variant/50 max-w-xs">
+        <p class="mt-2 text-sm text-on-surface-variant max-w-xs">
           {m.mb_no_result_desc()}
         </p>
         <button onclick={resetSearch} class="mt-6 text-body-sm font-medium text-primary hover:underline">
@@ -443,11 +443,11 @@
                  sur la carte ; la recherche l'accepte toujours. -->
             <dl class="mt-4 grid grid-cols-2 gap-3">
               <div>
-                <dt class="text-2xs text-on-surface-variant/70">{m.mb_col_activity()}</dt>
+                <dt class="text-2xs text-on-surface-variant">{m.mb_col_activity()}</dt>
                 <dd class="text-sm text-on-surface">{formatRelative(member.lastSeenAt)}</dd>
               </div>
               <div>
-                <dt class="text-2xs text-on-surface-variant/70">{m.mb_col_messages()}</dt>
+                <dt class="text-2xs text-on-surface-variant">{m.mb_col_messages()}</dt>
                 <dd class="text-sm text-on-surface tabular-nums">{member.messageCount.toLocaleString(dateLocale())}</dd>
               </div>
             </dl>

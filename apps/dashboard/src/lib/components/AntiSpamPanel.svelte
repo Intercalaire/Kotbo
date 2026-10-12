@@ -379,7 +379,7 @@
           <div class="flex items-end gap-1 h-24">
             {#each stats.histogram as band (band.from)}
               <div class="flex-1 flex flex-col items-center justify-end gap-1 group relative">
-                <span class="text-2xs text-on-surface-variant/60 tabular-nums opacity-0 group-hover:opacity-100 transition-opacity">
+                <span class="text-2xs text-on-surface-variant tabular-nums opacity-0 group-hover:opacity-100 transition-opacity">
                   {band.count}
                 </span>
                 <div
@@ -387,7 +387,7 @@
                   style="height: {Math.max(2, (band.count / histogramMax) * 76)}px"
                   title="{band.count} message(s) entre {band.from} et {band.to}"
                 ></div>
-                <span class="text-2xs text-on-surface-variant/50 tabular-nums">{band.from}</span>
+                <span class="text-2xs text-on-surface-variant tabular-nums">{band.from}</span>
               </div>
             {/each}
           </div>
@@ -411,7 +411,7 @@
                 <div class="text-2xs text-on-surface-variant">bannis</div>
               </div>
             </div>
-            <p class="mt-2 text-xs text-on-surface-variant/70 text-center">
+            <p class="mt-2 text-xs text-on-surface-variant text-center">
               Projection sur les {stats.total} évaluations des 14 derniers jours avec les seuils actuels.
             </p>
           {/if}
@@ -442,7 +442,7 @@
               bind:value={config[row.field]}
               class="w-full mt-1 {row.color}"
             />
-            <p class="text-xs text-on-surface-variant/70">{row.help}</p>
+            <p class="text-xs text-on-surface-variant">{row.help}</p>
           </div>
         {/each}
       </div>
@@ -524,7 +524,7 @@
           <p class="text-xs font-medium text-on-surface-variant mb-2">
             Rôles exemptés
             {#if config.bypassRoleIds.length > 0}
-              <span class="text-on-surface-variant/60">({config.bypassRoleIds.length})</span>
+              <span class="text-on-surface-variant">({config.bypassRoleIds.length})</span>
             {/if}
           </p>
           <div class="flex flex-wrap gap-1.5">
@@ -547,10 +547,10 @@
           <p class="text-xs font-medium text-on-surface-variant mb-2">
             Salons exemptés
             {#if config.bypassChannelIds.length > 0}
-              <span class="text-on-surface-variant/60">({config.bypassChannelIds.length})</span>
+              <span class="text-on-surface-variant">({config.bypassChannelIds.length})</span>
             {/if}
           </p>
-          <p class="text-2xs text-on-surface-variant/70 mb-2">
+          <p class="text-2xs text-on-surface-variant mb-2">
             Utile pour les salons de spam assumé (mèmes, bots, tests) où la répétition est la norme.
           </p>
           <div class="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto">
@@ -642,7 +642,7 @@
                         {sample.label === 'TRUE_POSITIVE' ? 'vrai positif' : 'faux positif'}
                       </span>
                     {/if}
-                    <span class="text-2xs text-on-surface-variant/60 ml-auto">{formatRelative(sample.createdAt)}</span>
+                    <span class="text-2xs text-on-surface-variant ml-auto">{formatRelative(sample.createdAt)}</span>
                   </div>
 
                   {#if sample.contentPreview}

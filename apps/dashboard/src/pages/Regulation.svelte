@@ -517,7 +517,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       </div>
       <div class="space-y-4">
         <div class="flex flex-col gap-2 p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10">
-          <span class="text-body-sm font-medium text-on-surface-variant/60">{m.regulation_channel_current()}</span>
+          <span class="text-body-sm font-medium text-on-surface-variant">{m.regulation_channel_current()}</span>
           <span class="text-sm font-semibold text-primary bg-primary/5 px-3 py-2 rounded-lg break-all">{regulationChannelLabel}</span>
         </div>
         {#if canManageSettings}
@@ -538,8 +538,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       <div class="space-y-4">
         <div class="p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10">
           <p class="text-sm font-bold text-on-surface leading-relaxed">{publicationStatusLabel}</p>
-          <p class="mt-1 text-xs font-medium text-on-surface-variant/60">{m.regulation_msg_sync_active()}</p>
-          <p class="mt-3 text-2xs text-on-surface-variant/60 leading-tight">{m.regulation_staff_notice_hint()}</p>
+          <p class="mt-1 text-xs font-medium text-on-surface-variant">{m.regulation_msg_sync_active()}</p>
+          <p class="mt-3 text-2xs text-on-surface-variant leading-tight">{m.regulation_staff_notice_hint()}</p>
         </div>
         <ActionButton
           onClick={handlePublishRegulation}
@@ -564,7 +564,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10">
             <div class="space-y-0.5">
               <span class="text-sm font-bold text-on-surface">{m.regulation_verif_title()}</span>
-              <p class="text-2xs text-on-surface-variant/60 leading-tight">{m.regulation_verif_desc()}</p>
+              <p class="text-2xs text-on-surface-variant leading-tight">{m.regulation_verif_desc()}</p>
             </div>
             <ToggleSwitch 
               checked={guildState.regulationVerificationEnabled}
@@ -590,7 +590,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10 animate-in fade-in slide-in-from-top-1 duration-200">
               <div class="space-y-0.5">
                 <span class="text-sm font-bold text-on-surface">{m.regulation_lock_title()}</span>
-                <p class="text-2xs text-on-surface-variant/60 leading-tight">{m.regulation_lock_desc()}</p>
+                <p class="text-2xs text-on-surface-variant leading-tight">{m.regulation_lock_desc()}</p>
               </div>
               <ToggleSwitch 
                 checked={guildState.regulationLockEnabled}
@@ -623,7 +623,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         </div>
         <div>
           <h3 class="text-xl font-semibold text-on-surface tracking-tight">{m.regulation_articles_header()}</h3>
-          <p class="text-xs font-semibold text-on-surface-variant/60">{m.regulation_articles_sub()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant">{m.regulation_articles_sub()}</p>
         </div>
       </div>
       <ActionButton
@@ -656,7 +656,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           </div>
           <div class="space-y-1">
             <h4 class="text-xl font-semibold text-on-surface">{m.regulation_no_articles_title()}</h4>
-            <p class="text-on-surface-variant/60 max-w-sm">{m.regulation_no_articles_desc()}</p>
+            <p class="text-on-surface-variant max-w-sm">{m.regulation_no_articles_desc()}</p>
           </div>
           <ActionButton onclick={openCreateModal} onClick={openCreateModal} disabled={!canManageSettings} variant="primary" icon="Plus" label={m.regulation_create_first_btn()} className="px-8 py-3 rounded-xl" />
         </div>
@@ -691,11 +691,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     {/if}
                     <h4 class="text-2xl font-semibold text-on-surface tracking-tight group-hover:text-primary transition-colors">{rule.title}</h4>
                   </div>
-                  <p class="text-on-surface-variant/70 text-base leading-relaxed whitespace-pre-wrap max-w-4xl">{rule.description}</p>
+                  <p class="text-on-surface-variant text-base leading-relaxed whitespace-pre-wrap max-w-4xl">{rule.description}</p>
                 </div>
                 
                 <div class="flex flex-wrap items-center gap-2">
-                   <span class="px-3 py-1 rounded-lg bg-surface-container-high/60 text-xs font-medium text-on-surface-variant/60 border border-outline-variant/5">
+                   <span class="px-3 py-1 rounded-lg bg-surface-container-high/60 text-xs font-medium text-on-surface-variant border border-outline-variant/5">
                     {rule.enabled ? m.regulation_badge_visible() : m.regulation_badge_hidden()}
                    </span>
                    {#if canManageSettings}
@@ -711,14 +711,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 <div class="flex items-center gap-2 self-end md:self-start bg-surface-container-high/40 p-2 rounded-lg border border-outline-variant/10 opacity-0 group-hover:opacity-100 transition-all duration-300 -translate-y-2 group-hover:translate-y-0">
                   <button 
                     onclick={() => openEditModal(rule)}
-                    class="p-3 rounded-xl hover:bg-primary/10 hover:text-primary text-on-surface-variant/60 transition-all"
+                    class="p-3 rounded-xl hover:bg-primary/10 hover:text-primary text-on-surface-variant transition-all"
                     title={m.common_edit()}
                   >
                     <Papicon icon="PencilSimple" size={18} />
                   </button>
                   <button 
                     onclick={() => openDeleteModal(rule)}
-                    class="p-3 rounded-xl hover:bg-error-container/20 hover:text-error text-on-surface-variant/60 transition-all"
+                    class="p-3 rounded-xl hover:bg-error-container/20 hover:text-error text-on-surface-variant transition-all"
                     title={m.reaction_roles_delete_tooltip()}
                   >
                     <Papicon icon="Trash" size={18} />
@@ -764,7 +764,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <Papicon icon={modalMode === 'create' ? "PlusCircle" : "PencilSimple"} size={24} />
           </div>
           <div>
-            <p class="text-xs font-semibold text-on-surface-variant/60">{modalMode === 'create' ? m.regulation_modal_config_badge() : m.regulation_modal_edit_badge()}</p>
+            <p class="text-xs font-semibold text-on-surface-variant">{modalMode === 'create' ? m.regulation_modal_config_badge() : m.regulation_modal_edit_badge()}</p>
             <h3 id="regulation-modal-title" class="text-2xl font-semibold text-on-surface tracking-tight">{modalMode === 'create' ? m.regulation_modal_title_add() : m.regulation_modal_title_edit()}</h3>
           </div>
         </div>
@@ -795,7 +795,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             </div>
             <div class="flex-1">
               <span class="block text-sm font-semibold text-on-surface tracking-tight">{m.regulation_field_active_title()}</span>
-              <span class="block text-xs font-semibold text-on-surface-variant/60 mt-0.5">{m.regulation_field_active_desc()}</span>
+              <span class="block text-xs font-semibold text-on-surface-variant mt-0.5">{m.regulation_field_active_desc()}</span>
             </div>
           </label>
         </div>
@@ -902,7 +902,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <p class="text-sm font-bold text-on-surface-variant leading-relaxed">
           {m.regulation_warning_modal_desc1({ everyone: '@everyone' })}
         </p>
-        <p class="text-xs font-semibold text-on-surface-variant/70 leading-relaxed">
+        <p class="text-xs font-semibold text-on-surface-variant leading-relaxed">
           {m.regulation_warning_modal_desc2({ everyone: '@everyone' })}
         </p>
       </div>

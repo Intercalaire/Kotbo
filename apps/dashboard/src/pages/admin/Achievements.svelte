@@ -107,7 +107,7 @@
       </div>
       <div>
         <h1 class="text-xl font-bold text-on-surface leading-tight">Succès attribués</h1>
-        <p class="text-sm text-on-surface-variant/60">
+        <p class="text-sm text-on-surface-variant">
           Ces succès ne se calculent pas : ils récompensent une aide à Kotbo. Les administrateurs Kotbo ne les ont pas d'office.
         </p>
       </div>
@@ -184,7 +184,7 @@
                 {achievement.label.fr}
                 <span class="text-xs px-2 py-0.5 rounded-full bg-primary/15 text-primary font-bold">{list.length}</span>
               </p>
-              <p class="text-xs text-on-surface-variant/50 truncate">{achievement.description.fr}</p>
+              <p class="text-xs text-on-surface-variant truncate">{achievement.description.fr}</p>
             </div>
           </div>
 
@@ -206,7 +206,7 @@
                       {nameOf(holder.userId)}
                       <span class="font-mono text-xs text-on-surface-variant/40">{holder.userId}</span>
                     </p>
-                    <p class="text-xs text-on-surface-variant/50 truncate">
+                    <p class="text-xs text-on-surface-variant truncate">
                       {formatDate(holder.unlockedAt)}
                       {#if holder.grantedBy} · par {nameOf(holder.grantedBy)}{/if}
                       {#if holder.note} · {holder.note}{/if}
@@ -217,7 +217,7 @@
                     disabled={revoking === `${achievement.id}:${holder.userId}`}
                     title="Retirer le succès"
                     aria-label="Retirer le succès"
-                    class="p-2 rounded-lg text-on-surface-variant/50 hover:text-error hover:bg-error/10 disabled:opacity-40 transition-colors"
+                    class="p-2 rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 disabled:opacity-40 transition-colors"
                   >
                     <Papicon icon="Trash2" size={15} />
                   </button>

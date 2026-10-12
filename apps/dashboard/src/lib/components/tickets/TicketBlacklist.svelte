@@ -131,7 +131,7 @@
       <input type="checkbox" bind:checked={blacklistAllowReopen} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
       <div>
         <span class="text-xs font-bold text-on-surface">{m.e1_tickets_bl_allow_reopen()}</span>
-        <p class="text-2xs text-on-surface-variant/60">{m.e1_tickets_bl_allow_reopen_desc()}</p>
+        <p class="text-2xs text-on-surface-variant">{m.e1_tickets_bl_allow_reopen_desc()}</p>
       </div>
     </label>
     <div class="flex justify-end">
@@ -149,7 +149,7 @@
   <!-- Liste des interdictions en vigueur -->
   <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
     {#if blacklistLoading}
-      <div class="p-8 text-center text-xs text-on-surface-variant/50">{m.e1_tickets_bl_loading()}</div>
+      <div class="p-8 text-center text-xs text-on-surface-variant">{m.e1_tickets_bl_loading()}</div>
     {:else if blacklistEntries.length === 0}
       <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/30">
         <Papicon icon="shield" size={36} class="opacity-50 mb-2" />
@@ -168,7 +168,7 @@
             {/if}
             <div class="min-w-0 flex-1">
               <p class="text-sm font-semibold text-on-surface truncate">@{entry.username || entry.userId}</p>
-              <p class="text-2xs text-on-surface-variant/60 truncate">
+              <p class="text-2xs text-on-surface-variant truncate">
                 {entry.reason || m.e1_tickets_bl_no_reason()}
               </p>
               <p class="text-2xs text-on-surface-variant/40 mt-0.5">

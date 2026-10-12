@@ -290,7 +290,7 @@
           <button
             type="button"
             onclick={() => { activeSource = source.id as typeof activeSource; search = ''; }}
-            class="flex-1 px-2 py-1.5 rounded-md text-2xs font-bold uppercase tracking-wider transition-all {activeSource === source.id ? 'bg-primary/15 text-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}"
+            class="flex-1 px-2 py-1.5 rounded-md text-2xs font-bold uppercase tracking-wider transition-all {activeSource === source.id ? 'bg-primary/15 text-primary' : 'text-on-surface-variant hover:text-on-surface'}"
           >
             {source.label}
           </button>
@@ -329,7 +329,7 @@
             {/each}
           </div>
           {#if emojiSet}
-            <div class="flex items-center justify-between text-2xs text-on-surface-variant/50">
+            <div class="flex items-center justify-between text-2xs text-on-surface-variant">
               <span>{m.d1_emoji_server_slots({
                 used: String(emojiSet.slots.staticUsed),
                 total: String(emojiSet.slots.total)
@@ -378,7 +378,7 @@
         </div>
       {:else}
         {#if emojiSet && !emojiSet.canUpload}
-          <div class="py-4 text-center text-2xs text-on-surface-variant/50 leading-relaxed">
+          <div class="py-4 text-center text-2xs text-on-surface-variant leading-relaxed">
             {m.d1_emoji_upload_forbidden()}
           </div>
         {:else}
@@ -425,8 +425,8 @@
               ondrop={handleDrop}
               class="flex flex-col items-center justify-center gap-2 w-full py-6 rounded-xl border border-dashed transition-all {dragOver ? 'border-primary bg-primary/5' : 'border-outline-variant/25 hover:border-outline-variant/50'}"
             >
-              <Papicon icon="upload" size={20} class="text-on-surface-variant/50" />
-              <span class="text-2xs text-on-surface-variant/70">{m.d1_emoji_upload_drop()}</span>
+              <Papicon icon="upload" size={20} class="text-on-surface-variant" />
+              <span class="text-2xs text-on-surface-variant">{m.d1_emoji_upload_drop()}</span>
               <span class="text-2xs text-on-surface-variant/40">{m.d1_emoji_upload_hint({ max: String(maxKb) })}</span>
             </button>
           {/if}

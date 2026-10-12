@@ -893,7 +893,7 @@
 <!-- Vide qui est une bonne nouvelle ou un simple constat : pas de bouton a inventer. -->
 {#snippet quietEmpty(icon: string, title: string, description = '')}
   <div class="section-card flex flex-col items-center gap-1.5 px-6 py-12 text-center">
-    <span class="mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-surface-container text-on-surface-variant/60"><Papicon {icon} size={20} /></span>
+    <span class="mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-surface-container text-on-surface-variant"><Papicon {icon} size={20} /></span>
     <p class="text-sm font-medium text-on-surface">{title}</p>
     {#if description}<p class="max-w-sm text-sm text-on-surface-variant">{description}</p>{/if}
   </div>
@@ -1369,7 +1369,7 @@
             {:else if activeTab === 'messages'}
               <div class="mc-toolbar">
                 <div class="mc-search relative">
-                  <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-on-surface-variant/60"><Papicon icon="search" size={15} /></span>
+                  <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-on-surface-variant"><Papicon icon="search" size={15} /></span>
                   <input type="search" class="input" style="padding-left: 2.25rem;" placeholder={m.mcm_search_messages()} aria-label={m.mcm_search_messages()} bind:value={messageQuery} oninput={() => { messageOffset = 0; }} />
                 </div>
                 {@render toolbarSelect(messageChannelId, (v) => { messageChannelId = v; messageOffset = 0; }, [
@@ -1461,7 +1461,7 @@
                    les logs sont deja tous charges. -->
               <div class="mc-toolbar">
                 <div class="mc-search relative">
-                  <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-on-surface-variant/60"><Papicon icon="search" size={15} /></span>
+                  <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-on-surface-variant"><Papicon icon="search" size={15} /></span>
                   <input type="search" class="input" style="padding-left: 2.25rem;" placeholder={m.mcm_search_logs()} aria-label={m.mcm_search_logs()} bind:value={logQuery} />
                 </div>
                 {@render toolbarSelect(logModule, (v) => (logModule = v), [{ value: '', label: m.mcm_all_modules() }, ...logModules.map((x: any) => ({ value: String(x), label: String(x) }))], m.mcm_all_modules())}

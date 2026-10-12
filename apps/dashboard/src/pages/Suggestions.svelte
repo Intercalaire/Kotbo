@@ -273,7 +273,7 @@
             <!-- Moderation actions form -->
             <div class="space-y-4 pt-4 border-t border-outline-variant/10 animate-in fade-in duration-300">
               <div class="space-y-1.5">
-                <label for={`resp-${suggestion.id}`} class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.suggestions_public_comment_label()}</label>
+                <label for={`resp-${suggestion.id}`} class="text-xs font-semibold text-on-surface-variant ml-2">{m.suggestions_public_comment_label()}</label>
                 <textarea 
                   id={`resp-${suggestion.id}`}
                   bind:value={responseDrafts[suggestion.id]} 

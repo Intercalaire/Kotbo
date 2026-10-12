@@ -45,7 +45,7 @@
 
 <!-- Loading -->
 {#if loading}
-  <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
+  <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant gap-4">
     <div class="h-8 w-8 animate-spin rounded-full border-3 border-primary border-t-transparent"></div>
     <p class="text-sm">{m.rep_loading()}</p>
   </div>
@@ -58,7 +58,7 @@
       </div>
       <div class="flex flex-col">
         <span class="text-xl font-bold text-on-surface">{data.totalVotes}</span>
-        <span class="text-xs font-medium text-on-surface-variant/60">{m.rep_total_votes()}</span>
+        <span class="text-xs font-medium text-on-surface-variant">{m.rep_total_votes()}</span>
       </div>
     </div>
     <div class="bg-surface-container-high/30 rounded-xl p-4 flex items-center gap-3">
@@ -67,7 +67,7 @@
       </div>
       <div class="flex flex-col">
         <span class="text-xl font-bold text-on-surface">{data.leaderboard.totalVoters}</span>
-        <span class="text-xs font-medium text-on-surface-variant/60">{m.rep_unique_voters()}</span>
+        <span class="text-xs font-medium text-on-surface-variant">{m.rep_unique_voters()}</span>
       </div>
     </div>
     <div class="bg-surface-container-high/30 rounded-xl p-4 flex items-center gap-3">
@@ -76,7 +76,7 @@
       </div>
       <div class="flex flex-col">
         <span class="text-xl font-bold text-on-surface">{totalRepGiven}</span>
-        <span class="text-xs font-medium text-on-surface-variant/60">{m.rep_total_rep_given()}</span>
+        <span class="text-xs font-medium text-on-surface-variant">{m.rep_total_rep_given()}</span>
       </div>
     </div>
   </div>
@@ -96,7 +96,7 @@
           {#each data.leaderboard.entries as entry, i}
             <div class="reputation-leaderboard-row grid items-center gap-2 px-2.5 py-2 rounded-lg text-sm transition-colors hover:bg-surface-container-high/20 {i < 3 ? 'bg-surface-container-high/10' : ''}">
               <span class="text-base leading-none">{getMedal(i)}</span>
-              <span class="font-semibold text-on-surface-variant/60 text-xs">#{entry.rank}</span>
+              <span class="font-semibold text-on-surface-variant text-xs">#{entry.rank}</span>
               <UserDisplay
                 userId={entry.userId}
                 name={entry.displayName}
@@ -149,7 +149,7 @@
                 />
               </div>
               {#if vote.reason}
-                <p class="text-xs text-on-surface-variant/50 italic">{vote.reason}</p>
+                <p class="text-xs text-on-surface-variant italic">{vote.reason}</p>
               {/if}
               <span class="text-2xs text-on-surface-variant/30 block">{new Date(vote.createdAt).toLocaleDateString('fr-FR')}</span>
             </div>

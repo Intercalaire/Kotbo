@@ -82,7 +82,7 @@
       <Papicon icon="shield" size={14} />
       {m.cm_tv_policy_title()}
     </h5>
-    <p class="text-2xs text-on-surface-variant/60 mt-1">{m.cm_tv_policy_desc()}</p>
+    <p class="text-2xs text-on-surface-variant mt-1">{m.cm_tv_policy_desc()}</p>
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -116,7 +116,7 @@
           bind:checked={policy.lockOnCreate}
           class="mt-0.5 accent-primary w-4 h-4 shrink-0"
         />
-        <span class="text-2xs text-on-surface-variant/70 leading-relaxed">{m.cm_tv_lock_hint()}</span>
+        <span class="text-2xs text-on-surface-variant leading-relaxed">{m.cm_tv_lock_hint()}</span>
       </label>
     </div>
   </div>
@@ -142,7 +142,7 @@
             />
             {mode.label()}
           </span>
-          <span class="text-2xs text-on-surface-variant/60 leading-relaxed">{mode.hint()}</span>
+          <span class="text-2xs text-on-surface-variant leading-relaxed">{mode.hint()}</span>
         </label>
       {/each}
     </div>
@@ -174,7 +174,7 @@
     {/if}
 
     {#if policy.autoAllowRoleIds.length >= MAX_AUTO_ALLOW_ROLES}
-      <p class="text-2xs text-on-surface-variant/60">{m.cm_tv_auto_allow_full({ max: MAX_AUTO_ALLOW_ROLES })}</p>
+      <p class="text-2xs text-on-surface-variant">{m.cm_tv_auto_allow_full({ max: MAX_AUTO_ALLOW_ROLES })}</p>
     {:else}
       <SearchableSelect
         id="{idPrefix}-auto-allow"
@@ -205,7 +205,7 @@
           />
           <span class="flex flex-col gap-0.5">
             <span class="text-xs font-bold text-on-surface">{power.label()}</span>
-            <span class="text-2xs text-on-surface-variant/60 leading-relaxed">{power.hint()}</span>
+            <span class="text-2xs text-on-surface-variant leading-relaxed">{power.hint()}</span>
           </span>
         </label>
       {/each}

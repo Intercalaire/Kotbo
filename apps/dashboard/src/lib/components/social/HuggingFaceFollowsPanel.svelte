@@ -113,7 +113,7 @@
 
       <div class="space-y-4">
         <div class="space-y-1.5">
-          <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.social_hf_kind_label()}</span>
+          <span class="text-xs font-semibold text-on-surface-variant ml-2">{m.social_hf_kind_label()}</span>
           <div class="grid grid-cols-2 gap-2" role="radiogroup" aria-label={m.social_hf_kind_label()}>
             {#each KINDS as kind (kind.id)}
               <button
@@ -121,7 +121,7 @@
                 role="radio"
                 aria-checked={form.kind === kind.id}
                 onclick={() => (form.kind = kind.id)}
-                class="px-3 py-2 rounded-lg text-xs font-semibold border transition-all {form.kind === kind.id ? 'bg-[#FFD21E]/15 border-[#FFD21E]/50 text-on-surface' : 'border-outline-variant/10 text-on-surface-variant/70 hover:bg-surface-container-high/40'}"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border transition-all {form.kind === kind.id ? 'bg-[#FFD21E]/15 border-[#FFD21E]/50 text-on-surface' : 'border-outline-variant/10 text-on-surface-variant hover:bg-surface-container-high/40'}"
               >
                 {kind.label()}
               </button>
@@ -130,23 +130,23 @@
         </div>
 
         <div class="space-y-1.5">
-          <label for="hf-target" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.social_hf_target_label()}</label>
+          <label for="hf-target" class="text-xs font-semibold text-on-surface-variant ml-2">{m.social_hf_target_label()}</label>
           <input id="hf-target" type="text" placeholder={formPlaceholder} bind:value={form.target} class={inputClass} />
           <p class="text-2xs text-on-surface-variant/40 ml-2">{m.social_hf_target_hint()}</p>
         </div>
 
         <div class="space-y-1.5">
-          <label for="hf-chan" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.social_channel_alerts_label()}</label>
+          <label for="hf-chan" class="text-xs font-semibold text-on-surface-variant ml-2">{m.social_channel_alerts_label()}</label>
           <SearchableSelect id="hf-chan" bind:value={form.discordChannelId} options={channelOptions} placeholder={m.social_default_channel_ph()} className={inputClass} />
         </div>
 
         <div class="space-y-1.5">
-          <label for="hf-mention" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.social_mention_label()}</label>
+          <label for="hf-mention" class="text-xs font-semibold text-on-surface-variant ml-2">{m.social_mention_label()}</label>
           <SearchableSelect id="hf-mention" bind:value={form.mention} options={mentionOptions} placeholder={m.social_mention_ph()} className={smallInputClass} />
         </div>
 
         <div class="space-y-1.5">
-          <label for="hf-msg" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.social_hf_message_label()}</label>
+          <label for="hf-msg" class="text-xs font-semibold text-on-surface-variant ml-2">{m.social_hf_message_label()}</label>
           <input id="hf-msg" type="text" placeholder={m.social_default_msg_ph()} bind:value={form.message} class={smallInputClass} />
           <p class="text-2xs text-on-surface-variant/40 ml-2">{m.social_gh_vars_hint()}</p>
         </div>
@@ -158,7 +158,7 @@
         >
           {m.social_hf_add_btn()}
         </button>
-        <p class="text-2xs text-on-surface-variant/50 ml-2">{m.social_gh_baseline_hint()}</p>
+        <p class="text-2xs text-on-surface-variant ml-2">{m.social_gh_baseline_hint()}</p>
       </div>
     </div>
   </div>
@@ -174,7 +174,7 @@
       </div>
 
       {#if follows.length === 0}
-        <div class="flex flex-col items-center justify-center py-20 text-center text-on-surface-variant/50">
+        <div class="flex flex-col items-center justify-center py-20 text-center text-on-surface-variant">
           <Papicon icon="Info" size={48} class="mb-4 text-on-surface-variant/30" />
           <p class="font-bold">{m.social_hf_empty_title()}</p>
           <p class="text-xs">{m.social_empty_hint()}</p>
@@ -204,15 +204,15 @@
 
               <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="space-y-1">
-                  <span class="text-2xs font-bold text-on-surface-variant/50 uppercase">{m.social_channel_alerts_label()}</span>
+                  <span class="text-2xs font-bold text-on-surface-variant uppercase">{m.social_channel_alerts_label()}</span>
                   <SearchableSelect bind:value={follow.discordChannelId} options={channelOptions} placeholder={m.social_default_channel_short_ph()} className={smallInputClass} />
                 </div>
                 <div class="space-y-1">
-                  <label for="hf-mention-{follow.id}" class="text-2xs font-bold text-on-surface-variant/50 uppercase">{m.social_mention_label()}</label>
+                  <label for="hf-mention-{follow.id}" class="text-2xs font-bold text-on-surface-variant uppercase">{m.social_mention_label()}</label>
                   <SearchableSelect id="hf-mention-{follow.id}" bind:value={follow.mentionKey} options={mentionOptions} placeholder={m.social_mention_ph()} className={smallInputClass} />
                 </div>
                 <div class="space-y-1">
-                  <label for="hf-msg-{follow.id}" class="text-2xs font-bold text-on-surface-variant/50 uppercase">{m.social_hf_message_label()}</label>
+                  <label for="hf-msg-{follow.id}" class="text-2xs font-bold text-on-surface-variant uppercase">{m.social_hf_message_label()}</label>
                   <input id="hf-msg-{follow.id}" type="text" bind:value={follow.message} placeholder={m.social_default_msg_ph()} class={smallInputClass} />
                 </div>
               </div>

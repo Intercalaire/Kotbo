@@ -1304,7 +1304,7 @@
       </div>
       <p class="text-sm text-on-surface-variant/80 mb-6">{m.e1_tickets_lock_modal_intro()}</p>
 
-      <label class="block text-xs font-semibold text-on-surface-variant/70 mb-2" for="ticket-lock-duration">
+      <label class="block text-xs font-semibold text-on-surface-variant mb-2" for="ticket-lock-duration">
         {m.e1_tickets_lock_duration()}
       </label>
       <div id="ticket-lock-duration" class="grid grid-cols-2 gap-2 mb-6">

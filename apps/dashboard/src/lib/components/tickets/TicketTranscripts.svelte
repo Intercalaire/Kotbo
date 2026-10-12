@@ -81,7 +81,7 @@
     <div class="hidden md:block overflow-x-auto w-full">
       <table class="w-full text-left border-collapse">
         <thead>
-          <tr class="border-b border-outline-variant/15 text-xs font-medium text-on-surface-variant/70">
+          <tr class="border-b border-outline-variant/15 text-xs font-medium text-on-surface-variant">
             <th class="py-3 px-4">{m.e1_tickets_th_channel()}</th>
             <th class="py-3 px-4">{m.e1_tickets_th_type()}</th>
             <th class="py-3 px-4">{m.e1_tickets_th_period()}</th>
@@ -138,7 +138,7 @@
               <span class="px-2 py-0.5 rounded-full text-2xs font-semibold uppercase bg-success/10 text-success border border-success/20 shrink-0">/transcript</span>
             {/if}
           </div>
-          <p class="text-2xs text-on-surface-variant/60 mb-2">
+          <p class="text-2xs text-on-surface-variant mb-2">
             {new Date(t.createdAt).toLocaleDateString(dateLocale())}
             {#if t.startTime && t.endTime}
               - Du {new Date(t.startTime).toLocaleDateString(dateLocale())} au {new Date(t.endTime).toLocaleDateString(dateLocale())}

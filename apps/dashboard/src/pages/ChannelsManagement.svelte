@@ -1087,7 +1087,7 @@
           {#if byChannelLoading}
             <div class="flex justify-center py-8"><LoadingHint context="config" /></div>
           {:else if visibleByChannel.length === 0}
-            <p class="text-body-sm text-on-surface-variant/70 py-8 text-center">{m.cm_no_channel_matches_search()}</p>
+            <p class="text-body-sm text-on-surface-variant py-8 text-center">{m.cm_no_channel_matches_search()}</p>
           {:else}
             <div class="space-y-1.5">
               {#each visibleByChannel as ch (ch.id)}
@@ -1098,11 +1098,11 @@
                     onclick={() => (expandedChannelId = expandedChannelId === ch.id ? null : ch.id)}
                   >
                     <div class="flex items-center gap-2.5 min-w-0">
-                      <Papicon icon={ch.type === 'voice' ? 'volume-2' : ch.type === 'forum' ? 'message-square' : 'hash'} size={15} class="text-on-surface-variant/60 shrink-0" />
+                      <Papicon icon={ch.type === 'voice' ? 'volume-2' : ch.type === 'forum' ? 'message-square' : 'hash'} size={15} class="text-on-surface-variant shrink-0" />
                       <div class="min-w-0">
                         <p class="text-body-sm font-medium text-on-surface truncate">{ch.name}</p>
                         {#if ch.categoryName}
-                          <p class="text-2xs text-on-surface-variant/60 truncate">{ch.categoryName}</p>
+                          <p class="text-2xs text-on-surface-variant truncate">{ch.categoryName}</p>
                         {/if}
                       </div>
                     </div>
@@ -1111,7 +1111,7 @@
                         <span class="text-2xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">{featureLabel(key)}</span>
                       {/each}
                       {#if ch.features.length > 3}
-                        <span class="text-2xs text-on-surface-variant/60">+{ch.features.length - 3}</span>
+                        <span class="text-2xs text-on-surface-variant">+{ch.features.length - 3}</span>
                       {/if}
                       <Papicon icon={expandedChannelId === ch.id ? 'chevron-up' : 'chevron-down'} size={15} class="text-on-surface-variant/40" />
                     </div>
@@ -1138,7 +1138,7 @@
                            contenu à saisir : on renvoie vers leur onglet plutôt
                            que d'en faire une case à cocher trompeuse. -->
                       {#if ch.features.includes('sticky') || ch.features.includes('tempVoiceGenerator')}
-                        <p class="text-2xs text-on-surface-variant/70">
+                        <p class="text-2xs text-on-surface-variant">
                           {m.cm_bc_also_carries({ items: alsoCarriedItems(ch) })}
                         </p>
                       {/if}
@@ -1191,7 +1191,7 @@
                 <Papicon icon="notes" size={20} class="text-primary" />
                 {m.cm_sticky_title()}
               </h3>
-              <p class="text-xs text-on-surface-variant/60 mt-1">{m.cm_sticky_desc()}</p>
+              <p class="text-xs text-on-surface-variant mt-1">{m.cm_sticky_desc()}</p>
             </div>
 
             <button
@@ -1207,7 +1207,7 @@
 
           <div class="flex items-start gap-2 p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/10">
             <span class="text-primary mt-0.5 shrink-0"><Papicon icon="Info" size={14} /></span>
-            <p class="text-2xs text-on-surface-variant/70 font-medium leading-relaxed">
+            <p class="text-2xs text-on-surface-variant font-medium leading-relaxed">
               {m.cm_sticky_info()}
             </p>
           </div>
@@ -1236,7 +1236,7 @@
                     </div>
 
                     <div class="flex items-center gap-3 sm:pt-6">
-                      <span class="text-xs font-semibold text-on-surface-variant/60">{m.cm_sticky_enabled_label()}</span>
+                      <span class="text-xs font-semibold text-on-surface-variant">{m.cm_sticky_enabled_label()}</span>
                       <input
                         type="checkbox"
                         aria-label={m.cm_sticky_enabled_label()}
@@ -1249,7 +1249,7 @@
                   <div class="flex items-center justify-between gap-4 p-4 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl">
                     <div class="space-y-0.5">
                       <p class="text-xs font-bold text-on-surface/80">{m.cm_sticky_webhook_label()}</p>
-                      <p class="text-2xs text-on-surface-variant/60">{m.cm_sticky_webhook_desc()}</p>
+                      <p class="text-2xs text-on-surface-variant">{m.cm_sticky_webhook_desc()}</p>
                     </div>
                     <ToggleSwitch checked={sticky.webhookEnabled} onToggle={(v) => (sticky.webhookEnabled = v)} ariaLabel={m.cm_sticky_webhook_label()} />
                   </div>
@@ -1286,14 +1286,14 @@
                   <div class="flex items-center justify-between gap-4 p-4 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl">
                     <div class="space-y-0.5">
                       <p class="text-xs font-bold text-on-surface/80">{m.cm_sticky_json_label()}</p>
-                      <p class="text-2xs text-on-surface-variant/60">{m.cm_sticky_json_desc()}</p>
+                      <p class="text-2xs text-on-surface-variant">{m.cm_sticky_json_desc()}</p>
                     </div>
                     <ToggleSwitch checked={sticky.jsonEnabled} onToggle={(v) => (sticky.jsonEnabled = v)} ariaLabel={m.cm_sticky_json_label()} />
                   </div>
 
                   {#if sticky.jsonEnabled}
                     <div class="space-y-1.5">
-                      <p class="text-2xs text-on-surface-variant/60">{m.cm_sticky_json_example()}</p>
+                      <p class="text-2xs text-on-surface-variant">{m.cm_sticky_json_example()}</p>
                       <pre class="overflow-x-auto whitespace-pre-wrap break-words rounded-lg border border-dashed border-outline-variant/20 p-3 text-xs text-on-surface-variant">{STICKY_JSON_EXAMPLE}</pre>
                       <label for="sticky-json-{index}" class="sr-only">{m.cm_sticky_json_label()}</label>
                       <textarea
@@ -1355,7 +1355,7 @@
                   <div class="flex items-center justify-between p-4 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl">
                     <div class="space-y-0.5">
                       <label for="sticky-embed-{index}" class="text-xs font-bold text-on-surface/80 block">{m.cm_sticky_embed_label()}</label>
-                      <p class="text-2xs text-on-surface-variant/60">{m.cm_sticky_embed_desc()}</p>
+                      <p class="text-2xs text-on-surface-variant">{m.cm_sticky_embed_desc()}</p>
                     </div>
                     <input
                       id="sticky-embed-{index}"
@@ -1427,7 +1427,7 @@
               <button
                 type="button"
                 onclick={addSticky}
-                class="w-full py-4 border border-dashed border-outline-variant/20 hover:border-primary/40 text-on-surface-variant/60 hover:text-primary transition-all rounded-xl text-xs font-semibold flex items-center justify-center gap-2"
+                class="w-full py-4 border border-dashed border-outline-variant/20 hover:border-primary/40 text-on-surface-variant hover:text-primary transition-all rounded-xl text-xs font-semibold flex items-center justify-center gap-2"
               >
                 <Papicon icon="plus" size={16} />
                 {m.cm_sticky_add()}
@@ -1447,7 +1447,7 @@
                 <Papicon icon="bar-chart" size={20} class="text-primary" />
                 {m.cm_stats_channels_title()}
               </h3>
-              <p class="text-xs text-on-surface-variant/60 mt-1">{m.cm_stats_channels_desc()}</p>
+              <p class="text-xs text-on-surface-variant mt-1">{m.cm_stats_channels_desc()}</p>
             </div>
             
             <div class="flex items-center gap-2">
@@ -1493,7 +1493,7 @@
                   <Papicon icon="history" size={16} />
                   {m.cm_rebuild_historical_stats_title()}
                 </h4>
-                <p class="text-xs text-on-surface-variant/60">
+                <p class="text-xs text-on-surface-variant">
                   {m.cm_rebuild_historical_stats_desc()}
                 </p>
               </div>
@@ -1783,7 +1783,7 @@
                   <Papicon icon="plus-circle" size={16} class="text-primary" />
                   {m.cm_custom_stats_title()}
                 </h4>
-                <p class="text-xs text-on-surface-variant/60">{m.cm_custom_stats_desc()}</p>
+                <p class="text-xs text-on-surface-variant">{m.cm_custom_stats_desc()}</p>
               </div>
 
               {#if !config.statsConfig.customStats}
@@ -1800,7 +1800,7 @@
                         onclick={() => {
                           config.statsConfig.customStats = config.statsConfig.customStats.filter((_, i) => i !== index);
                         }}
-                        class="text-on-surface-variant/60 hover:text-error transition-all flex items-center gap-1.5 text-xs font-bold"
+                        class="text-on-surface-variant hover:text-error transition-all flex items-center gap-1.5 text-xs font-bold"
                         title={m.cm_delete_counter_title()}
                       >
                         <Papicon icon="trash-2" size={14} />
@@ -1935,7 +1935,7 @@
                       }
                     ];
                   }}
-                  class="col-span-1 md:col-span-2 py-4 border border-dashed border-outline-variant/20 hover:border-primary/40 text-on-surface-variant/60 hover:text-primary transition-all rounded-xl text-xs font-semibold flex items-center justify-center gap-2"
+                  class="col-span-1 md:col-span-2 py-4 border border-dashed border-outline-variant/20 hover:border-primary/40 text-on-surface-variant hover:text-primary transition-all rounded-xl text-xs font-semibold flex items-center justify-center gap-2"
                 >
                   <Papicon icon="plus" size={16} />
                   {m.cm_add_custom_counter()}
@@ -1955,7 +1955,7 @@
                 <Papicon icon="volume-2" size={20} class="text-primary" />
                 {m.cm_temp_voice_title()}
               </h3>
-              <p class="text-xs text-on-surface-variant/60 mt-1">{m.cm_temp_voice_desc()}</p>
+              <p class="text-xs text-on-surface-variant mt-1">{m.cm_temp_voice_desc()}</p>
             </div>
             
             <div class="flex items-center gap-2">
@@ -2064,7 +2064,7 @@
                     <Papicon icon="plus-circle" size={16} />
                     {m.cm_additional_generators_title()}
                   </h4>
-                  <p class="text-xs text-on-surface-variant/60">{m.cm_additional_generators_desc()}</p>
+                  <p class="text-xs text-on-surface-variant">{m.cm_additional_generators_desc()}</p>
                 </div>
 
                 <!-- Un sélecteur de surcharge de présentation, réutilisé cinq
@@ -2084,7 +2084,7 @@
                   onSelect: (value: string) => void,
                 )}
                   <div class="space-y-1">
-                    <label for={id} class="text-2xs font-bold text-on-surface-variant/60 block">{labelText}</label>
+                    <label for={id} class="text-2xs font-bold text-on-surface-variant block">{labelText}</label>
                     <select
                       {id}
                       value={current ?? ''}
@@ -2111,7 +2111,7 @@
                                 {m.cm_tv_panel_per_gen_badge_overrides({ count: generatorOverrideCount(generator) })}
                               </span>
                             {:else}
-                              <span class="text-2xs font-semibold px-2 py-0.5 rounded-full bg-surface-container-high/40 text-on-surface-variant/60">
+                              <span class="text-2xs font-semibold px-2 py-0.5 rounded-full bg-surface-container-high/40 text-on-surface-variant">
                                 {m.cm_tv_panel_per_gen_badge_inherits()}
                               </span>
                             {/if}
@@ -2122,7 +2122,7 @@
                           onclick={() => {
                             config.tempVoiceGenerators = config.tempVoiceGenerators.filter((_, i) => i !== index);
                           }}
-                          class="text-on-surface-variant/60 hover:text-error transition-all flex items-center gap-1.5 text-xs font-bold"
+                          class="text-on-surface-variant hover:text-error transition-all flex items-center gap-1.5 text-xs font-bold"
                           title={m.cm_delete_generator_title()}
                         >
                           <Papicon icon="trash-2" size={14} />
@@ -2289,7 +2289,7 @@
                           }
                         ];
                       }}
-                      class="py-4 border border-dashed border-outline-variant/20 hover:border-primary/40 text-on-surface-variant/60 hover:text-primary transition-all rounded-xl text-xs font-semibold flex items-center justify-center gap-2"
+                      class="py-4 border border-dashed border-outline-variant/20 hover:border-primary/40 text-on-surface-variant hover:text-primary transition-all rounded-xl text-xs font-semibold flex items-center justify-center gap-2"
                     >
                       <Papicon icon="plus" size={16} />
                       {m.cm_add_extra_generator()}
@@ -2322,7 +2322,7 @@
                   <Papicon icon="volume-2" size={20} class="text-primary" />
                   {m.cm_active_temp_channels_title()}
                 </h3>
-                <p class="text-xs text-on-surface-variant/60 mt-1">{m.cm_active_temp_channels_desc()}</p>
+                <p class="text-xs text-on-surface-variant mt-1">{m.cm_active_temp_channels_desc()}</p>
               </div>
               
               <button
@@ -2350,7 +2350,7 @@
               <div class="hidden md:block overflow-x-auto w-full">
                 <table class="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr class="border-b border-outline-variant/15 text-xs font-medium text-on-surface-variant/70">
+                    <tr class="border-b border-outline-variant/15 text-xs font-medium text-on-surface-variant">
                       <th class="py-3 px-4">{m.cm_col_channel_name()}</th>
                       <th class="py-3 px-4">{m.cm_col_creator()}</th>
                       <th class="py-3 px-4 text-center">{m.cm_col_members()}</th>
@@ -2497,7 +2497,7 @@
                     </div>
 
                     <div class="space-y-1">
-                      <span class="text-2xs font-bold text-on-surface-variant/60 block">{m.cm_reservation_label()}</span>
+                      <span class="text-2xs font-bold text-on-surface-variant block">{m.cm_reservation_label()}</span>
                       <SearchableSelect 
                         options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} 
                         value={chan.roleId || ''} 
@@ -2532,7 +2532,7 @@
           <section class="bg-surface-container-low/30 border border-outline-variant/10 p-5 lg:p-6 rounded-xl space-y-4 mt-6">
             <div>
               <h3 class="text-sm font-semibold text-on-surface">{m.cm_tv_panel_title()}</h3>
-              <p class="text-2xs text-on-surface-variant/60 mt-0.5">{m.cm_tv_panel_desc()}</p>
+              <p class="text-2xs text-on-surface-variant mt-0.5">{m.cm_tv_panel_desc()}</p>
             </div>
 
             <!-- Interrupteur de secours : coupé (défaut), les 5 réglages
@@ -2546,7 +2546,7 @@
             <div class="flex items-center justify-between gap-4 p-4 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl max-w-3xl">
               <div class="space-y-0.5">
                 <label for="per-generator-presentation-toggle" class="text-xs font-bold text-on-surface/80 block">{m.cm_tv_panel_per_gen_toggle_label()}</label>
-                <p class="text-2xs text-on-surface-variant/60">{m.cm_tv_panel_per_gen_toggle_hint()}</p>
+                <p class="text-2xs text-on-surface-variant">{m.cm_tv_panel_per_gen_toggle_hint()}</p>
               </div>
               <div class="flex items-center gap-2 shrink-0">
                 <input
@@ -2583,7 +2583,7 @@
                         {mode.label()}
                       </span>
                       {#each mode.hints as hint}
-                        <span class="text-2xs text-on-surface-variant/60 leading-relaxed">{hint()}</span>
+                        <span class="text-2xs text-on-surface-variant leading-relaxed">{hint()}</span>
                       {/each}
                     </label>
                   {/each}
@@ -2611,7 +2611,7 @@
                         />
                         {mode.label()}
                       </span>
-                      <span class="text-2xs text-on-surface-variant/60 leading-relaxed">{mode.hint()}</span>
+                      <span class="text-2xs text-on-surface-variant leading-relaxed">{mode.hint()}</span>
                     </label>
                   {/each}
                 </div>
@@ -2637,7 +2637,7 @@
                         />
                         {mode.label()}
                       </span>
-                      <span class="text-2xs text-on-surface-variant/60 leading-relaxed">{mode.hint()}</span>
+                      <span class="text-2xs text-on-surface-variant leading-relaxed">{mode.hint()}</span>
                     </label>
                   {/each}
                 </div>
@@ -2675,7 +2675,7 @@
                         />
                         {mode.label()}
                       </span>
-                      <span class="text-2xs text-on-surface-variant/60 leading-relaxed">{mode.hint()}</span>
+                      <span class="text-2xs text-on-surface-variant leading-relaxed">{mode.hint()}</span>
                     </label>
                   {/each}
                 </div>
@@ -2698,7 +2698,7 @@
                 <Papicon icon="lock" size={20} class="text-primary" />
                 {m.cm_ar_title()}
               </h3>
-              <p class="text-xs text-on-surface-variant/60 mt-1">{m.cm_ar_desc()}</p>
+              <p class="text-xs text-on-surface-variant mt-1">{m.cm_ar_desc()}</p>
             </div>
 
             <div class="flex items-center gap-2">
@@ -2747,7 +2747,7 @@
                         />
                         {mode.label()}
                       </span>
-                      <span class="text-2xs text-on-surface-variant/60 leading-relaxed">{mode.hint()}</span>
+                      <span class="text-2xs text-on-surface-variant leading-relaxed">{mode.hint()}</span>
                     </label>
                   {/each}
                 </div>
@@ -2808,7 +2808,7 @@
               <Papicon icon="shield" size={20} class="text-primary" />
               {m.cm_ar_admin_title()}
             </h3>
-            <p class="text-xs text-on-surface-variant/60 mt-1">{m.cm_ar_admin_desc()}</p>
+            <p class="text-xs text-on-surface-variant mt-1">{m.cm_ar_admin_desc()}</p>
           </div>
 
           <div class="grid grid-cols-1 gap-3 max-w-xl">
@@ -2838,7 +2838,7 @@
             <div class="flex items-center justify-between gap-4 p-4 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl">
               <div class="space-y-0.5">
                 <label for="panel-compact-mode-toggle" class="text-xs font-bold text-on-surface/80 block">{m.cm_ar_admin_panel_compact_title()}</label>
-                <p class="text-2xs text-on-surface-variant/60">{m.cm_ar_admin_panel_compact_desc()}</p>
+                <p class="text-2xs text-on-surface-variant">{m.cm_ar_admin_panel_compact_desc()}</p>
               </div>
               <div class="flex items-center gap-2 shrink-0">
                 <input
@@ -2860,7 +2860,7 @@
                 <Papicon icon="lock" size={16} />
                 {m.cm_ar_reservation_title()}
               </h4>
-              <p class="text-xs text-on-surface-variant/60">{m.cm_ar_reservation_desc()}</p>
+              <p class="text-xs text-on-surface-variant">{m.cm_ar_reservation_desc()}</p>
             </div>
 
             <div class="space-y-2 max-w-xl">
@@ -2888,7 +2888,7 @@
               {/if}
 
               {#if config.tempVoiceModPermissions.reservableRoleIds.length >= MAX_RESERVABLE_ROLES}
-                <p class="text-2xs text-on-surface-variant/60">{m.cm_ar_reservation_roles_full({ max: MAX_RESERVABLE_ROLES })}</p>
+                <p class="text-2xs text-on-surface-variant">{m.cm_ar_reservation_roles_full({ max: MAX_RESERVABLE_ROLES })}</p>
               {:else}
                 <SearchableSelect
                   id="reservation-roles-select"
@@ -2966,7 +2966,7 @@
                 <Papicon icon="shield" size={20} class="text-primary" />
                 {m.cm_honeypot_title()}
               </h3>
-              <p class="text-xs text-on-surface-variant/60 mt-1">{m.cm_honeypot_desc()}</p>
+              <p class="text-xs text-on-surface-variant mt-1">{m.cm_honeypot_desc()}</p>
             </div>
             
             <div class="flex items-center gap-2">
@@ -3051,7 +3051,7 @@
                 <div class="flex items-center justify-between p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl transition-all">
                   <div class="space-y-0.5">
                     <label for="honeypot-reinvite-toggle" class="text-xs font-bold text-on-surface/80 block">{m.cm_auto_reinvite_label()}</label>
-                    <p class="text-2xs text-on-surface-variant/60">{m.cm_auto_reinvite_desc()}</p>
+                    <p class="text-2xs text-on-surface-variant">{m.cm_auto_reinvite_desc()}</p>
                   </div>
                   <div class="flex items-center gap-2">
                     <input 

@@ -244,7 +244,7 @@
   <section class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-xl space-y-5">
     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
       <div>
-        <p class="text-xs font-semibold text-on-surface-variant/60">{m.us_quick_overview()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant">{m.us_quick_overview()}</p>
         <h2 class="text-lg font-semibold mt-1">{m.us_active_settings()}</h2>
       </div>
       <div class="flex flex-wrap gap-2">
@@ -270,7 +270,7 @@
     <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
       {#each activeSummary as item}
         <div class="rounded-lg border border-outline-variant/20 bg-surface-container-high/20 p-4">
-          <p class="text-xs font-semibold text-on-surface-variant/50">{item.label}</p>
+          <p class="text-xs font-semibold text-on-surface-variant">{item.label}</p>
           <p class="mt-2 text-sm font-semibold text-on-surface truncate">{item.value}</p>
         </div>
       {/each}
@@ -298,7 +298,7 @@
 
       <!-- Theme Presets -->
       <div class="space-y-3">
-        <p class="text-xs font-semibold text-on-surface-variant/60">{m.us_theme()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant">{m.us_theme()}</p>
         <div class="grid grid-cols-3 gap-2.5">
           {#each THEME_PRESETS as preset}
             <button
@@ -406,7 +406,7 @@
 
       <!-- Accent Color -->
       <div class="space-y-3">
-        <p class="text-xs font-semibold text-on-surface-variant/60">{m.us_accent_color()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant">{m.us_accent_color()}</p>
         <div class="flex flex-wrap gap-3">
           {#each accentColors as color}
             <button
@@ -429,7 +429,7 @@
       <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 hover:bg-surface-container-high/40 transition-colors">
         <div>
           <p class="text-sm font-bold">{m.us_compact_mode()}</p>
-          <p class="text-2xs text-on-surface-variant/50">{m.us_compact_mode_desc()}</p>
+          <p class="text-2xs text-on-surface-variant">{m.us_compact_mode_desc()}</p>
         </div>
         <ToggleSwitch
           checked={userPrefs.prefs.compactMode}
@@ -441,7 +441,7 @@
       <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 hover:bg-surface-container-high/40 transition-colors">
         <div>
           <p class="text-sm font-bold">{m.us_animations()}</p>
-          <p class="text-2xs text-on-surface-variant/50">{m.us_animations_desc()}</p>
+          <p class="text-2xs text-on-surface-variant">{m.us_animations_desc()}</p>
         </div>
         <ToggleSwitch
           checked={userPrefs.prefs.animationsEnabled}
@@ -462,7 +462,7 @@
 
         <!-- Language -->
         <div class="space-y-3">
-          <p class="text-xs font-semibold text-on-surface-variant/60">{m.us_interface_language()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant">{m.us_interface_language()}</p>
           <div class="grid grid-cols-2 gap-3">
             {#each languages as lang}
               <button
@@ -481,7 +481,7 @@
 
         <!-- Date format -->
         <div class="space-y-3">
-          <p class="text-xs font-semibold text-on-surface-variant/60">{m.us_date_format()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant">{m.us_date_format()}</p>
           <div class="space-y-2">
             {#each dateFormats as fmt}
               <button
@@ -499,7 +499,7 @@
                 </div>
                 <div>
                   <p class="text-sm font-bold">{fmt.label}</p>
-                  <p class="text-2xs text-on-surface-variant/50">{fmt.example}</p>
+                  <p class="text-2xs text-on-surface-variant">{fmt.example}</p>
                 </div>
               </button>
             {/each}
@@ -508,7 +508,7 @@
 
         <!-- Fuseau horaire des statistiques -->
         <div class="space-y-3">
-          <p class="text-xs font-semibold text-on-surface-variant/60">{m.us_timezone()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant">{m.us_timezone()}</p>
           <select
             value={timezoneChoice}
             onchange={(e) => handleTimezone((e.currentTarget as HTMLSelectElement).value)}
@@ -519,7 +519,7 @@
               <option value={zone}>{zone.replace(/_/g, ' ')}</option>
             {/each}
           </select>
-          <p class="text-2xs text-on-surface-variant/50">
+          <p class="text-2xs text-on-surface-variant">
             {m.us_timezone_desc({ zone: timezoneStore.displayTimezone })}
           </p>
         </div>
@@ -537,7 +537,7 @@
 
       <!-- Sidebar behavior -->
       <div class="space-y-3">
-        <p class="text-xs font-semibold text-on-surface-variant/60">{m.us_sidebar_behavior()}</p>
+        <p class="text-xs font-semibold text-on-surface-variant">{m.us_sidebar_behavior()}</p>
         <div class="space-y-2">
           {#each sidebarBehaviors as behavior}
             <button
@@ -555,7 +555,7 @@
               </div>
               <div>
                 <p class="text-sm font-bold">{behavior.label}</p>
-                <p class="text-2xs text-on-surface-variant/50">{behavior.desc}</p>
+                <p class="text-2xs text-on-surface-variant">{behavior.desc}</p>
               </div>
             </button>
           {/each}
@@ -577,7 +577,7 @@
           <div class="flex items-center justify-between gap-4">
             <div>
               <p class="text-sm font-bold">{m.us_sound_notif()}</p>
-              <p class="text-2xs text-on-surface-variant/50">{m.us_sound_notif_desc()}</p>
+              <p class="text-2xs text-on-surface-variant">{m.us_sound_notif_desc()}</p>
             </div>
             <ToggleSwitch
               checked={userPrefs.prefs.soundNotifications}
@@ -586,7 +586,7 @@
           </div>
           {#if userPrefs.prefs.soundNotifications}
             <div class="flex flex-wrap items-center gap-2">
-              <span class="text-2xs text-on-surface-variant/60">{m.us_sound_preview()}</span>
+              <span class="text-2xs text-on-surface-variant">{m.us_sound_preview()}</span>
               {#each soundPreviews as preview}
                 <button
                   type="button"
@@ -605,7 +605,7 @@
           <div class="flex items-center justify-between gap-4">
             <div>
               <p class="text-sm font-bold">{m.us_desktop_notif()}</p>
-              <p class="text-2xs text-on-surface-variant/50">{m.us_desktop_notif_desc()}</p>
+              <p class="text-2xs text-on-surface-variant">{m.us_desktop_notif_desc()}</p>
             </div>
             <ToggleSwitch
               checked={userPrefs.prefs.desktopNotifications && permissionState === 'granted'}
@@ -620,7 +620,7 @@
         <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 hover:bg-surface-container-high/40 transition-colors">
           <div>
             <p class="text-sm font-bold">{m.us_online_status()}</p>
-            <p class="text-2xs text-on-surface-variant/50">{m.us_online_status_desc()}</p>
+            <p class="text-2xs text-on-surface-variant">{m.us_online_status_desc()}</p>
           </div>
           <ToggleSwitch
             checked={userPrefs.prefs.showOnlineStatus}
@@ -632,15 +632,15 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
         <a href="https://kotbo.fr/terms" target="_blank" rel="noopener noreferrer" class="p-4 rounded-lg border border-outline-variant/10 bg-surface-container-high/20 hover:bg-surface-container-high/40 transition-colors">
           <p class="text-sm font-bold">{m.us_privacy_policy()}</p>
-          <p class="text-2xs text-on-surface-variant/50 mt-1">{m.us_privacy_policy_desc()}</p>
+          <p class="text-2xs text-on-surface-variant mt-1">{m.us_privacy_policy_desc()}</p>
         </a>
         <a href="https://kotbo.fr/cookies" target="_blank" rel="noopener noreferrer" class="p-4 rounded-lg border border-outline-variant/10 bg-surface-container-high/20 hover:bg-surface-container-high/40 transition-colors">
           <p class="text-sm font-bold">{m.us_cookies()}</p>
-          <p class="text-2xs text-on-surface-variant/50 mt-1">{m.us_cookies_desc()}</p>
+          <p class="text-2xs text-on-surface-variant mt-1">{m.us_cookies_desc()}</p>
         </a>
         <a href="mailto:privacy@kotbo.fr?subject=Demande%20RGPD%20Kotbo" class="sm:col-span-2 p-4 rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors">
           <p class="text-sm font-bold text-primary">{m.us_gdpr_rights()}</p>
-          <p class="text-2xs text-on-surface-variant/60 mt-1">{m.us_gdpr_rights_desc()}</p>
+          <p class="text-2xs text-on-surface-variant mt-1">{m.us_gdpr_rights_desc()}</p>
         </a>
       </div>
     </section>
@@ -652,7 +652,7 @@
       <Papicon icon="AlertTriangle" size={20} />
       {m.us_reset_zone()}
     </h2>
-    <p class="text-sm text-on-surface-variant/70">
+    <p class="text-sm text-on-surface-variant">
       {m.us_reset_desc()}
     </p>
     <button

@@ -244,7 +244,7 @@
         {/if}
       </span>
     {:else}
-      <span class="text-xs text-on-surface-variant/70">{m.sx_nobody()}</span>
+      <span class="text-xs text-on-surface-variant">{m.sx_nobody()}</span>
     {/if}
     {#if canEdit}
       <Menu label={m.sx_role_menu({ name: role.name })} items={roleMenu(role)} />
@@ -303,7 +303,7 @@
               <span class="ladder-step__count tabular-nums">{count}</span>
             </span>
             {#if i < ladder.length - 1}
-              <Papicon icon="chevron-right" size={14} class="mx-1 text-on-surface-variant/50" />
+              <Papicon icon="chevron-right" size={14} class="mx-1 text-on-surface-variant" />
             {/if}
           </li>
         {/each}

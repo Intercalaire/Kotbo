@@ -98,10 +98,10 @@
   }
 
   function changeClass(value: number | null | undefined) {
-    if (value === null || value === undefined) return 'text-on-surface-variant/50';
+    if (value === null || value === undefined) return 'text-on-surface-variant';
     if (value > 0) return 'text-success';
     if (value < 0) return 'text-error';
-    return 'text-on-surface-variant/70';
+    return 'text-on-surface-variant';
   }
 
   const HEALTH_STYLES: Record<string, { label: () => string; class: string; icon: string }> = {
@@ -109,7 +109,7 @@
     OVERLOADED: { label: () => m.chd_health_overloaded(), class: 'bg-orange-500/10 text-orange-500', icon: 'Fire' },
     UNDERUSED: { label: () => m.chd_health_underused(), class: 'bg-warning/10 text-warning', icon: 'Warning' },
     DEAD: { label: () => m.chd_health_dead(), class: 'bg-error/10 text-error', icon: 'Ghost' },
-    UNKNOWN: { label: () => m.chd_health_unknown(), class: 'bg-surface-container-high/40 text-on-surface-variant/60', icon: 'Info' },
+    UNKNOWN: { label: () => m.chd_health_unknown(), class: 'bg-surface-container-high/40 text-on-surface-variant', icon: 'Info' },
   };
   const healthStyle = $derived(HEALTH_STYLES[details?.health?.status ?? 'UNKNOWN'] ?? HEALTH_STYLES.UNKNOWN);
 
@@ -255,7 +255,7 @@
               class="flex items-center gap-2 px-4 py-3 text-xs font-bold whitespace-nowrap border-b-2 transition-colors
                 {activeTab === tab.id
                   ? 'border-primary text-primary'
-                  : 'border-transparent text-on-surface-variant/60 hover:text-on-surface'}"
+                  : 'border-transparent text-on-surface-variant hover:text-on-surface'}"
             >
               <Papicon icon={tab.icon} size={16} />
               {tab.label}
@@ -266,7 +266,7 @@
 
       <div class="p-6 space-y-6">
         {#if loading}
-          <div class="flex items-center justify-center py-16 gap-3 text-on-surface-variant/60">
+          <div class="flex items-center justify-center py-16 gap-3 text-on-surface-variant">
             <div class="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
             <span class="text-sm font-bold">{m.chd_loading()}</span>
           </div>
@@ -290,7 +290,7 @@
               <div class="premium-card p-5 rounded-xl">
                 <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_kpi_share()}</p>
                 <p class="text-2xl font-semibold text-cyan-500">{details.activity.share.messagesPct} %</p>
-                <p class="text-2xs font-bold text-on-surface-variant/50">
+                <p class="text-2xs font-bold text-on-surface-variant">
                   {details.activity.share.rank
                     ? m.chd_kpi_rank({ rank: details.activity.share.rank, total: details.activity.share.channelCount })
                     : '-'}
@@ -299,12 +299,12 @@
               <div class="premium-card p-5 rounded-xl">
                 <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_kpi_authors()}</p>
                 <p class="text-2xl font-semibold text-purple-500">{details.activity.totals.uniqueAuthorsAvg}</p>
-                <p class="text-2xs font-bold text-on-surface-variant/50">{m.chd_kpi_authors_hint()}</p>
+                <p class="text-2xs font-bold text-on-surface-variant">{m.chd_kpi_authors_hint()}</p>
               </div>
               <div class="premium-card p-5 rounded-xl">
                 <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_kpi_active_days()}</p>
                 <p class="text-2xl font-semibold text-orange-500">{details.activity.totals.activeDays}<span class="text-sm text-on-surface-variant/40">/{details.period}</span></p>
-                <p class="text-2xs font-bold text-on-surface-variant/50">{m.chd_kpi_avg_per_day({ value: details.activity.totals.avgMessagesPerDay })}</p>
+                <p class="text-2xs font-bold text-on-surface-variant">{m.chd_kpi_avg_per_day({ value: details.activity.totals.avgMessagesPerDay })}</p>
               </div>
               <div class="premium-card p-5 rounded-xl">
                 <p class="text-xs font-semibold text-on-surface-variant/40 mb-2">{m.chd_kpi_voice()}</p>
@@ -333,7 +333,7 @@
                   {#if activityChart}
                     <Chart data={activityChart.data} options={activityChart.options} type="line" height={200} />
                   {:else}
-                    <div class="flex items-center justify-center h-full text-on-surface-variant/60 text-sm">{m.chd_no_data()}</div>
+                    <div class="flex items-center justify-center h-full text-on-surface-variant text-sm">{m.chd_no_data()}</div>
                   {/if}
                 </div>
               </div>
@@ -351,15 +351,15 @@
                 <div class="px-3 py-2 rounded-xl {healthStyle.class} text-xs font-bold text-center">{healthStyle.label()}</div>
                 <div class="space-y-2 text-xs">
                   <div class="flex justify-between">
-                    <span class="text-on-surface-variant/60">{m.chd_health_msg_day()}</span>
+                    <span class="text-on-surface-variant">{m.chd_health_msg_day()}</span>
                     <span class="font-bold text-on-surface">{details.health.metrics.avgMsgPerDay}</span>
                   </div>
                   <div class="flex justify-between">
-                    <span class="text-on-surface-variant/60">{m.chd_health_msg_hour()}</span>
+                    <span class="text-on-surface-variant">{m.chd_health_msg_hour()}</span>
                     <span class="font-bold text-on-surface">{details.health.metrics.avgMsgPerHour}</span>
                   </div>
                   <div class="flex justify-between">
-                    <span class="text-on-surface-variant/60">{m.chd_health_authors()}</span>
+                    <span class="text-on-surface-variant">{m.chd_health_authors()}</span>
                     <span class="font-bold text-on-surface">{details.health.metrics.uniqueAuthorsAvg}</span>
                   </div>
                   {#if details.health.excluded}
@@ -396,7 +396,7 @@
                     {/each}
                   </div>
                 {:else}
-                  <p class="text-xs text-on-surface-variant/50 py-6 text-center">
+                  <p class="text-xs text-on-surface-variant py-6 text-center">
                     {details.contributors.available ? m.chd_no_data() : m.chd_logging_required()}
                   </p>
                 {/if}
@@ -409,27 +409,27 @@
                 </div>
                 <div class="space-y-2 text-xs">
                   <div class="flex justify-between gap-3">
-                    <span class="text-on-surface-variant/60">{m.chd_meta_category()}</span>
+                    <span class="text-on-surface-variant">{m.chd_meta_category()}</span>
                     <span class="font-bold text-on-surface truncate">{details.channel?.categoryName ?? '-'}</span>
                   </div>
                   <div class="flex justify-between">
-                    <span class="text-on-surface-variant/60">{m.chd_meta_created()}</span>
+                    <span class="text-on-surface-variant">{m.chd_meta_created()}</span>
                     <span class="font-bold text-on-surface">{formatDate(details.channel?.createdAt)}</span>
                   </div>
                   <div class="flex justify-between">
-                    <span class="text-on-surface-variant/60">{m.chd_meta_slowmode()}</span>
+                    <span class="text-on-surface-variant">{m.chd_meta_slowmode()}</span>
                     <span class="font-bold text-on-surface">{details.channel?.rateLimitPerUser ? m.chd_seconds({ value: details.channel.rateLimitPerUser }) : m.chd_none()}</span>
                   </div>
                   <div class="flex justify-between">
-                    <span class="text-on-surface-variant/60">{m.chd_meta_visibility()}</span>
+                    <span class="text-on-surface-variant">{m.chd_meta_visibility()}</span>
                     <span class="font-bold {details.channel?.isPrivate ? 'text-warning' : 'text-on-surface'}">{details.channel?.isPrivate ? m.chd_private() : m.chd_public()}</span>
                   </div>
                   <div class="flex justify-between">
-                    <span class="text-on-surface-variant/60">{m.chd_meta_threads()}</span>
+                    <span class="text-on-surface-variant">{m.chd_meta_threads()}</span>
                     <span class="font-bold text-on-surface">{details.content.threads.length}</span>
                   </div>
                   <div class="flex justify-between">
-                    <span class="text-on-surface-variant/60">{m.chd_meta_pinned()}</span>
+                    <span class="text-on-surface-variant">{m.chd_meta_pinned()}</span>
                     <span class="font-bold text-on-surface">{details.content.pinned.length}</span>
                   </div>
                 </div>
@@ -453,7 +453,7 @@
                       type="button"
                       onclick={() => activityMetric = metric as typeof activityMetric}
                       class="px-3 py-1.5 rounded-lg text-2xs font-bold transition-colors
-                        {activityMetric === metric ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}"
+                        {activityMetric === metric ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}"
                     >
                       {metricLabel(metric)}
                     </button>
@@ -464,7 +464,7 @@
                 {#if activityChart}
                   <Chart data={activityChart.data} options={activityChart.options} type="line" height={280} />
                 {:else}
-                  <div class="flex items-center justify-center h-full text-on-surface-variant/60 text-sm">{m.chd_no_data()}</div>
+                  <div class="flex items-center justify-center h-full text-on-surface-variant text-sm">{m.chd_no_data()}</div>
                 {/if}
               </div>
             </div>
@@ -503,7 +503,7 @@
                     </div>
                     {#each details.heatmap.matrix as row, day}
                       <div class="flex items-center gap-1">
-                        <span class="w-10 text-2xs font-semibold uppercase text-on-surface-variant/50 text-right pr-1">{dayNames[day]}</span>
+                        <span class="w-10 text-2xs font-semibold uppercase text-on-surface-variant text-right pr-1">{dayNames[day]}</span>
                         {#each row as value, hour}
                           <div
                             class="flex-1 aspect-square rounded"
@@ -516,7 +516,7 @@
                   </div>
                 </div>
               {:else}
-                <p class="text-xs text-on-surface-variant/50 py-8 text-center">
+                <p class="text-xs text-on-surface-variant py-8 text-center">
                   {details.heatmap.available ? m.chd_no_data() : m.chd_logging_required()}
                 </p>
               {/if}
@@ -530,7 +530,7 @@
               <div class="max-h-80 overflow-y-auto custom-scrollbar">
                 <table class="w-full text-xs">
                   <thead class="sticky top-0 bg-surface-container-lowest">
-                    <tr class="text-on-surface-variant/50 text-left">
+                    <tr class="text-on-surface-variant text-left">
                       <th class="py-2 font-semibold">{m.chd_col_date()}</th>
                       <th class="py-2 font-semibold text-right">{m.chd_metric_messages()}</th>
                       <th class="py-2 font-semibold text-right">{m.chd_metric_authors()}</th>
@@ -540,10 +540,10 @@
                   <tbody>
                     {#each [...details.activity.daily].reverse() as row}
                       <tr class="border-t border-outline-variant/10">
-                        <td class="py-2 font-bold text-on-surface-variant/70">{formatDate(row.dateKey)}</td>
+                        <td class="py-2 font-bold text-on-surface-variant">{formatDate(row.dateKey)}</td>
                         <td class="py-2 text-right font-semibold text-on-surface">{formatNumber(row.messages)}</td>
-                        <td class="py-2 text-right text-on-surface-variant/70">{formatNumber(row.uniqueAuthors)}</td>
-                        <td class="py-2 text-right text-on-surface-variant/70">{formatNumber(row.voiceMinutes)}</td>
+                        <td class="py-2 text-right text-on-surface-variant">{formatNumber(row.uniqueAuthors)}</td>
+                        <td class="py-2 text-right text-on-surface-variant">{formatNumber(row.voiceMinutes)}</td>
                       </tr>
                     {/each}
                   </tbody>
@@ -562,7 +562,7 @@
                     <p class="text-xs text-on-surface-variant/40">{m.chd_click_to_open_member()}</p>
                   </div>
                 </div>
-                <span class="px-3 py-1 rounded-full text-xs font-semibold bg-surface-container-high/40 text-on-surface-variant/70">
+                <span class="px-3 py-1 rounded-full text-xs font-semibold bg-surface-container-high/40 text-on-surface-variant">
                   {m.chd_logged_messages({ count: details.contributors.total })}
                 </span>
               </div>
@@ -580,7 +580,7 @@
                         <img src={memberAvatarSrc(person.avatarUrl, person.userTag, person.userId)} alt="" class="w-10 h-10 rounded-xl object-cover" />
                         <div class="min-w-0">
                           <p class="text-sm font-semibold truncate group-hover:text-primary transition-colors">{person.userTag}</p>
-                          <p class="text-2xs text-on-surface-variant/50 font-mono">{m.chd_last_message({ date: formatDateTime(person.lastMessageAt) })}</p>
+                          <p class="text-2xs text-on-surface-variant font-mono">{m.chd_last_message({ date: formatDateTime(person.lastMessageAt) })}</p>
                         </div>
                       </div>
                       <div class="flex items-center gap-4 shrink-0">
@@ -596,7 +596,7 @@
                   {/each}
                 </div>
               {:else}
-                <p class="text-xs text-on-surface-variant/50 py-10 text-center">
+                <p class="text-xs text-on-surface-variant py-10 text-center">
                   {details.contributors.available ? m.chd_no_data() : m.chd_logging_required()}
                 </p>
               {/if}
@@ -629,13 +629,13 @@
                   <div class="space-y-2 max-h-72 overflow-y-auto custom-scrollbar pr-2">
                     {#each details.content.pinned as pin}
                       <div class="p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/10">
-                        <p class="text-2xs font-bold text-on-surface-variant/60">{pin.authorName} • {formatDateTime(pin.createdAt)}</p>
+                        <p class="text-2xs font-bold text-on-surface-variant">{pin.authorName} • {formatDateTime(pin.createdAt)}</p>
                         <p class="text-xs text-on-surface mt-1 wrap-break-word">{truncate(pin.content) || m.chd_empty_message()}</p>
                       </div>
                     {/each}
                   </div>
                 {:else}
-                  <p class="text-xs text-on-surface-variant/50 py-6 text-center">{m.chd_no_pinned()}</p>
+                  <p class="text-xs text-on-surface-variant py-6 text-center">{m.chd_no_pinned()}</p>
                 {/if}
               </div>
 
@@ -650,20 +650,20 @@
                       <div class="p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/10 flex items-center justify-between gap-3">
                         <div class="min-w-0">
                           <p class="text-xs font-semibold truncate">{thread.name}</p>
-                          <p class="text-2xs text-on-surface-variant/50">
+                          <p class="text-2xs text-on-surface-variant">
                             {m.chd_thread_stats({ messages: thread.messageCount ?? 0, members: thread.memberCount ?? 0 })}
                           </p>
                         </div>
                         {#if thread.locked}
                           <span class="px-2 py-1 rounded-full text-2xs font-bold bg-error/10 text-error shrink-0">{m.chd_thread_locked()}</span>
                         {:else if thread.archived}
-                          <span class="px-2 py-1 rounded-full text-2xs font-bold bg-surface-container-high text-on-surface-variant/60 shrink-0">{m.chd_thread_archived()}</span>
+                          <span class="px-2 py-1 rounded-full text-2xs font-bold bg-surface-container-high text-on-surface-variant shrink-0">{m.chd_thread_archived()}</span>
                         {/if}
                       </div>
                     {/each}
                   </div>
                 {:else}
-                  <p class="text-xs text-on-surface-variant/50 py-6 text-center">{m.chd_no_threads()}</p>
+                  <p class="text-xs text-on-surface-variant py-6 text-center">{m.chd_no_threads()}</p>
                 {/if}
               </div>
             </div>
@@ -696,7 +696,7 @@
                   {/each}
                 </div>
               {:else}
-                <p class="text-xs text-on-surface-variant/50 py-8 text-center">
+                <p class="text-xs text-on-surface-variant py-8 text-center">
                   {details.content.logging.available ? m.chd_no_data() : m.chd_logging_required()}
                 </p>
               {/if}
@@ -715,9 +715,9 @@
                         <p class="text-xs font-semibold truncate">
                           {link.otherGuildName ?? link.otherGuildId} • #{link.otherChannelName ?? link.otherChannelId}
                         </p>
-                        <p class="text-2xs text-on-surface-variant/50">{link.direction}</p>
+                        <p class="text-2xs text-on-surface-variant">{link.direction}</p>
                       </div>
-                      <span class="px-2 py-1 rounded-full text-2xs font-bold shrink-0 {link.enabled ? 'bg-success/10 text-success' : 'bg-surface-container-high text-on-surface-variant/60'}">
+                      <span class="px-2 py-1 rounded-full text-2xs font-bold shrink-0 {link.enabled ? 'bg-success/10 text-success' : 'bg-surface-container-high text-on-surface-variant'}">
                         {link.enabled ? m.chd_link_enabled() : m.chd_link_disabled()}
                       </span>
                     </div>
@@ -731,7 +731,7 @@
             {#if !details.moderation.available}
               <div class="premium-card p-8 rounded-xl text-center space-y-2">
                 <Papicon icon="Gavel" size={32} class="text-on-surface-variant/20 mx-auto" />
-                <p class="text-sm font-bold text-on-surface-variant/60">{m.chd_logging_required()}</p>
+                <p class="text-sm font-bold text-on-surface-variant">{m.chd_logging_required()}</p>
               </div>
             {:else}
               <div class="grid grid-cols-2 gap-4">
@@ -785,7 +785,7 @@
                     {/each}
                   </div>
                 {:else}
-                  <p class="text-xs text-on-surface-variant/50 py-6 text-center">{m.chd_no_deleted()}</p>
+                  <p class="text-xs text-on-surface-variant py-6 text-center">{m.chd_no_deleted()}</p>
                 {/if}
               </div>
             {/if}
@@ -801,9 +801,9 @@
                     <div class="p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/10">
                       <div class="flex items-center justify-between gap-3">
                         <span class="text-xs font-bold">{alert.type}</span>
-                        <span class="px-2 py-1 rounded-full text-2xs font-bold bg-surface-container-high text-on-surface-variant/70">{alert.status}</span>
+                        <span class="px-2 py-1 rounded-full text-2xs font-bold bg-surface-container-high text-on-surface-variant">{alert.status}</span>
                       </div>
-                      <p class="text-2xs text-on-surface-variant/60 mt-1">{alert.reason ?? '-'}</p>
+                      <p class="text-2xs text-on-surface-variant mt-1">{alert.reason ?? '-'}</p>
                       <p class="text-2xs text-on-surface-variant/40 mt-1">{formatDateTime(alert.createdAt)} • {m.chd_confidence({ value: alert.confidence })}</p>
                     </div>
                   {/each}
@@ -821,40 +821,40 @@
                 </div>
                 <div class="space-y-2 text-xs">
                   <div class="flex justify-between gap-3">
-                    <span class="text-on-surface-variant/60 shrink-0">{m.chd_meta_id()}</span>
+                    <span class="text-on-surface-variant shrink-0">{m.chd_meta_id()}</span>
                     <span class="font-mono font-bold text-on-surface truncate">{details.channelId}</span>
                   </div>
                   <div class="flex justify-between">
-                    <span class="text-on-surface-variant/60">{m.chd_meta_type()}</span>
+                    <span class="text-on-surface-variant">{m.chd_meta_type()}</span>
                     <span class="font-bold text-on-surface">{details.channel?.type ?? '-'}</span>
                   </div>
                   <div class="flex justify-between">
-                    <span class="text-on-surface-variant/60">{m.chd_meta_category()}</span>
+                    <span class="text-on-surface-variant">{m.chd_meta_category()}</span>
                     <span class="font-bold text-on-surface">{details.channel?.categoryName ?? '-'}</span>
                   </div>
                   <div class="flex justify-between">
-                    <span class="text-on-surface-variant/60">{m.chd_meta_position()}</span>
+                    <span class="text-on-surface-variant">{m.chd_meta_position()}</span>
                     <span class="font-bold text-on-surface">{details.channel?.position ?? '-'}</span>
                   </div>
                   <div class="flex justify-between">
-                    <span class="text-on-surface-variant/60">{m.chd_meta_created()}</span>
+                    <span class="text-on-surface-variant">{m.chd_meta_created()}</span>
                     <span class="font-bold text-on-surface">{formatDate(details.channel?.createdAt)}</span>
                   </div>
                   <div class="flex justify-between">
-                    <span class="text-on-surface-variant/60">{m.chd_meta_slowmode()}</span>
+                    <span class="text-on-surface-variant">{m.chd_meta_slowmode()}</span>
                     <span class="font-bold text-on-surface">{details.channel?.rateLimitPerUser ? m.chd_seconds({ value: details.channel.rateLimitPerUser }) : m.chd_none()}</span>
                   </div>
                   <div class="flex justify-between">
-                    <span class="text-on-surface-variant/60">{m.chd_meta_nsfw()}</span>
+                    <span class="text-on-surface-variant">{m.chd_meta_nsfw()}</span>
                     <span class="font-bold {details.channel?.nsfw ? 'text-error' : 'text-on-surface'}">{details.channel?.nsfw ? m.chd_yes() : m.chd_no()}</span>
                   </div>
                   {#if details.channel?.bitrate}
                     <div class="flex justify-between">
-                      <span class="text-on-surface-variant/60">{m.chd_meta_bitrate()}</span>
+                      <span class="text-on-surface-variant">{m.chd_meta_bitrate()}</span>
                       <span class="font-bold text-on-surface">{Math.round(details.channel.bitrate / 1000)} kbps</span>
                     </div>
                     <div class="flex justify-between">
-                      <span class="text-on-surface-variant/60">{m.chd_meta_user_limit()}</span>
+                      <span class="text-on-surface-variant">{m.chd_meta_user_limit()}</span>
                       <span class="font-bold text-on-surface">{details.channel.userLimit || m.chd_unlimited()}</span>
                     </div>
                   {/if}
@@ -889,7 +889,7 @@
                     {/each}
                   </div>
                 {:else}
-                  <p class="text-xs text-on-surface-variant/50 py-6 text-center">{m.chd_no_overwrites()}</p>
+                  <p class="text-xs text-on-surface-variant py-6 text-center">{m.chd_no_overwrites()}</p>
                 {/if}
               </div>
             </div>
@@ -910,7 +910,7 @@
                         <span class="text-xs font-bold">{event.eventType}</span>
                         <span class="text-2xs text-on-surface-variant/40">{formatDateTime(event.createdAt)}</span>
                       </div>
-                      <p class="text-2xs text-on-surface-variant/60 mt-1">
+                      <p class="text-2xs text-on-surface-variant mt-1">
                         {m.chd_audit_by({ author: event.executorName ?? m.chd_unknown() })}
                         {#if event.changedFields?.length}
                           • {event.changedFields.join(', ')}
@@ -920,7 +920,7 @@
                   {/each}
                 </div>
               {:else}
-                <p class="text-xs text-on-surface-variant/50 py-6 text-center">{m.chd_no_audit()}</p>
+                <p class="text-xs text-on-surface-variant py-6 text-center">{m.chd_no_audit()}</p>
               {/if}
             </div>
           {/if}

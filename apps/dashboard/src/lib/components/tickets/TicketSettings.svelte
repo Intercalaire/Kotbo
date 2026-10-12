@@ -948,7 +948,7 @@
         </div>
         <div>
           <p class="text-sm font-semibold text-on-surface">{m.e1_tickets_sec_channels_title()}</p>
-          <p class="text-2xs text-on-surface-variant/60 mt-0.5">{m.e1_tickets_sec_channels_desc()}</p>
+          <p class="text-2xs text-on-surface-variant mt-0.5">{m.e1_tickets_sec_channels_desc()}</p>
         </div>
       </div>
       <Papicon icon={expandedConfigSection === 'channels' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40 shrink-0" />
@@ -998,7 +998,7 @@
             <input type="checkbox" bind:checked={ticketAllowOverclaim} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
             <div>
               <span class="text-xs font-bold text-on-surface">{m.e1_tickets_overclaim_label()}</span>
-              <p class="text-2xs text-on-surface-variant/60">{m.e1_tickets_overclaim_desc()}</p>
+              <p class="text-2xs text-on-surface-variant">{m.e1_tickets_overclaim_desc()}</p>
             </div>
           </label>
           {#if ticketAllowOverclaim}
@@ -1014,7 +1014,7 @@
             <input type="checkbox" bind:checked={ticketAutoClaimOnReply} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
             <div>
               <span class="text-xs font-bold text-on-surface">{m.e1_tickets_autoclaim_label()}</span>
-              <p class="text-2xs text-on-surface-variant/60">{m.e1_tickets_autoclaim_desc()}</p>
+              <p class="text-2xs text-on-surface-variant">{m.e1_tickets_autoclaim_desc()}</p>
             </div>
           </label>
         </div>
@@ -1031,7 +1031,7 @@
         </div>
         <div>
           <p class="text-sm font-semibold text-on-surface">{m.e1_tickets_sec_embed_title()}</p>
-          <p class="text-2xs text-on-surface-variant/60 mt-0.5">{m.e1_tickets_sec_embed_desc()}</p>
+          <p class="text-2xs text-on-surface-variant mt-0.5">{m.e1_tickets_sec_embed_desc()}</p>
         </div>
       </div>
       <Papicon icon={expandedConfigSection === 'embed' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40 shrink-0" />
@@ -1051,7 +1051,7 @@
         <label class="block">
           <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_description()}</span>
           <FormTextarea bind:value={ticketEmbedDesc} placeholder={m.e1_tickets_embed_desc_ph()} className="w-full h-20" />
-          <p class="text-2xs text-on-surface-variant/50 mt-1.5">{m.e1_tickets_default_hint()}</p>
+          <p class="text-2xs text-on-surface-variant mt-1.5">{m.e1_tickets_default_hint()}</p>
         </label>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <label class="block">
@@ -1096,12 +1096,12 @@
                 class="p-4 rounded-xl border-2 text-left transition-all {ticketEmbedType === typeOption.value ? 'border-primary bg-primary/5' : 'border-outline-variant/10 hover:border-outline-variant/30 bg-surface-container/20'}"
               >
                 <div class="flex items-center gap-2.5 mb-2">
-                  <div class="w-8 h-8 rounded-lg flex items-center justify-center {ticketEmbedType === typeOption.value ? 'bg-primary/15 text-primary' : 'bg-surface-container text-on-surface-variant/50'}">
+                  <div class="w-8 h-8 rounded-lg flex items-center justify-center {ticketEmbedType === typeOption.value ? 'bg-primary/15 text-primary' : 'bg-surface-container text-on-surface-variant'}">
                     <Papicon icon={typeOption.icon} size={16} />
                   </div>
                   <span class="text-sm font-semibold {ticketEmbedType === typeOption.value ? 'text-primary' : 'text-on-surface'}">{typeOption.label}</span>
                 </div>
-                <p class="text-2xs text-on-surface-variant/60 leading-relaxed">{typeOption.desc}</p>
+                <p class="text-2xs text-on-surface-variant leading-relaxed">{typeOption.desc}</p>
               </button>
             {/each}
           </div>
@@ -1119,7 +1119,7 @@
         </div>
         <div>
           <p class="text-sm font-semibold text-on-surface">{m.e1_tickets_sec_welcome_title()}</p>
-          <p class="text-2xs text-on-surface-variant/60 mt-0.5">{m.e1_tickets_sec_welcome_desc()}</p>
+          <p class="text-2xs text-on-surface-variant mt-0.5">{m.e1_tickets_sec_welcome_desc()}</p>
         </div>
       </div>
       <Papicon icon={expandedConfigSection === 'welcome' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40 shrink-0" />
@@ -1135,7 +1135,7 @@
         <label class="block">
           <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_welcome_desc_label()}</span>
           <FormTextarea bind:value={ticketWelcomeDesc} placeholder={m.e1_tickets_welcome_desc_ph({ user: '{user}', staff_mention: '{staff_mention}' })} className="w-full h-32" />
-          <p class="text-2xs text-on-surface-variant/50 mt-1.5">{m.e1_tickets_default_hint()}</p>
+          <p class="text-2xs text-on-surface-variant mt-1.5">{m.e1_tickets_default_hint()}</p>
         </label>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <label class="block">
@@ -1170,7 +1170,7 @@
         </div>
         <div>
           <p class="text-sm font-semibold text-on-surface">{m.e1_tickets_sec_gatekeeping_title()}</p>
-          <p class="text-2xs text-on-surface-variant/60 mt-0.5">{m.e1_tickets_sec_gatekeeping_desc()}</p>
+          <p class="text-2xs text-on-surface-variant mt-0.5">{m.e1_tickets_sec_gatekeeping_desc()}</p>
         </div>
       </div>
       <div class="flex items-center gap-2 shrink-0">
@@ -1186,7 +1186,7 @@
           <input type="checkbox" bind:checked={ticketLockUntilClaim} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
           <div>
             <span class="text-xs font-bold text-on-surface">{m.e1_tickets_lock_until_claim()}</span>
-            <p class="text-2xs text-on-surface-variant/60">{m.e1_tickets_lock_until_claim_desc()}</p>
+            <p class="text-2xs text-on-surface-variant">{m.e1_tickets_lock_until_claim_desc()}</p>
           </div>
         </label>
 
@@ -1195,7 +1195,7 @@
             <input type="checkbox" bind:checked={ticketApprovalEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
             <div>
               <span class="text-xs font-bold text-on-surface">{m.e1_tickets_approval_enable()}</span>
-              <p class="text-2xs text-on-surface-variant/60">{m.e1_tickets_approval_enable_desc()}</p>
+              <p class="text-2xs text-on-surface-variant">{m.e1_tickets_approval_enable_desc()}</p>
             </div>
           </label>
           {#if ticketApprovalEnabled}
@@ -1205,12 +1205,12 @@
               {#if isMissingReference(ticketApprovalChannelId, discordChannels)}
                 <p class="text-2xs text-warning mt-1.5">{m.e1_tickets_missing_ref()}</p>
               {/if}
-              <p class="text-2xs text-on-surface-variant/50 mt-1.5">{m.e1_tickets_approval_channel_hint()}</p>
+              <p class="text-2xs text-on-surface-variant mt-1.5">{m.e1_tickets_approval_channel_hint()}</p>
             </label>
           {/if}
         </div>
 
-        <p class="text-2xs text-on-surface-variant/50 border-t border-outline-variant/10 pt-3">{m.e1_tickets_gatekeeping_override_hint()}</p>
+        <p class="text-2xs text-on-surface-variant border-t border-outline-variant/10 pt-3">{m.e1_tickets_gatekeeping_override_hint()}</p>
       </div>
     {/if}
   </div>
@@ -1224,7 +1224,7 @@
         </div>
         <div>
           <p class="text-sm font-semibold text-on-surface">{m.e1_tickets_cfg_archive_title()}</p>
-          <p class="text-2xs text-on-surface-variant/60 mt-0.5">{m.e1_tickets_cfg_archive_desc()}</p>
+          <p class="text-2xs text-on-surface-variant mt-0.5">{m.e1_tickets_cfg_archive_desc()}</p>
         </div>
       </div>
       <div class="flex items-center gap-2 shrink-0">
@@ -1242,28 +1242,28 @@
           {#if isMissingReference(ticketArchiveCategoryId, discordCategories)}
             <p class="text-2xs text-warning mt-1.5">{m.e1_tickets_missing_ref()}</p>
           {/if}
-          <p class="text-2xs text-on-surface-variant/50 mt-1.5">{m.e1_tickets_cfg_archive_category_hint()}</p>
+          <p class="text-2xs text-on-surface-variant mt-1.5">{m.e1_tickets_cfg_archive_category_hint()}</p>
         </label>
 
         <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
           <input type="checkbox" bind:checked={ticketArchiveKeepOpenerView} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
           <div>
             <span class="text-xs font-bold text-on-surface">{m.e1_tickets_cfg_archive_keep_view()}</span>
-            <p class="text-2xs text-on-surface-variant/60">{m.e1_tickets_cfg_archive_keep_view_desc()}</p>
+            <p class="text-2xs text-on-surface-variant">{m.e1_tickets_cfg_archive_keep_view_desc()}</p>
           </div>
         </label>
 
         <div class="border-t border-outline-variant/10 pt-4 space-y-3">
           <div>
             <p class="text-xs font-bold text-on-surface">{m.e1_tickets_cfg_history_title()}</p>
-            <p class="text-2xs text-on-surface-variant/60 mt-0.5">{m.e1_tickets_cfg_history_desc()}</p>
+            <p class="text-2xs text-on-surface-variant mt-0.5">{m.e1_tickets_cfg_history_desc()}</p>
           </div>
 
           <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
             <input type="checkbox" bind:checked={ticketHistoryPanelEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
             <div>
               <span class="text-xs font-bold text-on-surface">{m.e1_tickets_cfg_history_panel()}</span>
-              <p class="text-2xs text-on-surface-variant/60">{m.e1_tickets_cfg_history_panel_desc()}</p>
+              <p class="text-2xs text-on-surface-variant">{m.e1_tickets_cfg_history_panel_desc()}</p>
             </div>
           </label>
 
@@ -1273,14 +1273,14 @@
                 <input type="checkbox" bind:checked={ticketSelfReopenEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
                 <div>
                   <span class="text-xs font-bold text-on-surface">{m.e1_tickets_cfg_self_reopen()}</span>
-                  <p class="text-2xs text-on-surface-variant/60">{m.e1_tickets_cfg_self_reopen_desc()}</p>
+                  <p class="text-2xs text-on-surface-variant">{m.e1_tickets_cfg_self_reopen_desc()}</p>
                 </div>
               </label>
               <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
                 <input type="checkbox" bind:checked={ticketSelfDeleteEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
                 <div>
                   <span class="text-xs font-bold text-on-surface">{m.e1_tickets_cfg_self_delete()}</span>
-                  <p class="text-2xs text-on-surface-variant/60">{m.e1_tickets_cfg_self_delete_desc()}</p>
+                  <p class="text-2xs text-on-surface-variant">{m.e1_tickets_cfg_self_delete_desc()}</p>
                 </div>
               </label>
             </div>
@@ -1299,7 +1299,7 @@
         </div>
         <div>
           <p class="text-sm font-semibold text-on-surface">{m.e1_tickets_sec_inactivity_title()}</p>
-          <p class="text-2xs text-on-surface-variant/60 mt-0.5">{m.e1_tickets_sec_inactivity_desc()}</p>
+          <p class="text-2xs text-on-surface-variant mt-0.5">{m.e1_tickets_sec_inactivity_desc()}</p>
         </div>
       </div>
       <div class="flex items-center gap-2 shrink-0">
@@ -1315,7 +1315,7 @@
           <input type="checkbox" bind:checked={ticketInactivityEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
           <div>
             <span class="text-xs font-bold text-on-surface">{m.e1_tickets_enable_reminders()}</span>
-            <p class="text-2xs text-on-surface-variant/60">{m.e1_tickets_reminders_desc()}</p>
+            <p class="text-2xs text-on-surface-variant">{m.e1_tickets_reminders_desc()}</p>
           </div>
         </label>
         {#if ticketInactivityEnabled}
@@ -1435,7 +1435,7 @@
         </div>
         <div>
           <p class="text-sm font-semibold text-on-surface">Quotas</p>
-          <p class="text-2xs text-on-surface-variant/60 mt-0.5">Limites d'ouverture côté membre, plafond de charge côté staff</p>
+          <p class="text-2xs text-on-surface-variant mt-0.5">Limites d'ouverture côté membre, plafond de charge côté staff</p>
         </div>
       </div>
       <div class="flex items-center gap-2 shrink-0">
@@ -1449,7 +1449,7 @@
     </button>
     {#if expandedConfigSection === 'quotas'}
       <div class="px-4 lg:px-5 pb-5 space-y-4 border-t border-outline-variant/10 pt-4">
-        <p class="text-2xs text-on-surface-variant/70 leading-relaxed">
+        <p class="text-2xs text-on-surface-variant leading-relaxed">
           Chaque quota s'active indépendamment. Décoché, il n'impose aucune limite.
           Un type de ticket peut ajuster le seuil depuis l'onglet Types.
         </p>
@@ -1459,7 +1459,7 @@
             <input type="checkbox" bind:checked={ticketQuotaOpenEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
             <div>
               <span class="text-xs font-bold text-on-surface">Tickets ouverts simultanément</span>
-              <p class="text-2xs text-on-surface-variant/60">Nombre de tickets qu'un membre peut avoir en cours en même temps.</p>
+              <p class="text-2xs text-on-surface-variant">Nombre de tickets qu'un membre peut avoir en cours en même temps.</p>
             </div>
           </label>
           {#if ticketQuotaOpenEnabled}
@@ -1475,7 +1475,7 @@
             <input type="checkbox" bind:checked={ticketQuotaCooldownEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
             <div>
               <span class="text-xs font-bold text-on-surface">Délai entre deux ouvertures</span>
-              <p class="text-2xs text-on-surface-variant/60">Empêche d'enchaîner les tickets sans laisser le temps de répondre.</p>
+              <p class="text-2xs text-on-surface-variant">Empêche d'enchaîner les tickets sans laisser le temps de répondre.</p>
             </div>
           </label>
           {#if ticketQuotaCooldownEnabled}
@@ -1491,7 +1491,7 @@
             <input type="checkbox" bind:checked={ticketQuotaPeriodEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
             <div>
               <span class="text-xs font-bold text-on-surface">Quota sur une période</span>
-              <p class="text-2xs text-on-surface-variant/60">Plafonne le nombre d'ouvertures sur une fenêtre glissante.</p>
+              <p class="text-2xs text-on-surface-variant">Plafonne le nombre d'ouvertures sur une fenêtre glissante.</p>
             </div>
           </label>
           {#if ticketQuotaPeriodEnabled}
@@ -1511,7 +1511,7 @@
         <div class="border-t border-outline-variant/10 pt-4 space-y-3">
           <div>
             <p class="text-xs font-bold text-on-surface">Charge maximale par modérateur</p>
-            <p class="text-2xs text-on-surface-variant/60 mt-0.5">
+            <p class="text-2xs text-on-surface-variant mt-0.5">
               Tickets pris en charge et encore ouverts. Au-delà, le staff est averti ou refusé.
             </p>
           </div>
@@ -1537,7 +1537,7 @@
               </label>
               <div>
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-1 block">Rôles qui passent outre</span>
-                <p class="text-2xs text-on-surface-variant/60 ml-1 mb-2">
+                <p class="text-2xs text-on-surface-variant ml-1 mb-2">
                   Sans eux, un serveur dont tout le staff est plein ne peut plus prendre aucun ticket.
                 </p>
                 <MultiSelect
@@ -1555,7 +1555,7 @@
             <input type="checkbox" bind:checked={ticketQuotaReopenEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
             <div>
               <span class="text-xs font-bold text-on-surface">Limiter les réouvertures</span>
-              <p class="text-2xs text-on-surface-variant/60">
+              <p class="text-2xs text-on-surface-variant">
                 Nombre de fois qu'un même ticket peut être rouvert. Les délais entre deux réouvertures
                 (24 h, puis 7 jours) s'appliquent quoi qu'il arrive.
               </p>
@@ -1581,7 +1581,7 @@
         </div>
         <div>
           <p class="text-sm font-semibold text-on-surface">{m.e1_tickets_sec_satisfaction_title()}</p>
-          <p class="text-2xs text-on-surface-variant/60 mt-0.5">{m.e1_tickets_sec_satisfaction_desc()}</p>
+          <p class="text-2xs text-on-surface-variant mt-0.5">{m.e1_tickets_sec_satisfaction_desc()}</p>
         </div>
       </div>
       <div class="flex items-center gap-2 shrink-0">
@@ -1597,7 +1597,7 @@
           <input type="checkbox" bind:checked={ticketSatisfactionCommentEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
           <div>
             <span class="text-xs font-bold text-on-surface">{m.e1_tickets_sat_comment_enable()}</span>
-            <p class="text-2xs text-on-surface-variant/60">{m.e1_tickets_sat_comment_enable_desc()}</p>
+            <p class="text-2xs text-on-surface-variant">{m.e1_tickets_sat_comment_enable_desc()}</p>
           </div>
         </label>
         {#if ticketSatisfactionCommentEnabled}
@@ -1611,7 +1611,7 @@
               <input type="number" bind:value={ticketSatisfactionCommentTimeout} min={30} max={900} step={10} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
             </label>
           </div>
-          <p class="text-2xs text-on-surface-variant/50 ml-1">{m.e1_tickets_sat_comment_hint()}</p>
+          <p class="text-2xs text-on-surface-variant ml-1">{m.e1_tickets_sat_comment_hint()}</p>
         {/if}
 
         <div class="pt-2 border-t border-outline-variant/10 space-y-4">
@@ -1621,14 +1621,14 @@
             {#if isMissingReference(ticketSatisfactionLogChannelId, discordChannels)}
               <p class="text-2xs text-warning mt-1.5">{m.e1_tickets_missing_ref()}</p>
             {/if}
-            <p class="text-2xs text-on-surface-variant/50 ml-1 mt-1.5">{m.e1_tickets_sat_log_desc()}</p>
+            <p class="text-2xs text-on-surface-variant ml-1 mt-1.5">{m.e1_tickets_sat_log_desc()}</p>
           </label>
           {#if ticketSatisfactionLogChannelId}
             <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
               <input type="checkbox" bind:checked={ticketSatisfactionLogAnonymous} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
               <div>
                 <span class="text-xs font-bold text-on-surface">{m.e1_tickets_sat_log_anonymous()}</span>
-                <p class="text-2xs text-on-surface-variant/60">{m.e1_tickets_sat_log_anonymous_desc()}</p>
+                <p class="text-2xs text-on-surface-variant">{m.e1_tickets_sat_log_anonymous_desc()}</p>
               </div>
             </label>
           {/if}
@@ -1646,7 +1646,7 @@
         </div>
         <div>
           <p class="text-sm font-semibold text-on-surface">{m.e1_tickets_sec_types_title()}</p>
-          <p class="text-2xs text-on-surface-variant/60 mt-0.5">{m.e1_tickets_sec_types_desc({ count: ticketTypes.length })}</p>
+          <p class="text-2xs text-on-surface-variant mt-0.5">{m.e1_tickets_sec_types_desc({ count: ticketTypes.length })}</p>
         </div>
       </div>
       <Papicon icon={expandedConfigSection === 'types' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40 shrink-0" />
@@ -1686,7 +1686,7 @@
                       {:else if ticketType.mode === 'THREAD'}
                         <span class="px-1.5 py-0.5 rounded text-xs font-semibold bg-warning/10 text-warning border border-warning/15">{m.e1_tickets_badge_thread()}</span>
                       {:else}
-                        <span class="px-1.5 py-0.5 rounded text-xs font-semibold bg-surface-container-high text-on-surface-variant/60 border border-outline-variant/10">{m.e1_tickets_badge_global_mode()}</span>
+                        <span class="px-1.5 py-0.5 rounded text-xs font-semibold bg-surface-container-high text-on-surface-variant border border-outline-variant/10">{m.e1_tickets_badge_global_mode()}</span>
                       {/if}
 
                       <!-- Staff Role Badge -->
@@ -1755,19 +1755,19 @@
                   <!-- Button label, emoji, style select -->
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <label class="block">
-                      <span class="text-2xs font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_label()}</span>
+                      <span class="text-2xs font-bold text-on-surface-variant ml-1 mb-1.5 block">{m.e1_tickets_type_label()}</span>
                       <FormInput type="text" bind:value={ticketType.label} placeholder={m.e1_tickets_type_label_ph()} className="w-full" />
                     </label>
                     <div class="grid grid-cols-2 gap-3">
                       <label class="block">
-                        <span class="text-2xs font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_emoji()}</span>
+                        <span class="text-2xs font-bold text-on-surface-variant ml-1 mb-1.5 block">{m.e1_tickets_type_emoji()}</span>
                         <div class="flex gap-1.5">
                           <FormInput type="text" bind:value={ticketType.emoji} placeholder="📩" className="w-full" />
                           <EmojiPicker bind:value={ticketType.emoji} />
                         </div>
                       </label>
                       <label class="block">
-                        <span class="text-2xs font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_style()}</span>
+                        <span class="text-2xs font-bold text-on-surface-variant ml-1 mb-1.5 block">{m.e1_tickets_type_style()}</span>
                         <FormSelect bind:value={ticketType.buttonStyle} className="w-full">
                           <option value="PRIMARY">{m.e1_tickets_style_primary()}</option>
                           <option value="SECONDARY">{m.e1_tickets_style_secondary()}</option>
@@ -1779,14 +1779,14 @@
                   </div>
 
                   <label class="block">
-                    <span class="text-2xs font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_desc()}</span>
+                    <span class="text-2xs font-bold text-on-surface-variant ml-1 mb-1.5 block">{m.e1_tickets_type_desc()}</span>
                     <FormTextarea bind:value={ticketType.description} placeholder={m.e1_tickets_type_desc_ph()} className="w-full h-16" />
                   </label>
 
                   <!-- Salons & Rôles targets -->
                   <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <label class="block">
-                      <span class="text-2xs font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_mode()}</span>
+                      <span class="text-2xs font-bold text-on-surface-variant ml-1 mb-1.5 block">{m.e1_tickets_type_mode()}</span>
                       <FormSelect bind:value={ticketType.mode} className="w-full">
                         <option value="">{m.e1_tickets_mode_default()}</option>
                         <option value="CHANNEL">{m.e1_tickets_mode_channel_opt()}</option>
@@ -1795,14 +1795,14 @@
                       </FormSelect>
                     </label>
                     <label class="block">
-                      <span class="text-2xs font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_category()}</span>
+                      <span class="text-2xs font-bold text-on-surface-variant ml-1 mb-1.5 block">{m.e1_tickets_type_category()}</span>
                       <SearchableSelect bind:value={ticketType.categoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder={m.e1_tickets_inherited_ph()} className="w-full" />
                       {#if isMissingReference(ticketType.categoryId, discordCategories)}
                         <p class="text-2xs text-warning mt-1.5">{m.e1_tickets_missing_ref()}</p>
                       {/if}
                     </label>
                     <label class="block">
-                      <span class="text-2xs font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_staff_role()}</span>
+                      <span class="text-2xs font-bold text-on-surface-variant ml-1 mb-1.5 block">{m.e1_tickets_type_staff_role()}</span>
                       <SearchableSelect bind:value={ticketType.staffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder={m.e1_tickets_inherited_ph()} className="w-full" />
                       {#if isMissingReference(ticketType.staffRoleId, discordRoles)}
                         <p class="text-2xs text-warning mt-1.5">{m.e1_tickets_missing_ref()}</p>
@@ -1813,7 +1813,7 @@
                   <!-- Surcharges validation / verrouillage propres au type -->
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <label class="block">
-                      <span class="text-2xs font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_lock_until_claim()}</span>
+                      <span class="text-2xs font-bold text-on-surface-variant ml-1 mb-1.5 block">{m.e1_tickets_type_lock_until_claim()}</span>
                       <FormSelect bind:value={ticketType.lockUntilClaim} className="w-full">
                         <option value="">{m.e1_tickets_type_inherit({ value: ticketLockUntilClaim ? m.e1_tickets_type_enabled() : m.e1_tickets_type_disabled() })}</option>
                         <option value="YES">{m.e1_tickets_type_enabled()}</option>
@@ -1821,7 +1821,7 @@
                       </FormSelect>
                     </label>
                     <label class="block">
-                      <span class="text-2xs font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_require_approval()}</span>
+                      <span class="text-2xs font-bold text-on-surface-variant ml-1 mb-1.5 block">{m.e1_tickets_type_require_approval()}</span>
                       <FormSelect bind:value={ticketType.requireApproval} className="w-full">
                         <option value="">{m.e1_tickets_type_inherit({ value: ticketApprovalEnabled ? m.e1_tickets_type_enabled() : m.e1_tickets_type_disabled() })}</option>
                         <option value="YES">{m.e1_tickets_type_enabled()}</option>
@@ -1837,14 +1837,14 @@
                         <ToggleSwitch checked={ticketType.anonymous} onToggle={(v) => { ticketType.anonymous = v; }} size="sm" />
                         <div>
                           <span class="text-xs font-semibold text-on-surface">{m.e1_tickets_staff_anonymity()}</span>
-                          <p class="text-2xs text-on-surface-variant/50 leading-none mt-0.5">{m.e1_tickets_staff_anonymity_desc()}</p>
+                          <p class="text-2xs text-on-surface-variant leading-none mt-0.5">{m.e1_tickets_staff_anonymity_desc()}</p>
                         </div>
                       </div>
                       <div class="flex items-center gap-2.5 p-1">
                         <ToggleSwitch checked={ticketType.staffServerRelay} onToggle={(v) => { ticketType.staffServerRelay = v; }} size="sm" />
                         <div>
                           <span class="text-xs font-semibold text-on-surface">{m.e1_tickets_thread_on_staff_server()}</span>
-                          <p class="text-2xs text-on-surface-variant/50 leading-none mt-0.5">{m.e1_tickets_thread_on_staff_server_desc()}</p>
+                          <p class="text-2xs text-on-surface-variant leading-none mt-0.5">{m.e1_tickets_thread_on_staff_server_desc()}</p>
                         </div>
                       </div>
                     </div>
@@ -1857,12 +1857,12 @@
                         <ToggleSwitch checked={ticketType.staffServerChannel} onToggle={(v) => { ticketType.staffServerChannel = v; }} size="sm" />
                         <div>
                           <span class="text-xs font-semibold text-on-surface">{m.e1_tickets_channel_on_staff_server()}</span>
-                          <p class="text-2xs text-on-surface-variant/50 leading-none mt-0.5">{m.e1_tickets_channel_on_staff_server_desc({ name: staffServerInfo.staffGuildName ?? "" })}</p>
+                          <p class="text-2xs text-on-surface-variant leading-none mt-0.5">{m.e1_tickets_channel_on_staff_server_desc({ name: staffServerInfo.staffGuildName ?? "" })}</p>
                         </div>
                       </div>
                       {#if ticketType.staffServerChannel}
                         <label class="block">
-                          <span class="text-2xs font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_staff_server_category()}</span>
+                          <span class="text-2xs font-bold text-on-surface-variant ml-1 mb-1.5 block">{m.e1_tickets_staff_server_category()}</span>
                           <SearchableSelect bind:value={ticketType.staffServerCategoryId} options={staffServerInfo.categories.map((c: any) => ({ id: c.id, name: c.name }))} placeholder={m.e1_tickets_select_category_ph()} className="w-full" />
                           {#if isMissingReference(ticketType.staffServerCategoryId, staffServerInfo.categories)}
                             <p class="text-2xs text-warning mt-1.5">{m.e1_tickets_missing_ref()}</p>
@@ -1878,7 +1878,7 @@
                       <input type="checkbox" bind:checked={ticketType.formEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
                       <div>
                         <span class="text-xs font-bold text-on-surface">{m.e1_tickets_enable_form()}</span>
-                        <p class="text-2xs text-on-surface-variant/60">{m.e1_tickets_enable_form_desc()}</p>
+                        <p class="text-2xs text-on-surface-variant">{m.e1_tickets_enable_form_desc()}</p>
                       </div>
                     </label>
 
@@ -1897,7 +1897,7 @@
 
                         {#if !(ticketType.formCustomFields || []).length}
                           <div class="p-4 rounded-xl border border-dashed border-outline-variant/20 bg-surface-container/10 text-center">
-                            <p class="text-xs text-on-surface-variant/60">{m.e1_tickets_no_question()}</p>
+                            <p class="text-xs text-on-surface-variant">{m.e1_tickets_no_question()}</p>
                             <p class="text-2xs text-on-surface-variant/40 mt-1">{m.e1_tickets_no_question_hint()}</p>
                           </div>
                         {:else}
@@ -1916,18 +1916,18 @@
 
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                   <label class="block">
-                                    <span class="text-2xs font-bold text-on-surface-variant/70 mb-1 block">{m.e1_tickets_field_question()}</span>
+                                    <span class="text-2xs font-bold text-on-surface-variant mb-1 block">{m.e1_tickets_field_question()}</span>
                                     <FormInput type="text" bind:value={field.label} placeholder={m.e1_tickets_field_question_ph()} className="w-full" />
                                   </label>
                                   <label class="block">
-                                    <span class="text-2xs font-bold text-on-surface-variant/70 mb-1 block">{m.e1_tickets_field_hint()}</span>
+                                    <span class="text-2xs font-bold text-on-surface-variant mb-1 block">{m.e1_tickets_field_hint()}</span>
                                     <FormInput type="text" bind:value={field.placeholder} placeholder={m.e1_tickets_field_hint_ph()} className="w-full" />
                                   </label>
                                 </div>
 
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                   <label class="block">
-                                    <span class="text-2xs font-bold text-on-surface-variant/70 mb-1 block">{m.e1_tickets_answer_type()}</span>
+                                    <span class="text-2xs font-bold text-on-surface-variant mb-1 block">{m.e1_tickets_answer_type()}</span>
                                     <FormSelect bind:value={field.style} className="w-full">
                                       <option value="SHORT">{m.e1_tickets_answer_short()}</option>
                                       <option value="PARAGRAPH">{m.e1_tickets_answer_paragraph()}</option>
@@ -1945,7 +1945,7 @@
                                 {#if field.style === 'SELECT' || field.style === 'RADIO'}
                                   <div class="pt-1">
                                     <label class="block">
-                                      <span class="text-2xs font-bold text-on-surface-variant/70 mb-1 block">{m.e1_tickets_field_choices()}</span>
+                                      <span class="text-2xs font-bold text-on-surface-variant mb-1 block">{m.e1_tickets_field_choices()}</span>
                                       <FormInput
                                         type="text"
                                         bind:value={field.choicesString}

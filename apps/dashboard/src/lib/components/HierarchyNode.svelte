@@ -64,12 +64,12 @@
     <h3 class="text-base font-bold text-on-surface tracking-tight">{node.name}</h3>
     
     {#if node.description}
-      <p class="text-xs text-on-surface-variant/70 mt-1.5 leading-relaxed max-w-[260px]">{node.description}</p>
+      <p class="text-xs text-on-surface-variant mt-1.5 leading-relaxed max-w-[260px]">{node.description}</p>
     {/if}
 
     {#if node.responsable && node.responsable.name}
       <div class="mt-4 px-3.5 py-1 rounded-full bg-surface-container-high/40 border border-outline-variant/10 flex items-center gap-1.5 transition-all duration-200 hover:bg-surface-container-high/70 cursor-default">
-        <span class="text-xs font-semibold text-on-surface-variant/50">{m.staff_orgchart_resp_badge()}</span>
+        <span class="text-xs font-semibold text-on-surface-variant">{m.staff_orgchart_resp_badge()}</span>
         <span class="text-xs font-semibold text-on-surface">{node.responsable.name}</span>
       </div>
     {/if}

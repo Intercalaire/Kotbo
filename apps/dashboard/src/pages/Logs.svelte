@@ -539,7 +539,7 @@
         </div>
         <div>
           <h3 class="text-sm font-semibold text-on-surface">{m.lg_default_channel()}</h3>
-          <p class="text-xs text-on-surface-variant/70 mt-1">{m.lg_default_channel_desc()}</p>
+          <p class="text-xs text-on-surface-variant mt-1">{m.lg_default_channel_desc()}</p>
         </div>
       </div>
       <div class="w-full md:w-72">
@@ -551,7 +551,7 @@
       <div class="flex items-center justify-between gap-4">
         <div>
           <h3 class="text-sm font-semibold text-on-surface">{m.lg_ignored_channels()}</h3>
-          <p class="text-xs text-on-surface-variant/70 mt-1">{m.lg_ignored_channels_desc()}</p>
+          <p class="text-xs text-on-surface-variant mt-1">{m.lg_ignored_channels_desc()}</p>
         </div>
         {#if ignoredChannelsDirty}
           <button
@@ -585,7 +585,7 @@
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
       <div>
         <h4 class="text-sm font-semibold text-on-surface">{m.lg_per_event_config()}</h4>
-        <p class="text-xs text-on-surface-variant/60 mt-1">{m.lg_per_event_desc()}</p>
+        <p class="text-xs text-on-surface-variant mt-1">{m.lg_per_event_desc()}</p>
       </div>
     </div>
 
@@ -604,7 +604,7 @@
             </div>
             <div>
               <h5 class="text-body-sm font-medium text-on-surface">{cat.label}</h5>
-              <p class="text-2xs text-on-surface-variant/60">{m.lg_manage_category_alerts()}</p>
+              <p class="text-2xs text-on-surface-variant">{m.lg_manage_category_alerts()}</p>
             </div>
           </div>
 
@@ -616,7 +616,7 @@
                   <div class="flex justify-between items-start gap-4">
                     <div class="space-y-1">
                       <p class="text-xs font-bold text-on-surface">{ev.label}</p>
-                      <p class="text-2xs text-on-surface-variant/60 leading-relaxed">{ev.desc}</p>
+                      <p class="text-2xs text-on-surface-variant leading-relaxed">{ev.desc}</p>
                     </div>
                     <ToggleSwitch 
                       checked={eventConfigs[confIdx].enabled}
@@ -629,7 +629,7 @@
 
                   {#if eventConfigs[confIdx].enabled}
                     <div class="space-y-1.5 pt-3 border-t border-outline-variant/10">
-                      <label for="select-{ev.type}" class="text-xs font-semibold text-on-surface-variant/60">{m.lg_dest_channel()}</label>
+                      <label for="select-{ev.type}" class="text-xs font-semibold text-on-surface-variant">{m.lg_dest_channel()}</label>
                       <select
                         id="select-{ev.type}"
                         bind:value={eventConfigs[confIdx].channelId}
@@ -762,7 +762,7 @@
               <td class="px-6 py-5">
                 <div class="text-xs">
                   <p class="font-bold text-on-surface">{new Date(entry.dateIso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
-                  <p class="text-2xs text-on-surface-variant/60 font-medium">{new Date(entry.dateIso).toLocaleDateString()}</p>
+                  <p class="text-2xs text-on-surface-variant font-medium">{new Date(entry.dateIso).toLocaleDateString()}</p>
                 </div>
               </td>
               <td class="px-6 py-5">
@@ -805,7 +805,7 @@
                 <div class="flex flex-col items-center justify-center">
                   <Papicon icon="Info" size={40} class="mb-3 text-on-surface-variant/40" />
                   <p class="text-sm font-bold">{m.lg_no_events()}</p>
-                  <p class="text-xs text-on-surface-variant/60 mt-1">{m.lg_no_events_hint()}</p>
+                  <p class="text-xs text-on-surface-variant mt-1">{m.lg_no_events_hint()}</p>
                 </div>
               </td>
             </tr>

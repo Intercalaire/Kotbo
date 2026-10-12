@@ -156,13 +156,13 @@
     {#if guildIconUrl}
       <img src={guildIconUrl} alt="" class="w-12 h-12 rounded-2xl object-cover shrink-0" />
     {:else}
-      <div class="w-12 h-12 rounded-2xl bg-surface-container flex items-center justify-center text-base font-bold text-on-surface-variant/60 shrink-0">
+      <div class="w-12 h-12 rounded-2xl bg-surface-container flex items-center justify-center text-base font-bold text-on-surface-variant shrink-0">
         {(selectedGuild?.name ?? '?').slice(0, 1).toUpperCase()}
       </div>
     {/if}
     <div class="min-w-0">
       <p class="text-[15px] font-semibold text-on-surface truncate">{selectedGuild?.name ?? 'Ton serveur'}</p>
-      <p class="text-xs text-on-surface-variant/60">Configuré avec Kotbo</p>
+      <p class="text-xs text-on-surface-variant">Configuré avec Kotbo</p>
     </div>
     <KotboMark size={28} class="ml-auto shrink-0" />
   </div>
@@ -190,10 +190,10 @@
         {#if offer.priceCents}
           <div class="text-right">
             <p class="text-lg font-bold tracking-tight text-on-surface">
-              {formatPrice(effectiveInterval === 'year' ? offer.priceCents.year : offer.priceCents.month)}<span class="text-body-sm font-medium text-on-surface-variant/60">/{effectiveInterval === 'year' ? 'an' : 'mois'}</span>
+              {formatPrice(effectiveInterval === 'year' ? offer.priceCents.year : offer.priceCents.month)}<span class="text-body-sm font-medium text-on-surface-variant">/{effectiveInterval === 'year' ? 'an' : 'mois'}</span>
             </p>
             {#if effectiveInterval === 'year'}
-              <p class="text-xs text-on-surface-variant/70">
+              <p class="text-xs text-on-surface-variant">
                 soit {formatPrice(Math.round(offer.priceCents.year / 12))}/mois
                 {#if yearlySavedCents > 0}
                   <span class="ml-1 line-through text-on-surface-variant/45">{formatPrice(offer.priceCents.month)}</span>
@@ -261,7 +261,7 @@
         <button
           type="button"
           onclick={() => (codeOpen = true)}
-          class="inline-flex items-center gap-1.5 text-body-sm font-medium text-on-surface-variant/60 hover:text-on-surface transition-colors"
+          class="inline-flex items-center gap-1.5 text-body-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors"
         >
           <Papicon icon="ticket" size={13} />
           Tu as un code&nbsp;? Partenaire, essai offert…

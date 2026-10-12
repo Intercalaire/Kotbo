@@ -1326,8 +1326,8 @@
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div class="max-w-2xl">
           <p class="text-sm font-semibold text-on-surface">{m.giv_tpl_title()}</p>
-          <p class="text-xs text-on-surface-variant/70 font-medium">{m.giv_tpl_desc()}</p>
-          <p class="text-xs text-on-surface-variant/50 mt-1">{m.giv_tpl_vs_config_hint()}</p>
+          <p class="text-xs text-on-surface-variant font-medium">{m.giv_tpl_desc()}</p>
+          <p class="text-xs text-on-surface-variant mt-1">{m.giv_tpl_vs_config_hint()}</p>
         </div>
         <button
           onclick={() => openTemplateModal(null)}
@@ -1341,7 +1341,7 @@
       {#if templates.length === 0}
         <div class="flex flex-col items-center justify-center py-20 bg-surface-container-low/20 border border-outline-variant/10 rounded-xl text-center">
           <Papicon icon="Copy" size={32} class="text-on-surface-variant/20 mb-3" />
-          <p class="text-sm text-on-surface-variant/60 font-medium">{m.giv_tpl_empty()}</p>
+          <p class="text-sm text-on-surface-variant font-medium">{m.giv_tpl_empty()}</p>
           <button
             onclick={() => openTemplateModal(null)}
             class="mt-4 flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary font-bold text-xs rounded-lg transition-all cursor-pointer"
@@ -1366,12 +1366,12 @@
 
                 <div class="min-w-0 flex-1">
                   <p class="text-sm font-semibold text-on-surface truncate">{template.name}</p>
-                  <p class="text-xs truncate {awaitsPrize(template) ? 'text-warning' : 'text-on-surface-variant/70'}">
+                  <p class="text-xs truncate {awaitsPrize(template) ? 'text-warning' : 'text-on-surface-variant'}">
                     {template.prize}
                   </p>
 
                   <!-- Ce que l'annonce ne dit pas : où elle part, et comment on tire. -->
-                  <div class="flex flex-wrap items-center gap-2 mt-2 text-2xs font-medium text-on-surface-variant/70">
+                  <div class="flex flex-wrap items-center gap-2 mt-2 text-2xs font-medium text-on-surface-variant">
                     <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{durationLabel(template.durationMinutes)}</span>
                     <span class="px-2 py-1 rounded-lg bg-surface-container-high/40">{m.giv_winners_count({ count: template.winnerCount })}</span>
                     {#if template.channelId}
@@ -1432,7 +1432,7 @@
     <div class="space-y-6">
       <InlineFeedback state={configAction} />
 
-      <p class="text-xs text-on-surface-variant/70 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl px-4 py-3">
+      <p class="text-xs text-on-surface-variant bg-surface-container-low/30 border border-outline-variant/10 rounded-xl px-4 py-3">
         {m.giv_cfg_section_hint()}
       </p>
 
@@ -1448,7 +1448,7 @@
             options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
             accentClass="bg-primary/20 text-primary border-primary/40"
           />
-          <p class="text-2xs text-on-surface-variant/50">{m.giv_cfg_managers_help()}</p>
+          <p class="text-2xs text-on-surface-variant">{m.giv_cfg_managers_help()}</p>
         </div>
       </SectionCard>
 
@@ -1473,25 +1473,25 @@
       >
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div class="space-y-1.5">
-            <span class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.giv_cfg_required_label()}</span>
+            <span class="text-xs font-semibold text-on-surface-variant ml-1">{m.giv_cfg_required_label()}</span>
             <MultiSelect
               id="giveaway-required-roles"
               bind:values={config.requiredRoleIds}
               options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
               accentClass="bg-success/20 text-emerald-300 border-success/40"
             />
-            <p class="text-2xs text-on-surface-variant/50">{m.giv_cfg_required_help()}</p>
+            <p class="text-2xs text-on-surface-variant">{m.giv_cfg_required_help()}</p>
           </div>
 
           <div class="space-y-1.5">
-            <span class="text-xs font-semibold text-on-surface-variant/60 ml-1">{m.giv_cfg_blocked_label()}</span>
+            <span class="text-xs font-semibold text-on-surface-variant ml-1">{m.giv_cfg_blocked_label()}</span>
             <MultiSelect
               id="giveaway-blocked-roles"
               bind:values={config.blockedRoleIds}
               options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
               accentClass="bg-error/20 text-rose-300 border-error/40"
             />
-            <p class="text-2xs text-on-surface-variant/50">{m.giv_cfg_blocked_help()}</p>
+            <p class="text-2xs text-on-surface-variant">{m.giv_cfg_blocked_help()}</p>
           </div>
         </div>
       </SectionCard>
@@ -1560,7 +1560,7 @@
           {#each config.bonusEntries as entry, index (entry.roleId)}
             <div class="flex items-center gap-3 bg-surface-container-high/25 border border-outline-variant/10 rounded-lg px-3 py-2">
               <span class="flex-1 text-sm text-on-surface truncate">@{roleName(entry.roleId)}</span>
-              <label class="flex items-center gap-2 text-2xs text-on-surface-variant/70">
+              <label class="flex items-center gap-2 text-2xs text-on-surface-variant">
                 {m.giv_cfg_bonus_weight()}
                 <input
                   type="number"
@@ -1579,7 +1579,7 @@
               </button>
             </div>
           {:else}
-            <p class="text-xs text-on-surface-variant/60">{m.giv_cfg_bonus_empty()}</p>
+            <p class="text-xs text-on-surface-variant">{m.giv_cfg_bonus_empty()}</p>
           {/each}
 
           <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
@@ -1866,7 +1866,7 @@
         description={m.giv_cfg_presets_desc()}
       >
         {#if configPresets.length === 0}
-          <p class="text-xs text-on-surface-variant/60">{m.giv_cfg_presets_empty()}</p>
+          <p class="text-xs text-on-surface-variant">{m.giv_cfg_presets_empty()}</p>
         {:else}
           <div class="space-y-2">
             {#each configPresets as preset (preset.id)}
@@ -1895,7 +1895,7 @@
                       />
                     {:else}
                       <p class="text-sm font-semibold text-on-surface truncate">{preset.name}</p>
-                      <p class="text-2xs text-on-surface-variant/60">
+                      <p class="text-2xs text-on-surface-variant">
                         {m.giv_cfg_preset_saved_at({ date: formatDate(preset.updatedAt) })}
                         {#if twinTemplateOf(preset.id)}
                           <span class="text-primary/70">{m.giv_cfg_preset_has_template()}</span>
@@ -2004,7 +2004,7 @@
                     </span>
                   {/if}
                 </div>
-                <span class="text-2xs font-bold text-on-surface-variant/70 flex items-center gap-1 bg-surface-container-high/40 px-2 py-1 rounded-lg">
+                <span class="text-2xs font-bold text-on-surface-variant flex items-center gap-1 bg-surface-container-high/40 px-2 py-1 rounded-lg">
                   <Papicon icon="Hash" size={11} />{getChannelName(giveaway.channelId)}
                 </span>
               </div>
@@ -2013,7 +2013,7 @@
               <div class="space-y-1">
                 <h4 class="text-lg font-semibold text-on-surface leading-tight group-hover:text-primary transition-colors duration-300">{giveaway.prize}</h4>
                 {#if giveaway.description}
-                  <p class="text-xs text-on-surface-variant/70 font-medium line-clamp-3 leading-relaxed">{giveaway.description}</p>
+                  <p class="text-xs text-on-surface-variant font-medium line-clamp-3 leading-relaxed">{giveaway.description}</p>
                 {/if}
               </div>
 
@@ -2060,7 +2060,7 @@
                   {/if}
                 </div>
               {:else}
-                <div class="bg-surface-container-high/20 border border-outline-variant/5 rounded-lg p-3 flex items-center gap-2 text-on-surface-variant/60">
+                <div class="bg-surface-container-high/20 border border-outline-variant/5 rounded-lg p-3 flex items-center gap-2 text-on-surface-variant">
                   <Papicon icon="Clock" size={12} class="text-primary" />
                   <span class="text-2xs font-semibold">
                     {m.giv_ends_at({ date: formatDate(giveaway.endsAt) })}
@@ -2104,7 +2104,7 @@
         {:else}
           <div class="col-span-full flex flex-col items-center justify-center py-20 bg-surface-container-low/20 border border-outline-variant/10 rounded-xl text-center">
             <Papicon icon="Sparkles" size={32} class="text-on-surface-variant/20 mb-3" />
-            <p class="text-sm text-on-surface-variant/60 font-medium">{m.giv_empty_text()}</p>
+            <p class="text-sm text-on-surface-variant font-medium">{m.giv_empty_text()}</p>
             {#if canManageSettings}
               <button
                 onclick={openCreateModal}

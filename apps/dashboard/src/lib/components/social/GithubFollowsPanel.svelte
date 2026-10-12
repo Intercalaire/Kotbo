@@ -127,27 +127,27 @@
 
       <div class="space-y-4">
         <div class="space-y-1.5">
-          <label for="gh-repo" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.social_gh_repo_label()}</label>
+          <label for="gh-repo" class="text-xs font-semibold text-on-surface-variant ml-2">{m.social_gh_repo_label()}</label>
           <input id="gh-repo" type="text" placeholder={m.social_gh_repo_ph()} bind:value={form.repo} class={inputClass} />
         </div>
 
         <div class="space-y-1.5">
-          <label for="gh-branch" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.social_gh_branch_label()}</label>
+          <label for="gh-branch" class="text-xs font-semibold text-on-surface-variant ml-2">{m.social_gh_branch_label()}</label>
           <input id="gh-branch" type="text" placeholder={m.social_gh_branch_ph()} bind:value={form.branch} class={inputClass} />
         </div>
 
         <div class="space-y-1.5">
-          <label for="gh-chan" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.social_channel_alerts_label()}</label>
+          <label for="gh-chan" class="text-xs font-semibold text-on-surface-variant ml-2">{m.social_channel_alerts_label()}</label>
           <SearchableSelect id="gh-chan" bind:value={form.discordChannelId} options={channelOptions} placeholder={m.social_default_channel_ph()} className={inputClass} />
         </div>
 
         <div class="space-y-1.5">
-          <label for="gh-mention" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.social_mention_label()}</label>
+          <label for="gh-mention" class="text-xs font-semibold text-on-surface-variant ml-2">{m.social_mention_label()}</label>
           <SearchableSelect id="gh-mention" bind:value={form.mention} options={mentionOptions} placeholder={m.social_mention_ph()} className={smallInputClass} />
         </div>
 
         <div class="pt-4 border-t border-outline-variant/10 space-y-3">
-          <p class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.social_gh_types_label()}</p>
+          <p class="text-xs font-semibold text-on-surface-variant ml-2">{m.social_gh_types_label()}</p>
           {#each NOTIFY_TYPES as type (type.key)}
             <div class="flex items-center justify-between gap-3 px-2">
               <span class="text-sm">{type.label()}</span>
@@ -163,7 +163,7 @@
         >
           {m.social_gh_add_btn()}
         </button>
-        <p class="text-2xs text-on-surface-variant/50 ml-2">{m.social_gh_baseline_hint()}</p>
+        <p class="text-2xs text-on-surface-variant ml-2">{m.social_gh_baseline_hint()}</p>
       </div>
     </div>
   </div>
@@ -179,7 +179,7 @@
       </div>
 
       {#if follows.length === 0}
-        <div class="flex flex-col items-center justify-center py-20 text-center text-on-surface-variant/50">
+        <div class="flex flex-col items-center justify-center py-20 text-center text-on-surface-variant">
           <Papicon icon="Info" size={48} class="mb-4 text-on-surface-variant/30" />
           <p class="font-bold">{m.social_gh_empty_title()}</p>
           <p class="text-xs">{m.social_empty_hint()}</p>
@@ -209,26 +209,26 @@
 
               <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="space-y-1">
-                  <label for="gh-branch-{follow.id}" class="text-2xs font-bold text-on-surface-variant/50 uppercase">{m.social_gh_branch_label()}</label>
+                  <label for="gh-branch-{follow.id}" class="text-2xs font-bold text-on-surface-variant uppercase">{m.social_gh_branch_label()}</label>
                   <input id="gh-branch-{follow.id}" type="text" bind:value={follow.branch} placeholder={m.social_gh_default_branch()} class={smallInputClass} />
                 </div>
                 <div class="space-y-1">
-                  <span class="text-2xs font-bold text-on-surface-variant/50 uppercase">{m.social_channel_alerts_label()}</span>
+                  <span class="text-2xs font-bold text-on-surface-variant uppercase">{m.social_channel_alerts_label()}</span>
                   <SearchableSelect bind:value={follow.discordChannelId} options={channelOptions} placeholder={m.social_default_channel_short_ph()} className={smallInputClass} />
                 </div>
                 <div class="space-y-1">
-                  <label for="gh-mention-{follow.id}" class="text-2xs font-bold text-on-surface-variant/50 uppercase">{m.social_mention_label()}</label>
+                  <label for="gh-mention-{follow.id}" class="text-2xs font-bold text-on-surface-variant uppercase">{m.social_mention_label()}</label>
                   <SearchableSelect id="gh-mention-{follow.id}" bind:value={follow.mentionKey} options={mentionOptions} placeholder={m.social_mention_ph()} className={smallInputClass} />
                 </div>
               </div>
 
               <div class="p-4 rounded-lg bg-surface-container/30 border border-outline-variant/5 space-y-3">
-                <p class="text-xs font-semibold text-on-surface-variant/60">{m.social_messages_by_type()}</p>
+                <p class="text-xs font-semibold text-on-surface-variant">{m.social_messages_by_type()}</p>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {#each NOTIFY_TYPES as type (type.key)}
                     <div class="space-y-1.5">
                       <div class="flex items-center justify-between gap-2">
-                        <label for="gh-{type.message}-{follow.id}" class="text-2xs font-bold text-on-surface-variant/50">{type.label()}</label>
+                        <label for="gh-{type.message}-{follow.id}" class="text-2xs font-bold text-on-surface-variant">{type.label()}</label>
                         <ToggleSwitch checked={follow[type.key]} onToggle={(v: boolean) => (follow[type.key] = v)} disabled={!canManage} />
                       </div>
                       <input

@@ -180,7 +180,7 @@
       <div class="section-card p-8 text-center">
         <Papicon icon="layers" size={32} class="text-on-surface-variant/40 mx-auto mb-3" />
         <p class="text-on-surface-variant">Aucune instance white-label configuree</p>
-        <p class="text-sm text-on-surface-variant/60 mt-1">Creez une instance pour deployer le bot sous une marque differente</p>
+        <p class="text-sm text-on-surface-variant mt-1">Creez une instance pour deployer le bot sous une marque differente</p>
       </div>
     {:else}
       <div class="grid gap-4">

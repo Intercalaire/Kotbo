@@ -303,8 +303,8 @@
           <Papicon icon="Ghost" size={22} class="text-primary" />
           {m.ghost_title()}
         </h2>
-        <p class="text-sm text-on-surface-variant/70 mt-1 max-w-2xl">{m.ghost_subtitle()}</p>
-        <p class="text-xs text-on-surface-variant/50 mt-2">
+        <p class="text-sm text-on-surface-variant mt-1 max-w-2xl">{m.ghost_subtitle()}</p>
+        <p class="text-xs text-on-surface-variant mt-2">
           {distribution?.lastComputedAt
             ? m.ghost_last_computed({ date: formatDate(distribution.lastComputedAt) })
             : m.ghost_never_computed()}
@@ -347,11 +347,11 @@
             <div class="p-2 rounded-xl" style="background: {meta.color}18">
               <Papicon icon={meta.icon} size={16} style="color: {meta.color}" />
             </div>
-            <span class="text-xs font-semibold text-on-surface-variant/50">{sharePct(count)} %</span>
+            <span class="text-xs font-semibold text-on-surface-variant">{sharePct(count)} %</span>
           </div>
           <div class="text-2xl font-bold text-on-surface">{count.toLocaleString(dateLocale())}</div>
           <div class="text-xs font-medium text-on-surface-variant/80 mt-0.5">{meta.label()}</div>
-          <div class="text-2xs text-on-surface-variant/50 mt-1 leading-snug">{meta.desc()}</div>
+          <div class="text-2xs text-on-surface-variant mt-1 leading-snug">{meta.desc()}</div>
           <div class="mt-3 h-1.5 rounded-full bg-surface-container-highest overflow-hidden">
             <div class="h-full rounded-full transition-all duration-500" style="width: {sharePct(count)}%; background: {meta.color}"></div>
           </div>
@@ -380,7 +380,7 @@
             { key: 'maxPruneBatch' as const, label: m.ghost_max_batch(), help: m.ghost_max_batch_help(), min: 1, max: 500 },
           ] as field}
             <div class="space-y-1.5">
-              <label for="ghost-{field.key}" class="text-xs font-semibold text-on-surface-variant/70">
+              <label for="ghost-{field.key}" class="text-xs font-semibold text-on-surface-variant">
                 {field.label}
               </label>
               <input
@@ -391,7 +391,7 @@
                 bind:value={form[field.key]}
                 class="w-full px-3 py-2 rounded-xl bg-surface-container-highest border border-outline-variant/20 text-sm text-on-surface focus:border-primary/50 focus:outline-none"
               />
-              <p class="text-2xs text-on-surface-variant/50 leading-snug">{field.help}</p>
+              <p class="text-2xs text-on-surface-variant leading-snug">{field.help}</p>
             </div>
           {/each}
         </div>
@@ -409,7 +409,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="ghost-protected-roles" class="text-xs font-semibold text-on-surface-variant/70">
+            <label for="ghost-protected-roles" class="text-xs font-semibold text-on-surface-variant">
               {m.ghost_protected_roles()}
             </label>
             <MultiSelect
@@ -418,12 +418,12 @@
               options={availableRoles.map((r: any) => ({ id: r.id, name: `@${r.name}` }))}
               accentClass="bg-success/20 text-emerald-300 border-success/40"
             />
-            <p class="text-2xs text-on-surface-variant/50">{m.ghost_protected_roles_help()}</p>
+            <p class="text-2xs text-on-surface-variant">{m.ghost_protected_roles_help()}</p>
           </div>
         </div>
 
         <div class="space-y-1.5">
-          <label for="ghost-prune-reason" class="text-xs font-semibold text-on-surface-variant/70">
+          <label for="ghost-prune-reason" class="text-xs font-semibold text-on-surface-variant">
             {m.ghost_prune_reason()}
           </label>
           <input
@@ -457,14 +457,14 @@
             onclick={() => selectStatus('')}
             class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all {statusFilter === ''
               ? 'bg-primary text-on-primary'
-              : 'bg-surface-container-highest text-on-surface-variant/70 hover:text-on-surface'}"
+              : 'bg-surface-container-highest text-on-surface-variant hover:text-on-surface'}"
           >{m.ghost_filter_all()}</button>
           {#each ORDERED_STATUSES as status}
             <button
               onclick={() => selectStatus(status)}
               class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all {statusFilter === status
                 ? 'text-on-primary'
-                : 'bg-surface-container-highest text-on-surface-variant/70 hover:text-on-surface'}"
+                : 'bg-surface-container-highest text-on-surface-variant hover:text-on-surface'}"
               style={statusFilter === status ? `background: ${STATUS_META[status].color}` : ''}
             >{STATUS_META[status].label()}</button>
           {/each}
@@ -485,12 +485,12 @@
           {/each}
         </div>
       {:else if members.length === 0}
-        <div class="p-10 text-center text-sm text-on-surface-variant/50">{m.ghost_no_members()}</div>
+        <div class="p-10 text-center text-sm text-on-surface-variant">{m.ghost_no_members()}</div>
       {:else}
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
-              <tr class="text-xs text-on-surface-variant/50 border-b border-outline-variant/10">
+              <tr class="text-xs text-on-surface-variant border-b border-outline-variant/10">
                 <th class="text-left font-bold px-4 py-3">{m.ghost_table_member()}</th>
                 <th class="text-left font-bold px-4 py-3">{m.ghost_table_status()}</th>
                 <th class="text-left font-bold px-4 py-3 whitespace-nowrap">{m.ghost_table_last_message()}</th>
@@ -526,10 +526,10 @@
                       style="background: {STATUS_META[member.status].color}18; color: {STATUS_META[member.status].color}"
                     >{STATUS_META[member.status].label()}</span>
                   </td>
-                  <td class="px-4 py-3 text-on-surface-variant/70 whitespace-nowrap">{formatDate(member.lastMessageAt)}</td>
-                  <td class="px-4 py-3 text-on-surface-variant/70 whitespace-nowrap">{formatDate(member.lastSilentActivityAt)}</td>
-                  <td class="px-4 py-3 text-right text-on-surface-variant/70">{member.messageCount.toLocaleString(dateLocale())}</td>
-                  <td class="px-4 py-3 text-right text-on-surface-variant/70">{formatVoice(member.voiceTimeSeconds)}</td>
+                  <td class="px-4 py-3 text-on-surface-variant whitespace-nowrap">{formatDate(member.lastMessageAt)}</td>
+                  <td class="px-4 py-3 text-on-surface-variant whitespace-nowrap">{formatDate(member.lastSilentActivityAt)}</td>
+                  <td class="px-4 py-3 text-right text-on-surface-variant">{member.messageCount.toLocaleString(dateLocale())}</td>
+                  <td class="px-4 py-3 text-right text-on-surface-variant">{formatVoice(member.voiceTimeSeconds)}</td>
                   <td class="px-4 py-3">
                     <div class="flex flex-wrap gap-1">
                       {#each member.protections as protection}
@@ -546,17 +546,17 @@
         </div>
 
         <div class="p-4 flex items-center justify-between border-t border-outline-variant/10">
-          <span class="text-xs text-on-surface-variant/50">{m.ghost_page_of({ page, pages: totalPages })}</span>
+          <span class="text-xs text-on-surface-variant">{m.ghost_page_of({ page, pages: totalPages })}</span>
           <div class="flex gap-2">
             <button
               onclick={() => changePage(-1)}
               disabled={page <= 1}
-              class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-container-highest text-on-surface-variant/70 hover:text-on-surface disabled:opacity-30 transition-all"
+              class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-container-highest text-on-surface-variant hover:text-on-surface disabled:opacity-30 transition-all"
             >{m.ghost_previous()}</button>
             <button
               onclick={() => changePage(1)}
               disabled={page >= totalPages}
-              class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-container-highest text-on-surface-variant/70 hover:text-on-surface disabled:opacity-30 transition-all"
+              class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-container-highest text-on-surface-variant hover:text-on-surface disabled:opacity-30 transition-all"
             >{m.ghost_next()}</button>
           </div>
         </div>
@@ -570,7 +570,7 @@
         {m.ghost_history_title()}
       </h3>
       {#if runs.length === 0}
-        <p class="text-xs text-on-surface-variant/50">{m.ghost_history_empty()}</p>
+        <p class="text-xs text-on-surface-variant">{m.ghost_history_empty()}</p>
       {:else}
         <ul class="space-y-2">
           {#each runs as run (run.id)}
@@ -585,7 +585,7 @@
                 >{run.status}</span>
                 <span class="text-on-surface truncate">{m.ghost_history_entry({ n: run.successCount, t: run.totalTargeted })}</span>
               </div>
-              <span class="text-on-surface-variant/50 whitespace-nowrap">{run.executedByName} · {formatDate(run.startedAt)}</span>
+              <span class="text-on-surface-variant whitespace-nowrap">{run.executedByName} · {formatDate(run.startedAt)}</span>
             </li>
           {/each}
         </ul>
@@ -602,7 +602,7 @@
             <Papicon icon="Trash" size={18} class="text-error" />
             {m.ghost_prune_title()}
           </h3>
-          <button onclick={() => (pruneOpen = false)} class="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant/60">
+          <button onclick={() => (pruneOpen = false)} class="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant">
             <Papicon icon="X" size={16} />
           </button>
         </div>
@@ -610,14 +610,14 @@
         <div class="p-5 space-y-5">
           <!-- Étape 1 : cible + prévisualisation -->
           <div class="space-y-2">
-            <span class="text-xs font-semibold text-on-surface-variant/70">{m.ghost_prune_target()}</span>
+            <span class="text-xs font-semibold text-on-surface-variant">{m.ghost_prune_target()}</span>
             <div class="flex gap-2">
               {#each ['INACTIVE', 'SPECTATOR'] as const as status}
                 <button
                   onclick={() => togglePruneStatus(status)}
                   class="px-3 py-2 rounded-xl text-xs font-medium border transition-all {pruneStatuses.includes(status)
                     ? 'border-transparent text-on-primary'
-                    : 'bg-surface-container-high border-outline-variant/20 text-on-surface-variant/60'}"
+                    : 'bg-surface-container-high border-outline-variant/20 text-on-surface-variant'}"
                   style={pruneStatuses.includes(status) ? `background: ${STATUS_META[status].color}` : ''}
                 >{STATUS_META[status].label()}</button>
               {/each}

@@ -130,7 +130,7 @@
 
       <div class="flex-1 overflow-y-auto">
         {#if notificationsStore.loading && notificationsStore.items.length === 0}
-          <div class="p-6 flex flex-col items-center text-on-surface-variant/50">
+          <div class="p-6 flex flex-col items-center text-on-surface-variant">
             <Papicon icon="refresh-cw" size={20} class="animate-spin mb-2" />
             <span class="text-xs">{m.notif_loading()}</span>
           </div>

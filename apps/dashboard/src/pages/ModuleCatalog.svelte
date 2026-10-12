@@ -321,14 +321,14 @@
   <div class="flex flex-col sm:flex-row sm:items-center gap-3">
     <label class="relative flex-1 min-w-0">
       <span class="sr-only">{m.mc_search_label()}</span>
-      <span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/60 pointer-events-none">
+      <span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">
         <Papicon icon="Search" size={16} />
       </span>
       <input
         type="search"
         bind:value={search}
         placeholder={m.mc_search_placeholder()}
-        class="w-full h-10 pl-9 pr-3 rounded-lg bg-surface-container-low border border-outline-variant/40 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40"
+        class="w-full h-10 pl-9 pr-3 rounded-lg bg-surface-container-low border border-outline-variant/40 text-sm text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40"
       />
     </label>
 
@@ -379,7 +379,7 @@
                 {m.mc_group_active_count({ active: groupActive, total: group.items.length })}
               </span>
             {/if}
-            <span class="text-on-surface-variant/50 shrink-0 transition-transform {collapsed ? '' : 'rotate-90'}">
+            <span class="text-on-surface-variant shrink-0 transition-transform {collapsed ? '' : 'rotate-90'}">
               <Papicon icon="ChevronRight" size={14} />
             </span>
           </button>
@@ -392,7 +392,7 @@
                 {@const blocked = !locked && (mod.blockedBy?.length ?? 0) > 0}
                 {@const busy = pending[mod.id]}
                 <li class="flex items-center gap-3 px-4 py-3 hover:bg-surface-container-low/50 transition-colors {status === 'active' ? '' : 'opacity-70'}">
-                  <span class="w-5 flex justify-center shrink-0 {status === 'active' ? 'text-on-surface-variant' : 'text-on-surface-variant/50'}">
+                  <span class="w-5 flex justify-center shrink-0 {status === 'active' ? 'text-on-surface-variant' : 'text-on-surface-variant'}">
                     <Papicon icon={mod.icon || 'Grid'} size={16} />
                   </span>
 
@@ -413,7 +413,7 @@
                         </span>
                       {/if}
                     </span>
-                    <span class="block text-xs text-on-surface-variant/70 leading-snug line-clamp-1">
+                    <span class="block text-xs text-on-surface-variant leading-snug line-clamp-1">
                       {#if locked}
                         {m.mc_row_in_plan({ plan: planLabel(mod.requiredPlan) })}
                       {:else if blocked}
@@ -511,12 +511,12 @@
     class="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-105 bg-surface border-l border-outline-variant/40 shadow-2xl overflow-y-auto"
   >
     <div class="sticky top-0 bg-surface/95 backdrop-blur border-b border-outline-variant/30 px-5 py-4 flex items-start gap-3">
-      <span class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 {displayedStatus(mod) === 'active' ? 'bg-primary/10 text-primary' : 'bg-surface-container text-on-surface-variant/50'}">
+      <span class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 {displayedStatus(mod) === 'active' ? 'bg-primary/10 text-primary' : 'bg-surface-container text-on-surface-variant'}">
         <Papicon icon={mod.icon || 'Grid'} size={19} />
       </span>
       <div class="min-w-0 flex-1">
         <h2 class="text-base font-semibold text-on-surface leading-tight">{nameOf(mod.id)}</h2>
-        <p class="text-xs text-on-surface-variant/70 font-mono">{mod.id}</p>
+        <p class="text-xs text-on-surface-variant font-mono">{mod.id}</p>
       </div>
       <button
         type="button"
@@ -544,7 +544,7 @@
               {m.mc_state_inactive()}
             {/if}
           </p>
-          <p class="text-xs text-on-surface-variant/70">
+          <p class="text-xs text-on-surface-variant">
             {#if mod.lockedByPlan}
               {m.mc_state_plan_desc()}
             {:else if mod.isFixed}
@@ -577,7 +577,7 @@
 
       {#if (mod.requires?.length ?? 0) > 0}
         <div class="space-y-2">
-          <h3 class="text-xs font-semibold text-on-surface-variant/60">{m.mc_requires()}</h3>
+          <h3 class="text-xs font-semibold text-on-surface-variant">{m.mc_requires()}</h3>
           <ul class="space-y-1.5">
             {#each mod.requires! as key}
               {@const dep = moduleById.get(key)}
@@ -597,7 +597,7 @@
 
       {#if (mod.dependents?.length ?? 0) > 0}
         <div class="space-y-2">
-          <h3 class="text-xs font-semibold text-on-surface-variant/60">
+          <h3 class="text-xs font-semibold text-on-surface-variant">
             {m.mc_stops_with()}
           </h3>
           <ul class="space-y-1.5">

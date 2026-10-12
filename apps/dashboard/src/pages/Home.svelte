@@ -1956,7 +1956,7 @@
                   {#if preset.description}
                     <p class="text-2xs text-on-surface-variant truncate mt-0.5">{preset.description}</p>
                   {/if}
-                  <p class="text-2xs text-on-surface-variant/60 mt-0.5">
+                  <p class="text-2xs text-on-surface-variant mt-0.5">
                     {Array.isArray(preset.layout) ? preset.layout.length : '?'} modules · {new Date(preset.createdAt).toLocaleDateString(dateLocale())}
                   </p>
                 </div>

@@ -492,7 +492,7 @@
       {#if canManageSettings}
         <button 
           onclick={() => configVisible = true}
-          class="p-2.5 rounded-xl bg-surface-container-high hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant/70"
+          class="p-2.5 rounded-xl bg-surface-container-high hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant"
           title={m.recruit_module_settings_tooltip()}
         >
           <Papicon icon="settings" size={18} />
@@ -510,7 +510,7 @@
         </div>
         <div class="text-xs">
             <p class="text-2xl font-semibold text-on-surface leading-none">{stats.pending}</p>
-            <p class="text-xs text-on-surface-variant/70 font-semibold mt-1">{m.recruit_stat_pending()}</p>
+            <p class="text-xs text-on-surface-variant font-semibold mt-1">{m.recruit_stat_pending()}</p>
         </div>
       </div>
       <div class="px-6 py-4 rounded-xl bg-surface-container-low/50 border border-outline-variant/10 flex items-center gap-4 hover:shadow-sm hover:shadow-primary/5 transition-all">
@@ -519,7 +519,7 @@
         </div>
         <div class="text-xs">
             <p class="text-2xl font-semibold text-on-surface leading-none">{stats.oral}</p>
-            <p class="text-xs text-on-surface-variant/70 font-semibold mt-1">{m.recruit_stat_oral()}</p>
+            <p class="text-xs text-on-surface-variant font-semibold mt-1">{m.recruit_stat_oral()}</p>
         </div>
       </div>
       <div class="px-6 py-4 rounded-xl bg-error/10 border border-error/20 flex items-center gap-4 hover:shadow-sm hover:shadow-rose-500/20 transition-all">
@@ -607,7 +607,7 @@
                                           {getStatusLabel(candidature.status)}
                                       </span>
                                       {#if candidature.discordId}
-                                         <span class="text-2xs font-mono text-on-surface-variant/70">ID: {candidature.discordId}</span>
+                                         <span class="text-2xs font-mono text-on-surface-variant">ID: {candidature.discordId}</span>
                                       {/if}
                                   </div>
                               </div>
@@ -635,7 +635,7 @@
                           {#each Object.entries(candidature.data) as [key, value]}
                              {#if typeof value !== 'object' || Array.isArray(value)}
                               <div class="space-y-1">
-                                  <p class="text-xs font-semibold text-on-surface-variant/70 leading-tight">{fieldLabels[key] || key}</p>
+                                  <p class="text-xs font-semibold text-on-surface-variant leading-tight">{fieldLabels[key] || key}</p>
                                   <div class="text-sm font-medium text-on-surface/80 bg-surface-container/30 rounded-xl px-4 py-2 border border-outline-variant/5">
                                      <div class="max-h-32 overflow-y-auto scrollbar-hide whitespace-pre-wrap">{formatValue(value)}</div>
                                   </div>
@@ -653,7 +653,7 @@
                              bind:value={candidature.notes}
                              onblur={() => doAction(candidature.id, 'status_update', { status: candidature.status, notes: candidature.notes })}
                              placeholder={m.recruit_notes_ph()}
-                             class="w-full h-32 bg-surface-container/50 border border-outline-variant/20 rounded-lg p-4 text-xs text-on-surface placeholder:text-on-surface-variant/60 focus:outline-hidden focus:border-primary/50 transition-all resize-none"></textarea>
+                             class="w-full h-32 bg-surface-container/50 border border-outline-variant/20 rounded-lg p-4 text-xs text-on-surface placeholder:text-on-surface-variant focus:outline-hidden focus:border-primary/50 transition-all resize-none"></textarea>
                       </div>
                       
                       {#if candidature.status === 'ORAL' && candidature.ticketChannelId}
@@ -699,7 +699,7 @@
                       {/if}
                       
                       {#if candidature.reapplyAfter && new Date(candidature.reapplyAfter) > new Date()}
-                         <div class="text-xs font-semibold text-on-surface-variant/50 text-center mt-2">
+                         <div class="text-xs font-semibold text-on-surface-variant text-center mt-2">
                            {m.recruit_reapply_after({ date: new Date(candidature.reapplyAfter).toLocaleDateString(dateLocale()) })}
                          </div>
                       {/if}
@@ -749,7 +749,7 @@
                   <div class="flex-1 min-w-0">
                     <h3 class="text-lg font-semibold text-on-surface truncate">{form.name}</h3>
                     {#if form.description}
-                      <p class="text-xs text-on-surface-variant/70 mt-1 line-clamp-2 leading-relaxed">{form.description}</p>
+                      <p class="text-xs text-on-surface-variant mt-1 line-clamp-2 leading-relaxed">{form.description}</p>
                     {/if}
                   </div>
                   <span class="px-2.5 py-1 rounded-full text-2xs font-semibold uppercase tracking-wider border {form.isActive ? 'bg-success/10 text-success border-success/20' : 'bg-error/10 text-error border-error/20'}">
@@ -843,7 +843,7 @@
         <div class="p-8 space-y-8 max-h-[70vh] overflow-y-auto">
              <div class="space-y-4">
                 <label class="block">
-                  <span class="text-body-sm font-medium text-on-surface-variant/60 ml-1 mb-2 block">{m.recruit_field_log_channel()}</span>
+                  <span class="text-body-sm font-medium text-on-surface-variant ml-1 mb-2 block">{m.recruit_field_log_channel()}</span>
                   <FormSelect
                      bind:value={recruitmentLogChannelId}
                      className="w-full"
@@ -856,7 +856,7 @@
                 </label>
 
                <label class="block">
-                 <span class="text-body-sm font-medium text-on-surface-variant/60 ml-1 mb-2 block">{m.recruit_field_category_id()}</span>
+                 <span class="text-body-sm font-medium text-on-surface-variant ml-1 mb-2 block">{m.recruit_field_category_id()}</span>
                  <FormInput 
                    type="text" 
                    bind:value={recruitmentCategoryId} 
@@ -904,7 +904,7 @@
         <div>
           <label for="validate-discord-id" class="field-label">{m.recruit_validate_field_id()}</label>
           <input id="validate-discord-id" type="text" bind:value={validationDiscordId} class="w-full bg-surface-container rounded-lg px-5 py-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm font-medium font-mono" placeholder={m.recruit_field_category_ph()}>
-            <p class="text-2xs text-on-surface-variant/60 mt-2">{m.recruit_validate_field_hint()}</p>
+            <p class="text-2xs text-on-surface-variant mt-2">{m.recruit_validate_field_hint()}</p>
         </div>
         
         <div class="flex gap-4 mt-8 pt-6 border-t border-outline-variant/20">

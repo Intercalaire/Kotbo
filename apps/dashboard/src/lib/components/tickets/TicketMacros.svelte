@@ -219,7 +219,7 @@
     <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-8 text-center">
       <Papicon icon="zap" size={28} class="text-on-surface-variant/40 mx-auto mb-2" />
       <p class="text-sm font-semibold text-on-surface">Aucune macro</p>
-      <p class="text-xs text-on-surface-variant/70 mt-1">
+      <p class="text-xs text-on-surface-variant mt-1">
         Crée tes réponses récurrentes : le staff les enverra en deux clics, avec les actions qui vont avec.
       </p>
     </div>
@@ -243,7 +243,7 @@
                 {/if}
               </div>
               <p class="text-xs text-on-surface-variant/80 mt-1.5 line-clamp-2 whitespace-pre-wrap">{macro.content}</p>
-              <div class="flex items-center gap-3 mt-2 text-2xs text-on-surface-variant/60">
+              <div class="flex items-center gap-3 mt-2 text-2xs text-on-surface-variant">
                 <span>{macro.usageCount} utilisation{macro.usageCount > 1 ? 's' : ''}</span>
                 {#if macro.keywords?.length}
                   <span>· mots-clés : {macro.keywords.join(', ')}</span>
@@ -256,7 +256,7 @@
             <div class="flex items-center gap-1 shrink-0">
               <button
                 type="button"
-                class="p-2 rounded-lg hover:bg-white/5 text-on-surface-variant/70 hover:text-on-surface transition-colors"
+                class="p-2 rounded-lg hover:bg-white/5 text-on-surface-variant hover:text-on-surface transition-colors"
                 title="Modifier"
                 onclick={() => openEditMacro(macro)}
               >
@@ -264,7 +264,7 @@
               </button>
               <button
                 type="button"
-                class="p-2 rounded-lg hover:bg-error/10 text-on-surface-variant/70 hover:text-error transition-colors"
+                class="p-2 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors"
                 title="Supprimer"
                 onclick={() => deleteMacro(macro)}
               >
@@ -309,7 +309,7 @@
         placeholder={'Bonjour {user}, pourriez-vous joindre une capture ?'}
         className="w-full h-28"
       />
-      <span class="text-2xs text-on-surface-variant/60 ml-1 mt-1 block">
+      <span class="text-2xs text-on-surface-variant ml-1 mt-1 block">
         2000 caractères maximum, la limite d'un message Discord.
       </span>
     </label>
@@ -336,14 +336,14 @@
     <label class="block">
       <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Mots-clés de suggestion</span>
       <FormInput type="text" bind:value={macroKeywordsText} placeholder="remboursement, facture, paiement" className="w-full" />
-      <span class="text-2xs text-on-surface-variant/60 ml-1 mt-1 block">
+      <span class="text-2xs text-on-surface-variant ml-1 mt-1 block">
         Séparés par des virgules. Si l'un d'eux apparaît dans la demande, la macro remonte en tête du sélecteur.
       </span>
     </label>
 
     <div class="border-t border-outline-variant/10 pt-4 space-y-3">
       <p class="text-xs font-bold text-on-surface">Actions attachées</p>
-      <p class="text-2xs text-on-surface-variant/60 -mt-2">
+      <p class="text-2xs text-on-surface-variant -mt-2">
         Appliquées après l'envoi du texte. La fermeture vient toujours en dernier.
       </p>
 
@@ -392,7 +392,7 @@
         <input type="checkbox" bind:checked={macroForm.autoSendOnOpen} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
         <div>
           <span class="text-xs font-bold text-on-surface">Envoyer automatiquement à l'ouverture</span>
-          <p class="text-2xs text-on-surface-variant/60">
+          <p class="text-2xs text-on-surface-variant">
             Seul le texte part : les actions attachées ne s'appliquent pas, fermer ou requalifier
             un ticket qui vient de naître ferait plus de dégâts que de bien.
           </p>

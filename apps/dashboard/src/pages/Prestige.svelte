@@ -1089,7 +1089,7 @@
   {@const ticks = axisTicks(columns)}
   <div class="flex gap-[3px] px-2 border border-transparent" aria-hidden="true">
     {#each Array.from({ length: columns }) as _, index}
-      <span class="flex-1 text-center text-2xs leading-none tabular-nums text-on-surface-variant/50">
+      <span class="flex-1 text-center text-2xs leading-none tabular-nums text-on-surface-variant">
         {ticks.has(index + 1) ? index + 1 : ''}
       </span>
     {/each}
@@ -1101,7 +1101,7 @@
      autant de requetes que de crans traverses. -->
 {#snippet saveBar()}
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl px-6 py-5">
-    <p class="text-body-sm text-on-surface-variant/70">{m.prg_presets_save_hint()}</p>
+    <p class="text-body-sm text-on-surface-variant">{m.prg_presets_save_hint()}</p>
     <div class="flex items-center gap-2">
       <button
         type="button"
@@ -1170,22 +1170,22 @@
             </div>
             <div class="space-y-1">
               <h3 class="text-base font-semibold text-on-surface">{m.prg_about_title()}</h3>
-              <p class="text-body-sm text-on-surface-variant/70 leading-relaxed">{m.prg_about_desc()}</p>
+              <p class="text-body-sm text-on-surface-variant leading-relaxed">{m.prg_about_desc()}</p>
             </div>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div class="px-4 py-3 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg space-y-1">
-              <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_about_earn_title()}</p>
-              <p class="text-xs text-on-surface-variant/70 leading-relaxed">{m.prg_about_earn_desc()}</p>
+              <p class="text-xs font-semibold text-on-surface-variant">{m.prg_about_earn_title()}</p>
+              <p class="text-xs text-on-surface-variant leading-relaxed">{m.prg_about_earn_desc()}</p>
             </div>
             <div class="px-4 py-3 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg space-y-1">
-              <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_about_lose_title()}</p>
-              <p class="text-xs text-on-surface-variant/70 leading-relaxed">{m.prg_about_lose_desc()}</p>
+              <p class="text-xs font-semibold text-on-surface-variant">{m.prg_about_lose_title()}</p>
+              <p class="text-xs text-on-surface-variant leading-relaxed">{m.prg_about_lose_desc()}</p>
             </div>
             <div class="px-4 py-3 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg space-y-1">
-              <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_about_spend_title()}</p>
-              <p class="text-xs text-on-surface-variant/70 leading-relaxed">{m.prg_about_spend_desc()}</p>
+              <p class="text-xs font-semibold text-on-surface-variant">{m.prg_about_spend_title()}</p>
+              <p class="text-xs text-on-surface-variant leading-relaxed">{m.prg_about_spend_desc()}</p>
             </div>
           </div>
         </section>
@@ -1212,7 +1212,7 @@
             </div>
             <div class="space-y-0.5">
               <p class="text-sm font-semibold text-on-surface">{m.prg_setup_roles_title()}</p>
-              <p class="text-body-sm text-on-surface-variant/70">
+              <p class="text-body-sm text-on-surface-variant">
                 {tiersWithoutRole === 0
                   ? m.prg_setup_roles_done({ count: activeLadder.length })
                   : m.prg_setup_roles_desc({ count: tiersWithoutRole })}
@@ -1246,7 +1246,7 @@
                 <Papicon icon="chart" size={20} class="text-primary" />
                 {m.prg_section_gains()}
               </h3>
-              <p class="text-xs text-on-surface-variant/70 mt-1">{m.prg_section_gains_hint()}</p>
+              <p class="text-xs text-on-surface-variant mt-1">{m.prg_section_gains_hint()}</p>
             </div>
             <SimpleModeToggle simple={gainMode.simple} onchange={(v) => gainMode.set(v)} />
           </div>
@@ -1254,7 +1254,7 @@
           {#if gainMode.simple}
             <div class="space-y-2">
               <div class="flex items-baseline justify-between gap-3">
-                <label for="rpGains" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.prg_gains_level_label()}</label>
+                <label for="rpGains" class="text-xs font-semibold text-on-surface-variant ml-2">{m.prg_gains_level_label()}</label>
                 <span class="text-xs font-semibold text-primary">{GAIN_LABELS[gainsStep - 1]()}</span>
               </div>
               <input
@@ -1268,15 +1268,15 @@
 
               <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                 <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                  <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_tile_rp_per_xp()}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant">{m.prg_tile_rp_per_xp()}</p>
                   <p class="text-sm font-semibold text-on-surface">×{config.rpPerXp}</p>
                 </div>
                 <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                  <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_field_reaction_rp()}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant">{m.prg_field_reaction_rp()}</p>
                   <p class="text-sm font-semibold text-on-surface">{config.reactionRp} RP</p>
                 </div>
                 <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                  <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_field_reaction_cap()}</p>
+                  <p class="text-xs font-semibold text-on-surface-variant">{m.prg_field_reaction_cap()}</p>
                   <p class="text-sm font-semibold text-on-surface">{config.reactionDailyCap}</p>
                 </div>
                 <div class="px-3 py-2.5 bg-primary/5 border border-primary/15 rounded-lg">
@@ -1313,7 +1313,7 @@
           <!-- Le RP derive de l'XP : les exclusions de salons, les roles
                ignores et les multiplicateurs sont ceux de Niveaux. Sans cette
                ligne, leur absence ici se lit comme un oubli. -->
-          <div class="flex items-start gap-2.5 pt-4 border-t border-outline-variant/10 text-2xs text-on-surface-variant/60 leading-relaxed">
+          <div class="flex items-start gap-2.5 pt-4 border-t border-outline-variant/10 text-2xs text-on-surface-variant leading-relaxed">
             <Papicon icon="info" size={14} class="shrink-0 mt-0.5" />
             <p>{m.prg_gains_inherits_levels()}</p>
           </div>
@@ -1327,7 +1327,7 @@
                 <Papicon icon="activity" size={20} class="text-warning" />
                 {m.prg_section_streaks()}
               </h3>
-              <p class="text-xs text-on-surface-variant/70 mt-1">{m.prg_section_streaks_hint()}</p>
+              <p class="text-xs text-on-surface-variant mt-1">{m.prg_section_streaks_hint()}</p>
             </div>
             {#if config.streakEnabled}
               <SimpleModeToggle simple={streakMode.simple} onchange={(v) => streakMode.set(v)} />
@@ -1343,7 +1343,7 @@
             {#if streakMode.simple}
               <div class="space-y-2">
                 <div class="flex items-baseline justify-between gap-3">
-                  <label for="streakLevel" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.prg_streak_level_label()}</label>
+                  <label for="streakLevel" class="text-xs font-semibold text-on-surface-variant ml-2">{m.prg_streak_level_label()}</label>
                   <span class="text-xs font-semibold text-primary">{STREAK_LABELS[streakStep - 1]()}</span>
                 </div>
                 <input
@@ -1357,19 +1357,19 @@
 
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_field_streak_bonus()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant">{m.prg_field_streak_bonus()}</p>
                     <p class="text-sm font-semibold text-on-surface">+{Math.round((config.streakBonusPerDay ?? 0) * 100)} %/j</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_field_streak_max()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant">{m.prg_field_streak_max()}</p>
                     <p class="text-sm font-semibold text-on-surface">+{Math.round((config.streakMaxBonus ?? 0) * 100)} %</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_field_streak_grace()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant">{m.prg_field_streak_grace()}</p>
                     <p class="text-sm font-semibold text-on-surface">{config.streakGraceDays} j</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_field_streak_max_freezes()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant">{m.prg_field_streak_max_freezes()}</p>
                     <p class="text-sm font-semibold text-on-surface">{config.streakMaxFreezes}</p>
                   </div>
                 </div>
@@ -1434,7 +1434,7 @@
                 {/each}
               </div>
               {@render ladderAxis(streakCurve.length)}
-              <p class="text-2xs text-on-surface-variant/50 ml-2">{m.prg_streak_preview_desc()}</p>
+              <p class="text-2xs text-on-surface-variant ml-2">{m.prg_streak_preview_desc()}</p>
             </div>
           {/if}
         </section>
@@ -1453,7 +1453,7 @@
                 <Papicon icon="shield" size={20} class="text-primary" />
                 {m.prg_section_ladder()}
               </h3>
-              <p class="text-xs text-on-surface-variant/70 mt-1">{m.prg_ladder_hint()}</p>
+              <p class="text-xs text-on-surface-variant mt-1">{m.prg_ladder_hint()}</p>
             </div>
             <div class="flex flex-wrap items-center justify-end gap-2">
               <SimpleModeToggle simple={ladderMode.simple} onchange={(v) => ladderMode.set(v)} />
@@ -1461,7 +1461,7 @@
                 <button
                   type="button"
                   onclick={resetLadderCurve}
-                  class="text-2xs font-semibold text-on-surface-variant/70 hover:text-on-surface px-3 py-1.5 rounded-lg border border-outline-variant/20 transition-all"
+                  class="text-2xs font-semibold text-on-surface-variant hover:text-on-surface px-3 py-1.5 rounded-lg border border-outline-variant/20 transition-all"
                 >
                   {m.prg_ladder_reset()}
                 </button>
@@ -1474,7 +1474,7 @@
                role Discord de plus a tenir. -->
           <div class="space-y-2">
             <div class="flex items-baseline justify-between gap-3">
-              <label for="tierCount" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.prg_ladder_count_label()}</label>
+              <label for="tierCount" class="text-xs font-semibold text-on-surface-variant ml-2">{m.prg_ladder_count_label()}</label>
               <span class="text-xs font-semibold text-primary">{m.prg_ladder_count_value({ count: tierCountStep })}</span>
             </div>
             <input
@@ -1488,14 +1488,14 @@
               class="w-full accent-primary"
               disabled={!canManageSettings}
             />
-            <p class="text-2xs text-on-surface-variant/50 ml-2">{m.prg_ladder_count_hint()}</p>
+            <p class="text-2xs text-on-surface-variant ml-2">{m.prg_ladder_count_hint()}</p>
           </div>
 
           {#if ladderMode.simple}
             <div class="space-y-6">
               <div class="space-y-2">
                 <div class="flex items-baseline justify-between gap-3">
-                  <label for="ladderPace" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.prg_ladder_pace_label()}</label>
+                  <label for="ladderPace" class="text-xs font-semibold text-on-surface-variant ml-2">{m.prg_ladder_pace_label()}</label>
                   <span class="text-xs font-semibold text-primary">{LADDER_PACE_LABELS[pacePreviewStep - 1]()}</span>
                 </div>
                 <input
@@ -1510,7 +1510,7 @@
 
               <div class="space-y-2">
                 <div class="flex items-baseline justify-between gap-3">
-                  <label for="ladderSteep" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.prg_ladder_steep_label()}</label>
+                  <label for="ladderSteep" class="text-xs font-semibold text-on-surface-variant ml-2">{m.prg_ladder_steep_label()}</label>
                   <span class="text-xs font-semibold text-primary">{LADDER_STEEP_LABELS[steepPreviewStep - 1]()}</span>
                 </div>
                 <input
@@ -1539,7 +1539,7 @@
                   class="prestige-input"
                   disabled={!canManageSettings}
                 />
-                <span class="text-2xs text-on-surface-variant/50 ml-2">{m.prg_ladder_base_rp_hint()}</span>
+                <span class="text-2xs text-on-surface-variant ml-2">{m.prg_ladder_base_rp_hint()}</span>
               </label>
               <label class="block">
                 <span class="field-label">{m.prg_ladder_exponent()}</span>
@@ -1551,13 +1551,13 @@
                   class="prestige-input"
                   disabled={!canManageSettings}
                 />
-                <span class="text-2xs text-on-surface-variant/50 ml-2">{m.prg_ladder_exponent_hint()}</span>
+                <span class="text-2xs text-on-surface-variant ml-2">{m.prg_ladder_exponent_hint()}</span>
               </label>
             </div>
           {/if}
 
           <div class="space-y-2">
-            <span class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.prg_ladder_divisions_label()}</span>
+            <span class="text-xs font-semibold text-on-surface-variant ml-2">{m.prg_ladder_divisions_label()}</span>
             <FilterPills
               label={m.prg_ladder_divisions_label()}
               options={[1, 2, 3, 4, 5].map((count) => ({ value: String(count), label: String(count) }))}
@@ -1565,7 +1565,7 @@
               onchange={(value) => { config!.ladderDivisions = Number(value); }}
               disabled={!canManageSettings}
             />
-            <p class="text-2xs text-on-surface-variant/50 ml-2">{m.prg_ladder_divisions_hint()}</p>
+            <p class="text-2xs text-on-surface-variant ml-2">{m.prg_ladder_divisions_hint()}</p>
           </div>
 
           <!-- Apercu : ecart de RP entre paliers successifs, puis repartition
@@ -1573,11 +1573,11 @@
           <div class="space-y-3 pt-4 border-t border-outline-variant/10">
             <div>
               <h4 class="text-sm font-bold text-on-surface-variant">{m.prg_ladder_preview_title()}</h4>
-              <p class="text-2xs text-on-surface-variant/60 font-medium">{m.prg_ladder_preview_desc()}</p>
+              <p class="text-2xs text-on-surface-variant font-medium">{m.prg_ladder_preview_desc()}</p>
             </div>
 
             {#if savedLadderGaps.length > 0}
-              <div class="flex items-center gap-4 text-2xs font-medium text-on-surface-variant/70">
+              <div class="flex items-center gap-4 text-2xs font-medium text-on-surface-variant">
                 <span class="flex items-center gap-1.5">
                   <span class="w-3 h-2 rounded-sm bg-primary/60"></span>{m.prg_ladder_legend_edited()}
                 </span>
@@ -1615,7 +1615,7 @@
             {#if impact}
               <div>
                 <h4 class="text-sm font-bold text-on-surface-variant">{m.prg_ladder_population_title()}</h4>
-                <p class="text-2xs text-on-surface-variant/60 font-medium">{m.prg_ladder_population_desc()}</p>
+                <p class="text-2xs text-on-surface-variant font-medium">{m.prg_ladder_population_desc()}</p>
               </div>
 
               <div class="flex items-end gap-[3px] h-16 px-2 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
@@ -1632,7 +1632,7 @@
             {/if}
 
             <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
-              <p class="text-2xs text-on-surface-variant/70">{m.prg_estimate_intro()}</p>
+              <p class="text-2xs text-on-surface-variant">{m.prg_estimate_intro()}</p>
               <FilterPills
                 label={m.prg_estimate_intro()}
                 options={ACTIVITY_LABELS.map((label, index) => ({ value: String(index + 1), label: label() }))}
@@ -1690,7 +1690,7 @@
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div class="space-y-0.5 min-w-0">
                   <p class="text-body-sm font-semibold text-on-surface">{m.prg_roles_provision_title()}</p>
-                  <p class="text-2xs text-on-surface-variant/70 leading-relaxed">
+                  <p class="text-2xs text-on-surface-variant leading-relaxed">
                     {tiersWithoutRole === 0
                       ? m.prg_roles_provision_done({ count: activeLadder.length })
                       : m.prg_roles_provision_desc({ count: tiersWithoutRole })}
@@ -1712,7 +1712,7 @@
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-outline-variant/10">
                 <div class="space-y-0.5 min-w-0">
                   <p class="text-body-sm font-semibold text-on-surface">{m.prg_roles_delete_title()}</p>
-                  <p class="text-2xs text-on-surface-variant/70 leading-relaxed">
+                  <p class="text-2xs text-on-surface-variant leading-relaxed">
                     {linkedRoleCount === 0
                       ? m.prg_roles_delete_none()
                       : m.prg_roles_delete_desc({ count: linkedRoleCount })}
@@ -1732,7 +1732,7 @@
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-outline-variant/10">
                 <div class="space-y-0.5 min-w-0">
                   <p class="text-body-sm font-semibold text-on-surface">{m.prg_roles_sync_title()}</p>
-                  <p class="text-2xs text-on-surface-variant/70 leading-relaxed">{m.prg_roles_sync_desc()}</p>
+                  <p class="text-2xs text-on-surface-variant leading-relaxed">{m.prg_roles_sync_desc()}</p>
                 </div>
                 {#if roleSync.running}
                   <div class="flex items-center gap-3 shrink-0">
@@ -1806,7 +1806,7 @@
                     {@const role = roles.find((entry) => entry.id === mapping.roleId)}
                     <span class="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-surface-container-high/40 text-2xs font-medium text-on-surface-variant">
                       {mapping.tierKey}
-                      <span class="text-on-surface-variant/60">→ {role ? `@${role.name}` : m.prg_role_missing()}</span>
+                      <span class="text-on-surface-variant">→ {role ? `@${role.name}` : m.prg_role_missing()}</span>
                       {#if canManageSettings}
                         <button
                           type="button"
@@ -1833,7 +1833,7 @@
                 <Papicon icon="arrow-down" size={20} class="text-error" />
                 {m.prg_section_decay()}
               </h3>
-              <p class="text-xs text-on-surface-variant/70 mt-1">{m.prg_section_decay_hint()}</p>
+              <p class="text-xs text-on-surface-variant mt-1">{m.prg_section_decay_hint()}</p>
             </div>
             {#if config.decayEnabled}
               <SimpleModeToggle simple={decayMode.simple} onchange={(v) => decayMode.set(v)} />
@@ -1849,7 +1849,7 @@
             {#if decayMode.simple}
               <div class="space-y-2">
                 <div class="flex items-baseline justify-between gap-3">
-                  <label for="decayLevel" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.prg_decay_level_label()}</label>
+                  <label for="decayLevel" class="text-xs font-semibold text-on-surface-variant ml-2">{m.prg_decay_level_label()}</label>
                   <span class="text-xs font-semibold text-primary">{DECAY_LABELS[decayStep - 1]()}</span>
                 </div>
                 <input
@@ -1863,15 +1863,15 @@
 
                 <div class="grid grid-cols-3 gap-3 pt-2">
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_field_decay_grace()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant">{m.prg_field_decay_grace()}</p>
                     <p class="text-sm font-semibold text-on-surface">{config.decayGraceDays} j</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_field_decay_rp()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant">{m.prg_field_decay_rp()}</p>
                     <p class="text-sm font-semibold text-on-surface">−{config.decayRpPerDay}/j</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_field_decay_percent()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant">{m.prg_field_decay_percent()}</p>
                     <p class="text-sm font-semibold text-on-surface">−{Math.round((config.decayPercentPerDay ?? 0) * 100)} %/j</p>
                   </div>
                 </div>
@@ -1937,7 +1937,7 @@
                 {/each}
               </div>
               {@render ladderAxis(decayCurve.length)}
-              <p class="text-2xs text-on-surface-variant/50 ml-2">
+              <p class="text-2xs text-on-surface-variant ml-2">
                 {m.prg_decay_preview_desc({ rp: decayReferenceRp.toLocaleString() })}
               </p>
             </div>
@@ -1975,7 +1975,7 @@
               <Papicon icon="bell" size={20} class="text-primary" />
               {m.prg_section_announce()}
             </h3>
-            <p class="text-xs text-on-surface-variant/70 mt-1">{m.prg_section_announce_hint()}</p>
+            <p class="text-xs text-on-surface-variant mt-1">{m.prg_section_announce_hint()}</p>
           </div>
 
           <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -2008,7 +2008,7 @@
             {/if}
           </div>
 
-          <p class="text-2xs text-on-surface-variant/70">
+          <p class="text-2xs text-on-surface-variant">
             {#if announceChannelState === 'channel'}
               {m.prg_announce_channel_set({ channel: announceChannelLabel })}
             {:else if announceChannelState === 'missing'}
@@ -2042,14 +2042,14 @@
               <Papicon icon="edit" size={20} class="text-secondary" />
               {m.prg_section_messages()}
             </h3>
-            <p class="text-xs text-on-surface-variant/70 mt-1">{m.prg_section_messages_hint()}</p>
+            <p class="text-xs text-on-surface-variant mt-1">{m.prg_section_messages_hint()}</p>
           </div>
 
           <div class="flex flex-wrap gap-2">
             {#each ['{user}', '{tier}', '{from}', '{rp}'] as variable (variable)}
               <code class="px-2 py-1 rounded-lg bg-surface-container-high/40 text-2xs font-mono text-primary">{variable}</code>
             {/each}
-            <span class="text-2xs text-on-surface-variant/60 self-center">{m.prg_messages_variables_hint()}</span>
+            <span class="text-2xs text-on-surface-variant self-center">{m.prg_messages_variables_hint()}</span>
           </div>
 
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -2063,7 +2063,7 @@
                 class="prestige-input font-mono text-xs"
                 disabled={!canManageSettings}
               ></textarea>
-              <p class="text-2xs text-on-surface-variant/60 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-3 py-2">
+              <p class="text-2xs text-on-surface-variant bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-3 py-2">
                 {announcePreview(config.announcePromotionMessage ?? '', m.prg_message_default_promotion())}
               </p>
             </div>
@@ -2078,13 +2078,13 @@
                 class="prestige-input font-mono text-xs"
                 disabled={!canManageSettings}
               ></textarea>
-              <p class="text-2xs text-on-surface-variant/60 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-3 py-2">
+              <p class="text-2xs text-on-surface-variant bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-3 py-2">
                 {announcePreview(config.announceDemotionMessage ?? '', m.prg_message_default_demotion())}
               </p>
             </div>
           </div>
 
-          <p class="text-2xs text-on-surface-variant/50">{m.prg_messages_empty_hint()}</p>
+          <p class="text-2xs text-on-surface-variant">{m.prg_messages_empty_hint()}</p>
         </section>
 
         {#if configDirty}
@@ -2189,7 +2189,7 @@
               </div>
               <div class="min-w-0 space-y-0.5">
                 <p class="text-sm font-semibold text-on-surface">{m.prg_public_link_title()}</p>
-                <p class="text-xs font-mono text-on-surface-variant/60 truncate">{publicBoardUrl}</p>
+                <p class="text-xs font-mono text-on-surface-variant truncate">{publicBoardUrl}</p>
               </div>
             </div>
             <div class="flex items-center gap-2 shrink-0">
@@ -2233,7 +2233,7 @@
                 placeholder={m.prg_board_search_placeholder()}
                 class="prestige-input mt-0! pl-9"
               />
-              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">
                 <Papicon icon="search" size={14} />
               </span>
             </div>
@@ -2252,7 +2252,7 @@
                   <div class="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-surface-container-high/10">
                     <span class="w-7 text-right text-body-sm font-semibold text-on-surface-variant">#{entry.rank}</span>
                     <UserDisplay userId={entry.userId} name={entry.displayName} avatarUrl={entry.avatarUrl} size="sm" class="min-w-0 flex-1" />
-                    <span class="text-2xs text-on-surface-variant/60 hidden sm:block">{m.prg_global_guilds({ count: entry.guilds })}</span>
+                    <span class="text-2xs text-on-surface-variant hidden sm:block">{m.prg_global_guilds({ count: entry.guilds })}</span>
                     <span class="px-2 py-0.5 rounded-full text-2xs font-medium" style="background:{entry.tier.color}22;color:{entry.tier.color}">
                       {entry.tier.name}
                     </span>
@@ -2279,7 +2279,7 @@
                     </span>
                   </div>
                   <UserDisplay userId={entry.userId} name={entry.displayName} avatarUrl={entry.avatarUrl} size="sm" class="min-w-0" />
-                  <p class="text-lg font-bold text-on-surface mt-2 tabular-nums">{entry.rp.toLocaleString()} <span class="text-2xs font-medium text-on-surface-variant/60">RP</span></p>
+                  <p class="text-lg font-bold text-on-surface mt-2 tabular-nums">{entry.rp.toLocaleString()} <span class="text-2xs font-medium text-on-surface-variant">RP</span></p>
                 </button>
               {/each}
             </div>
@@ -2316,7 +2316,7 @@
               </div>
 
               {#if boardLimited}
-                <p class="text-2xs text-on-surface-variant/60 mt-3">{m.prg_board_search_limited()}</p>
+                <p class="text-2xs text-on-surface-variant mt-3">{m.prg_board_search_limited()}</p>
               {/if}
 
               {#if boardPageCount > 1}
@@ -2329,7 +2329,7 @@
                   >
                     {m.prg_board_previous()}
                   </button>
-                  <span class="text-2xs text-on-surface-variant/70 tabular-nums">
+                  <span class="text-2xs text-on-surface-variant tabular-nums">
                     {m.prg_board_page({ page: boardPage, pages: boardPageCount, total: boardTotal.toLocaleString() })}
                   </span>
                   <button
@@ -2376,24 +2376,24 @@
 
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-xs font-semibold text-on-surface-variant/60">RP</p>
+                    <p class="text-xs font-semibold text-on-surface-variant">RP</p>
                     <p class="text-sm font-semibold text-on-surface tabular-nums">{memberProfile.rp.toLocaleString()}</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_member_peak()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant">{m.prg_member_peak()}</p>
                     <p class="text-sm font-semibold text-on-surface tabular-nums">{memberProfile.peakRp.toLocaleString()}</p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_member_streak()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant">{m.prg_member_streak()}</p>
                     <p class="text-sm font-semibold text-on-surface">
                       {m.prg_streak_days({ days: memberProfile.streakDays })}
                       {#if !memberProfile.streakAlive}
-                        <span class="text-2xs text-on-surface-variant/60">· {m.prg_member_streak_broken()}</span>
+                        <span class="text-2xs text-on-surface-variant">· {m.prg_member_streak_broken()}</span>
                       {/if}
                     </p>
                   </div>
                   <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_member_next()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant">{m.prg_member_next()}</p>
                     <p class="text-sm font-semibold text-on-surface">
                       {memberProfile.nextTier
                         ? m.prg_member_next_value({ rp: memberProfile.rpRemaining.toLocaleString(), tier: memberProfile.nextTier.name })
@@ -2404,7 +2404,7 @@
 
                 {#if memberCurve}
                   <div class="space-y-1.5">
-                    <p class="text-xs font-semibold text-on-surface-variant/60">{m.prg_member_history()}</p>
+                    <p class="text-xs font-semibold text-on-surface-variant">{m.prg_member_history()}</p>
                     <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="w-full h-20 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
                       <path d={memberCurve} fill="none" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke" class="text-primary" />
                     </svg>
@@ -2418,20 +2418,20 @@
                         <span class="w-16 font-mono tabular-nums {entry.delta >= 0 ? 'text-success' : 'text-error'}">
                           {entry.delta >= 0 ? '+' : ''}{entry.delta.toLocaleString()}
                         </span>
-                        <span class="flex-1 text-on-surface-variant/70">{(RP_SOURCE_LABELS[entry.source] ?? (() => entry.source))()}</span>
-                        <span class="text-on-surface-variant/50">{new Date(entry.createdAt).toLocaleDateString()}</span>
-                        <span class="font-mono tabular-nums text-on-surface-variant/60 w-16 text-right">{entry.rpAfter.toLocaleString()}</span>
+                        <span class="flex-1 text-on-surface-variant">{(RP_SOURCE_LABELS[entry.source] ?? (() => entry.source))()}</span>
+                        <span class="text-on-surface-variant">{new Date(entry.createdAt).toLocaleDateString()}</span>
+                        <span class="font-mono tabular-nums text-on-surface-variant w-16 text-right">{entry.rpAfter.toLocaleString()}</span>
                       </div>
                     {/each}
                   </div>
                 {:else}
-                  <p class="text-2xs text-on-surface-variant/60">{m.prg_member_history_empty()}</p>
+                  <p class="text-2xs text-on-surface-variant">{m.prg_member_history_empty()}</p>
                 {/if}
 
                 {#if canManageSettings}
                   <div class="pt-4 border-t border-outline-variant/10 space-y-3">
                     <InlineFeedback state={adjustAction} />
-                    <p class="text-2xs text-on-surface-variant/70">{m.prg_member_adjust_hint()}</p>
+                    <p class="text-2xs text-on-surface-variant">{m.prg_member_adjust_hint()}</p>
                     <div class="flex flex-wrap items-end gap-3">
                       <label class="block w-32">
                         <span class="field-label">{m.prg_member_adjust_amount()}</span>

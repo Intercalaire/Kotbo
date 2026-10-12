@@ -188,7 +188,7 @@
                 <h3 class="text-body-sm font-semibold text-on-surface leading-snug wrap-break-word">
                   {notif.title}
                 </h3>
-                <span class="text-2xs text-on-surface-variant/60 whitespace-nowrap shrink-0 tabular-nums">
+                <span class="text-2xs text-on-surface-variant whitespace-nowrap shrink-0 tabular-nums">
                   {formatDate(notif.createdAt)}
                 </span>
               </div>

@@ -448,13 +448,13 @@
  {isSelected ? 'bg-primary/8 text-primary' : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'}"
               >
                 <div class="w-6 h-6 rounded-md flex items-center justify-center shrink-0 transition-colors
- {isSelected ? 'bg-primary/15 text-primary' : 'bg-surface-container text-on-surface-variant/50'}">
+ {isSelected ? 'bg-primary/15 text-primary' : 'bg-surface-container text-on-surface-variant'}">
                   <Papicon icon={item.icon} size={13} />
                 </div>
                 <div class="flex-1 min-w-0">
                   <p class="text-sm leading-none truncate">{item.label}</p>
                   {#if item.sublabel}
-                    <p class="text-2xs text-on-surface-variant/50 mt-0.5 truncate">{item.sublabel}</p>
+                    <p class="text-2xs text-on-surface-variant mt-0.5 truncate">{item.sublabel}</p>
                   {/if}
                 </div>
                 {#if isSelected}

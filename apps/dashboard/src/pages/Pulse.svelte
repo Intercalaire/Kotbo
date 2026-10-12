@@ -337,7 +337,7 @@
   />
 
   {#if loading}
-    <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
+    <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant gap-4">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       <p class="text-sm">{m.pulse_loading()}</p>
     </div>
@@ -350,7 +350,7 @@
         <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 flex flex-col items-center justify-center gap-3">
           <div class="w-36 h-36 rounded-full border-[6px] flex flex-col items-center justify-center" style="border-color: {scoreColor(displayed.score)}">
             <span class="text-5xl font-bold text-on-surface leading-none">{displayed.score}</span>
-            <span class="text-sm text-on-surface-variant/60">/100</span>
+            <span class="text-sm text-on-surface-variant">/100</span>
           </div>
           <div class="text-base font-semibold text-on-surface">{scoreLabel(displayed.score)}</div>
           <div class="flex items-center gap-1 text-sm {trendClass(displayed.trend)}">
@@ -361,7 +361,7 @@
               <span>{m.pulse_stable()}</span>
             {/if}
           </div>
-          <p class="text-xs text-on-surface-variant/60 text-center">
+          <p class="text-xs text-on-surface-variant text-center">
             {m.pulse_day_of({ date: displayed.dateKey })}
           </p>
 
@@ -369,8 +369,8 @@
             <!-- Indicateur provisoire : la journée en cours n'est pas comparable
                  à une journée entière, on l'affiche sans tendance ni alertes. -->
             <div class="w-full pt-3 mt-1 border-t border-outline-variant/10 flex flex-col items-center gap-0.5">
-              <span class="text-2xs text-on-surface-variant/60">{m.pulse_today_partial()}</span>
-              <span class="text-xl font-bold" style="color: {scoreColor(today.score)}">{today.score}<span class="text-xs text-on-surface-variant/50">/100</span></span>
+              <span class="text-2xs text-on-surface-variant">{m.pulse_today_partial()}</span>
+              <span class="text-xl font-bold" style="color: {scoreColor(today.score)}">{today.score}<span class="text-xs text-on-surface-variant">/100</span></span>
               <span class="text-2xs text-warning text-center leading-tight">{m.pulse_partial_hint()}</span>
             </div>
           {/if}
@@ -407,29 +407,29 @@
           <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
               <div class="text-2xl font-bold">{displayedMetrics.totalMessages.toLocaleString()}</div>
-              <div class="text-xs font-medium text-on-surface-variant/60 mt-1">{m.pulse_metric_messages()}</div>
+              <div class="text-xs font-medium text-on-surface-variant mt-1">{m.pulse_metric_messages()}</div>
             </div>
             <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
               <div class="text-2xl font-bold">{Math.round(displayedMetrics.totalVoiceMinutes / 60)}h</div>
-              <div class="text-xs font-medium text-on-surface-variant/60 mt-1">{m.pulse_metric_voice()}</div>
+              <div class="text-xs font-medium text-on-surface-variant mt-1">{m.pulse_metric_voice()}</div>
             </div>
             <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
               <div class="text-2xl font-bold">{displayedMetrics.activeMembers}/{displayedMetrics.totalMembers}</div>
-              <div class="text-xs font-medium text-on-surface-variant/60 mt-1">{m.pulse_metric_active()}</div>
+              <div class="text-xs font-medium text-on-surface-variant mt-1">{m.pulse_metric_active()}</div>
             </div>
             <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
               <div class="text-2xl font-bold {displayedMetrics.membersJoined > displayedMetrics.membersLeft ? 'text-success' : ''}">
                 +{displayedMetrics.membersJoined} / -{displayedMetrics.membersLeft}
               </div>
-              <div class="text-xs font-medium text-on-surface-variant/60 mt-1">{m.pulse_metric_flow()}</div>
+              <div class="text-xs font-medium text-on-surface-variant mt-1">{m.pulse_metric_flow()}</div>
             </div>
             <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
               <div class="text-2xl font-bold">{displayedMetrics.sanctionsCount}</div>
-              <div class="text-xs font-medium text-on-surface-variant/60 mt-1">{m.pulse_metric_sanctions()}</div>
+              <div class="text-xs font-medium text-on-surface-variant mt-1">{m.pulse_metric_sanctions()}</div>
             </div>
             <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
               <div class="text-2xl font-bold">{displayedMetrics.ticketsResolved}/{displayedMetrics.ticketsOpen + displayedMetrics.ticketsResolved}</div>
-              <div class="text-xs font-medium text-on-surface-variant/60 mt-1">{m.pulse_metric_tickets()}</div>
+              <div class="text-xs font-medium text-on-surface-variant mt-1">{m.pulse_metric_tickets()}</div>
             </div>
           </div>
         </div>
@@ -481,7 +481,7 @@
                 ></div>
               {/each}
             </div>
-            <div class="flex justify-between text-xs font-medium text-on-surface-variant/60">
+            <div class="flex justify-between text-xs font-medium text-on-surface-variant">
               <span>{pulseData.history[0]?.dateKey?.slice(5)}</span>
               <span>{pulseData.history[pulseData.history.length - 1]?.dateKey?.slice(5)}</span>
             </div>
@@ -505,20 +505,20 @@
           <div class="grid grid-cols-3 gap-4">
             <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
               <div class="text-2xl font-bold">{predData.growthForecast.predicted7d.toLocaleString()}</div>
-              <div class="text-xs font-medium text-on-surface-variant/60 mt-1">{m.pulse_forecast_7d()}</div>
+              <div class="text-xs font-medium text-on-surface-variant mt-1">{m.pulse_forecast_7d()}</div>
             </div>
             <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
               <div class="text-2xl font-bold">{predData.growthForecast.predicted30d.toLocaleString()}</div>
-              <div class="text-xs font-medium text-on-surface-variant/60 mt-1">{m.pulse_forecast_30d()}</div>
+              <div class="text-xs font-medium text-on-surface-variant mt-1">{m.pulse_forecast_30d()}</div>
             </div>
             <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
               <div class="text-2xl font-bold">{predData.growthForecast.confidence}%</div>
-              <div class="text-xs font-medium text-on-surface-variant/60 mt-1">{m.pulse_forecast_confidence()}</div>
+              <div class="text-xs font-medium text-on-surface-variant mt-1">{m.pulse_forecast_confidence()}</div>
             </div>
           </div>
           <p class="text-sm text-on-surface-variant">
             {m.pulse_forecast_daily({ value: predData.growthForecast.dailyNet })}
-            <span class="text-on-surface-variant/60"> · {m.pulse_observed_days({ days: predData.observedDays })}</span>
+            <span class="text-on-surface-variant"> · {m.pulse_observed_days({ days: predData.observedDays })}</span>
           </p>
           {#if predData.growthForecast.confidence < 50}
             <p class="text-xs text-warning flex items-center gap-1.5">
@@ -533,7 +533,7 @@
           <h3 class="text-base font-semibold flex items-center gap-2.5">
             <Papicon icon="clock" size={18} />
             {m.pulse_seasonality_title()}
-            <span class="text-xs font-normal text-on-surface-variant/50">({m.pulse_utc_note()})</span>
+            <span class="text-xs font-normal text-on-surface-variant">({m.pulse_utc_note()})</span>
           </h3>
           <div class="space-y-3">
             <div class="flex items-center gap-2.5 text-sm text-on-surface-variant">
@@ -612,7 +612,7 @@
                   {/if}
                 {/each}
               </div>
-              <div class="flex flex-wrap gap-4 text-xs font-medium text-on-surface-variant/60">
+              <div class="flex flex-wrap gap-4 text-xs font-medium text-on-surface-variant">
                 <span class="flex items-center gap-1.5">
                   <span class="w-2 h-2 rounded-sm" style="background: {trend.color}"></span>
                   {m.pulse_legend_actual()}
@@ -642,7 +642,7 @@
                 <div class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm {severityClasses(anomaly.severity)}">
                   <Papicon icon={anomaly.type === 'spike' ? 'arrow-up' : 'arrow-down'} size={16} />
                   <span class="flex-1">{anomalyText(anomaly)}</span>
-                  <span class="text-xs text-on-surface-variant/60 whitespace-nowrap">
+                  <span class="text-xs text-on-surface-variant whitespace-nowrap">
                     {m.pulse_anomaly_expected()}: {anomaly.expectedRange.min}&ndash;{anomaly.expectedRange.max}
                   </span>
                 </div>
@@ -668,7 +668,7 @@
           <div class="flex items-center gap-4">
             <div class="w-20 h-20 rounded-full border-[5px] flex flex-col items-center justify-center shrink-0" style="border-color: {scoreColor(displayed.score)}">
               <span class="text-2xl font-bold text-on-surface leading-none">{displayed.score}</span>
-              <span class="text-2xs text-on-surface-variant/60">/100</span>
+              <span class="text-2xs text-on-surface-variant">/100</span>
             </div>
             <div class="flex flex-col gap-1">
               <span class="text-base font-semibold">{scoreLabel(displayed.score)}</span>
@@ -680,7 +680,7 @@
                   <span>{m.pulse_stable()}</span>
                 {/if}
               </div>
-              <span class="text-xs text-on-surface-variant/60">
+              <span class="text-xs text-on-surface-variant">
                 {m.pulse_day_of({ date: displayed.dateKey })}
                 {#if today}
                   · {m.pulse_today_partial()}: {today.score}
@@ -692,7 +692,7 @@
           <div class="space-y-2">
             {#each subScores(displayed) as sub (sub.label)}
               <div class="pulse-score-row grid grid-cols-[90px_1fr_30px] items-center gap-2">
-                <span class="text-xs text-on-surface-variant/60">{sub.label}</span>
+                <span class="text-xs text-on-surface-variant">{sub.label}</span>
                 <div class="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
                   <div class="h-1.5 rounded-full transition-all duration-500" style="width: {sub.value}%; background: {scoreColor(sub.value)}"></div>
                 </div>
@@ -703,7 +703,7 @@
 
           {#if displayed.alerts.length > 0}
             <div class="space-y-1.5 pt-2 border-t border-outline-variant/10">
-              <h4 class="text-body-sm font-medium text-on-surface-variant/60">{m.pulse_alerts()}</h4>
+              <h4 class="text-body-sm font-medium text-on-surface-variant">{m.pulse_alerts()}</h4>
               {#each displayed.alerts.slice(0, 3) as alert, i (alert.code ?? i)}
                 <div class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs {severityClasses(alert.severity)}">
                   <Papicon icon={severityIcon(alert.severity)} size={14} />
@@ -727,15 +727,15 @@
           <div class="grid grid-cols-3 gap-3">
             <div class="bg-surface-container-high/30 rounded-xl p-3 text-center">
               <div class="text-lg font-bold">{predData.growthForecast.predicted7d.toLocaleString()}</div>
-              <div class="text-xs font-medium text-on-surface-variant/60 mt-0.5">{m.pulse_forecast_7d()}</div>
+              <div class="text-xs font-medium text-on-surface-variant mt-0.5">{m.pulse_forecast_7d()}</div>
             </div>
             <div class="bg-surface-container-high/30 rounded-xl p-3 text-center">
               <div class="text-lg font-bold">{predData.growthForecast.predicted30d.toLocaleString()}</div>
-              <div class="text-xs font-medium text-on-surface-variant/60 mt-0.5">{m.pulse_forecast_30d()}</div>
+              <div class="text-xs font-medium text-on-surface-variant mt-0.5">{m.pulse_forecast_30d()}</div>
             </div>
             <div class="bg-surface-container-high/30 rounded-xl p-3 text-center">
               <div class="text-lg font-bold">{predData.growthForecast.confidence}%</div>
-              <div class="text-xs font-medium text-on-surface-variant/60 mt-0.5">{m.pulse_forecast_confidence()}</div>
+              <div class="text-xs font-medium text-on-surface-variant mt-0.5">{m.pulse_forecast_confidence()}</div>
             </div>
           </div>
           <div class="space-y-2 text-sm text-on-surface-variant">
@@ -752,7 +752,7 @@
           </div>
           {#if predData.anomalies.length > 0}
             <div class="space-y-1.5 pt-2 border-t border-outline-variant/10">
-              <h4 class="text-body-sm font-medium text-on-surface-variant/60">{m.pulse_anomalies_title()}</h4>
+              <h4 class="text-body-sm font-medium text-on-surface-variant">{m.pulse_anomalies_title()}</h4>
               {#each predData.anomalies.slice(0, 3) as anomaly (anomaly.metric + anomaly.dateKey)}
                 <div class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs {severityClasses(anomaly.severity)}">
                   <Papicon icon={anomaly.type === 'spike' ? 'arrow-up' : 'arrow-down'} size={14} />

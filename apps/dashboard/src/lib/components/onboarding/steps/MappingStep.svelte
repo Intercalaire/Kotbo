@@ -201,7 +201,7 @@
         </div>
 
         {#if skipped}
-          <p class="text-body-sm text-on-surface-variant/60 leading-relaxed">
+          <p class="text-body-sm text-on-surface-variant leading-relaxed">
             Aucun salon à y ranger : Kotbo ne créera pas de catégorie.
           </p>
         {:else}
@@ -294,7 +294,7 @@
            s'eteint avec elle ne l'est pas. -->
       <div class="rounded-xl border border-outline-variant/30 bg-surface-container-low/30 px-4 py-3">
         <p class="text-xs text-on-surface-variant leading-relaxed">
-          <Papicon icon="info" size={12} class="inline text-on-surface-variant/50 mr-1" />
+          <Papicon icon="info" size={12} class="inline text-on-surface-variant mr-1" />
           {#each dormant as entry, index (entry.key)}{index > 0 ? ', ' : ''}<span class="font-medium text-on-surface">{entry.name}</span>{/each}
           {dormant.length > 1 ? 'resteront éteints' : 'restera éteint'} : le salon qui
           {dormant.length > 1 ? 'les porte' : 'le porte'} a été écarté. Tu pourras

@@ -41,7 +41,7 @@
 </script>
 
 <div class="flex flex-col items-center justify-center text-center py-14 px-6 gap-1.5">
-  <div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant/50 mb-2">
+  <div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant mb-2">
     <Papicon {icon} size={22} />
   </div>
   <p class="text-sm font-medium text-on-surface">{title}</p>

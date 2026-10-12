@@ -266,7 +266,7 @@
               </div>
 
               <p class="text-sm font-semibold text-on-surface leading-tight">{action.label}</p>
-              <p class="mt-1 text-xs text-on-surface-variant/70 leading-relaxed">{action.why}</p>
+              <p class="mt-1 text-xs text-on-surface-variant leading-relaxed">{action.why}</p>
               {#if action.detail}
                 <p class="mt-2 text-2xs px-1.5 py-0.5 rounded bg-error/10 text-error inline-block">
                   Il manque : {action.detail}
@@ -385,12 +385,12 @@
                 class="flex items-start gap-3 rounded-xl border border-outline-variant/25 bg-surface-container-low/25 p-3.5
                        hover:border-primary/40 transition-colors"
               >
-                <span class="w-8 h-8 shrink-0 rounded-lg bg-surface-container text-on-surface-variant/50 flex items-center justify-center">
+                <span class="w-8 h-8 shrink-0 rounded-lg bg-surface-container text-on-surface-variant flex items-center justify-center">
                   <Papicon icon={track.icon} size={15} />
                 </span>
                 <div class="min-w-0 flex-1">
                   <p class="text-body-sm font-semibold text-on-surface">{track.label()}</p>
-                  <p class="mt-0.5 text-xs text-on-surface-variant/60 leading-relaxed">{track.outcome()}</p>
+                  <p class="mt-0.5 text-xs text-on-surface-variant leading-relaxed">{track.outcome()}</p>
                 </div>
                 <Papicon icon="ChevronRight" size={14} class="mt-1 shrink-0 text-on-surface-variant/30" />
               </a>

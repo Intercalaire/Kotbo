@@ -147,10 +147,10 @@
       </div>
       <div class="min-w-0">
         <h3 class="text-lg font-semibold tracking-tight text-on-surface">{m.fun_riddles_title()}</h3>
-        <p class="text-xs text-on-surface-variant/70 mt-0.5">{m.fun_riddles_desc()}</p>
+        <p class="text-xs text-on-surface-variant mt-0.5">{m.fun_riddles_desc()}</p>
       </div>
     </div>
-    <span class="text-xs font-medium text-on-surface-variant/60 shrink-0">
+    <span class="text-xs font-medium text-on-surface-variant shrink-0">
       {m.fun_riddles_count({ count: riddles.length, max: MAX_RIDDLES })}
     </span>
   </div>
@@ -158,7 +158,7 @@
   <div class="flex items-center justify-between gap-4">
     <div class="min-w-0">
       <p class="text-sm font-semibold text-on-surface">{m.fun_riddles_use_defaults_title()}</p>
-      <p class="text-xs text-on-surface-variant/70 mt-1">{m.fun_riddles_use_defaults_desc({ count: defaults.length })}</p>
+      <p class="text-xs text-on-surface-variant mt-1">{m.fun_riddles_use_defaults_desc({ count: defaults.length })}</p>
     </div>
     <ToggleSwitch
       checked={useDefaults}
@@ -174,7 +174,7 @@
       onsubmit={(e) => { e.preventDefault(); submit(); }}
     >
       <div class="space-y-1.5">
-        <label for="riddleEmojis" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.fun_riddles_emojis_label()}</label>
+        <label for="riddleEmojis" class="text-xs font-semibold text-on-surface-variant ml-2">{m.fun_riddles_emojis_label()}</label>
         <div class="flex items-center gap-2">
           <input
             id="riddleEmojis"
@@ -190,7 +190,7 @@
       </div>
 
       <div class="space-y-1.5">
-        <label for="riddleAnswers" class="text-xs font-semibold text-on-surface-variant/60 ml-2">{m.fun_riddles_answers_label()}</label>
+        <label for="riddleAnswers" class="text-xs font-semibold text-on-surface-variant ml-2">{m.fun_riddles_answers_label()}</label>
         <textarea
           id="riddleAnswers"
           bind:value={answersDraft}
@@ -199,7 +199,7 @@
           disabled={busy}
           class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm resize-y focus:ring-2 focus:ring-error/30 transition-all disabled:opacity-50"
         ></textarea>
-        <p class="text-2xs text-on-surface-variant/50 ml-2">{m.fun_riddles_answers_hint()}</p>
+        <p class="text-2xs text-on-surface-variant ml-2">{m.fun_riddles_answers_hint()}</p>
       </div>
 
       <div class="md:col-span-2 flex justify-end gap-2">

@@ -229,7 +229,7 @@
         />
       </DiscordPreview>
     {:else}
-      <p class="rounded-xl border border-outline-variant/30 bg-surface-container-low/30 px-4 py-3 text-body-sm text-on-surface-variant/60 leading-relaxed">
+      <p class="rounded-xl border border-outline-variant/30 bg-surface-container-low/30 px-4 py-3 text-body-sm text-on-surface-variant leading-relaxed">
         Aucun article retenu : rien ne sera publié. Tu pourras écrire ton règlement
         depuis le tableau de bord.
       </p>
@@ -240,7 +240,7 @@
     <button
       type="button"
       onclick={skip}
-      class="text-body-sm font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
+      class="text-body-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors"
     >
       Passer
     </button>

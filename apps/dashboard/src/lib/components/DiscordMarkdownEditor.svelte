@@ -239,7 +239,7 @@
           type="button"
           {disabled}
           onclick={() => insertFormat(action)}
-          class="w-7 h-7 flex items-center justify-center rounded-md text-on-surface-variant/70 hover:bg-surface-container-high/60 hover:text-on-surface transition-all disabled:opacity-30 disabled:pointer-events-none"
+          class="w-7 h-7 flex items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container-high/60 hover:text-on-surface transition-all disabled:opacity-30 disabled:pointer-events-none"
           title="{action.label}{action.icon === 'bold' ? ' (Ctrl+B)' : action.icon === 'italic' ? ' (Ctrl+I)' : action.icon === 'underline' ? ' (Ctrl+U)' : ''}"
         >
           <Papicon icon={action.icon} size={14} />
@@ -256,7 +256,7 @@
           type="button"
           {disabled}
           onclick={() => insertFormat(action)}
-          class="h-7 px-1.5 flex items-center justify-center rounded-md text-on-surface-variant/70 hover:bg-surface-container-high/60 hover:text-on-surface transition-all text-xs font-medium disabled:opacity-30 disabled:pointer-events-none"
+          class="h-7 px-1.5 flex items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container-high/60 hover:text-on-surface transition-all text-xs font-medium disabled:opacity-30 disabled:pointer-events-none"
           title={action.label}
         >
           {#if action.heading}{action.heading}
@@ -326,12 +326,12 @@
         <button
           type="button"
           onclick={() => activeTab = 'editor'}
-          class="px-3 py-1 rounded-md text-xs font-medium transition-all {activeTab === 'editor' ? 'bg-primary/15 text-primary' : 'text-on-surface-variant/60 hover:text-on-surface-variant'}"
+          class="px-3 py-1 rounded-md text-xs font-medium transition-all {activeTab === 'editor' ? 'bg-primary/15 text-primary' : 'text-on-surface-variant hover:text-on-surface-variant'}"
         >{m.d1_dme_editor()}</button>
         <button
           type="button"
           onclick={() => activeTab = 'preview'}
-          class="px-3 py-1 rounded-md text-xs font-medium transition-all {activeTab === 'preview' ? 'bg-primary/15 text-primary' : 'text-on-surface-variant/60 hover:text-on-surface-variant'}"
+          class="px-3 py-1 rounded-md text-xs font-medium transition-all {activeTab === 'preview' ? 'bg-primary/15 text-primary' : 'text-on-surface-variant hover:text-on-surface-variant'}"
         >{m.d1_dme_preview()}</button>
       </div>
     {/if}
@@ -343,7 +343,7 @@
   <!-- Agenda templates -->
   {#if agendaMode}
     <div class="flex items-center gap-2 px-3 py-2 border-b border-outline-variant/10 bg-surface-container-high/10 overflow-x-auto">
-      <span class="text-xs font-semibold text-on-surface-variant/50 shrink-0">{m.d1_dme_templates()}</span>
+      <span class="text-xs font-semibold text-on-surface-variant shrink-0">{m.d1_dme_templates()}</span>
       {#each agendaTemplates as template}
         <button
           type="button"

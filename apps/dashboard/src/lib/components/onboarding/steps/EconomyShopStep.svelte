@@ -130,7 +130,7 @@
               class="w-24 rounded-lg border border-outline-variant/40 bg-surface-container-lowest/60 px-2 py-1
                      text-xs tabular-nums text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
             />
-            <span class="text-xs text-on-surface-variant/50 truncate">{emoji} {currency}</span>
+            <span class="text-xs text-on-surface-variant truncate">{emoji} {currency}</span>
             <span class="ml-auto shrink-0 text-2xs text-on-surface-variant/40">{effectOf(item)}</span>
           </div>
         {/if}
@@ -176,7 +176,7 @@
     <button
       type="button"
       onclick={skip}
-      class="text-body-sm font-medium text-on-surface-variant/50 hover:text-on-surface transition-colors"
+      class="text-body-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors"
     >
       Passer
     </button>

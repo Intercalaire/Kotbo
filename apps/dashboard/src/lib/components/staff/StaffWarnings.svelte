@@ -65,7 +65,7 @@
 
   <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
     <div class="relative flex-1 lg:max-w-sm">
-      <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-on-surface-variant/60"><Papicon icon="search" size={15} /></span>
+      <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-on-surface-variant"><Papicon icon="search" size={15} /></span>
       <input type="search" class="input" style="padding-left: 2.25rem;" placeholder={m.sx_search_warnings()} aria-label={m.sx_search_warnings()} bind:value={query} />
     </div>
     <FilterPills

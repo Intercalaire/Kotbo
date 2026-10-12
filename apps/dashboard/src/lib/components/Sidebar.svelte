@@ -267,7 +267,7 @@
       aria-label={favorites.includes(item.href) ? m.nav_unfavorite() : m.nav_favorite()}
       aria-pressed={favorites.includes(item.href)}
       class="nav-row__pin mr-1 flex items-center justify-center w-6 h-6 rounded-md shrink-0 transition-opacity duration-150
-        {favorites.includes(item.href) ? 'opacity-100 text-warning' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-on-surface-variant/50 hover:text-warning'}"
+        {favorites.includes(item.href) ? 'opacity-100 text-warning' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-on-surface-variant hover:text-warning'}"
     >
       <Papicon icon="star" size={12} class={favorites.includes(item.href) ? 'fill-current' : ''} />
     </button>
@@ -384,7 +384,7 @@
       {/if}
       <span class="min-w-0 flex-1 block truncate text-sm font-semibold text-on-surface">{currentGuild?.name ?? 'Serveur'}</span>
       {#if authStore.guilds.length > 1}
-        <Papicon icon="chevron-right" size={16} class="shrink-0 text-on-surface-variant/60" />
+        <Papicon icon="chevron-right" size={16} class="shrink-0 text-on-surface-variant" />
       {/if}
     </button>
   {/if}
@@ -405,7 +405,7 @@
       <Papicon icon="search" size={14} class="shrink-0" />
       {#if !isCollapsed}
         <span class="flex-1 text-left text-body-sm">Rechercher</span>
-        <kbd class="hidden lg:inline text-2xs font-medium text-on-surface-variant/70 font-body">Ctrl K</kbd>
+        <kbd class="hidden lg:inline text-2xs font-medium text-on-surface-variant font-body">Ctrl K</kbd>
       {/if}
     </button>
   </div>
@@ -426,7 +426,7 @@
       </div>
     {:else}
       {#if pinnedItems.length > 0}
-        <p class="px-3 pb-1 text-2xs font-medium text-on-surface-variant/70">{m.nav_pinned()}</p>
+        <p class="px-3 pb-1 text-2xs font-medium text-on-surface-variant">{m.nav_pinned()}</p>
         <div class="space-y-px mb-3">
           {#each pinnedItems as item (item.href)}
             {@render pageLink(item, true)}
@@ -455,7 +455,7 @@
               class="nav-space w-full flex items-center gap-2.5 pl-2.5 pr-2 py-1.5 rounded-lg text-left transition-colors hover:bg-surface-container
                 {current ? 'text-on-surface' : 'text-on-surface-variant hover:text-on-surface'}"
             >
-              <Papicon icon={space.icon} size={16} class="shrink-0 {current ? 'text-primary' : 'text-on-surface-variant/70'}" />
+              <Papicon icon={space.icon} size={16} class="shrink-0 {current ? 'text-primary' : 'text-on-surface-variant'}" />
               <span class="flex-1 min-w-0 truncate text-body-sm {current ? 'font-medium' : ''}">{space.label}</span>
               <span
                 aria-hidden="true"
