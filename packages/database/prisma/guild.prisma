@@ -240,6 +240,15 @@ model Guild {
   // reconduction suivante, `stripeCurrentPeriodEnd` change, et l'avis repart.
   renewalNoticeSentFor     DateTime?
 
+  // Relances en message privé aux administrateurs (adminLifecycleService) :
+  // reprendre une configuration laissée en plan, une étape utile restante,
+  // ce que Kotbo a fait pendant une longue absence. Chacune part une seule
+  // fois par serveur (`lifecycleRemindersSent`), jamais deux à moins d'une
+  // semaine d'écart, et le bouton du message les coupe pour le serveur.
+  lifecycleRemindersEnabled Boolean   @default(true)
+  lifecycleRemindersSent    String[]  @default([])
+  lastLifecycleReminderAt   DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
