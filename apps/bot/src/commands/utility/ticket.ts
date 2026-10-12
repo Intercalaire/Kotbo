@@ -13,6 +13,7 @@ import {
   unlockTicketDeletion,
 } from '../../services/features/ticketLifecycleService.js';
 import { buildMemberCasePanel } from '../../services/moderation/memberCaseService.js';
+import { ACTIVE_TICKET_STATUSES } from '../../services/features/ticketQuotaService.js';
 import { generateTranscript } from '../../services/features/transcriptService.js';
 import { successEmbed } from '../../utils/embeds.js';
 import { isGuildActivated } from '../../utils/activation.js';
@@ -753,7 +754,7 @@ async function handleOpen(interaction: ChatInputCommandInteraction): Promise<voi
     where: {
       guildId: targetGuildId!,
       userId: interaction.user.id,
-      status: { in: ['PENDING', 'OPEN', 'CLAIMED'] },
+      status: { in: [...ACTIVE_TICKET_STATUSES] },
     },
   });
 
@@ -761,7 +762,9 @@ async function handleOpen(interaction: ChatInputCommandInteraction): Promise<voi
     await interaction.reply({
       content: existingTicket.status === 'PENDING'
         ? m.c7_ticket_open_err_pending_request({ guildName: guild.name }, { locale })
-        : m.c7_ticket_open_err_existing_ticket({ guildName: guild.name }, { locale }),
+        : existingTicket.status === 'QUEUED'
+          ? m.c7_ticket_open_err_queued({ guildName: guild.name }, { locale })
+          : m.c7_ticket_open_err_existing_ticket({ guildName: guild.name }, { locale }),
       flags: [MessageFlags.Ephemeral],
     });
     return;

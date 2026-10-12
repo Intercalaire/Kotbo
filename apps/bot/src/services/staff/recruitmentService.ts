@@ -341,6 +341,9 @@ export async function approveCandidature(
     reason: 'Entretien de recrutement',
     description: `Entretien oral pour la candidature de ${pseudo} (ID: ${candidatureId}).`,
     locale,
+    // La suite ecrit dans le salon : sans place, mieux vaut une erreur
+    // franche qu'une candidature passee a l'oral sans salon d'entretien.
+    queueWhenFull: false,
   });
 
   const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { channelId: true } });

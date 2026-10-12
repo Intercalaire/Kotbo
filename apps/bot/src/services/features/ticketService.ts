@@ -31,6 +31,7 @@ import {
   suggestMacros,
 } from './ticketMacroService.js';
 import {
+  ACTIVE_TICKET_STATUSES,
   checkMemberTicketQuota,
   checkStaffTicketLoad,
   relativeTimestamp,
@@ -51,6 +52,7 @@ import {
 } from './ticketLifecycleService.js';
 import { UserFacingError } from '../../utils/userFacingError.js';
 import { publicErrorMessage } from '../../utils/publicError.js';
+import { describeTicketCapacityLimit, guardTicketCapacity, TicketCapacityError } from './ticketCapacity.js';
 
 function sanitizeTicketChannelName(input: string): string {
   const cleaned = input
@@ -209,6 +211,8 @@ async function refuseIfQuotaExceeded(
     content = `⏳ Vous avez atteint la limite de **${verdict.max} ticket(s)** sur ${verdict.hours} h. Prochaine ouverture possible ${relativeTimestamp(verdict.retryAtMs)}.`;
   } else if (verdict.blocking?.status === 'PENDING') {
     content = '⏳ Votre précédente demande de ticket attend encore la validation du staff.';
+  } else if (verdict.blocking?.status === 'QUEUED') {
+    content = "⏳ Ton précédent ticket est en file d'attente : il sera créé dès qu'une place se libère sur le serveur.";
   } else if (verdict.blocking?.channelId) {
     // client.channels.fetch : le ticket peut vivre sur le serveur staff lié.
     // Salon introuvable = ticket fantome en base : on laisse passer plutot que
@@ -2000,12 +2004,22 @@ export type TicketWorkspaceParams = {
    * au statut PENDING et doit etre completee, pas dupliquee.
    */
   existingTicketId?: string | null;
+  /**
+   * `false` quand l'appelant a besoin du salon tout de suite (entretien de
+   * recrutement) : une limite Discord leve alors une erreur au lieu de mettre
+   * le ticket en file d'attente.
+   */
+  queueWhenFull?: boolean;
 };
 
 type TicketWorkspaceResult = {
   ticketId: string;
   /** Message de confirmation destine a l'auteur du ticket. */
   userMessage: string;
+  /** Le ticket attend une place : aucun salon ni fil n'existe encore. */
+  queued?: boolean;
+  /** Limite qui bloque le ticket, renseignee quand `queued` l'est. */
+  queueScope?: string;
 };
 
 /**
@@ -2040,8 +2054,124 @@ function publishTicketCreated(ticket: Ticket, channelId: string | null): void {
  * prealable : une demande acceptee des heures plus tard n'a plus d'interaction
  * a repondre, seulement un ticket a materialiser. Elle leve donc une erreur
  * porteuse d'un message lisible au lieu de repondre elle-meme.
+ *
+ * Quand une limite Discord bloque la creation (salons, categorie, fils
+ * actifs), le ticket part en file d'attente : le resultat porte `queued` et un
+ * message qui l'explique au membre.
  */
 export async function createTicketWorkspace(
+  client: Client,
+  params: TicketWorkspaceParams,
+): Promise<TicketWorkspaceResult> {
+  try {
+    return await buildTicketWorkspace(client, params);
+  } catch (err) {
+    if (!(err instanceof TicketCapacityError)) throw err;
+    if (params.queueWhenFull === false) {
+      // Le mode fil enregistre la ligne avant de creer le fil : sans place,
+      // elle resterait OPEN sans espace ou ecrire.
+      if (err.ticketId && err.ticketId !== params.existingTicketId) {
+        await prisma.ticket.delete({ where: { id: err.ticketId } }).catch(() => null);
+      }
+      throw err;
+    }
+    return queueTicketWorkspace(client, params, err);
+  }
+}
+
+/**
+ * Met le ticket en file d'attente. La ligne existante est reprise (mode fil,
+ * demande validee, nouvelle tentative depuis la file) ; sinon une ligne neuve
+ * est ouverte. Un ticket deja en file garde sa date d'entree, donc sa place.
+ */
+async function queueTicketWorkspace(
+  client: Client,
+  params: TicketWorkspaceParams,
+  err: TicketCapacityError,
+): Promise<TicketWorkspaceResult> {
+  const { guild, user, ticketType, guildConfig, reason, description } = params;
+  const rowId = err.ticketId ?? params.existingTicketId ?? null;
+  const existing = rowId
+    ? await prisma.ticket.findUnique({ where: { id: rowId }, select: { id: true, queuedAt: true } })
+    : null;
+
+  const queueData = {
+    status: 'QUEUED' as const,
+    queueScope: err.scope,
+    queuedAt: existing?.queuedAt ?? new Date(),
+    channelId: null,
+    threadId: null,
+  };
+
+  const ticketMode = ticketType.mode || guildConfig.ticketMode || 'CHANNEL';
+  const ticket = existing
+    ? await prisma.ticket.update({ where: { id: existing.id }, data: queueData })
+    : await prisma.ticket.create({
+      data: {
+        guildId: guild.id,
+        mode: ticketMode,
+        ticketTypeId: ticketType.id || null,
+        ticketTypeLabel: ticketType.label,
+        staffRoleId: ticketType.staffRoleId || guildConfig.ticketStaffRoleId || null,
+        categoryId: null,
+        userId: user.id,
+        username: user.username,
+        reason,
+        description,
+        lockUntilClaim: ticketMode !== 'DM' && resolveLockUntilClaim(ticketType, guildConfig),
+        ...queueData,
+      },
+    });
+
+  const position = await prisma.ticket.count({
+    where: { guildId: guild.id, status: 'QUEUED', queuedAt: { lte: queueData.queuedAt } },
+  });
+
+  // Une nouvelle tentative qui echoue encore n'est pas une nouvelle entree :
+  // ni journal, ni alerte.
+  if (!existing?.queuedAt) {
+    logger.warn('Ticket', `Limite Discord atteinte sur ${guild.id} (${err.scope}) : ticket ${ticket.id} en file d'attente, position ${position}.`);
+    if (position === 1) await alertStaffQueueStarted(client, guildConfig, err).catch(() => null);
+  }
+  broadcastDashboardStateChange(guild.id, 'tickets_updated');
+
+  return {
+    ticketId: ticket.id,
+    queued: true,
+    queueScope: err.scope,
+    userMessage: `⏳ Le serveur a atteint ${describeTicketCapacityLimit(err.limit)}. Ton ticket est en file d'attente (position ${position}) : il sera créé automatiquement dès qu'une place se libère, et tu seras prévenu en message privé.`,
+  };
+}
+
+/**
+ * Previent le staff qu'une file d'attente vient de se former. Une seule
+ * alerte, au premier ticket : c'est au staff de liberer de la place, et un
+ * message par ticket noierait le salon de logs.
+ */
+async function alertStaffQueueStarted(client: Client, guildConfig: any, err: TicketCapacityError): Promise<void> {
+  const logChannelId = guildConfig.ticketLogChannelId;
+  if (!logChannelId) return;
+  const channel = await client.channels.fetch(logChannelId).catch(() => null);
+  if (!(channel instanceof TextChannel)) return;
+
+  await channel.send({
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("⏳ Tickets en file d'attente")
+        .setDescription(
+          `Le serveur a atteint ${describeTicketCapacityLimit(err.limit)}. Les nouveaux tickets attendent une place et seront créés automatiquement, dans l'ordre d'arrivée.\n\n` +
+          (err.limit === 'ACTIVE_THREADS'
+            ? 'Archive ou supprime des fils inutilisés pour libérer de la place.'
+            : 'Supprime des tickets fermés ou des salons inutilisés pour libérer de la place.'),
+        )
+        .setColor(COLORS.warning as ColorResolvable)
+        .setTimestamp(),
+    ],
+    allowedMentions: { parse: [] },
+  });
+}
+
+async function buildTicketWorkspace(
   client: Client,
   params: TicketWorkspaceParams,
 ): Promise<TicketWorkspaceResult> {
@@ -2059,7 +2189,7 @@ export async function createTicketWorkspace(
     if (existingTicketId) {
       return prisma.ticket.update({
         where: { id: existingTicketId },
-        data: { ...data, rejectionReason: null },
+        data: { ...data, rejectionReason: null, queueScope: null },
       });
     }
     return prisma.ticket.create({ data: data as never });
@@ -2109,7 +2239,7 @@ export async function createTicketWorkspace(
     const ticket = await persistTicket({
       guildId,
       mode: 'DM',
-      ticketTypeId: ticketType.id,
+      ticketTypeId: ticketType.id || null,
       ticketTypeLabel: ticketType.label,
       staffRoleId: ticketStaffRoleId,
       categoryId: null,
@@ -2126,11 +2256,11 @@ export async function createTicketWorkspace(
       ? `🎫 Anonyme - ${reason}`.slice(0, 100)
       : `🎫 ${user.username} - ${reason}`.slice(0, 100);
 
-    const thread = await relayChannel.threads.create({
+    const thread = await guardTicketCapacity(() => relayChannel.threads.create({
       name: threadName,
       autoArchiveDuration: 10080,
       reason: `Ticket DM de ${displayName}`
-    });
+    }), { guildId: relayChannel.guildId, ticketId: ticket.id });
 
     await prisma.ticket.update({ where: { id: ticket.id }, data: { threadId: thread.id } });
 
@@ -2209,12 +2339,12 @@ export async function createTicketWorkspace(
       lockUntilClaim,
     });
 
-    const thread = await parentChannel.threads.create({
+    const thread = await guardTicketCapacity(() => parentChannel.threads.create({
       name: `🎫 ${user.username} - ${reason}`.slice(0, 100),
       autoArchiveDuration: 10080,
       type: ChannelType.PrivateThread,
       reason: `Ticket Thread de ${user.username}`
-    });
+    }), { guildId: parentChannel.guildId, ticketId: ticket.id });
 
     await thread.members.add(user.id).catch(() => null);
 
@@ -2342,13 +2472,14 @@ export async function createTicketWorkspace(
       permissionOverwrites.push(participantOverwrite(guildConfig.moderatorRoleId));
     }
 
-    const ticketChannel = await targetGuild.channels.create({
+    const parentId = ticketCategory && ticketCategory.type === ChannelType.GuildCategory ? ticketCategory.id : undefined;
+    const ticketChannel = await guardTicketCapacity(() => targetGuild.channels.create({
       name: channelName,
       type: ChannelType.GuildText,
-      parent: ticketCategory && ticketCategory.type === ChannelType.GuildCategory ? ticketCategory.id : undefined,
+      parent: parentId,
       topic: `Ticket de ${user.username} - Raison : ${reason}`,
       permissionOverwrites
-    });
+    }), { guildId: targetGuild.id, categoryId: parentId ?? null, ticketId: existingTicketId ?? null });
 
     const ticket = await persistTicket({
       guildId,
@@ -2938,13 +3069,15 @@ async function handleDmDirectTicket(
   }
 
   const existingTicket = await prisma.ticket.findFirst({
-    where: { guildId: targetGuildId, userId: user.id, status: { in: ['PENDING', 'OPEN', 'CLAIMED'] } },
+    where: { guildId: targetGuildId, userId: user.id, status: { in: [...ACTIVE_TICKET_STATUSES] } },
   });
   if (existingTicket) {
     await interaction.editReply({
       content: existingTicket.status === 'PENDING'
         ? `⏳ Votre demande de ticket sur **${guild.name}** attend encore la validation du staff.`
-        : `⚠️ Vous avez déjà un ticket ouvert sur **${guild.name}**.`,
+        : existingTicket.status === 'QUEUED'
+          ? `⏳ Ton ticket sur **${guild.name}** est en file d'attente : il sera créé dès qu'une place se libère.`
+          : `⚠️ Vous avez déjà un ticket ouvert sur **${guild.name}**.`,
     });
     return;
   }
@@ -3012,11 +3145,31 @@ async function handleDmDirectTicket(
     },
   });
 
-  const thread = await relayChannel.threads.create({
-    name: `🎫 ${user.username} - ${reason}`.slice(0, 100),
-    autoArchiveDuration: 10080,
-    reason: `Ticket DM direct de ${user.username}`,
-  });
+  const relay = relayChannel;
+  let thread: ThreadChannel;
+  try {
+    thread = await guardTicketCapacity(() => relay.threads.create({
+      name: `🎫 ${user.username} - ${reason}`.slice(0, 100),
+      autoArchiveDuration: 10080,
+      reason: `Ticket DM direct de ${user.username}`,
+    }), { guildId: relay.guildId, ticketId: ticket.id });
+  } catch (err) {
+    if (!(err instanceof TicketCapacityError)) throw err;
+    // Meme file que les autres tickets : la reprise relit le mode et le
+    // libelle sur la ligne, faute de type de ticket derriere un MP direct.
+    const locale = await resolveGuildLocale(targetGuildId, guild.preferredLocale);
+    const queued = await queueTicketWorkspace(client, {
+      guild,
+      user: { id: user.id, username: user.username },
+      ticketType: { id: '', label: 'MP Direct', mode: 'DM', staffServerRelay: true },
+      guildConfig,
+      reason,
+      description,
+      locale,
+    }, err);
+    await interaction.editReply({ content: queued.userMessage });
+    return;
+  }
 
   await prisma.ticket.update({ where: { id: ticket.id }, data: { threadId: thread.id } });
 
