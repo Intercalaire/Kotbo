@@ -8659,6 +8659,7 @@
   "e1_tickets_tab_blacklist": "Liste noire",
   "e1_tickets_tab_macros": "Réponses types",
   "e1_tickets_status_pending": "En attente",
+  "e1_tickets_status_queued": "En file d'attente",
   "e1_tickets_status_rejected": "Refusé",
   "e1_tickets_status_orphaned": "Salon supprimé",
   "e1_tickets_sec_gatekeeping_title": "Validation et verrouillage",

@@ -620,6 +620,7 @@
   function getStatusLabel(status: string) {
     switch (status) {
       case 'PENDING': return m.e1_tickets_status_pending();
+      case 'QUEUED': return m.e1_tickets_status_queued();
       case 'OPEN': return m.e1_tickets_status_open();
       case 'CLAIMED': return m.e1_tickets_status_claimed();
       case 'CLOSED': return m.e1_tickets_status_closed();
@@ -633,6 +634,8 @@
   function getStatusColor(status: string) {
     switch (status) {
       case 'PENDING': return 'bg-sky-500/10 text-sky-400 border-sky-500/20';
+      // Même teinte que l'attente de validation : le ticket n'a pas encore de salon.
+      case 'QUEUED': return 'bg-sky-500/10 text-sky-400 border-sky-500/20';
       case 'OPEN': return 'bg-success/10 text-success border-success/20';
       case 'CLAIMED': return 'bg-warning/10 text-warning border-warning/20';
       case 'CLOSED': return 'bg-error/10 text-error border-error/20';

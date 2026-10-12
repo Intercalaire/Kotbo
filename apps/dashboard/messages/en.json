@@ -8659,6 +8659,7 @@
   "e1_tickets_tab_blacklist": "Blocklist",
   "e1_tickets_tab_macros": "Macros",
   "e1_tickets_status_pending": "Pending",
+  "e1_tickets_status_queued": "Queued",
   "e1_tickets_status_rejected": "Rejected",
   "e1_tickets_status_orphaned": "Channel deleted",
   "e1_tickets_sec_gatekeeping_title": "Approval & locking",
