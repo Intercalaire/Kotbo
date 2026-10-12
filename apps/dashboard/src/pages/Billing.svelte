@@ -33,6 +33,20 @@
    * dit ce qui change, et propose une seule suite.
    */
   let justPaid = $state(false);
+  /**
+   * Le serveur a grandi au-dela de la tranche de son offre. C'est un des trois
+   * moments ou proposer l'offre superieure ne force rien : la limite est
+   * franchie, on dit ce que l'offre adaptee lui apporte au lieu de bloquer.
+   */
+  const outgrown = $derived.by(() => {
+    if (!status?.hasSubscription || !status.eligiblePlan) return null;
+    if (rank(status.eligiblePlan) <= rank(currentPlan)) return null;
+    const current = (status.plans ?? []).find((plan) => plan.key === currentPlan);
+    const next = (status.plans ?? []).find((plan) => plan.key === status?.eligiblePlan);
+    if (!current?.memberRange || !next) return null;
+    return { current, next, members: status.memberCount ?? null };
+  });
+
   const paidPlan = $derived((status?.plans ?? []).find((plan) => plan.key === status?.plan && plan.key !== 'FREE') ?? null);
 
   /** Offre dont le bouton est en cours de traitement, pour ne pas figer toute la page. */
@@ -169,6 +183,18 @@
       </p>
     </div>
   </header>
+
+  {#if outgrown && !justPaid}
+    <Callout variant="info" icon="trending-up" title="Ton serveur a grandi">
+      {outgrown.members !== null
+        ? `Il compte ${outgrown.members.toLocaleString('fr-FR')} membres, au-delà de la tranche de l'offre ${outgrown.current.name}.`
+        : `Il a dépassé la tranche de l'offre ${outgrown.current.name}.`}
+      L'offre {outgrown.next.name} est faite pour sa taille : {outgrown.next.description}
+      {#snippet actions()}
+        <Button variant="primary" size="sm" iconRight="ArrowRight" loading={pending === 'portal'} onclick={manage}>Passer à l'offre {outgrown.next.name}</Button>
+      {/snippet}
+    </Callout>
+  {/if}
 
   {#if justPaid}
     <Callout
