@@ -64,9 +64,9 @@ export const moderationItems: PageConfig[] = [
  * (entree -> contenu -> identite -> suite donnee) plutot que l'historique
  * des modules, qui avait disperse une meme fonction sur plusieurs pages.
  *
- * Deux sous-pages gardent une entree a elles tant que leur onglet d'accueil
- * n'existe pas : les pseudos sous Filtres, et les appels de ban sous Sanctions
- * - sans entree, /security/sanctions/appeals n'etait plus atteignable au clic.
+ * Les pseudos et les appels de ban sont des onglets de Filtres et de
+ * Sanctions : leurs entrees restent declarees (droits d'acces, palette) mais
+ * quittent le menu, qui depassait sept lignes.
  * AegisAI a quitte les onglets de Filtres pour sa propre page : reglages,
  * file de revue et modules derives en faisaient une page dans la page.
  */
@@ -75,11 +75,11 @@ export const securityItems: PageConfig[] = [
   { name: m.nav_security_quick_setup(), icon: "sparkles",    href: "/security/quick-setup", featureKey: "automod", beta: false, wip: false, hidden: true },
   { name: m.nav_security_antiraid(),  icon: "shieldwarning", href: "/security/anti-raid", featureKey: "raid_protection", beta: false, wip: false },
   { name: m.nav_security_filters(),   icon: "shield-alert",  href: "/security/filters",   featureKey: "automod", beta: false, wip: false },
-  { name: m.nav_nicknames(),          icon: "user",          href: "/security/filters/nicknames", featureKey: "nickname_moderation", beta: false, wip: false },
+  { name: m.nav_nicknames(),          icon: "user",          href: "/security/filters/nicknames", featureKey: "nickname_moderation", beta: false, wip: false, hidden: true },
   { name: m.nav_aegis(),              icon: "sparkles",      href: "/security/aegis",     featureKey: "automod", beta: false, wip: false },
   { name: m.nav_security_accounts(),  icon: "shield",        href: "/security/accounts",  featureKey: "double_accounts", beta: false, wip: false },
   { name: m.nav_security_sanctions(), icon: "alert-triangle",href: "/security/sanctions", featureKey: "sanctions", beta: false, wip: false },
-  { name: m.nav_ban_appeals(),        icon: "gavel",         href: "/security/sanctions/appeals", featureKey: "ban_appeals", beta: false, wip: false },
+  { name: m.nav_ban_appeals(),        icon: "gavel",         href: "/security/sanctions/appeals", featureKey: "ban_appeals", beta: false, wip: false, hidden: true },
 ];
 
 /**

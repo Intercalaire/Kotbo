@@ -113,6 +113,9 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
     { id: 'behavioral', label: () => m.am_tab_behavioral(), icon: 'activity' },
     { id: 'exceptions', label: () => m.am_tab_exceptions(), icon: 'filter' },
     { id: 'simulator', label: () => m.sim_tab_label(), icon: 'history' },
+    // Page a part (/security/filters/nicknames), rangee ici en onglet : elle
+    // n'occupe plus de ligne dans le menu, qui depassait sept entrees.
+    { id: 'nicknames', label: () => m.nav_nicknames(), icon: 'user' },
   ],
 
   '/security/filters/nicknames': [
@@ -131,6 +134,8 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
   '/security/sanctions': [
     { id: 'sanctions', label: () => m.sc_tab_history(), icon: 'alert-triangle' },
     { id: 'settings', label: () => m.sc_tab_configuration(), icon: 'settings' },
+    // Meme raison que les pseudos : /security/sanctions/appeals devient un onglet.
+    { id: 'appeals', label: () => m.nav_ban_appeals(), icon: 'gavel' },
   ],
 
   // ── Progression ───────────────────────────────────────────────────────────
