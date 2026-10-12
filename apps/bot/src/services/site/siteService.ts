@@ -12,6 +12,7 @@ import type { CommunitySite, SitePage, SitePageKind, SiteVisibility } from '@pri
 import prisma from '../../utils/db.js';
 import { cache } from '../../utils/cache.js';
 import { resolveDashboardAccess } from '../../api/shared.js';
+import { isModuleEnabled } from '../core/moduleGate.js';
 
 const SITE_TTL_SECONDS = 30;
 const SLUG_TTL_SECONDS = 300;
@@ -139,6 +140,15 @@ export async function getSiteByGuild(guildId: string): Promise<SiteRecord | null
     prisma.communitySite.findUnique({ where: { guildId }, select: SITE_SELECT }),
   );
   return site ? reviveDates(site, ['updatedAt', 'suspendedAt']) : null;
+}
+
+/**
+ * Site que les visiteurs peuvent ouvrir : publié, non suspendu, et module Site
+ * actif. Le rendu répond 404 sans le module : aucun lien ne doit y mener.
+ */
+export async function isSiteReachable(site: Pick<SiteRecord, 'guildId' | 'published' | 'suspendedAt'> | null): Promise<boolean> {
+  if (!site || !site.published || site.suspendedAt) return false;
+  return isModuleEnabled(site.guildId, 'site');
 }
 
 export type SiteLookup =

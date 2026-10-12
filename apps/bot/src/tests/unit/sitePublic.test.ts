@@ -8,6 +8,7 @@ import { buildSnippet, searchTerms } from '../../services/site/siteSearch.js';
 import { createPreviewToken, verifyPreviewToken } from '../../services/site/sitePreview.js';
 import { deviceOf, isBotUserAgent, isSiteJoinSource, referrerHost, retentionOf } from '../../services/site/siteAnalyticsService.js';
 import { renderSiteShell, renderThemeCss, safeBannerUrl, safeJson } from '../../services/site/siteLayout.js';
+import { legacyRedirectEnabled } from '../../services/site/siteRedirects.js';
 import type { SiteRecord } from '../../services/site/siteService.js';
 
 describe('CSP du site', () => {
@@ -21,6 +22,14 @@ describe('CSP du site', () => {
 
   test('seule la page d’intégration accepte d’être encadrée', () => {
     expect(siteCsp('abc', 'https://api.kotbo.fr', true)).toContain('frame-ancestors *');
+  });
+});
+
+describe('redirection des anciennes pages', () => {
+  test('active par défaut, coupée seulement par un refus explicite', () => {
+    expect(legacyRedirectEnabled({ settings: {} })).toBe(true);
+    expect(legacyRedirectEnabled({ settings: { legacyRedirect: true } })).toBe(true);
+    expect(legacyRedirectEnabled({ settings: { legacyRedirect: false } })).toBe(false);
   });
 });
 

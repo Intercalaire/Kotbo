@@ -14,6 +14,7 @@ import {
   checkPageAccess,
   getPublishedPageById,
   getSiteById,
+  isSiteReachable,
   resolveSiteViewer,
   type SiteRecord,
   type SiteViewer,
@@ -77,7 +78,7 @@ function localeOf(c: Context) {
 
 async function liveSite(c: Context): Promise<SiteRecord | null> {
   const site = await getSiteById(c.req.param('siteId') ?? '');
-  return site && site.published && !site.suspendedAt ? site : null;
+  return site && (await isSiteReachable(site)) ? site : null;
 }
 
 async function viewerFor(client: Client, c: Context, site: SiteRecord): Promise<SiteViewer | null> {

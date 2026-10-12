@@ -13978,6 +13978,8 @@
   "ste_launch_needs_plan": "La mise en ligne demande une offre qui comprend le site. L’aperçu privé reste disponible en attendant.",
   "ste_hero_pulse": "Pouls du serveur sur l’accueil",
   "ste_hero_pulse_hint": "En ligne, vocal, salons actifs et rythme du jour, en direct dans la bannière d’accueil.",
+  "ste_legacy_redirect": "Envoyer les anciens liens vers le site",
+  "ste_legacy_redirect_hint": "Formulaire de débannissement, formulaires, classements, giveaways, clans et actualités ouvrent la page du site qui porte le même bloc. Coupé, les liens mènent aux pages d’origine ; les deux restent accessibles.",
   "ste_funnel_title": "Ce que le site rapporte",
   "ste_funnel_desc": "Des visites jusqu’aux membres qui restent, sur la période.",
   "ste_funnel_visitors": "Visiteurs",

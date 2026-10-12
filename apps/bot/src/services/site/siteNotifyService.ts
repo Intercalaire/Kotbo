@@ -13,7 +13,7 @@ import { cache } from '../../utils/cache.js';
 import { logger } from '../../utils/logger.js';
 import { resolveGuildLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
-import { getSiteByGuild } from './siteService.js';
+import { getSiteByGuild, isSiteReachable } from './siteService.js';
 import { publishGuildSignal } from './siteLive.js';
 
 /** Délai minimal entre deux MP pour un même ticket. */
@@ -26,7 +26,7 @@ export async function getSiteNotificationPrefs(guildId: string, userId: string):
 
 export async function siteUrl(guildId: string, path = ''): Promise<string | null> {
   const site = await getSiteByGuild(guildId);
-  if (!site || !site.published || site.suspendedAt) return null;
+  if (!site || !(await isSiteReachable(site))) return null;
   const { getDashboardUrl } = await import('../../api/shared.js');
   return `${getDashboardUrl().replace(/\/$/, '')}/s/${site.slug}${path}`;
 }
@@ -46,7 +46,7 @@ export async function notifySiteMember(client: Client, guildId: string, userId: 
   const prefs = await getSiteNotificationPrefs(guildId, userId);
   if (!prefs[kind]) return false;
   const site = await getSiteByGuild(guildId);
-  if (!site || !site.published || site.suspendedAt) return false;
+  if (!site || !(await isSiteReachable(site))) return false;
 
   const guild = client.guilds.cache.get(guildId);
   const locale = (await resolveGuildLocale(guildId, guild?.preferredLocale)) === 'en' ? 'en' : 'fr';

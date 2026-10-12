@@ -28,7 +28,7 @@ export interface CommunitySite {
   navigation: SiteNavItem[];
   homePageId: string | null;
   staffPage: { bio?: boolean; absence?: boolean; seniority?: boolean; stats?: boolean };
-  settings: { commentsByDefault?: boolean; showMemberCount?: boolean; heroPulse?: boolean; auto?: unknown };
+  settings: { commentsByDefault?: boolean; showMemberCount?: boolean; heroPulse?: boolean; legacyRedirect?: boolean; auto?: unknown };
   /** Récompenses de l'activité sur le site (voir `normalizeSiteRewards`). */
   rewards: Record<string, unknown>;
   wikiEditorRoleIds: string[];

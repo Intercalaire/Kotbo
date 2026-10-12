@@ -381,6 +381,10 @@ export function registerSiteTools(ctx: McpToolContext) {
         staff_page: z.object({ bio: z.boolean().optional(), absence: z.boolean().optional(), seniority: z.boolean().optional(), stats: z.boolean().optional() }).optional(),
         comments_by_default: z.boolean().optional(),
         hero_pulse: z.boolean().optional().describe("Pouls du serveur en direct dans la bannière d'accueil (vrai par défaut)"),
+        legacy_redirect: z
+          .boolean()
+          .optional()
+          .describe("Anciens liens (formulaire de débannissement, formulaires, classements, giveaways, clans, actualités) renvoyés vers la page du site équivalente (vrai par défaut). Faux : les liens mènent aux pages d'origine."),
         wiki_editor_role_ids: z.array(z.string()).optional(),
         blog_editor_role_ids: z.array(z.string()).optional(),
         wiki_announce_channel_id: z.string().nullable().optional(),
@@ -411,9 +415,13 @@ export function registerSiteTools(ctx: McpToolContext) {
           homePageId: args.home_page_id,
           staffPage: args.staff_page,
           settings:
-            args.comments_by_default === undefined && args.hero_pulse === undefined
+            args.comments_by_default === undefined && args.hero_pulse === undefined && args.legacy_redirect === undefined
               ? undefined
-              : { ...(args.comments_by_default === undefined ? {} : { commentsByDefault: args.comments_by_default }), ...(args.hero_pulse === undefined ? {} : { heroPulse: args.hero_pulse }) },
+              : {
+                  ...(args.comments_by_default === undefined ? {} : { commentsByDefault: args.comments_by_default }),
+                  ...(args.hero_pulse === undefined ? {} : { heroPulse: args.hero_pulse }),
+                  ...(args.legacy_redirect === undefined ? {} : { legacyRedirect: args.legacy_redirect }),
+                },
           wikiEditorRoleIds: args.wiki_editor_role_ids,
           blogEditorRoleIds: args.blog_editor_role_ids,
           wikiAnnounceChannelId: args.wiki_announce_channel_id,

@@ -1,18 +1,19 @@
 /**
  * Redirection des anciennes pages publiques vers le site du serveur.
  *
- * Quand un serveur a un site publié, ses pages publiques historiques du
+ * Quand un serveur a un site joignable, ses pages publiques historiques du
  * dashboard (appel de sanction, formulaire, classements, giveaways, clans,
  * actualités) renvoient vers la page du site qui porte le bloc équivalent.
- * Sans site, ou sans page équivalente publique, rien ne change : l'ancienne
- * page reste servie, et les liens déjà envoyés (MP d'appel notamment)
- * continuent de marcher.
+ * Sans site joignable (hors ligne, suspendu, module Site coupé), sans page
+ * équivalente publique, ou quand le serveur a coupé la redirection
+ * (`settings.legacyRedirect`), rien ne change : l'ancienne page reste servie,
+ * et les liens déjà envoyés (MP d'appel notamment) continuent de marcher.
  */
 
 import { normalizeSiteDocument, type SiteNode } from '@kotbo/shared';
 import prisma from '../../utils/db.js';
 import { cache } from '../../utils/cache.js';
-import { getSiteByGuild } from './siteService.js';
+import { getSiteByGuild, isSiteReachable, type SiteRecord } from './siteService.js';
 import { pageUrl } from './blocks/contentBlocks.js';
 
 export const LEGACY_PAGE_KINDS = ['appeal', 'news', 'leaderboard-xp', 'leaderboard-prestige', 'clans', 'clans-rpg', 'giveaways'] as const;
@@ -43,10 +44,23 @@ function documentHas(content: unknown, target: { module: string; variant?: strin
   return found;
 }
 
+/** Redirection des anciennes pages voulue par le serveur (oui par défaut). */
+export function legacyRedirectEnabled(site: Pick<SiteRecord, 'settings'>): boolean {
+  const settings = (site.settings ?? {}) as { legacyRedirect?: unknown };
+  return settings.legacyRedirect !== false;
+}
+
+/** Site vers lequel rediriger les anciennes pages d'un serveur, ou nul. */
+async function redirectSite(guildId: string): Promise<SiteRecord | null> {
+  const site = await getSiteByGuild(guildId);
+  if (!site || !legacyRedirectEnabled(site) || !(await isSiteReachable(site))) return null;
+  return site;
+}
+
 /** Chemin du site (`/s/<slug>/…`) qui remplace une ancienne page, ou nul. */
 export async function resolveLegacyRedirect(guildId: string, kind: LegacyPageKind): Promise<string | null> {
-  const site = await getSiteByGuild(guildId);
-  if (!site || !site.published || site.suspendedAt) return null;
+  const site = await redirectSite(guildId);
+  if (!site) return null;
   const basePath = `/s/${site.slug}`;
   return cache.wrap(`guild:${guildId}:site-redirect:${kind}`, 300, async () => {
     const pages = await prisma.sitePage.findMany({
@@ -68,7 +82,6 @@ export async function resolveFormRedirect(formId: string): Promise<string | null
   if (!/^[a-z0-9]{20,32}$/i.test(formId)) return null;
   const form = await prisma.customForm.findFirst({ where: { id: formId, isActive: true }, select: { guildId: true } });
   if (!form) return null;
-  const site = await getSiteByGuild(form.guildId);
-  if (!site || !site.published || site.suspendedAt) return null;
-  return `/s/${site.slug}/form/${formId}`;
+  const site = await redirectSite(form.guildId);
+  return site ? `/s/${site.slug}/form/${formId}` : null;
 }

@@ -26,6 +26,7 @@
   let staffPage = $state({ bio: true, absence: true, seniority: true, stats: false, ...(initial.staffPage ?? {}) });
   let commentsByDefault = $state(initial.settings?.commentsByDefault !== false);
   let heroPulse = $state(initial.settings?.heroPulse !== false);
+  let legacyRedirect = $state(initial.settings?.legacyRedirect !== false);
   let wikiEditors = $state<string[]>([...initial.wikiEditorRoleIds]);
   let blogEditors = $state<string[]>([...initial.blogEditorRoleIds]);
   let wikiChannel = $state(initial.wikiAnnounceChannelId ?? '');
@@ -54,7 +55,7 @@
         name: name.trim() || null,
         tagline: tagline.trim() || null,
         staffPage,
-        settings: { ...site.settings, commentsByDefault, heroPulse },
+        settings: { ...site.settings, commentsByDefault, heroPulse, legacyRedirect },
         wikiEditorRoleIds: wikiEditors,
         blogEditorRoleIds: blogEditors,
         wikiAnnounceChannelId: wikiChannel || null,
@@ -124,6 +125,10 @@
       <label class="flex items-start gap-3 text-body-sm text-on-surface md:col-span-2">
         <ToggleSwitch size="sm" checked={heroPulse} ariaLabel={m.ste_hero_pulse()} onToggle={(v) => (heroPulse = v)} />
         <span><span class="block">{m.ste_hero_pulse()}</span><span class="block text-2xs text-on-surface-variant">{m.ste_hero_pulse_hint()}</span></span>
+      </label>
+      <label class="flex items-start gap-3 text-body-sm text-on-surface md:col-span-2">
+        <ToggleSwitch size="sm" checked={legacyRedirect} ariaLabel={m.ste_legacy_redirect()} onToggle={(v) => (legacyRedirect = v)} />
+        <span><span class="block">{m.ste_legacy_redirect()}</span><span class="block text-2xs text-on-surface-variant">{m.ste_legacy_redirect_hint()}</span></span>
       </label>
       {#if slugChanged}<div class="md:col-span-2"><Callout variant="info">{m.ste_slug_redirect_note()}</Callout></div>{/if}
     </div>

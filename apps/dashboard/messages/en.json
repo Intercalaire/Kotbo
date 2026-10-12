@@ -13978,6 +13978,8 @@
   "ste_launch_needs_plan": "Going online requires a plan that includes the site. The private preview stays available meanwhile.",
   "ste_hero_pulse": "Server pulse on the home page",
   "ste_hero_pulse_hint": "Online, voice, busy channels and today’s rhythm, live in the home banner.",
+  "ste_legacy_redirect": "Send old links to the site",
+  "ste_legacy_redirect_hint": "Unban form, forms, leaderboards, giveaways, clans and news open the site page that carries the same block. Off, links lead to the original pages; both stay reachable.",
   "ste_funnel_title": "What the site brings in",
   "ste_funnel_desc": "From visits to members who stay, over the period.",
   "ste_funnel_visitors": "Visitors",

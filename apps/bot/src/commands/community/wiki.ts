@@ -14,7 +14,7 @@ import { getCommandMetadata, getEffectiveLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 import prisma from '../../utils/db.js';
 import { getDashboardUrl } from '../../api/shared.js';
-import { getSiteByGuild, listPublishedPages } from '../../services/site/siteService.js';
+import { getSiteByGuild, isSiteReachable, listPublishedPages } from '../../services/site/siteService.js';
 import { searchSite } from '../../services/site/siteSearch.js';
 
 /**
@@ -41,10 +41,10 @@ const data = new SlashCommandBuilder()
       .setAutocomplete(true),
   );
 
-/** Site publié du serveur, ou nul. */
+/** Site joignable du serveur, ou nul. */
 async function liveSite(guildId: string) {
   const site = await getSiteByGuild(guildId);
-  return site && site.published && !site.suspendedAt ? site : null;
+  return site && (await isSiteReachable(site)) ? site : null;
 }
 
 function siteBase(slug: string): string {
