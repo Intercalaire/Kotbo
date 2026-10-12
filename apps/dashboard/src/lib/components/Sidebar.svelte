@@ -332,10 +332,14 @@
   </button>
 
   <div class="flex items-center gap-2.5 px-4 h-14 shrink-0 {isCollapsed ? 'lg:justify-center lg:px-0' : ''}">
-    <img alt={brandingStore.brandName} src={LOGO_URL} class="w-7 h-7 shrink-0 object-cover rounded-lg" />
+    <!-- Le logo ramene a l'accueil du dashboard : c'est la convention que
+         chacun attend (loi de Jakob), et jamais vers le site vitrine. -->
+    <a href="/" class="shrink-0 rounded-lg" aria-label={`${brandingStore.brandName} · ${m.nav_home()}`}>
+      <img alt="" src={LOGO_URL} class="w-7 h-7 shrink-0 object-cover rounded-lg" />
+    </a>
 
     {#if !isCollapsed}
-      <span class="flex-1 min-w-0 text-sm font-semibold text-on-surface truncate font-headline">{brandingStore.brandName}</span>
+      <a href="/" class="flex-1 min-w-0 text-sm font-semibold text-on-surface truncate font-headline hover:text-primary transition-colors">{brandingStore.brandName}</a>
       {#if isStaffServerGuild}
         <span class="shrink-0 px-1.5 py-0.5 rounded-md text-2xs font-medium bg-primary/10 text-primary">Staff</span>
       {/if}
