@@ -1,6 +1,8 @@
 import { dashboardFetch } from '../api';
 import { authStore } from './auth.svelte';
 import { announceNotifications, onNotificationOpened } from '../notificationAlerts';
+import { categoryOf } from '../notificationCategories';
+import { userPrefs } from './userPreferences.svelte';
 
 export type Notification = {
   id: string;
@@ -49,14 +51,26 @@ class NotificationsStore {
           !this.knownIds.has(n.id) &&
           now - Date.parse(n.createdAt) < NotificationsStore.ANNOUNCE_WITHIN_MS,
       );
-      if (fresh.length > 0) void announceNotifications(fresh);
+      const wanted = fresh.filter((n) => this.isWanted(n));
+      if (wanted.length > 0) void announceNotifications(wanted);
     }
     this.knownIds = new Set(incoming.map((n) => n.id));
     this.knownGuildId = guildId;
   }
 
+  /** La personne a choisi de recevoir cette famille de notifications. */
+  isWanted(notification: Notification): boolean {
+    const muted = userPrefs.prefs.mutedNotificationCategories ?? [];
+    return !muted.includes(categoryOf(notification.link));
+  }
+
+  /** Ce que la cloche affiche : sans les familles coupees dans les preferences. */
+  get visibleItems() {
+    return this.items.filter((n) => this.isWanted(n));
+  }
+
   get unreadCount() {
-    return this.items.filter(n => !n.isRead).length;
+    return this.visibleItems.filter(n => !n.isRead).length;
   }
 
   async fetchNotifications(force = false): Promise<void> {

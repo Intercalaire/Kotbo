@@ -129,19 +129,19 @@
       </div>
 
       <div class="flex-1 overflow-y-auto">
-        {#if notificationsStore.loading && notificationsStore.items.length === 0}
+        {#if notificationsStore.loading && notificationsStore.visibleItems.length === 0}
           <div class="p-6 flex flex-col items-center text-on-surface-variant">
             <Papicon icon="refresh-cw" size={20} class="animate-spin mb-2" />
             <span class="text-xs">{m.notif_loading()}</span>
           </div>
-        {:else if notificationsStore.items.length === 0}
+        {:else if notificationsStore.visibleItems.length === 0}
           <div class="p-6 flex flex-col items-center text-on-surface-variant/40">
             <Papicon icon="bell-off" size={24} class="mb-2" />
             <span class="text-xs">{m.notif_empty()}</span>
           </div>
         {:else}
           <div class="flex flex-col">
-            {#each notificationsStore.items as notif}
+            {#each notificationsStore.visibleItems as notif}
               <div
                 class="flex gap-3 px-3 py-2.5 border-b border-outline-variant last:border-0 hover:bg-surface-container transition-colors cursor-pointer {notif.isRead ? 'opacity-60' : ''}"
                 onclick={() => openNotification(notif)}
