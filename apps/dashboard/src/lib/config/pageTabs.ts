@@ -202,15 +202,9 @@ export const PAGE_TABS: Record<string, PageTabConfig[]> = {
 
   '/site': [
     { id: 'apercu', label: () => m.ste_tab_overview(), icon: 'layout' },
-    { id: 'pages', label: () => m.ste_tab_pages(), icon: 'file-text' },
-    { id: 'wiki', label: () => m.ste_tab_wiki(), icon: 'book-open' },
-    { id: 'blog', label: () => m.ste_tab_blog(), icon: 'edit-2' },
+    { id: 'contenu', label: () => m.ste_tab_content(), icon: 'file-text' },
     { id: 'apparence', label: () => m.ste_tab_appearance(), icon: 'palette' },
-    { id: 'menu', label: () => m.ste_tab_menu(), icon: 'menu' },
-    { id: 'votes', label: () => m.ste_tab_votes(), icon: 'trending-up' },
-    { id: 'forum', label: () => m.ste_tab_forum(), icon: 'message-circle' },
-    { id: 'commentaires', label: () => m.ste_tab_comments(), icon: 'message-square' },
-    { id: 'frequentation', label: () => m.ste_tab_traffic(), icon: 'trending-up' },
+    { id: 'croissance', label: () => m.ste_tab_growth(), icon: 'trending-up' },
     { id: 'reglages', label: () => m.ste_tab_settings(), icon: 'settings' },
   ],
 

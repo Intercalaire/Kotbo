@@ -1,21 +1,14 @@
 <script lang="ts">
   /**
-   * Aperçu du site : en ligne ou non, adresse, fréquentation récente, pages à
-   * reprendre, et la fiche de la personne connectée pour la page Équipe.
+   * Aperçu du site : en ligne ou non, adresse, contenu, pages à reprendre, et
+   * la fiche de la personne connectée pour la page Équipe. La fréquentation
+   * s'affiche dessous, dans la même vue (SiteAnalyticsPanel).
    */
   import { onMount } from 'svelte';
   import { Button, Field, SectionCard, ToggleSwitch } from '../ui';
   import { toast } from '../../stores/toast.svelte';
   import { m, dateLocale } from '../../i18n';
-  import {
-    fetchSiteAnalytics,
-    fetchSiteStaffProfile,
-    updateSite,
-    updateSiteStaffProfile,
-    type SiteAnalyticsReport,
-    type SitePageSummary,
-    type SiteState,
-  } from '../../api/site';
+  import { fetchSiteStaffProfile, updateSite, updateSiteStaffProfile, type SitePageSummary, type SiteState } from '../../api/site';
   import { siteErrorMessage } from './siteErrors';
 
   let { siteState, guildId, onChanged }: { siteState: SiteState; guildId: string; onChanged: () => void } = $props();
@@ -23,16 +16,11 @@
   const site = $derived(siteState.site!);
   const url = $derived(`${siteState.baseUrl}${site.slug}`);
   let publishing = $state(false);
-  let report = $state<SiteAnalyticsReport | null>(null);
   let profile = $state<{ isStaff: boolean; bio: string; hidden: boolean } | null>(null);
   let savingProfile = $state(false);
 
   onMount(async () => {
-    const [r, p] = await Promise.all([
-      siteState.rights.viewStats ? fetchSiteAnalytics(7, guildId).catch(() => null) : Promise.resolve(null),
-      fetchSiteStaffProfile(guildId).catch(() => null),
-    ]);
-    report = r?.report ?? null;
+    const p = await fetchSiteStaffProfile(guildId).catch(() => null);
     profile = p?.profile ?? null;
   });
 
@@ -81,12 +69,6 @@
       .slice(0, 6),
   );
 
-  function delta(now: number, before: number): string {
-    if (!before) return now ? '+∞' : '0';
-    const pct = Math.round(((now - before) / before) * 100);
-    return `${pct > 0 ? '+' : ''}${pct} %`;
-  }
-
   const kindLabel = (p: SitePageSummary) => (p.kind === 'WIKI' ? m.ste_kind_wiki() : p.kind === 'BLOG' ? m.ste_kind_blog() : m.ste_kind_page());
 </script>
 
@@ -125,25 +107,13 @@
     </div>
   </SectionCard>
 
-  <div class="bento-row">
-    <SectionCard title={m.ste_overview_content()} icon="file-text">
-      <ul class="px-5 pb-5 counts">
-        <li><strong>{counts.PAGE}</strong><span>{m.ste_kind_pages()}</span></li>
-        {#if siteState.modules.site_wiki}<li><strong>{counts.WIKI}</strong><span>{m.ste_kind_wiki()}</span></li>{/if}
-        {#if siteState.modules.site_blog}<li><strong>{counts.BLOG}</strong><span>{m.ste_kind_blog()}</span></li>{/if}
-      </ul>
-    </SectionCard>
-
-    {#if report}
-      <SectionCard title={m.ste_overview_traffic()} icon="trending-up">
-        <ul class="px-5 pb-5 counts">
-          <li><strong>{report.totals.views}</strong><span>{m.ste_views()} · {delta(report.totals.views, report.previous.views)}</span></li>
-          <li><strong>{report.totals.visitors}</strong><span>{m.ste_visitors()} · {delta(report.totals.visitors, report.previous.visitors)}</span></li>
-          {#if report.funnel.attributable}<li><strong>{report.funnel.arrivals}</strong><span>{m.ste_funnel_arrivals_short()}</span></li>{/if}
-        </ul>
-      </SectionCard>
-    {/if}
-  </div>
+  <SectionCard title={m.ste_overview_content()} icon="file-text">
+    <ul class="px-5 pb-5 counts">
+      <li><strong>{counts.PAGE}</strong><span>{m.ste_kind_pages()}</span></li>
+      {#if siteState.modules.site_wiki}<li><strong>{counts.WIKI}</strong><span>{m.ste_kind_wiki()}</span></li>{/if}
+      {#if siteState.modules.site_blog}<li><strong>{counts.BLOG}</strong><span>{m.ste_kind_blog()}</span></li>{/if}
+    </ul>
+  </SectionCard>
 
   {#if toResume.length > 0}
     <SectionCard title={m.ste_overview_resume()} description={m.ste_overview_resume_desc()} icon="edit-2">
@@ -183,7 +153,6 @@
   .launch-kicker { margin: 0; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-primary); }
   .launch-title { margin: 4px 0 6px; font-size: 1.35rem; font-weight: 700; color: var(--color-on-surface); }
   .launch-desc { max-width: 62ch; }
-  .bento-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
   .counts { list-style: none; margin: 0; display: flex; flex-wrap: wrap; gap: 24px; }
   .counts li { display: flex; flex-direction: column; }
   .counts strong { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }

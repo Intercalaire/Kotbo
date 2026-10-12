@@ -81,7 +81,7 @@
     return `hsl(${hash % 360} 70% 55%)`;
   }
 
-  const kindRoot = $derived(fromSpace ? '/me' : page?.kind === 'WIKI' ? '/site/wiki' : page?.kind === 'BLOG' ? '/site/blog' : '/site/pages');
+  const kindRoot = $derived(fromSpace ? '/me' : page?.kind === 'WIKI' ? '/site/wiki' : page?.kind === 'BLOG' ? '/site/blog' : '/site/contenu');
   const publicUrl = $derived.by(() => {
     if (!siteState?.site || !page) return null;
     const base = `${siteState.baseUrl}${siteState.site.slug}`;

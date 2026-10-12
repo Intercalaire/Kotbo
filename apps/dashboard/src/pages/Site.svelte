@@ -1,14 +1,19 @@
 <script lang="ts">
   /**
-   * Site communautaire : création depuis un modèle, puis gestion du site
-   * (pages, wiki, blog, apparence, menu, commentaires, fréquentation,
-   * réglages). L'édition d'une page ouvre l'éditeur WYSIWYG (/site/edit/:id).
+   * Site communautaire : création depuis un modèle, puis gestion du site en
+   * cinq onglets (aperçu et fréquentation, contenu, apparence et menu,
+   * croissance : votes et forum, réglages). L'édition d'une page ouvre
+   * l'éditeur WYSIWYG (/site/edit/:id).
+   *
+   * Les anciennes adresses d'onglet restent valables : /site/wiki, /site/blog
+   * et /site/commentaires ouvrent Contenu sur le bon filtre (l'éditeur et le
+   * registre des modules y renvoient), /site/menu ouvre Apparence, etc.
    */
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
-  import { Button, Callout, EmptyState, Tabs } from '../lib/components/ui';
+  import { Button, Callout, EmptyState, FilterPills, Tabs, type FilterOption } from '../lib/components/ui';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { pageTabItems } from '../lib/config/pageTabs';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -27,8 +32,21 @@
   import SiteVotes from '../lib/components/site/SiteVotes.svelte';
   import SiteForum from '../lib/components/site/SiteForum.svelte';
 
-  const TABS = ['apercu', 'pages', 'wiki', 'blog', 'apparence', 'menu', 'votes', 'forum', 'commentaires', 'frequentation', 'reglages'] as const;
+  const TABS = ['apercu', 'contenu', 'apparence', 'croissance', 'reglages'] as const;
   type Tab = (typeof TABS)[number];
+  type ContentView = 'pages' | 'wiki' | 'blog' | 'commentaires';
+
+  // Anciens onglets → onglet qui les porte désormais.
+  const LEGACY_TABS: Record<string, Tab> = {
+    pages: 'contenu',
+    wiki: 'contenu',
+    blog: 'contenu',
+    commentaires: 'contenu',
+    menu: 'apparence',
+    votes: 'croissance',
+    forum: 'croissance',
+    frequentation: 'apercu',
+  };
 
   const guildId = $derived(authStore.selectedGuildId ?? '');
   let siteState = $state<SiteState | null>(null);
@@ -40,9 +58,10 @@
   let composing = $state(false);
   let instantFailed = $state(false);
 
+  const segment = $derived(decodeURIComponent($router.path.split('/')[2] ?? ''));
   const active = $derived.by<Tab>(() => {
     void $router.path;
-    return resolveTabFromUrl('/site', TABS, 'apercu') as Tab;
+    return LEGACY_TABS[segment] ?? (resolveTabFromUrl('/site', TABS, 'apercu') as Tab);
   });
 
   async function load() {
@@ -72,14 +91,27 @@
   onMount(load);
 
   const rights = $derived(siteState?.rights);
+
+  // Filtres de l'onglet Contenu que la personne peut ouvrir.
+  const contentViews = $derived.by<FilterOption<ContentView>[]>(() => {
+    if (!siteState?.site) return [];
+    const views: FilterOption<ContentView>[] = [];
+    if (rights?.manage) views.push({ value: 'pages', label: m.ste_tab_pages() });
+    if (rights?.wiki && siteState.modules.site_wiki) views.push({ value: 'wiki', label: m.ste_tab_wiki() });
+    if (rights?.blog && siteState.modules.site_blog) views.push({ value: 'blog', label: m.ste_tab_blog() });
+    if (rights?.moderateComments && siteState.modules.site_blog) views.push({ value: 'commentaires', label: m.ste_tab_comments() });
+    return views;
+  });
+  const contentView = $derived.by<ContentView>(() => {
+    const wanted = (['wiki', 'blog', 'commentaires'] as const).find((v) => v === segment) ?? 'pages';
+    return contentViews.some((v) => v.value === wanted) ? wanted : (contentViews[0]?.value ?? 'pages');
+  });
+
   const visibleTab = (id: string) => {
     if (!siteState?.site) return false;
-    if (id === 'wiki') return Boolean(rights?.wiki) && siteState.modules.site_wiki;
-    if (id === 'blog') return Boolean(rights?.blog) && siteState.modules.site_blog;
-    if (id === 'commentaires') return Boolean(rights?.moderateComments) && siteState.modules.site_blog;
-    if (id === 'frequentation') return Boolean(rights?.viewStats);
-    if (id === 'forum') return Boolean(rights?.manage || rights?.moderateComments);
-    if (['pages', 'apparence', 'menu', 'reglages', 'votes'].includes(id)) return Boolean(rights?.manage);
+    if (id === 'contenu') return contentViews.length > 0;
+    if (id === 'croissance') return Boolean(rights?.manage || rights?.moderateComments);
+    if (id === 'apparence' || id === 'reglages') return Boolean(rights?.manage);
     return true;
   };
 </script>
@@ -118,27 +150,35 @@
 
     <Tabs label={m.nav_site()} class="mb-6" tabs={pageTabItems('/site', visibleTab)} active={active} onchange={(id) => gotoTab('/site', id, 'apercu')} />
 
-    <div class:site-locked={agentLocked} inert={agentLocked && active !== 'apercu' && active !== 'frequentation'}>
+    <div class:site-locked={agentLocked} inert={agentLocked && active !== 'apercu'}>
       {#if active === 'apercu'}
-        <SiteOverview {siteState} {guildId} onChanged={load} />
-      {:else if active === 'pages'}
-        <SitePagesList {siteState} {guildId} kind="PAGE" onChanged={load} />
-      {:else if active === 'wiki'}
-        <SitePagesList {siteState} {guildId} kind="WIKI" onChanged={load} />
-      {:else if active === 'blog'}
-        <SitePagesList {siteState} {guildId} kind="BLOG" onChanged={load} />
+        <div class="stack">
+          <SiteOverview {siteState} {guildId} onChanged={load} />
+          {#if rights?.viewStats}<SiteAnalyticsPanel {guildId} />{/if}
+        </div>
+      {:else if active === 'contenu'}
+        {#if contentViews.length > 1}
+          <FilterPills class="mb-4" label={m.ste_tab_content()} options={contentViews} value={contentView} onchange={(v) => router.goto(v === 'pages' ? '/site/contenu' : `/site/${v}`)} />
+        {/if}
+        {#if contentView === 'pages'}
+          <SitePagesList {siteState} {guildId} kind="PAGE" onChanged={load} />
+        {:else if contentView === 'wiki'}
+          <SitePagesList {siteState} {guildId} kind="WIKI" onChanged={load} />
+        {:else if contentView === 'blog'}
+          <SitePagesList {siteState} {guildId} kind="BLOG" onChanged={load} />
+        {:else}
+          <SiteComments {guildId} />
+        {/if}
       {:else if active === 'apparence'}
-        <SiteAppearance {siteState} {guildId} onChanged={load} />
-      {:else if active === 'menu'}
-        <SiteNavigationEditor {siteState} {guildId} onChanged={load} />
-      {:else if active === 'votes'}
-        <SiteVotes {guildId} />
-      {:else if active === 'forum'}
-        <SiteForum {guildId} canManage={Boolean(rights?.manage)} siteUrl={`${siteState.baseUrl}${siteState.site.slug}`} />
-      {:else if active === 'commentaires'}
-        <SiteComments {guildId} />
-      {:else if active === 'frequentation'}
-        <SiteAnalyticsPanel {guildId} />
+        <div class="stack">
+          <SiteAppearance {siteState} {guildId} onChanged={load} />
+          <SiteNavigationEditor {siteState} {guildId} onChanged={load} />
+        </div>
+      {:else if active === 'croissance'}
+        <div class="stack">
+          {#if rights?.manage}<SiteVotes {guildId} />{/if}
+          <SiteForum {guildId} canManage={Boolean(rights?.manage)} siteUrl={`${siteState.baseUrl}${siteState.site.slug}`} />
+        </div>
       {:else if active === 'reglages'}
         <SiteSettings {siteState} {catalog} {guildId} onChanged={load} />
       {/if}
@@ -149,4 +189,5 @@
 <style>
   .site-locked { opacity: 0.7; }
   .composing { padding: 8px 0; }
+  .stack { display: flex; flex-direction: column; gap: 24px; }
 </style>
