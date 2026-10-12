@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { m } from '../lib/i18n';
   import { canViewFeature } from '../lib/permissions.svelte';
   import { onMount, onDestroy } from 'svelte';
@@ -959,7 +960,7 @@
                 {#if selectedTicketDetail.channelId && selectedTicketDetail.mode !== 'DM'}
                   <div class="mt-3 flex gap-2 items-center">
                     <FormInput type="text" bind:value={ticketRenameName} placeholder={m.e1_tickets_rename_ph()} className="flex-1" />
-                    <button onclick={renameTicket} disabled={renameAction.state.loading || !ticketRenameName.trim()}
+                    <button onclick={renameTicket} disabled={renameAction.state.loading} use:explainDisabled={(!ticketRenameName.trim()) ? m.common_reason_fill_field() : ''}
                       class="px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg text-xs font-semibold hover:bg-primary hover:text-white transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center gap-1.5 shrink-0"
                     >
                       <Papicon icon="edit" size={12} />
@@ -1162,7 +1163,7 @@
               />
               <button
                 onclick={sendMessage}
-                disabled={!chatInput.trim()}
+                use:explainDisabled={(!chatInput.trim()) ? m.common_reason_fill_field() : ''}
                 class="w-11 h-11 rounded-lg bg-primary text-white flex items-center justify-center active:scale-[0.98] transition-transform disabled:opacity-50 shrink-0"
               >
                 <Papicon icon="send" size={18} />

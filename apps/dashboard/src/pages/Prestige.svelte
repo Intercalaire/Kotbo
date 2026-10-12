@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   /**
    * Prestige - pilotage du classement competitif (RP).
    *
@@ -1747,7 +1748,8 @@
                   <button
                     type="button"
                     onclick={startRoleSync}
-                    disabled={roleAction.state.loading || !config.tierRolesEnabled}
+                    disabled={roleAction.state.loading}
+                    use:explainDisabled={(!config.tierRolesEnabled) ? m.common_reason_pick_role() : ''}
                     class="shrink-0 px-5 py-2.5 bg-secondary text-on-secondary text-xs font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {m.prg_roles_sync_action()}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { onMount } from 'svelte';
   import { API_BASE_URL } from '../lib/api';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -368,7 +369,7 @@
             <p class="pf-error text-xs text-error">{submitError}</p>
           {/if}
           <div class="flex justify-end">
-            <button onclick={sendInfoResponse} disabled={submitting || !infoResponseText.trim()}
+            <button onclick={sendInfoResponse} disabled={submitting} use:explainDisabled={(!infoResponseText.trim()) ? m.common_reason_fill_field() : ''}
               class="pf-submit px-6 py-2.5 rounded-xl text-white font-semibold text-sm shadow disabled:opacity-50"
               style="background:var(--form-color)">
               {submitting ? m.pa_sending() : m.pa_send_response()}

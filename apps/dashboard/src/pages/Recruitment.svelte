@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { Tabs } from '../lib/components/ui';
   import { m, dateLocale } from '../lib/i18n';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -911,7 +912,7 @@
             <button onclick={() => validateModalTarget = null} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors">{m.common_cancel()}</button>
             <button 
                onclick={() => doAction(validateModalTarget.id, 'approve', { discordUserId: validationDiscordId }).then(() => validateModalTarget = null)} 
-               disabled={!validationDiscordId}
+               use:explainDisabled={(!validationDiscordId) ? m.common_reason_fill_field() : ''}
                class="flex-1 py-4 rounded-xl font-bold bg-blue-600 text-white disabled:opacity-50 active:scale-[0.98] transition-transform shadow-sm">
                {m.recruit_validate_submit()}
             </button>
@@ -1085,7 +1086,8 @@
         <button onclick={() => showCreateModal = false} class="flex-1 py-4 rounded-xl font-bold bg-surface hover:bg-surface-hover transition-colors">{m.common_cancel()}</button>
         <button 
           onclick={createForm} 
-          disabled={createFormAction.state.loading || !newFormName.trim()}
+          disabled={createFormAction.state.loading}
+          use:explainDisabled={(!newFormName.trim()) ? m.common_reason_fill_field() : ''}
           class="flex-1 py-4 rounded-xl font-semibold bg-primary text-on-primary active:scale-[0.98] transition-all disabled:opacity-50"
         >
           {createFormAction.state.loading ? m.recruit_creating() : m.recruit_create_form_submit()}

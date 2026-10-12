@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { m } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy, untrack } from 'svelte';
@@ -694,7 +695,7 @@
                   <button
                     onclick={() => showWelcomePresets = !showWelcomePresets}
                     class="text-2xs font-bold text-primary/70 hover:text-primary flex items-center gap-1.5 transition-colors"
-                    disabled={!canManageSettings}
+                    use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                   >
                     <Papicon icon="Sparkles" size={12} />
                     <span>{m.announcements_presets()}</span>
@@ -707,7 +708,7 @@
                       <button
                         onclick={() => { config.welcomeMessage = preset.text; showWelcomePresets = false; }}
                         class="text-2xs font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all flex items-center gap-1.5"
-                        disabled={!canManageSettings}
+                        use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                       >
                         <Papicon icon={preset.icon} size={12} />
                         {preset.label}
@@ -827,7 +828,7 @@
                   <button
                     onclick={() => showLeavePresets = !showLeavePresets}
                     class="text-2xs font-bold text-primary/70 hover:text-primary flex items-center gap-1.5 transition-colors"
-                    disabled={!canManageSettings}
+                    use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                   >
                     <Papicon icon="Sparkles" size={12} />
                     <span>{m.announcements_presets()}</span>
@@ -840,7 +841,7 @@
                       <button
                         onclick={() => { config.leaveMessage = preset.text; showLeavePresets = false; }}
                         class="text-2xs font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all flex items-center gap-1.5"
-                        disabled={!canManageSettings}
+                        use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                       >
                         <Papicon icon={preset.icon} size={12} />
                         {preset.label}
@@ -919,7 +920,7 @@
                   <button
                     onclick={() => showBoostPresets = !showBoostPresets}
                     class="text-2xs font-bold text-primary/70 hover:text-primary flex items-center gap-1.5 transition-colors"
-                    disabled={!canManageSettings}
+                    use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                   >
                     <Papicon icon="Sparkles" size={12} />
                     <span>{m.announcements_presets()}</span>
@@ -932,7 +933,7 @@
                       <button
                         onclick={() => { config.boostMessage = preset.text; showBoostPresets = false; }}
                         class="text-2xs font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all flex items-center gap-1.5"
-                        disabled={!canManageSettings}
+                        use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                       >
                         <Papicon icon={preset.icon} size={12} />
                         {preset.label}
@@ -1164,7 +1165,8 @@
               <button
                 type="button"
                 onclick={handleAutoRoleRescan}
-                disabled={!canManageSettings || rescanState.state.loading}
+                disabled={rescanState.state.loading}
+                use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                 class="px-4 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all inline-flex items-center gap-2 shrink-0 disabled:opacity-50"
               >
                 <Papicon icon="refresh" size={14} class={rescanState.state.loading ? 'animate-spin' : ''} />
@@ -1225,7 +1227,7 @@
                         <button
                           type="button"
                           onclick={() => threadConfig.threadMode = 'public'}
-                          disabled={!canManageSettings}
+                          use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                           class="flex-1 px-4 py-2.5 rounded-md text-body-sm font-medium transition-all {threadConfig.threadMode === 'public' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}"
                         >
                           {m.announcements_thread_mode_public()}
@@ -1233,7 +1235,7 @@
                         <button
                           type="button"
                           onclick={() => threadConfig.threadMode = 'private'}
-                          disabled={!canManageSettings}
+                          use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                           class="flex-1 px-4 py-2.5 rounded-md text-body-sm font-medium transition-all {threadConfig.threadMode === 'private' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}"
                         >
                           {m.announcements_thread_mode_private()}
@@ -1364,7 +1366,7 @@
                             <button
                               type="button"
                               onclick={() => threadConfig.menuStyle = 'buttons'}
-                              disabled={!canManageSettings}
+                              use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                               class="flex-1 px-4 py-2.5 rounded-md text-body-sm font-medium transition-all {threadConfig.menuStyle === 'buttons' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}"
                             >
                               {m.announcements_thread_menu_style_buttons()}
@@ -1372,7 +1374,7 @@
                             <button
                               type="button"
                               onclick={() => threadConfig.menuStyle = 'select'}
-                              disabled={!canManageSettings}
+                              use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                               class="flex-1 px-4 py-2.5 rounded-md text-body-sm font-medium transition-all {threadConfig.menuStyle === 'select' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}"
                             >
                               {m.announcements_thread_menu_style_select()}
@@ -1541,13 +1543,13 @@
                       <div class="flex items-center justify-between">
                         <span class="text-xs font-semibold text-on-surface-variant">{m.announcements_thread_message_num({ n: index + 1 })}</span>
                         <div class="flex items-center gap-1">
-                          <button type="button" onclick={() => moveStep(index, -1)} disabled={!canManageSettings || index === 0} class="p-2 rounded-lg hover:bg-surface-container-high text-on-surface-variant disabled:opacity-30 transition-all" title={m.announcements_move_up()}>
+                          <button type="button" onclick={() => moveStep(index, -1)} disabled={index === 0} use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''} class="p-2 rounded-lg hover:bg-surface-container-high text-on-surface-variant disabled:opacity-30 transition-all" title={m.announcements_move_up()}>
                             <Papicon icon="ArrowUp" size={14} />
                           </button>
-                          <button type="button" onclick={() => moveStep(index, 1)} disabled={!canManageSettings || index === threadSteps.length - 1} class="p-2 rounded-lg hover:bg-surface-container-high text-on-surface-variant disabled:opacity-30 transition-all" title={m.announcements_move_down()}>
+                          <button type="button" onclick={() => moveStep(index, 1)} disabled={index === threadSteps.length - 1} use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''} class="p-2 rounded-lg hover:bg-surface-container-high text-on-surface-variant disabled:opacity-30 transition-all" title={m.announcements_move_down()}>
                             <Papicon icon="ArrowDown" size={14} />
                           </button>
-                          <button type="button" onclick={() => removeStep(index)} disabled={!canManageSettings} class="p-2 rounded-lg hover:bg-error-container/20 hover:text-error text-on-surface-variant transition-all" title={m.common_delete()}>
+                          <button type="button" onclick={() => removeStep(index)} use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''} class="p-2 rounded-lg hover:bg-error-container/20 hover:text-error text-on-surface-variant transition-all" title={m.common_delete()}>
                             <Papicon icon="Trash" size={14} />
                           </button>
                         </div>
@@ -1644,13 +1646,13 @@
                       <div class="flex items-center justify-between">
                         <span class="text-xs font-semibold text-on-surface-variant">{m.announcements_thread_page_num({ n: index + 1 })}</span>
                         <div class="flex items-center gap-1">
-                          <button type="button" onclick={() => movePage(index, -1)} disabled={!canManageSettings || index === 0} class="p-2 rounded-lg hover:bg-surface-container-high text-on-surface-variant disabled:opacity-30 transition-all" title={m.announcements_move_up()}>
+                          <button type="button" onclick={() => movePage(index, -1)} disabled={index === 0} use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''} class="p-2 rounded-lg hover:bg-surface-container-high text-on-surface-variant disabled:opacity-30 transition-all" title={m.announcements_move_up()}>
                             <Papicon icon="ArrowUp" size={14} />
                           </button>
-                          <button type="button" onclick={() => movePage(index, 1)} disabled={!canManageSettings || index === threadPages.length - 1} class="p-2 rounded-lg hover:bg-surface-container-high text-on-surface-variant disabled:opacity-30 transition-all" title={m.announcements_move_down()}>
+                          <button type="button" onclick={() => movePage(index, 1)} disabled={index === threadPages.length - 1} use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''} class="p-2 rounded-lg hover:bg-surface-container-high text-on-surface-variant disabled:opacity-30 transition-all" title={m.announcements_move_down()}>
                             <Papicon icon="ArrowDown" size={14} />
                           </button>
-                          <button type="button" onclick={() => removePage(index)} disabled={!canManageSettings} class="p-2 rounded-lg hover:bg-error-container/20 hover:text-error text-on-surface-variant transition-all" title={m.common_delete()}>
+                          <button type="button" onclick={() => removePage(index)} use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''} class="p-2 rounded-lg hover:bg-error-container/20 hover:text-error text-on-surface-variant transition-all" title={m.common_delete()}>
                             <Papicon icon="Trash" size={14} />
                           </button>
                         </div>
@@ -1693,7 +1695,7 @@
                           <button
                             type="button"
                             onclick={() => page.actionType = 'EMBED'}
-                            disabled={!canManageSettings}
+                            use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                             class="flex-1 px-3 py-2 rounded-md text-xs font-medium transition-all {page.actionType === 'EMBED' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}"
                           >
                             {m.announcements_thread_action_embed()}
@@ -1701,7 +1703,7 @@
                           <button
                             type="button"
                             onclick={() => page.actionType = 'ROLE'}
-                            disabled={!canManageSettings}
+                            use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                             class="flex-1 px-3 py-2 rounded-md text-xs font-medium transition-all {page.actionType === 'ROLE' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}"
                           >
                             {m.announcements_thread_action_role()}
@@ -1709,7 +1711,7 @@
                           <button
                             type="button"
                             onclick={() => page.actionType = 'LINK'}
-                            disabled={!canManageSettings}
+                            use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                             class="flex-1 px-3 py-2 rounded-md text-xs font-medium transition-all {page.actionType === 'LINK' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}"
                           >
                             {m.announcements_thread_action_link()}
@@ -1774,10 +1776,10 @@
                             <div class="space-y-1">
                               <span class="text-xs font-semibold text-on-surface-variant ml-1 block">{m.announcements_thread_page_role_behavior()}</span>
                               <div class="grid grid-cols-2 sm:grid-cols-4 w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 p-1 gap-1">
-                                <button type="button" onclick={() => page.roleAction = 'ADD'} disabled={!canManageSettings} class="flex-1 px-2 py-2 rounded-md text-xs font-medium transition-all {page.roleAction === 'ADD' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}">{m.announcements_role_action_add()}</button>
-                                <button type="button" onclick={() => page.roleAction = 'REMOVE'} disabled={!canManageSettings} class="flex-1 px-2 py-2 rounded-md text-xs font-medium transition-all {page.roleAction === 'REMOVE' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}">{m.announcements_role_action_remove()}</button>
-                                <button type="button" onclick={() => page.roleAction = 'TOGGLE'} disabled={!canManageSettings} class="flex-1 px-2 py-2 rounded-md text-xs font-medium transition-all {page.roleAction === 'TOGGLE' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}">{m.announcements_role_action_toggle()}</button>
-                                <button type="button" onclick={() => page.roleAction = 'EXCLUSIVE'} disabled={!canManageSettings} class="flex-1 px-2 py-2 rounded-md text-xs font-medium transition-all {page.roleAction === 'EXCLUSIVE' ? 'bg-amber-500 text-white' : 'text-on-surface-variant hover:text-on-surface'}">{m.announcements_role_action_exclusive()}</button>
+                                <button type="button" onclick={() => page.roleAction = 'ADD'} use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''} class="flex-1 px-2 py-2 rounded-md text-xs font-medium transition-all {page.roleAction === 'ADD' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}">{m.announcements_role_action_add()}</button>
+                                <button type="button" onclick={() => page.roleAction = 'REMOVE'} use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''} class="flex-1 px-2 py-2 rounded-md text-xs font-medium transition-all {page.roleAction === 'REMOVE' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}">{m.announcements_role_action_remove()}</button>
+                                <button type="button" onclick={() => page.roleAction = 'TOGGLE'} use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''} class="flex-1 px-2 py-2 rounded-md text-xs font-medium transition-all {page.roleAction === 'TOGGLE' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}">{m.announcements_role_action_toggle()}</button>
+                                <button type="button" onclick={() => page.roleAction = 'EXCLUSIVE'} use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''} class="flex-1 px-2 py-2 rounded-md text-xs font-medium transition-all {page.roleAction === 'EXCLUSIVE' ? 'bg-amber-500 text-white' : 'text-on-surface-variant hover:text-on-surface'}">{m.announcements_role_action_exclusive()}</button>
                               </div>
                             </div>
                           </div>
@@ -1827,8 +1829,8 @@
                       {:else if page.actionType === 'LINK'}
                         <div class="space-y-3 animate-in fade-in duration-200">
                           <div class="inline-flex w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 p-1 gap-1">
-                            <button type="button" onclick={() => page.linkMode = 'channel'} disabled={!canManageSettings} class="flex-1 px-3 py-2 rounded-md text-xs font-medium transition-all {page.linkMode === 'channel' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}" aria-label={m.announcements_link_server_channel()}>{m.announcements_link_server_channel()}</button>
-                            <button type="button" onclick={() => page.linkMode = 'url'} disabled={!canManageSettings} class="flex-1 px-3 py-2 rounded-md text-xs font-medium transition-all {page.linkMode === 'url' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}" aria-label={m.announcements_link_external_url()}>{m.announcements_link_external_url()}</button>
+                            <button type="button" onclick={() => page.linkMode = 'channel'} use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''} class="flex-1 px-3 py-2 rounded-md text-xs font-medium transition-all {page.linkMode === 'channel' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}" aria-label={m.announcements_link_server_channel()}>{m.announcements_link_server_channel()}</button>
+                            <button type="button" onclick={() => page.linkMode = 'url'} use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''} class="flex-1 px-3 py-2 rounded-md text-xs font-medium transition-all {page.linkMode === 'url' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}" aria-label={m.announcements_link_external_url()}>{m.announcements_link_external_url()}</button>
                           </div>
                           {#if page.linkMode === 'channel'}
                             <div class="space-y-1">

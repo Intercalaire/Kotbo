@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { m } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
@@ -464,7 +465,8 @@
             <button 
               type="button" 
               onclick={addField} 
-              disabled={embed.fields.length >= 25 || !canManageSettings}
+              disabled={embed.fields.length >= 25}
+              use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
               class="text-xs font-bold text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
             >
               <Papicon icon="Plus" size={14} /> {m.embed_builder_add_field_btn()}
@@ -568,7 +570,8 @@
           <div class="pt-6 border-t border-outline-variant/15 flex justify-end">
             <button 
               onclick={handleSend}
-              disabled={actionState.state.loading || !targetChannelId}
+              disabled={actionState.state.loading}
+              use:explainDisabled={(!targetChannelId) ? m.common_reason_pick_channel() : ''}
               class="px-8 py-3.5 bg-primary text-on-primary font-medium text-body-sm rounded-lg transition-all disabled:opacity-50"
             >
               {targetMessageId.trim() ? m.embed_builder_edit_btn() : m.embed_builder_publish_btn()}

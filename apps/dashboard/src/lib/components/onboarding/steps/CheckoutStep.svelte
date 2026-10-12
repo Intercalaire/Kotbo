@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { explainDisabled } from '../../../actions/explainDisabled';
+  import { m } from '../../../i18n';
   /**
    * La mise en service.
    *
@@ -281,7 +283,8 @@
             <button
               type="button"
               onclick={redeemCode}
-              disabled={codeBusy || !codeValue.trim()}
+              disabled={codeBusy}
+              use:explainDisabled={(!codeValue.trim()) ? m.common_reason_fill_field() : ''}
               class="shrink-0 px-3.5 py-2 rounded-lg bg-primary text-on-primary text-body-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40"
             >
               {codeBusy ? 'Vérification…' : 'Activer'}

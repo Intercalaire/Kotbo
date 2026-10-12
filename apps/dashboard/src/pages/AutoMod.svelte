@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { channelDisplayName } from '../lib/channelUtils';
   import { m } from '../lib/i18n';
   import { onMount, onDestroy, untrack } from 'svelte';
@@ -987,7 +988,7 @@
                     <button
                       type="button"
                       onclick={addAntiBotBypassUser}
-                      disabled={!antiBotBypassInput.trim() || !/^\d{17,20}$/.test(antiBotBypassInput.trim())}
+                      use:explainDisabled={(!antiBotBypassInput.trim()) ? m.common_reason_fill_field() : (!/^\d{17,20}$/.test(antiBotBypassInput.trim())) ? m.common_reason_fill_field() : ''}
                       class="px-4 py-2.5 bg-outline-variant/20 hover:bg-outline-variant/35 text-xs font-bold rounded-xl transition-all disabled:opacity-50"
                     >
                       {m.common_add()}
@@ -1068,7 +1069,7 @@
                     <button
                       type="button"
                       onclick={addAdminLockSecurityRole}
-                      disabled={!selectedAdminLockSecurityRole}
+                      use:explainDisabled={(!selectedAdminLockSecurityRole) ? m.common_reason_pick_role() : ''}
                       class="px-4 py-2.5 bg-outline-variant/20 hover:bg-outline-variant/35 text-xs font-bold rounded-xl transition-all disabled:opacity-50"
                     >
                       {m.common_add()}
@@ -1220,7 +1221,7 @@
                   <button 
                     type="button"
                     onclick={addBypassRole}
-                    disabled={!selectedBypassRole}
+                    use:explainDisabled={(!selectedBypassRole) ? m.common_reason_pick_role() : ''}
                     class="px-4 py-2.5 bg-outline-variant/20 hover:bg-outline-variant/35 text-xs font-bold rounded-xl transition-all disabled:opacity-50"
                   >
                     {m.common_add()}
@@ -1259,7 +1260,7 @@
                   <button 
                     type="button"
                     onclick={addBypassChannel}
-                    disabled={!selectedBypassChannel}
+                    use:explainDisabled={(!selectedBypassChannel) ? m.common_reason_pick_channel() : ''}
                     class="px-4 py-2.5 bg-outline-variant/20 hover:bg-outline-variant/35 text-xs font-bold rounded-xl transition-all disabled:opacity-50"
                   >
                     {m.common_add()}

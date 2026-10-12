@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../../actions/explainDisabled';
   import { untrack } from 'svelte';
   import { SvelteFlow, Background, BackgroundVariant, Controls, type Edge, type Node } from '@xyflow/svelte';
   import '@xyflow/svelte/dist/style.css';
@@ -600,7 +601,7 @@
 
       <button
         onclick={rearrange}
-        disabled={nodes.length === 0}
+        use:explainDisabled={(nodes.length === 0) ? m.common_reason_select_one() : ''}
         title={m.wf_rearrange_title()}
         class="px-3 py-2 rounded-xl text-xs font-semibold bg-surface-container-highest text-on-surface hover:bg-surface-container-highest/70 disabled:opacity-30 transition-all flex items-center gap-1.5"
       >

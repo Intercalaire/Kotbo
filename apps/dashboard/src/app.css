@@ -476,6 +476,10 @@
 .btn:disabled,
 .btn[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; transform: none; }
 
+/* Bouton ecrit a la main, grise par `use:explainDisabled` : il reste cliquable
+   pour dire pourquoi, mais doit avoir l'air indisponible comme un `disabled`. */
+button[aria-disabled="true"]:not(.btn) { opacity: 0.5; cursor: not-allowed; }
+
 .btn-primary {
   background: var(--primary-color);
   color: var(--on-primary-color);

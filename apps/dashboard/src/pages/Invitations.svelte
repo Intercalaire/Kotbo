@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { onMount } from 'svelte';
   import { memberAvatarSrc } from '../lib/discordMedia';
   import { router } from 'tinro';
@@ -662,7 +663,7 @@
                           </button>
                         </div>
                       {:else if invite.sourceLabel}
-                        <button type="button" class="source-chip" disabled={!canManageInvites} onclick={() => beginSourceEdit(invite)}>
+                        <button type="button" class="source-chip" use:explainDisabled={(!canManageInvites) ? m.common_reason_no_permission() : ''} onclick={() => beginSourceEdit(invite)}>
                           <span class="h-1.5 w-1.5 rounded-full bg-cyan-500"></span>
                           {invite.sourceLabel}
                         </button>
@@ -865,7 +866,7 @@
                       <td class="px-4 py-4">
                         <div class="flex flex-wrap gap-1.5">
                           {#each source.invites as invite}
-                            <button type="button" class="invite-code-chip" disabled={!canManageInvites} onclick={() => beginSourceEdit(invite)} title={canManageInvites ? `Renommer ${invite.code}` : invite.code}>{invite.code}</button>
+                            <button type="button" class="invite-code-chip" use:explainDisabled={(!canManageInvites) ? m.common_reason_no_permission() : ''} onclick={() => beginSourceEdit(invite)} title={canManageInvites ? `Renommer ${invite.code}` : invite.code}>{invite.code}</button>
                           {/each}
                         </div>
                       </td>
@@ -897,7 +898,7 @@
               </div>
               <div class="flex flex-wrap gap-2 md:justify-end">
                 {#each invitesWithStats.filter((invite) => !invite.sourceLabel?.trim()) as invite}
-                  <button type="button" class="untracked-invite" disabled={!canManageInvites} onclick={() => beginSourceEdit(invite)}>
+                  <button type="button" class="untracked-invite" use:explainDisabled={(!canManageInvites) ? m.common_reason_no_permission() : ''} onclick={() => beginSourceEdit(invite)}>
                     <code>{invite.code}</code>
                     {#if canManageInvites}<Papicon icon="Plus" size={13} />{/if}
                   </button>

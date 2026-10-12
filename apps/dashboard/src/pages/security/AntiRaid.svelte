@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { explainDisabled } from '../../lib/actions/explainDisabled';
+  import { m } from '../../lib/i18n';
   import { onMount } from 'svelte';
   import { authStore } from '../../lib/stores/auth.svelte';
   import { dashboardStore } from '../../lib/stores/dashboard.svelte';
@@ -953,7 +955,8 @@
           <button
             type="button"
             class="px-3 py-2 rounded-lg text-xs font-medium bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 disabled:opacity-50 transition-colors"
-            disabled={!lineageUserId.trim() || lineageLoading}
+            disabled={lineageLoading}
+            use:explainDisabled={(!lineageUserId.trim()) ? m.common_reason_fill_field() : ''}
             onclick={loadLineage}
           >
             {lineageLoading ? 'Analyse…' : 'Analyser'}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { m, dateLocale } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
@@ -1627,7 +1628,7 @@
                         <div class="flex items-center gap-2.5 min-w-0">
                           <button 
                             type="button"
-                            disabled={!canOpenMemberCase}
+                            use:explainDisabled={(!canOpenMemberCase) ? m.common_reason_no_permission() : ''}
                             onclick={() => openMemberCase(presence.staffUserId, presence.staffMember?.displayName || presence.staffMember?.username || m.planning_member_fallback())}
                             class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-2xs font-semibold text-primary overflow-hidden transition-transform shrink-0"
                           >
@@ -1640,7 +1641,7 @@
                           <div class="min-w-0">
                             <button 
                               type="button"
-                              disabled={!canOpenMemberCase}
+                              use:explainDisabled={(!canOpenMemberCase) ? m.common_reason_no_permission() : ''}
                               onclick={() => openMemberCase(presence.staffUserId, presence.staffMember?.displayName || presence.staffMember?.username || m.planning_member_fallback())}
                               class="text-xs font-bold text-on-surface hover:text-primary transition-colors text-left block truncate"
                             >
@@ -2149,7 +2150,8 @@
             </button>
             <button 
               onclick={saveMeetingEdit}
-              disabled={savingMeetingEdit || !editMeetingTitle || !editMeetingDate}
+              disabled={savingMeetingEdit || !editMeetingTitle}
+              use:explainDisabled={(!editMeetingDate) ? m.common_reason_fill_field() : ''}
               class="px-8 py-2.5 bg-primary text-white rounded-xl font-semibold shadow-sm hover:shadow-primary/40 disabled:opacity-50 disabled:grayscale transition-all flex items-center gap-2"
             >
               {#if savingMeetingEdit}

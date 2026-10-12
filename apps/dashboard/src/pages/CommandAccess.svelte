@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { m } from '../lib/i18n';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
@@ -437,7 +438,7 @@
                       {#each availableRoles as role (role.id)}
                         <button
                           type="button"
-                          disabled={!canManageSettings}
+                          use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                           onclick={() => toggleId(command.name, 'allowedRoleIds', role.id)}
                           class="cmd-option {rule.allowedRoleIds.includes(role.id) ? 'cmd-option--on' : ''}"
                         >
@@ -497,7 +498,7 @@
                           {#each availableChannels as channel (channel.id)}
                             <button
                               type="button"
-                              disabled={!canManageSettings}
+                              use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                               onclick={() => toggleId(command.name, 'allowedChannelIds', channel.id)}
                               class="cmd-option {rule.allowedChannelIds.includes(channel.id) ? 'cmd-option--on' : ''}"
                             >
@@ -518,7 +519,7 @@
                           {#each availableRoles as role (role.id)}
                             <button
                               type="button"
-                              disabled={!canManageSettings}
+                              use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                               onclick={() => toggleId(command.name, 'blockedRoleIds', role.id)}
                               class="cmd-option {rule.blockedRoleIds.includes(role.id) ? 'cmd-option--off' : ''}"
                             >
@@ -551,7 +552,7 @@
                         />
                         <button
                           type="button"
-                          disabled={!canManageSettings}
+                          use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                           onclick={() => addUserId(command.name, 'allowedUserIds')}
                           class="cmd-mini-btn"
                         >
@@ -559,7 +560,7 @@
                         </button>
                         <button
                           type="button"
-                          disabled={!canManageSettings}
+                          use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                           onclick={() => addUserId(command.name, 'blockedUserIds')}
                           class="cmd-mini-btn cmd-mini-btn--danger"
                         >
@@ -572,7 +573,7 @@
                           {#each rule.allowedUserIds as userId (userId)}
                             <button
                               type="button"
-                              disabled={!canManageSettings}
+                              use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                               onclick={() => toggleId(command.name, 'allowedUserIds', userId)}
                               class="cmd-tag cmd-tag--allow"
                             >
@@ -583,7 +584,7 @@
                           {#each rule.blockedUserIds as userId (userId)}
                             <button
                               type="button"
-                              disabled={!canManageSettings}
+                              use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                               onclick={() => toggleId(command.name, 'blockedUserIds', userId)}
                               class="cmd-tag cmd-tag--block"
                             >
@@ -598,7 +599,7 @@
                     {#if restrictionCount(rule) > 0}
                       <button
                         type="button"
-                        disabled={!canManageSettings}
+                        use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                         onclick={() => resetCommand(command.name)}
                         class="cmd-mini-btn cmd-mini-btn--danger self-start"
                       >
@@ -675,7 +676,8 @@
         {/if}
         <button
           type="button"
-          disabled={!isDirty || saveAction.state.loading}
+          disabled={saveAction.state.loading}
+          use:explainDisabled={(!isDirty) ? m.common_reason_no_changes() : ''}
           onclick={save}
           class="btn-primary"
         >

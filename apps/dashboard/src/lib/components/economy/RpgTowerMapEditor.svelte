@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../../actions/explainDisabled';
   import { untrack } from 'svelte';
   /**
    * Éditeur des étages de la Tour.
@@ -1326,7 +1327,7 @@
     <span class="text-xs font-semibold text-on-surface-variant" title={m.eco_tower_map_power_tip()}>{m.eco_tower_map_power()} · <span class="font-mono">×{room.powerPercent / 100}</span></span>
     <div class="flex flex-wrap gap-1.5">
       {#each POWERS as power}
-        <button type="button" disabled={!canManage || disabled} onclick={() => updateSelected({ powerPercent: power })}
+        <button type="button" disabled={disabled} use:explainDisabled={(!canManage) ? m.common_reason_no_permission() : ''} onclick={() => updateSelected({ powerPercent: power })}
           class="px-2 py-1 rounded-lg text-2xs font-bold border font-mono {room.powerPercent === power ? (power > 100 ? 'border-error bg-error/15 text-error' : power < 100 ? 'border-success bg-success/15 text-success' : 'border-primary bg-primary/15') : 'border-outline-variant/15'}">×{power / 100}</button>
       {/each}
     </div>
@@ -1390,14 +1391,14 @@
         <Papicon icon="trash" size={12} /> {m.eco_tower_map_clear()}
       </button>
       <div class="flex items-center gap-1 px-1 py-1 rounded-lg bg-outline-variant/10">
-        <button type="button" onclick={() => transform('FLIP_X')} disabled={disabled || layout.rooms.length === 0} title={m.eco_tower_map_flip_x()} aria-label={m.eco_tower_map_flip_x()}
+        <button type="button" onclick={() => transform('FLIP_X')} disabled={disabled} use:explainDisabled={(layout.rooms.length === 0) ? m.common_reason_select_one() : ''} title={m.eco_tower_map_flip_x()} aria-label={m.eco_tower_map_flip_x()}
           class="p-1.5 rounded-md hover:bg-outline-variant/25 flex disabled:opacity-40"><Papicon icon="ArrowLeftRight" size={13} /></button>
-        <button type="button" onclick={() => transform('FLIP_Y')} disabled={disabled || layout.rooms.length === 0} title={m.eco_tower_map_flip_y()} aria-label={m.eco_tower_map_flip_y()}
+        <button type="button" onclick={() => transform('FLIP_Y')} disabled={disabled} use:explainDisabled={(layout.rooms.length === 0) ? m.common_reason_select_one() : ''} title={m.eco_tower_map_flip_y()} aria-label={m.eco_tower_map_flip_y()}
           class="p-1.5 rounded-md hover:bg-outline-variant/25 flex disabled:opacity-40"><span class="flex rotate-90"><Papicon icon="ArrowLeftRight" size={13} /></span></button>
-        <button type="button" onclick={() => transform('ROTATE')} disabled={disabled || layout.rooms.length === 0} title={m.eco_tower_map_rotate()} aria-label={m.eco_tower_map_rotate()}
+        <button type="button" onclick={() => transform('ROTATE')} disabled={disabled} use:explainDisabled={(layout.rooms.length === 0) ? m.common_reason_select_one() : ''} title={m.eco_tower_map_rotate()} aria-label={m.eco_tower_map_rotate()}
           class="p-1.5 rounded-md hover:bg-outline-variant/25 flex disabled:opacity-40"><Papicon icon="RefreshCw" size={13} /></button>
         <span class="w-px h-5 bg-outline-variant/25 mx-0.5" aria-hidden="true"></span>
-        <button type="button" onclick={exportFloor} disabled={layout.rooms.length === 0} title={m.eco_tower_map_export_tip()} aria-label={m.eco_tower_map_export()}
+        <button type="button" onclick={exportFloor} use:explainDisabled={(layout.rooms.length === 0) ? m.common_reason_select_one() : ''} title={m.eco_tower_map_export_tip()} aria-label={m.eco_tower_map_export()}
           class="p-1.5 rounded-md hover:bg-outline-variant/25 flex disabled:opacity-40"><Papicon icon="Download" size={13} /></button>
         <label title={m.eco_tower_map_import_tip()} aria-label={m.eco_tower_map_import()}
           class="p-1.5 rounded-md hover:bg-outline-variant/25 flex {disabled ? 'opacity-40 pointer-events-none' : 'cursor-pointer'}">
@@ -1445,7 +1446,7 @@
         class="px-3 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50 {showDeaths ? 'bg-error/20 text-error' : 'bg-outline-variant/10 hover:bg-outline-variant/25'}">
         <Papicon icon="Skull" size={12} /> {m.eco_tower_death_map({ count: deathsTotal })}
       </button>
-      <button type="button" onclick={openPreview} disabled={previewing || problems.length > 0 || layout.rooms.length === 0} title={m.eco_tower_preview_tip()}
+      <button type="button" onclick={openPreview} disabled={previewing || problems.length > 0} use:explainDisabled={(layout.rooms.length === 0) ? m.common_reason_select_one() : ''} title={m.eco_tower_preview_tip()}
         class="px-3 py-2 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50">
         <Papicon icon="Image" size={12} /> {m.eco_tower_preview_btn()}
       </button>
@@ -1460,11 +1461,11 @@
         <button type="button" onclick={() => pickTool('ERASE')} title={m.eco_tower_map_tool_erase_tip()} class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 {tool === 'ERASE' ? 'border-error bg-error/15 text-error' : 'border-transparent hover:bg-outline-variant/10'}">
           <Papicon icon="Eraser" size={12} /> {m.eco_tower_map_tool_erase()}
         </button>
-        <button type="button" onclick={undo} disabled={disabled || past.length === 0} title={m.eco_tower_map_undo_tip()} aria-label={m.eco_tower_map_undo()}
+        <button type="button" onclick={undo} disabled={disabled} use:explainDisabled={(past.length === 0) ? m.common_reason_select_one() : ''} title={m.eco_tower_map_undo_tip()} aria-label={m.eco_tower_map_undo()}
           class="p-1.5 rounded-lg border border-transparent hover:bg-outline-variant/10 transition-all flex items-center disabled:opacity-35">
           <Papicon icon="RotateCcw" size={13} />
         </button>
-        <button type="button" onclick={redo} disabled={disabled || future.length === 0} title={m.eco_tower_map_redo_tip()} aria-label={m.eco_tower_map_redo()}
+        <button type="button" onclick={redo} disabled={disabled} use:explainDisabled={(future.length === 0) ? m.common_reason_select_one() : ''} title={m.eco_tower_map_redo_tip()} aria-label={m.eco_tower_map_redo()}
           class="p-1.5 rounded-lg border border-transparent hover:bg-outline-variant/10 transition-all flex items-center disabled:opacity-35">
           <span class="flex -scale-x-100"><Papicon icon="RotateCcw" size={13} /></span>
         </button>
@@ -1799,7 +1800,7 @@
                 <span class="text-xs font-semibold text-on-surface-variant">{m.eco_tower_map_wander_radius()} · <span class="font-mono">{selected.wanderRadius}</span></span>
                 <div class="flex flex-wrap gap-1.5">
                   {#each [1, 2, 3, 4, 5, 6] as radius}
-                    <button type="button" disabled={!canManage || disabled} onclick={() => updateSelected({ wanderRadius: radius })}
+                    <button type="button" disabled={disabled} use:explainDisabled={(!canManage) ? m.common_reason_no_permission() : ''} onclick={() => updateSelected({ wanderRadius: radius })}
                       class="px-2.5 py-1 rounded-lg text-2xs font-bold border font-mono {selected.wanderRadius === radius ? 'border-primary bg-primary/15' : 'border-outline-variant/15'}">{radius}</button>
                   {/each}
                 </div>
@@ -1811,7 +1812,7 @@
                 <span class="text-xs font-semibold text-on-surface-variant">{m.eco_tower_map_captive()}</span>
                 <div class="flex flex-wrap gap-1.5">
                   {#each CAPTIVES as captive}
-                    <button type="button" disabled={!canManage || disabled} onclick={() => updateSelected({ captive })}
+                    <button type="button" disabled={disabled} use:explainDisabled={(!canManage) ? m.common_reason_no_permission() : ''} onclick={() => updateSelected({ captive })}
                       class="px-2 py-1 rounded-lg text-2xs font-bold border {selected.captive === captive ? 'border-primary bg-primary/15' : 'border-outline-variant/15'}">{captiveLabel(captive)}</button>
                   {/each}
                 </div>
@@ -1844,7 +1845,7 @@
               <span class="text-xs font-semibold text-on-surface-variant" title={m.eco_tower_map_traits_tip()}>{m.eco_tower_map_traits({ max: TRAITS_MAX })}</span>
               <div class="flex flex-wrap gap-1.5">
                 {#each TRAITS as trait}
-                  <button type="button" disabled={!canManage || disabled || (!selected.traits.includes(trait) && selected.traits.length >= TRAITS_MAX)} title={traitTip(trait)} onclick={() => toggleTrait(trait)}
+                  <button type="button" disabled={disabled || (!selected.traits.includes(trait) && selected.traits.length >= TRAITS_MAX)} use:explainDisabled={(!canManage) ? m.common_reason_no_permission() : ''} title={traitTip(trait)} onclick={() => toggleTrait(trait)}
                     class="px-2 py-1 rounded-lg text-2xs font-bold border disabled:opacity-40 {selected.traits.includes(trait) ? 'border-error bg-error/15 text-error' : 'border-outline-variant/15'}">{traitLabel(trait)}</button>
                 {/each}
               </div>
@@ -1855,7 +1856,7 @@
                 <span class="text-xs font-semibold text-on-surface-variant">{m.eco_tower_map_mechanic()}</span>
                 <div class="flex flex-wrap gap-1.5">
                   {#each MECHANICS as mechanic}
-                    <button type="button" disabled={!canManage || disabled} title={mechanicTip(mechanic)} onclick={() => updateSelected({ mechanic })}
+                    <button type="button" disabled={disabled} use:explainDisabled={(!canManage) ? m.common_reason_no_permission() : ''} title={mechanicTip(mechanic)} onclick={() => updateSelected({ mechanic })}
                       class="px-2 py-1 rounded-lg text-2xs font-bold border {selected.mechanic === mechanic ? 'border-primary bg-primary/15' : 'border-outline-variant/15'}">{mechanicLabel(mechanic)}</button>
                   {/each}
                 </div>
@@ -1876,7 +1877,7 @@
               <span class="text-xs font-semibold text-on-surface-variant">{m.eco_tower_map_waves()}</span>
               <div class="flex flex-wrap gap-1.5">
                 {#each WAVES as waves}
-                  <button type="button" disabled={!canManage || disabled} onclick={() => updateSelected({ waves })}
+                  <button type="button" disabled={disabled} use:explainDisabled={(!canManage) ? m.common_reason_no_permission() : ''} onclick={() => updateSelected({ waves })}
                     class="px-2.5 py-1 rounded-lg text-2xs font-bold border font-mono {selected.waves === waves ? 'border-primary bg-primary/15' : 'border-outline-variant/15'}">{waves}</button>
                 {/each}
               </div>
@@ -1893,7 +1894,7 @@
               <span class="text-xs font-semibold text-on-surface-variant">{m.eco_tower_map_event()}</span>
               <div class="flex flex-wrap gap-1.5">
                 {#each EVENTS as event}
-                  <button type="button" disabled={!canManage || disabled} title={eventTip(event)} onclick={() => updateSelected({ event })}
+                  <button type="button" disabled={disabled} use:explainDisabled={(!canManage) ? m.common_reason_no_permission() : ''} title={eventTip(event)} onclick={() => updateSelected({ event })}
                     class="px-2 py-1 rounded-lg text-2xs font-bold border {selected.event === event ? 'border-primary bg-primary/15' : 'border-outline-variant/15'}">{eventLabel(event)}</button>
                 {/each}
               </div>
@@ -1903,7 +1904,7 @@
               <span class="text-xs font-semibold text-on-surface-variant">{m.eco_tower_map_chest()}</span>
               <div class="flex gap-1.5">
                 {#each [['BOTH', m.eco_tower_map_chest_both()], ['GOLD', m.eco_tower_map_chest_gold()], ['GEAR', m.eco_tower_map_chest_gear()]] as [kind, text]}
-                  <button type="button" disabled={!canManage || disabled} onclick={() => updateSelected({ chest: kind as ChestKind })}
+                  <button type="button" disabled={disabled} use:explainDisabled={(!canManage) ? m.common_reason_no_permission() : ''} onclick={() => updateSelected({ chest: kind as ChestKind })}
                     class="flex-1 px-2 py-1.5 rounded-lg text-2xs font-bold border {selected.chest === kind ? 'border-primary bg-primary/15' : 'border-outline-variant/15'}">{text}</button>
                 {/each}
               </div>

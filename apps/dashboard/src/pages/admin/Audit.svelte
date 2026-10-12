@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { explainDisabled } from '../../lib/actions/explainDisabled';
+  import { m } from '../../lib/i18n';
   /**
    * Journal d'audit de la console admin.
    *
@@ -201,7 +203,7 @@
     <button
       type="button"
       onclick={exportCsv}
-      disabled={entries.length === 0}
+      use:explainDisabled={(entries.length === 0) ? m.common_reason_select_one() : ''}
       class="h-9 px-3.5 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 border border-outline-variant/25 text-body-sm font-semibold text-on-surface-variant hover:text-on-surface transition disabled:opacity-40 inline-flex items-center gap-2"
     >
       <Papicon icon="Download" size={13} />

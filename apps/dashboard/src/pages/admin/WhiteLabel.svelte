@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { explainDisabled } from '../../lib/actions/explainDisabled';
+  import { m } from '../../lib/i18n';
   import { onMount } from 'svelte';
   import { toast } from '../../lib/stores/toast.svelte';
   import { confirmDialog } from '../../lib/stores/confirmDialog.svelte';
@@ -427,7 +429,8 @@
             </button>
             <button
               onclick={handleCreate}
-              disabled={!form.slug || !form.name || !form.discordToken || !form.discordClientId || !form.discordClientSecret || !form.ownerId}
+              disabled={!form.slug || !form.name || !form.discordToken || !form.discordClientSecret}
+              use:explainDisabled={(!form.discordClientId) ? m.common_reason_fill_field() : (!form.ownerId) ? m.common_reason_fill_field() : ''}
               class="px-4 py-2 bg-primary text-on-primary rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               Creer l'instance

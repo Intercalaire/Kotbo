@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../actions/explainDisabled';
   import Papicon from './Papicon.svelte';
   import { m } from '../i18n';
   import {
@@ -219,7 +220,8 @@
     <button
       type="button"
       onclick={onsave}
-      disabled={disabled || !dirty || saving}
+      disabled={disabled || saving}
+      use:explainDisabled={(!dirty) ? m.common_reason_no_changes() : ''}
       class="shrink-0 px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary text-body-sm font-medium rounded-lg shadow-md shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
     >
       <Papicon icon="Check" size={16} />

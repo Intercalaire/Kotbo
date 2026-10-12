@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { explainDisabled } from '../../lib/actions/explainDisabled';
+  import { m } from '../../lib/i18n';
   /**
    * Console d'annonces globales.
    *
@@ -779,7 +781,7 @@
               <button
                 type="button"
                 onclick={() => { showTemplateModal = true; }}
-                disabled={!message.trim()}
+                use:explainDisabled={(!message.trim()) ? m.common_reason_fill_field() : ''}
                 class="h-10 rounded-xl bg-on-surface/6 hover:bg-on-surface/10 border border-outline-variant/25 text-body-sm font-semibold text-on-surface-variant hover:text-on-surface transition disabled:opacity-40 inline-flex items-center justify-center gap-2"
               >
                 <Papicon icon="Bookmark" size={13} />

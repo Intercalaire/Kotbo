@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { m } from '../lib/i18n';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { router } from 'tinro';
@@ -1293,7 +1294,7 @@
               </td>
               <td class="px-4 py-4 text-xs">
                 <button 
-                  disabled={!canOpenMemberCase}
+                  use:explainDisabled={(!canOpenMemberCase) ? m.common_reason_no_permission() : ''}
                   onclick={() => openCaseModal(entry.targetUserId, entry.targetTag)}
                   class="hover:text-primary transition-colors font-bold text-left"
                 >
@@ -1302,7 +1303,7 @@
               </td>
               <td class="px-4 py-4 text-xs">
                 <button 
-                  disabled={!canOpenMemberCase}
+                  use:explainDisabled={(!canOpenMemberCase) ? m.common_reason_no_permission() : ''}
                   onclick={() => openCaseModal(entry.moderatorUserId, entry.moderatorTag)}
                   class="hover:text-primary transition-colors font-bold text-left"
                 >
@@ -1732,11 +1733,11 @@
             <h3 id="modal-title" class="text-2xl font-semibold text-on-surface mt-1">{typeLabel(selectedSanction.type)}</h3>
             <p class="text-xs font-bold text-on-surface-variant mt-1">
               {m.sc_applied_to()}
-              <button disabled={!canOpenMemberCase} onclick={() => openCaseModal(selectedSanction.targetUserId, selectedSanction.targetTag)} class="text-on-surface transition-colors font-semibold enabled:hover:text-primary disabled:cursor-default">
+              <button use:explainDisabled={(!canOpenMemberCase) ? m.common_reason_no_permission() : ''} onclick={() => openCaseModal(selectedSanction.targetUserId, selectedSanction.targetTag)} class="text-on-surface transition-colors font-semibold enabled:hover:text-primary disabled:cursor-default">
                 @{selectedSanction.targetTag}
               </button>
               {m.sc_by()}
-              <button disabled={!canOpenMemberCase} onclick={() => openCaseModal(selectedSanction.moderatorUserId, selectedSanction.moderatorTag)} class="text-on-surface transition-colors font-semibold enabled:hover:text-primary disabled:cursor-default">
+              <button use:explainDisabled={(!canOpenMemberCase) ? m.common_reason_no_permission() : ''} onclick={() => openCaseModal(selectedSanction.moderatorUserId, selectedSanction.moderatorTag)} class="text-on-surface transition-colors font-semibold enabled:hover:text-primary disabled:cursor-default">
                 @{selectedSanction.moderatorTag}
               </button>
             </p>
@@ -1807,7 +1808,7 @@
               <p class="text-2xs font-bold text-on-surface-variant/30 text-center">
                 {m.sc_report_by()}
                 <button 
-                  disabled={!canOpenMemberCase}
+                  use:explainDisabled={(!canOpenMemberCase) ? m.common_reason_no_permission() : ''}
                   onclick={() => openCaseModal(selectedReport.createdByUserId, selectedReport.createdByTag || selectedReport.createdByUserId)}
                   class="hover:text-primary transition-colors font-bold"
                 >

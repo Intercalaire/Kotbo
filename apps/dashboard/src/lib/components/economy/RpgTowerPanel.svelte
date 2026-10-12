@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../../actions/explainDisabled';
   /** La Tour (mode roguelite du RPG) et la Tour de clan, dans une coque façon Analytics. */
   import { onMount } from 'svelte';
   import { m } from '../../i18n';
@@ -1307,7 +1308,7 @@
                       { mode: 'COMPRESSED' as EntryMode, title: m.eco_tower_mode_compressed(), desc: m.eco_tower_mode_compressed_desc() },
                       { mode: 'RESET' as EntryMode, title: m.eco_tower_mode_reset(), desc: m.eco_tower_mode_reset_desc() },
                     ] as option}
-                      <button type="button" disabled={!canManage || disabled} aria-pressed={settings.entryMode === option.mode} onclick={() => { settings.entryMode = option.mode; }}
+                      <button type="button" disabled={disabled} use:explainDisabled={(!canManage) ? m.common_reason_no_permission() : ''} aria-pressed={settings.entryMode === option.mode} onclick={() => { settings.entryMode = option.mode; }}
                         class="{choiceClass} {settings.entryMode === option.mode ? 'border-primary bg-primary/10' : 'border-outline-variant hover:bg-surface-container-low'}">
                         <p class="text-sm font-semibold {settings.entryMode === option.mode ? 'text-primary' : ''}">{option.title}</p>
                         <p class="text-2xs text-on-surface-variant mt-1 leading-relaxed">{option.desc}</p>
@@ -1340,7 +1341,7 @@
                       { value: 'GENERATE' as const, title: m.eco_tower_floors_after_generate(), desc: m.eco_tower_floors_after_generate_desc() },
                       { value: 'LOOP' as const, title: m.eco_tower_floors_after_loop(), desc: m.eco_tower_floors_after_loop_desc() },
                     ] as option}
-                      <button type="button" disabled={!canManage || disabled} aria-pressed={settings.floorsAfter === option.value} onclick={() => { settings.floorsAfter = option.value; }}
+                      <button type="button" disabled={disabled} use:explainDisabled={(!canManage) ? m.common_reason_no_permission() : ''} aria-pressed={settings.floorsAfter === option.value} onclick={() => { settings.floorsAfter = option.value; }}
                         class="{choiceClass} {settings.floorsAfter === option.value ? 'border-primary bg-primary/10' : 'border-outline-variant hover:bg-surface-container-low'}">
                         <p class="text-sm font-semibold {settings.floorsAfter === option.value ? 'text-primary' : ''}">{option.title}</p>
                         <p class="text-2xs text-on-surface-variant mt-1 leading-relaxed">{option.desc}</p>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { FilterPills } from '../lib/components/ui';
   import { m } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
@@ -285,21 +286,21 @@
               <div class="flex flex-wrap gap-3 justify-end">
                 <button 
                   onclick={() => handleResolve(suggestion.id, 'REJECTED')}
-                  disabled={!responseDrafts[suggestion.id]?.trim()}
+                  use:explainDisabled={(!responseDrafts[suggestion.id]?.trim()) ? m.common_reason_fill_field() : ''}
                   class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-body-sm font-medium rounded-lg transition-all disabled:opacity-50"
                 >
                   {m.suggestions_btn_reject()}
                 </button>
                 <button 
                   onclick={() => handleResolve(suggestion.id, 'APPROVED')}
-                  disabled={!responseDrafts[suggestion.id]?.trim()}
+                  use:explainDisabled={(!responseDrafts[suggestion.id]?.trim()) ? m.common_reason_fill_field() : ''}
                   class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-body-sm font-medium rounded-lg transition-all disabled:opacity-50"
                 >
                   {m.suggestions_btn_approve()}
                 </button>
                 <button 
                   onclick={() => handleResolve(suggestion.id, 'IMPLEMENTED')}
-                  disabled={!responseDrafts[suggestion.id]?.trim()}
+                  use:explainDisabled={(!responseDrafts[suggestion.id]?.trim()) ? m.common_reason_fill_field() : ''}
                   class="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-body-sm font-medium rounded-lg transition-all disabled:opacity-50"
                 >
                   {m.suggestions_btn_implement()}

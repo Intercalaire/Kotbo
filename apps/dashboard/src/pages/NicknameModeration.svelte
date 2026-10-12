@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
@@ -602,7 +603,8 @@
           </select>
           <button
             onclick={addWord}
-            disabled={!newWord.trim() || wordAction.state.loading}
+            disabled={wordAction.state.loading}
+            use:explainDisabled={(!newWord.trim()) ? m.common_reason_fill_field() : ''}
             class="flex items-center gap-2 px-5 py-3.5 bg-primary text-white rounded-lg text-sm font-bold transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Papicon icon="plus" size={16} />
@@ -745,7 +747,8 @@
             />
             <button
               onclick={addWhitelistItem}
-              disabled={!newWhitelistItem.trim() || exceptionAction.state.loading}
+              disabled={exceptionAction.state.loading}
+              use:explainDisabled={(!newWhitelistItem.trim()) ? m.common_reason_fill_field() : ''}
               class="shrink-0 px-5 py-3 bg-primary text-white rounded-lg text-sm font-bold transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-40"
             >
               {m.nm_add()}

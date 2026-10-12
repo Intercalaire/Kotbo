@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { onDestroy, onMount, untrack } from 'svelte';
   import { fade } from 'svelte/transition';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -659,7 +660,8 @@
                 <button
                   type="button"
                   onclick={() => toggleDropItem(item.id)}
-                  disabled={!canManageSettings || (!picked && configs[type].items.length >= DROP_ITEM_POOL_MAX)}
+                  disabled={(!picked && configs[type].items.length >= DROP_ITEM_POOL_MAX)}
+                  use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                   aria-pressed={picked}
                   class="px-3 py-1.5 rounded-lg border text-2xs font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed {picked
                     ? 'bg-primary/10 border-primary/40 text-primary'
@@ -698,7 +700,7 @@
                   <button
                     type="button"
                     onclick={balanceDropItems}
-                    disabled={!canManageSettings}
+                    use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                     class="text-2xs font-medium px-3 py-1.5 rounded-lg border border-outline-variant/20 hover:border-outline-variant/40 transition-all disabled:opacity-40"
                   >
                     {m.drop_item_balance()}

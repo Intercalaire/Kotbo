@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../../actions/explainDisabled';
   import { untrack } from 'svelte';
   import { fade, scale } from 'svelte/transition';
   import Papicon from '../Papicon.svelte';
@@ -286,7 +287,8 @@
         <button
           type="button"
           onclick={computePreview}
-          disabled={loadingPreview || targetClanIds.length === 0}
+          disabled={loadingPreview}
+          use:explainDisabled={(targetClanIds.length === 0) ? m.common_reason_select_one() : ''}
           class="flex items-center gap-1.5 px-4 py-2 bg-secondary/15 hover:bg-secondary/25 text-secondary text-xs font-bold rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Papicon icon="Refresh" size={12} /> {loadingPreview ? m.clan_rebalance_computing() : m.clan_rebalance_preview_btn()}

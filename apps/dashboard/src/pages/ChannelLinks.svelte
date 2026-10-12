@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { m } from '../lib/i18n';
   import { onMount } from 'svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -626,7 +627,8 @@
         {:else}
           <button
             onclick={handleCreateDirect}
-            disabled={saveAction.state.loading || !newSourceChannelId || newTargets.length === 0 || newTargets.some((t) => !t.channelId)}
+            disabled={saveAction.state.loading || newTargets.some((t) => !t.channelId)}
+            use:explainDisabled={(!newSourceChannelId) ? m.common_reason_pick_channel() : (newTargets.length === 0) ? m.common_reason_select_one() : ''}
             class="w-full px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium disabled:opacity-50"
           >
             {saveAction.state.loading ? m.channel_links_creating() : m.channel_links_create_submit()}
@@ -756,7 +758,8 @@
                 <button
                   type="button"
                   onclick={handleAddMember}
-                  disabled={addingMember || !addGuildId || !addChannelId}
+                  disabled={addingMember}
+                  use:explainDisabled={(!addGuildId) ? m.common_reason_fill_field() : (!addChannelId) ? m.common_reason_pick_channel() : ''}
                   class="px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
                   {addingMember ? m.channel_links_adding_member() : m.channel_links_add_member_btn()}

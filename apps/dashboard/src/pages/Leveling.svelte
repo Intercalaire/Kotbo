@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { channelDisplayName } from '../lib/channelUtils';
   import { isMissingReference } from '../lib/discordReferences';
   import { m } from '../lib/i18n';
@@ -1509,7 +1510,7 @@
                 <button 
                   type="button"
                   onclick={handleAddMultiplier}
-                  disabled={!newMultRoleId || !newMultValue}
+                  use:explainDisabled={(!newMultRoleId) ? m.common_reason_pick_role() : (!newMultValue) ? m.common_reason_fill_field() : ''}
                   class="w-full py-3.5 bg-secondary text-on-secondary font-medium text-body-sm rounded-lg transition-all disabled:opacity-50"
                 >
                   {m.common_add()}
@@ -1983,7 +1984,7 @@
 
             <button 
               type="submit"
-              disabled={!newRewardLevel || !newRewardRoleId}
+              use:explainDisabled={(!newRewardLevel) ? m.common_reason_fill_field() : (!newRewardRoleId) ? m.common_reason_pick_role() : ''}
               class="w-full py-3.5 bg-secondary text-on-secondary font-medium text-body-sm rounded-lg transition-all disabled:opacity-50"
             >
               {m.lv_add_reward()}
@@ -2520,7 +2521,7 @@
               <button
                 type="button"
                 onclick={() => handleImportSubmit(true)}
-                disabled={!importRawJson.trim()}
+                use:explainDisabled={(!importRawJson.trim()) ? m.common_reason_fill_field() : ''}
                 class="px-6 py-3.5 bg-surface-container-high/50 text-on-surface-variant font-medium text-body-sm rounded-lg hover:bg-surface-container-high transition-all disabled:opacity-50"
               >
                 {m.lv_import_dry_run()}
@@ -2528,7 +2529,7 @@
               <button
                 type="button"
                 onclick={() => handleImportSubmit(false)}
-                disabled={!importRawJson.trim()}
+                use:explainDisabled={(!importRawJson.trim()) ? m.common_reason_fill_field() : ''}
                 class="px-8 py-3.5 bg-secondary text-on-secondary font-medium text-body-sm rounded-lg transition-all disabled:opacity-50"
               >
                 {m.lv_run_import()}

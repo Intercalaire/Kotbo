@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
+  import { m } from '../lib/i18n';
   import { onMount } from 'svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import {
@@ -262,14 +264,16 @@
         </div>
         <button
           onclick={handleValidateToken}
-          disabled={validating || !tokenInput.trim()}
+          disabled={validating}
+          use:explainDisabled={(!tokenInput.trim()) ? m.common_reason_fill_field() : ''}
           class="px-4 py-2.5 bg-surface-container border border-outline-variant rounded-lg text-sm font-medium text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-50"
         >
           {validating ? 'Test...' : 'Tester'}
         </button>
         <button
           onclick={handleSaveToken}
-          disabled={saving || !tokenInput.trim()}
+          disabled={saving}
+          use:explainDisabled={(!tokenInput.trim()) ? m.common_reason_fill_field() : ''}
           class="px-4 py-2.5 bg-primary text-on-primary rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
         >
           Sauvegarder

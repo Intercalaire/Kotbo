@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../actions/explainDisabled';
   /**
    * Sélecteur d'emoji à trois entrées : les emojis du serveur, le catalogue
    * Unicode, et le dépôt d'une image qui devient un emoji du serveur.
@@ -411,7 +412,8 @@
             <button
               type="button"
               class="btn btn-primary btn-sm w-full"
-              disabled={uploading || uploadName.trim().length < 2}
+              disabled={uploading}
+              use:explainDisabled={(uploadName.trim().length < 2) ? m.common_reason_fill_field() : ''}
               onclick={submitUpload}
             >
               {uploading ? m.d1_emoji_upload_pending() : m.d1_emoji_upload_submit()}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { onMount } from 'svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
@@ -416,7 +417,8 @@
           >{m.wf_back()}</button>
           <button
             onclick={save}
-            disabled={saving || hasBlockingIssue(issues) || graph.nodes.length === 0}
+            disabled={saving || hasBlockingIssue(issues)}
+            use:explainDisabled={(graph.nodes.length === 0) ? m.common_reason_select_one() : ''}
             class="px-5 py-2.5 rounded-xl text-xs font-semibold bg-primary text-on-primary hover:opacity-90 transition-all disabled:opacity-40 flex items-center gap-2"
           >
             <Papicon icon={saving ? 'Loader' : 'Check'} size={14} class={saving ? 'animate-spin' : ''} />

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { m, locales } from '../lib/i18n';
   import type { PreviewSample } from '../lib/giveawayPreview';
   import { channelDisplayName } from '../lib/channelUtils';
@@ -2039,7 +2040,7 @@
                       {#each announcedWinners(giveaway) as winner (winner.userId)}
                         <button
                           type="button"
-                          disabled={!canOpenMemberCase}
+                          use:explainDisabled={(!canOpenMemberCase) ? m.common_reason_no_permission() : ''}
                           onclick={() => openMemberCase(winner.userId, winner.displayName)}
                           title={canOpenMemberCase ? m.giv_winner_open_case({ name: winner.displayName }) : undefined}
                           class="flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full bg-success/10 border border-success/15 transition-colors max-w-full {canOpenMemberCase ? 'hover:bg-success/20 hover:border-success/30 cursor-pointer' : 'cursor-default'}"

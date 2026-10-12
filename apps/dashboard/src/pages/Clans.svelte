@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { fade, scale } from 'svelte/transition';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -1496,7 +1497,7 @@ savedBetSettings = {
                   type="button"
                   onclick={handleSaveSeasonPlanning}
                   class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary font-semibold text-xs rounded-lg transition-colors cursor-pointer"
-                  disabled={!startDate || !endDate}
+                  use:explainDisabled={(!startDate) ? m.common_reason_fill_field() : (!endDate) ? m.common_reason_fill_field() : ''}
                 >
                   {m.clan_save_planning_btn()}
                 </button>
@@ -1798,7 +1799,7 @@ savedBetSettings = {
                     type="button"
                     onclick={() => handleMemberPoints(1)}
                     class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/80 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer"
-                    disabled={!manualPointsMemberUserId}
+                    use:explainDisabled={(!manualPointsMemberUserId) ? m.common_reason_fill_field() : ''}
                   >
                     <Papicon icon="Sparkles" size={14} /> {m.clan_adjust_member_points_btn()}
                   </button>
@@ -1806,7 +1807,7 @@ savedBetSettings = {
                     type="button"
                     onclick={() => handleMemberPoints(-1)}
                     class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-error/10 hover:bg-error/20 text-error border border-error/20 font-semibold text-xs rounded-lg transition-colors cursor-pointer"
-                    disabled={!manualPointsMemberUserId}
+                    use:explainDisabled={(!manualPointsMemberUserId) ? m.common_reason_fill_field() : ''}
                   >
                     <Papicon icon="Minus" size={14} /> {m.clan_remove_member_points_btn()}
                   </button>
@@ -1935,7 +1936,7 @@ savedBetSettings = {
                     type="button"
                     class="cursor-pointer hover:text-on-surface disabled:opacity-40"
                     aria-label={m.clan_bets_managers_remove({ role: role.name })}
-                    disabled={!canManageSettings}
+                    use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                     onclick={() => removeBetManagerRole(role.id)}
                   >
                     ×
@@ -2154,7 +2155,7 @@ savedBetSettings = {
                     <button
                       type="button"
                       class="text-xs font-semibold text-error hover:underline cursor-pointer disabled:opacity-40"
-                      disabled={!canManageSettings}
+                      use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
                       onclick={() => openDebtClear(debt)}
                     >
                       {m.clan_bets_debt_clear()}

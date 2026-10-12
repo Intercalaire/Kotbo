@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { m } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy, untrack } from 'svelte';
@@ -291,7 +292,8 @@
         <button
           type="button"
           onclick={handleResetCounting}
-          disabled={!canManageSettings || actionState.state.loading}
+          disabled={actionState.state.loading}
+          use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
           class="w-full py-3.5 bg-warning/10 hover:bg-warning/20 text-warning rounded-lg text-body-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-40"
         >
           <Papicon icon="refresh-cw" size={14} />
@@ -377,7 +379,8 @@
         <button
           type="button"
           onclick={handleResetGuessNumber}
-          disabled={!canManageSettings || actionState.state.loading}
+          disabled={actionState.state.loading}
+          use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
           class="w-full py-3.5 bg-success/10 hover:bg-success/20 text-success rounded-lg text-body-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-40"
         >
           <Papicon icon="refresh-cw" size={14} />
@@ -422,7 +425,8 @@
         <button
           type="button"
           onclick={handleResetWordChain}
-          disabled={!canManageSettings || actionState.state.loading}
+          disabled={actionState.state.loading}
+          use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
           class="w-full py-3.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-600 rounded-lg text-body-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-40"
         >
           <Papicon icon="refresh-cw" size={14} />
@@ -466,7 +470,8 @@
         <button
           type="button"
           onclick={handleResetEmojiRiddle}
-          disabled={!canManageSettings || actionState.state.loading}
+          disabled={actionState.state.loading}
+          use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
           class="w-full py-3.5 bg-error/10 hover:bg-error/20 text-error rounded-lg text-body-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-40"
         >
           <Papicon icon="refresh-cw" size={14} />

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { explainDisabled } from '../../lib/actions/explainDisabled';
+  import { m } from '../../lib/i18n';
   import { onMount } from 'svelte';
   import { toast } from '../../lib/stores/toast.svelte';
   import { confirmDialog } from '../../lib/stores/confirmDialog.svelte';
@@ -379,7 +381,7 @@
         <div class="flex flex-wrap gap-3">
           <button onclick={handleAnalyzeGlobalImport} class="px-5 py-3 rounded-lg bg-primary text-white font-bold text-sm hover:bg-primary/90 transition-colors">Analyser</button>
           <button onclick={resetGlobalImport} class="px-5 py-3 rounded-lg border border-outline-variant/20 text-sm font-bold text-on-surface-variant hover:bg-on-surface/5 transition-colors">Réinitialiser</button>
-          <button onclick={handleSaveGlobalImport} disabled={globalImportLoading || globalImportDrafts.length === 0} class="px-5 py-3 rounded-lg bg-emerald-500 text-white font-bold text-sm hover:bg-success/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+          <button onclick={handleSaveGlobalImport} disabled={globalImportLoading} use:explainDisabled={(globalImportDrafts.length === 0) ? m.common_reason_select_one() : ''} class="px-5 py-3 rounded-lg bg-emerald-500 text-white font-bold text-sm hover:bg-success/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
             {globalImportLoading ? 'Enregistrement...' : 'Enregistrer les mots'}
           </button>
         </div>

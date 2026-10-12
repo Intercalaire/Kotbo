@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { m } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { router } from 'tinro';
@@ -768,7 +769,7 @@
               <td class="px-6 py-5">
                 <button
                   type="button"
-                  disabled={!canOpenMemberCase}
+                  use:explainDisabled={(!canOpenMemberCase) ? m.common_reason_no_permission() : ''}
                   onclick={() => openCaseModal(entry)}
                   class="inline-flex max-w-40 truncate rounded-full border border-outline-variant/10 bg-surface-container-high/40 px-3 py-1 text-2xs font-bold text-on-surface-variant transition-all enabled:hover:border-primary/50 enabled:hover:text-primary disabled:cursor-default"
                   title={canOpenMemberCase ? m.lg_open_case() : undefined}

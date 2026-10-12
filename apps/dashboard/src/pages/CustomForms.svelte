@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -418,7 +419,8 @@
         <button onclick={() => showCreateModal = false} class="flex-1 py-3.5 rounded-xl font-bold bg-surface hover:bg-surface-hover transition-colors font-sans">{m.cf_btn_cancel()}</button>
         <button 
           onclick={createForm}
-          disabled={createAction.state.loading || !newFormName.trim()}
+          disabled={createAction.state.loading}
+          use:explainDisabled={(!newFormName.trim()) ? m.common_reason_fill_field() : ''}
           class="flex-1 py-3.5 rounded-xl font-semibold bg-primary text-on-primary active:scale-[0.98] transition-all disabled:opacity-50 disabled:scale-100 font-sans"
         >
           {createAction.state.loading ? m.cf_btn_creating() : m.cf_btn_create_submit()}

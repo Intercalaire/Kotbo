@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../../actions/explainDisabled';
   /**
    * Donjons du RPG : suites de boss du bestiaire, à enchaîner sans repos.
    *
@@ -321,7 +322,8 @@
         <button
           type="button"
           onclick={openNew}
-          disabled={disabled || dungeons.length >= limits.dungeonsMax || bosses.length === 0}
+          disabled={disabled || dungeons.length >= limits.dungeonsMax}
+          use:explainDisabled={(bosses.length === 0) ? m.common_reason_select_one() : ''}
           class="px-4 py-2.5 bg-primary hover:bg-primary-hover text-on-primary text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Papicon icon="Plus" size={14} /> {m.eco_dungeon_new_btn()}
@@ -690,7 +692,8 @@
         <button
           type="button"
           onclick={save}
-          disabled={actionState.state.loading || editing.bossNames.length === 0 || !editing.name.trim()}
+          disabled={actionState.state.loading}
+          use:explainDisabled={(editing.bossNames.length === 0) ? m.common_reason_select_one() : (!editing.name.trim()) ? m.common_reason_fill_field() : ''}
           class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-body-sm font-medium rounded-lg transition-all disabled:opacity-50"
         >
           {m.eco_btn_save()}

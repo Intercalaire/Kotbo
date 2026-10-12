@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../actions/explainDisabled';
   import Papicon from './Papicon.svelte';
   import FormSelect from './FormSelect.svelte';
   import FormTextarea from './FormTextarea.svelte';
@@ -362,7 +363,8 @@
         />
         <button
           type="submit"
-          disabled={isSending || (type !== 'partenariat' && type !== 'beta' ? !message.trim() : (!projectName.trim() || !description.trim() || !motivation.trim()))}
+          disabled={isSending}
+          use:explainDisabled={((type !== 'partenariat' && type !== 'beta' ? !message.trim() : (!projectName.trim() || !description.trim() || !motivation.trim()))) ? m.common_reason_fill_field() : ''}
           class="px-5 py-2.5 text-xs rounded-xl font-semibold bg-primary text-on-primary border border-primary hover:bg-primary-container active:scale-95 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 flex items-center gap-2"
         >
           {#if isSending}

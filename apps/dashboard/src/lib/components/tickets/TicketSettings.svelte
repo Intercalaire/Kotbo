@@ -6,6 +6,7 @@
   relise la liste.
 -->
 <script lang="ts">
+  import { explainDisabled } from '../../actions/explainDisabled';
   import { onMount, untrack } from 'svelte';
   import { m } from '../../i18n';
   import { channelDisplayName } from '../../channelUtils';
@@ -892,7 +893,8 @@
       </button>
       <button
         onclick={sendEmbedPanel}
-        disabled={sendEmbedAction.state.loading || !ticketChannelId}
+        disabled={sendEmbedAction.state.loading}
+        use:explainDisabled={(!ticketChannelId) ? m.common_reason_pick_channel() : ''}
         class="px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-semibold active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2 shrink-0"
       >
         <Papicon icon="send" size={13} />

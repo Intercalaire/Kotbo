@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { m } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
@@ -476,7 +477,8 @@
             <button
               type="button"
               onclick={addOption}
-              disabled={formOptions.length >= 20 || !canManageSettings}
+              disabled={formOptions.length >= 20}
+              use:explainDisabled={(!canManageSettings) ? m.common_reason_no_permission() : ''}
               class="text-xs font-bold text-primary hover:text-primary/80 transition-colors flex items-center gap-1 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
             >
               <Papicon icon="Plus" size={14} /> {m.reaction_roles_add_button()}

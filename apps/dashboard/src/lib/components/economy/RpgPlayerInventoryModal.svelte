@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../../actions/explainDisabled';
   /**
    * Inventaire d'un joueur : consulter, donner, retirer.
    *
@@ -117,7 +118,8 @@
           <button
             type="button"
             onclick={grant}
-            disabled={!grantItemId || actionState.state.loading}
+            disabled={actionState.state.loading}
+            use:explainDisabled={(!grantItemId) ? m.common_reason_fill_field() : ''}
             class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Papicon icon="Plus" size={13} /> {m.eco_inventory_grant_btn()}

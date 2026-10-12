@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../../actions/explainDisabled';
   import { onMount } from 'svelte';
   import Papicon from '../Papicon.svelte';
   import MultiSelect from '../MultiSelect.svelte';
@@ -626,7 +627,8 @@
 
           <button
             onclick={runPreview}
-            disabled={previewing || pruneStatuses.length === 0}
+            disabled={previewing}
+            use:explainDisabled={(pruneStatuses.length === 0) ? m.common_reason_select_one() : ''}
             class="w-full px-4 py-2.5 rounded-xl text-xs font-semibold bg-surface-container-high text-on-surface hover:bg-surface-container-highest transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <Papicon icon={previewing ? 'Loader' : 'Search'} size={14} class={previewing ? 'animate-spin' : ''} />
@@ -687,7 +689,8 @@
           >{m.ghost_prune_cancel()}</button>
           <button
             onclick={runPrune}
-            disabled={!confirmMatches || pruning}
+            disabled={pruning}
+            use:explainDisabled={(!confirmMatches) ? m.common_reason_confirm() : ''}
             class="px-4 py-2.5 rounded-xl text-xs font-semibold bg-red-500 text-white hover:bg-red-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
           >
             <Papicon icon={pruning ? 'Loader' : 'Trash'} size={14} class={pruning ? 'animate-spin' : ''} />

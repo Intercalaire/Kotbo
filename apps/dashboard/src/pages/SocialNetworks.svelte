@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../lib/actions/explainDisabled';
   import { m } from '../lib/i18n';
   import { removeWithUndo } from '../lib/undoRemoval';
   import { onMount } from 'svelte';
@@ -332,7 +333,7 @@
 
               <button
                 onclick={handleAddYoutube}
-                disabled={!canManage}
+                use:explainDisabled={(!canManage) ? m.common_reason_no_permission() : ''}
                 class="w-full mt-4 py-3.5 bg-red-600 hover:bg-red-700 text-white font-medium text-body-sm rounded-lg shadow-sm active:scale-[0.98] transition-all disabled:opacity-50"
               >
                 {m.social_yt_add_btn()}
@@ -390,7 +391,7 @@
 
               <button
                 onclick={handleAddTwitch}
-                disabled={!canManage}
+                use:explainDisabled={(!canManage) ? m.common_reason_no_permission() : ''}
                 class="w-full mt-4 py-3.5 bg-[#9146FF] hover:bg-[#772ce8] text-white font-medium text-body-sm rounded-lg shadow-lg shadow-[#9146FF]/20 active:scale-[0.98] transition-all disabled:opacity-50"
               >
                 {m.social_twitch_add_btn()}
@@ -436,7 +437,7 @@
                       <div class="flex items-center gap-2">
                         <button
                           onclick={() => handleUpdateYoutube(follow)}
-                          disabled={!canManage}
+                          use:explainDisabled={(!canManage) ? m.common_reason_no_permission() : ''}
                           title={m.social_save_config_tooltip()}
                           class="p-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl transition-all"
                         >
@@ -444,7 +445,7 @@
                         </button>
                         <button
                           onclick={() => handleDeleteYoutube(follow.id)}
-                          disabled={!canManage}
+                          use:explainDisabled={(!canManage) ? m.common_reason_no_permission() : ''}
                           title={m.social_unfollow_tooltip()}
                           class="p-3 bg-error/10 hover:bg-error/20 text-error rounded-xl transition-all"
                         >
@@ -552,7 +553,7 @@
                       <div class="flex items-center gap-2 self-end md:self-center">
                         <button
                           onclick={() => handleUpdateTwitch(follow)}
-                          disabled={!canManage}
+                          use:explainDisabled={(!canManage) ? m.common_reason_no_permission() : ''}
                           title={m.social_save_config_tooltip()}
                           class="p-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl transition-all"
                         >
@@ -560,7 +561,7 @@
                         </button>
                         <button
                           onclick={() => handleDeleteTwitch(follow.id)}
-                          disabled={!canManage}
+                          use:explainDisabled={(!canManage) ? m.common_reason_no_permission() : ''}
                           title={m.social_unfollow_tooltip()}
                           class="p-3 bg-error/10 hover:bg-error/20 text-error rounded-xl transition-all"
                         >

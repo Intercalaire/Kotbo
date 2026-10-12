@@ -43,6 +43,7 @@
 </script>
 
 <script lang="ts">
+  import { explainDisabled } from '../../actions/explainDisabled';
   /** La Tour de clan par section ; ses réglages sont chargés et enregistrés par RpgTowerPanel. */
   import { m } from '../../i18n';
   import { saveRpgClanTowerLayout } from '../../api';
@@ -230,7 +231,7 @@
             { value: 'GENERATE' as const, title: m.eco_tower_floors_after_generate(), desc: m.eco_tower_floors_after_generate_desc() },
             { value: 'LOOP' as const, title: m.eco_tower_floors_after_loop(), desc: m.eco_tower_floors_after_loop_desc() },
           ] as option}
-            <button type="button" disabled={!canManage || disabled} aria-pressed={settings.floorsAfter === option.value} onclick={() => { settings.floorsAfter = option.value; }}
+            <button type="button" disabled={disabled} use:explainDisabled={(!canManage) ? m.common_reason_no_permission() : ''} aria-pressed={settings.floorsAfter === option.value} onclick={() => { settings.floorsAfter = option.value; }}
               class="{choiceClass} {settings.floorsAfter === option.value ? 'border-primary bg-primary/10' : 'border-outline-variant hover:bg-surface-container-low'}">
               <p class="text-sm font-semibold {settings.floorsAfter === option.value ? 'text-primary' : ''}">{option.title}</p>
               <p class="text-2xs text-on-surface-variant mt-1 leading-relaxed">{option.desc}</p>

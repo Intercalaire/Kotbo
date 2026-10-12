@@ -3,6 +3,7 @@
   quand, et pourquoi. Onglet autonome de la page Tickets.
 -->
 <script lang="ts">
+  import { explainDisabled } from '../../actions/explainDisabled';
   import { m, dateLocale } from '../../i18n';
   import { authStore } from '../../stores/auth.svelte';
   import { toast } from '../../stores/toast.svelte';
@@ -137,7 +138,8 @@
     <div class="flex justify-end">
       <button
         onclick={addToBlacklist}
-        disabled={blacklistAddAction.state.loading || !blacklistUserId.trim()}
+        disabled={blacklistAddAction.state.loading}
+        use:explainDisabled={(!blacklistUserId.trim()) ? m.common_reason_fill_field() : ''}
         class="px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-semibold active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2"
       >
         <Papicon icon="user-minus" size={13} />

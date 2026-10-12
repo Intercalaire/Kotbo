@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { explainDisabled } from '../../actions/explainDisabled';
   import { onMount } from 'svelte';
   import { memberAvatarSrc } from '../../discordMedia';
   import { portal } from '../../actions/portal';
@@ -879,7 +880,8 @@
                   <button
                     type="button"
                     onclick={saveSource}
-                    disabled={sourceSaving || sourceDraft.trim() === (details.invite?.sourceLabel ?? '')}
+                    disabled={sourceSaving}
+                    use:explainDisabled={(sourceDraft.trim() === (details.invite?.sourceLabel ?? '')) ? m.common_reason_fill_field() : ''}
                     class="px-5 py-2.5 rounded-lg bg-primary text-on-primary text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {sourceSaving ? m.d7_inv_source_saving() : m.d7_inv_source_save()}
