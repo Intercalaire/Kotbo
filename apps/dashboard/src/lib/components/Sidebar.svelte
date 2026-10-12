@@ -15,6 +15,7 @@
   import { m } from '../i18n';
   import { serverSwitcherStore } from '../stores/serverSwitcher.svelte';
   import { brandingStore } from '../stores/branding.svelte';
+  import { dashboardStore } from '../stores/dashboard.svelte';
 
   let isDesktop = $state(
     typeof window !== 'undefined'
@@ -217,6 +218,14 @@
   }
 
   const LOGO_URL = $derived(brandingStore.logoUrl || '/favicon.svg');
+
+  /** Jours d'essai restants, arrondis au-dessus ; null hors essai ou essai passe. */
+  const trialDaysLeft = $derived.by(() => {
+    const end = dashboardStore.state.trialEndsAt;
+    if (!end) return null;
+    const left = Math.ceil((new Date(end).getTime() - Date.now()) / 86_400_000);
+    return left >= 0 ? left : null;
+  });
   const unread = $derived(notificationsStore.unreadCount);
 </script>
 
@@ -484,6 +493,16 @@
 
   {#if authStore.isBotAdmin || navigationStore.canViewBilling}
     <div class="border-t border-outline-variant {isCollapsed ? 'lg:px-2 py-2' : 'px-3 py-2'} space-y-px">
+      {#if navigationStore.canViewBilling && trialDaysLeft !== null && !isCollapsed}
+        <!-- Le temps d'essai se voit des le premier jour : un essai dont on ne
+             voit pas la fin se repousse au dernier jour (loi de Parkinson). -->
+        <a href="/billing" class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-body-sm text-primary hover:bg-primary/10 transition-colors">
+          <Papicon icon="clock" size={14} class="shrink-0" />
+          <span class="truncate">
+            {trialDaysLeft <= 1 ? m.nav_trial_last_day() : m.nav_trial_days_left({ n: trialDaysLeft })}
+          </span>
+        </a>
+      {/if}
       {#if navigationStore.canViewBilling}
         {#if isCollapsed}
           {@render railLink('/billing', 'credit-card', m.nav_billing(), isActiveNavItem('/billing'))}

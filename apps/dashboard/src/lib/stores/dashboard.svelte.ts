@@ -63,6 +63,8 @@ class DashboardStore {
     guildName: 'Kotbo',
     /** Offre du serveur, telle que `moduleGate` l'applique. */
     plan: 'FREE' as string,
+    /** Fin de l'essai gratuit en cours, null hors essai. */
+    trialEndsAt: null as string | null,
     /**
      * Le serveur n'a rien pris : pas de tableau de bord, un parcours de
      * configuration a la place. Calcule cote bot.
@@ -372,6 +374,7 @@ class DashboardStore {
       if (data) {
         this.state.guildName = data.guildName;
         this.state.plan = data.plan ?? 'FREE';
+        this.state.trialEndsAt = data.trialEndsAt ?? null;
         this.state.onboardingRequired = Boolean(data.onboardingRequired);
         this.state.onboardingCanFinishWithoutPayment = Boolean(data.onboardingCanFinishWithoutPayment);
         this.state.configChannelId = data.configChannelId || '';

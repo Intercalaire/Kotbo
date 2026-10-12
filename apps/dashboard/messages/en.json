@@ -447,6 +447,8 @@
   "nav_management_center": "Server settings",
   "nav_modules": "Modules",
   "nav_billing": "Billing",
+  "nav_trial_days_left": "Free trial: {n} days left",
+  "nav_trial_last_day": "Free trial: last day",
   "nav_server_template": "Build my server",
   "nav_channel_health": "Channel health",
   "nav_channels": "Channels",

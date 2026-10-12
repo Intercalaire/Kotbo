@@ -447,6 +447,8 @@
   "nav_management_center": "Réglages du serveur",
   "nav_modules": "Modules",
   "nav_billing": "Facturation",
+  "nav_trial_days_left": "Essai gratuit : {n} jours restants",
+  "nav_trial_last_day": "Essai gratuit : dernier jour",
   "nav_server_template": "Créer mon serveur",
   "nav_channel_health": "Santé des salons",
   "nav_channels": "Salons",
