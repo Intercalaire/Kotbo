@@ -217,3 +217,21 @@ Décidé avec Elouan le 2026-10-11. Constat : la v2 était complète mais restai
 
 - Le pouls lit le cache Discord et la fenêtre en direct du process qui porte l'API, comme le reste du rendu : avec plusieurs shards, un serveur porté par un autre shard n'a pas de messages en direct.
 - Rien de la v3 n'a encore été vu dans un navigateur ni contre une vraie base.
+
+## Allègement du 2026-10-12
+
+Décidé avec Elouan : le site avait trop d'options. On garde ce qui amène ou retient des membres, le reste est retiré du code.
+
+### Retiré
+
+- **Galerie de thèmes partagés** : service, routes, onglet et modèle supprimés ; la migration `20261115100000_drop_site_theme_gallery` supprime les tables `site_theme_*`.
+- **Boutique web** : page `/shop` (les adresses `/shop` et `/boutique` renvoient vers l'accueil), blocs Boutique et « Mes achats », achats et codes promo depuis le site. La boutique reste vendue par `/boutique` sur Discord, qui gagne « Mes abonnements » (résilier, reprendre). Ses réglages passent dans un onglet Boutique de la page Économie, servi par `/api/shop-admin/:guildId` avec les droits de la section Économie. Les MP de la boutique ne passent plus par le site.
+- **Réglages fins** : champs de la page Équipe (présence, bio et ancienneté toujours affichées, plus de statistiques) et montants des récompenses (un interrupteur, montants par défaut ; des montants encore stockés sont ignorés). La colonne `staffPage` reste en base mais n'est plus lue.
+
+### Section Site en cinq onglets
+
+Aperçu (statut, contenu, pages à reprendre, fréquentation dessous) · Contenu (pages, wiki, blog, commentaires en filtres) · Apparence (thème et menu) · Croissance (votes et forum) · Réglages. Les anciennes adresses d'onglet restent valables (`/site/wiki`, `/site/blog`, `/site/commentaires`, `/site/menu`, `/site/votes`, `/site/forum`, `/site/frequentation`).
+
+### Anciens liens publics
+
+Les pages publiques historiques (formulaire de débannissement, formulaires, classements, giveaways, clans, actualités) ne renvoient vers le site que s'il est joignable : publié, non suspendu **et module Site actif** (`isSiteReachable`). Avant, un module coupé menait à une 404. Le serveur peut aussi couper la redirection (`settings.legacyRedirect`, actif par défaut) : les liens mènent alors aux pages d'origine, et le site garde ses propres pages.
