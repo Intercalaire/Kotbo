@@ -7,12 +7,13 @@
   import { Tabs } from '../lib/components/ui';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { canViewFeature } from '../lib/permissions.svelte';
-  import { hideUserIds, parseDetailsMetadata, parseDetailsStructure } from '../lib/logDetails';
+  import { hideUserIds, parseDetailsMetadata } from '../lib/logDetails';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import AuditDiffViewer from '../lib/components/logs/AuditDiffViewer.svelte';
+  import LogDetails from '../lib/components/logs/LogDetails.svelte';
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
   import {
     fetchMemberCase,
@@ -757,7 +758,6 @@
         </thead>
         <tbody class="divide-y divide-outline-variant/10">
           {#each filteredLogs as entry}
-            {@const parsed = parseDetailsStructure(entry.details, logLabels)}
             <tr class="hover:bg-surface-container-low transition-colors group">
               <td class="px-6 py-5">
                 <div class="text-xs">
@@ -788,30 +788,7 @@
                 {entry.action}
               </td>
               <td class="px-6 py-5 max-w-sm">
-                <div class="space-y-2">
-                  {#if parsed.badges.length > 0}
-                    <div class="flex flex-wrap gap-1.5">
-                      {#each parsed.badges as item}
-                        {#if item.key}
-                          <div class="inline-flex items-center gap-1 bg-surface-container-high border border-outline-variant/10 rounded-lg px-2 py-0.5 text-2xs text-on-surface-variant font-medium">
-                            <span class="text-on-surface-variant/70 font-semibold">{item.key}:</span>
-                            <span class="text-on-surface break-all">{@html item.value}</span>
-                          </div>
-                        {:else}
-                          <div class="inline-flex items-center bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-2 py-0.5 text-2xs text-on-surface-variant break-all">
-                            {@html item.value}
-                          </div>
-                        {/if}
-                      {/each}
-                    </div>
-                  {/if}
-                  {#each parsed.blocks as block}
-                    <div class="bg-surface-container-low border-l-2 border-primary/50 rounded-r-lg px-3 py-1.5 text-xs text-on-surface-variant space-y-0.5 max-w-full overflow-hidden">
-                      <p class="text-xs font-semibold text-primary/80">{block.key}</p>
-                      <p class="break-all whitespace-pre-wrap leading-relaxed text-on-surface">{@html block.value}</p>
-                    </div>
-                  {/each}
-                </div>
+                <LogDetails details={entry.details} channelId={getLogChannelId(entry)} compact />
               </td>
               <td class="px-6 py-5 text-center">
                 <span class="inline-flex items-center justify-center w-24 px-3 py-1 rounded-full text-2xs font-semibold uppercase tracking-wider

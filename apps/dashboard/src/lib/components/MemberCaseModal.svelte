@@ -25,7 +25,7 @@
   import InteractionTree from './charts/InteractionTree.svelte';
   import Modal from './Modal.svelte';
   import { m, dateLocale } from '../i18n';
-  import { renderLogHtml } from '../logDetails';
+  import LogDetails from './logs/LogDetails.svelte';
 
   import { errorMessage } from '@kotbo/shared';
   type MemberCaseTab = 'extra' | 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics' | 'contenu' | 'candidatures' | 'linked_accounts' | 'notes';
@@ -787,18 +787,13 @@
     return m.mcm_presence_offline();
   }
 
-  const logSnippetLabels = $derived({
-    unknownChannel: m.lg_unknown_channel_name(),
-    unknownRole: 'role-inconnu',
-  });
-
   /**
-   * `log.details` reprend mot pour mot ce qu'un membre a ecrit : le fragment
-   * doit etre echappe avant de rejoindre le `{@html}` du journal.
+   * Les mentions des journaux ne portent que des identifiants : on nomme celles
+   * des contacts deja connus du dossier, les autres restent `@utilisateur`.
    */
-  function renderLogSnippet(value: string) {
-    return renderLogHtml(value.replace(/^Contenu:\s*/i, '').trim(), logSnippetLabels);
-  }
+  const logUserNames = $derived(Object.fromEntries(
+    (caseData?.interactionGraph?.nodes ?? []).map((node: { id: string; label: string }) => [node.id, node.label]),
+  ));
 
   function getConnectionIcon(type: string) {
     const t = type.toLowerCase();
@@ -1497,7 +1492,9 @@
                         </div>
                         <p class="text-xs text-on-surface-variant">{log.module} · {log.source}</p>
                         {#if log.details}
-                          <div class="mt-2 rounded-lg bg-surface-container px-3 py-2 text-sm leading-relaxed text-on-surface-variant">{@html renderLogSnippet(log.details)}</div>
+                          <div class="mt-2 rounded-lg bg-surface-container px-3 py-2.5">
+                            <LogDetails details={log.details} channelId={log.channelId} userNames={logUserNames} showChannel />
+                          </div>
                         {/if}
                       </div>
                     </li>
