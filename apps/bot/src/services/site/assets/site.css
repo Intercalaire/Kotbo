@@ -505,7 +505,6 @@ textarea { resize: vertical; min-height: 96px; }
 .staff-grade { margin: 0; font-size: 0.86rem; font-weight: 600; color: var(--grade, var(--site-accent)); }
 .staff-bio { margin: 4px 0 0; font-size: 0.92rem; color: var(--site-text); }
 .staff-meta { margin: 0; font-size: 0.82rem; color: var(--site-muted); }
-.staff-stats { list-style: none; margin: 4px 0 0; padding: 0; font-size: 0.82rem; color: var(--site-muted); }
 .staff-card .pill { align-self: flex-start; }
 .org { display: flex; flex-direction: column; gap: 18px; }
 .org-grade { margin: 0 0 8px; font-weight: 700; font-size: 0.95rem; color: var(--site-muted); text-align: center; }

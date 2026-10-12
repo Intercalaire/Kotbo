@@ -378,7 +378,6 @@ export function registerSiteTools(ctx: McpToolContext) {
         banner_url: z.string().nullable().optional(),
         favicon_url: z.string().nullable().optional(),
         home_page_id: z.string().nullable().optional(),
-        staff_page: z.object({ bio: z.boolean().optional(), absence: z.boolean().optional(), seniority: z.boolean().optional(), stats: z.boolean().optional() }).optional(),
         comments_by_default: z.boolean().optional(),
         hero_pulse: z.boolean().optional().describe("Pouls du serveur en direct dans la bannière d'accueil (vrai par défaut)"),
         legacy_redirect: z
@@ -389,15 +388,10 @@ export function registerSiteTools(ctx: McpToolContext) {
         blog_editor_role_ids: z.array(z.string()).optional(),
         wiki_announce_channel_id: z.string().nullable().optional(),
         blog_announce_channel_id: z.string().nullable().optional(),
-        rewards: z
-          .object({
-            enabled: z.boolean().optional(),
-            daily: z.object({ coins: z.number().int().optional(), xp: z.number().int().optional(), streakBonus: z.number().int().optional(), streakCap: z.number().int().optional() }).optional(),
-            participation: z.object({ coins: z.number().int().optional(), xp: z.number().int().optional(), dailyCap: z.number().int().optional() }).optional(),
-            read: z.object({ coins: z.number().int().optional(), xp: z.number().int().optional(), dailyCap: z.number().int().optional() }).optional(),
-            vote: z.object({ coins: z.number().int().optional(), xp: z.number().int().optional(), streakBonus: z.number().int().optional(), streakCap: z.number().int().optional() }).optional(),
-          })
-          .optional(),
+        rewards_enabled: z
+          .boolean()
+          .optional()
+          .describe("Récompenses de l'activité sur le site (visite du jour, participation, lecture, vote) en monnaie du bot et en XP, montants fixes (vrai par défaut)"),
         key_name: keyName,
       },
       _meta: toolMeta,
@@ -413,7 +407,6 @@ export function registerSiteTools(ctx: McpToolContext) {
           bannerUrl: args.banner_url,
           faviconUrl: args.favicon_url,
           homePageId: args.home_page_id,
-          staffPage: args.staff_page,
           settings:
             args.comments_by_default === undefined && args.hero_pulse === undefined && args.legacy_redirect === undefined
               ? undefined
@@ -426,7 +419,7 @@ export function registerSiteTools(ctx: McpToolContext) {
           blogEditorRoleIds: args.blog_editor_role_ids,
           wikiAnnounceChannelId: args.wiki_announce_channel_id,
           blogAnnounceChannelId: args.blog_announce_channel_id,
-          rewards: args.rewards,
+          rewards: args.rewards_enabled === undefined ? undefined : { enabled: args.rewards_enabled },
         });
         await audit(args.key_name, 'Réglages du site (MCP)', `/s/${site.slug}`, Object.keys(args).filter((k) => k !== 'key_name').join(', '));
         return ok({ site: { ...site, url: siteUrl(site.slug) } });

@@ -33,7 +33,6 @@ export type SiteRecord = Pick<
   | 'customCss'
   | 'navigation'
   | 'homePageId'
-  | 'staffPage'
   | 'settings'
   | 'rewards'
   | 'wikiEditorRoleIds'
@@ -57,7 +56,6 @@ export const SITE_SELECT = {
   customCss: true,
   navigation: true,
   homePageId: true,
-  staffPage: true,
   settings: true,
   rewards: true,
   wikiEditorRoleIds: true,

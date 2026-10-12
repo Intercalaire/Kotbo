@@ -13,23 +13,8 @@ import { avatar, emptyState, formatNumber, timeTag, type BlockContext, type Bloc
 
 // ─── Équipe ─────────────────────────────────────────────────────────────────
 
-/** Champs de la fiche staff, activables par le propriétaire (`CommunitySite.staffPage`). */
-export interface StaffPageSettings {
-  bio: boolean;
-  absence: boolean;
-  seniority: boolean;
-  stats: boolean;
-}
-
-export function readStaffPageSettings(raw: unknown): StaffPageSettings {
-  const value = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
-  return {
-    bio: value.bio !== false,
-    absence: value.absence !== false,
-    seniority: value.seniority !== false,
-    stats: value.stats === true,
-  };
-}
+// Fiche staff : présence, bio et ancienneté, toujours. Les réglages fins
+// (`CommunitySite.staffPage`) ont été retirés le 2026-10-12 et ne sont plus lus.
 
 interface StaffCard {
   userId: string;
@@ -41,8 +26,6 @@ interface StaffCard {
   joinedAt: string;
   bio: string | null;
   absent: boolean;
-  tickets: number;
-  appeals: number;
 }
 
 interface StaffGroup {
@@ -60,7 +43,7 @@ async function loadStaffGroups(ctx: BlockContext): Promise<StaffGroup[]> {
   const guildId = ctx.site.guildId;
   return cache.wrap(`guild:${guildId}:site-staff`, STAFF_TTL_SECONDS, async () => {
     const now = new Date();
-    const [members, hierarchies, roles, profiles, absences, ticketCounts, appealCounts] = await Promise.all([
+    const [members, hierarchies, roles, profiles, absences] = await Promise.all([
       prisma.staffMember.findMany({
         where: { guildId, suspendedAt: null },
         select: {
@@ -94,14 +77,10 @@ async function loadStaffGroups(ctx: BlockContext): Promise<StaffGroup[]> {
         },
         select: { staffUserId: true },
       }),
-      prisma.ticket.groupBy({ by: ['claimedById'], where: { guildId, claimedById: { not: null } }, _count: { _all: true } }),
-      prisma.banAppeal.groupBy({ by: ['decidedByUserId'], where: { guildId, decidedByUserId: { not: null } }, _count: { _all: true } }),
     ]);
 
     const profileByUser = new Map(profiles.map((p) => [p.userId, p]));
     const absent = new Set(absences.map((a) => a.staffUserId));
-    const tickets = new Map(ticketCounts.map((row) => [row.claimedById ?? '', row._count._all]));
-    const appeals = new Map(appealCounts.map((row) => [row.decidedByUserId ?? '', row._count._all]));
     const roleKey = (hierarchyId: string | null, grade: string) => `${hierarchyId ?? ''}:${grade.toLowerCase()}`;
     const roleByGrade = new Map(roles.map((r) => [roleKey(r.hierarchyId, r.name), r]));
     const anyRoleByName = new Map(roles.map((r) => [r.name.toLowerCase(), r]));
@@ -119,8 +98,6 @@ async function loadStaffGroups(ctx: BlockContext): Promise<StaffGroup[]> {
         joinedAt: member.joinedStaffAt.toISOString(),
         bio: profileByUser.get(member.userId)?.bio ?? null,
         absent: absent.has(member.userId),
-        tickets: tickets.get(member.userId) ?? 0,
-        appeals: appeals.get(member.userId) ?? 0,
       };
     };
 
@@ -146,30 +123,22 @@ async function loadStaffGroups(ctx: BlockContext): Promise<StaffGroup[]> {
   });
 }
 
-function renderStaffCard(card: StaffCard, fields: StaffPageSettings, ctx: BlockContext): string {
+function renderStaffCard(card: StaffCard, ctx: BlockContext): string {
   const gradeStyle = card.gradeColor ? `--grade:${card.gradeColor}` : null;
-  const status = fields.absence
-    ? `<span class="${cls('pill', card.absent ? 'pill-muted' : 'pill-ok')}">${esc(card.absent ? m.site_staff_absent({}, { locale: ctx.locale }) : m.site_staff_present({}, { locale: ctx.locale }))}</span>`
-    : '';
-  const bio = fields.bio && card.bio ? `<p class="staff-bio">${esc(card.bio)}</p>` : '';
-  const since = fields.seniority
-    ? `<p class="staff-meta">${m.site_staff_since({ date: timeTag(card.joinedAt, ctx.locale, 'medium') }, { locale: ctx.locale })}</p>`
-    : '';
-  const stats: string[] = [];
-  if (fields.stats && card.tickets > 0) stats.push(`<li>${esc(m.site_staff_stat_tickets({ count: formatNumber(card.tickets, ctx.locale) }, { locale: ctx.locale }))}</li>`);
-  if (fields.stats && card.appeals > 0) stats.push(`<li>${esc(m.site_staff_stat_appeals({ count: formatNumber(card.appeals, ctx.locale) }, { locale: ctx.locale }))}</li>`);
+  const status = `<span class="${cls('pill', card.absent ? 'pill-muted' : 'pill-ok')}">${esc(card.absent ? m.site_staff_absent({}, { locale: ctx.locale }) : m.site_staff_present({}, { locale: ctx.locale }))}</span>`;
+  const bio = card.bio ? `<p class="staff-bio">${esc(card.bio)}</p>` : '';
+  const since = `<p class="staff-meta">${m.site_staff_since({ date: timeTag(card.joinedAt, ctx.locale, 'medium') }, { locale: ctx.locale })}</p>`;
   return `<article class="staff-card">
   ${avatar(card.avatarUrl, card.name, 'lg')}
   <div class="staff-body">
     <h3 class="staff-name">${esc(card.name)}</h3>
     <p class="staff-grade"${attrs({ style: gradeStyle })}>${esc(card.grade)}</p>
-    ${status}${bio}${since}${stats.length > 0 ? `<ul class="staff-stats">${stats.join('')}</ul>` : ''}
+    ${status}${bio}${since}
   </div>
 </article>`;
 }
 
 async function renderStaff(ctx: BlockContext, config: Record<string, unknown>): Promise<string> {
-  const fields = readStaffPageSettings(ctx.site.staffPage);
   const wanted = Array.isArray(config.hierarchyIds) ? (config.hierarchyIds as string[]) : [];
   let groups = await loadStaffGroups(ctx);
   if (wanted.length > 0) groups = groups.filter((g) => wanted.includes(g.id));
@@ -187,11 +156,11 @@ async function renderStaff(ctx: BlockContext, config: Record<string, unknown>): 
         const tiers = new Map<string, StaffCard[]>();
         for (const member of group.members) tiers.set(member.grade, [...(tiers.get(member.grade) ?? []), member]);
         const rows = [...tiers.entries()]
-          .map(([grade, cards]) => `<div class="org-tier"><p class="org-grade">${esc(grade)}</p><div class="org-row">${cards.map((c) => renderStaffCard(c, fields, ctx)).join('')}</div></div>`)
+          .map(([grade, cards]) => `<div class="org-tier"><p class="org-grade">${esc(grade)}</p><div class="org-row">${cards.map((c) => renderStaffCard(c, ctx)).join('')}</div></div>`)
           .join('');
         return `<div class="staff-group">${title}<div class="org">${rows}</div></div>`;
       }
-      return `<div class="staff-group">${title}<div class="card-grid">${group.members.map((c) => renderStaffCard(c, fields, ctx)).join('')}</div></div>`;
+      return `<div class="staff-group">${title}<div class="card-grid">${group.members.map((c) => renderStaffCard(c, ctx)).join('')}</div></div>`;
     })
     .join('');
 }

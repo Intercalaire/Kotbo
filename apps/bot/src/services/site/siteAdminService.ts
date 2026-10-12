@@ -34,7 +34,6 @@ import { resolveGuildLocale } from '../../utils/i18n.js';
 import { invalidateSiteCache } from './siteService.js';
 import { findScamInDocument } from './siteModeration.js';
 import { buildSiteBlueprint, blueprintNavigation, type SiteTemplateKey } from './siteTemplates.js';
-import { readStaffPageSettings } from './blocks/vitrineBlocks.js';
 import { afterCommentApproved } from './siteActivity.js';
 import { UserFacingError } from '../../utils/userFacingError.js';
 
@@ -160,7 +159,6 @@ export interface SitePatch {
   customCss?: unknown;
   navigation?: unknown;
   homePageId?: unknown;
-  staffPage?: unknown;
   settings?: unknown;
   rewards?: unknown;
   wikiEditorRoleIds?: unknown;
@@ -277,10 +275,9 @@ export async function updateSite(guildId: string, patch: SitePatch) {
       data.homePageId = page.id;
     }
   }
-  if (patch.staffPage !== undefined) data.staffPage = readStaffPageSettings(patch.staffPage) as unknown as Prisma.InputJsonValue;
   if (patch.settings !== undefined) data.settings = normalizeSiteSettings(site.settings, patch.settings) as Prisma.InputJsonValue;
   // Récompenses : on part des réglages actuels, un champ absent du patch est gardé.
-  if (patch.rewards !== undefined) data.rewards = normalizeSiteRewards(mergeRecords(site.rewards, patch.rewards)) as unknown as Prisma.InputJsonValue;
+  if (patch.rewards !== undefined) data.rewards = normalizeSiteRewards(patch.rewards) as unknown as Prisma.InputJsonValue;
   if (patch.wikiEditorRoleIds !== undefined) data.wikiEditorRoleIds = snowflakes(patch.wikiEditorRoleIds);
   if (patch.blogEditorRoleIds !== undefined) data.blogEditorRoleIds = snowflakes(patch.blogEditorRoleIds);
   if (patch.wikiAnnounceChannelId !== undefined) data.wikiAnnounceChannelId = optionalChannel(patch.wikiAnnounceChannelId);

@@ -3,8 +3,7 @@
  * notifications en message privé.
  *
  * Les récompenses se versent dans l'économie du bot (pièces) et le leveling
- * (XP) ; un module éteint ne verse rien de sa part. Les montants sont bornés
- * ici, côté serveur comme dans le dashboard.
+ * (XP) ; un module éteint ne verse rien de sa part. Les montants sont fixes.
  */
 
 export interface SiteRewardAmount {
@@ -36,32 +35,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function bounded(value: unknown, max: number, fallback: number): number {
-  const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
-  if (!Number.isFinite(n)) return fallback;
-  return Math.min(max, Math.max(0, Math.round(n)));
-}
-
-function amount(raw: unknown, fallback: SiteRewardAmount): SiteRewardAmount {
-  const r = isRecord(raw) ? raw : {};
-  return { coins: bounded(r.coins, 100_000, fallback.coins), xp: bounded(r.xp, 10_000, fallback.xp) };
-}
-
-/** Réglages des récompenses ramenés à des valeurs sûres, défauts compris. */
+/**
+ * Réglages des récompenses : un seul choix, actif ou non. Les montants sont
+ * ceux de `DEFAULT_SITE_REWARDS` (les réglages fins ont été retirés le
+ * 2026-10-12 ; des montants encore stockés sont ignorés).
+ */
 export function normalizeSiteRewards(input: unknown): SiteRewardSettings {
   const raw = isRecord(input) ? input : {};
-  const d = DEFAULT_SITE_REWARDS;
-  const daily = isRecord(raw.daily) ? raw.daily : {};
-  const participation = isRecord(raw.participation) ? raw.participation : {};
-  const read = isRecord(raw.read) ? raw.read : {};
-  const vote = isRecord(raw.vote) ? raw.vote : {};
-  return {
-    enabled: raw.enabled !== false,
-    daily: { ...amount(daily, d.daily), streakBonus: bounded(daily.streakBonus, 10_000, d.daily.streakBonus), streakCap: bounded(daily.streakCap, 60, d.daily.streakCap) },
-    participation: { ...amount(participation, d.participation), dailyCap: bounded(participation.dailyCap, 100, d.participation.dailyCap) },
-    read: { ...amount(read, d.read), dailyCap: bounded(read.dailyCap, 100, d.read.dailyCap) },
-    vote: { ...amount(vote, d.vote), streakBonus: bounded(vote.streakBonus, 10_000, d.vote.streakBonus), streakCap: bounded(vote.streakCap, 60, d.vote.streakCap) },
-  };
+  return { ...DEFAULT_SITE_REWARDS, enabled: raw.enabled !== false };
 }
 
 /** Bonus de série : `streakBonus` par jour au-delà du premier, jusqu'à `streakCap` jours. */

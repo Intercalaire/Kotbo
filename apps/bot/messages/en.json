@@ -3710,8 +3710,6 @@
   "site_staff_absent": "Away",
   "site_staff_present": "Available",
   "site_staff_since": "On the team since {date}",
-  "site_staff_stat_tickets": "{count} tickets handled",
-  "site_staff_stat_appeals": "{count} appeals reviewed",
   "site_staff_other": "Team",
   "site_rules_empty": "The rules haven't been written yet.",
   "site_news_empty": "No news yet.",
