@@ -929,6 +929,8 @@
   "nf_title": "404 - Page introuvable",
   "nf_desc": "Désolé, la page que tu cherches n'existe pas ou a été déplacée.",
   "nf_back_home": "Retour à l'accueil",
+  "nf_search": "Chercher une page",
+  "nf_report_link": "Tu es arrivé ici par un lien ? Signale-le, on le corrige.",
   "err_unexpected": "Une erreur inattendue est survenue.",
   "err_title": "Erreur {code}",
   "err_oops": "Oups ! Quelque chose s'est mal passé.",

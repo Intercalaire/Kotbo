@@ -929,6 +929,8 @@
   "nf_title": "404 - Page Not Found",
   "nf_desc": "Sorry, the page you are looking for does not exist or has been moved.",
   "nf_back_home": "Back to home",
+  "nf_search": "Search for a page",
+  "nf_report_link": "Got here from a link? Report it and we'll fix it.",
   "err_unexpected": "An unexpected error occurred.",
   "err_title": "Error {code}",
   "err_oops": "Oops! Something went wrong.",
