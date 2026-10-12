@@ -3856,6 +3856,7 @@
   "site_ticket_failed": "Le ticket n'a pas pu être ouvert. Réessaie dans un instant.",
   "site_ticket_offsite": "La conversation de ce ticket se poursuit en message privé avec le bot.",
   "site_ticket_pending_review": "Ta demande attend la validation de l'équipe.",
+  "site_ticket_queued": "Le serveur est plein pour le moment : ton ticket est en file d'attente et sera créé dès qu'une place se libère.",
   "site_ticket_empty_thread": "Pas encore de message.",
   "site_ticket_back": "Tous mes tickets",
   "site_comment_author_you": "Toi",

@@ -297,6 +297,8 @@ async function renderTicket(ctx: BlockContext, _config: Record<string, unknown>,
     let thread: string;
     if (active.status === 'PENDING') {
       thread = `<p class="empty">${esc(m.site_ticket_pending_review({}, o))}</p>`;
+    } else if (active.status === 'QUEUED') {
+      thread = `<p class="empty">${esc(m.site_ticket_queued({}, o))}</p>`;
     } else {
       const messages = await readTicketThread(ctx.client, guildId, { ...active, userId: viewer.userId });
       if (messages === null) {

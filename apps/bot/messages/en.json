@@ -3856,6 +3856,7 @@
   "site_ticket_failed": "The ticket couldn't be opened. Try again in a moment.",
   "site_ticket_offsite": "This ticket's conversation continues in DMs with the bot.",
   "site_ticket_pending_review": "Your request is waiting for the team's approval.",
+  "site_ticket_queued": "The server is full right now: your ticket is queued and will be created as soon as a slot frees up.",
   "site_ticket_empty_thread": "No messages yet.",
   "site_ticket_back": "All my tickets",
   "site_comment_author_you": "You",
