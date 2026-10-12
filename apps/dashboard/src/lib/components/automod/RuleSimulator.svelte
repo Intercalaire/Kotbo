@@ -345,7 +345,7 @@
       <Skeleton height="h-48" />
     {:else if !report}
       <SectionCard>
-        <EmptyState icon="history" title={m.sim_empty_title()} description={m.sim_empty_desc()} />
+        <EmptyState icon="history" title={m.sim_empty_title()} description={m.sim_empty_desc()} reason="instruction" />
       </SectionCard>
     {:else}
       {@const result = report.draft}
@@ -436,7 +436,7 @@
           </div>
         {/if}
         {#if samples.length === 0}
-          <EmptyState icon="check-circle" title={m.sim_no_match()} description={m.sim_no_match_desc()} />
+          <EmptyState icon="check-circle" title={m.sim_no_match()} description={m.sim_no_match_desc()} reason="all-clear" />
         {:else}
           <ul class="divide-y divide-outline-variant/40">
             {#each samples as sample (sample.messageId)}

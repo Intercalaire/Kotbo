@@ -489,7 +489,7 @@
         {/if}
       </div>
     {:else}
-      <EmptyState icon="heart" title={m.pulse_empty_title()} description={m.pulse_empty_desc()} />
+      <EmptyState icon="heart" title={m.pulse_empty_title()} description={m.pulse_empty_desc()} actionLabel={m.pulse_recompute()} actionIcon="RefreshCw" onAction={handleRefresh} />
     {/if}
 
   <!-- ==================== TAB: PREDICTIONS ==================== -->
@@ -652,7 +652,7 @@
         {/if}
       </div>
     {:else}
-      <EmptyState icon="trending-up" title={m.pulse_pred_empty_title()} description={m.pulse_pred_empty_desc()} />
+      <EmptyState icon="trending-up" title={m.pulse_pred_empty_title()} description={m.pulse_pred_empty_desc()} reason="accumulating" />
     {/if}
 
   <!-- ==================== TAB: APERCU ==================== -->
@@ -713,7 +713,7 @@
             </div>
           {/if}
         {:else}
-          <EmptyState icon="heart" title={m.pulse_empty_title()} description={m.pulse_empty_desc()} />
+          <EmptyState icon="heart" title={m.pulse_empty_title()} description={m.pulse_empty_desc()} actionLabel={m.pulse_recompute()} actionIcon="RefreshCw" onAction={handleRefresh} />
         {/if}
       </div>
 
@@ -762,7 +762,7 @@
             </div>
           {/if}
         {:else}
-          <EmptyState icon="trending-up" title={m.pulse_pred_empty_title()} description={m.pulse_pred_empty_desc()} />
+          <EmptyState icon="trending-up" title={m.pulse_pred_empty_title()} description={m.pulse_pred_empty_desc()} reason="accumulating" />
         {/if}
       </div>
     </div>

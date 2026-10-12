@@ -220,7 +220,7 @@
       <div class="animate-spin w-5 h-5 border-2 border-error border-t-transparent rounded-full"></div>
     </div>
   {:else if riddles.length === 0}
-    <EmptyState icon="Puzzle" title={m.fun_riddles_empty_title()} description={m.fun_riddles_empty_desc()} />
+    <EmptyState icon="Puzzle" title={m.fun_riddles_empty_title()} description={m.fun_riddles_empty_desc()} actionLabel={canManage ? m.fun_riddles_empty_cta() : ''} actionIcon="plus" onAction={() => document.getElementById('riddleEmojis')?.focus()} reason="read-only" />
   {:else}
     <ul class="divide-y divide-outline-variant/15">
       {#each riddles as riddle (riddle.id)}

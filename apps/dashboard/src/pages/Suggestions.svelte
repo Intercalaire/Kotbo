@@ -313,8 +313,7 @@
           <EmptyState
             icon="thumbs-up"
             title={m.suggestions_empty_title()}
-            description={m.suggestions_empty_desc()}
-          />
+            description={m.suggestions_empty_desc()} reason="accumulating" />
         </div>
       {/each}
     </div>

@@ -2150,7 +2150,7 @@
           {/if}
 
           {#if events.length === 0}
-            <EmptyState icon="zap" title={m.prg_event_empty()} />
+            <EmptyState icon="zap" title={m.prg_event_empty()} reason="accumulating" />
           {:else}
             <div class="space-y-1">
               {#each events as event (event.id)}
@@ -2245,7 +2245,7 @@
                serveurs qui y participent : il ne se regle pas ici, il se lit. -->
           <SectionCard title={m.prg_section_global()} description={m.prg_global_hint()} icon="globe">
             {#if globalRows.length === 0}
-              <EmptyState icon="globe" title={m.prg_global_empty()} description={config.globalLeaderboard ? undefined : m.prg_global_opted_out()} />
+              <EmptyState icon="globe" title={m.prg_global_empty()} description={config.globalLeaderboard ? undefined : m.prg_global_opted_out()} actionLabel={config.globalLeaderboard ? '' : m.prg_global_open_settings()} actionIcon="ArrowRight" onAction={() => gotoTab('/prestige', 'annonces', DEFAULT_TAB)} reason="accumulating" />
             {:else}
               <div class="space-y-0.5">
                 {#each globalRows as entry (entry.userId)}
@@ -2292,7 +2292,7 @@
               {#if boardSearch.trim()}
                 <EmptyState icon="crown" title={m.prg_board_no_result()} actionLabel={m.common_clear_search()} actionIcon="Eraser" onAction={() => (boardSearch = '')} />
               {:else}
-                <EmptyState icon="crown" title={m.prg_leaderboard_empty()} />
+                <EmptyState icon="crown" title={m.prg_leaderboard_empty()} reason="accumulating" />
               {/if}
             {:else}
               <div class="space-y-0.5">
@@ -2462,14 +2462,14 @@
                 {/if}
               </div>
             {:else}
-              <EmptyState icon="users" title={m.prg_member_not_found()} />
+              <EmptyState icon="users" title={m.prg_member_not_found()} reason="accumulating" />
             {/if}
           </SectionCard>
         {/if}
 
         <SectionCard title={m.prg_section_streak_board()} icon="activity">
           {#if streaks.length === 0}
-            <EmptyState icon="activity" title={m.prg_streak_board_empty()} />
+            <EmptyState icon="activity" title={m.prg_streak_board_empty()} reason="accumulating" />
           {:else}
             <div class="space-y-0.5">
               {#each streaks as entry (entry.userId)}

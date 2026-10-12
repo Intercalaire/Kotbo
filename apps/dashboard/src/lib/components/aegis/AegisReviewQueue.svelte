@@ -116,9 +116,9 @@
     <Callout variant="danger">{error}</Callout>
   {:else if !loading && items.length === 0}
     {#if filter === 'PENDING'}
-      <EmptyState icon="check-circle" title={m.aegis_empty_pending_title()} description={m.aegis_empty_pending_desc()} />
+      <EmptyState icon="check-circle" title={m.aegis_empty_pending_title()} description={m.aegis_empty_pending_desc()} reason="all-clear" />
     {:else}
-      <EmptyState icon="inbox" title={m.aegis_empty_title()} description={m.aegis_empty_desc()} />
+      <EmptyState icon="inbox" title={m.aegis_empty_title()} description={m.aegis_empty_desc()} reason="nothing-matches" />
     {/if}
   {:else}
     <ul class="queue__list" class:opacity-60={loading}>

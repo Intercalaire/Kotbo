@@ -608,8 +608,7 @@
           title="Aucune détection"
           description={pendingOnly
             ? 'Rien à trancher pour le moment.'
-            : 'Le moteur n\'a encore rien évalué au-dessus du seuil de journalisation.'}
-        />
+            : 'Le moteur n\'a encore rien évalué au-dessus du seuil de journalisation.'} reason="all-clear" />
       {:else}
         <div class="space-y-2.5">
           {#each samples as sample (sample.id)}

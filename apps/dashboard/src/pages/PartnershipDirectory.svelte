@@ -537,8 +537,7 @@
         <EmptyState
           icon="compass"
           title="Rien à afficher"
-          description="Publie ta vitrine et active les suggestions dans les réglages pour que l'annuaire te propose des partenaires compatibles."
-        />
+          description="Publie ta vitrine et active les suggestions dans les réglages pour que l'annuaire te propose des partenaires compatibles." reason="instruction" />
       {/if}
     </div>
   {:else if tab === 'proposals'}

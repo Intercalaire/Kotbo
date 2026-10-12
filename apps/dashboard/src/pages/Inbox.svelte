@@ -165,8 +165,7 @@
       <EmptyState
         icon="inbox"
         title={m.inbox_empty_title()}
-        description="{m.inbox_empty_desc_before()}{tabLabel(currentTab)}{m.inbox_empty_desc_after()}"
-      />
+        description="{m.inbox_empty_desc_before()}{tabLabel(currentTab)}{m.inbox_empty_desc_after()}" reason="all-clear" />
     {:else}
       <!--
         Une ligne par notification plutot qu'une carte : l'inbox se parcourt de

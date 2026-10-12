@@ -263,7 +263,9 @@
             icon="search"
             title="Rien de repérable"
             description="Aucun salon ni règle ne trahit une configuration existante. Tout est à configurer depuis les pages de Kotbo."
-          />
+      actionLabel="Voir la prise en main"
+      actionHref="/setup"
+    />
         {:else}
           <div class="space-y-2">
             {#each plan.findings as finding (finding.key)}

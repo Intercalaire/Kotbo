@@ -99,7 +99,7 @@
   </div>
 
   {#if !loading && assets.length === 0}
-    <EmptyState icon="image" title={m.ste_assets_empty()} description={m.ste_assets_empty_desc()} />
+    <EmptyState icon="image" title={m.ste_assets_empty()} description={m.ste_assets_empty_desc()} actionLabel={m.ste_assets_upload()} actionIcon="upload" onAction={() => input?.click()} />
   {:else}
     <ul class="asset-grid">
       {#each assets as asset (asset.id)}

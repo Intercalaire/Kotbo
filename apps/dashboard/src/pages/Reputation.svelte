@@ -90,7 +90,7 @@
         {m.rep_ranking_title()}
       </h3>
       {#if data.leaderboard.entries.length === 0}
-        <EmptyState icon="star" title={m.rep_no_votes_title()} description={m.rep_no_votes_desc()} />
+        <EmptyState icon="star" title={m.rep_no_votes_title()} description={m.rep_no_votes_desc()} reason="accumulating" />
       {:else}
         <div class="space-y-1">
           {#each data.leaderboard.entries as entry, i}
@@ -123,7 +123,7 @@
         {m.rep_recent_votes_title()}
       </h3>
       {#if data.recentVotes.length === 0}
-        <EmptyState icon="heart" title={m.rep_no_recent_title()} />
+        <EmptyState icon="heart" title={m.rep_no_recent_title()} reason="accumulating" />
       {:else}
         <div class="space-y-2">
           {#each data.recentVotes.slice(0, 20) as vote}

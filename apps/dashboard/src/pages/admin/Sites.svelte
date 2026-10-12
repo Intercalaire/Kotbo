@@ -115,7 +115,7 @@
         <FilterPills label={m.ste_admin_reports()} options={statusFilters} value={reportStatus} onchange={(v) => { reportStatus = v as typeof reportStatus; void loadReports(); }} />
       {/snippet}
       {#if reports.length === 0}
-        <div class="p-6"><EmptyState icon="shield-check" title={m.ste_admin_no_reports()} description="" /></div>
+        <div class="p-6"><EmptyState icon="shield-check" title={m.ste_admin_no_reports()} description="" reason="all-clear" /></div>
       {:else}
         <ul class="admin-list">
           {#each reports as report (report.id)}

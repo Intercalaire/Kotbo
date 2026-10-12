@@ -512,7 +512,7 @@ export function verifyKotbo(rawBody, header, secret, toleranceSec = 300) {
             {#each Array(4) as _}<Skeleton height="h-10" />{/each}
           </div>
         {:else if deliveries.length === 0}
-          <EmptyState icon="inbox" title={m.owh_log_empty()} description={m.owh_log_empty_desc()} />
+          <EmptyState icon="inbox" title={m.owh_log_empty()} description={m.owh_log_empty_desc()} actionLabel={hook.enabled ? m.owh_test() : ''} actionIcon="send" onAction={() => sendTest(hook)} reason="accumulating" />
         {:else}
           <ul class="divide-y divide-outline-variant/40">
             {#each deliveries as delivery (delivery.id)}

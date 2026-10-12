@@ -175,7 +175,7 @@
       </SectionCard>
       <SectionCard title={m.an_adv_retention_source_title()} description={m.an_adv_retention_source_desc()} icon="MailOpen" flush>
         {#if data.retentionBySource.length === 0}
-          <EmptyState icon="mailOpen" title={m.an_adv_retention_source_empty()} />
+          <EmptyState icon="mailOpen" title={m.an_adv_retention_source_empty()} reason="accumulating" />
         {:else}
           <div class="divide-y divide-outline-variant/50">
             {#each data.retentionBySource as src}
@@ -203,7 +203,7 @@
 
     <SectionCard title={m.an_adv_cohorts_title()} description={m.an_adv_cohorts_desc()} icon="UsersFour" flush>
       {#if data.cohorts.length === 0}
-        <EmptyState icon="usersFour" title={m.an_adv_cohorts_empty()} description={m.an_adv_cohorts_empty_desc()} />
+        <EmptyState icon="usersFour" title={m.an_adv_cohorts_empty()} description={m.an_adv_cohorts_empty_desc()} reason="accumulating" />
       {:else}
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
@@ -325,7 +325,7 @@
       <SectionCard title={m.an_adv_churn_tenure_title()} description={m.an_adv_churn_tenure_desc()} icon="TrendingUp">
         {@const total = (Object.values(data.churnByTenure) as number[]).reduce((s, v) => s + v, 0)}
         {#if total === 0}
-          <EmptyState icon="usersFour" title={m.an_adv_churn_empty()} />
+          <EmptyState icon="usersFour" title={m.an_adv_churn_empty()} reason="all-clear" />
         {:else}
           <div class="space-y-3">
             {#each Object.entries(data.churnByTenure) as [bucket, count]}
@@ -365,7 +365,7 @@
 
     <SectionCard title={m.an_adv_at_risk_title()} description={m.an_adv_at_risk_desc()} icon="Warning" flush>
       {#if data.atRisk.length === 0}
-        <EmptyState icon="check" title={m.an_adv_at_risk_empty()} description={m.an_adv_at_risk_empty_desc()} />
+        <EmptyState icon="check" title={m.an_adv_at_risk_empty()} description={m.an_adv_at_risk_empty_desc()} reason="all-clear" />
       {:else}
         <div class="divide-y divide-outline-variant/40">
           {#each data.atRisk as member}
@@ -399,7 +399,7 @@
     <div class="grid gap-4 grid-cols-1 md:grid-cols-2">
       <SectionCard title={m.an_adv_channels_rising_title()} description={m.an_adv_channels_trend_desc()} icon="TrendingUp" flush>
         {#if data.trends.rising.length === 0}
-          <EmptyState icon="chatBubbles" title={m.an_adv_channels_empty()} />
+          <EmptyState icon="chatBubbles" title={m.an_adv_channels_empty()} reason="accumulating" />
         {:else}
           <div class="divide-y divide-outline-variant/40">
             {#each data.trends.rising as t}
@@ -422,7 +422,7 @@
 
       <SectionCard title={m.an_adv_channels_falling_title()} description={m.an_adv_channels_trend_desc()} icon="TrendingDown" flush>
         {#if data.trends.falling.length === 0}
-          <EmptyState icon="chatBubbles" title={m.an_adv_channels_empty()} />
+          <EmptyState icon="chatBubbles" title={m.an_adv_channels_empty()} reason="accumulating" />
         {:else}
           <div class="divide-y divide-outline-variant/40">
             {#each data.trends.falling as t}
@@ -448,7 +448,7 @@
       {#if !data.coActivation.available}
         <EmptyState icon="lock" title={m.an_adv_logging_required()} description={m.an_adv_coactivation_locked_desc()} actionLabel={m.an_adv_logging_cta()} actionIcon="ArrowRight" actionHref="/channels-management" />
       {:else if data.coActivation.channels.length === 0}
-        <EmptyState icon="compass" title={m.an_adv_coactivation_empty()} />
+        <EmptyState icon="compass" title={m.an_adv_coactivation_empty()} reason="accumulating" />
       {:else}
         <div class="overflow-x-auto p-5">
           <table class="text-2xs">
@@ -516,7 +516,7 @@
         <div class="md:col-span-2">
           <SectionCard title={m.an_adv_centrality_title()} description={m.an_adv_centrality_desc()} icon="Users" flush>
             {#if data.centrality.length === 0}
-              <EmptyState icon="users" title={m.an_adv_centrality_empty()} />
+              <EmptyState icon="users" title={m.an_adv_centrality_empty()} reason="accumulating" />
             {:else}
               <div class="divide-y divide-outline-variant/40">
                 {#each data.centrality as member, i}
@@ -591,15 +591,14 @@
         <p class="text-2xs text-on-surface-variant">{m.an_adv_backfill_hint()}</p>
       </div>
     {:else if data.backfill?.status === 'FAILED'}
-      <EmptyState icon="warning" title={m.an_adv_backfill_failed()} description={data.backfill.error ?? m.an_adv_backfill_failed_desc()} />
+      <EmptyState icon="warning" title={m.an_adv_backfill_failed()} description={data.backfill.error ?? m.an_adv_backfill_failed_desc()} reason="accumulating" />
     {:else if data.topWords.length === 0}
       <EmptyState
         icon="hourglass"
         title={m.an_adv_words_accumulating()}
         description={data.messageLoggingEnabled
           ? m.an_adv_words_accumulating_logged()
-          : m.an_adv_words_accumulating_unlogged()}
-      />
+          : m.an_adv_words_accumulating_unlogged()} reason="accumulating" />
     {:else}
       {@const maxCount = data.topWords[0]?.count ?? 1}
       <div class="flex flex-wrap gap-2 items-baseline">
@@ -631,7 +630,7 @@
 
       <SectionCard title={m.an_adv_pressure_title()} description={m.an_adv_pressure_desc()} icon="Gavel">
         {#if data.pressure.length === 0}
-          <EmptyState icon="gavel" title={m.an_adv_pressure_empty()} />
+          <EmptyState icon="gavel" title={m.an_adv_pressure_empty()} reason="accumulating" />
         {:else}
           {@const last = data.pressure.at(-1)}
           {@const maxP = Math.max(0.01, ...data.pressure.map((p: any) => p.per1000))}
@@ -654,7 +653,7 @@
     <div class="grid gap-4 grid-cols-1 md:grid-cols-2">
       <SectionCard title={m.an_adv_mod_load_title()} description={m.an_adv_mod_load_desc()} icon="Users" flush>
         {#if data.moderatorLoad.length === 0}
-          <EmptyState icon="users" title={m.an_adv_mod_load_empty()} />
+          <EmptyState icon="users" title={m.an_adv_mod_load_empty()} reason="all-clear" />
         {:else}
           {@const maxLoad = data.moderatorLoad[0]?.count ?? 1}
           <div class="divide-y divide-outline-variant/40">
@@ -681,7 +680,7 @@
         <SectionCard title={m.an_adv_account_age_title()} description={m.an_adv_account_age_desc()} icon="Clock">
           {@const totalAge = (Object.values(data.accountAgeBuckets) as number[]).reduce((s, v) => s + v, 0)}
           {#if totalAge === 0}
-            <EmptyState icon="clock" title={m.an_adv_mod_load_empty()} />
+            <EmptyState icon="clock" title={m.an_adv_mod_load_empty()} reason="all-clear" />
           {:else}
             <div class="space-y-2.5">
               {#each Object.entries(data.accountAgeBuckets) as [bucket, count]}
@@ -703,7 +702,7 @@
 
         <SectionCard title={m.an_adv_toxic_title()} description={m.an_adv_toxic_desc()} icon="Warning" flush>
           {#if data.toxicSources.length === 0}
-            <EmptyState icon="check" title={m.an_adv_toxic_empty()} />
+            <EmptyState icon="check" title={m.an_adv_toxic_empty()} reason="all-clear" />
           {:else}
             <div class="divide-y divide-outline-variant/40">
               {#each data.toxicSources.filter((t: any) => t.sanctioned > 0) as t}
@@ -721,7 +720,7 @@
                   </div>
                 </button>
               {:else}
-                <EmptyState icon="check" title={m.an_adv_toxic_empty()} />
+                <EmptyState icon="check" title={m.an_adv_toxic_empty()} reason="all-clear" />
               {/each}
             </div>
           {/if}

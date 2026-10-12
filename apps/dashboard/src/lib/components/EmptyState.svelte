@@ -11,6 +11,14 @@
     />
 
   Pour une action plus riche (plusieurs boutons, un menu), passer le snippet `action`.
+
+  Sans action, l'ecran dit pourquoi avec `reason` - c'est ce que le garde-fou
+  uxGuard.test.ts verifie :
+  - `all-clear`       : bonne nouvelle, rien a traiter (icone teintee en vert) ;
+  - `accumulating`    : les donnees arrivent avec le temps, rien a faire ;
+  - `nothing-matches` : le filtre ou la recherche ne trouve rien ;
+  - `read-only`       : la personne n'a pas les droits pour agir ici ;
+  - `instruction`     : l'ecran explique quoi faire avec les controles au-dessus.
 -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
@@ -26,6 +34,7 @@
     actionHref = undefined,
     actionIcon = 'plus',
     onAction = undefined,
+    reason = undefined,
   }: {
     icon?: string;
     title?: string;
@@ -37,11 +46,13 @@
     actionHref?: string;
     actionIcon?: string;
     onAction?: () => void;
+    /** Pourquoi il n'y a pas d'action : voir l'en-tete. */
+    reason?: 'all-clear' | 'accumulating' | 'nothing-matches' | 'read-only' | 'instruction';
   } = $props();
 </script>
 
 <div class="flex flex-col items-center justify-center text-center py-14 px-6 gap-1.5">
-  <div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant mb-2">
+  <div class="w-12 h-12 rounded-full flex items-center justify-center mb-2 {reason === 'all-clear' ? 'bg-success/10 text-success' : 'bg-surface-container text-on-surface-variant'}">
     <Papicon {icon} size={22} />
   </div>
   <p class="text-sm font-medium text-on-surface">{title}</p>

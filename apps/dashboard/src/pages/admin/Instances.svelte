@@ -200,8 +200,7 @@
           title={instances.length === 0 ? 'Aucune instance n’a encore pingué' : 'Aucune instance ne correspond'}
           description={instances.length === 0
             ? 'Les bots envoient leurs statistiques au démarrage puis toutes les 15 minutes.'
-            : 'Change de filtre ou de recherche.'}
-        />
+            : 'Change de filtre ou de recherche.'} reason="accumulating" />
       {:else}
         <div class="overflow-x-auto">
           <table class="w-full text-left text-body-sm">

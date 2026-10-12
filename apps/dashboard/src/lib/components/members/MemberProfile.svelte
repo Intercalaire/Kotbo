@@ -360,7 +360,7 @@
         {#if timelineLoading && items.length === 0}
           <div class="p-5 space-y-2">{#each Array(5) as _}<Skeleton height="h-12" />{/each}</div>
         {:else if items.length === 0}
-          <EmptyState icon="history" title={m.mp_timeline_empty()} description={m.mp_timeline_empty_desc()} />
+          <EmptyState icon="history" title={m.mp_timeline_empty()} description={m.mp_timeline_empty_desc()} reason="nothing-matches" />
         {:else}
           <div class="px-5 py-4 space-y-5">
             {#each groups as group (group.key)}

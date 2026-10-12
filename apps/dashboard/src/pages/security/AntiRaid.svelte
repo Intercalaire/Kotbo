@@ -847,7 +847,7 @@
         {/snippet}
 
         {#if reports.length === 0}
-          <EmptyState icon="ShieldCheck" title="Aucun signalement en attente" description="La file est vide." />
+          <EmptyState icon="ShieldCheck" title="Aucun signalement en attente" description="La file est vide." reason="all-clear" />
         {:else}
           <div class="space-y-2.5">
             {#each reports as report (report.id)}
@@ -896,7 +896,7 @@
 
       <SectionCard title="Invitations à valider" icon="Link">
         {#if inviteRequests.length === 0}
-          <EmptyState icon="ShieldCheck" title="Aucune demande" description="Aucune invitation en attente de validation." />
+          <EmptyState icon="ShieldCheck" title="Aucune demande" description="Aucune invitation en attente de validation." reason="all-clear" />
         {:else}
           <div class="space-y-2.5">
             {#each inviteRequests as request (request.id)}
@@ -1045,7 +1045,7 @@
         icon="Fingerprint"
       >
         {#if scamImages.length === 0}
-          <EmptyState icon="Image" title="Aucune empreinte" description="Le honeypot n'a encore capté aucune image d'arnaque." />
+          <EmptyState icon="Image" title="Aucune empreinte" description="Le honeypot n'a encore capté aucune image d'arnaque." reason="accumulating" />
         {:else}
           <div class="space-y-1.5">
             {#each scamImages as image (image.id)}

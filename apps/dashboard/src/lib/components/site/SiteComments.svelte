@@ -67,7 +67,7 @@
     <FilterPills label={m.ste_comments_filter()} options={filters} value={status} onchange={(value) => { status = value as typeof status; void load(); }} />
   {/snippet}
   {#if !loading && comments.length === 0}
-    <div class="p-6"><EmptyState icon="message-square" title={m.ste_comments_empty()} description="" /></div>
+    <div class="p-6"><EmptyState icon="message-square" title={m.ste_comments_empty()} description="" reason="all-clear" /></div>
   {:else}
     <ul class="comment-list">
       {#each comments as comment (comment.id)}

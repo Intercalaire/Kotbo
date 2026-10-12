@@ -162,7 +162,7 @@
       {#if canManage}<Button size="sm" icon="plus" onclick={() => openEditor(null)}>{m.ste_forum_add()}</Button>{/if}
     {/snippet}
     {#if !loading && (forum?.categories.length ?? 0) === 0}
-      <div class="p-6"><EmptyState icon="message-square" title={m.ste_forum_empty()} description={m.ste_forum_empty_desc()} /></div>
+      <div class="p-6"><EmptyState icon="message-square" title={m.ste_forum_empty()} description={m.ste_forum_empty_desc()} actionLabel={canManage ? m.ste_forum_add() : ''} onAction={() => openEditor(null)} reason="read-only" /></div>
     {:else if forum}
       <ul class="forum-list">
         {#each forum.categories as category, index (category.id)}
