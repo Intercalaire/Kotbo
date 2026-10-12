@@ -19,6 +19,10 @@ enum TicketStatus {
   // reagir. Distinct de CLOSED, dont l'invariant est qu'il reste soit le
   // salon, soit un transcript.
   ORPHANED
+  // Ticket accepte mais sans salon ni fil : le serveur a atteint une limite
+  // Discord (500 salons, 50 par categorie, 1000 fils actifs). Il sera cree
+  // des qu'une place se libere, dans l'ordre d'arrivee.
+  QUEUED
 }
 
 model Ticket {
@@ -72,6 +76,13 @@ model Ticket {
   reviewedAt       DateTime?
   rejectionReason  String?
 
+  // ── File d'attente (limite Discord atteinte) ──────────────────────────────
+  // `queuedAt` fixe l'ordre de passage et n'est pas reecrit quand une nouvelle
+  // tentative echoue : le ticket garde sa place. `queueScope` dit quelle limite
+  // le bloque (GUILD_CHANNELS, CATEGORY_CHANNELS:<id>, ACTIVE_THREADS:<id>).
+  queuedAt         DateTime?
+  queueScope       String?
+
   // ── Archivage ─────────────────────────────────────────────────────────────
   // Le salon reste en place, verrouille en lecture seule. `archivedFromCategoryId`
   // memorise d'ou il vient pour que le desarchivage le remette a sa place.
@@ -108,6 +119,8 @@ model Ticket {
   // (guildId, status, createdAt), et (guildId, createdAt) existe ci-dessus.
   @@index([guildId, closedAt])
   @@index([guildId, claimedById, status])
+  // Balayage de la file d'attente, tous serveurs confondus.
+  @@index([status, queuedAt])
   @@map("tickets")
 }
 
