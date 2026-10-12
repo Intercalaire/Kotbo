@@ -204,7 +204,7 @@ export function scheduleAutoModulePages(client: Client, guildId: string): void {
 
 // ─── Nouveautés du serveur ──────────────────────────────────────────────────
 
-export type ChangelogKind = 'module' | 'channel' | 'emoji' | 'article' | 'wiki' | 'forum' | 'shop' | 'vote';
+export type ChangelogKind = 'module' | 'channel' | 'emoji' | 'article' | 'wiki' | 'forum' | 'vote';
 
 export interface ChangelogEntry {
   at: Date;
@@ -217,14 +217,13 @@ export async function collectChangelog(client: Client, site: SiteRecord, since: 
   const o = { locale };
   const guild = client.guilds.cache.get(site.guildId) ?? null;
   const base = `/s/${site.slug}`;
-  const [modules, pages, categories, offers, voteSites] = await Promise.all([
+  const [modules, pages, categories, voteSites] = await Promise.all([
     prisma.moduleActivationStat.findMany({ where: { guildId: site.guildId, enabled: true, activatedAt: { gte: since } }, select: { moduleName: true, config: true, activatedAt: true } }),
     prisma.sitePage.findMany({
       where: { siteId: site.id, kind: { in: ['WIKI', 'BLOG'] }, visibility: 'PUBLIC', publishedAt: { not: null }, firstPublishedAt: { gte: since } },
       select: { kind: true, slug: true, publishedTitle: true, title: true, firstPublishedAt: true },
     }),
     prisma.siteForumCategory.findMany({ where: { siteId: site.id, createdAt: { gte: since } }, select: { name: true, slug: true, createdAt: true } }),
-    prisma.shopOffer.findMany({ where: { guildId: site.guildId, enabled: true, createdAt: { gte: since } }, select: { name: true, createdAt: true } }),
     prisma.siteVoteSite.findMany({ where: { guildId: site.guildId, enabled: true, createdAt: { gte: since } }, select: { label: true, createdAt: true } }),
   ]);
 
@@ -255,7 +254,6 @@ export async function collectChangelog(client: Client, site: SiteRecord, since: 
     });
   }
   for (const category of categories) entries.push({ at: category.createdAt, kind: 'forum', text: m.site_changelog_forum({ name: category.name }, o), href: `${base}/forum/${category.slug}` });
-  for (const offer of offers) entries.push({ at: offer.createdAt, kind: 'shop', text: m.site_changelog_shop({ name: offer.name }, o), href: `${base}/shop` });
   for (const vote of voteSites) entries.push({ at: vote.createdAt, kind: 'vote', text: m.site_changelog_vote({ name: vote.label }, o), href: `${base}/votes` });
   return entries.sort((a, b) => b.at.getTime() - a.at.getTime());
 }

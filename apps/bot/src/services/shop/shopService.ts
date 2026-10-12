@@ -26,7 +26,6 @@ import * as m from '../../lib/paraglide/messages.js';
 import { getModuleStates } from '../core/moduleGate.js';
 import { adminSpawnItem, creditBalance, getOrCreateRpgProfile } from '../features/economyService.js';
 import { addXp, getGuildLevelCurve, getLevelFromXp } from '../progression/levelingService.js';
-import { notifySiteMember } from '../site/siteNotifyService.js';
 import { publishGuildSignal } from '../site/siteLive.js';
 import { UserFacingError } from '../../utils/userFacingError.js';
 
@@ -273,22 +272,9 @@ export interface ShopPurchaseOptions {
   recipientId?: string | null;
   code?: unknown;
   note?: unknown;
-  source: 'site' | 'discord';
+  source: 'discord';
 }
 
-export interface ShopQuote {
-  price: number;
-  listPrice: number;
-  codeApplied: boolean;
-  balance: number;
-}
-
-/** Prix à payer et solde, sans rien débiter : pour l'aperçu avant achat. */
-export async function quoteShopOffer(client: Client, guildId: string, buyerId: string, offerId: string, options: Omit<ShopPurchaseOptions, 'source'>): Promise<ShopQuote> {
-  const { offer, promo } = await preparePurchase(client, guildId, buyerId, offerId, options);
-  const profile = await getOrCreateRpgProfile(guildId, buyerId);
-  return { price: discountedShopPrice(offer.price, promo), listPrice: offer.price, codeApplied: Boolean(promo), balance: profile.balance };
-}
 
 async function preparePurchase(client: Client, guildId: string, buyerId: string, offerId: string, options: Omit<ShopPurchaseOptions, 'source'>) {
   const settings = await getShopSettings(guildId);
@@ -576,7 +562,7 @@ export async function processShopRenewals(client: Client): Promise<{ charged: nu
     signalShop(grant.guildId, grant.userId);
     const locale = await localeOf(client, grant.guildId);
     const role = client.guilds.cache.get(grant.guildId)?.roles.cache.get(grant.roleId);
-    await notifyShopMember(client, grant.guildId, grant.userId, {
+    await notifyShopMember(client, grant.userId, {
       title: m.shop_notify_role_expired_title({}, { locale }),
       body: m.shop_notify_role_expired_body({ role: role?.name ?? grant.roleId }, { locale }),
     });
@@ -592,10 +578,9 @@ async function renewSubscription(client: Client, sub: ShopSubscriptionRow, now: 
   const name = offer?.name ?? '';
   if (sub.cancelAtPeriodEnd || !offer) {
     await endSubscription(client, sub, now);
-    await notifyShopMember(client, sub.guildId, sub.userId, {
+    await notifyShopMember(client, sub.userId, {
       title: m.shop_notify_sub_ended_title({}, { locale }),
       body: m.shop_notify_sub_ended_body({ name }, { locale }),
-      path: '/me',
     });
     return 'ended';
   }
@@ -635,21 +620,20 @@ async function renewSubscription(client: Client, sub: ShopSubscriptionRow, now: 
     const graceUntil = new Date(now.getTime() + settings.graceDays * PERIOD_MS);
     if (settings.graceDays <= 0) {
       await endSubscription(client, sub, now);
-      await notifyShopMember(client, sub.guildId, sub.userId, { title: m.shop_notify_sub_ended_title({}, { locale }), body: m.shop_notify_sub_unpaid_body({ name }, { locale }), path: '/me' });
+      await notifyShopMember(client, sub.userId, { title: m.shop_notify_sub_ended_title({}, { locale }), body: m.shop_notify_sub_unpaid_body({ name }, { locale }) });
       return 'ended';
     }
     await prisma.shopSubscription.update({ where: { id: sub.id }, data: { status: 'GRACE', graceUntil } });
-    await notifyShopMember(client, sub.guildId, sub.userId, {
+    await notifyShopMember(client, sub.userId, {
       title: m.shop_notify_sub_grace_title({}, { locale }),
       body: m.shop_notify_sub_grace_body({ name, price: await formatShopPrice(sub.guildId, price), date: graceUntil.toLocaleDateString(locale === 'en' ? 'en-GB' : 'fr-FR') }, { locale }),
-      path: '/me',
     });
     signalShop(sub.guildId, sub.userId);
     return 'grace';
   }
   if (sub.graceUntil && sub.graceUntil.getTime() <= now.getTime()) {
     await endSubscription(client, sub, now);
-    await notifyShopMember(client, sub.guildId, sub.userId, { title: m.shop_notify_sub_ended_title({}, { locale }), body: m.shop_notify_sub_unpaid_body({ name }, { locale }), path: '/me' });
+    await notifyShopMember(client, sub.userId, { title: m.shop_notify_sub_ended_title({}, { locale }), body: m.shop_notify_sub_unpaid_body({ name }, { locale }) });
     return 'ended';
   }
   return 'waiting';
@@ -678,41 +662,32 @@ async function localeOf(client: Client, guildId: string): Promise<'fr' | 'en'> {
   return (await resolveGuildLocale(guildId, guild?.preferredLocale)) === 'en' ? 'en' : 'fr';
 }
 
-/**
- * MP au membre. Passe par le site quand il est en ligne (bouton vers la page,
- * préférences du membre) ; sinon, simple message.
- */
-async function notifyShopMember(client: Client, guildId: string, userId: string, notification: { title: string; body: string; path?: string }): Promise<void> {
-  const viaSite = await notifySiteMember(client, guildId, userId, 'shop', notification).catch(() => false);
-  if (viaSite) return;
-  const site = await prisma.communitySite.findUnique({ where: { guildId }, select: { published: true } });
-  if (site?.published) return; // Le membre a coupé ces MP depuis son espace.
+/** MP au membre (messages privés fermés : rien à faire). */
+async function notifyShopMember(client: Client, userId: string, notification: { title: string; body: string }): Promise<void> {
   try {
     const user = await client.users.fetch(userId);
     await user.send({ embeds: [new EmbedBuilder().setTitle(notification.title.slice(0, 256)).setDescription(notification.body.slice(0, 2000))] });
   } catch {
-    // MP fermés : rien à faire.
+    // MP fermés.
   }
 }
 
 async function notifyOrderDecision(client: Client, order: ShopOrder, approved: boolean, reason: string): Promise<void> {
   const locale = await localeOf(client, order.guildId);
-  await notifyShopMember(client, order.guildId, order.buyerId, approved
-    ? { title: m.shop_notify_approved_title({}, { locale }), body: m.shop_notify_approved_body({ name: order.offerName }, { locale }), path: '/me' }
+  await notifyShopMember(client, order.buyerId, approved
+    ? { title: m.shop_notify_approved_title({}, { locale }), body: m.shop_notify_approved_body({ name: order.offerName }, { locale }) }
     : {
         title: m.shop_notify_refused_title({}, { locale }),
         body: `${m.shop_notify_refused_body({ name: order.offerName, price: await formatShopPrice(order.guildId, order.price) }, { locale })}${reason ? `\n> ${reason.slice(0, 300)}` : ''}`,
-        path: '/me',
       });
 }
 
 async function afterCompletion(client: Client, guildId: string, logChannelId: string | null, order: ShopOrder): Promise<void> {
   const locale = await localeOf(client, guildId);
   if (order.recipientId !== order.buyerId) {
-    await notifyShopMember(client, guildId, order.recipientId, {
+    await notifyShopMember(client, order.recipientId, {
       title: m.shop_notify_gift_title({}, { locale }),
       body: m.shop_notify_gift_body({ name: order.offerName, buyer: `<@${order.buyerId}>` }, { locale }),
-      path: '/me',
     });
   }
   if (!logChannelId) return;
@@ -738,7 +713,7 @@ async function announcePendingOrder(client: Client, guildId: string, channelId: 
   if (!channel?.isSendable()) return;
   const locale = await localeOf(client, guildId);
   const { getDashboardUrl } = await import('../../api/shared.js');
-  const url = `${getDashboardUrl().replace(/\/$/, '')}/site/boutique`;
+  const url = `${getDashboardUrl().replace(/\/$/, '')}/economy/boutique`;
   const lines = [
     m.shop_pending_body({ buyer: `<@${order.buyerId}>`, name: order.offerName, price: await formatShopPrice(guildId, order.price) }, { locale }),
     order.recipientId !== order.buyerId ? m.shop_log_gift({ recipient: `<@${order.recipientId}>` }, { locale }) : '',

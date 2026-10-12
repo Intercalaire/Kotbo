@@ -1,8 +1,8 @@
 <script lang="ts">
   /**
-   * Boutique du serveur : offres (rôles, objets, XP, abonnements, prestations),
-   * commandes à valider, codes promo et réglages. Vendue sur le site et sur
-   * Discord, payée en monnaie du bot.
+   * Boutique du serveur (`/boutique` sur Discord) : offres (rôles, objets, XP,
+   * abonnements, prestations), commandes à valider, codes promo et réglages.
+   * Payée en monnaie du bot.
    */
   import { onMount } from 'svelte';
   import { SHOP_OFFER_KINDS, normalizeShopOffer, type ShopOfferKind } from '@kotbo/shared';
@@ -17,7 +17,6 @@
     deleteShopCode,
     deleteShopOffer,
     fetchShopAdmin,
-    fetchSiteCatalog,
     reorderShopOffers,
     saveShopSettingsAdmin,
     updateShopCode,
@@ -26,14 +25,12 @@
     type ShopOfferAdmin,
     type ShopOrderAdmin,
     type ShopPromoCodeAdmin,
-    type SiteCatalog,
-  } from '../../api/site';
-  import { siteErrorMessage } from './siteErrors';
+  } from '../../api/shop';
+  import { siteErrorMessage } from '../site/siteErrors';
 
   let { guildId }: { guildId: string } = $props();
 
   let shop = $state<ShopAdminState | null>(null);
-  let channels = $state<SiteCatalog['channels']>([]);
   let loading = $state(true);
 
   const KIND_LABELS: Record<ShopOfferKind, () => string> = {
@@ -63,9 +60,6 @@
 
   onMount(() => {
     void load();
-    fetchSiteCatalog(guildId)
-      .then((catalog) => (channels = catalog.channels))
-      .catch(() => {});
   });
 
   const price = (amount: number) => `${amount.toLocaleString()} ${shop?.currency.emoji ?? ''} ${shop?.currency.name ?? ''}`.replace(/\s+/g, ' ').trim();
@@ -476,7 +470,7 @@
           {#snippet children(id, describedBy)}
             <select {id} aria-describedby={describedBy} class="input w-full" value={shop!.settings.approvalChannelId ?? ''} onchange={(e) => saveSetting({ approvalChannelId: (e.currentTarget as HTMLSelectElement).value || null })}>
               <option value="">{m.ste_announce_none()}</option>
-              {#each channels as channel (channel.id)}<option value={channel.id}>#{channel.name}</option>{/each}
+              {#each shop?.channels ?? [] as channel (channel.id)}<option value={channel.id}>#{channel.name}</option>{/each}
             </select>
           {/snippet}
         </Field>
@@ -484,7 +478,7 @@
           {#snippet children(id, describedBy)}
             <select {id} aria-describedby={describedBy} class="input w-full" value={shop!.settings.logChannelId ?? ''} onchange={(e) => saveSetting({ logChannelId: (e.currentTarget as HTMLSelectElement).value || null })}>
               <option value="">{m.ste_announce_none()}</option>
-              {#each channels as channel (channel.id)}<option value={channel.id}>#{channel.name}</option>{/each}
+              {#each shop?.channels ?? [] as channel (channel.id)}<option value={channel.id}>#{channel.name}</option>{/each}
             </select>
           {/snippet}
         </Field>

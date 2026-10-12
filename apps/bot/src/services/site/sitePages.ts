@@ -248,7 +248,6 @@ const mod = (module: string, config: Record<string, unknown> = {}) => ({ type: '
 export const AUTO_HOME_ID = '_home';
 export const ME_PAGE_ID = '_me';
 export const VOTES_PAGE_ID = '_votes';
-export const SHOP_PAGE_ID = '_shop';
 
 export function virtualDocument(pageId: string): SiteDocument | null {
   if (pageId === AUTO_HOME_ID) {
@@ -261,9 +260,6 @@ export function virtualDocument(pageId: string): SiteDocument | null {
   if (pageId === VOTES_PAGE_ID) {
     return normalizeSiteDocument({ type: 'doc', content: [mod('vote'), mod('voteLeaderboard', { limit: 10 })] });
   }
-  if (pageId === SHOP_PAGE_ID) {
-    return normalizeSiteDocument({ type: 'doc', content: [mod('shop')] });
-  }
   if (pageId === ME_PAGE_ID) {
     const cell = (module: string) => ({ type: 'gridCell', attrs: { span: 1, rowSpan: 1, surface: true }, content: [mod(module)] });
     return normalizeSiteDocument({
@@ -273,7 +269,6 @@ export function virtualDocument(pageId: string): SiteDocument | null {
         { type: 'grid', attrs: { columns: 2 }, content: [cell('memberRewards'), cell('memberSettings')] },
         mod('memberInventory'),
         mod('memberQuests'),
-        mod('memberPurchases'),
         mod('memberApplications'),
         mod('ticket'),
       ],
@@ -612,14 +607,6 @@ function forumResponse(ctx: SiteCtx, page: ForumPage | null): SiteHttpResponse {
     cacheSeconds: 15,
     noindex: page.noindex,
   });
-}
-
-/** Boutique du serveur. */
-async function shopResponse(ctx: SiteCtx): Promise<SiteHttpResponse> {
-  const o = { locale: ctx.locale };
-  const body = await renderDocumentHtml(ctx, virtualDocument(SHOP_PAGE_ID)!, SHOP_PAGE_ID);
-  const main = `${hero(m.site_shop_page_title({}, o), m.site_shop_page_lead({}, o))}<div class="prose wide">${body}</div>`;
-  return html(200, shell(ctx, { path: `${ctx.basePath}/shop`, title: m.site_shop_page_title({}, o), main, activeKey: 'shop', pageId: SHOP_PAGE_ID }), ctx.nonce, ctx.req.apiOrigin, { cacheSeconds: 30 });
 }
 
 /** Page des votes : où voter, statut du membre, meilleurs votants du mois. */
@@ -1010,7 +997,8 @@ export async function handleSiteRequest(req: SiteHttpRequest): Promise<SiteHttpR
     else if (section === 'u' && a && b === 'card.png' && rest.length === 3) (response = await memberCardResponse(ctx, a)), (trackPath = null);
     else if (section === 'og.png' && rest.length === 1) (response = await serverCardResponse(ctx)), (trackPath = null);
     else if (section === 'votes' && rest.length === 1) response = await votesResponse(ctx);
-    else if ((section === 'shop' || section === 'boutique') && rest.length === 1) response = await shopResponse(ctx);
+    // Ancienne boutique web : la boutique se tient sur Discord (`/boutique`).
+    else if ((section === 'shop' || section === 'boutique') && rest.length === 1) response = redirect(ctx.basePath, false);
     else if (section === 'forum' && rest.length === 1) response = forumResponse(ctx, await forumIndexPage(ctx.block));
     else if (section === 'forum' && a && rest.length === 2) response = forumResponse(ctx, await forumCategoryPage(ctx.block, a, parseForumPage(ctx.req.query.get('page'))));
     else if (section === 'forum' && a && b && rest.length === 3) {

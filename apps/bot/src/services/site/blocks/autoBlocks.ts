@@ -17,7 +17,6 @@ const ICONS: Record<ChangelogKind, SiteIconName> = {
   article: 'newspaper',
   wiki: 'book',
   forum: 'forum',
-  shop: 'bag',
   vote: 'vote',
 };
 

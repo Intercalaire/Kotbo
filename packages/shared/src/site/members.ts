@@ -69,7 +69,7 @@ export function siteStreakBonus(streak: number, streakBonus: number, streakCap: 
   return Math.max(0, Math.min(streak - 1, streakCap)) * streakBonus;
 }
 
-export const SITE_NOTIFICATION_KINDS = ['comments', 'tickets', 'shop', 'voteReminder'] as const;
+export const SITE_NOTIFICATION_KINDS = ['comments', 'tickets', 'voteReminder'] as const;
 export type SiteNotificationKind = (typeof SITE_NOTIFICATION_KINDS)[number];
 export type SiteNotificationPrefs = Record<SiteNotificationKind, boolean>;
 
@@ -77,7 +77,6 @@ export type SiteNotificationPrefs = Record<SiteNotificationKind, boolean>;
 export const DEFAULT_SITE_NOTIFICATIONS: SiteNotificationPrefs = {
   comments: true,
   tickets: true,
-  shop: true,
   voteReminder: false,
 };
 

@@ -32,7 +32,6 @@ async function renderMemberSettings(ctx: BlockContext): Promise<string> {
   const labels: Record<SiteNotificationKind, string> = {
     comments: m.site_notify_pref_comments({}, o),
     tickets: m.site_notify_pref_tickets({}, o),
-    shop: m.site_notify_pref_shop({}, o),
     voteReminder: m.site_notify_pref_vote_reminder({}, o),
   };
   const checkbox = (name: string, checked: boolean, label: string) =>

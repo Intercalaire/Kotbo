@@ -27,7 +27,6 @@
     search: () => m.ste_section_search(),
     me: () => m.ste_section_me(),
     votes: () => m.ste_section_votes(),
-    shop: () => m.ste_section_shop(),
     forum: () => m.ste_section_forum(),
   };
 

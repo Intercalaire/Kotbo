@@ -1,7 +1,8 @@
 /**
  * Boutique sur Discord (`/boutique`) : un panneau éphémère, l'offre choisie
  * dans un menu, puis acheter, offrir (choix du membre) ou commander avec un
- * code promo et un message au staff (fenêtre modale).
+ * code promo et un message au staff (fenêtre modale). « Mes abonnements »
+ * permet de résilier ou de reprendre un abonnement.
  *
  * `customId` : `shop:<action>[:<offre>]`. Le panneau est éphémère : seul le
  * membre qui l'a ouvert peut s'en servir.
@@ -30,8 +31,7 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { getEffectiveLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
-import { siteUrl } from '../site/siteNotifyService.js';
-import { formatShopPrice, getShopSettings, listShopOffers, purchaseShopOffer, ShopError } from './shopService.js';
+import { formatShopPrice, getShopSettings, listShopOffers, memberShopState, purchaseShopOffer, setShopSubscriptionCancelled, ShopError } from './shopService.js';
 import { shopErrorMessage } from './shopMessages.js';
 
 type Locale = 'fr' | 'en';
@@ -97,8 +97,50 @@ export async function buildShopHome(guild: Guild, userId: string, locale: Locale
     .setPlaceholder(m.shop_cmd_pick({}, o))
     .addOptions(offers.map((offer) => ({ label: offer.name.slice(0, 100), value: offer.id, description: offer.description ? offer.description.slice(0, 100) : undefined })));
   const components: ShopView['components'] = [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
-  const web = await siteUrl(guild.id, '/shop');
-  if (web) components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(web).setLabel(m.shop_cmd_site({}, o))));
+  const subscriptions = await prisma.shopSubscription.count({ where: { guildId: guild.id, userId, status: { in: ['ACTIVE', 'GRACE'] } } });
+  if (subscriptions > 0) {
+    components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId('shop:mine').setStyle(ButtonStyle.Secondary).setLabel(m.shop_cmd_mine({ count: subscriptions }, o))));
+  }
+  return { embeds: [embed], components };
+}
+
+/** Abonnements en cours du membre : échéance, résiliation ou reprise. */
+async function buildSubscriptionsView(guild: Guild, userId: string, locale: Locale, note?: { text: string; ok: boolean }): Promise<ShopView> {
+  const o = { locale };
+  const { subscriptions } = await memberShopState(guild.id, userId);
+  const shown = subscriptions.slice(0, 20);
+  const date = (at: Date | null) => (at ? `<t:${Math.floor(at.getTime() / 1000)}:D>` : '?');
+  const lines = await Promise.all(
+    shown.map(async (sub) => {
+      const status =
+        sub.status === 'GRACE'
+          ? m.site_shop_sub_grace({ date: date(sub.graceUntil) }, o)
+          : sub.cancelAtPeriodEnd
+            ? m.site_shop_sub_ends({ date: date(sub.nextChargeAt) }, o)
+            : m.site_shop_sub_next({ date: date(sub.nextChargeAt) }, o);
+      return `**${sub.offer.name}** · ${await formatShopPrice(guild.id, sub.price)}\n${status}`;
+    }),
+  );
+  const embed = new EmbedBuilder()
+    .setColor(note ? (note.ok ? 0x16a34a : 0xef4444) : ACCENT)
+    .setTitle(m.shop_cmd_mine_title({}, o))
+    .setDescription([note ? `**${note.text}**` : '', lines.join('\n\n') || m.shop_cmd_mine_empty({}, o)].filter(Boolean).join('\n\n').slice(0, 4000));
+
+  const components: ShopView['components'] = [];
+  for (let i = 0; i < shown.length; i += 5) {
+    const row = new ActionRowBuilder<ButtonBuilder>();
+    for (const sub of shown.slice(i, i + 5)) {
+      const label = sub.cancelAtPeriodEnd ? m.shop_cmd_sub_resume({ name: sub.offer.name }, o) : m.shop_cmd_sub_cancel({ name: sub.offer.name }, o);
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`shop:${sub.cancelAtPeriodEnd ? 'subresume' : 'subcancel'}:${sub.id}`)
+          .setStyle(sub.cancelAtPeriodEnd ? ButtonStyle.Success : ButtonStyle.Danger)
+          .setLabel(label.slice(0, 80)),
+      );
+    }
+    components.push(row);
+  }
+  components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId('shop:back').setStyle(ButtonStyle.Secondary).setLabel(m.shop_cmd_back({}, o))));
   return { embeds: [embed], components };
 }
 
@@ -185,7 +227,27 @@ export async function handleShopButton(client: Client, customId: string, interac
     await interaction.editReply(await buildShopHome(interaction.guild, interaction.user.id, locale));
     return;
   }
+  if (action === 'mine') {
+    await interaction.deferUpdate();
+    await interaction.editReply(await buildSubscriptionsView(interaction.guild, interaction.user.id, locale));
+    return;
+  }
   if (!offerId || !CUID.test(offerId)) return;
+
+  if (action === 'subcancel' || action === 'subresume') {
+    await interaction.deferUpdate();
+    const cancel = action === 'subcancel';
+    let note: { text: string; ok: boolean };
+    try {
+      await setShopSubscriptionCancelled(interaction.guild.id, interaction.user.id, offerId, cancel);
+      note = { text: cancel ? m.site_shop_sub_cancelled({}, o) : m.site_shop_sub_resumed({}, o), ok: true };
+    } catch (err) {
+      if (!(err instanceof ShopError)) logger.error('Shop', `Abonnement ${offerId} : changement refusé :`, err);
+      note = { text: err instanceof ShopError ? shopErrorMessage(err.code, o) : m.site_error_generic({}, o), ok: false };
+    }
+    await interaction.editReply(await buildSubscriptionsView(interaction.guild, interaction.user.id, locale, note));
+    return;
+  }
 
   if (action === 'buy') {
     await interaction.deferUpdate();

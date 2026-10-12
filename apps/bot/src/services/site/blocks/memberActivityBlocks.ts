@@ -69,9 +69,9 @@ async function renderMemberApplications(ctx: BlockContext): Promise<string> {
   ].sort((a, b) => b.at.getTime() - a.at.getTime());
   if (rows.length === 0) return `<p class="mod-title">${esc(m.site_applications_title({}, o))}</p>${emptyState(m.site_applications_empty({}, o))}`;
   const items = rows
-    .map((row) => `<li class="shop-line"><span class="shop-line-main"><strong>${esc(row.title)}</strong><br><span class="card-meta">${timeTag(row.at, ctx.locale, 'medium')}</span></span><span class="${cls('tag', `application-${row.tone}`)}">${esc(row.status)}</span></li>`)
+    .map((row) => `<li class="status-line"><span class="status-line-main"><strong>${esc(row.title)}</strong><br><span class="card-meta">${timeTag(row.at, ctx.locale, 'medium')}</span></span><span class="${cls('tag', `application-${row.tone}`)}">${esc(row.status)}</span></li>`)
     .join('');
-  return `<p class="mod-title">${esc(m.site_applications_title({}, o))}</p><ul class="shop-lines">${items}</ul>`;
+  return `<p class="mod-title">${esc(m.site_applications_title({}, o))}</p><ul class="status-lines">${items}</ul>`;
 }
 
 export const memberActivityBlocks: BlockRegistry = {

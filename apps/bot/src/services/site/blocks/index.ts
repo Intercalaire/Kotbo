@@ -30,7 +30,6 @@ import { demarchesBlocks } from './demarchesBlocks.js';
 import { contentBlocks } from './contentBlocks.js';
 import { memberBlocks } from './memberBlocks.js';
 import { voteBlocks } from './voteBlocks.js';
-import { shopBlocks } from './shopBlocks.js';
 import { autoBlocks } from './autoBlocks.js';
 import { memberActivityBlocks } from './memberActivityBlocks.js';
 
@@ -44,7 +43,6 @@ const REGISTRY: BlockRegistry = {
   ...contentBlocks,
   ...memberBlocks,
   ...voteBlocks,
-  ...shopBlocks,
   ...autoBlocks,
   ...memberActivityBlocks,
   // Import différé : le pouls lit des blocs qui, par le rendu, reviennent ici.

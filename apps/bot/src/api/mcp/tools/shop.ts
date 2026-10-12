@@ -17,7 +17,7 @@ import {
 } from '../../../services/shop/shopService.js';
 
 /**
- * La boutique vend en monnaie du bot, sur le site et sur Discord (/boutique) :
+ * La boutique vend en monnaie du bot, sur Discord (/boutique) :
  * rôles (permanents ou pour une durée), objets RPG, XP, abonnements prélevés à
  * chaque période et prestations livrées à la main par le staff.
  */
