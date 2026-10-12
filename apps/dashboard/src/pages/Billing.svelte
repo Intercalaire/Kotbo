@@ -20,10 +20,21 @@
   import type { BillingInterval, BillingStatus, PlanCard, PlanKey } from '../lib/api/billing';
   import { toast } from '../lib/stores/toast.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import Callout from '../lib/components/ui/Callout.svelte';
+  import Button from '../lib/components/ui/Button.svelte';
+  import { confetti } from '../lib/onboarding/celebrate';
 
   let status = $state<BillingStatus | null>(null);
   let loading = $state(true);
   let interval = $state<BillingInterval>('month');
+  /**
+   * Retour de paiement reussi. C'est le moment ou l'on est le plus convaincu
+   * du parcours : un simple toast le gaspillait. L'encadre confirme le choix,
+   * dit ce qui change, et propose une seule suite.
+   */
+  let justPaid = $state(false);
+  const paidPlan = $derived((status?.plans ?? []).find((plan) => plan.key === status?.plan && plan.key !== 'FREE') ?? null);
+
   /** Offre dont le bouton est en cours de traitement, pour ne pas figer toute la page. */
   let pending = $state<PlanKey | 'portal' | null>(null);
 
@@ -137,7 +148,8 @@
     const checkout = params.get('checkout');
 
     if (checkout === 'success') {
-      toast.success('Paiement accepté, merci ! Ton offre est en cours d\'activation.');
+      justPaid = true;
+      confetti();
       setTimeout(load, 2500);
     } else if (checkout === 'cancelled') {
       toast.info('Paiement annulé, aucun montant n\'a été débité.');
@@ -157,6 +169,19 @@
       </p>
     </div>
   </header>
+
+  {#if justPaid}
+    <Callout
+      variant="success"
+      icon="sparkles"
+      title={paidPlan ? `Merci ! Ton serveur passe à l'offre ${paidPlan.name}.` : 'Merci ! Ton paiement est accepté.'}
+    >
+      {#if paidPlan}{paidPlan.description} {/if}Les modules de l'offre s'ouvrent dans quelques secondes, sans rien à réinstaller.
+      {#snippet actions()}
+        <Button href="/modules" variant="primary" size="sm" iconRight="ArrowRight">Voir mes nouveaux modules</Button>
+      {/snippet}
+    </Callout>
+  {/if}
 
   {#if loading}
     <div class="space-y-3">
