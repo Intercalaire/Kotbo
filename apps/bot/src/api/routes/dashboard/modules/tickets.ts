@@ -16,6 +16,7 @@ import { clampCommentTimeout } from '../../../../services/features/ticketSatisfa
 import { INBOX_VIEWS, computeSla, normalizeView, viewWhere, waitingOn, type SlaConfig } from '../../../../services/features/ticketHelpdesk.js';
 import { handleTicketHelpdeskRoutes } from './ticketHelpdesk.js';
 import { noticeSeconds } from '../../../../services/features/ticketRecordingNotice.js';
+import { parseMacroInput } from '../../../../services/features/ticketMacroService.js';
 
 import { jsonFailure } from '../../../shared/failure.js';
 import { publicErrorMessage } from '../../../../utils/publicError.js';
@@ -89,73 +90,6 @@ const TICKET_CONFIG_SELECT = {
   ticketQuotaReopenEnabled: true,
   ticketQuotaReopenMax: true,
 } satisfies Prisma.GuildSelect;
-
-/** Champs acceptes pour une macro, valides un par un plutot qu'en bloc. */
-type MacroData = {
-  name: string;
-  category: string | null;
-  emoji: string | null;
-  content: string;
-  enabled: boolean;
-  position: number;
-  ticketTypeIds: string[];
-  allowedRoleIds: string[];
-  keywords: string[];
-  autoSendOnOpen: boolean;
-  setTicketTypeId: string | null;
-  addRoleId: string | null;
-  removeRoleId: string | null;
-  requestSatisfaction: boolean;
-  closeTicket: boolean;
-};
-
-/**
- * Valide le corps d'une macro. Nom et contenu sont les deux seuls champs
- * obligatoires : une macro sans texte n'a rien a envoyer, une macro sans nom
- * est introuvable dans le selecteur Discord.
- */
-function parseMacroInput(body: Record<string, unknown>): { data: MacroData } | { error: string } {
-  const text = (value: unknown, max: number): string =>
-    typeof value === 'string' ? value.trim().slice(0, max) : '';
-  const ids = (value: unknown): string[] =>
-    Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string' && v.trim().length > 0).slice(0, 50) : [];
-
-  const name = text(body.name, 100);
-  if (!name) return { error: 'Le nom de la macro est obligatoire.' };
-
-  // 2000 caracteres : la limite d'un message Discord. Au-dela, l'envoi
-  // echouerait au moment ou le staff clique, pas a l'enregistrement.
-  const content = text(body.content, 2000);
-  if (!content) return { error: 'Le contenu de la macro est obligatoire.' };
-
-  const position = Number(body.position);
-
-  return {
-    data: {
-      name,
-      category: text(body.category, 60) || null,
-      emoji: text(body.emoji, 16) || null,
-      content,
-      enabled: body.enabled !== false,
-      position: Number.isFinite(position) ? Math.max(0, Math.floor(position)) : 0,
-      ticketTypeIds: ids(body.ticketTypeIds),
-      allowedRoleIds: ids(body.allowedRoleIds),
-      keywords: Array.isArray(body.keywords)
-        ? body.keywords
-            .filter((v): v is string => typeof v === 'string')
-            .map((v) => v.trim().slice(0, 60))
-            .filter((v) => v.length > 0)
-            .slice(0, 50)
-        : [],
-      autoSendOnOpen: body.autoSendOnOpen === true,
-      setTicketTypeId: text(body.setTicketTypeId, 100) || null,
-      addRoleId: text(body.addRoleId, 40) || null,
-      removeRoleId: text(body.removeRoleId, 40) || null,
-      requestSatisfaction: body.requestSatisfaction === true,
-      closeTicket: body.closeTicket === true,
-    },
-  };
-}
 
 /** Objectif de service : entier strictement positif et borne, ou `null` pour « aucun ». */
 function slaTarget(value: unknown, max: number): number | null {
