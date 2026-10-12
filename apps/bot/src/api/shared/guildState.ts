@@ -729,6 +729,9 @@ export const getGuildState = async (
   return {
     guildName: getGuildName(client, guildId),
     plan: guildPlan,
+    trialEndsAt: guild.stripeSubscriptionStatus === 'trialing' && guild.stripeCurrentPeriodEnd
+      ? guild.stripeCurrentPeriodEnd.toISOString()
+      : null,
     onboardingRequired,
     onboardingCanFinishWithoutPayment,
     configChannelId: guild.configChannelId ?? '',
