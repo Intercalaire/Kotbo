@@ -35,7 +35,8 @@
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { downloadSingleSheetXlsx } from '../lib/xlsxExport';
 
-  const sanctionTabs = ['sanctions', 'settings'] as const;
+  // « appeals » est rendu par la page enveloppe (security/Sanctions) : il figure ici pour que l'onglet existe.
+  const sanctionTabs = ['sanctions', 'settings', 'appeals'] as const;
   let activeTab = $state('sanctions');
 
   $effect(() => {
