@@ -131,6 +131,25 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  // ── Relances aux administrateurs : « Ne plus recevoir ces rappels » ──
+  // Le bouton vit dans un message privé envoyé au payeur ou au propriétaire ;
+  // il coupe les relances pour le serveur qu'il nomme.
+  if (customId.startsWith('lifecycle:optout:')) {
+    const targetGuildId = customId.slice('lifecycle:optout:'.length);
+    if (!/^\d{17,20}$/.test(targetGuildId)) return;
+    const { disableLifecycleReminders } = await import('../services/core/adminLifecycleService.js');
+    await disableLifecycleReminders(targetGuildId).catch((error) => {
+      logger.warn('LifecycleReminders', `Désactivation impossible pour ${targetGuildId}: ${String(error)}`);
+    });
+    const locale = await resolveGuildLocale(targetGuildId);
+    const guildName = client.guilds.cache.get(targetGuildId)?.name ?? targetGuildId;
+    await interaction.reply({
+      content: gvwMessages.lcr_optout_done({ guild: guildName }, { locale }),
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
   // ── Confidentialité : reprise du suivi de présence après /opt-out presence
   if (customId === 'optout:presence:resume') {
     const { handleOptOutPresenceResume } = await import('../commands/utility/optout.js');

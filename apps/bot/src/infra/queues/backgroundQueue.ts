@@ -48,6 +48,7 @@ export type BackgroundJobName =
   | 'member-role-snapshots-prune'
   | 'billing-events-prune'
   | 'billing-renewal-notice'
+  | 'admin-lifecycle-reminders'
   | 'analytics-daily-snapshot'
   | 'acquisition-events-prune'
   | 'dashboard-telemetry-prune'

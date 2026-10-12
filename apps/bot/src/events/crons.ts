@@ -385,6 +385,10 @@ export async function registerCrons(client: Client): Promise<void> {
       const { runRenewalNoticeCheck } = await import('../services/billing/renewalNoticeService.js');
       await runRenewalNoticeCheck(client);
     },
+    'admin-lifecycle-reminders': async () => {
+      const { runAdminLifecycleReminders } = await import('../services/core/adminLifecycleService.js');
+      await runAdminLifecycleReminders(client);
+    },
     'analytics-daily-snapshot': async () => {
       const { runDailySnapshot } = await import('../services/analytics/acquisitionSnapshotService.js');
       await runDailySnapshot();
@@ -688,6 +692,16 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('billing-renewal-notice', async () => {
       const { runRenewalNoticeCheck } = await import('../services/billing/renewalNoticeService.js');
       await runRenewalNoticeCheck(client);
+    }, 2000);
+  });
+
+  // 💌 Relances aux administrateurs (tous les jours a 10:45) : configuration
+  // laissee en plan, etape utile restante, bilan apres une longue absence.
+  // En matinee, comme l'avis de reconduction : le message part en prive.
+  cron.schedule('45 10 * * *', async () => {
+    await runCronJob('admin-lifecycle-reminders', async () => {
+      const { runAdminLifecycleReminders } = await import('../services/core/adminLifecycleService.js');
+      await runAdminLifecycleReminders(client);
     }, 2000);
   });
 
