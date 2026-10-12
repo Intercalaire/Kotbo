@@ -9,6 +9,7 @@
  */
 import { EmbedBuilder, type ButtonInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction } from 'discord.js';
 import { COLORS } from '../../utils/embeds.js';
+import { sansConversionV2 } from '../../utils/patchV2.js';
 
 export const MIN_NOTICE_SECONDS = 5;
 export const MAX_NOTICE_SECONDS = 30;
@@ -77,6 +78,11 @@ export async function showRecordingNotice(
   if (!settings.ticketRecordingNoticeEnabled) return;
   const seconds = noticeSeconds(settings.ticketRecordingNoticeSeconds);
   const readyAt = new Date(Date.now() + seconds * 1000);
-  await interaction.editReply({ content: '', embeds: [buildNoticeEmbed(settings, readyAt)] }).catch(() => null);
+  // Embed classique, sans conversion V2 : le drapeau IsComponentsV2 ne se
+  // retire plus d'un message, et la suite de l'ouverture repond en `content`
+  // dans cette meme reponse (MESSAGE_CANNOT_USE_LEGACY_FIELDS_WITH_COMPONENTS_V2).
+  await interaction
+    .editReply(sansConversionV2({ content: '', embeds: [buildNoticeEmbed(settings, readyAt)] }))
+    .catch(() => null);
   await wait(seconds * 1000);
 }

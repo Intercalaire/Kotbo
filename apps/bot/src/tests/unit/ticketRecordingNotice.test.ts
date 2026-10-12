@@ -44,6 +44,13 @@ describe("avertissement d'enregistrement", () => {
     expect(waits).toEqual([15_000]);
   });
 
+  test('reste un embed classique : la réponse finale en `content` doit rester possible', async () => {
+    const edits: object[] = [];
+    const interaction = { editReply: async (payload: object) => { edits.push(payload); } } as never;
+    await showRecordingNotice(interaction, settings(), async () => {});
+    expect((edits[0] as Record<symbol, unknown>)[Symbol.for('kotbo.sansConversionV2')]).toBe(true);
+  });
+
   test('désactivé : aucun message, aucune attente', async () => {
     const edits: unknown[] = [];
     const interaction = { editReply: async (payload: unknown) => { edits.push(payload); } } as never;
