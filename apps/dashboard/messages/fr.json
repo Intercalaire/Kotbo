@@ -8141,7 +8141,7 @@
   "mcp_perm_write_messages_label": "Gérer messages",
   "mcp_perm_write_messages_desc": "⚠ Envoyer, éditer/supprimer des messages et gérer forums, articles et tags",
   "mcp_perm_write_tickets_label": "Gérer tickets",
-  "mcp_perm_write_tickets_desc": "⚠ Répondre et fermer des tickets via IA",
+  "mcp_perm_write_tickets_desc": "⚠ Répondre, fermer et gérer les macros de tickets via IA",
   "mcp_perm_write_community_label": "Gérer communauté",
   "mcp_perm_write_community_desc": "⚠ Répondre aux suggestions, gérer événements, giveaways, le pipeline d'accueil personnalisé, trancher et annuler les paris de clan",
   "mcp_perm_write_members_label": "Gérer membres",

@@ -8141,7 +8141,7 @@
   "mcp_perm_write_messages_label": "Manage Messages",
   "mcp_perm_write_messages_desc": "⚠ Send, edit/delete messages and manage forums, posts and tags",
   "mcp_perm_write_tickets_label": "Manage Tickets",
-  "mcp_perm_write_tickets_desc": "⚠ Reply to and close tickets via AI",
+  "mcp_perm_write_tickets_desc": "⚠ Reply to, close and manage ticket macros via AI",
   "mcp_perm_write_community_label": "Manage Community",
   "mcp_perm_write_community_desc": "⚠ Answer suggestions, manage events, giveaways, the custom onboarding pipeline, settle and void clan bets",
   "mcp_perm_write_members_label": "Manage Members",
