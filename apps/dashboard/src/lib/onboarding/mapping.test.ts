@@ -19,6 +19,22 @@ describe('defaultMapping', () => {
       'tickets.logs': { mode: 'adopt', id: '999999' },
     });
     expect(next['tickets.panel']).toEqual({ mode: 'adopt', id: '111111' });
+    expect(next['tickets.logs']).toEqual({ mode: 'create', id: null, auto: true });
+  });
+
+  test('une proposition automatique suit la detection, un choix reste', () => {
+    const match = { id: '111111', name: 'support', source: 'name' as const };
+    const next = defaultMapping(
+      plan,
+      'communaute',
+      { 'tickets.panel': match, 'tickets.logs': match },
+      inventory,
+      {
+        'tickets.panel': { mode: 'create', id: null, auto: true },
+        'tickets.logs': { mode: 'create', id: null },
+      },
+    );
+    expect(next['tickets.panel']).toEqual({ mode: 'adopt', id: '111111', auto: true });
     expect(next['tickets.logs']).toEqual({ mode: 'create', id: null });
   });
 

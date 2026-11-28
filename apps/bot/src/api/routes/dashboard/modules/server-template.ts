@@ -333,6 +333,12 @@ export function createServerTemplateRouter(client: Client) {
           : {};
 
       const matches = detectExistingMatches(discordGuild, plan, knownRefs);
+      const defaults = detectDiscordDefaults(discordGuild, matches);
+      // « Salons textuels » sur un serveur regle en anglais ne porte pas le nom de
+      // la maquette : sans ce repli, le mappage proposait d'en creer un second.
+      for (const [key, entry] of Object.entries(defaults)) {
+        matches[key] ??= { ...entry, source: 'name' };
+      }
       const planKeys = new Set(plan.filter((entry) => entry.kind !== 'module').map((entry) => entry.key));
       const matchedIds = new Set(Object.values(matches).map((match) => match.id));
 
@@ -351,7 +357,6 @@ export function createServerTemplateRouter(client: Client) {
        * n'en declenche aucun et garde la pose directe, qui est ce qu'il lui
        * faut.
        */
-      const defaults = detectDiscordDefaults(discordGuild, matches);
       const defaultIds = new Set(Object.values(defaults).map((entry) => entry.id));
 
       // Les salons poses par Discord ne comptent dans aucun des deux signaux :

@@ -44,6 +44,7 @@
   import DiscordPreview from '../DiscordPreview.svelte';
   import DiscordEmbed from '../DiscordEmbed.svelte';
   import Papicon from '../../Papicon.svelte';
+  import SearchableSelect from '../../SearchableSelect.svelte';
   import WizardShell from '../WizardShell.svelte';
 
   import { errorMessage } from '@kotbo/shared';
@@ -241,16 +242,20 @@
               </span>
               {m.obx_lv_level({ level })}
             </span>
-            <select
-              bind:value={rewards[level]}
-              aria-label={m.obx_lv_reward_aria({ level })}
-              class="flex-1 min-w-0 rounded-lg border border-field-border bg-surface-container-lowest/60 px-3 py-1.5 text-body-sm text-on-surface focus:outline-none focus:border-primary/50"
-            >
-              <option value={undefined}>{m.obx_lv_no_role()}</option>
-              {#each roles as role (role.id)}
-                <option value={role.id}>@{role.name}</option>
-              {/each}
-            </select>
+            <label for="level-reward-{level}" class="sr-only">{m.obx_lv_reward_aria({ level })}</label>
+            <SearchableSelect
+              id="level-reward-{level}"
+              value={rewards[level] || null}
+              options={roles.map((role) => ({
+                id: role.id,
+                name: `@${role.name}`,
+                color: role.color === '#000000' ? null : role.color,
+              }))}
+              placeholder={m.obx_lv_no_role()}
+              className="flex-1 min-w-0"
+              showId={false}
+              onchange={(next) => (rewards[level] = next ?? '')}
+            />
           </div>
         {/each}
       </div>

@@ -40,6 +40,7 @@
   } from '../../../onboarding';
   import type { ServerTemplatePlanItem } from '../../../api';
   import Papicon from '../../Papicon.svelte';
+  import SearchableSelect from '../../SearchableSelect.svelte';
   import WizardShell from '../WizardShell.svelte';
 
   const { onEditTracks, skip }: { onEditTracks: () => void; skip?: () => void } = $props();
@@ -93,9 +94,11 @@
     if (!inventory) return [] as { id: string; name: string; disabled: boolean; note: string | null }[];
 
     // Un meme salon ne peut pas tenir deux roles du plan : il recevrait deux
-    // cablages contradictoires, et le second effacerait le premier.
+    // cablages contradictoires, et le second effacerait le premier. Une categorie
+    // n'est cablee a rien : plusieurs sections peuvent vivre dans la meme.
     const takenBy = new Map<string, string>();
     for (const [key, decision] of Object.entries(mapping)) {
+      if (item.kind === 'category') break;
       if (key === item.key || decision.mode !== 'adopt' || !decision.id) continue;
       const other = template?.plan.find((entry) => entry.key === key);
       if (other) takenBy.set(decision.id, other.name);
@@ -126,19 +129,39 @@
       }));
   }
 
-  /** L'etat du menu, encode en une valeur : c'est ce que le `select` porte. */
+  /** L'etat du menu : l'identifiant adopte, sinon `create` ou `skip`. */
   const valueOf = (key: string): string => {
     const decision = decisionOf(key);
-    return decision.mode === 'adopt' && decision.id ? `adopt:${decision.id}` : decision.mode;
+    return decision.mode === 'adopt' && decision.id ? decision.id : decision.mode;
   };
 
-  function choose(section: Section, item: ServerTemplatePlanItem, raw: string): void {
-    if (raw.startsWith('adopt:')) {
-      wizard.decide(item.key, { mode: 'adopt', id: raw.slice(6) });
-    } else if (raw === 'skip') {
+  /**
+   * « Creer » et « ne rien faire » en tete, puis ce que le serveur porte.
+   *
+   * Un candidat indisponible (deja pris, role hors de portee) est retire, sauf
+   * s'il est celui de la ligne : le menu doit pouvoir le nommer.
+   */
+  function optionsFor(item: ServerTemplatePlanItem) {
+    const current = valueOf(item.key);
+    return [
+      { id: 'create', name: m.obx_mp_create({ name: item.name }), icon: 'plus' },
+      ...(item.kind !== 'category' && isSkippable(item)
+        ? [{ id: 'skip', name: m.obx_mp_skip(), icon: 'Cross' }]
+        : []),
+      ...candidatesFor(item)
+        .filter((option) => !option.disabled || option.id === current)
+        .map((option) => ({ id: option.id, name: option.name })),
+    ];
+  }
+
+  /** La croix vaut « ne rien faire ». */
+  function choose(section: Section, item: ServerTemplatePlanItem, value: string | null): void {
+    if (value === null || value === 'skip') {
       wizard.decide(item.key, { mode: 'skip', id: null });
-    } else {
+    } else if (value === 'create') {
       wizard.decide(item.key, { mode: 'create', id: null });
+    } else {
+      wizard.decide(item.key, { mode: 'adopt', id: value });
     }
     syncCategory(section);
   }
@@ -251,23 +274,16 @@
             {m.obx_mp_empty_category()}
           </p>
         {:else}
-          <select aria-label={m.obx_mp_category()}
+          <label for="map-{category.key}" class="sr-only">{m.obx_mp_category()}</label>
+          <SearchableSelect
+            id="map-{category.key}"
             value={valueOf(category.key)}
+            options={optionsFor(category)}
+            clearable={false}
+            showId={false}
             disabled={locked}
-            onchange={(event) => choose(section, category, event.currentTarget.value)}
-            class="w-full rounded-lg border border-field-border bg-surface-container-lowest/60 px-3 py-2 text-body-sm text-on-surface disabled:opacity-50"
-          >
-            <optgroup label={m.obx_mp_server_categories()}>
-              {#each candidatesFor(category) as option (option.id)}
-                <option value="adopt:{option.id}" disabled={option.disabled}>
-                  {option.name}{option.note ? ` (${option.note})` : ''}
-                </option>
-              {/each}
-            </optgroup>
-            <optgroup label={m.obx_mp_otherwise()}>
-              <option value="create">{m.obx_mp_create({ name: category.name })}</option>
-            </optgroup>
-          </select>
+            onchange={(next) => choose(section, category, next)}
+          />
         {/if}
       </div>
     {/if}
@@ -310,26 +326,18 @@
               {/if}
             </div>
 
-            <select aria-label={line.name}
-              value={valueOf(line.key)}
-              disabled={locked}
-              onchange={(event) => choose(section, line, event.currentTarget.value)}
-              class="shrink-0 w-[15.5rem] max-w-[52%] rounded-lg border border-field-border bg-surface-container-lowest/60 px-3 py-2 text-body-sm text-on-surface disabled:opacity-50"
-            >
-              <optgroup label={line.kind === 'role' ? m.obx_mp_server_roles() : m.obx_mp_server_channels()}>
-                {#each candidatesFor(line) as option (option.id)}
-                  <option value="adopt:{option.id}" disabled={option.disabled}>
-                    {option.name}{option.note ? ` (${option.note})` : ''}
-                  </option>
-                {/each}
-              </optgroup>
-              <optgroup label={m.obx_mp_otherwise()}>
-                <option value="create">{m.obx_mp_create({ name: line.name })}</option>
-                {#if isSkippable(line)}
-                  <option value="skip">{m.obx_mp_skip()}</option>
-                {/if}
-              </optgroup>
-            </select>
+            <div class="shrink-0 w-[15.5rem] max-w-[52%]">
+              <label for="map-{line.key}" class="sr-only">{line.name}</label>
+              <SearchableSelect
+                id="map-{line.key}"
+                value={valueOf(line.key)}
+                options={optionsFor(line)}
+                clearable={isSkippable(line) && decision.mode !== 'skip'}
+                showId={false}
+                disabled={locked}
+                onchange={(next) => choose(section, line, next)}
+              />
+            </div>
           </div>
         </div>
       {/each}

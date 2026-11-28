@@ -182,7 +182,7 @@ function sanitizeMapping(value: unknown): MappingState | null {
     // Une adoption sans identifiant ne designe rien : elle repart en creation
     // plutot que d'envoyer au bot une ligne qu'il refusera.
     if (mode === 'adopt' && !id) { clean[key] = { mode: 'create', id: null }; continue; }
-    clean[key] = { mode, id };
+    clean[key] = { mode, id, ...(decision.auto === true ? { auto: true } : {}) };
   }
 
   return Object.keys(clean).length > 0 ? clean : null;

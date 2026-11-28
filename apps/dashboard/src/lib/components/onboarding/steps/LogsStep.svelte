@@ -63,7 +63,7 @@
   function apply() {
     // Lus maintenant : l'ecran aura disparu quand l'ecriture partira.
     const [retentionDays, logChannelId] = [days, channelId || null];
-    wizard.answer({ retention, logChannelId });
+    wizard.answer({ retention, logChannelId: channelId });
     // Deux ecritures, deux endroits : la conservation vit avec les journaux
     // de messages, le salon de publication avec les reglages de la guilde.
     void saveInBackground('logs', async () => {

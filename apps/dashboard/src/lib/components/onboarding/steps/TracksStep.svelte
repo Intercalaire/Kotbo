@@ -47,7 +47,9 @@
   import { Button, Callout, ListGroup, ListRow, Segmented } from '../../ui';
   import KotboMark from '../KotboMark.svelte';
   import Papicon from '../../Papicon.svelte';
+  import SearchableSelect from '../../SearchableSelect.svelte';
   import ToggleCard from '../ToggleCard.svelte';
+  import TrackInfo from '../TrackInfo.svelte';
   import WizardShell from '../WizardShell.svelte';
 
   const selectedGuild = $derived(
@@ -88,6 +90,11 @@
 
   let language = $state<'fr' | 'en'>('fr');
   let timezone = $state('Europe/Paris');
+  /** La zone en vigueur figure toujours dans la liste, meme hors des courantes. */
+  const timezones = $derived([
+    ...COMMON_TIMEZONES.map((zone) => ({ id: zone.value, name: zone.label })),
+    ...(COMMON_TIMEZONES.some((zone) => zone.value === timezone) ? [] : [{ id: timezone, name: timezone }]),
+  ]);
   /** Ce qui etait en vigueur : rien n'est reecrit si rien ne bouge. */
   let saved = { language: null as 'fr' | 'en' | null, timezone: null as string | null };
   let clientId = $state('');
@@ -236,14 +243,15 @@
         />
       </ListRow>
       <ListRow stacked icon="clock" label={m.us_timezone()}>
-        <select aria-label={m.us_timezone()} bind:value={timezone} class="input w-full text-sm">
-          {#each COMMON_TIMEZONES as zone (zone.value)}
-            <option value={zone.value}>{zone.label}</option>
-          {/each}
-          {#if !COMMON_TIMEZONES.some((zone) => zone.value === timezone)}
-            <option value={timezone}>{timezone}</option>
-          {/if}
-        </select>
+        <label for="onboarding-timezone" class="sr-only">{m.us_timezone()}</label>
+        <SearchableSelect
+          id="onboarding-timezone"
+          value={timezone}
+          options={timezones}
+          clearable={false}
+          showId={false}
+          onchange={(next) => { if (next) timezone = next; }}
+        />
       </ListRow>
     </ListGroup>
   </div>
@@ -255,7 +263,9 @@
     <div class="mt-6">
       <ListGroup title={m.onb_start_express_title()} footer={m.onb_start_express_footer()}>
         {#each TRACKS.filter((track) => ['structure', 'moderation', 'greeting'].includes(track.key)) as track (track.key)}
-          <ListRow icon={track.icon} label={track.label()} description={track.outcome()} />
+          <ListRow icon={track.icon} label={track.label()} description={track.outcome()}>
+            <TrackInfo {track} />
+          </ListRow>
         {/each}
       </ListGroup>
     </div>
@@ -273,15 +283,22 @@
         <div class="grid gap-2.5 sm:grid-cols-2">
           {#each tracks as track (track.key)}
             {@const count = screensOf(track.key)}
-            <ToggleCard
-              label={track.label()}
-              pitch={track.pitch()}
-              detail={track.outcome()}
-              icon={track.icon}
-              meta={m.onb_tracks_screens({ count })}
-              selected={selection.includes(track.key)}
-              onclick={() => toggle(track.key)}
-            />
+            <div class="relative grid">
+              <ToggleCard
+                label={track.label()}
+                pitch={track.pitch()}
+                detail={track.outcome()}
+                icon={track.icon}
+                meta={m.onb_tracks_screens({ count })}
+                selected={selection.includes(track.key)}
+                onclick={() => toggle(track.key)}
+              >
+                <!-- La ligne que le « i » occupe, pour qu'il ne couvre pas le texte. -->
+                <span class="block h-5" aria-hidden="true"></span>
+              </ToggleCard>
+              <!-- Frere de la carte et non enfant : un bouton n'en contient pas un autre. -->
+              <TrackInfo {track} class="absolute bottom-2.5 right-2.5" />
+            </div>
           {/each}
         </div>
       </section>

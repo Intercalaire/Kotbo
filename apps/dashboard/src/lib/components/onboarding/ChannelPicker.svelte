@@ -20,6 +20,7 @@
   import { onboardingData } from '../../stores/onboardingData.svelte';
   import { createOnboardingChannel, type OnboardingChannelPurpose } from '../../api';
   import Papicon from '../Papicon.svelte';
+  import SearchableSelect from '../SearchableSelect.svelte';
 
   import { errorMessage } from '@kotbo/shared';
   const {
@@ -44,7 +45,8 @@
     noneLabel?: string;
     createLabel: string;
     suggested?: boolean;
-    onpick: (channelId: string | null) => void;
+    /** Chaine vide quand la croix ecarte le salon : `null` ramenerait la suggestion. */
+    onpick: (channelId: string) => void;
   } = $props();
 
   const channels = $derived(onboardingData.channels);
@@ -76,19 +78,14 @@
 <div>
   <label for={id} class="block text-body-sm font-semibold text-on-surface mb-1.5">{label}</label>
 
-  <select
+  <SearchableSelect
     {id}
     {value}
-    onchange={(event) => onpick(event.currentTarget.value || null)}
-    class="input"
-  >
-    {#if noneLabel}
-      <option value="">{noneLabel}</option>
-    {/if}
-    {#each channels as channel (channel.id)}
-      <option value={channel.id}>#{channel.name}</option>
-    {/each}
-  </select>
+    options={channels.map((channel) => ({ id: channel.id, name: `#${channel.name}` }))}
+    placeholder={noneLabel ?? m.onb_pick_none_channel()}
+    showId={false}
+    onchange={(next) => onpick(next ?? '')}
+  />
 
   {#if hint}
     <p class="mt-1.5 text-xs text-on-surface-variant leading-relaxed">{hint}</p>
