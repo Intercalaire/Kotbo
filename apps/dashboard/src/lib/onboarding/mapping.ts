@@ -39,6 +39,8 @@ export type MappingDecision = {
   mode: MappingMode;
   /** Renseigne pour `adopt` seulement. */
   id: string | null;
+  /** Pose par la detection, que personne n'a tranche : se recalcule a chaque lecture. */
+  auto?: boolean;
 };
 
 export type MappingState = Record<string, MappingDecision>;
@@ -205,13 +207,17 @@ export function defaultMapping(
       && !(item.kind === 'role'
         ? inventory.roles.some((role) => role.id === kept.id)
         : inventory.channels.some((channel) => channel.id === kept.id && channel.kind === item.kind));
-    if (kept && !stale) {
+    // Une proposition automatique suit la detection : la maquette change de noms
+    // avec la langue du serveur, et un « creer » fige doublerait le salon.
+    if (kept && !kept.auto && !stale) {
       next[item.key] = kept;
       continue;
     }
 
     const match = matches[item.key];
-    next[item.key] = match ? { mode: 'adopt', id: match.id } : { mode: 'create', id: null };
+    next[item.key] = match
+      ? { mode: 'adopt', id: match.id, auto: true }
+      : { mode: 'create', id: null, auto: true };
   }
 
   return next;
