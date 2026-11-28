@@ -32,6 +32,7 @@
     stepsOfTrack,
     celebrateStep,
     type ServerKind,
+    type Track,
     type TrackKey,
   } from '../../../onboarding';
   import {
@@ -49,7 +50,8 @@
   import Papicon from '../../Papicon.svelte';
   import SearchableSelect from '../../SearchableSelect.svelte';
   import ToggleCard from '../ToggleCard.svelte';
-  import TrackInfo from '../TrackInfo.svelte';
+  import InfoTip from '../InfoTip.svelte';
+  import { TRACK_SAMPLES } from '../../../onboarding/trackSamples';
   import WizardShell from '../WizardShell.svelte';
 
   const selectedGuild = $derived(
@@ -181,6 +183,19 @@
   }
 </script>
 
+{#snippet info(track: Track, className = '')}
+  {@const sample = TRACK_SAMPLES[track.key]()}
+  <InfoTip
+    id="track-info-{track.key}"
+    icon={track.icon}
+    label={track.label()}
+    description={track.outcome()}
+    channel={sample.channel}
+    embed={sample}
+    class={className}
+  />
+{/snippet}
+
 <WizardShell>
   <div class="flex flex-col items-center text-center">
     <KotboMark size={60} halo />
@@ -264,7 +279,7 @@
       <ListGroup title={m.onb_start_express_title()} footer={m.onb_start_express_footer()}>
         {#each TRACKS.filter((track) => ['structure', 'moderation', 'greeting'].includes(track.key)) as track (track.key)}
           <ListRow icon={track.icon} label={track.label()} description={track.outcome()}>
-            <TrackInfo {track} />
+            {@render info(track)}
           </ListRow>
         {/each}
       </ListGroup>
@@ -297,7 +312,7 @@
                 <span class="block h-5" aria-hidden="true"></span>
               </ToggleCard>
               <!-- Frere de la carte et non enfant : un bouton n'en contient pas un autre. -->
-              <TrackInfo {track} class="absolute bottom-2.5 right-2.5" />
+              {@render info(track, 'absolute bottom-2.5 right-2.5')}
             </div>
           {/each}
         </div>
