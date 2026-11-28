@@ -29,6 +29,7 @@
    * s'efface d'elle-meme quand tous ses salons ont ete ecartes.
    */
   import { wizard } from '../../../stores/onboardingWizard.svelte';
+  import { bot } from '../../../stores/botLocale.svelte';
   import { onboardingData } from '../../../stores/onboardingData.svelte';
   import {
     dormantModules,
@@ -42,6 +43,8 @@
   import Papicon from '../../Papicon.svelte';
   import SearchableSelect from '../../SearchableSelect.svelte';
   import WizardShell from '../WizardShell.svelte';
+  import InfoTip from '../InfoTip.svelte';
+  import { LINE_INFO } from '../../../onboarding/lineInfo';
 
   const { onEditTracks, skip }: { onEditTracks: () => void; skip?: () => void } = $props();
 
@@ -300,16 +303,30 @@
         >
           <div class="flex items-start justify-between gap-4">
             <div class="min-w-0 pt-1.5">
-              <p class="flex items-center gap-1.5 text-body-sm font-medium text-on-surface truncate">
-                <Papicon
-                  icon={line.kind === 'role' ? 'shield' : line.kind === 'voice' ? 'mic' : 'message-circle'}
-                  size={12}
-                  class="shrink-0 text-on-surface-variant/45"
-                />
-                <span class="truncate {decision.mode === 'skip' ? 'text-on-surface-variant/45 line-through' : ''}">
-                  {line.name}
-                </span>
-              </p>
+              <div class="flex items-center gap-1">
+                <p class="flex items-center gap-1.5 text-body-sm font-medium text-on-surface truncate">
+                  <Papicon
+                    icon={line.kind === 'role' ? 'shield' : line.kind === 'voice' ? 'mic' : 'message-circle'}
+                    size={12}
+                    class="shrink-0 text-on-surface-variant/45"
+                  />
+                  <span class="truncate {decision.mode === 'skip' ? 'text-on-surface-variant/45 line-through' : ''}">
+                    {line.name}
+                  </span>
+                </p>
+                {#if LINE_INFO[line.key]}
+                  {@const info = LINE_INFO[line.key]()}
+                  <InfoTip
+                    id="line-info-{line.key}"
+                    icon={line.kind === 'role' ? 'shield' : line.kind === 'voice' ? 'mic' : 'message-circle'}
+                    label={line.name}
+                    description={info.description}
+                    channel={line.kind === 'text' ? line.name : m.bot_ch_general({}, bot())}
+                    content={info.sample}
+                    class="-my-1"
+                  />
+                {/if}
+              </div>
               {#if locked}
                 <p class="mt-1 text-2xs text-primary/70">{m.obx_mp_locked_line()}</p>
               {:else if isSuggested(line.key)}

@@ -1,38 +1,38 @@
 <script lang="ts">
   /**
-   * Le « i » d'une piste : ce qu'est le module, et ce qu'on verra sur Discord.
+   * Un « i » : ce qu'est la chose, et ce qu'on en verra sur Discord.
    *
-   * Une infobulle plutot qu'une ligne de plus sur la carte : onze apercus
-   * deplies noieraient le choix. `popover="auto"` la pose au premier plan et la
-   * referme sur Echap ou un clic ailleurs ; survol et focus clavier l'ouvrent.
+   * Une infobulle plutot qu'une ligne de plus : les apercus deplies noieraient
+   * le choix. `popover="auto"` la pose au premier plan et la referme sur Echap
+   * ou un clic ailleurs ; survol et focus clavier l'ouvrent.
    */
   import { tick } from 'svelte';
   import { m } from '../../i18n';
-  import type { Track, TrackKey } from '../../onboarding';
   import DiscordPreview from './DiscordPreview.svelte';
   import DiscordEmbed from './DiscordEmbed.svelte';
   import Papicon from '../Papicon.svelte';
 
-  const { track, class: className = '' }: { track: Track; class?: string } = $props();
-
-  type Sample = { channel: string; title: string; body: string; button?: string };
-
-  const SAMPLES: Record<TrackKey, () => Sample> = {
-    structure: () => ({ channel: m.onb_info_structure_channel(), title: m.onb_info_structure_title(), body: m.onb_info_structure_body() }),
-    moderation: () => ({ channel: m.onb_info_moderation_channel(), title: m.onb_info_moderation_title(), body: m.onb_info_moderation_body() }),
-    logs: () => ({ channel: m.onb_info_logs_channel(), title: m.onb_info_logs_title(), body: m.onb_info_logs_body() }),
-    greeting: () => ({ channel: m.onb_info_greeting_channel(), title: m.onb_info_greeting_title(), body: m.onb_info_greeting_body() }),
-    rules: () => ({ channel: m.onb_info_rules_channel(), title: m.onb_info_rules_title(), body: m.onb_info_rules_body() }),
-    tickets: () => ({ channel: m.onb_info_tickets_channel(), title: m.onb_info_tickets_title(), body: m.onb_info_tickets_body(), button: m.onb_info_tickets_button() }),
-    levels: () => ({ channel: m.onb_info_levels_channel(), title: m.onb_info_levels_title(), body: m.onb_info_levels_body() }),
-    economy: () => ({ channel: m.onb_info_economy_channel(), title: m.onb_info_economy_title(), body: m.onb_info_economy_body() }),
-    animation: () => ({ channel: m.onb_info_animation_channel(), title: m.onb_info_animation_title(), body: m.onb_info_animation_body(), button: m.onb_info_animation_button() }),
-    staff: () => ({ channel: m.onb_info_staff_channel(), title: m.onb_info_staff_title(), body: m.onb_info_staff_body() }),
-    mcp: () => ({ channel: m.onb_info_mcp_channel(), title: m.onb_info_mcp_title(), body: m.onb_info_mcp_body() }),
-  };
-
-  const id = $derived(`track-info-${track.key}`);
-  const sample = $derived(SAMPLES[track.key]());
+  const {
+    id,
+    icon,
+    label,
+    description,
+    channel,
+    content,
+    embed,
+    class: className = '',
+  }: {
+    id: string;
+    icon: string;
+    label: string;
+    description: string;
+    /** Salon montre en tete de l'apercu. */
+    channel: string;
+    /** Message simple, en Markdown Discord. */
+    content?: string;
+    embed?: { title: string; body: string; button?: string };
+    class?: string;
+  } = $props();
 
   let trigger: HTMLButtonElement;
   let panel: HTMLDivElement;
@@ -53,7 +53,8 @@
 
   async function show() {
     clearTimeout(closing);
-    if (open) return;
+    // L'etat reel : `toggle` arrive apres coup, un clic juste apres le survol le raterait.
+    if (panel.matches(':popover-open')) return;
     open = true;
     panel.showPopover();
     await tick();
@@ -85,7 +86,7 @@
 <button
   bind:this={trigger}
   type="button"
-  aria-label={m.onb_info_aria({ name: track.label() })}
+  aria-label={m.onb_info_aria({ name: label })}
   aria-expanded={open}
   aria-controls={id}
   onclick={show}
@@ -105,24 +106,26 @@
   {id}
   popover="auto"
   role="tooltip"
-  ontoggle={(event) => { open = (event as ToggleEvent).newState === 'open'; }}
+  ontoggle={() => { open = panel.matches(':popover-open'); }}
   onpointerenter={() => clearTimeout(closing)}
   onpointerleave={(event) => { if (event.pointerType === 'mouse') hideSoon(); }}
   class="track-info rounded-2xl border border-outline-variant bg-surface-container-high p-4 text-left text-on-surface shadow-xl"
 >
   {#if open}
     <p class="flex items-center gap-2 text-body-sm font-semibold">
-      <Papicon icon={track.icon} size={15} class="text-primary" />
-      {track.label()}
+      <Papicon {icon} size={15} class="text-primary" />
+      {label}
     </p>
-    <p class="mt-1.5 mb-3 text-xs text-on-surface-variant leading-relaxed">{track.outcome()}</p>
-    <DiscordPreview channel={sample.channel}>
-      <DiscordEmbed
-        color="#5865f2"
-        title={sample.title}
-        description={sample.body}
-        buttons={sample.button ? [{ label: sample.button }] : []}
-      />
+    <p class="mt-1.5 mb-3 text-xs text-on-surface-variant leading-relaxed">{description}</p>
+    <DiscordPreview {channel} {content}>
+      {#if embed}
+        <DiscordEmbed
+          color="#5865f2"
+          title={embed.title}
+          description={embed.body}
+          buttons={embed.button ? [{ label: embed.button }] : []}
+        />
+      {/if}
     </DiscordPreview>
   {/if}
 </div>
