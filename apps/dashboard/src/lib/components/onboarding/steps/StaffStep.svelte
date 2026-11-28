@@ -149,7 +149,7 @@
         baseStaffRoleId: selection[0] ?? null,
         sanctionAlertChannelId: alertChannelId || null,
       });
-      wizard.answer({ staffRoleIds: selection, staffAlertChannelId: alertChannelId || null });
+      wizard.answer({ staffRoleIds: selection, staffAlertChannelId: alertChannelId });
       celebrateStep();
       wizard.complete('staff');
     } catch (err) {
